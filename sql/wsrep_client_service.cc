@@ -32,6 +32,7 @@
 #include "log.h"      /* stmt_has_updated_trans_table() */
 //#include "debug_sync.h"
 #include "mysql/service_debug_sync.h"
+#include "mysql/psi/mysql_thread.h" /* mysql_mutex_assert_owner() */
 namespace
 {
 
@@ -68,24 +69,24 @@ void Wsrep_client_service::reset_globals()
   DBUG_VOID_RETURN;
 }
 
-bool Wsrep_client_service::interrupted() const
+bool Wsrep_client_service::interrupted(
+  wsrep::unique_lock<wsrep::mutex>& lock WSREP_UNUSED) const
 {
   DBUG_ASSERT(m_thd == current_thd);
-  mysql_mutex_lock(&m_thd->LOCK_thd_data);
-
-  /* wsrep state can be interrupted only if THD was explicitly killed,
-     for wsrep conflicts, we use deadlock error only
-   */
-  bool ret= (m_thd->killed != NOT_KILLED                                    &&
-             m_thd->wsrep_trx().state() != wsrep::transaction::s_must_abort &&
-             m_thd->wsrep_trx().state() != wsrep::transaction::s_aborting   &&
-             m_thd->wsrep_trx().state() != wsrep::transaction::s_aborted);
-  mysql_mutex_unlock(&m_thd->LOCK_thd_data);
+  /* Underlying mutex in lock object points to LOCK_thd_data, which
+     protects m_thd->wsrep_trx(), LOCK_thd_kill protects m_thd->killed.
+     Locking order is:
+     1) LOCK_thd_data
+     2) LOCK_thd_kill */
+  mysql_mutex_assert_owner(static_cast<mysql_mutex_t*>(lock.mutex().native()));
+  mysql_mutex_lock(&m_thd->LOCK_thd_kill);
+  bool ret= (m_thd->killed != NOT_KILLED);
   if (ret)
   {
-      WSREP_DEBUG("wsrep state is interrupted, THD::killed %d trx state %d",
-                  m_thd->killed,  m_thd->wsrep_trx().state());
+    WSREP_DEBUG("wsrep state is interrupted, THD::killed %d trx state %d",
+                m_thd->killed,  m_thd->wsrep_trx().state());
   }
+  mysql_mutex_unlock(&m_thd->LOCK_thd_kill);
   return ret;
 }
 
