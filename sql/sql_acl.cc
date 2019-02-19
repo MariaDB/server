@@ -2557,6 +2557,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   init_check_host();
 
+  thd->bootstrap= !initialized; // keep FLUSH PRIVILEGES connection special
   initialized=1;
   DBUG_RETURN(FALSE);
 }
@@ -8908,6 +8909,11 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   uint head_length;
   DBUG_ENTER("mysql_show_create_user");
 
+  if (!initialized)
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+    DBUG_RETURN(TRUE);
+  }
   if (check_show_access(thd, lex_user, &username, &hostname, NULL))
     DBUG_RETURN(TRUE);
 

@@ -15,26 +15,6 @@ use test;
 #   - BUG#13504: creation view with DEFINER clause if --skip-grant-tables
 #
 
-# Prepare.
-
---disable_warnings
-
-DROP VIEW IF EXISTS v1;
-DROP VIEW IF EXISTS v2;
-DROP VIEW IF EXISTS v3;
-
-DROP TABLE IF EXISTS t1;
-
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
-DROP PROCEDURE IF EXISTS p3;
-
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP FUNCTION IF EXISTS f3;
-
---enable_warnings
-
 # Test case.
 
 CREATE TABLE t1(c INT);
@@ -137,3 +117,26 @@ select no_such_function(1);
 # MDEV-8280 crash in 'show global status' with --skip-grant-tables
 #
 show global status like 'Acl%';
+
+#
+# MDEV-18297
+# How to reset a forgotten root password
+#
+--error ER_OPTION_PREVENTS_STATEMENT
+show create user root@localhost;
+insert mysql.global_priv values ('foo', 'bar', '{}');
+insert mysql.global_priv values ('baz', 'baz', '{"plugin":"baz"}');
+--error ER_OPTION_PREVENTS_STATEMENT
+set password for bar@foo = password("pass word");
+flush privileges;
+show create user root@localhost;
+show create user bar@foo;
+show create user baz@baz;
+set password for bar@foo = password("pass word");
+show create user bar@foo;
+alter user baz@baz identified with mysql_native_password as password("baz");
+show create user baz@baz;
+drop user bar@foo;
+drop user baz@baz;
+# need to restart the server to restore the --skip-grant state
+--source include/restart_mysqld.inc
