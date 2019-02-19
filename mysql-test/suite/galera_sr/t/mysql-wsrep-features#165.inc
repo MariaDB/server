@@ -53,6 +53,10 @@ SELECT * FROM t1;
 --connection node_1a
 --send UPDATE t1 SET f2 = 'a' WHERE f1 = 2
 
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER != 'system user' AND STATE = 'Updating';
+--source include/wait_condition.inc
+
 # Will deadlock
 --connection node_1b
 SET DEBUG_SYNC = 'wsrep_before_SR_rollback SIGNAL wait WAIT_FOR continue';
@@ -101,4 +105,5 @@ SELECT * FROM t1;
 SELECT * FROM t1;
 
 --connection node_1
+SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;

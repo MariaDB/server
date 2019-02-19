@@ -7084,6 +7084,12 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 	if (victim_trx != NULL) {
 
 		print("*** WE ROLL BACK TRANSACTION (2)\n");
+#ifdef WITH_WSREP
+		if (wsrep_on(trx->mysql_thd)) {
+			wsrep_handle_SR_rollback(trx->mysql_thd,
+						 victim_trx->mysql_thd);
+		}
+#endif
 
 		lock_deadlock_found = true;
 	}
