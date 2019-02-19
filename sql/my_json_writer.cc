@@ -219,15 +219,15 @@ void Json_writer::add_str(const String &str)
   add_str(str.ptr(), str.length());
 }
 
-Json_writer_object::Json_writer_object(THD *thd) : 
+Json_writer_object::Json_writer_object(THD *thd) :
   Json_writer_struct(thd)
 {
   if (my_writer)
     my_writer->start_object();
 }
 
-Json_writer_object::Json_writer_object(THD* thd, const char *str)
- : Json_writer_struct(thd)
+Json_writer_object::Json_writer_object(THD* thd, const char *str) :
+  Json_writer_struct(thd)
 {
   if (my_writer)
     my_writer->add_member(str).start_object();
@@ -247,8 +247,8 @@ Json_writer_array::Json_writer_array(THD *thd) :
     my_writer->start_array();
 }
 
-Json_writer_array::Json_writer_array(THD *thd, const char *str)
-                                       :Json_writer_struct(thd)
+Json_writer_array::Json_writer_array(THD *thd, const char *str) :
+  Json_writer_struct(thd)
 {
   if (my_writer)
     my_writer->add_member(str).start_array();
@@ -261,6 +261,16 @@ Json_writer_array::~Json_writer_array()
     my_writer->end_array();
     closed= TRUE;
   }
+}
+
+Json_writer_temp_disable::Json_writer_temp_disable(THD *thd_arg)
+{
+  thd= thd_arg;
+  thd->opt_trace.disable_tracing_if_required();
+}
+Json_writer_temp_disable::~Json_writer_temp_disable()
+{
+  thd->opt_trace.enable_tracing_if_required();
 }
 
 bool Single_line_formatting_helper::on_add_member(const char *name)

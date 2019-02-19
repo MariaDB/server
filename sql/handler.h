@@ -751,14 +751,6 @@ typedef ulonglong alter_table_operations;
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
 
-/**
-  Change the column length or type such that no rebuild is needed.
-  Only set if ALTER_COLUMN_EQUAL_PACK_LENGTH does not apply, and
-  if HA_EXTENDED_TYPES_CONVERSION holds.
-  @see IS_EQUAL_PACK_LENGTH_EXT
-*/
-#define ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT   (1ULL << 61)
-
 /*
   Flags set in partition_flags when altering partitions
 */

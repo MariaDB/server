@@ -55,7 +55,7 @@ select * from db1.t1	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select `db1`.`t1`.`a` AS `a` from `t1`"
+            "expanded_query": "select db1.t1.a AS a from t1"
           }
         ]
       }
@@ -84,11 +84,6 @@ select * from db1.t1	{
                 }
               }
             ]
-          },
-          {
-            "execution_plan_for_potential_materialization": {
-              "steps": []
-            }
           },
           {
             "considered_execution_plans": [
@@ -157,7 +152,7 @@ select * from db1.v1	{
             "view": {
               "table": "v1",
               "select_id": 2,
-              "merged": true
+              "algorithm": "merged"
             }
           },
           {
@@ -165,13 +160,13 @@ select * from db1.v1	{
               "select_id": 2,
               "steps": [
                 {
-                  "expanded_query": "/* select#2 */ select `db1`.`t1`.`a` AS `a` from `t1`"
+                  "expanded_query": "/* select#2 */ select db1.t1.a AS a from t1"
                 }
               ]
             }
           },
           {
-            "expanded_query": "/* select#1 */ select `db1`.`t1`.`a` AS `a` from `v1`"
+            "expanded_query": "/* select#1 */ select db1.t1.a AS a from v1"
           }
         ]
       }
@@ -200,11 +195,6 @@ select * from db1.v1	{
                 }
               }
             ]
-          },
-          {
-            "execution_plan_for_potential_materialization": {
-              "steps": []
-            }
           },
           {
             "considered_execution_plans": [

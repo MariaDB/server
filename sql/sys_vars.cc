@@ -474,7 +474,7 @@ bool check_has_super(sys_var *self, THD *thd, set_var *var)
 
 static Sys_var_bit Sys_core_file("core_file", "write a core-file on crashes",
           READ_ONLY GLOBAL_VAR(test_flags), NO_CMD_LINE,
-          TEST_CORE_ON_SIGNAL, DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)), NO_MUTEX_GUARD, NOT_IN_BINLOG,
           0,0,0);
 
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
@@ -5937,7 +5937,7 @@ static Sys_var_ulong Sys_histogram_size(
        "Number of bytes used for a histogram. "
        "If set to 0, no histograms are created by ANALYZE.",
        SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 255), DEFAULT(254), BLOCK_SIZE(1));
 
 extern const char *histogram_types[];
 static Sys_var_enum Sys_histogram_type(
@@ -5947,7 +5947,7 @@ static Sys_var_enum Sys_histogram_type(
        "SINGLE_PREC_HB - single precision height-balanced, "
        "DOUBLE_PREC_HB - double precision height-balanced.",
        SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
-       histogram_types, DEFAULT(0));
+       histogram_types, DEFAULT(1));
 
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",

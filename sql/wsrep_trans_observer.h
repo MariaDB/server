@@ -83,6 +83,14 @@ static inline bool wsrep_streaming_enabled(THD* thd)
   return (thd->wsrep_sr().fragment_size() > 0);
 }
 
+/*
+  Return number of fragments succesfully certified for the
+  current statement.
+ */
+static inline size_t wsrep_fragments_certified_for_stmt(THD* thd)
+{
+    return thd->wsrep_trx().fragments_certified_for_statement();
+}
 
 static inline int wsrep_start_transaction(THD* thd, wsrep_trx_id_t trx_id)
 {

@@ -1325,7 +1325,7 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
@@ -1381,7 +1381,7 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
@@ -1439,7 +1439,7 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
@@ -1506,7 +1506,7 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)

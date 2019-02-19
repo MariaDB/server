@@ -24,7 +24,7 @@
 #include "my_json_writer.h"
 #include "sp_head.h"
 
-const char I_S_table_name[] = "OPTIMIZER_TRACE";
+const char I_S_table_name[]= "OPTIMIZER_TRACE";
 
 /**
    Whether a list of tables contains information_schema.OPTIMIZER_TRACE.
@@ -38,7 +38,7 @@ const char I_S_table_name[] = "OPTIMIZER_TRACE";
 */
 bool list_has_optimizer_trace_table(const TABLE_LIST *tbl)
 {
-  for (; tbl; tbl = tbl->next_global)
+  for (; tbl; tbl= tbl->next_global)
   {
     if (tbl->schema_table &&
         0 == strcmp(tbl->schema_table->table_name, I_S_table_name))
@@ -59,14 +59,15 @@ bool sets_var_optimizer_trace(enum enum_sql_command sql_command,
   {
     List_iterator_fast<set_var_base> it(*set_vars);
     const set_var_base *var;
-    while ((var = it++))
+    while ((var= it++))
       if (var->is_var_optimizer_trace()) return true;
   }
   return false;
 }
 
 
-ST_FIELD_INFO optimizer_trace_info[] = {
+ST_FIELD_INFO optimizer_trace_info[]=
+{
     /* name, length, type, value, maybe_null, old_name, open_method */
     {"QUERY", 65535, MYSQL_TYPE_STRING, 0, false, NULL, SKIP_OPEN_TABLE},
     {"TRACE", 65535, MYSQL_TYPE_STRING, 0, false, NULL, SKIP_OPEN_TABLE},
@@ -74,12 +75,13 @@ ST_FIELD_INFO optimizer_trace_info[] = {
      SKIP_OPEN_TABLE},
     {"INSUFFICIENT_PRIVILEGES", 1, MYSQL_TYPE_TINY, 0, false, NULL,
      SKIP_OPEN_TABLE},
-    {NULL, 0, MYSQL_TYPE_STRING, 0, true, NULL, 0}};
+    {NULL, 0, MYSQL_TYPE_STRING, 0, true, NULL, 0}
+};
 
 /*
   TODO: one-line needs to be implemented seperately
 */
-const char *Opt_trace_context::flag_names[] = {"enabled", "default",
+const char *Opt_trace_context::flag_names[]= {"enabled", "default",
                                                NullS};
 
 /*
@@ -105,15 +107,15 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
 {
   if (!thd->trace_started())
     return;
-  char buff[1024];
-  String str(buff, sizeof(buff), system_charset_info);
-  str.length(0);
+  StringBuffer<1024> str(system_charset_info);
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
   select_lex->print(thd, &str,
                     enum_query_type(QT_TO_SYSTEM_CHARSET |
                                     QT_SHOW_SELECT_NUMBER |
                                     QT_ITEM_IDENT_SKIP_DB_NAMES |
-                                    QT_VIEW_INTERNAL
-                                    ));
+                                    QT_VIEW_INTERNAL));
+  thd->variables.option_bits= save_option_bits;
   /*
     The output is not very pretty lots of back-ticks, the output
     is as the one in explain extended , lets try to improved it here.
@@ -141,7 +143,7 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
     */
     return;
   }
-  Opt_trace_context *const trace = &thd->opt_trace;
+  Opt_trace_context *const trace= &thd->opt_trace;
   if (!thd->trace_started())
   {
     /*
@@ -187,7 +189,6 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
                           thd->main_security_ctx.priv_host,
                           thd->security_context()->priv_host)))
     trace->missing_privilege();
-  return;
 }
 
 void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
@@ -197,17 +198,16 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
       thd->system_thread)
     return;
 
-  Opt_trace_context *const trace = &thd->opt_trace;
+  Opt_trace_context *const trace= &thd->opt_trace;
   if (!thd->trace_started())
     return;
   bool full_access;
-  Security_context *const backup_thd_sctx = thd->security_context();
+  Security_context *const backup_thd_sctx= thd->security_context();
   thd->set_security_context(&thd->main_security_ctx);
-  const bool rc = check_show_routine_access(thd, sp, &full_access) || !full_access;
+  const bool rc= check_show_routine_access(thd, sp, &full_access) || !full_access;
   thd->set_security_context(backup_thd_sctx);
   if (rc)
     trace->missing_privilege();
-  return;
 }
 
 /**
@@ -231,16 +231,16 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
   if (likely(!(thd->variables.optimizer_trace &
               Opt_trace_context::FLAG_ENABLED)) || thd->system_thread)
     return;
-  Opt_trace_context *const trace = &thd->opt_trace;
+  Opt_trace_context *const trace= &thd->opt_trace;
 
   if (!thd->trace_started())
     return;
 
-  Security_context *const backup_thd_sctx = thd->security_context();
+  Security_context *const backup_thd_sctx= thd->security_context();
   thd->set_security_context(&thd->main_security_ctx);
-  const TABLE_LIST *const first_not_own_table = thd->lex->first_not_own_table();
-  for (TABLE_LIST *t = tbl; t != NULL && t != first_not_own_table;
-       t = t->next_global)
+  const TABLE_LIST *const first_not_own_table= thd->lex->first_not_own_table();
+  for (TABLE_LIST *t= tbl; t != NULL && t != first_not_own_table;
+       t= t->next_global)
   {
     /*
       Anonymous derived tables (as in
@@ -248,9 +248,9 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
     */
     if (!t->is_anonymous_derived_table())
     {
-      const GRANT_INFO backup_grant_info = t->grant;
-      Security_context *const backup_table_sctx = t->security_ctx;
-      t->security_ctx = NULL;
+      const GRANT_INFO backup_grant_info= t->grant;
+      Security_context *const backup_table_sctx= t->security_ctx;
+      t->security_ctx= NULL;
       /*
         (1) check_table_access() fills t->grant.privilege.
         (2) Because SELECT privileges can be column-based,
@@ -271,8 +271,8 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
         */
         rc |= check_table_access(thd, SHOW_VIEW_ACL, t, false, 1, true);
       }
-      t->security_ctx = backup_table_sctx;
-      t->grant = backup_grant_info;
+      t->security_ctx= backup_table_sctx;
+      t->grant= backup_grant_info;
       if (rc)
       {
         trace->missing_privilege();
@@ -292,22 +292,22 @@ void opt_trace_disable_if_no_view_access(THD *thd, TABLE_LIST *view,
                Opt_trace_context::FLAG_ENABLED)) ||
       thd->system_thread)
     return;
-  Opt_trace_context *const trace = &thd->opt_trace;
+  Opt_trace_context *const trace= &thd->opt_trace;
   if (!thd->trace_started())
     return;
 
-  Security_context *const backup_table_sctx = view->security_ctx;
-  Security_context *const backup_thd_sctx = thd->security_context();
-  const GRANT_INFO backup_grant_info = view->grant;
+  Security_context *const backup_table_sctx= view->security_ctx;
+  Security_context *const backup_thd_sctx= thd->security_context();
+  const GRANT_INFO backup_grant_info= view->grant;
 
-  view->security_ctx = NULL;  // no SUID context for view
+  view->security_ctx= NULL;  // no SUID context for view
   // no SUID context for THD
   thd->set_security_context(&thd->main_security_ctx);
-  const int rc = check_table_access(thd, SHOW_VIEW_ACL, view, false, 1, true);
+  const int rc= check_table_access(thd, SHOW_VIEW_ACL, view, false, 1, true);
 
-  view->security_ctx = backup_table_sctx;
+  view->security_ctx= backup_table_sctx;
   thd->set_security_context(backup_thd_sctx);
-  view->grant = backup_grant_info;
+  view->grant= backup_grant_info;
 
   if (rc)
   {
@@ -347,16 +347,13 @@ class Opt_trace_stmt {
   ~Opt_trace_stmt()
   {
     delete current_json;
-    missing_priv= false;
-    ctx= NULL;
-    I_S_disabled= 0;
   }
   void set_query(const char *query_ptr, size_t length, const CHARSET_INFO *charset);
   void open_struct(const char *key, char opening_bracket);
   void close_struct(const char *saved_key, char closing_bracket);
   void fill_info(Opt_trace_info* info);
   void add(const char *key, char *opening_bracket, size_t val_length);
-  Json_writer* get_current_json(){return current_json;}
+  Json_writer* get_current_json() {return current_json;}
   void missing_privilege();
   void disable_tracing_for_children();
   void enable_tracing_for_children();
@@ -372,6 +369,12 @@ private:
   String query;  // store the query sent by the user
   Json_writer *current_json; // stores the trace
   bool missing_priv;  ///< whether user lacks privilege to see this trace
+  /*
+    0 <=> this trace should be in information_schema.
+  !=0 tracing is disabled, this currently happens when we want to trace a
+      sub-statement. For now traces are only collect for the top statement
+      not for the sub-statments.
+  */
   uint I_S_disabled;
 };
 
@@ -440,28 +443,11 @@ bool Opt_trace_context::is_enabled()
 Opt_trace_context::Opt_trace_context()
 {
   current_trace= NULL;
-  inited= FALSE;
-  traces= NULL;
   max_mem_size= 0;
 }
 Opt_trace_context::~Opt_trace_context()
 {
-  inited= FALSE;
-  /*
-    would be nice to move this to a function
-  */
-  if (traces)
-  {
-    while (traces->elements())
-    {
-      Opt_trace_stmt *prev= traces->at(0);
-      delete prev;
-      traces->del(0);
-    }
-    delete traces;
-    traces= NULL;
-  }
-  max_mem_size= 0;
+  delete_traces();
 }
 
 void Opt_trace_context::set_query(const char *query, size_t length, const CHARSET_INFO *charset)
@@ -487,26 +473,21 @@ void Opt_trace_context::start(THD *thd, TABLE_LIST *tbl,
   DBUG_ASSERT(!current_trace);
   current_trace= new Opt_trace_stmt(this);
   max_mem_size= max_mem_size_arg;
-  if (!inited)
-  {
-    traces= new Dynamic_array<Opt_trace_stmt*>();
-    inited= TRUE;
-  }
   set_allowed_mem_size(remaining_mem_size());
 }
 
 void Opt_trace_context::end()
 {
   if (current_trace)
-    traces->push(current_trace);
+    traces.push(current_trace);
 
-  if (!traces->elements())
+  if (!traces.elements())
     return;
-  if (traces->elements() > 1)
+  if (traces.elements() > 1)
   {
-    Opt_trace_stmt *prev= traces->at(0);
+    Opt_trace_stmt *prev= traces.at(0);
     delete prev;
-    traces->del(0);
+    traces.del(0);
   }
   current_trace= NULL;
 }
@@ -522,7 +503,7 @@ Opt_trace_start::Opt_trace_start(THD *thd, TABLE_LIST *tbl,
     if optimizer trace is enabled and the statment we have is traceable,
     then we start the context.
   */
-  const ulonglong var = thd->variables.optimizer_trace;
+  const ulonglong var= thd->variables.optimizer_trace;
   traceable= FALSE;
   if (unlikely(var & Opt_trace_context::FLAG_ENABLED) &&
       sql_command_can_be_traced(sql_command) &&
@@ -554,21 +535,21 @@ Opt_trace_start::~Opt_trace_start()
 
 void Opt_trace_stmt::fill_info(Opt_trace_info* info)
 {
-  if (unlikely(info->missing_priv = get_missing_priv()))
+  if (unlikely(info->missing_priv= get_missing_priv()))
   {
-    info->trace_ptr = info->query_ptr = "";
-    info->trace_length = info->query_length = 0;
-    info->query_charset = &my_charset_bin;
-    info->missing_bytes = 0;
+    info->trace_ptr= info->query_ptr= "";
+    info->trace_length= info->query_length= 0;
+    info->query_charset= &my_charset_bin;
+    info->missing_bytes= 0;
   }
   else
   {
-    info->trace_ptr = current_json->output.get_string()->ptr();
-    info->trace_length = get_length();
-    info->query_ptr = query.ptr();
-    info->query_length = query.length();
-    info->query_charset = query.charset();
-    info->missing_bytes = get_truncated_bytes();
+    info->trace_ptr= current_json->output.get_string()->ptr();
+    info->trace_length= get_length();
+    info->query_ptr= query.ptr();
+    info->query_length= query.length();
+    info->query_charset= query.charset();
+    info->missing_bytes= get_truncated_bytes();
     info->missing_priv= get_missing_priv();
   }
 }
@@ -659,9 +640,7 @@ void Json_writer::add_str(Item *item)
   if (item)
   {
     THD *thd= current_thd;
-    char buff[256];
-    String str(buff, sizeof(buff), system_charset_info);
-    str.length(0);
+    StringBuffer<256> str(system_charset_info);
 
     ulonglong save_option_bits= thd->variables.option_bits;
     thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
@@ -675,26 +654,23 @@ void Json_writer::add_str(Item *item)
     add_null();
 }
 
-void Opt_trace_context::flush_optimizer_trace()
+void Opt_trace_context::delete_traces()
 {
-  inited= false;
-  if (traces)
+  if (traces.elements())
   {
-    while (traces->elements())
+    while (traces.elements())
     {
-      Opt_trace_stmt *prev= traces->at(0);
+      Opt_trace_stmt *prev= traces.at(0);
       delete prev;
-      traces->del(0);
+      traces.del(0);
     }
-    delete traces;
-    traces= NULL;
   }
 }
 
 
 int fill_optimizer_trace_info(THD *thd, TABLE_LIST *tables, Item *)
 {
-  TABLE *table = tables->table;
+  TABLE *table= tables->table;
   Opt_trace_info info;
 
   /*  get_values of trace, query , missing bytes and missing_priv
@@ -703,7 +679,7 @@ int fill_optimizer_trace_info(THD *thd, TABLE_LIST *tables, Item *)
   */
   Opt_trace_context* ctx= &thd->opt_trace;
 
-  if (thd->opt_trace.empty())
+  if (!thd->opt_trace.empty())
   {
     Opt_trace_stmt *stmt= ctx->get_top_trace();
     stmt->fill_info(&info);

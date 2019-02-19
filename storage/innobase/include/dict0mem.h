@@ -682,52 +682,18 @@ public:
 		def_val.data = NULL;
 	}
 
-private:
-	/** Determine if the columns have the same character set
-	@param[in]	other	column to compare to
-	@return	whether the columns have the same character set */
-	bool same_charset(const dict_col_t& other) const;
-public:
 	/** Determine if the columns have the same format
 	except for is_nullable() and is_versioned().
 	@param[in]	other	column to compare to
-	@param[in]	redundant table is redundant row format
 	@return	whether the columns have the same format */
-	bool same_format(const dict_col_t& other, bool redundant = false) const
+	bool same_format(const dict_col_t& other) const
 	{
-		if (len < other.len
-		    || mbminlen != other.mbminlen
-		    || mbmaxlen != other.mbmaxlen) {
-			return false;
-		}
-
-		if (!((prtype ^ other.prtype)
-		      & ~(DATA_NOT_NULL | DATA_VERSIONED))) {
-			return mtype == other.mtype;
-		}
-
-		if (redundant) {
-			switch (other.mtype) {
-			case DATA_CHAR:
-			case DATA_MYSQL:
-			case DATA_VARCHAR:
-			case DATA_VARMYSQL:
-				return (mtype == DATA_CHAR
-					|| mtype == DATA_MYSQL
-					|| mtype == DATA_VARCHAR
-					|| mtype == DATA_VARMYSQL)
-					&& same_charset(other);
-			case DATA_FIXBINARY:
-			case DATA_BINARY:
-				return (mtype == DATA_FIXBINARY
-					|| mtype == DATA_BINARY)
-					&& same_charset(other);
-			case DATA_INT:
-				return mtype == DATA_INT;
-			}
-		}
-
-		return false;
+		return mtype == other.mtype
+			&& len >= other.len
+			&& mbminlen == other.mbminlen
+			&& mbmaxlen == other.mbmaxlen
+			&& !((prtype ^ other.prtype)
+			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
 	}
 };
 

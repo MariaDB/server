@@ -1412,7 +1412,7 @@ void THD::change_user(void)
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
   sp_cache_clear(&sp_package_body_cache);
-  opt_trace.flush_optimizer_trace();
+  opt_trace.delete_traces();
 }
 
 /**
@@ -5988,7 +5988,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlog by filtering rules.
   */
 #ifdef WITH_WSREP
-  if (WSREP_CLIENT_NNULL(this) && variables.wsrep_trx_fragment_size > 0)
+  if (WSREP_CLIENT_NNULL(this) && wsrep_thd_is_local(this) &&
+      variables.wsrep_trx_fragment_size > 0)
   {
     if (!is_current_stmt_binlog_format_row())
     {

@@ -1,23 +1,5 @@
 --- instant_alter_charset.result
 +++ instant_alter_charset,redundant.result
-@@ -143,7 +143,7 @@
- drop index ab,
- add unique key ab(a,c),
- algorithm=instant;
--ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
-+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
- drop table key_part_change;
- create table key_part_change_and_rename (
- a char(100) charset ascii,
-@@ -156,7 +156,7 @@
- drop index ab,
- add unique key ab(a,b),
- algorithm=instant;
--ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
-+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
- drop table key_part_change_and_rename;
- create table enum_and_set (
- a enum('one', 'two') charset utf8mb3,
 @@ -254,7 +254,6 @@
  alter table boundary_255
  modify b varchar(200) charset utf8mb3,

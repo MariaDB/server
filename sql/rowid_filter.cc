@@ -434,7 +434,7 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
                                                 double records,
                                                 double access_cost_factor)
 {
-  if (!this || range_rowid_filter_cost_info_elems == 0 ||
+  if (range_rowid_filter_cost_info_elems == 0 ||
       covering_keys.is_set(access_key_no))
     return 0;
 

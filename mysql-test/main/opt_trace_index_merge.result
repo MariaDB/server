@@ -24,7 +24,7 @@ explain select * from t1 where a=1 or b=1	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select `t1`.`a` AS `a`,`t1`.`b` AS `b`,`t1`.`c` AS `c`,`t1`.`filler` AS `filler` from `t1` where `t1`.`a` = 1 or `t1`.`b` = 1"
+            "expanded_query": "select t1.a AS a,t1.b AS b,t1.c AS c,t1.filler AS filler from t1 where t1.a = 1 or t1.b = 1"
           }
         ]
       }
@@ -194,14 +194,10 @@ explain select * from t1 where a=1 or b=1	{
               },
               {
                 "selectivity_for_indexes": [],
-                "selectivity_for_columns": []
+                "selectivity_for_columns": [],
+                "cond_selectivity": 0.002
               }
             ]
-          },
-          {
-            "execution_plan_for_potential_materialization": {
-              "steps": []
-            }
           },
           {
             "considered_execution_plans": [

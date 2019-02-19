@@ -7084,9 +7084,6 @@ uint Field_str::is_equal(Create_field *new_field)
     return new_field->charset == field_charset
       ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
 
-  if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
-    return IS_EQUAL_PACK_LENGTH_EXT;
-
   return IS_EQUAL_NO;
 }
 
@@ -7946,11 +7943,6 @@ uint Field_varstring::is_equal(Create_field *new_field)
         field_length > 255 ||
         (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
       return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
-  }
-  else if (new_type_handler == &type_handler_string) // converting to CHAR
-  {
-    if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
-      return IS_EQUAL_PACK_LENGTH_EXT;
   }
 
   return IS_EQUAL_NO;
@@ -9567,22 +9559,6 @@ uint Field_num::is_equal(Create_field *new_field)
   to use big-endian format. For storage engines that use little-endian
   format for integers, we can only return IS_EQUAL_YES for the TINYINT
   conversion. */
-
-  if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
-  {
-    /* For now, prohibit instant conversion between BIT and integers.
-    Note: pack_length(), which is compared below, is measured in
-    bytes, and for BIT the last byte may be partially occupied.  We
-    must not allow instant conversion to BIT such that the last byte
-    is partially occupied.
-    We could allow converting TINYINT UNSIGNED to BIT(8) or wider. */
-    if (th != new_th &&
-        (th == &type_handler_bit || new_th == &type_handler_bit))
-      return IS_EQUAL_NO;
-    if (th->result_type() == new_th->result_type() &&
-        new_field->pack_length >= pack_length())
-      return IS_EQUAL_PACK_LENGTH_EXT;
-  }
 
   return IS_EQUAL_NO;
 }

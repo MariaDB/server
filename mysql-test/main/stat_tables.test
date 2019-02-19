@@ -6,6 +6,8 @@ select @@session.use_stat_tables;
 set @save_use_stat_tables=@@use_stat_tables;
 
 set use_stat_tables='preferably';
+set @tmp_stt_hs=@@histogram_size, @tmp_stt_ht=@@histogram_type;
+set histogram_size=0, histogram_type='single_prec_hb';
 
 --disable_warnings
 DROP DATABASE IF EXISTS dbt3_s001;
@@ -443,4 +445,5 @@ select * from mysql.column_stats;
 analyze
 select * from t1 where a=1 and b=3;
 drop table t1;
+set histogram_size=@tmp_stt_hs, histogram_type=@tmp_stt_ht;
 set use_stat_tables=@save_use_stat_tables;

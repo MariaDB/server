@@ -741,8 +741,8 @@ CREATE TABLE t1 (f TINYINT, g SMALLINT UNSIGNED) ENGINE=InnoDB ROW_FORMAT=REDUND
 INSERT INTO t1 VALUES(127,6502),(-128,33101);
 ALTER TABLE t1 MODIFY f SMALLINT DEFAULT 12345,
 MODIFY g BIGINT UNSIGNED DEFAULT 1234567;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
 SELECT * FROM t1;
 f	g
 127	6502
@@ -779,9 +779,89 @@ DELETE FROM t1 LIMIT 3;
 ALTER TABLE t1 MODIFY f BIT(15);
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f BIT(8);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 SELECT HEX(f) FROM t1;
 HEX(f)
 80
+DROP TABLE t1;
+CREATE TABLE t1 (b BIT NOT NULL) ENGINE=InnoDB ROW_FORMAT=REDUNDANT DEFAULT CHARSET utf16;
+INSERT INTO t1 SET b=b'1';
+ALTER TABLE t1 CHANGE b c BIT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT HEX(c) FROM t1;
+HEX(c)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c VARCHAR(10) NOT NULL DEFAULT 'scary') ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD f TINYINT NOT NULL DEFAULT -42;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f MEDIUMINT NOT NULL DEFAULT 64802,
+MODIFY c VARCHAR(20) NOT NULL DEFAULT 'gory',
+ADD d DATETIME;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+INSERT INTO t1() VALUES();
+INSERT INTO t1 (c,f,d) VALUES ('fury', -8388608, now());
+SELECT * FROM t1;
+c	f	d
+scary	-42	NULL
+gory	64802	NULL
+fury	-8388608	1970-01-01 03:00:42
+DROP TABLE t1;
+CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+INSERT INTO t1 VALUES (-42, -123456);
+ALTER TABLE t1 CHANGE t s SMALLINT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ALTER TABLE t1 CHANGE m i INT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
+@table_id1 = @table_id2	@table_id2 = @table_id3
+0	0
+INSERT IGNORE INTO t1 VALUES (0, -123456);
+Warnings:
+Warning	1062	Duplicate entry '-123456' for key 'm'
+REPLACE INTO t1 VALUES(-42, 123456);
+INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
+Warnings:
+Warning	1264	Out of range value for column 's' at row 1
+Warning	1264	Out of range value for column 'i' at row 1
+SELECT * FROM t1;
+s	i
+-42	123456
+32767	2147483647
+DROP TABLE t1;
+CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+ALTER TABLE t1 MODIFY c BIGINT;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+UPDATE t1 SET c=c+1;
+ERROR 23000: Duplicate entry '2' for key 'c'
+SELECT * FROM t1;
+a	b	c
+1	NULL	1
+2	1	2
+3	2	4
 DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
@@ -1508,9 +1588,89 @@ DELETE FROM t1 LIMIT 3;
 ALTER TABLE t1 MODIFY f BIT(15);
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f BIT(8);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 SELECT HEX(f) FROM t1;
 HEX(f)
 80
+DROP TABLE t1;
+CREATE TABLE t1 (b BIT NOT NULL) ENGINE=InnoDB ROW_FORMAT=COMPACT DEFAULT CHARSET utf16;
+INSERT INTO t1 SET b=b'1';
+ALTER TABLE t1 CHANGE b c BIT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT HEX(c) FROM t1;
+HEX(c)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c VARCHAR(10) NOT NULL DEFAULT 'scary') ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD f TINYINT NOT NULL DEFAULT -42;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f MEDIUMINT NOT NULL DEFAULT 64802,
+MODIFY c VARCHAR(20) NOT NULL DEFAULT 'gory',
+ADD d DATETIME;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+INSERT INTO t1() VALUES();
+INSERT INTO t1 (c,f,d) VALUES ('fury', -8388608, now());
+SELECT * FROM t1;
+c	f	d
+scary	-42	NULL
+gory	64802	NULL
+fury	-8388608	1970-01-01 03:00:42
+DROP TABLE t1;
+CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+INSERT INTO t1 VALUES (-42, -123456);
+ALTER TABLE t1 CHANGE t s SMALLINT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ALTER TABLE t1 CHANGE m i INT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
+@table_id1 = @table_id2	@table_id2 = @table_id3
+0	0
+INSERT IGNORE INTO t1 VALUES (0, -123456);
+Warnings:
+Warning	1062	Duplicate entry '-123456' for key 'm'
+REPLACE INTO t1 VALUES(-42, 123456);
+INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
+Warnings:
+Warning	1264	Out of range value for column 's' at row 1
+Warning	1264	Out of range value for column 'i' at row 1
+SELECT * FROM t1;
+s	i
+-42	123456
+32767	2147483647
+DROP TABLE t1;
+CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+ALTER TABLE t1 MODIFY c BIGINT;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+UPDATE t1 SET c=c+1;
+ERROR 23000: Duplicate entry '2' for key 'c'
+SELECT * FROM t1;
+a	b	c
+1	NULL	1
+2	1	2
+3	2	4
 DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
@@ -2237,14 +2397,94 @@ DELETE FROM t1 LIMIT 3;
 ALTER TABLE t1 MODIFY f BIT(15);
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f BIT(8);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 SELECT HEX(f) FROM t1;
 HEX(f)
 80
+DROP TABLE t1;
+CREATE TABLE t1 (b BIT NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET utf16;
+INSERT INTO t1 SET b=b'1';
+ALTER TABLE t1 CHANGE b c BIT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT HEX(c) FROM t1;
+HEX(c)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c VARCHAR(10) NOT NULL DEFAULT 'scary') ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD f TINYINT NOT NULL DEFAULT -42;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f MEDIUMINT NOT NULL DEFAULT 64802,
+MODIFY c VARCHAR(20) NOT NULL DEFAULT 'gory',
+ADD d DATETIME;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+INSERT INTO t1() VALUES();
+INSERT INTO t1 (c,f,d) VALUES ('fury', -8388608, now());
+SELECT * FROM t1;
+c	f	d
+scary	-42	NULL
+gory	64802	NULL
+fury	-8388608	1970-01-01 03:00:42
+DROP TABLE t1;
+CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+INSERT INTO t1 VALUES (-42, -123456);
+ALTER TABLE t1 CHANGE t s SMALLINT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ALTER TABLE t1 CHANGE m i INT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
+@table_id1 = @table_id2	@table_id2 = @table_id3
+0	0
+INSERT IGNORE INTO t1 VALUES (0, -123456);
+Warnings:
+Warning	1062	Duplicate entry '-123456' for key 'm'
+REPLACE INTO t1 VALUES(-42, 123456);
+INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
+Warnings:
+Warning	1264	Out of range value for column 's' at row 1
+Warning	1264	Out of range value for column 'i' at row 1
+SELECT * FROM t1;
+s	i
+-42	123456
+32767	2147483647
+DROP TABLE t1;
+CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+ALTER TABLE t1 MODIFY c BIGINT;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+UPDATE t1 SET c=c+1;
+ERROR 23000: Duplicate entry '2' for key 'c'
+SELECT * FROM t1;
+a	b	c
+1	NULL	1
+2	1	2
+3	2	4
 DROP TABLE t1;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-171
+174
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;

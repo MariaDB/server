@@ -215,12 +215,11 @@ public:
   */
   void set_size_limit(size_t mem_size) { output.set_size_limit(mem_size); }
 
-  // psergey: return how many bytes would be required to store everything
   size_t get_truncated_bytes() { return output.get_truncated_bytes(); }
 
   Json_writer() : 
     indent_level(0), document_start(true), element_started(false), 
-    first_child(true), allowed_mem_size(0)
+    first_child(true)
   {
     fmt_helper.init(this);
   }
@@ -234,12 +233,6 @@ private:
   bool document_start;
   bool element_started;
   bool first_child;
-
-  /*
-    True when we are using the optimizer trace
-    FALSE otherwise
-  */
-  size_t allowed_mem_size;
 
   Single_line_formatting_helper fmt_helper;
 
@@ -566,6 +559,17 @@ public:
   ~Json_writer_array();
 };
 
+/*
+  RAII-based class to disable writing into the JSON document
+*/
+
+class Json_writer_temp_disable
+{
+public:
+  Json_writer_temp_disable(THD *thd_arg);
+  ~Json_writer_temp_disable();
+  THD *thd;
+};
 
 /*
   RAII-based helper class to detect incorrect use of Json_writer.

@@ -193,9 +193,16 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp);
 */
 int fill_optimizer_trace_info(THD *thd, TABLE_LIST *tables, Item *);
 
-#define OPT_TRACE_TRANSFORM(writer, object_level0, object_level1, \
+#define OPT_TRACE_TRANSFORM(thd, object_level0, object_level1, \
                             select_number, from, to)             \
-  Json_writer_object object_level0(writer);                         \
-  Json_writer_object object_level1(writer, "transformation");       \
+  Json_writer_object object_level0(thd);                         \
+  Json_writer_object object_level1(thd, "transformation");       \
   object_level1.add_select_number(select_number).add("from", from).add("to", to);
+
+#define OPT_TRACE_VIEWS_TRANSFORM(thd, object_level0, object_level1, \
+                                  derived, name, select_number, algorithm) \
+    Json_writer_object trace_wrapper(thd);              \
+    Json_writer_object trace_derived(thd, derived);     \
+    trace_derived.add("table", name).add_select_number(select_number)  \
+                 .add("algorithm", algorithm);
 #endif

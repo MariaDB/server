@@ -135,7 +135,6 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
-	| ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
@@ -270,7 +269,7 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 			ut_ad(!not_redundant());
 			for (unsigned i = index.n_fields; i--; ) {
 				ut_ad(index.fields[i].col->same_format(
-					      *oindex.fields[i].col, true));
+					      *oindex.fields[i].col));
 			}
 		}
 #endif
@@ -458,13 +457,9 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	as this index. Fields for any added columns are appended at the end. */
 #ifndef DBUG_OFF
 	for (unsigned i = 0; i < n_fields; i++) {
-		DBUG_ASSERT(fields[i].prefix_len
-			    == instant.fields[i].prefix_len);
-		DBUG_ASSERT(fields[i].fixed_len
-			    == instant.fields[i].fixed_len
-			    || !table->not_redundant());
-		DBUG_ASSERT(instant.fields[i].col->same_format(
-				    *fields[i].col, !table->not_redundant()));
+		DBUG_ASSERT(fields[i].same(instant.fields[i]));
+		DBUG_ASSERT(instant.fields[i].col->same_format(*fields[i]
+							       .col));
 		/* Instant conversion from NULL to NOT NULL is not allowed. */
 		DBUG_ASSERT(!fields[i].col->is_nullable()
 			    || instant.fields[i].col->is_nullable());
@@ -540,7 +535,10 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
 			c.def_val = o->def_val;
-			ut_ad(c.same_format(*o, !not_redundant()));
+			DBUG_ASSERT(!((c.prtype ^ o->prtype)
+				      & ~(DATA_NOT_NULL | DATA_VERSIONED)));
+			DBUG_ASSERT(c.mtype == o->mtype);
+			DBUG_ASSERT(c.len >= o->len);
 
 			if (o->vers_sys_start()) {
 				ut_ad(o->ind == vers_start);
@@ -1752,10 +1750,6 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	DBUG_ASSERT(!(ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
-		      & ha_alter_info->handler_flags)
-		    || !m_prebuilt->table->not_redundant());
-
 	if ((ha_alter_info->handler_flags
 	     & INNOBASE_ALTER_VERSIONED_REBUILD)
 	    && altered_table->versioned(VERS_TIMESTAMP)) {
@@ -2951,7 +2945,7 @@ innobase_col_to_mysql(
 
 	switch (col->mtype) {
 	case DATA_INT:
-		ut_ad(len <= flen);
+		ut_ad(len == flen);
 
 		/* Convert integer data from Innobase to little-endian
 		format, sign bit restored to normal */
@@ -4122,7 +4116,7 @@ innobase_check_foreigns(
 @param[in,out]	heap		Memory heap where allocated
 @param[out]	dfield		InnoDB data field to copy to
 @param[in]	field		MySQL value for the column
-@param[in]	old_field	Old field or NULL if new col is added	
+@param[in]	old_field	Old column if altering; NULL for ADD COLUMN
 @param[in]	comp		nonzero if in compact format. */
 static void innobase_build_col_map_add(
 	mem_heap_t*	heap,
@@ -4141,14 +4135,13 @@ static void innobase_build_col_map_add(
 		return;
 	}
 
-	ulint	size	= field->pack_length();
+	const Field& from = old_field ? *old_field : *field;
+	ulint	size	= from.pack_length();
 
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));
 
-	const byte*	mysql_data = old_field ? old_field->ptr : field->ptr;
-
 	row_mysql_store_col_in_innobase_format(
-		dfield, buf, true, mysql_data, size, comp);
+		dfield, buf, true, from.ptr, size, comp);
 }
 
 /** Construct the translation table for reordering, dropping or
@@ -5547,6 +5540,11 @@ static bool innobase_instant_try(
 				    dict_table_get_col_name(user_table, i)));
 		DBUG_ASSERT(old || col->is_added());
 
+		ut_d(const Create_field* new_field = cf_it++);
+		/* new_field->field would point to an existing column.
+		If it is NULL, the column was added by this ALTER TABLE. */
+		ut_ad(!new_field->field == !old);
+
 		if (col->is_added()) {
 			dfield_set_data(d, col->def_val.data,
 					col->def_val.len);
@@ -5580,18 +5578,14 @@ static bool innobase_instant_try(
 						mem_heap_alloc(ctx->heap, len))
 					: NULL, true, (*af)->ptr, len,
 					dict_table_is_comp(user_table));
+				ut_ad(new_field->field->pack_length() == len);
+
 			}
 		}
 
-		ut_d(const Create_field* new_field = cf_it++);
-		/* new_field->field would point to an existing column.
-		If it is NULL, the column was added by this ALTER TABLE. */
-		ut_ad(!new_field->field == !old);
-
 		bool update = old && (!ctx->first_alter_pos
 				      || i < ctx->first_alter_pos - 1);
-		ut_ad(!old || col->same_format(
-			      *old, !user_table->not_redundant()));
+		DBUG_ASSERT(!old || col->same_format(*old));
 		if (update
 		    && old->prtype == d->type.prtype) {
 			/* The record is already present in SYS_COLUMNS. */
@@ -5680,8 +5674,6 @@ add_all_virtual:
 		NULL, trx, ctx->heap, NULL);
 
 	dberr_t err = DB_SUCCESS;
-	DBUG_EXECUTE_IF("ib_instant_error",
-			err = DB_OUT_OF_FILE_SPACE; goto func_exit;);
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
@@ -8748,7 +8740,6 @@ innobase_rename_column_try(
 	const char*		to,
 	bool			new_clustered)
 {
-	pars_info_t*	info;
 	dberr_t		error;
 
 	DBUG_ENTER("innobase_rename_column_try");
@@ -8762,7 +8753,6 @@ innobase_rename_column_try(
 		goto rename_foreign;
 	}
 
-	info = pars_info_create();
 	error = DB_SUCCESS;
 
 	trx->op_info = "renaming column in SYS_FIELDS";
@@ -8789,8 +8779,7 @@ innobase_rename_column_try(
 				continue;
 			}
 
-			info = pars_info_create();
-
+			pars_info_t* info = pars_info_create();
 			ulint pos = has_prefixes ? i << 16 | f.prefix_len : i;
 
 			pars_info_add_ull_literal(info, "indexid", index->id);
@@ -8843,7 +8832,7 @@ rename_foreign:
 				continue;
 			}
 
-			info = pars_info_create();
+			pars_info_t* info = pars_info_create();
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
@@ -8885,7 +8874,7 @@ rename_foreign:
 				continue;
 			}
 
-			info = pars_info_create();
+			pars_info_t* info = pars_info_create();
 
 			pars_info_add_str_literal(info, "id", foreign->id);
 			pars_info_add_int4_literal(info, "nth", i);
@@ -9016,7 +9005,6 @@ static void get_type(const Field& f, ulint& prtype, ulint& mtype, ulint& len)
 @param table_name Table name in MySQL
 @param pos 0-based index to user_table->cols[] or user_table->v_cols[]
 @param f new column
-@param cf column modification
 @param is_v if it's a virtual column
 @retval true Failure
 @retval false Success */
@@ -9028,7 +9016,6 @@ innobase_rename_or_enlarge_column_try(
 	const char*		table_name,
 	ulint			pos,
 	const Field&		f,
-	const Create_field&	cf,
 	bool			is_v)
 {
 	dict_col_t*	col;
@@ -9052,7 +9039,7 @@ innobase_rename_or_enlarge_column_try(
 	ulint prtype, mtype, len;
 	get_type(f, prtype, mtype, len);
 	DBUG_ASSERT(!dtype_is_string_type(col->mtype)
-		    || col->mbminlen == cf.charset->mbminlen);
+		    || col->mbminlen == f.charset()->mbminlen);
 	DBUG_ASSERT(col->len <= len);
 
 #ifdef UNIV_DEBUG
@@ -9064,7 +9051,7 @@ innobase_rename_or_enlarge_column_try(
 		and ROW_FORMAT is not REDUNDANT and mbminlen<mbmaxlen.
 		That is, we treat a UTF-8 CHAR(n) column somewhat like
 		a VARCHAR. */
-		ut_ad(!user_table->not_redundant() || col->len == len);
+		ut_ad(col->len == len);
 		break;
 	case DATA_BINARY:
 	case DATA_VARCHAR:
@@ -9072,11 +9059,6 @@ innobase_rename_or_enlarge_column_try(
 	case DATA_DECIMAL:
 	case DATA_BLOB:
 		break;
-	case DATA_INT:
-		if (!user_table->not_redundant()) {
-			break;
-		}
-		/* fall through */
 	default:
 		ut_ad(col->prtype == prtype);
 		ut_ad(col->mtype == mtype);
@@ -9132,7 +9114,6 @@ innobase_rename_or_enlarge_columns_try(
 
 	if (!(ha_alter_info->handler_flags
 	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
-		 | ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 		 | ALTER_COLUMN_NAME))) {
 		DBUG_RETURN(false);
 	}
@@ -9152,7 +9133,7 @@ innobase_rename_or_enlarge_columns_try(
 			if (cf->field == *fp) {
 				if (innobase_rename_or_enlarge_column_try(
 					    ctx->old_table, trx, table_name,
-					    idx, **af, *cf, is_v)) {
+					    idx, **af, is_v)) {
 					DBUG_RETURN(true);
 				}
 				break;
@@ -9181,7 +9162,6 @@ innobase_rename_or_enlarge_columns_cache(
 {
 	if (!(ha_alter_info->handler_flags
 	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
-		 | ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 		 | ALTER_COLUMN_NAME))) {
 		return;
 	}
@@ -9208,8 +9188,6 @@ innobase_rename_or_enlarge_columns_cache(
 				->m_col
 				: dict_table_get_nth_col(user_table, col_n);
 			const bool is_string= dtype_is_string_type(col->mtype);
-			DBUG_ASSERT(!is_string
-				    || (*af)->charset() == cf->charset);
 			DBUG_ASSERT(col->mbminlen
 				    == (is_string
 					? (*af)->charset()->mbminlen : 0));
@@ -9227,7 +9205,7 @@ innobase_rename_or_enlarge_columns_cache(
 				dict_mem_table_col_rename(
 					user_table, col_n,
 					cf->field->field_name.str,
-					cf->field_name.str, is_virtual);
+					(*af)->field_name.str, is_virtual);
 			}
 
 			break;
