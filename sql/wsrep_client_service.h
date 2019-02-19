@@ -36,7 +36,7 @@ class Wsrep_client_service : public wsrep::client_service
 public:
   Wsrep_client_service(THD*, Wsrep_client_state&);
 
-  bool interrupted() const;
+  bool interrupted(wsrep::unique_lock<wsrep::mutex>&) const;
   void reset_globals();
   void store_globals();
   int prepare_data_for_replication();
