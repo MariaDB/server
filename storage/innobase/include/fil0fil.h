@@ -272,7 +272,7 @@ struct fil_space_t {
 	@param	flags	tablespace flags (FSP_FLAGS)
 	@return the logical page size
 	@retval 0 if the flags are invalid */
-	static ulint logical_size(ulint flags) {
+	static unsigned logical_size(ulint flags) {
 
 		ulint page_ssize = 0;
 
@@ -298,7 +298,7 @@ struct fil_space_t {
 	@param	flags	tablespace flags (FSP_FLAGS)
 	@return the ROW_FORMAT=COMPRESSED page size
 	@retval 0	if ROW_FORMAT=COMPRESSED is not used */
-	static ulint zip_size(ulint flags) {
+	static unsigned zip_size(ulint flags) {
 
 		if (full_crc32(flags)) {
 			return 0;
@@ -311,7 +311,7 @@ struct fil_space_t {
 	/** Determine the physical page size.
 	@param	flags	tablespace flags (FSP_FLAGS)
 	@return the physical page size */
-	static ulint physical_size(ulint flags) {
+	static unsigned physical_size(ulint flags) {
 
 		if (full_crc32(flags)) {
 			return logical_size(flags);
@@ -320,13 +320,13 @@ struct fil_space_t {
 		ulint zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
 		return zip_ssize
 			? (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize
-			: srv_page_size;
+			: unsigned(srv_page_size);
 	}
 	/** @return the ROW_FORMAT=COMPRESSED page size
 	@retval 0	if ROW_FORMAT=COMPRESSED is not used */
-	ulint zip_size() const { return zip_size(flags); }
+	unsigned zip_size() const { return zip_size(flags); }
 	/** @return the physical page size */
-	ulint physical_size() const { return physical_size(flags); }
+	unsigned physical_size() const { return physical_size(flags); }
 	/** Check whether the compression enabled in tablespace.
 	@param[in]	flags	tablespace flags */
 	static bool is_compressed(ulint flags) {
