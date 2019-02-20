@@ -203,7 +203,10 @@ ib_wqueue_is_empty(
 					else FALSE */
 	const ib_wqueue_t*	wq)	/* in: work queue */
 {
-	return(ib_list_is_empty(wq->items));
+	mutex_enter(&wq->mutex);
+	bool is_empty = ib_list_is_empty(wq->items);
+	mutex_exit(&wq->mutex);
+	return is_empty;
 }
 
 /********************************************************************
