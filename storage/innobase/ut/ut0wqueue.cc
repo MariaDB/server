@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -193,17 +194,15 @@ ib_wqueue_nowait(
 	return (node ? node->data : NULL);
 }
 
-/********************************************************************
-Check if queue is empty. */
-
-ibool
-ib_wqueue_is_empty(
-/*===============*/
-					/* out: TRUE if queue empty
-					else FALSE */
-	const ib_wqueue_t*	wq)	/* in: work queue */
+/** Check if queue is empty.
+@param wq wait queue
+@return whether the queue is empty */
+bool ib_wqueue_is_empty(ib_wqueue_t* wq)
 {
-	return(ib_list_is_empty(wq->items));
+	mutex_enter(&wq->mutex);
+	bool is_empty = ib_list_is_empty(wq->items);
+	mutex_exit(&wq->mutex);
+	return is_empty;
 }
 
 /********************************************************************
