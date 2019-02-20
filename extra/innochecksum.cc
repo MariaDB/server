@@ -282,7 +282,7 @@ static void init_page_size(const byte* buf)
 						 + FSP_SPACE_FLAGS);
 
 	if (FSP_FLAGS_FCRC32_HAS_MARKER(flags)) {
-		srv_page_size = fil_space_t::logical_size(flags);
+		srv_page_size = (ulong)fil_space_t::logical_size(flags);
 		physical_page_size = srv_page_size;
 		return;
 	}
@@ -293,7 +293,7 @@ static void init_page_size(const byte* buf)
 		? UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize
 		: UNIV_PAGE_SIZE_SHIFT_ORIG;
 
-	srv_page_size = fil_space_t::logical_size(flags);
+	srv_page_size = (ulong)fil_space_t::logical_size(flags);
 	physical_page_size = fil_space_t::physical_size(flags);
 }
 
