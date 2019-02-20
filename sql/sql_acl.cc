@@ -9439,6 +9439,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[TABLES_MAX];
   bool binlog= false;
+  bool some_users_dropped= false;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -9504,6 +9505,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
           result= true;
           continue;
         }
+        else
+          some_users_dropped= true;
         // Proceed with the creation
       }
       else if (thd->lex->create_info.if_not_exists())
@@ -9573,9 +9576,17 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
+  {
+    if (some_users_dropped && !handle_as_role)
+    {
+      /* Rebuild in-memory structs, since 'acl_users' has been modified */
+      rebuild_check_host();
+      rebuild_role_grants();
+    }
     my_error(ER_CANNOT_USER, MYF(0),
              (handle_as_role) ? "CREATE ROLE" : "CREATE USER",
              wrong_users.c_ptr_safe());
+  }
 
   if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
