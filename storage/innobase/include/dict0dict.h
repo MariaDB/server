@@ -1541,8 +1541,6 @@ struct dict_sys_t{
 					on name */
 	/** hash table of persistent table IDs */
 	hash_table_t*	table_id_hash;
-	/** hash table of temporary table IDs */
-	hash_table_t*	temp_id_hash;
 	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
@@ -1567,20 +1565,7 @@ struct dict_sys_t{
 	@return	temporary table
 	@retval	NULL	if the table does not exist
 	(should only happen during the rollback of CREATE...SELECT) */
-	dict_table_t* get_temporary_table(table_id_t id)
-	{
-		ut_ad(mutex_own(&mutex));
-		dict_table_t* table;
-		ulint fold = ut_fold_ull(id);
-		HASH_SEARCH(id_hash, temp_id_hash, fold, dict_table_t*, table,
-			    ut_ad(table->cached), table->id == id);
-		if (UNIV_LIKELY(table != NULL)) {
-			DBUG_ASSERT(table->is_temporary());
-			DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
-			table->acquire();
-		}
-		return table;
-	}
+	dict_table_t* get_temporary_table(table_id_t id);
 
 	/** Look up a persistent table.
 	@param id	table ID

@@ -258,6 +258,66 @@ is_partition(
 	return strstr(file_name, table_name_t::part_suffix);
 }
 
+struct get_temporary_table_arg
+{
+	table_id_t	id;
+	dict_table_t*	table;
+};
+
+static handlerton* innobase_hton;
+
+class InnoDB_share : public Handler_share
+{
+public:
+	/** Temporary table associated with the handle, or NULL */
+	dict_table_t* const temp_table;
+
+	InnoDB_share(dict_table_t* table)
+		: Handler_share(), temp_table(table)
+	{
+		DBUG_ASSERT(temp_table->is_temporary());
+		DBUG_ASSERT(temp_table->id >= DICT_HDR_FIRST_ID);
+	}
+	~InnoDB_share() {}
+
+	/** Look up a temporary table.
+	@param	t	lookup request
+	@return	whether the table was found */
+	inline bool get_temporary_table(get_temporary_table_arg* t) const
+	{
+		DBUG_ASSERT(!t->table);
+		if (!temp_table || temp_table->id != t->id) {
+			return false;
+		}
+		DBUG_ASSERT(temp_table->is_temporary());
+		temp_table->acquire();
+		t->table = temp_table;
+		return true;
+	}
+};
+
+static int get_temporary_table_callback(TABLE_SHARE *share, void *arg)
+{
+	if (share->db_type() != innobase_hton) {
+		return false;
+	}
+
+	auto s = static_cast<const InnoDB_share*>(share->ha_share);
+
+	return s && s->get_temporary_table(
+		static_cast<get_temporary_table_arg*>(arg));
+}
+
+dict_table_t* dict_sys_t::get_temporary_table(table_id_t id)
+{
+	DBUG_ENTER("dict_sys_t::get_temporary_table");
+	DBUG_ASSERT(id >= DICT_HDR_FIRST_ID);
+	get_temporary_table_arg t = { id, NULL };
+	thd_iterate_temporary_tables(current_thd,
+				     get_temporary_table_callback, &t);
+	DBUG_RETURN(t.table);
+}
+
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
 running in innodb_read_only mode, srv_read_only_mode) */
 std::atomic <st_my_thread_var *> srv_running;
@@ -4142,7 +4202,7 @@ static int innodb_init_params()
 static int innodb_init(void* p)
 {
 	DBUG_ENTER("innodb_init");
-	handlerton* innobase_hton= static_cast<handlerton*>(p);
+	innobase_hton= static_cast<handlerton*>(p);
 	innodb_hton_ptr = innobase_hton;
 
 	innobase_hton->state = SHOW_OPTION_YES;
@@ -6129,6 +6189,17 @@ ha_innobase::open(const char* name, int, uint)
 		ignore_err = DICT_ERR_IGNORE_FK_NOKEY;
 	}
 
+	if (table_share->tmp_table != NO_TMP_TABLE) {
+		lock_shared_ha_data();
+		auto* s = static_cast<InnoDB_share*>(get_ha_share_ptr());
+		unlock_shared_ha_data();
+		DBUG_ASSERT(s);
+		DBUG_ASSERT(s->temp_table);
+		DBUG_ASSERT(s->temp_table->is_temporary());
+		ib_table = s->temp_table;
+		goto got_table;
+	}
+
 	ib_table = open_dict_table(name, norm_name, is_part, ignore_err);
 
 	if (NULL == ib_table) {
@@ -6141,34 +6212,36 @@ no_such_table:
 		set_my_errno(ENOENT);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+	} else {
+		size_t n_fields = omits_virtual_cols(*table_share)
+			? table_share->stored_fields : table_share->fields;
+		size_t n_cols = dict_table_get_n_user_cols(ib_table)
+			+ dict_table_get_n_v_cols(ib_table)
+			- !!DICT_TF2_FLAG_IS_SET(ib_table,
+						 DICT_TF2_FTS_HAS_DOC_ID);
+
+		if (UNIV_UNLIKELY(n_cols != n_fields)) {
+			ib::warn() << "Table " << norm_name << " contains "
+				   << n_cols << " user"
+				" defined columns in InnoDB, but " << n_fields
+				   << " columns in MariaDB. Please check"
+				" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and "
+				REFMAN "innodb-troubleshooting.html for "
+				"how to resolve the issue.";
+
+			/* Mark this table as corrupted, so the drop table
+			or force recovery can still use it, but not others. */
+			ib_table->file_unreadable = true;
+			ib_table->corrupted = true;
+			dict_table_close(ib_table, FALSE, FALSE);
+			goto no_such_table;
+		}
 	}
 
+got_table:
 	if (!ib_table->not_redundant()) {
 		m_int_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
 		cached_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
-	}
-
-	size_t n_fields = omits_virtual_cols(*table_share)
-		? table_share->stored_fields : table_share->fields;
-	size_t n_cols = dict_table_get_n_user_cols(ib_table)
-		+ dict_table_get_n_v_cols(ib_table)
-		- !!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID);
-
-	if (UNIV_UNLIKELY(n_cols != n_fields)) {
-		ib::warn() << "Table " << norm_name << " contains "
-			<< n_cols << " user"
-			" defined columns in InnoDB, but " << n_fields
-			<< " columns in MariaDB. Please check"
-			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and " REFMAN
-			"innodb-troubleshooting.html for how to resolve the"
-			" issue.";
-
-		/* Mark this table as corrupted, so the drop table
-		or force recovery can still use it, but not others. */
-		ib_table->file_unreadable = true;
-		ib_table->corrupted = true;
-		dict_table_close(ib_table, FALSE, FALSE);
-		goto no_such_table;
 	}
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
@@ -11134,7 +11207,6 @@ err_col:
 		      != REC_FORMAT_COMPRESSED);
 		table->space_id = SRV_TMP_SPACE_ID;
 		table->space = fil_system.temp_space;
-		table->add_to_cache();
 	} else {
 		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
@@ -12370,6 +12442,8 @@ int create_table_info_t::create_table(bool create_fk)
 
 	DBUG_ASSERT(m_drop_before_rollback
 		    == !(m_flags2 & DICT_TF2_TEMPORARY));
+	DBUG_ASSERT((m_flags2 & DICT_TF2_TEMPORARY)
+		    == m_table->is_temporary());
 
 	/* Create the keys */
 
@@ -12531,14 +12605,32 @@ int create_table_info_t::create_table(bool create_fk)
 int
 create_table_info_t::create_table_update_dict()
 {
-	dict_table_t*	innobase_table;
 
 	DBUG_ENTER("create_table_update_dict");
+	DBUG_ASSERT(m_table);
 
-	innobase_table = dict_table_open_on_name(
-		m_table_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	if (m_flags2 & DICT_TF2_TEMPORARY) {
+		DBUG_ASSERT(m_table->is_temporary());
+		DBUG_ASSERT(!m_table->fts);
+		DBUG_ASSERT(!m_table->fts_doc_id_index);
+		if (m_form->found_next_number_field) {
+			ut_ad(!innobase_is_v_fld(
+				      m_form->found_next_number_field));
+			m_table->autoinc = m_create_info->auto_increment_value;
+			if (m_table->autoinc == 0) {
+				m_table->autoinc = 1;
+			}
+		}
+		innobase_parse_hint_from_comment(m_thd, m_table, m_form->s);
+		DBUG_RETURN(0);
+	}
+
+	dict_table_t* innobase_table = dict_table_open_on_name(
+			m_table_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	DBUG_ASSERT(innobase_table != 0);
+	DBUG_ASSERT(!innobase_table->is_temporary());
+
 	if (innobase_table->fts != NULL) {
 		if (innobase_table->fts_doc_id_index == NULL) {
 			innobase_table->fts_doc_id_index
@@ -12586,26 +12678,19 @@ create_table_info_t::create_table_update_dict()
 		dict_table_autoinc_lock(innobase_table);
 		dict_table_autoinc_initialize(innobase_table, autoinc);
 
-		if (innobase_table->is_temporary()) {
-			/* AUTO_INCREMENT is not persistent for
-			TEMPORARY TABLE. Temporary tables are never
-			evicted. Keep the counter in memory only. */
-		} else {
-			const unsigned	col_no = innodb_col_no(ai);
+		const unsigned	col_no = innodb_col_no(ai);
 
-			innobase_table->persistent_autoinc = 1
-				+ dict_table_get_nth_col_pos(
-					innobase_table, col_no, NULL);
+		innobase_table->persistent_autoinc = 1
+			+ dict_table_get_nth_col_pos(innobase_table, col_no,
+						     NULL);
 
-			/* Persist the "last used" value, which
-			typically is AUTO_INCREMENT - 1.
-			In btr_create(), the value 0 was already written. */
-			if (--autoinc) {
-				btr_write_autoinc(
-					dict_table_get_first_index(
-						innobase_table),
-					autoinc);
-			}
+		/* Persist the "last used" value, which
+		typically is AUTO_INCREMENT - 1.
+		In btr_create(), the value 0 was already written. */
+		if (--autoinc) {
+			btr_write_autoinc(
+				dict_table_get_first_index(innobase_table),
+				autoinc);
 		}
 
 		dict_table_autoinc_unlock(innobase_table);
@@ -12625,6 +12710,18 @@ create_table_info_t::allocate_trx()
 
 	m_trx->will_lock++;
 	m_trx->ddl = true;
+}
+
+/** @return temporary table
+@retval	NULL	if not a temporary table */
+inline dict_table_t* create_table_info_t::temp_table() const
+{
+	if (!(m_flags2 & DICT_TF2_TEMPORARY)) {
+		return NULL;
+	}
+
+	DBUG_ASSERT(!m_table || m_table->is_temporary());
+	return m_table;
 }
 
 /** Create a new table to an InnoDB database.
@@ -12713,6 +12810,17 @@ ha_innobase::create(
 	ut_ad(!srv_read_only_mode);
 
 	error = info.create_table_update_dict();
+
+	if (error) {
+	} else if (dict_table_t* t = info.temp_table()) {
+		DBUG_ASSERT(!get_ha_share_ptr());
+		set_ha_share_ptr(new InnoDB_share(t));
+		if (!get_ha_share_ptr()) {
+			//FIXME: drop_table
+			DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+		}
+		DBUG_RETURN(0);
+	}
 
 	/* Tell the InnoDB server that there might be work for
 	utility threads: */

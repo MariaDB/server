@@ -714,6 +714,10 @@ public:
 	const char* table_name() const
 	{ return(m_table_name); }
 
+	/** @return temporary table
+	@retval	NULL	if not a temporary table */
+	inline dict_table_t* temp_table() const;
+
 	/** @return whether the table needs to be dropped on rollback */
 	bool drop_before_rollback() const { return m_drop_before_rollback; }
 

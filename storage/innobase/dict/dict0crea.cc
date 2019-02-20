@@ -2065,7 +2065,7 @@ dict_foreigns_has_s_base_col(
 {
 	dict_foreign_t*	foreign;
 
-	if (table->s_cols == NULL) {
+	if (!table || !table->s_cols) {
 		return (false);
 	}
 
