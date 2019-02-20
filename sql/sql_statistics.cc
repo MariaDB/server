@@ -3334,7 +3334,6 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 {
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
-  bool has_error_active= thd->is_error();
   DBUG_ENTER("read_statistics_for_tables_if_needed");
 
   DEBUG_SYNC(thd, "statistics_read_start");
@@ -3343,11 +3342,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
     DBUG_RETURN(0);
 
   if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
-  {
-    if (!has_error_active)
-      thd->clear_error();
     DBUG_RETURN(1);
-  }
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
@@ -3416,15 +3411,10 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
   TABLE_LIST tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
   int rc= 0;
-  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_table");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
-  {
-    if (!has_error_active)
-      thd->clear_error();
     DBUG_RETURN(0);
-  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3506,16 +3496,11 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_column");
    
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
-  {
-    if (!has_error_active)
-      thd->clear_error();
     DBUG_RETURN(0);
-  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3574,16 +3559,11 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-  bool has_error_active= thd->is_error();
   DBUG_ENTER("delete_statistics_for_index");
    
   if (open_single_stat_table(thd, &tables, &stat_table_name[2],
 			     &open_tables_backup, TRUE))
-  {
-    if (!has_error_active)
-      thd->clear_error();
     DBUG_RETURN(0);
-  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3760,7 +3740,6 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
   int rc= 0;
-  bool has_error_active= thd->is_error();
   DBUG_ENTER("rename_column_in_stat_tables");
   
   if (tab->s->tmp_table != NO_TMP_TABLE)
@@ -3768,11 +3747,7 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
 
   if (open_single_stat_table(thd, &tables, &stat_table_name[1],
                              &open_tables_backup, TRUE))
-  {
-    if (!has_error_active)
-      thd->clear_error();
     DBUG_RETURN(rc);
-  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 

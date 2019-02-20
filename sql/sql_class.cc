@@ -1040,7 +1040,8 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     level= Sql_condition::WARN_LEVEL_ERROR;
   }
 
-  if (handle_condition(sql_errno, sqlstate, &level, msg, &cond))
+  if (!is_fatal_error &&
+      handle_condition(sql_errno, sqlstate, &level, msg, &cond))
     DBUG_RETURN(cond);
 
   switch (level) {
