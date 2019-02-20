@@ -1,16 +1,10 @@
-<<<<<<< HEAD
 connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
-connection node_3;
-||||||| merged common ancestors
-=======
 connection node_1;
 connection node_2;
 connection node_3;
->>>>>>> 10.3
 Killing node #3 to free ports for garbd ...
 connection node_3;
 connection node_1;
