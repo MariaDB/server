@@ -1591,7 +1591,7 @@ static const char *xb_server_default_groups[]={
 
 static void print_version(void)
 {
-  msg("%s based on MariaDB server %s %s (%s)",
+  fprintf(stderr, "%s based on MariaDB server %s %s (%s)\n",
       my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
