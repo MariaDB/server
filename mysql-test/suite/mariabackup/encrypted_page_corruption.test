@@ -51,7 +51,7 @@ let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
 
 --disable_result_log
 --error 1
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --extended-validation --target-dir=$targetdir > $backuplog;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --extended-validation --target-dir=$targetdir --core-file > $backuplog;
 --enable_result_log
 
 
