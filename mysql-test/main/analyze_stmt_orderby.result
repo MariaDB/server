@@ -62,7 +62,7 @@ ANALYZE
 explain
 update t2 set a=a+1 where a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a	a	5	NULL	8	Using where; Using buffer
+1	SIMPLE	t2	range	a	a	5	NULL	9	Using where; Using buffer
 explain format=json
 update t2 set a=a+1 where a<10;
 EXPLAIN
@@ -78,7 +78,7 @@ EXPLAIN
         "key": "a",
         "key_length": "5",
         "used_key_parts": ["a"],
-        "rows": 8,
+        "rows": 9,
         "attached_condition": "t2.a < 10"
       }
     }
@@ -100,7 +100,7 @@ ANALYZE
         "key": "a",
         "key_length": "5",
         "used_key_parts": ["a"],
-        "rows": 8,
+        "rows": 9,
         "r_rows": 10,
         "r_filtered": 100,
         "r_total_time_ms": "REPLACED",
@@ -426,7 +426,7 @@ ANALYZE
             "r_filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "256Kb",
+          "buffer_size": "65",
           "join_type": "BNL",
           "attached_condition": "t3.a = t0.a",
           "r_filtered": 10
@@ -497,7 +497,7 @@ ANALYZE
                 "r_filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "119",
               "join_type": "BNL",
               "attached_condition": "t5.a = t6.a",
               "r_filtered": 21.429
@@ -537,7 +537,7 @@ EXPLAIN
                 "filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "119",
               "join_type": "BNL",
               "attached_condition": "t5.a = t6.a"
             }

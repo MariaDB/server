@@ -165,5 +165,26 @@ foo	%	Y	mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
 goo	%	Y	mysql_native_password	*F3A2A51A9B0F2BE2468926B4132313728C250DBF
 ioo	%	Y	mysql_old_password	7a8f886d28473e85
 #
+# Test account locking
+#
+create user user1@localhost account lock;
+connect(localhost,user1,,test,MYSQL_PORT,MYSQL_SOCK);
+connect con1,localhost,user1;
+ERROR HY000: Access denied, this account is locked
+flush privileges;
+connect(localhost,user1,,test,MYSQL_PORT,MYSQL_SOCK);
+connect con1,localhost,user1;
+ERROR HY000: Access denied, this account is locked
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER 'user1'@'localhost' ACCOUNT LOCK
+alter user user1@localhost account unlock;
+connect con1,localhost,user1;
+disconnect con1;
+connection default;
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER 'user1'@'localhost'
+#
 # Reset to final original state.
 #

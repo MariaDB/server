@@ -229,13 +229,13 @@ EXPLAIN
 SELECT * FROM City
   WHERE ((ID < 800) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
         OR ((ID BETWEEN 900 AND 1500) AND 
-            (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 104000)));
+            (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 105000)));
 
 EXPLAIN
 SELECT * FROM City
   WHERE ((ID < 200) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
         OR ((ID BETWEEN 100 AND 200) AND 
-            (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 104000)));
+            (Name LIKE 'Pa%' OR (Population > 103200 AND Population < 104000)));
 
 
 # The following 6 queries check that the plans
@@ -1175,6 +1175,8 @@ INSERT INTO t1 VALUES
  (0,58,7,7),(0,63,2,0),(0,64,186,8),(0,65,1,-2), (0,71,190,-3),
  (0,72,321,-7),(0,73,0,3),(0,74,5,25),(0,75,5,3);
 
+ANALYZE TABLE t1;
+
 SET SESSION optimizer_switch='index_merge_sort_union=off';
 EXPLAIN
 SELECT * FROM t1 
@@ -1247,6 +1249,8 @@ INSERT INTO t1 VALUES
   (7,'Pennsylvania','Harrisburg'),
   (8,'Virginia','Richmond')
 ;
+
+ANALYZE TABLE t1;
  
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (state,capital) 

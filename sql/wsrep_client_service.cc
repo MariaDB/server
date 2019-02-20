@@ -229,8 +229,12 @@ size_t Wsrep_client_service::bytes_generated() const
   IO_CACHE* cache= wsrep_get_trans_cache(m_thd);
   if (cache)
   {
-    m_thd->binlog_flush_pending_rows_event(true);
-    return my_b_tell(cache);
+    size_t pending_rows_event_length= 0;
+    if (Rows_log_event* ev= m_thd->binlog_get_pending_rows_event(true))
+    {
+      pending_rows_event_length= ev->get_data_size();
+    }
+    return my_b_tell(cache) + pending_rows_event_length;
   }
   return 0;
 }
@@ -256,6 +260,7 @@ enum wsrep::provider::status Wsrep_client_service::replay()
   replayer_service.replay_status(ret);
   mysql_mutex_lock(&LOCK_wsrep_replaying);
   --wsrep_replaying;
+  mysql_cond_broadcast(&COND_wsrep_replaying);
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
   return ret;
 }
@@ -265,9 +270,15 @@ void Wsrep_client_service::wait_for_replayers(wsrep::unique_lock<wsrep::mutex>& 
   DBUG_ASSERT(m_thd == current_thd);
   lock.unlock();
   mysql_mutex_lock(&LOCK_wsrep_replaying);
-  while (wsrep_replaying > 0)
+  /* We need to check if the THD is BF aborted during condition wait.
+     Because the aborter does not know which condition this thread is waiting,
+     use timed wait and check if the THD is BF aborted in the loop. */
+  while (wsrep_replaying > 0 && !wsrep_is_bf_aborted(m_thd))
   {
-    mysql_cond_wait(&COND_wsrep_replaying, &LOCK_wsrep_replaying);
+    struct timespec wait_time;
+    set_timespec_nsec(wait_time, 10000000L);
+    mysql_cond_timedwait(&COND_wsrep_replaying, &LOCK_wsrep_replaying,
+                         &wait_time);
   }
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
   lock.lock();

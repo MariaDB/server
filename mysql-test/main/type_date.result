@@ -211,7 +211,7 @@ a
 SET SQL_MODE=TRADITIONAL;
 EXPLAIN SELECT * FROM t1 WHERE a = '0000-00-00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i	i	4	const	1	Using index
+1	SIMPLE	t1	ref	i	i	4	const	2	Using index
 SELECT * FROM t1 WHERE a = '0000-00-00';
 a
 0000-00-00
@@ -240,7 +240,7 @@ a
 SET SQL_MODE=TRADITIONAL;
 EXPLAIN SELECT * FROM t1 WHERE a = '1000-00-00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i	i	4	const	1	Using index
+1	SIMPLE	t1	ref	i	i	4	const	2	Using index
 SELECT * FROM t1 WHERE a = '1000-00-00';
 a
 1000-00-00

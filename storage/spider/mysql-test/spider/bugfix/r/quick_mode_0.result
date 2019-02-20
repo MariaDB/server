@@ -1,0 +1,504 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection master_1;
+set @old_spider_quick_mode= @@spider_quick_mode;
+set session spider_quick_mode= 0;
+set @old_spider_quick_page_size= @@spider_quick_page_size;
+set session spider_quick_page_size= 3;
+set @old_spider_quick_page_byte= @@spider_quick_page_byte;
+
+this test is for MDEV-16520
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+CHILD2_2_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_2
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+INSERT INTO tbl_b (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_b (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_b (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+
+select test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_a ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection child2_2;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 2
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 3
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 4
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 5
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 6
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 7
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 8
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 9
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 10
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 11
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 12
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 13
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 14
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 15
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 16
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 17
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 18
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 19
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 20
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 21
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 22
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 23
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 24
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 25
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_b ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection master_1;
+set session spider_quick_page_byte= 6;
+
+select test 2
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_a ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection child2_2;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 2
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 3
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 4
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 5
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 6
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 7
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 8
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 9
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 10
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 11
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 12
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 13
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 14
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 15
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 16
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 17
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 18
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 19
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 20
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 21
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 22
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 23
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 24
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 25
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_b ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection master_1;
+set session spider_quick_page_byte= 0;
+
+select test 3
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_a ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection child2_2;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 2
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 3
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 4
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 5
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 6
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 7
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 8
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 9
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 10
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 11
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 12
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 13
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 14
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 15
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 16
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 17
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 18
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 19
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 20
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 21
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 22
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 23
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 24
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 25
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
+select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_b ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+SET GLOBAL log_output = @old_log_output;
+connection master_1;
+set session spider_quick_mode= @old_spider_quick_mode;
+set session spider_quick_page_size= @old_spider_quick_page_size;
+set session spider_quick_page_byte= @old_spider_quick_page_byte;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

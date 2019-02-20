@@ -654,9 +654,19 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 
 	fil_set_max_space_id_if_bigger(space_id);
 
-	fil_space_t* space = fil_space_create(
-		undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
-		FIL_TYPE_TABLESPACE, NULL);
+	ulint fsp_flags;
+	switch (srv_checksum_algorithm) {
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		fsp_flags = (FSP_FLAGS_FCRC32_MASK_MARKER
+			     | FSP_FLAGS_FCRC32_PAGE_SSIZE());
+		break;
+	default:
+		fsp_flags = FSP_FLAGS_PAGE_SSIZE();
+	}
+
+	fil_space_t* space = fil_space_create(undo_name, space_id, fsp_flags,
+					      FIL_TYPE_TABLESPACE, NULL);
 
 	ut_a(fil_validate());
 	ut_a(space);
@@ -1887,7 +1897,7 @@ files_checked:
 				/* New data file(s) were added */
 				mtr.start();
 				buf_block_t* block = buf_page_get(
-					page_id_t(0, 0), univ_page_size,
+					page_id_t(0, 0), 0,
 					RW_SX_LATCH, &mtr);
 				ulint size = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
@@ -1911,8 +1921,7 @@ files_checked:
 #ifdef UNIV_DEBUG
 		{
 			mtr.start();
-			buf_block_t* block = buf_page_get(page_id_t(0, 0),
-							  univ_page_size,
+			buf_block_t* block = buf_page_get(page_id_t(0, 0), 0,
 							  RW_S_LATCH, &mtr);
 			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
 					       + block->frame)
@@ -2075,24 +2084,24 @@ files_checked:
 			block = buf_page_get(
 				page_id_t(IBUF_SPACE_ID,
 					  FSP_IBUF_HEADER_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			/* Already MySQL 3.23.53 initialized
 			FSP_IBUF_TREE_ROOT_PAGE_NO to
 			FIL_PAGE_INDEX. No need to reset that one. */
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_TRX_SYS,
 					     &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE,
 					  FSP_FIRST_RSEG_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, FSP_DICT_HDR_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			mtr.commit();
 		}

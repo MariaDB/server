@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -127,7 +127,7 @@ row_sel_sec_rec_is_for_blob(
 	}
 
 	len = btr_copy_externally_stored_field_prefix(
-		buf, prefix_len, page_size_t(table->space->flags),
+		buf, prefix_len, table->space->zip_size(),
 		clust_field, clust_len);
 
 	if (len == 0) {
@@ -308,8 +308,7 @@ row_sel_sec_rec_is_for_clust_rec(
 			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
 				dptr = btr_copy_externally_stored_field(
 					&clust_len, dptr,
-					page_size_t(clust_index->table->space
-						    ->flags),
+					clust_index->table->space->zip_size(),
 					len, heap);
 			}
 
@@ -532,7 +531,7 @@ row_sel_fetch_columns(
 
 				data = btr_rec_copy_externally_stored_field(
 					rec, offsets,
-					dict_table_page_size(index->table),
+					index->table->space->zip_size(),
 					field_no, &len, heap);
 
 				/* data == NULL means that the
@@ -1135,7 +1134,7 @@ re_scan:
 
 			cur_block = buf_page_get_gen(
 				page_id_t(index->table->space_id, page_no),
-				page_size_t(index->table->space->flags),
+				index->table->space->zip_size(),
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 		} else {
@@ -2709,7 +2708,6 @@ row_sel_field_store_in_mysql_format_func(
 	const byte*	data,
 	ulint		len)
 {
-	byte*			ptr;
 #ifdef UNIV_DEBUG
 	const dict_field_t*	field
 		= templ->is_virtual
@@ -2721,31 +2719,10 @@ row_sel_field_store_in_mysql_format_func(
 	UNIV_MEM_ASSERT_W(dest, templ->mysql_col_len);
 	UNIV_MEM_INVALID(dest, templ->mysql_col_len);
 
+	byte* pad = dest + len;
+
 	switch (templ->type) {
 		const byte*	field_end;
-		byte*		pad;
-	case DATA_INT:
-		/* Convert integer data from Innobase to a little-endian
-		format, sign bit restored to normal */
-
-		ptr = dest + len;
-
-		for (;;) {
-			ptr--;
-			*ptr = *data;
-			if (ptr == dest) {
-				break;
-			}
-			data++;
-		}
-
-		if (!templ->is_unsigned) {
-			dest[len - 1] = (byte) (dest[len - 1] ^ 128);
-		}
-
-		ut_ad(templ->mysql_col_len == len);
-		break;
-
 	case DATA_VARCHAR:
 	case DATA_VARMYSQL:
 	case DATA_BINARY:
@@ -2769,7 +2746,14 @@ row_sel_field_store_in_mysql_format_func(
 
 		/* Pad with trailing spaces. */
 
-		pad = dest + len;
+		if (pad == field_end) {
+			break;
+		}
+
+		if (UNIV_UNLIKELY(templ->type == DATA_FIXBINARY)) {
+			memset(pad, 0, field_end - pad);
+			break;
+		}
 
 		ut_ad(templ->mbminlen <= templ->mbmaxlen);
 
@@ -2846,7 +2830,7 @@ row_sel_field_store_in_mysql_format_func(
 			done in row0mysql.cc, function
 			row_mysql_store_col_in_innobase_format(). */
 
-			memset(dest + len, 0x20, templ->mysql_col_len - len);
+			memset(pad, 0x20, templ->mysql_col_len - len);
 		}
 		break;
 
@@ -2863,13 +2847,24 @@ row_sel_field_store_in_mysql_format_func(
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
-		/* Above are the valid column types for MySQL data. */
 #endif /* UNIV_DEBUG */
 		ut_ad((templ->is_virtual && !field)
 		      || (field && field->prefix_len
 				? field->prefix_len == len
 				: templ->mysql_col_len == len));
 		memcpy(dest, data, len);
+		break;
+
+	case DATA_INT:
+		/* Convert InnoDB big-endian integer to little-endian
+		format, sign bit restored to 2's complement form */
+		DBUG_ASSERT(templ->mysql_col_len == len);
+
+		byte* ptr = pad;
+		do *--ptr = *data++; while (ptr != dest);
+		if (!templ->is_unsigned) {
+			pad[-1] ^= 0x80;
+		}
 	}
 }
 
@@ -2933,8 +2928,7 @@ row_sel_store_mysql_field(
 		causes an assert */
 
 		data = btr_rec_copy_externally_stored_field(
-			rec, offsets,
-			dict_table_page_size(prebuilt->table),
+			rec, offsets, prebuilt->table->space->zip_size(),
 			field_no, &len, heap);
 
 		if (UNIV_UNLIKELY(!data)) {
@@ -3129,8 +3123,9 @@ row_sel_store_mysql_rec(
 			= rec_clust
 			? templ->clust_rec_field_no
 			: templ->rec_field_no;
-		/* We should never deliver column prefixes to MySQL,
-		except for evaluating innobase_index_cond(). */
+		/* We should never deliver column prefixes to the SQL layer,
+		except for evaluating handler_index_cond_check()
+		or handler_rowid_filter_check(). */
 		/* ...actually, we do want to do this in order to
 		support the prefix query optimization.
 
@@ -3308,7 +3303,7 @@ row_sel_get_clust_rec_for_mysql(
 			and is it not unsafe to use RW_NO_LATCH here? */
 			buf_block_t*	block = buf_page_get_gen(
 				btr_pcur_get_block(prebuilt->pcur)->page.id,
-				btr_pcur_get_block(prebuilt->pcur)->page.size,
+				btr_pcur_get_block(prebuilt->pcur)->zip_size(),
 				RW_NO_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 			mem_heap_t*	heap = mem_heap_create(256);
@@ -3758,7 +3753,7 @@ row_sel_enqueue_cache_row_for_mysql(
 	/* For non ICP code path the row should already exist in the
 	next fetch cache slot. */
 
-	if (prebuilt->idx_cond != NULL) {
+	if (prebuilt->pk_filter || prebuilt->idx_cond) {
 		byte*	dest = row_sel_fetch_last_buf(prebuilt);
 
 		ut_memcpy(dest, mysql_rec, prebuilt->mysql_row_len);
@@ -3856,16 +3851,17 @@ row_search_idx_cond_check(
 	const rec_t*		rec,		/*!< in: InnoDB record */
 	const ulint*		offsets)	/*!< in: rec_get_offsets() */
 {
-	ICP_RESULT	result;
 	ulint		i;
 
 	ut_ad(rec_offs_validate(rec, prebuilt->index, offsets));
 
 	if (!prebuilt->idx_cond) {
-		return(ICP_MATCH);
+		if (!handler_rowid_filter_is_active(prebuilt->pk_filter)) {
+			return(ICP_MATCH);
+		}
+	} else {
+		MONITOR_INC(MONITOR_ICP_ATTEMPTS);
 	}
-
-	MONITOR_INC(MONITOR_ICP_ATTEMPTS);
 
 	/* Convert to MySQL format those fields that are needed for
 	evaluating the index condition. */
@@ -3896,9 +3892,17 @@ row_search_idx_cond_check(
 	index, if the case of the column has been updated in
 	the past, or a record has been deleted and a record
 	inserted in a different case. */
-	result = innobase_index_cond(prebuilt->idx_cond);
+	ICP_RESULT result = prebuilt->idx_cond
+		? handler_index_cond_check(prebuilt->idx_cond)
+		: ICP_MATCH;
+
 	switch (result) {
 	case ICP_MATCH:
+		if (handler_rowid_filter_is_active(prebuilt->pk_filter)
+		    && !handler_rowid_filter_check(prebuilt->pk_filter)) {
+			MONITOR_INC(MONITOR_ICP_MATCH);
+			return(ICP_NO_MATCH);
+		}
 		/* Convert the remaining fields to MySQL format.
 		If this is a secondary index record, we must defer
 		this until we have fetched the clustered index record. */
@@ -4351,7 +4355,7 @@ row_search_mvcc(
 				mtr.commit(). */
 				ut_ad(!rec_get_deleted_flag(rec, comp));
 
-				if (prebuilt->idx_cond) {
+				if (prebuilt->pk_filter || prebuilt->idx_cond) {
 					switch (row_search_idx_cond_check(
 							buf, prebuilt,
 							rec, offsets)) {
@@ -5290,7 +5294,7 @@ requires_clust_rec:
 		result_rec = clust_rec;
 		ut_ad(rec_offs_validate(result_rec, clust_index, offsets));
 
-		if (prebuilt->idx_cond) {
+		if (prebuilt->pk_filter || prebuilt->idx_cond) {
 			/* Convert the record to MySQL format. We were
 			unable to do this in row_search_idx_cond_check(),
 			because the condition is on the secondary index
@@ -5351,8 +5355,7 @@ use_covering_index:
 		/* We only convert from InnoDB row format to MySQL row
 		format when ICP is disabled. */
 
-		if (!prebuilt->idx_cond) {
-
+		if (!prebuilt->pk_filter && !prebuilt->idx_cond) {
 			/* We use next_buf to track the allocation of buffers
 			where we store and enqueue the buffers for our
 			pre-fetch optimisation.
@@ -5424,7 +5427,7 @@ use_covering_index:
 			       rec_offs_size(offsets));
 			mach_write_to_4(buf,
 					rec_offs_extra_size(offsets) + 4);
-		} else if (!prebuilt->idx_cond) {
+		} else if (!prebuilt->pk_filter && !prebuilt->idx_cond) {
 			/* The record was not yet converted to MySQL format. */
 			if (!row_sel_store_mysql_rec(
 				    buf, prebuilt, result_rec, vrow,
@@ -5666,8 +5669,7 @@ normal_return:
 
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");
 
-	if (prebuilt->idx_cond != 0) {
-
+	if (prebuilt->pk_filter || prebuilt->idx_cond) {
 		/* When ICP is active we don't write to the MySQL buffer
 		directly, only to buffers that are enqueued in the pre-fetch
 		queue. We need to dequeue the first buffer and copy the contents

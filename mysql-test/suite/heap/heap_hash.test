@@ -313,8 +313,8 @@ select 0+a from t1 where a = 736494;
 explain select 0+a from t1 where a = 736494;
 select 0+a from t1 where a=869751 or a=736494;
 explain select 0+a from t1 where a=869751 or a=736494;
-select 0+a from t1 where a in (869751,736494,226312,802616);
-explain select 0+a from t1 where a in (869751,736494,226312,802616);
+select 0+a from t1 where a in (869751,736494,226312,802616,728912);
+explain select 0+a from t1 where a in (869751,736494,226312,802616,728912);
 drop table t1;
 
 --echo End of 5.3 tests

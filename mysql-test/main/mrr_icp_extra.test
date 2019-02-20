@@ -4,6 +4,7 @@ call mtr.add_suppression("Can't find record in .*");
 
 set @mrr_icp_extra_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+set optimizer_switch='rowid_filter=off';
 SET NAMES latin1;
 CREATE TABLE t1 
 (s1 char(10) COLLATE latin1_german1_ci,

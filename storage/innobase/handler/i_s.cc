@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -5978,7 +5978,7 @@ i_s_dict_fill_sys_tables(
 	ulint			compact = DICT_TF_GET_COMPACT(table->flags);
 	ulint			atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(
 								table->flags);
-	const page_size_t&	page_size = dict_tf_get_page_size(table->flags);
+	const ulint zip_size = dict_tf_get_zip_size(table->flags);
 	const char*		row_format;
 
 	if (!compact) {
@@ -6007,10 +6007,7 @@ i_s_dict_fill_sys_tables(
 
 	OK(field_store_string(fields[SYS_TABLES_ROW_FORMAT], row_format));
 
-	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(
-				page_size.is_compressed()
-				? page_size.physical()
-				: 0, true));
+	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(zip_size, true));
 
 	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE],
 			      table->space_id ? "Single" : "System"));
@@ -7967,7 +7964,9 @@ i_s_dict_fill_sys_tablespaces(
 
 	DBUG_ENTER("i_s_dict_fill_sys_tablespaces");
 
-	if (is_system_tablespace(space)) {
+	if (fil_space_t::full_crc32(flags)) {
+		row_format = NULL;
+	} else if (is_system_tablespace(space)) {
 		row_format = "Compact, Redundant or Dynamic";
 	} else if (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 		row_format = "Compressed";
@@ -7991,7 +7990,7 @@ i_s_dict_fill_sys_tablespaces(
 			      is_system_tablespace(space)
 			      ? "System" : "Single"));
 
-	ulint cflags = fsp_flags_is_valid(flags, space)
+	ulint cflags = fil_space_t::is_valid_flags(flags, space)
 		? flags : fsp_flags_convert_from_101(flags);
 	if (cflags == ULINT_UNDEFINED) {
 		fields[SYS_TABLESPACES_PAGE_SIZE]->set_null();
@@ -8003,13 +8002,11 @@ i_s_dict_fill_sys_tablespaces(
 		DBUG_RETURN(0);
 	}
 
-	const page_size_t page_size(cflags);
-
 	OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(
-		   page_size.logical(), true));
+		   fil_space_t::logical_size(cflags), true));
 
 	OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
-		   page_size.physical(), true));
+		   fil_space_t::physical_size(cflags), true));
 
 	char*	filepath = NULL;
 	if (FSP_FLAGS_HAS_DATA_DIR(cflags)) {

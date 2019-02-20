@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -68,6 +68,7 @@
 #include "sql_lex.h"
 #include "sql_sequence.h"
 #include "my_base.h"
+#include "sql_type_json.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -722,6 +723,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   class sp_lex_cursor *sp_cursor_stmt;
   LEX_CSTRING *lex_str_ptr;
   LEX_USER *lex_user;
+  USER_AUTH *user_auth;
   List<Condition_information_item> *cond_info_list;
   List<DYNCALL_CREATE_DEF> *dyncol_def_list;
   List<Item> *item_list;
@@ -788,6 +790,8 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 }
 
 %{
+/* avoid unintentional %union size increases, it's what a parser stack made of */
+static_assert(sizeof(YYSTYPE) == sizeof(void*)*2+8, "%union size check");
 bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
@@ -1148,6 +1152,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   Non-reserved keywords
 */
 
+%token  <kwd>  ACCOUNT_SYM                   /* MYSQL */
 %token  <kwd>  ACTION                        /* SQL-2003-N */
 %token  <kwd>  ADMIN_SYM                     /* SQL-2003-N */
 %token  <kwd>  ADDDATE_SYM                   /* MYSQL-FUNC */
@@ -1942,6 +1947,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role
+
+%type <user_auth> opt_auth_str auth_expression auth_token
 
 %type <charset>
         opt_collate
@@ -2906,7 +2913,7 @@ create:
             Lex->pop_select(); //main select
           }
         | create_or_replace USER_SYM opt_if_not_exists clear_privileges
-          grant_list opt_require_clause opt_resource_options
+          grant_list opt_require_clause opt_resource_options opt_account_locking
           {
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_USER,
                                                      $1 | $3)))
@@ -3310,9 +3317,7 @@ clear_privileges:
            lex->grant= lex->grant_tot_col= 0;
            lex->all_privileges= 0;
            lex->first_select_lex()->db= null_clex_str;
-           lex->ssl_type= SSL_TYPE_NOT_SPECIFIED;
-           lex->ssl_cipher= lex->x509_subject= lex->x509_issuer= 0;
-           bzero((char *)&(lex->mqh),sizeof(lex->mqh));
+           lex->account_options.reset();
          }
         ;
 
@@ -7078,7 +7083,7 @@ field_type_lob:
         | JSON_SYM
           {
             Lex->charset= &my_charset_utf8mb4_bin;
-            $$.set(&type_handler_long_blob);
+            $$.set(&type_handler_json_longtext);
           }
         ;
 
@@ -7970,7 +7975,7 @@ alter:
           } OPTIONS_SYM '(' server_options_list ')' { }
           /* ALTER USER foo is allowed for MySQL compatibility. */
         | ALTER opt_if_exists USER_SYM clear_privileges grant_list
-          opt_require_clause opt_resource_options
+          opt_require_clause opt_resource_options opt_account_locking
           {
             Lex->create_info.set($2);
             Lex->sql_command= SQLCOM_ALTER_USER;
@@ -8006,6 +8011,18 @@ alter:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+          }
+        ;
+
+opt_account_locking:
+        /* Nothing */ {}
+        | ACCOUNT_SYM LOCK_SYM
+          {
+            Lex->account_options.account_locked= ACCOUNTLOCK_LOCKED;
+          }
+        | ACCOUNT_SYM UNLOCK_SYM
+          {
+            Lex->account_options.account_locked= ACCOUNTLOCK_UNLOCKED;
           }
         ;
 
@@ -8427,7 +8444,7 @@ alter_list_item:
                                 $5->name, $4->csname));
             if (unlikely(Lex->create_info.add_alter_list_item_convert_to_charset($5)))
               MYSQL_YYABORT;
-            Lex->alter_info.flags|= ALTER_OPTIONS;
+            Lex->alter_info.flags|= ALTER_CONVERT_TO;
           }
         | create_table_options_space_separated
           {
@@ -15518,11 +15535,9 @@ ident_or_text:
 user_maybe_role:
           ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user = $1;
-            $$->host= null_clex_str; // User or Role, see get_current_user()
-            $$->reset_auth();
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,
@@ -15531,10 +15546,9 @@ user_maybe_role:
           }
         | ident_or_text '@' ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
-            $$->reset_auth();
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,
@@ -15564,8 +15578,7 @@ user_maybe_role:
             if (unlikely(!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_user;
-            $$->plugin= empty_clex_str;
-            $$->auth= empty_clex_str;
+            $$->auth= new (thd->mem_root) USER_AUTH();
           }
         ;
 
@@ -15850,6 +15863,7 @@ keyword_data_type:
 */
 keyword_sp_var_and_label:
           ACTION
+        | ACCOUNT_SYM
         | ADDDATE_SYM
         | ADMIN_SYM
         | AFTER_SYM
@@ -16548,21 +16562,29 @@ opt_for_user:
                            thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             lex->definer->user= current_user;
-            lex->definer->plugin= empty_clex_str;
-            lex->definer->auth=   empty_clex_str;
+            lex->definer->auth= new (thd->mem_root) USER_AUTH();
           }
         | FOR_SYM user equal { Lex->definer= $2; }
         ;
 
 text_or_password:
-          TEXT_STRING { Lex->definer->auth= $1;}
-        | PASSWORD_SYM '(' TEXT_STRING ')' { Lex->definer->pwtext= $3; }
+          TEXT_STRING
+          {
+            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
+            Lex->definer->auth->auth_str= $1;
+          }
+        | PASSWORD_SYM '(' TEXT_STRING ')'
+          {
+            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
+            Lex->definer->auth->pwtext= $3;
+          }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            Lex->definer->pwtext= $3;
-            Lex->definer->auth.str= Item_func_password::alloc(thd,
+            Lex->definer->auth= new (thd->mem_root) USER_AUTH();
+            Lex->definer->auth->pwtext= $3;
+            Lex->definer->auth->auth_str.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
-            Lex->definer->auth.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            Lex->definer->auth->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 
@@ -16936,7 +16958,7 @@ current_role:
             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_role;
-            $$->reset_auth();
+            $$->auth= NULL;
           }
           ;
 
@@ -16953,7 +16975,7 @@ grant_role:
               MYSQL_YYABORT;
             $$->user= $1;
             $$->host= empty_clex_str;
-            $$->reset_auth();
+            $$->auth= NULL;
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,
@@ -17043,23 +17065,23 @@ require_list_element:
           SUBJECT_SYM TEXT_STRING
           {
             LEX *lex=Lex;
-            if (unlikely(lex->x509_subject))
+            if (lex->account_options.x509_subject.str)
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "SUBJECT"));
-            lex->x509_subject=$2.str;
+            lex->account_options.x509_subject= $2;
           }
         | ISSUER_SYM TEXT_STRING
           {
             LEX *lex=Lex;
-            if (unlikely(lex->x509_issuer))
+            if (lex->account_options.x509_issuer.str)
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "ISSUER"));
-            lex->x509_issuer=$2.str;
+            lex->account_options.x509_issuer= $2;
           }
         | CIPHER_SYM TEXT_STRING
           {
             LEX *lex=Lex;
-            if (unlikely(lex->ssl_cipher))
+            if (lex->account_options.ssl_cipher.str)
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "CIPHER"));
-            lex->ssl_cipher=$2.str;
+            lex->account_options.ssl_cipher= $2;
           }
         ;
 
@@ -17150,36 +17172,64 @@ grant_user:
           user IDENTIFIED_SYM BY TEXT_STRING
           {
             $$= $1;
-            $1->pwtext= $4;
+            $1->auth= new (thd->mem_root) USER_AUTH();
+            $1->auth->pwtext= $4;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
             $$= $1; 
-            $1->auth= $5;
+            $1->auth= new (thd->mem_root) USER_AUTH();
+            $1->auth->auth_str= $5;
           }
-        | user IDENTIFIED_SYM via_or_with ident_or_text
+        | user IDENTIFIED_SYM via_or_with auth_expression
           {
             $$= $1;
-            $1->plugin= $4;
-            $1->auth= empty_clex_str;
-          }
-        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
-          TEXT_STRING_sys
-          {
-            $$= $1;
-            $1->plugin= $4;
-            $1->auth= $6;
-          }
-        | user IDENTIFIED_SYM via_or_with ident_or_text using_or_as
-          PASSWORD_SYM '(' TEXT_STRING ')'
-          {
-            $$= $1;
-            $1->plugin= $4;
-            $1->pwtext= $8;
+            $1->auth= $4;
           }
         | user_or_role
           { $$= $1; }
         ;
+
+auth_expression:
+          auth_token OR_SYM auth_expression
+          {
+            $$= $1;
+            DBUG_ASSERT($$->next == NULL);
+            $$->next= $3;
+          }
+        | auth_token
+          {
+            $$= $1;
+          }
+        ;
+
+auth_token:
+          ident_or_text opt_auth_str
+        {
+          $$= $2;
+          $$->plugin= $1;
+        }
+        ;
+
+opt_auth_str:
+        /* empty */
+        {
+          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+            MYSQL_YYABORT;
+        }
+      | using_or_as TEXT_STRING_sys
+        {
+          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+            MYSQL_YYABORT;
+          $$->auth_str= $2;
+        }
+      | using_or_as PASSWORD_SYM '(' TEXT_STRING ')'
+        {
+          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+            MYSQL_YYABORT;
+          $$->pwtext= $4;
+        }
+      ;
 
 opt_column_list:
           /* empty */
@@ -17228,52 +17278,47 @@ opt_require_clause:
           /* empty */
         | REQUIRE_SYM require_list
           {
-            Lex->ssl_type=SSL_TYPE_SPECIFIED;
+            Lex->account_options.ssl_type= SSL_TYPE_SPECIFIED;
           }
         | REQUIRE_SYM SSL_SYM
           {
-            Lex->ssl_type=SSL_TYPE_ANY;
+            Lex->account_options.ssl_type= SSL_TYPE_ANY;
           }
         | REQUIRE_SYM X509_SYM
           {
-            Lex->ssl_type=SSL_TYPE_X509;
+            Lex->account_options.ssl_type= SSL_TYPE_X509;
           }
         | REQUIRE_SYM NONE_SYM
           {
-            Lex->ssl_type=SSL_TYPE_NONE;
+            Lex->account_options.ssl_type= SSL_TYPE_NONE;
           }
         ;
 
 resource_option:
         MAX_QUERIES_PER_HOUR ulong_num
           {
-            LEX *lex=Lex;
-            lex->mqh.questions=$2;
-            lex->mqh.specified_limits|= USER_RESOURCES::QUERIES_PER_HOUR;
+            Lex->account_options.questions=$2;
+            Lex->account_options.specified_limits|= USER_RESOURCES::QUERIES_PER_HOUR;
           }
         | MAX_UPDATES_PER_HOUR ulong_num
           {
-            LEX *lex=Lex;
-            lex->mqh.updates=$2;
-            lex->mqh.specified_limits|= USER_RESOURCES::UPDATES_PER_HOUR;
+            Lex->account_options.updates=$2;
+            Lex->account_options.specified_limits|= USER_RESOURCES::UPDATES_PER_HOUR;
           }
         | MAX_CONNECTIONS_PER_HOUR ulong_num
           {
-            LEX *lex=Lex;
-            lex->mqh.conn_per_hour= $2;
-            lex->mqh.specified_limits|= USER_RESOURCES::CONNECTIONS_PER_HOUR;
+            Lex->account_options.conn_per_hour= $2;
+            Lex->account_options.specified_limits|= USER_RESOURCES::CONNECTIONS_PER_HOUR;
           }
         | MAX_USER_CONNECTIONS_SYM int_num
           {
-            LEX *lex=Lex;
-            lex->mqh.user_conn= $2;
-            lex->mqh.specified_limits|= USER_RESOURCES::USER_CONNECTIONS;
+            Lex->account_options.user_conn= $2;
+            Lex->account_options.specified_limits|= USER_RESOURCES::USER_CONNECTIONS;
           }
         | MAX_STATEMENT_TIME_SYM NUM_literal
           {
-            LEX *lex=Lex;
-            lex->mqh.max_statement_time= $2->val_real();
-            lex->mqh.specified_limits|= USER_RESOURCES::MAX_STATEMENT_TIME;
+            Lex->account_options.max_statement_time= $2->val_real();
+            Lex->account_options.specified_limits|= USER_RESOURCES::MAX_STATEMENT_TIME;
           }
         ;
 
@@ -17472,9 +17517,7 @@ definer:
           DEFINER_SYM '=' user_or_role
           {
             Lex->definer= $3;
-            Lex->ssl_type= SSL_TYPE_NOT_SPECIFIED;
-            Lex->ssl_cipher= Lex->x509_subject= Lex->x509_issuer= 0;
-            bzero(&(Lex->mqh), sizeof(Lex->mqh));
+            Lex->account_options.reset();
           }
         ;
 

@@ -59,7 +59,8 @@ uint calc_days_in_year(uint year)
 }
 
 
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
+
 
 static const ulonglong C_KNOWN_FLAGS= C_TIME_NO_ZERO_IN_DATE |
                                       C_TIME_NO_ZERO_DATE    |

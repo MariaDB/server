@@ -672,7 +672,7 @@ buf_load()
 	so all pages from a given tablespace are consecutive. */
 	ulint		cur_space_id = BUF_DUMP_SPACE(dump[0]);
 	fil_space_t*	space = fil_space_acquire_silent(cur_space_id);
-	page_size_t	page_size(space ? space->flags : 0);
+	ulint		zip_size = space ? space->zip_size() : 0;
 
 	/* JAN: TODO: MySQL 5.7 PSI
 #ifdef HAVE_PSI_STAGE_INTERFACE
@@ -703,9 +703,7 @@ buf_load()
 			space = fil_space_acquire_silent(cur_space_id);
 
 			if (space != NULL) {
-				const page_size_t	cur_page_size(
-					space->flags);
-				page_size.copy_from(cur_page_size);
+				zip_size = space->zip_size();
 			}
 		}
 
@@ -720,7 +718,7 @@ buf_load()
 
 		buf_read_page_background(
 			page_id_t(this_space_id, BUF_DUMP_PAGE(dump[i])),
-			page_size, true);
+			zip_size, true);
 
 		if (i % 64 == 63) {
 			os_aio_simulated_wake_handler_threads();

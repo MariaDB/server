@@ -14,7 +14,7 @@ wsrep_causal_reads=0
 wsrep_sync_wait=0
 
 [mysqld]
-wsrep_debug=ON
+wsrep_debug=1
 
 [client]
 ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem

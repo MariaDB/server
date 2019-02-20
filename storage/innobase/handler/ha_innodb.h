@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -420,6 +420,12 @@ public:
 	@return idx_cond if pushed; NULL if not pushed */
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
+
+	/** Push a primary key filter.
+	@param[in]	pk_filter	filter against which primary keys
+					are to be checked
+	@retval	false if pushed (always) */
+	bool rowid_filter_push(Rowid_filter *rowid_filter);
 
 protected:
 

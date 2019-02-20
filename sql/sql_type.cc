@@ -2327,6 +2327,17 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
                    ((const Field_enum*) target)->typelib, target->charset());
 }
 
+
+/*************************************************************************/
+
+bool Type_handler::
+       Column_definition_validate_check_constraint(THD *thd,
+                                                   Column_definition * c) const
+{
+  return c->validate_check_constraint(thd);
+}
+
+
 /*************************************************************************/
 bool Type_handler_null::
        Column_definition_fix_attributes(Column_definition *def) const
@@ -8193,4 +8204,50 @@ Type_handler_timestamp_common::Item_param_val_native(THD *thd,
   return
     item->get_date(thd, &ltime, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
     TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
+}
+
+static bool charsets_are_compatible(const char *old_cs_name,
+                                    const CHARSET_INFO *new_ci)
+{
+  const char *new_cs_name= new_ci->csname;
+
+  if (!strcmp(old_cs_name, new_cs_name))
+    return true;
+
+  if (!strcmp(old_cs_name, MY_UTF8MB3) && !strcmp(new_cs_name, MY_UTF8MB4))
+    return true;
+
+  if (!strcmp(old_cs_name, "ascii") && !(new_ci->state & MY_CS_NONASCII))
+    return true;
+
+  if (!strcmp(old_cs_name, "ucs2") && !strcmp(new_cs_name, "utf16"))
+    return true;
+
+  return false;
+}
+
+bool Type_handler::Charsets_are_compatible(const CHARSET_INFO *old_ci,
+                                           const CHARSET_INFO *new_ci,
+                                           bool part_of_a_key)
+{
+  const char *old_cs_name= old_ci->csname;
+  const char *new_cs_name= new_ci->csname;
+
+  if (!charsets_are_compatible(old_cs_name, new_ci))
+  {
+    return false;
+  }
+
+  if (!part_of_a_key)
+  {
+    return true;
+  }
+
+  if (strcmp(old_ci->name + strlen(old_cs_name),
+             new_ci->name + strlen(new_cs_name)))
+  {
+    return false;
+  }
+
+  return true;
 }

@@ -142,7 +142,7 @@ struct FindPage
 			slot->object);
 
 		if (m_ptr < block->frame
-		    || m_ptr >= block->frame + block->page.size.logical()) {
+		    || m_ptr >= block->frame + srv_page_size) {
 			return(true);
 		}
 

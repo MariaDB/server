@@ -101,7 +101,7 @@ SET (SQL_SOURCE
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
                debug_sync.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
-               group_by_handler.cc
+               group_by_handler.cc derived_handler.cc select_handler.cc
                sql_statistics.cc sql_string.cc lex_string.h
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
@@ -132,13 +132,15 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
-               sql_type.cc
+               sql_type.cc sql_type_json.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h
                sql_tvc.cc sql_tvc.h
                opt_split.cc
+               rowid_filter.cc rowid_filter.h
+               opt_trace.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc
@@ -445,12 +447,6 @@ IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
   ADD_CUSTOM_TARGET(initial_database  
     ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-  )
-  INSTALL(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data DESTINATION . 
-  COMPONENT DataFiles 
-  PATTERN "initdb.dep" EXCLUDE  
-  PATTERN "bootstrap.sql" EXCLUDE
-  PATTERN "aria*" EXCLUDE
   )
 ELSE()
   # Not windows or cross compiling, just install an empty directory

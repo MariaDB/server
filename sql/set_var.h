@@ -275,6 +275,10 @@ public:
   virtual int update(THD *thd)=0;                  /* To set the value */
   virtual int light_check(THD *thd) { return check(thd); }   /* for PS */
   virtual bool is_system() { return FALSE; }
+  /**
+    @returns whether this variable is @@@@optimizer_trace.
+  */
+  virtual bool is_var_optimizer_trace() const { return false; }
 };
 
 
@@ -306,6 +310,11 @@ public:
   int check(THD *thd);
   int update(THD *thd);
   int light_check(THD *thd);
+  virtual bool is_var_optimizer_trace() const
+  {
+    extern sys_var *Sys_optimizer_trace_ptr;
+    return var == Sys_optimizer_trace_ptr;
+  }
 };
 
 

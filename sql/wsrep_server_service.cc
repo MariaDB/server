@@ -176,10 +176,12 @@ void Wsrep_server_service::log_view(
     {
       Wsrep_id id;
       Wsrep_view prev_view= wsrep_schema->restore_view(applier->m_thd, id);
+      bool checkpoint_was_reset= false;
       if (prev_view.state_id().id() != view.state_id().id())
       {
         WSREP_DEBUG("New cluster UUID was generated, resetting position info");
         wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
+        checkpoint_was_reset= true;
       }
 
       if (wsrep_debug)
@@ -188,7 +190,7 @@ void Wsrep_server_service::log_view(
         os << "Storing cluster view:\n" << view;
         WSREP_INFO("%s", os.str().c_str());
         DBUG_ASSERT(prev_view.state_id().id() != view.state_id().id() ||
-                    view.state_id().seqno() > prev_view.state_id().seqno());
+                    view.state_id().seqno().get() >= prev_view.state_id().seqno().get());
       }
 
       if (trans_begin(applier->m_thd, MYSQL_START_TRANS_OPT_READ_WRITE))
@@ -216,7 +218,21 @@ void Wsrep_server_service::log_view(
         applier->m_thd->mdl_context.release_transactional_locks();
       }
 
-      wsrep_set_SE_checkpoint(view.state_id());
+      /*
+        Backwards compatibility: When running in mixed cluster with
+        Galera 3.x, the provider does not generate unique sequence numbers
+        for views. This condition can be checked by inspecting last
+        committed as returned by the provider. If the last_committed
+        matches to view state_id seqno, the cluster runs in backwards
+        compatibility mode and we skip setting the checkpoint for
+        view.
+      */
+      wsrep::seqno last_committed=
+          Wsrep_server_state::instance().provider().last_committed_gtid().seqno();
+      if (checkpoint_was_reset || last_committed != view.state_id().seqno())
+      {
+          wsrep_set_SE_checkpoint(view.state_id());
+      }
       DBUG_ASSERT(wsrep_get_SE_checkpoint().id() == view.state_id().id());
     }
     else

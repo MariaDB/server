@@ -337,7 +337,8 @@ static int generate_binlog_index_opt_val(char** ret)
 {
   DBUG_ASSERT(ret);
   *ret= NULL;
-  if (opt_binlog_index_name) {
+  if (opt_binlog_index_name)
+  {
     *ret= strcmp(opt_binlog_index_name, "0") ?
       my_strdup(opt_binlog_index_name, MYF(0)) : my_strdup("", MYF(0));
   }
@@ -1293,7 +1294,9 @@ static int sst_donate_other (const char*        method,
   }
 
   const char* binlog_opt= "";
+  const char* binlog_index_opt= "";
   char* binlog_opt_val= NULL;
+  char* binlog_index_opt_val= NULL;
 
   int ret;
   if ((ret= generate_binlog_opt_val(&binlog_opt_val)))
@@ -1301,7 +1304,15 @@ static int sst_donate_other (const char*        method,
     WSREP_ERROR("sst_donate_other(): generate_binlog_opt_val() failed: %d",ret);
     return ret;
   }
+
+  if ((ret= generate_binlog_index_opt_val(&binlog_index_opt_val)))
+  {
+    WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
+                ret);
+  }
+
   if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
+  if (strlen(binlog_index_opt_val)) binlog_index_opt= WSREP_SST_OPT_BINLOG_INDEX;
 
   make_wsrep_defaults_file();
 
@@ -1315,15 +1326,18 @@ static int sst_donate_other (const char*        method,
                  WSREP_SST_OPT_DATA " '%s' "
                  " %s "
                  " %s '%s' "
+                 " %s '%s' "
                  WSREP_SST_OPT_GTID " '%s:%lld' "
                  WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                  "%s",
                  method, addr, mysqld_unix_port, mysql_real_data_home,
                  wsrep_defaults_file,
                  binlog_opt, binlog_opt_val,
+                 binlog_index_opt, binlog_index_opt_val,
                  uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_domain_id,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
   my_free(binlog_opt_val);
+  my_free(binlog_index_opt_val);
 
   if (ret < 0 || ret >= cmd_len)
   {
@@ -1397,4 +1411,3 @@ int wsrep_sst_donate(const std::string& msg,
 
   return (ret >= 0 ? 0 : 1);
 }
-  

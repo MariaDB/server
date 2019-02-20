@@ -36,6 +36,7 @@
 #include "datadict.h"   // dd_frm_is_view()
 #include "sql_derived.h"
 #include "sql_cte.h"    // check_dependencies_in_with_clauses()
+#include "opt_trace.h"
 
 #define MD5_BUFF_LENGTH 33
 
@@ -1418,6 +1419,15 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
     if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
       goto err;
+
+    /*
+      Check rights to run commands which show underlying tables.
+      In the optimizer trace we would not like to show trace for
+      cases when the current user does not have rights for the
+      underlying tables.
+    */
+    if (!table->prelocking_placeholder)
+      opt_trace_disable_if_no_view_access(thd, table, view_tables);
 
     /*
       Check rights to run commands (ANALYZE SELECT, EXPLAIN SELECT &

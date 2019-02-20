@@ -32,6 +32,7 @@ while ($i) {
 --enable_query_log
 commit;
 
+let $checksum_algorithm = `SELECT @@GLOBAL.innodb_checksum_algorithm`;
 let SEARCH_PATTERN = ib_undo_trunc;
 begin;
 update t1 set c = 'MariaDB';
@@ -41,6 +42,15 @@ commit;
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc
 --source include/search_pattern_in_file.inc
+if ($checksum_algorithm == "strict_full_crc32")
+{
+  let $restart_parameters= --innodb_checksum_algorithm=strict_crc32;
+}
+
+if ($checksum_algorithm == "strict_crc32")
+{
+  let $restart_parameters= --innodb_checksum_algorithm=strict_full_crc32;
+}
 --source include/start_mysqld.inc
 
 drop table t1;

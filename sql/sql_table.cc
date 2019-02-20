@@ -4438,12 +4438,11 @@ static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
   return false;
 }
 
-handler *mysql_create_frm_image(THD *thd,
-                                const LEX_CSTRING *db, const LEX_CSTRING *table_name,
+handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info, int create_table_mode,
-                                KEY **key_info,
-                                uint *key_count,
+                                KEY **key_info, uint *key_count,
                                 LEX_CUSTRING *frm)
 {
   uint		db_options;
@@ -4681,8 +4680,7 @@ handler *mysql_create_frm_image(THD *thd,
   }
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
-                                 file, key_info, key_count,
-                                 create_table_mode))
+                                 file, key_info, key_count, create_table_mode))
     goto err;
   create_info->table_options=db_options;
 
@@ -4858,12 +4856,11 @@ static int discover_assisted(THD *thd,
 */
 
 static
-int create_table_impl(THD *thd,
-                      const LEX_CSTRING *orig_db,
+int create_table_impl(THD *thd, const LEX_CSTRING *orig_db,
                       const LEX_CSTRING *orig_table_name,
                       const LEX_CSTRING *db, const LEX_CSTRING *table_name,
-                       const char *path,
-                       const DDL_options_st options,
+                      const char *path,
+                      const DDL_options_st options,
                       HA_CREATE_INFO *create_info)
 {
   LEX_CSTRING	*alias;
@@ -5023,13 +5020,11 @@ warn:
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
 */
 
-int mysql_create_table_no_lock(THD *thd,
-                               const LEX_CSTRING *db,
+int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
                                const LEX_CSTRING *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
-                               int create_table_mode,
-                               TABLE_LIST *table_list)
+                               int create_table_mode, TABLE_LIST *table_list)
 {
   KEY *not_used_1;
   uint not_used_2;
@@ -6493,7 +6488,7 @@ static bool fill_alter_inplace_info(THD *thd,
                                     bool varchar,
                                     Alter_inplace_info *ha_alter_info)
 {
-  Field **f_ptr, *field;
+  Field **f_ptr, *field, *old_field;
   List_iterator_fast<Create_field> new_field_it;
   Create_field *new_field;
   KEY_PART_INFO *key_part, *new_part;
@@ -6792,6 +6787,7 @@ static bool fill_alter_inplace_info(THD *thd,
     Go through keys and check if the original ones are compatible
     with new table.
   */
+  uint old_field_len= 0;
   KEY *table_key;
   KEY *table_key_end= table->key_info + table->s->keys;
   KEY *new_key;
@@ -6857,17 +6853,34 @@ static bool fill_alter_inplace_info(THD *thd,
          key_part < end;
          key_part++, new_part++)
     {
-      /*
-        Key definition has changed if we are using a different field or
-        if the used key part length is different. It makes sense to
-        check lengths first as in case when fields differ it is likely
-        that lengths differ too and checking fields is more expensive
-        in general case.
-      */
-      if (key_part->length != new_part->length)
-        goto index_changed;
-
       new_field= get_field_by_index(alter_info, new_part->fieldnr);
+      old_field= table->field[key_part->fieldnr - 1];
+      /*
+        If there is a change in index length due to column expansion
+        like varchar(X) changed to varchar(X + N) and has a compatible
+        packed data representation, we mark it for fast/INPLACE change
+        in index definition. InnoDB supports INPLACE for this cases
+
+        Key definition has changed if we are using a different field or
+        if the user key part length is different.
+      */
+      old_field_len= old_field->pack_length();
+
+      if (old_field->type() == MYSQL_TYPE_VARCHAR)
+      {
+        old_field_len= (old_field->pack_length()
+                        - ((Field_varstring*) old_field)->length_bytes);
+      }
+
+      if (key_part->length == old_field_len &&
+          key_part->length < new_part->length &&
+	  (key_part->field->is_equal((Create_field*) new_field)
+           == IS_EQUAL_PACK_LENGTH))
+      {
+        ha_alter_info->handler_flags |= ALTER_COLUMN_INDEX_LENGTH;
+      }
+      else if (key_part->length != new_part->length)
+        goto index_changed;
 
       /*
         For prefix keys KEY_PART_INFO::field points to cloned Field

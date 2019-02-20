@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,6 +34,16 @@ have a smaller fil_space_t::id. */
 #define SRV_TMP_SPACE_ID		0xFFFFFFFEU
 
 #include "ut0byte.h"
+
+/* Possible values of innodb_compression_algorithm */
+#define PAGE_UNCOMPRESSED	0
+#define PAGE_ZLIB_ALGORITHM	1
+#define PAGE_LZ4_ALGORITHM	2
+#define PAGE_LZO_ALGORITHM	3
+#define PAGE_LZMA_ALGORITHM	4
+#define PAGE_BZIP2_ALGORITHM	5
+#define PAGE_SNAPPY_ALGORITHM	6
+#define PAGE_ALGORITHM_LAST	PAGE_SNAPPY_ALGORITHM
 
 /** @name Flags for inserting records in order
 If records are inserted in order, there are the following
@@ -219,6 +229,15 @@ to ROW_FORMAT=REDUNDANT and ROW_FORMAT=COMPACT. */
 /** A mask of all the known/used bits in FSP_SPACE_FLAGS */
 #define FSP_FLAGS_MASK		(~(~0U << FSP_FLAGS_WIDTH))
 
+/** Number of flag bits used to indicate the tablespace page size */
+#define FSP_FLAGS_FCRC32_WIDTH_PAGE_SSIZE	4
+
+/** Marker to indicate whether tablespace is in full checksum format. */
+#define FSP_FLAGS_FCRC32_WIDTH_MARKER		1
+
+/** Stores the compressed algo for full checksum format. */
+#define FSP_FLAGS_FCRC32_WIDTH_COMPRESSED_ALGO	3
+
 /* FSP_SPACE_FLAGS position and name in MySQL 5.6/MariaDB 10.0 or older
 and MariaDB 10.1.20 or older MariaDB 10.1 and in MariaDB 10.1.21
 or newer.
@@ -282,6 +301,19 @@ these are only used in MySQL 5.7 and used for compatibility. */
 #define FSP_FLAGS_POS_PAGE_COMPRESSION	(FSP_FLAGS_POS_RESERVED \
 					+ FSP_FLAGS_WIDTH_RESERVED)
 
+/** Zero relative shift position of the PAGE_SIZE field
+in full crc32 format */
+#define FSP_FLAGS_FCRC32_POS_PAGE_SSIZE	0
+
+/** Zero relative shift position of the MARKER field in full crc32 format. */
+#define FSP_FLAGS_FCRC32_POS_MARKER	(FSP_FLAGS_FCRC32_POS_PAGE_SSIZE \
+					 + FSP_FLAGS_FCRC32_WIDTH_PAGE_SSIZE)
+
+/** Zero relative shift position of the compressed algorithm stored
+in full crc32 format. */
+#define FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO	(FSP_FLAGS_FCRC32_POS_MARKER \
+						 + FSP_FLAGS_FCRC32_WIDTH_MARKER)
+
 /** Bit mask of the POST_ANTELOPE field */
 #define FSP_FLAGS_MASK_POST_ANTELOPE				\
 		((~(~0U << FSP_FLAGS_WIDTH_POST_ANTELOPE))	\
@@ -311,6 +343,21 @@ these are only used in MySQL 5.7 and used for compatibility. */
 #define FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL			\
 		(15U << FSP_FLAGS_MEM_COMPRESSION_LEVEL)
 
+/** Bit mask of the PAGE_SIZE field in full crc32 format */
+#define FSP_FLAGS_FCRC32_MASK_PAGE_SSIZE			\
+		((~(~0U << FSP_FLAGS_FCRC32_WIDTH_PAGE_SSIZE))	\
+		<< FSP_FLAGS_FCRC32_POS_PAGE_SSIZE)
+
+/** Bit mask of the MARKER field in full crc32 format */
+#define FSP_FLAGS_FCRC32_MASK_MARKER				\
+		((~(~0U << FSP_FLAGS_FCRC32_WIDTH_MARKER))	\
+		<< FSP_FLAGS_FCRC32_POS_MARKER)
+
+/** Bit mask of the COMPRESSED ALGO field in full crc32 format */
+#define FSP_FLAGS_FCRC32_MASK_COMPRESSED_ALGO			\
+		((~(~0U << FSP_FLAGS_FCRC32_WIDTH_COMPRESSED_ALGO))	\
+		<< FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO)
+
 /** Return the value of the POST_ANTELOPE field */
 #define FSP_FLAGS_GET_POST_ANTELOPE(flags)			\
 		((flags & FSP_FLAGS_MASK_POST_ANTELOPE)		\
@@ -335,10 +382,18 @@ these are only used in MySQL 5.7 and used for compatibility. */
 #define FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)			\
 		((flags & FSP_FLAGS_MASK_PAGE_COMPRESSION)	\
 		>> FSP_FLAGS_POS_PAGE_COMPRESSION)
-
-/** Return the contents of the UNUSED bits */
-#define FSP_FLAGS_GET_UNUSED(flags)				\
-		(flags >> FSP_FLAGS_POS_UNUSED)
+/** @return the PAGE_SSIZE flags in full crc32 format */
+#define FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags)			\
+		((flags & FSP_FLAGS_FCRC32_MASK_PAGE_SSIZE)	\
+		>> FSP_FLAGS_FCRC32_POS_PAGE_SSIZE)
+/** @return the MARKER flag in full crc32 format */
+#define FSP_FLAGS_FCRC32_HAS_MARKER(flags)			\
+		((flags & FSP_FLAGS_FCRC32_MASK_MARKER)	\
+		>> FSP_FLAGS_FCRC32_POS_MARKER)
+/** @return the COMPRESSED_ALGO flags in full crc32 format */
+#define FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags)			\
+		((flags & FSP_FLAGS_FCRC32_MASK_COMPRESSED_ALGO)	\
+		>> FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO)
 
 /** @return the value of the DATA_DIR field */
 #define FSP_FLAGS_HAS_DATA_DIR(flags)				\
@@ -349,68 +404,5 @@ these are only used in MySQL 5.7 and used for compatibility. */
 	 >> FSP_FLAGS_MEM_COMPRESSION_LEVEL)
 
 /* @} */
-
-/** Validate the tablespace flags, which are stored in the
-tablespace header at offset FSP_SPACE_FLAGS.
-@param[in]	flags	the contents of FSP_SPACE_FLAGS
-@param[in]	is_ibd	whether this is an .ibd file (not system tablespace)
-@return	whether the flags are correct (not in the buggy 10.1) format */
-MY_ATTRIBUTE((warn_unused_result, const))
-UNIV_INLINE
-bool
-fsp_flags_is_valid(ulint flags, bool is_ibd)
-{
-	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure",
-			return(false););
-	if (flags == 0) {
-		return(true);
-	}
-	if (flags & ~FSP_FLAGS_MASK) {
-		return(false);
-	}
-	if ((flags & (FSP_FLAGS_MASK_POST_ANTELOPE | FSP_FLAGS_MASK_ATOMIC_BLOBS))
-	    == FSP_FLAGS_MASK_ATOMIC_BLOBS) {
-		/* If the "atomic blobs" flag (indicating
-		ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED) flag
-		is set, then the "post Antelope" (ROW_FORMAT!=REDUNDANT) flag
-		must also be set. */
-		return(false);
-	}
-	/* Bits 10..14 should be 0b0000d where d is the DATA_DIR flag
-	of MySQL 5.6 and MariaDB 10.0, which we ignore.
-	In the buggy FSP_SPACE_FLAGS written by MariaDB 10.1.0 to 10.1.20,
-	bits 10..14 would be nonzero 0bsssaa where sss is
-	nonzero PAGE_SSIZE (3, 4, 6, or 7)
-	and aa is ATOMIC_WRITES (not 0b11). */
-	if (FSP_FLAGS_GET_RESERVED(flags) & ~1U) {
-		return(false);
-	}
-
-	const ulint	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
-	if (ssize == 1 || ssize == 2 || ssize == 5 || ssize & 8) {
-		/* the page_size is not between 4k and 64k;
-		16k should be encoded as 0, not 5 */
-		return(false);
-	}
-	const ulint	zssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
-	if (zssize == 0) {
-		/* not ROW_FORMAT=COMPRESSED */
-	} else if (zssize > (ssize ? ssize : 5)) {
-		/* invalid KEY_BLOCK_SIZE */
-		return(false);
-	} else if (~flags & (FSP_FLAGS_MASK_POST_ANTELOPE
-			     | FSP_FLAGS_MASK_ATOMIC_BLOBS)) {
-		/* both these flags should be set for
-		ROW_FORMAT=COMPRESSED */
-		return(false);
-	}
-
-	/* The flags do look valid. But, avoid misinterpreting
-	buggy MariaDB 10.1 format flags for
-	PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL={0,2,3}
-	as valid-looking PAGE_SSIZE if this is known to be
-	an .ibd file and we are using the default innodb_page_size=16k. */
-	return(ssize == 0 || !is_ibd || srv_page_size != UNIV_PAGE_SIZE_ORIG);
-}
 
 #endif /* fsp0types_h */

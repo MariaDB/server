@@ -148,6 +148,12 @@ public:
   bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
   bool is_null() const { return str == NULL; }
   bool to_size_number(ulonglong *to) const;
+  void set_valid_utf8(const LEX_CSTRING *name)
+  {
+    DBUG_ASSERT(Well_formed_prefix(system_charset_info, name->str,
+                                   name->length).length() == name->length);
+    str= name->str ; length= name->length;
+  }
 };
 
 
@@ -239,6 +245,8 @@ class Item_window_func;
 struct sql_digest_state;
 class With_clause;
 class my_var;
+class select_handler;
+class Pushdown_select;
 
 #define ALLOC_ROOT_SET 1024
 
@@ -826,11 +834,12 @@ protected:
   bool prepare_join(THD *thd, SELECT_LEX *sl, select_result *result,
                     ulong additional_options,
                     bool is_union_select);
-  bool join_union_item_types(THD *thd, List<Item> &types, uint count);
   bool join_union_type_handlers(THD *thd,
                                 class Type_holder *holders, uint count);
   bool join_union_type_attributes(THD *thd,
                                   class Type_holder *holders, uint count);
+public:
+  bool join_union_item_types(THD *thd, List<Item> &types, uint count);
 public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
@@ -990,10 +999,11 @@ typedef class st_select_lex_unit SELECT_LEX_UNIT;
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
 
-/*
+/**
   Structure which consists of the field and the item that
   corresponds to this field.
 */
+
 class Field_pair :public Sql_alloc
 {
 public:
@@ -1002,6 +1012,10 @@ public:
   Field_pair(Field *fld, Item *item)
     :field(fld), corresponding_item(item) {}
 };
+
+Field_pair *get_corresponding_field_pair(Item *item,
+                                         List<Field_pair> pair_list);
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 
 
 /*
@@ -1034,6 +1048,7 @@ public:
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
   Item *cond_pushed_into_where;  /* condition pushed into the select's WHERE  */
   Item *cond_pushed_into_having; /* condition pushed into the select's HAVING */
+  List<Item> attach_to_conds;
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /*
@@ -1254,6 +1269,11 @@ public:
   table_value_constr *tvc;
   bool in_tvc;
 
+  /* The interface employed to execute the select query by a foreign engine */
+  select_handler *select_h;
+  /* The object used to organize execution of the query by a foreign engine */
+  Pushdown_select *pushdown_select;
+
   /** System Versioning */
 public:
   uint versioned_tables;
@@ -1453,8 +1473,11 @@ public:
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
   bool check_unrestricted_recursive(bool only_standard_compliant);
   bool check_subqueries_with_recursive_references();
-  void collect_grouping_fields(THD *thd, ORDER *grouping_list);
-  void check_cond_extraction_for_grouping_fields(Item *cond);
+  void collect_grouping_fields_for_derived(THD *thd, ORDER *grouping_list);
+  bool collect_grouping_fields(THD *thd);
+  bool collect_fields_equal_to_grouping(THD *thd);
+  void check_cond_extraction_for_grouping_fields(THD *thd, Item *cond,
+                                                 Pushdown_checker excl_dep);
   Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
                                        bool no_to_clones);
   
@@ -1480,10 +1503,16 @@ public:
   bool cond_pushdown_is_allowed() const
   { return !olap && !explicit_limit && !tvc; }
   
+  bool build_pushable_cond_for_having_pushdown(THD *thd,
+                                               Item *cond);
   void pushdown_cond_into_where_clause(THD *thd, Item *extracted_cond,
                                        Item **remaining_cond,
                                        Item_transformer transformer,
                                        uchar *arg);
+  void mark_or_conds_to_avoid_pushdown(Item *cond);
+  Item *pushdown_from_having_into_where(THD *thd, Item *having);
+
+  select_handler *find_select_handler(THD *thd);
 
 private:
   bool m_non_agg_field_used;
@@ -2923,6 +2952,30 @@ public:
   Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
 
+enum account_lock_type
+{
+  ACCOUNTLOCK_UNSPECIFIED,
+  ACCOUNTLOCK_LOCKED,
+  ACCOUNTLOCK_UNLOCKED
+};
+
+struct Account_options: public USER_RESOURCES
+{
+  Account_options()
+    : account_locked(ACCOUNTLOCK_UNSPECIFIED)
+  { }
+
+  void reset()
+  {
+    bzero(this, sizeof(*this));
+    ssl_type= SSL_TYPE_NOT_SPECIFIED;
+  }
+
+  enum SSL_type ssl_type;                       // defined in violite.h
+  LEX_CSTRING x509_subject, x509_issuer, ssl_cipher;
+  account_lock_type account_locked;
+};
+
 
 class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
@@ -2982,7 +3035,6 @@ public:
   const char *help_arg;
   const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
-  const char* x509_subject,*x509_issuer,*ssl_cipher;
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
   select_result *result;
@@ -3013,6 +3065,9 @@ public:
     I.e. the value of DEFINER clause.
   */
   LEX_USER *definer;
+
+  /* Used in ALTER/CREATE user to store account locking options */
+  Account_options account_options;
 
   Table_type table_type;                        /* Used for SHOW CREATE */
   List<Key_part_spec> ref_list;
@@ -3085,7 +3140,6 @@ public:
   LEX_MASTER_INFO mi;                              // used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_CSTRING relay_log_connection_name;
-  USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulonglong type;
   ulong next_binlog_file_number;
@@ -3123,7 +3177,6 @@ public:
   */
   bool parse_vcol_expr;
 
-  enum SSL_type ssl_type;                       // defined in violite.h
   enum enum_duplicates duplicates;
   enum enum_tx_isolation tx_isolation;
   enum enum_ha_read_modes ha_read_mode;

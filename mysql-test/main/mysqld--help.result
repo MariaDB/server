@@ -15,6 +15,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
+ --analyze-sample-percentage=# 
+ Percentage of rows from the table ANALYZE TABLE will
+ sample to collect table statistics. Set to 0 to let
+ MariaDB decide what percentage of rows to sample.
  -a, --ansi          Use ANSI SQL syntax instead of MySQL syntax. This mode
  will also set transaction isolation level 'serializable'.
  --auto-increment-increment[=#] 
@@ -559,6 +563,8 @@ The following specify which files/extra groups are read (specified before remain
  relay log will be rotated automatically when the size
  exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
+ --max-rowid-filter-size=# 
+ The maximum size of the container of a rowid filter
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
@@ -692,7 +698,14 @@ The following specify which files/extra groups are read (specified before remain
  optimize_join_buffer_size, table_elimination, 
  extended_keys, exists_to_in, orderby_uses_equalities, 
  condition_pushdown_for_derived, split_materialized, 
- condition_pushdown_for_subquery
+ condition_pushdown_for_subquery, rowid_filter, 
+ condition_pushdown_from_having
+ --optimizer-trace=name 
+ Controls tracing of the Optimizer:
+ optimizer_trace=option=val[,option=val...], where option
+ is one of {enabled} and val is one of {on, off, default}
+ --optimizer-trace-max-mem-size=# 
+ Maximum allowed size of an optimizer trace
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -1377,6 +1390,7 @@ The following specify which files/extra groups are read (specified before remain
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
 alter-algorithm DEFAULT
+analyze-sample-percentage 100
 auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
@@ -1428,7 +1442,7 @@ encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
-eq-range-index-dive-limit 0
+eq-range-index-dive-limit 200
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1454,8 +1468,8 @@ gtid-ignore-duplicates FALSE
 gtid-pos-auto-engines 
 gtid-strict-mode FALSE
 help TRUE
-histogram-size 0
-histogram-type SINGLE_PREC_HB
+histogram-size 254
+histogram-type DOUBLE_PREC_HB
 host-cache-size 279
 idle-readonly-transaction-timeout 0
 idle-transaction-timeout 0
@@ -1526,6 +1540,7 @@ max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824
+max-rowid-filter-size 131072
 max-seeks-for-key 18446744073709551615
 max-session-mem-used 9223372036854775807
 max-sort-length 1024
@@ -1562,7 +1577,9 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
+optimizer-trace 
+optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
 performance-schema FALSE
 performance-schema-accounts-size -1

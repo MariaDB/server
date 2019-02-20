@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -544,18 +544,6 @@ normalize_table_name_c_low(
 	const char*	name,		/*!< in: table name string */
 	ibool		set_lower_case); /*!< in: TRUE if we want to set
 					name to lower case */
-/*************************************************************//**
-InnoDB index push-down condition check defined in ha_innodb.cc
-@return ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
-
-#include <my_compare.h>
-
-ICP_RESULT
-innobase_index_cond(
-/*================*/
-	void*	file)	/*!< in/out: pointer to ha_innobase */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /******************************************************************//**
 Gets information on the durability property requested by thread.
 Used when writing either a prepare or commit record to the log

@@ -6,6 +6,11 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../../galera/include/auto_increment_offset_save.inc
+
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
@@ -49,5 +54,7 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) = 0 FROM t1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--source ../../galera/include/auto_increment_offset_restore.inc
 
 DROP TABLE t1;

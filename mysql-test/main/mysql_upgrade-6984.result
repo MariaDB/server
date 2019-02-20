@@ -63,6 +63,6 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 connect con1,localhost,root,foo,,,;
-update mysql.global_priv set priv=json_remove(priv, '$.plugin', '$.authentication_string');
+update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'));
 flush privileges;
 set global event_scheduler=OFF;

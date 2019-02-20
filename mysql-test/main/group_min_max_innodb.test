@@ -6,6 +6,13 @@
 
 --source include/have_innodb.inc
 
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
 --disable_warnings
 drop view if exists v1;
 drop table if exists t1,t4;
@@ -243,3 +250,8 @@ CREATE TABLE t2 (`voter_id` int(10) unsigned NOT NULL DEFAULT '0',
 insert into t2 values (1,repeat("a",1000)),(2,repeat("a",1000)),(3,repeat("b",1000)),(4,repeat("c",1000)),(4,repeat("b",1000));
 SELECT GROUP_CONCAT(t1.language_id SEPARATOR ',') AS `translation_resources`, `d`.`serialized_c` FROM t2 AS `d` LEFT JOIN t1 ON `d`.`voter_id` = t1.`voter_id` GROUP BY `d`.`voter_id` ORDER BY 10-d.voter_id+RAND()*0;
 drop table t1,t2;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
+

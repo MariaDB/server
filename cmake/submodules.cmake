@@ -31,7 +31,7 @@ ENDIF()
 
 IF(update_result OR NOT EXISTS ${CMAKE_SOURCE_DIR}/libmariadb/CMakeLists.txt)
   MESSAGE(FATAL_ERROR "No MariaDB Connector/C! Run
-    git submodule update --init
+    git submodule update --init --recursive
 Then restart the build.
 ")
 ENDIF()

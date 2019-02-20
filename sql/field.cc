@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -6796,7 +6796,12 @@ int Field_datetime::set_time()
   THD *thd= table->in_use;
   set_notnull();
   // Here we always truncate (not round), no matter what sql_mode is
-  store_datetime(Datetime(thd, thd->query_start_timeval()).trunc(decimals()));
+  if (decimals())
+    store_datetime(Datetime(thd, Timeval(thd->query_start(),
+                                         thd->query_start_sec_part())
+                            ).trunc(decimals()));
+  else
+    store_datetime(Datetime(thd, Timeval(thd->query_start(), 0)));
   return 0;
 }
 
@@ -7063,9 +7068,23 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->length == max_display_length();
+  if (new_field->type_handler() != type_handler())
+    return IS_EQUAL_NO;
+  if (new_field->length < max_display_length())
+    return IS_EQUAL_NO;
+  if (new_field->char_length < char_length())
+    return IS_EQUAL_NO;
+
+  const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+					     part_of_a_key))
+    return IS_EQUAL_NO;
+
+  if (new_field->length == max_display_length())
+    return new_field->charset == field_charset
+      ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
+
+  return IS_EQUAL_NO;
 }
 
 
@@ -7901,17 +7920,31 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
-  if (new_field->type_handler() == type_handler() &&
-      new_field->charset == field_charset &&
-      !new_field->compression_method() == !compression_method())
+  if (new_field->length < field_length)
+    return IS_EQUAL_NO;
+  if (new_field->char_length < char_length())
+    return IS_EQUAL_NO;
+  if (!new_field->compression_method() != !compression_method())
+    return IS_EQUAL_NO;
+
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+    return IS_EQUAL_NO;
+
+  const Type_handler *new_type_handler= new_field->type_handler();
+  if (new_type_handler == type_handler())
   {
     if (new_field->length == field_length)
-      return IS_EQUAL_YES;
-    if (new_field->length > field_length &&
-	((new_field->length <= 255 && field_length <= 255) ||
-	 (new_field->length > 255 && field_length > 255)))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer variable length
+      return new_field->charset == field_charset
+        ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
+    if (field_length <= 127 ||
+        new_field->length <= 255 ||
+        field_length > 255 ||
+        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
+      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
   }
+
   return IS_EQUAL_NO;
 }
 
@@ -8678,10 +8711,32 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->pack_length == pack_length() &&
-         !new_field->compression_method() == !compression_method();
+  if (new_field->type_handler() != type_handler())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (!new_field->compression_method() != !compression_method())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (new_field->pack_length != pack_length())
+  {
+    return IS_EQUAL_NO;
+  }
+
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+  {
+    return IS_EQUAL_NO;
+  }
+
+  if (field_charset != new_field->charset)
+  {
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  return IS_EQUAL_YES;
 }
 
 
@@ -9480,12 +9535,32 @@ bool Field_num::eq_def(const Field *field) const
 
 uint Field_num::is_equal(Create_field *new_field)
 {
-  return ((new_field->type_handler() == type_handler()) &&
-          ((new_field->flags & UNSIGNED_FLAG) == 
-           (uint) (flags & UNSIGNED_FLAG)) &&
-	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
-	   (uint) (flags & AUTO_INCREMENT_FLAG)) &&
-          (new_field->pack_length == pack_length()));
+  if ((new_field->flags ^ flags) & (UNSIGNED_FLAG | AUTO_INCREMENT_FLAG))
+    return IS_EQUAL_NO;
+
+  const Type_handler *th= type_handler(), *new_th = new_field->type_handler();
+
+  if (th == new_th && new_field->pack_length == pack_length())
+    return IS_EQUAL_YES;
+  /* FIXME: Test and consider returning IS_EQUAL_YES for the following:
+  TINYINT UNSIGNED to BIT(8)
+  SMALLINT UNSIGNED to BIT(16)
+  MEDIUMINT UNSIGNED to BIT(24)
+  INT UNSIGNED to BIT(32)
+  BIGINT UNSIGNED to BIT(64)
+
+  BIT(1..7) to TINYINT, or BIT(1..8) to TINYINT UNSIGNED
+  BIT(9..15) to SMALLINT, or BIT(9..16) to SMALLINT UNSIGNED
+  BIT(17..23) to MEDIUMINT, or BIT(17..24) to MEDIUMINT UNSIGNED
+  BIT(25..31) to INT, or BIT(25..32) to INT UNSIGNED
+  BIT(57..63) to BIGINT, or BIT(57..64) to BIGINT UNSIGNED
+
+  Note: InnoDB stores integers in big-endian format, and BIT appears
+  to use big-endian format. For storage engines that use little-endian
+  format for integers, we can only return IS_EQUAL_YES for the TINYINT
+  conversion. */
+
+  return IS_EQUAL_NO;
 }
 
 
@@ -10428,6 +10503,13 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 }
 
 
+bool Column_definition::validate_check_constraint(THD *thd)
+{
+  return check_constraint &&
+         check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
+}
+
+
 bool Column_definition::check(THD *thd)
 {
   DBUG_ENTER("Column_definition::check");
@@ -10442,9 +10524,8 @@ bool Column_definition::check(THD *thd)
       DBUG_RETURN(TRUE);
   }
 
-  if (check_constraint &&
-      check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD))
-      DBUG_RETURN(1);
+  if (type_handler()->Column_definition_validate_check_constraint(thd, this))
+    DBUG_RETURN(TRUE);
 
   if (default_value)
   {
@@ -10733,6 +10814,10 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   interval=     dup_field->interval;
   vcol_info=    dup_field->vcol_info;
   invisible=    dup_field->invisible;
+  check_constraint= dup_field->check_constraint;
+  comment=      dup_field->comment;
+  option_list=  dup_field->option_list;
+  versioning=   dup_field->versioning;
 }
 
 

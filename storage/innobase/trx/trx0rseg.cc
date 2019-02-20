@@ -98,6 +98,19 @@ trx_rseg_update_wsrep_checkpoint(
 	trx_rseg_write_wsrep_checkpoint(rseg_header, xid, mtr);
 }
 
+/** Clear the WSREP XID information from rollback segment header.
+@param[in,out]	rseg_header	Rollback segment header
+@param[in,out]	mtr 		mini-transaction */
+static void
+trx_rseg_clear_wsrep_checkpoint(
+	trx_rsegf_t*	rseg_header,
+	mtr_t*		mtr)
+{
+	mlog_memset(rseg_header + TRX_RSEG_WSREP_XID_INFO,
+		    TRX_RSEG_WSREP_XID_DATA + XIDDATASIZE
+		    - TRX_RSEG_WSREP_XID_INFO, 0, mtr);
+}
+
 /** Update WSREP checkpoint XID in first rollback segment header
 as part of wsrep_set_SE_checkpoint() when it is guaranteed that there
 are no wsrep transactions committing.
@@ -128,10 +141,6 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, &mtr);
 
 	if (must_clear_rsegs) {
-		XID null_xid;
-		memset(&null_xid, 0, sizeof null_xid);
-		null_xid.null();
-		memcpy(wsrep_uuid, xid_uuid, sizeof wsrep_uuid);
 		/* Because the UUID part of the WSREP XID differed
 		from current_xid_uuid, the WSREP group UUID was
 		changed, and we must reset the XID in all rollback
@@ -139,11 +148,10 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 		for (ulint rseg_id = 1; rseg_id < TRX_SYS_N_RSEGS; ++rseg_id) {
 			if (const trx_rseg_t* rseg =
 			    trx_sys.rseg_array[rseg_id]) {
-				trx_rseg_write_wsrep_checkpoint(
+				trx_rseg_clear_wsrep_checkpoint(
 					trx_rsegf_get(rseg->space,
 						      rseg->page_no,
 						      &mtr),
-					&null_xid,
 				        &mtr);
 			}
 		}

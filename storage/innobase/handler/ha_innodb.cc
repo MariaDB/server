@@ -4,7 +4,7 @@ Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -190,6 +190,11 @@ static char*	innobase_reset_all_monitor_counter;
 
 static ulong	innodb_flush_method;
 
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_file_format;
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_large_prefix;
+
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
 static char*	innobase_server_stopword_table;
@@ -360,6 +365,8 @@ const char* innodb_checksum_algorithm_names[] = {
 	"strict_innodb",
 	"none",
 	"strict_none",
+	"full_crc32",
+	"strict_full_crc32",
 	NullS
 };
 
@@ -3446,6 +3453,10 @@ ha_innobase::reset_template(void)
 		in ha_innobase::write_row(). */
 		m_prebuilt->template_type = ROW_MYSQL_NO_TEMPLATE;
 	}
+	if (m_prebuilt->pk_filter) {
+		m_prebuilt->pk_filter = NULL;
+		m_prebuilt->template_type = ROW_MYSQL_NO_TEMPLATE;
+	}
 }
 
 /*****************************************************************//**
@@ -3689,6 +3700,17 @@ static int innodb_init_params()
 	char		*default_path;
 	ulong		num_pll_degree;
 
+	if (innodb_large_prefix || innodb_file_format) {
+		const char* p = innodb_file_format
+			? "file_format"
+			: "large_prefix";
+		sql_print_warning("The parameter innodb_%s is deprecated"
+				  " and has no effect."
+				  " It may be removed in future releases."
+				  " See https://mariadb.com/kb/en/library/"
+				  "xtradbinnodb-file-format/", p);
+	}
+
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
 		if (innobase_buffer_pool_size > UINT_MAX32) {
@@ -3826,13 +3848,18 @@ static int innodb_init_params()
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-	/* This is the first time univ_page_size is used.
-	It was initialized to 16k pages before srv_page_size was set */
-	univ_page_size.copy_from(
-		page_size_t(srv_page_size, srv_page_size, false));
-
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
-	srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
+
+	switch (srv_checksum_algorithm) {
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		srv_sys_space.set_flags(FSP_FLAGS_FCRC32_MASK_MARKER
+					| FSP_FLAGS_FCRC32_PAGE_SSIZE());
+		break;
+	default:
+		srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
+	}
+
 	srv_sys_space.set_name("innodb_system");
 	srv_sys_space.set_path(srv_data_home);
 
@@ -3845,7 +3872,16 @@ static int innodb_init_params()
 
 	srv_tmp_space.set_name("innodb_temporary");
 	srv_tmp_space.set_path(srv_data_home);
-	srv_tmp_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
+
+	switch (srv_checksum_algorithm) {
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		srv_tmp_space.set_flags(FSP_FLAGS_FCRC32_MASK_MARKER
+					| FSP_FLAGS_FCRC32_PAGE_SSIZE());
+		break;
+	default:
+		srv_tmp_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
+	}
 
 	if (!srv_tmp_space.parse_params(innobase_temp_data_file_path, false)) {
 		ib::error() << "Unable to parse innodb_temp_data_file_path="
@@ -4697,7 +4733,7 @@ innobase_rollback(
 	trx is being rolled back due to BF abort, clear XID in order
 	to avoid writing it to rollback segment out of order. The XID
 	will be reassigned when the transaction is replayed. */
-	if (wsrep_is_wsrep_xid(trx->xid)) {
+	if (trx->state != TRX_STATE_NOT_STARTED && wsrep_is_wsrep_xid(trx->xid)) {
 		trx->xid->null();
 	}
 #endif /* WITH_WSREP */
@@ -5234,23 +5270,20 @@ ha_innobase::index_flags(
 		return(0);
 	}
 
-	ulong extra_flag= 0;
-
-	if (table && key == table->s->primary_key) {
-		extra_flag= HA_CLUSTERED_INDEX;
-	}
-
-	ulong flags = HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER
-		      | HA_READ_RANGE | HA_KEYREAD_ONLY
-		      | extra_flag
-		      | HA_DO_INDEX_COND_PUSHDOWN;
-
 	/* For spatial index, we don't support descending scan
 	and ICP so far. */
 	if (table_share->key_info[key].flags & HA_SPATIAL) {
-		flags = HA_READ_NEXT | HA_READ_ORDER| HA_READ_RANGE
+		return HA_READ_NEXT | HA_READ_ORDER| HA_READ_RANGE
 			| HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
 	}
+
+	ulong flags= key == table_share->primary_key
+		? HA_CLUSTERED_INDEX : 0;
+
+	flags |= HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER
+		| HA_READ_RANGE | HA_KEYREAD_ONLY
+		| HA_DO_INDEX_COND_PUSHDOWN
+		| HA_DO_RANGE_FILTER_PUSHDOWN;
 
 	return(flags);
 }
@@ -6108,6 +6141,11 @@ no_such_table:
 		set_my_errno(ENOENT);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+	}
+
+	if (!ib_table->not_redundant()) {
+		m_int_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
+		cached_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
 	}
 
 	size_t n_fields = omits_virtual_cols(*table_share)
@@ -7574,6 +7612,13 @@ ha_innobase::build_template(
 	/* Below we check column by column if we need to access
 	the clustered index. */
 
+	if (pushed_rowid_filter && rowid_filter_is_active) {
+		fetch_primary_key_cols = TRUE;
+		m_prebuilt->pk_filter = this;
+	} else {
+		m_prebuilt->pk_filter = NULL;
+	}
+
 	const bool skip_virtual = omits_virtual_cols(*table_share);
 	const ulint n_fields = table_share->fields;
 
@@ -7597,8 +7642,9 @@ ha_innobase::build_template(
 
 	ulint num_v = 0;
 
-	if (active_index != MAX_KEY
-	    && active_index == pushed_idx_cond_keyno) {
+	if ((active_index != MAX_KEY
+	     && active_index == pushed_idx_cond_keyno)
+	    || (pushed_rowid_filter && rowid_filter_is_active)) {
 		/* Push down an index condition or an end_range check. */
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field* field = table->field[i];
@@ -7779,8 +7825,9 @@ ha_innobase::build_template(
 				}
 			}
 		}
-
-		m_prebuilt->idx_cond = this;
+		if (active_index == pushed_idx_cond_keyno) {
+			m_prebuilt->idx_cond = this;
+		}
 	} else {
 no_icp:
 		mysql_row_templ_t*	templ;
@@ -11521,7 +11568,10 @@ create_table_info_t::check_table_options()
 	encryption */
 	for(ulint i = 0; i < m_form->s->keys; i++) {
 		const KEY* key = m_form->key_info + i;
-		if (key->flags & HA_SPATIAL && should_encrypt) {
+		if (key->flags & HA_SPATIAL && should_encrypt
+		    && (options->page_compressed
+			|| srv_checksum_algorithm
+			< SRV_CHECKSUM_ALGORITHM_FULL_CRC32)) {
 			push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_ERR_UNSUPPORTED,
 				"InnoDB: ENCRYPTED=ON not supported for table because "
@@ -12706,10 +12756,7 @@ ha_innobase::discard_or_import_tablespace(
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
-	dict_table_t*	dict_table = m_prebuilt->table;
-
-	if (dict_table->is_temporary()) {
-
+	if (m_prebuilt->table->is_temporary()) {
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_CANNOT_DISCARD_TEMPORARY_TABLE);
@@ -12717,11 +12764,11 @@ ha_innobase::discard_or_import_tablespace(
 		DBUG_RETURN(HA_ERR_TABLE_NEEDS_UPGRADE);
 	}
 
-	if (dict_table->space == fil_system.sys_space) {
+	if (m_prebuilt->table->space == fil_system.sys_space) {
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLE_IN_SYSTEM_TABLESPACE,
-			dict_table->name.m_name);
+			m_prebuilt->table->name.m_name);
 
 		DBUG_RETURN(HA_ERR_TABLE_NEEDS_UPGRADE);
 	}
@@ -12730,7 +12777,7 @@ ha_innobase::discard_or_import_tablespace(
 
 	/* Obtain an exclusive lock on the table. */
 	dberr_t	err = row_mysql_lock_table(
-		m_prebuilt->trx, dict_table, LOCK_X,
+		m_prebuilt->trx, m_prebuilt->table, LOCK_X,
 		discard ? "setting table lock for DISCARD TABLESPACE"
 			: "setting table lock for IMPORT TABLESPACE");
 
@@ -12743,32 +12790,32 @@ ha_innobase::discard_or_import_tablespace(
 		user may want to set the DISCARD flag in order to IMPORT
 		a new tablespace. */
 
-		if (!dict_table->is_readable()) {
+		if (!m_prebuilt->table->is_readable()) {
 			ib_senderrf(
 				m_prebuilt->trx->mysql_thd,
 				IB_LOG_LEVEL_WARN, ER_TABLESPACE_MISSING,
-				dict_table->name.m_name);
+				m_prebuilt->table->name.m_name);
 		}
 
 		err = row_discard_tablespace_for_mysql(
-			dict_table->name.m_name, m_prebuilt->trx);
+			m_prebuilt->table->name.m_name, m_prebuilt->trx);
 
-	} else if (dict_table->is_readable()) {
+	} else if (m_prebuilt->table->is_readable()) {
 		/* Commit the transaction in order to
 		release the table lock. */
 		trx_commit_for_mysql(m_prebuilt->trx);
 
 		ib::error() << "Unable to import tablespace "
-			<< dict_table->name << " because it already"
+			<< m_prebuilt->table->name << " because it already"
 			" exists.  Please DISCARD the tablespace"
 			" before IMPORT.";
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_EXISTS, dict_table->name.m_name);
+			ER_TABLESPACE_EXISTS, m_prebuilt->table->name.m_name);
 
 		DBUG_RETURN(HA_ERR_TABLE_EXIST);
 	} else {
-		err = row_import_for_mysql(dict_table, m_prebuilt);
+		err = row_import_for_mysql(m_prebuilt->table, m_prebuilt);
 
 		if (err == DB_SUCCESS) {
 
@@ -12784,12 +12831,35 @@ ha_innobase::discard_or_import_tablespace(
 	/* Commit the transaction in order to release the table lock. */
 	trx_commit_for_mysql(m_prebuilt->trx);
 
-	if (err == DB_SUCCESS && !discard
-	    && dict_stats_is_persistent_enabled(dict_table)) {
+	if (discard || err != DB_SUCCESS) {
+		DBUG_RETURN(convert_error_code_to_mysql(
+				    err, m_prebuilt->table->flags, NULL));
+	}
+
+	/* Evict and reload the table definition in order to invoke
+	btr_cur_instant_init(). */
+	table_id_t id = m_prebuilt->table->id;
+	ut_ad(id);
+	mutex_enter(&dict_sys->mutex);
+	dict_table_close(m_prebuilt->table, TRUE, FALSE);
+	dict_table_remove_from_cache(m_prebuilt->table);
+	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
+						  DICT_TABLE_OP_NORMAL);
+	mutex_exit(&dict_sys->mutex);
+	if (!m_prebuilt->table) {
+		err = DB_TABLE_NOT_FOUND;
+	} else {
+		if (const Field* ai = table->found_next_number_field) {
+			initialize_auto_increment(m_prebuilt->table, ai);
+		}
+		dict_stats_init(m_prebuilt->table);
+	}
+
+	if (dict_stats_is_persistent_enabled(m_prebuilt->table)) {
 		dberr_t		ret;
 
 		/* Adjust the persistent statistics. */
-		ret = dict_stats_update(dict_table,
+		ret = dict_stats_update(m_prebuilt->table,
 					DICT_STATS_RECALC_PERSISTENT);
 
 		if (ret != DB_SUCCESS) {
@@ -12799,11 +12869,12 @@ ha_innobase::discard_or_import_tablespace(
 				ER_ALTER_INFO,
 				"Error updating stats for table '%s'"
 				" after table rebuild: %s",
-				dict_table->name.m_name, ut_strerr(ret));
+				m_prebuilt->table->name.m_name,
+				ut_strerr(ret));
 		}
 	}
 
-	DBUG_RETURN(convert_error_code_to_mysql(err, dict_table->flags, NULL));
+	DBUG_RETURN(0);
 }
 
 /**
@@ -13818,7 +13889,7 @@ fsp_get_available_space_in_free_extents(const fil_space_t& space)
 	ulint	n_free_up =
 		(size_in_header - space.free_limit) / FSP_EXTENT_SIZE;
 
-	const ulint size = page_size_t(space.flags).physical();
+	const ulint size = space.physical_size();
 	if (n_free_up > 0) {
 		n_free_up--;
 		n_free_up -= n_free_up / (size / FSP_EXTENT_SIZE);
@@ -13968,8 +14039,7 @@ ha_innobase::info_low(
 		stats.records = (ha_rows) n_rows;
 		stats.deleted = 0;
 		if (fil_space_t* space = ib_table->space) {
-			const ulint size = page_size_t(space->flags)
-				.physical();
+			const ulint size = space->physical_size();
 			stats.data_file_length
 				= ulonglong(stat_clustered_index_size)
 				* size;
@@ -17430,7 +17500,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 
 	buf_block_t*	block = buf_page_get(
 		page_id_t(space_id, srv_saved_page_number_debug),
-		page_size_t(space->flags), RW_X_LATCH, &mtr);
+		space->zip_size(), RW_X_LATCH, &mtr);
 
 	if (block != NULL) {
 		byte*	page = block->frame;
@@ -18686,7 +18756,11 @@ innobase_wsrep_get_checkpoint(
 static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
   PLUGIN_VAR_RQCMDARG,
   "The algorithm InnoDB uses for page checksumming. Possible values are"
-  " CRC32 (hardware accelerated if the CPU supports it)"
+  " FULL_CRC32"
+    " for new files, always use CRC-32C; for old, see CRC32 below;"
+  " STRICT_FULL_CRC32"
+    " for new files, always use CRC-32C; for old, see STRICT_CRC32 below;"
+  " CRC32"
     " write crc32, allow any of the other checksums to match when reading;"
   " STRICT_CRC32"
     " write crc32, do not allow other algorithms to match when reading;"
@@ -18703,7 +18777,8 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
     " write a constant magic number, do not allow values other than that"
     " magic number when reading;"
   " Files updated when this option is set to crc32 or strict_crc32 will"
-  " not be readable by MariaDB versions older than 10.0.4",
+  " not be readable by MariaDB versions older than 10.0.4;"
+  " new files created with full_crc32 are readable by MariaDB 10.4.3+",
   NULL, NULL, SRV_CHECKSUM_ALGORITHM_CRC32,
   &innodb_checksum_algorithm_typelib);
 
@@ -18858,6 +18933,13 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   "With which method to flush data.",
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
   &innodb_flush_method_typelib);
+
+static MYSQL_SYSVAR_STR(file_format, innodb_file_format,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Deprecated parameter with no effect.", NULL, NULL, NULL);
+static MYSQL_SYSVAR_STR(large_prefix, innodb_large_prefix,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Deprecated parameter with no effect.", NULL, NULL, NULL);
 
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -19903,6 +19985,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
   MYSQL_SYSVAR(file_per_table),
+  MYSQL_SYSVAR(file_format), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(flush_log_at_timeout),
   MYSQL_SYSVAR(flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
@@ -19916,6 +19999,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_min_token_size),
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
+  MYSQL_SYSVAR(large_prefix), /* deprecated in MariaDB 10.2; no effect */
   MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_schedule_algorithm),
   MYSQL_SYSVAR(locks_unsafe_for_binlog),
@@ -20229,20 +20313,6 @@ ha_innobase::multi_range_read_explain_info(
 	size_t size)
 {
 	return m_ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
-}
-
-/**
-Index Condition Pushdown interface implementation */
-
-/*************************************************************//**
-InnoDB index push-down condition check
-@return ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
-ICP_RESULT
-innobase_index_cond(
-/*================*/
-	void*	file)	/*!< in/out: pointer to ha_innobase */
-{
-	return handler_index_cond_check(file);
 }
 
 /** Parse the table file name into table name and database name.
@@ -20612,9 +20682,9 @@ innobase_get_computed_value(
 	dfield_t*	field;
 	ulint		len;
 
-	const page_size_t page_size = (old_table == NULL)
-		? dict_table_page_size(index->table)
-		: dict_table_page_size(old_table);
+	const ulint zip_size = old_table
+		? old_table->space->zip_size()
+		: dict_tf_get_zip_size(index->table->flags);
 
 	ulint		ret = 0;
 
@@ -20666,7 +20736,7 @@ innobase_get_computed_value(
 			}
 
 			data = btr_copy_externally_stored_field(
-				&len, data, page_size,
+				&len, data, zip_size,
 				dfield_get_len(row_field), *local_heap);
 		}
 
@@ -20778,6 +20848,19 @@ ha_innobase::idx_cond_push(
 	in_range_check_pushed_down = TRUE;
 	/* We will evaluate the condition entirely */
 	DBUG_RETURN(NULL);
+}
+
+
+/** Push a primary key filter.
+@param[in]	pk_filter	filter against which primary keys
+				are to be checked
+@retval	false if pushed (always) */
+bool ha_innobase::rowid_filter_push(Rowid_filter* pk_filter)
+{
+	DBUG_ENTER("ha_innobase::rowid_filter_push");
+	DBUG_ASSERT(pk_filter != NULL);
+	pushed_rowid_filter= pk_filter;
+	DBUG_RETURN(false);
 }
 
 /******************************************************************//**

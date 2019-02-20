@@ -4,6 +4,7 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
 
+
 --disable_warnings
 drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
@@ -328,6 +329,7 @@ connection con1;
 
 set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
+
 send select distinct a from t0; 
 connection default;
 --source include/wait_condition.inc
@@ -1202,3 +1204,4 @@ drop table t0,t1,t2;
 connection default;
 disconnect con1;
 set debug_sync='RESET';
+

@@ -55,6 +55,9 @@ class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
 class SEQUENCE;
+class Range_rowid_filter_cost_info;
+class derived_handler;
+class Pushdown_derived;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1007,6 +1010,8 @@ struct TABLE_SHARE
 
   /* frees the memory allocated in read_frm_image */
   void free_frm_image(const uchar *frm);
+
+  void set_overlapped_keys();
 };
 
 
@@ -1130,6 +1135,8 @@ public:
   key_map keys_in_use_for_group_by;
   /* Map of keys that can be used to calculate ORDER BY without sorting */
   key_map keys_in_use_for_order_by;
+  /* Map of keys dependent on some constraint */
+  key_map constraint_dependent_keys;
   KEY  *key_info;			/* data of keys in database */
 
   Field **field;                        /* Pointer to fields */
@@ -1198,7 +1205,14 @@ public:
     and max #key parts that range access would use.
   */
   ha_rows	quick_rows[MAX_KEY];
+  uint          quick_key_parts[MAX_KEY];
+
   double 	quick_costs[MAX_KEY];
+  /*
+    If there is a range access by i-th index then the cost of
+    index only access for it is stored in quick_index_only_costs[i]
+  */
+  double 	quick_index_only_costs[MAX_KEY];
 
   /* 
     Bitmaps of key parts that =const for the duration of join execution. If
@@ -1207,8 +1221,7 @@ public:
   */
   key_part_map  const_key_parts[MAX_KEY];
 
-  uint		quick_key_parts[MAX_KEY];
-  uint		quick_n_ranges[MAX_KEY];
+  uint    quick_n_ranges[MAX_KEY];
 
   /* 
     Estimate of number of records that satisfy SARGable part of the table
@@ -1500,6 +1513,22 @@ public:
   double get_materialization_cost(); // Now used only if is_splittable()==true
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
+  key_map with_impossible_ranges;
+
+  /* Number of cost info elements for possible range filters */
+  uint range_rowid_filter_cost_info_elems;
+  /* Pointer to the array of cost info elements for range filters */
+  Range_rowid_filter_cost_info *range_rowid_filter_cost_info;
+  /* The array of pointers to cost info elements for range filters */
+  Range_rowid_filter_cost_info **range_rowid_filter_cost_info_ptr;
+
+  void init_cost_info_for_usable_range_rowid_filters(THD *thd);
+  void prune_range_rowid_filters();
+  Range_rowid_filter_cost_info *
+  best_range_rowid_filter_for_partial_join(uint access_key_no,
+                                           double records,
+                                           double access_cost_factor);
+
   /**
     System Versioning support
    */
@@ -1542,6 +1571,7 @@ public:
   int delete_row();
   void vers_update_fields();
   void vers_update_end();
+  void find_constraint_correlated_indexes();
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
@@ -2134,6 +2164,15 @@ struct TABLE_LIST
   TABLE_LIST * next_with_rec_ref;
   bool is_derived_with_recursive_reference;
   bool block_handle_derived;
+  /* The interface employed to materialize the table by a foreign engine */
+  derived_handler *dt_handler;
+  /* The text of the query specifying the derived table */
+  LEX_CSTRING derived_spec;
+  /*
+    The object used to organize execution of the query that specifies
+    the derived table by a foreign engine
+  */
+  Pushdown_derived *pushdown_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
   /*
@@ -2599,6 +2638,9 @@ struct TABLE_LIST
     return false;
   } 
   void set_lock_type(THD* thd, enum thr_lock_type lock);
+
+  derived_handler *find_derived_handler(THD *thd);
+  TABLE_LIST *get_first_table();
 
   void remove_join_columns()
   {

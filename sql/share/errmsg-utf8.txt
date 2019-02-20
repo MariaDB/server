@@ -7933,3 +7933,6 @@ ER_BACKUP_UNKNOWN_STAGE
         eng "Unknown backup stage: '%s'. Stage should be one of START, FLUSH, BLOCK_DDL, BLOCK_COMMIT or END"
 ER_USER_IS_BLOCKED
         eng "User is blocked because of too many credential errors; unblock with 'FLUSH PRIVILEGES'"
+ER_ACCOUNT_HAS_BEEN_LOCKED
+        eng "Access denied, this account is locked"
+        rum "Acces refuzat, acest cont este blocat"

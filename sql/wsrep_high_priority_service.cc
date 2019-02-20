@@ -598,7 +598,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
   }
   else if (m_replay_status == wsrep::provider::error_certification_failed)
   {
-    DBUG_ASSERT(thd->wsrep_cs().current_error() == wsrep::e_deadlock_error);
+    wsrep_override_error(thd, ER_LOCK_DEADLOCK);
   }
   else
   {

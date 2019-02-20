@@ -204,7 +204,11 @@
   instead of reading with keys.  The number says how many evaluation of the
   WHERE clause is comparable to reading one extra row from a table.
 */
-#define TIME_FOR_COMPARE   5	// 5 compares == one read
+#define TIME_FOR_COMPARE         5	//  5 compares == one read
+#define TIME_FOR_COMPARE_IDX    20
+
+#define IDX_BLOCK_COPY_COST  ((double) 1 / TIME_FOR_COMPARE)
+#define IDX_LOOKUP_COST      ((double) 1 / 8)
 
 /**
   Number of comparisons of table rowids equivalent to reading one row from a 

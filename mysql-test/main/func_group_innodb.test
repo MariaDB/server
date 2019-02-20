@@ -4,6 +4,13 @@
 
 --source include/have_innodb.inc
 
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
 --disable_warnings
 create table t1 (USR_ID integer not null, MAX_REQ integer not null, constraint PK_SEA_USER primary key (USR_ID)) engine=InnoDB;
 --enable_warnings
@@ -181,7 +188,9 @@ SET storage_engine=@old_engine;
 CREATE TABLE t1(a BLOB, b VARCHAR(255) CHARSET LATIN1, c INT,
                 KEY(b, c, a(765))) ENGINE=INNODB;
 INSERT INTO t1(a, b, c) VALUES 
-('', 'a', 0), ('', 'a', null), ('', 'a', 0), ('', 'a', null), ('', 'a', 0);
+('', 'a', 0), ('', 'a', null), ('', 'a', 0), ('', 'a', null), ('', 'a', 0),
+('', 'a', 1), ('', 'a', 1), ('', 'a', 2), ('', 'a', 2), ('', 'a', 3),
+('', 'a', 3), ('', 'a', 4), ('', 'a', 4), ('', 'a', 5), ('', 'a', 5);
                                
 -- disable_result_log
 ANALYZE TABLE t1;
@@ -212,3 +221,7 @@ SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
 drop table t1;
 
 --echo End of 5.5 tests
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

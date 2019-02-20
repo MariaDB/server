@@ -231,11 +231,11 @@ xb_fil_cur_open(
 
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
-	const page_size_t page_size(node->space->flags);
-	cursor->page_size = page_size;
+	cursor->page_size = node->space->physical_size();
+	cursor->zip_size = node->space->zip_size();
 
 	/* Allocate read buffer */
-	cursor->buf_size = XB_FIL_CUR_PAGES * page_size.physical();
+	cursor->buf_size = XB_FIL_CUR_PAGES * cursor->page_size;
 	cursor->orig_buf = static_cast<byte *>
 		(malloc(cursor->buf_size + srv_page_size));
 	cursor->buf = static_cast<byte *>
@@ -250,18 +250,17 @@ xb_fil_cur_open(
 	if (!node->space->crypt_data
 	    && os_file_read(IORequestRead,
 			    node->handle, cursor->buf, 0,
-			    page_size.physical())) {
+			    cursor->page_size)) {
 		mutex_enter(&fil_system.mutex);
 		if (!node->space->crypt_data) {
-			node->space->crypt_data
-				= fil_space_read_crypt_data(page_size,
-							    cursor->buf);
+			node->space->crypt_data = fil_space_read_crypt_data(
+				node->space->zip_size(), cursor->buf);
 		}
 		mutex_exit(&fil_system.mutex);
 	}
 
 	cursor->space_size = (ulint)(cursor->statinfo.st_size
-				     / page_size.physical());
+				     / cursor->page_size);
 
 	cursor->read_filter = read_filter;
 	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor,
@@ -276,7 +275,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 {
 	byte tmp_frame[UNIV_PAGE_SIZE_MAX];
 	byte tmp_page[UNIV_PAGE_SIZE_MAX];
-	const ulint page_size = cursor->page_size.physical();
+	const ulint page_size = cursor->page_size;
 	ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
 
 	/* We ignore the doublewrite buffer pages.*/
@@ -313,6 +312,10 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 		return false;
 	}
 
+	if (space->full_crc32()) {
+		return buf_page_is_corrupted(true, page, space->flags);
+	}
+
 	/* Validate encrypted pages. The first page is never encrypted.
 	In the system tablespace, the first page would be written with
 	FIL_PAGE_FILE_FLUSH_LSN at shutdown, and if the LSN exceeds
@@ -325,7 +328,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 		|| (space->crypt_data
 		    && space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED))) {
 
-		if (!fil_space_verify_crypt_checksum(page, cursor->page_size))
+		if (!fil_space_verify_crypt_checksum(page, space->zip_size()))
 			return true;
 
 		/* Compressed encrypted need to be decrypted
@@ -346,7 +349,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 
 		if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 			return buf_page_is_corrupted(true, tmp_page,
-						     cursor->page_size, space);
+						     space->flags);
 		}
 	}
 
@@ -361,14 +364,14 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 
 		return (!decomp
 			|| (decomp != srv_page_size
-			    && cursor->page_size.is_compressed())
+			    && cursor->zip_size)
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
 			|| buf_page_is_corrupted(true, tmp_page,
-						 cursor->page_size, space));
+						 space->flags));
 	}
 
-	return buf_page_is_corrupted(true, page, cursor->page_size, space);
+	return buf_page_is_corrupted(true, page, space->flags);
 }
 
 /************************************************************************
@@ -389,7 +392,7 @@ xb_fil_cur_read(
 	xb_fil_cur_result_t	ret;
 	ib_int64_t		offset;
 	ib_int64_t		to_read;
-	const ulint		page_size = cursor->page_size.physical();
+	const ulint		page_size = cursor->page_size;
 	xb_ad(!cursor->is_system() || page_size == srv_page_size);
 
 	cursor->read_filter->get_next_batch(&cursor->read_filter_ctxt,
@@ -459,7 +462,7 @@ read_retry:
 				    "10 retries. File %s seems to be "
 				    "corrupted.", cursor->abs_path);
 				ret = XB_FIL_CUR_ERROR;
-				buf_page_print(page, cursor->page_size);
+				ut_print_buf(stderr, page, page_size);
 				break;
 			}
 			msg(cursor->thread_n, "Database page corruption detected at page "

@@ -205,6 +205,9 @@ WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English
 -- echo Countries that speak French OR Spanish, but do not speak English
 -- echo MATERIALIZATION because the outer query filters less rows than Q5-a,
 -- echo so there are more lookups.
+
+
+set statement optimizer_switch='rowid_filter=off' for
 EXPLAIN
 SELECT Country.Name
 FROM Country, CountryLanguage 
@@ -212,6 +215,7 @@ WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English
   AND (CountryLanguage.Language = 'French' OR CountryLanguage.Language = 'Spanish')
   AND Code = Country;
 
+set statement optimizer_switch='rowid_filter=off' for
 SELECT Country.Name
 FROM Country, CountryLanguage 
 WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English')

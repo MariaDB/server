@@ -145,7 +145,7 @@ rtr_pcur_getnext_from_path(
 						| MTR_MEMO_X_LOCK));
 	}
 
-	const page_size_t	page_size(index->table->space->flags);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/* Pop each node/page to be searched from "path" structure
 	and do a search on it. Please note, any pages that are in
@@ -269,7 +269,7 @@ rtr_pcur_getnext_from_path(
 
 		block = buf_page_get_gen(
 			page_id_t(index->table->space_id,
-				  next_rec.page_no), page_size,
+				  next_rec.page_no), zip_size,
 			rw_latch, NULL, BUF_GET, __FILE__, __LINE__, mtr, &err);
 
 		if (block == NULL) {
@@ -424,7 +424,7 @@ rtr_pcur_getnext_from_path(
 						block,
 						page_id_t(index->table->space_id,
 							  block->page.id.page_no()),
-						page_size, BTR_MODIFY_TREE,
+						zip_size, BTR_MODIFY_TREE,
 						btr_cur, mtr);
 				}
 
@@ -1344,8 +1344,7 @@ rtr_cur_restore_position(
 	page_cur_t*	page_cursor;
 	node_visit_t*	node = rtr_get_parent_node(btr_cur, level, false);
 	node_seq_t	path_ssn = node->seq_no;
-	const page_size_t	page_size(index->table->space->flags);
-
+	const ulint	zip_size = index->table->space->zip_size();
 	ulint		page_no = node->page_no;
 
 	heap = mem_heap_create(256);
@@ -1361,7 +1360,7 @@ search_again:
 
 	block = buf_page_get_gen(
 		page_id_t(index->table->space_id, page_no),
-		page_size, RW_X_LATCH, NULL,
+		zip_size, RW_X_LATCH, NULL,
 		BUF_GET, __FILE__, __LINE__, mtr, &err);
 
 	ut_ad(block);

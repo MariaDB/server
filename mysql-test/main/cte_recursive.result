@@ -1409,7 +1409,7 @@ EXPLAIN
                                     "filtered": 100
                                   },
                                   "buffer_type": "flat",
-                                  "buffer_size": "256Kb",
+                                  "buffer_size": "686",
                                   "join_type": "BNL",
                                   "attached_condition": "prev_gen.father = folks.`id` or prev_gen.mother = folks.`id`"
                                 }
@@ -1636,15 +1636,15 @@ i div 4 - (i % 4) = ps.i div 4 - (ps.i % 4)
 )
 SELECT regexp_replace(board,concat('(',REPEAT('.', 4),')'),'\\1\n') n_queens FROM solutions WHERE n_queens = 4;
 n_queens
--*--
----*
-*---
 --*-
+*---
+---*
+-*--
 
---*-
-*---
----*
 -*--
+---*
+*---
+--*-
 
 #
 # MDEV-10883: execution of prepared statement from SELECT

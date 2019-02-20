@@ -7,6 +7,11 @@
 # leave the cluster.
 #
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../../galera/include/auto_increment_offset_save.inc
+
 # Start with a clean slate
 --connection node_2
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
@@ -95,3 +100,6 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 DROP TABLE t1;
 
 CALL mtr.add_suppression("points to own listening address, blacklisting");
+
+# Restore original auto_increment_offset values.
+--source ../../galera/include/auto_increment_offset_restore.inc

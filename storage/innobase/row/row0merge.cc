@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -442,7 +442,7 @@ row_merge_buf_redundant_convert(
 	const dfield_t*		row_field,
 	dfield_t*		field,
 	ulint			len,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	mem_heap_t*		heap)
 {
 	ut_ad(field->type.mbminlen == 1);
@@ -462,7 +462,7 @@ row_merge_buf_redundant_convert(
 			    field_ref_zero, BTR_EXTERN_FIELD_REF_SIZE));
 
 		byte*	data = btr_copy_externally_stored_field(
-			&ext_len, field_data, page_size, field_len, heap);
+			&ext_len, field_data, zip_size, field_len, heap);
 
 		ut_ad(ext_len < len);
 
@@ -704,13 +704,13 @@ row_merge_buf_add(
 				if (conv_heap != NULL) {
 					row_merge_buf_redundant_convert(
 						row_field, field, col->len,
-						dict_table_page_size(old_table),
+						old_table->space->zip_size(),
 						conv_heap);
 				} else {
 					/* Field length mismatch should not
 					happen when rebuilding redundant row
 					format table. */
-					ut_ad(dict_table_is_comp(index->table));
+					ut_ad(index->table->not_redundant());
 				}
 			}
 		}
@@ -2036,7 +2036,7 @@ end_of_index:
 				block = btr_block_get(
 					page_id_t(block->page.id.space(),
 						  next_page_no),
-					block->page.size,
+					block->zip_size(),
 					BTR_SEARCH_LEAF,
 					clust_index, &mtr);
 
@@ -3424,7 +3424,7 @@ void
 row_merge_copy_blobs(
 	const mrec_t*		mrec,
 	const ulint*		offsets,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	dtuple_t*		tuple,
 	mem_heap_t*		heap)
 {
@@ -3462,10 +3462,10 @@ row_merge_copy_blobs(
 				     BTR_EXTERN_FIELD_REF_SIZE));
 
 			data = btr_copy_externally_stored_field(
-				&len, field_data, page_size, field_len, heap);
+				&len, field_data, zip_size, field_len, heap);
 		} else {
 			data = btr_rec_copy_externally_stored_field(
-				mrec, offsets, page_size, i, &len, heap);
+				mrec, offsets, zip_size, i, &len, heap);
 		}
 
 		/* Because we have locked the table, any records
@@ -3663,8 +3663,7 @@ row_merge_insert_index_tuples(
 			row_log_table_blob_alloc() and
 			row_log_table_blob_free(). */
 			row_merge_copy_blobs(
-				mrec, offsets,
-				dict_table_page_size(old_table),
+				mrec, offsets, old_table->space->zip_size(),
 				dtuple, tuple_heap);
 		}
 

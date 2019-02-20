@@ -43,6 +43,7 @@
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
 #include "ha_sequence.h"
+#include "rowid_filter.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -2112,7 +2113,10 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           info->found_foreign_xids++;
           continue;
         }
-        if (info->dry_run)
+        if (IF_WSREP(!(wsrep_emulate_bin_log &&
+                       wsrep_is_wsrep_xid(info->list + i) &&
+                       x <= wsrep_limit) && info->dry_run,
+                     info->dry_run))
         {
           info->found_my_xids++;
           continue;
@@ -2811,23 +2815,26 @@ LEX_CSTRING *handler::engine_name()
 }
 
 
+/*
+  It is assumed that the value of the parameter 'ranges' can be only 0 or 1.
+  If ranges == 1 then the function returns the cost of index only scan
+  by index 'keyno' of one range containing 'rows' key entries.
+  If ranges == 0 then the function returns only the cost of copying
+  those key entries into the engine buffers.
+*/
+
 double handler::keyread_time(uint index, uint ranges, ha_rows rows)
 {
-  /*
-    It is assumed that we will read trough the whole key range and that all
-    key blocks are half full (normally things are much better). It is also
-    assumed that each time we read the next key from the index, the handler
-    performs a random seek, thus the cost is proportional to the number of
-    blocks read. This model does not take into account clustered indexes -
-    engines that support that (e.g. InnoDB) may want to overwrite this method.
-    The model counts in the time to read index entries from cache.
-  */
+  DBUG_ASSERT(ranges == 0 || ranges == 1);
   size_t len= table->key_info[index].key_length + ref_length;
   if (index == table->s->primary_key && table->file->primary_key_is_clustered())
     len= table->s->stored_rec_length;
-  double keys_per_block= (stats.block_size/2.0/len+1);
-  return (rows + keys_per_block-1)/ keys_per_block +
-         len*rows/(stats.block_size+1)/TIME_FOR_COMPARE ;
+  uint keys_per_block= (uint) (stats.block_size/2.0/len+1);
+  ulonglong blocks= !rows ? 0 : (rows-1) / keys_per_block + 1;
+  double cost= (double)rows*len/(stats.block_size+1)*IDX_BLOCK_COPY_COST;
+  if (ranges)
+    cost+= blocks;
+  return cost;
 }
 
 void **handler::ha_data(THD *thd) const
@@ -5936,6 +5943,35 @@ extern "C" enum icp_result handler_index_cond_check(void* h_arg)
   return res;
 }
 
+
+/**
+  Rowid filter callback - to be called by an engine to check rowid / primary
+  keys of the rows whose data is to be fetched against the used rowid filter
+*/
+
+extern "C" int handler_rowid_filter_check(void *h_arg)
+{
+  handler *h= (handler*) h_arg;
+  TABLE *tab= h->get_table();
+  h->position(tab->record[0]);
+  return h->pushed_rowid_filter->check((char *) h->ref);
+}
+
+
+/**
+  Callback function for an engine to check whether the used rowid filter
+  has been already built
+*/
+
+extern "C" int handler_rowid_filter_is_active(void *h_arg)
+{
+  if (!h_arg)
+    return false;
+  handler *h= (handler*) h_arg;
+  return h->rowid_filter_is_active;
+}
+
+
 int handler::index_read_idx_map(uchar * buf, uint index, const uchar * key,
                                 key_part_map keypart_map,
                                 enum ha_rkey_function find_flag)
@@ -6194,7 +6230,9 @@ static int write_locked_table_maps(THD *thd)
   MYSQL_LOCK *locks[2];
   locks[0]= thd->extra_lock;
   locks[1]= thd->lock;
-  my_bool with_annotate= thd->variables.binlog_annotate_row_events &&
+  my_bool with_annotate= IF_WSREP(!wsrep_fragments_certified_for_stmt(thd),
+                                  true) &&
+    thd->variables.binlog_annotate_row_events &&
     thd->query() && thd->query_length();
 
   for (uint i= 0 ; i < sizeof(locks)/sizeof(*locks) ; ++i )
@@ -6392,6 +6430,7 @@ int handler::ha_reset()
   /* Reset information about pushed engine conditions */
   cancel_pushed_idx_cond();
   /* Reset information about pushed index conditions */
+  cancel_pushed_rowid_filter();
   clear_top_table_fields();
   DBUG_RETURN(reset());
 }

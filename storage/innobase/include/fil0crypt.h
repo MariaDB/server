@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -273,13 +273,11 @@ fil_space_merge_crypt_data(
 	const fil_space_crypt_t* src);
 
 /** Initialize encryption parameters from a tablespace header page.
-@param[in]	page_size	page size of the tablespace
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	page		first page of the tablespace
 @return crypt data from page 0
 @retval	NULL	if not present or not valid */
-UNIV_INTERN
-fil_space_crypt_t*
-fil_space_read_crypt_data(const page_size_t& page_size, const byte* page)
+fil_space_crypt_t* fil_space_read_crypt_data(ulint zip_size, const byte* page)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**
@@ -305,14 +303,16 @@ fil_parse_write_crypt_data(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Encrypt a buffer.
-@param[in,out]		crypt_data	Crypt data
-@param[in]		space		space_id
-@param[in]		offset		Page offset
-@param[in]		lsn		Log sequence number
-@param[in]		src_frame	Page to encrypt
-@param[in]		page_size	Page size
-@param[in,out]		dst_frame	Output buffer
+@param[in,out]		crypt_data		Crypt data
+@param[in]		space			space_id
+@param[in]		offset			Page offset
+@param[in]		lsn			Log sequence number
+@param[in]		src_frame		Page to encrypt
+@param[in]		zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]		dst_frame		Output buffer
+@param[in]		use_full_checksum	full crc32 algo is used
 @return encrypted buffer or NULL */
+UNIV_INTERN
 byte*
 fil_encrypt_buf(
 	fil_space_crypt_t*	crypt_data,
@@ -320,8 +320,9 @@ fil_encrypt_buf(
 	ulint			offset,
 	lsn_t			lsn,
 	const byte*		src_frame,
-	const page_size_t&	page_size,
-	byte*			dst_frame)
+	ulint			zip_size,
+	byte*			dst_frame,
+	bool			use_full_checksum)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
@@ -343,20 +344,24 @@ fil_space_encrypt(
 	byte*		dst_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/**
-Decrypt a page.
-@param[in,out]	crypt_data		crypt_data
+
+/** Decrypt a page.
+@param]in]	space_id		space id
+@param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
-@param[in]	page_size		Page size
+@param[in]	physical_size		page size
+@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or error
+@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
 @return true if page decrypted, false if not.*/
 UNIV_INTERN
 bool
 fil_space_decrypt(
+	ulint			space_id,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
-	const page_size_t&	page_size,
+	ulint			physical_size,
+	ulint			fsp_flags,
 	byte*			src_frame,
 	dberr_t*		err);
 
@@ -377,17 +382,14 @@ fil_space_decrypt(
 	bool*		decrypted)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************************
+/**
 Calculate post encryption checksum
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	dst_frame	Block where checksum is calculated
-@return page checksum or BUF_NO_CHECKSUM_MAGIC
+@return page checksum
 not needed. */
-UNIV_INTERN
 uint32_t
-fil_crypt_calculate_checksum(
-	const page_size_t&	page_size,
-	const byte*		dst_frame)
+fil_crypt_calculate_checksum(ulint zip_size, const byte* dst_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************
@@ -485,10 +487,9 @@ calculated checksum as if it does page could be valid unencrypted,
 encrypted, or corrupted.
 
 @param[in,out]	page		page frame (checksum is temporarily modified)
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return true if page is encrypted AND OK, false otherwise */
-bool
-fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
+bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
 #endif /* fil0crypt_h */

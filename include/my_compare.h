@@ -152,5 +152,6 @@ typedef enum icp_result {
 } ICP_RESULT;
 
 typedef ICP_RESULT (*index_cond_func_t)(void *param);
+typedef int (*rowid_filter_func_t)(void *param);
 
 #endif /* _my_compare_h */
