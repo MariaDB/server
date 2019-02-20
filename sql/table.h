@@ -646,16 +646,6 @@ struct TABLE_SHARE
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
 
-  const char* orig_table_name;          /* Original table name for this tmp table */
-  const char* error_table_name() const  /* Get table name for error messages */
-  {
-    return tmp_table ? (
-      orig_table_name ?
-        orig_table_name :
-        "(temporary)") :
-      table_name.str;
-  }
-
   /* 
      Set of keys in use, implemented as a Bitmap.
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.
@@ -2100,7 +2090,7 @@ struct TABLE_LIST
   /* Index names in a "... JOIN ... USE/IGNORE INDEX ..." clause. */
   List<Index_hint> *index_hints;
   TABLE        *table;                          /* opened table */
-  ulong         table_id; /* table id (from binlog) for opened table */
+  ulonglong         table_id; /* table id (from binlog) for opened table */
   /*
     select_result for derived table to pass it from table creation to table
     filling procedure

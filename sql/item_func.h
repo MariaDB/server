@@ -3436,4 +3436,8 @@ bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
 
+bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
+                 Item_result type, CHARSET_INFO *cs,
+                 bool unsigned_arg);
+
 #endif /* ITEM_FUNC_INCLUDED */

@@ -9030,10 +9030,12 @@ i_s_innodb_mutexes_fill_table(
 		}
 
 		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(mutex->cline, true));
+		OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+				      innobase_basename(mutex->cfile_name)));
+		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
 		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
+		OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait, true));
+		fields[MUTEXES_OS_WAITS]->set_notnull();
 		OK(schema_table_store_record(thd, tables->table));
 	}
 
@@ -9054,43 +9056,58 @@ i_s_innodb_mutexes_fill_table(
 	mutex_exit(&mutex_list_mutex);
 #endif /* JAN_TODO_FIXME */
 
-	mutex_enter(&rw_lock_list_mutex);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&rw_lock_list_mutex); }
+			~Locking() { mutex_exit(&rw_lock_list_mutex); }
+		} locking;
 
-	for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
-	     lock = UT_LIST_GET_NEXT(list, lock)) {
-		if (lock->count_os_wait == 0) {
-			continue;
+		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
+		     lock = UT_LIST_GET_NEXT(list, lock)) {
+			if (lock->count_os_wait == 0) {
+				continue;
+			}
+
+			if (buf_pool_is_block_lock(lock)) {
+				block_lock = lock;
+				block_lock_oswait_count += lock->count_os_wait;
+				continue;
+			}
+
+			//OK(field_store_string(fields[MUTEXES_NAME],
+			//			lock->lock_name));
+			OK(field_store_string(
+				   fields[MUTEXES_CREATE_FILE],
+				   innobase_basename(lock->cfile_name)));
+			OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline,
+							      true));
+			fields[MUTEXES_CREATE_LINE]->set_notnull();
+			OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait,
+							   true));
+			fields[MUTEXES_OS_WAITS]->set_notnull();
+			OK(schema_table_store_record(thd, tables->table));
 		}
 
-		if (buf_pool_is_block_lock(lock)) {
-			block_lock = lock;
-			block_lock_oswait_count += lock->count_os_wait;
-			continue;
+		if (block_lock) {
+			char buf1[IO_SIZE];
+
+			snprintf(buf1, sizeof buf1, "combined %s",
+				 innobase_basename(block_lock->cfile_name));
+
+			//OK(field_store_string(fields[MUTEXES_NAME],
+			//			block_lock->lock_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      buf1));
+			OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline,
+							      true));
+			fields[MUTEXES_CREATE_LINE]->set_notnull();
+			OK(fields[MUTEXES_OS_WAITS]->store(
+				   block_lock_oswait_count, true));
+			fields[MUTEXES_OS_WAITS]->set_notnull();
+			OK(schema_table_store_record(thd, tables->table));
 		}
-
-		//OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
-		OK(schema_table_store_record(thd, tables->table));
 	}
-
-	if (block_lock) {
-		char buf1[IO_SIZE];
-
-		snprintf(buf1, sizeof buf1, "combined %s",
-			 innobase_basename(block_lock->cfile_name));
-
-		//OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
 
 	DBUG_RETURN(0);
 }

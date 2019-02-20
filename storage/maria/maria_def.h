@@ -781,8 +781,8 @@ struct st_maria_handler
   transid_korr((buff) + LSN_STORE_SIZE)
 #define _ma_store_keypage_flag(share,x,flag) x[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (flag)
 #define _ma_mark_page_with_transid(share, page) \
-  (page)->flag|= KEYPAGE_FLAG_HAS_TRANSID;                              \
-  (page)->buff[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (page)->flag;
+  do { (page)->flag|= KEYPAGE_FLAG_HAS_TRANSID;                        \
+    (page)->buff[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (page)->flag; } while (0)
 
 #define KEYPAGE_KEY_VERSION(share, x) ((x) + \
                                        (share)->keypage_header -        \

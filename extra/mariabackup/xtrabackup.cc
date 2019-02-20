@@ -234,8 +234,6 @@ long innobase_write_io_threads = 4;
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 char*	innobase_buffer_pool_filename = NULL;
 
-longlong innobase_buffer_pool_size = 8*1024*1024L;
-
 /* The default values for the following char* start-up parameters
 are determined in innobase_init below: */
 
@@ -800,7 +798,6 @@ enum options_xtrabackup
   OPT_INNODB_LOG_CHECKSUMS,
   OPT_XTRA_INCREMENTAL_FORCE_SCAN,
   OPT_DEFAULTS_GROUP,
-  OPT_INNODB_ENCRYPT_LOG,
   OPT_CLOSE_FILES,
   OPT_CORE_FILE,
 
@@ -1257,11 +1254,6 @@ struct my_option xb_server_options[] =
    (G_PTR*) &sys_tablespace_auto_extend_increment,
    (G_PTR*) &sys_tablespace_auto_extend_increment,
    0, GET_ULONG, REQUIRED_ARG, 8L, 1L, 1000L, 0, 1L, 0},
-  {"innodb_buffer_pool_size", OPT_INNODB_BUFFER_POOL_SIZE,
-   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
-   (G_PTR*) &innobase_buffer_pool_size, (G_PTR*) &innobase_buffer_pool_size, 0,
-   GET_LL, REQUIRED_ARG, 8*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
-   1024*1024L, 0},
   {"innodb_data_file_path", OPT_INNODB_DATA_FILE_PATH,
    "Path to individual files and their sizes.", &innobase_data_file_path,
    &innobase_data_file_path, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1374,10 +1366,6 @@ struct my_option xb_server_options[] =
   "Has no effect in the 'backup' phase (plugin directory during backup is the same as server's)",
   &xb_plugin_dir, &xb_plugin_dir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-
-  { "innodb-encrypt-log", OPT_INNODB_ENCRYPT_LOG, "Whether to encrypt innodb log",
-  &srv_encrypt_log, &srv_encrypt_log,
-  0, GET_BOOL, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
   {"innodb-log-checksums", OPT_INNODB_LOG_CHECKSUMS,
    "Whether to require checksums for InnoDB redo log blocks",
@@ -1575,11 +1563,23 @@ end:
 }
 
 
-static const char *xb_client_default_groups[]=
-	{ "xtrabackup", "mariabackup", "client", 0, 0, 0 };
+static const char *xb_client_default_groups[]={
+   "xtrabackup", "mariabackup",
+   "client", "client-server",
+   "client-mariadb",
+   0, 0, 0
+};
 
-static const char *xb_server_default_groups[]=
-	{ "xtrabackup", "mariabackup", "mysqld", 0, 0, 0 };
+static const char *xb_server_default_groups[]={
+   "xtrabackup", "mariabackup",
+   "mysqld", "server", MYSQL_BASE_VERSION,
+   "mariadb", MARIADB_BASE_VERSION,
+   "client-server",
+   #ifdef WITH_WSREP
+   "galera",
+   #endif
+   0, 0, 0
+};
 
 static void print_version(void)
 {
@@ -1820,13 +1820,6 @@ static bool innodb_init_param()
 		if (xtrabackup_use_memory > UINT_MAX32) {
 			msg("mariabackup: use-memory can't be over 4GB"
 			    " on 32-bit systems");
-		}
-
-		if (innobase_buffer_pool_size > UINT_MAX32) {
-			msg("mariabackup: innobase_buffer_pool_size can't be "
-			    "over 4GB on 32-bit systems");
-
-			goto error;
 		}
 	}
 
@@ -2763,7 +2756,10 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			die("xtrabackup_copy_logfile() failed.");
+			msg(recv_sys->found_corrupt_log
+			    ? "xtrabackup_copy_logfile() failed: corrupt log."
+			    : "xtrabackup_copy_logfile() failed.");
+			return true;
 		}
 	} while (start_lsn == end_lsn);
 

@@ -1,4 +1,4 @@
-SET GLOBAL connect_class_path='C:/MariaDB-10.2/MariaDB/storage/connect/mysql-test/connect/std_data/JavaWrappers.jar;C:/Jconnectors/postgresql-42.2.1.jar';
+SET GLOBAL connect_class_path='C:/MariaDB-10.0/MariaDB/storage/connect/mysql-test/connect/std_data/JavaWrappers.jar;C:/Jconnectors/postgresql-42.2.1.jar';
 CREATE TABLE t2 (
 command varchar(128) not null,
 number int(5) not null flag=1,

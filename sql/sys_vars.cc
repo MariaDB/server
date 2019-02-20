@@ -5484,6 +5484,19 @@ static Sys_var_mybool Sys_wsrep_certify_nonPK(
        GLOBAL_VAR(wsrep_certify_nonPK), 
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
+static const char *wsrep_certification_rules_names[]= { "strict", "optimized", NullS };
+static Sys_var_enum Sys_wsrep_certification_rules(
+       "wsrep_certification_rules",
+       "Certification rules to use in the cluster. Possible values are: "
+       "\"strict\": stricter rules that could result in more certification "
+       "failures. "
+       "\"optimized\": relaxed rules that allow more concurrency and "
+       "cause less certification failures.",
+       GLOBAL_VAR(wsrep_certification_rules), CMD_LINE(REQUIRED_ARG),
+       wsrep_certification_rules_names, DEFAULT(WSREP_CERTIFICATION_RULES_STRICT),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(0));
+
 static Sys_var_mybool Sys_wsrep_causal_reads(
        "wsrep_causal_reads", "Setting this variable is equivalent "
        "to setting wsrep_sync_wait READ flag",

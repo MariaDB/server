@@ -50,9 +50,12 @@ push @::global_suppressions,
      qr(WSREP: There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside. Will use that one.),
      qr(WSREP: evs::proto.*),
      qr|WSREP: Ignoring possible split-brain \(allowed by configuration\) from view:.*|,
+     qr(WSREP: no nodes coming from prim view, prim not possible),
      qr(WSREP: Member .* requested state transfer from .* but it is impossible to select State Transfer donor: Resource temporarily unavailable),
+     qr(WSREP: user message in state LEAVING),
      qr(WSREP: .* sending install message failed: Transport endpoint is not connected),
      qr(WSREP: .* sending install message failed: Resource temporarily unavailable),
+     qr(WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.),
      qr(WSREP: Could not find peer:),
      qr|WSREP: gcs_caused\(\) returned .*|,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
@@ -78,11 +81,11 @@ sub skip_combinations {
   my %skip = ();
   $skip{'include/have_filekeymanagement.inc'} = 'needs file_key_management plugin'
              unless $ENV{FILE_KEY_MANAGEMENT_SO};
-  $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
+  $skip{'suite/galera/include/have_mariabackup.inc'} = 'Need mariabackup'
              unless which(mariabackup);
-  $skip{'include/have_mariabackup.inc'} = 'Need ss'
+  $skip{'suite/galera/include/have_mariabackup.inc'} = 'Need ss'
              unless which(ss);
-  $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
+  $skip{'suite/galera/include/have_mariabackup.inc'} = 'Need socat or nc'
              unless $ENV{MTR_GALERA_TFMT};
   %skip;
 }

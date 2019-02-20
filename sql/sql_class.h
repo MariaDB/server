@@ -4465,7 +4465,7 @@ public:
     char buff[MYSQL_ERRMSG_SIZE];
     CHARSET_INFO *cs= &my_charset_latin1;
     const char *db_name= s ? s->db.str : NULL;
-    const char *table_name= s ? s->error_table_name() : NULL;
+    const char *table_name= s ? s->table_name.str : NULL;
 
     if (!db_name)
       db_name= "";

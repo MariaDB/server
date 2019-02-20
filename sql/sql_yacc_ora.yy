@@ -1580,6 +1580,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         set_assign
         sf_tail_standalone
         sp_tail_standalone
+        opt_constraint_no_id
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -6597,6 +6598,11 @@ check_constraint:
           }
         ;
 
+opt_constraint_no_id:
+          /* Empty */  {}
+        | CONSTRAINT   {}
+        ;
+
 opt_constraint:
           /* empty */ { $$= null_clex_str; }
         | constraint { $$= $1; }
@@ -8401,7 +8407,7 @@ alter_list_item:
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= ALTER_DROP_FOREIGN_KEY;
           }
-        | DROP PRIMARY_SYM KEY_SYM
+        | DROP opt_constraint_no_id PRIMARY_SYM KEY_SYM
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
@@ -8913,8 +8919,17 @@ binlog_base64_event:
           {
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $2;
+            Lex->ident.str=    NULL;
+            Lex->ident.length= 0;
           }
-        ;
+          |
+          BINLOG_SYM '@' ident_or_text ',' '@' ident_or_text
+          {
+            Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
+            Lex->comment= $3;
+            Lex->ident=   $6;
+          }
+          ;
 
 check_view_or_table:
           table_or_tables table_list opt_mi_check_type

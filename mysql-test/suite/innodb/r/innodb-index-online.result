@@ -518,7 +518,7 @@ SET DEBUG_SYNC = 'RESET';
 disconnect con1;
 CREATE TABLE t2 (c VARCHAR(64)) ENGINE=InnoDB;
 ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 DROP TABLE t2,t1;
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;

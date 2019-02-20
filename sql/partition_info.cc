@@ -878,7 +878,7 @@ void partition_info::vers_set_hist_part(THD *thd)
   return;
 warn:
   my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-           table->s->db.str, table->s->error_table_name(),
+           table->s->db.str, table->s->table_name.str,
            vers_info->hist_part->partition_name);
 }
 

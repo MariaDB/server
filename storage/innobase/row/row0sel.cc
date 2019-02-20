@@ -3022,20 +3022,20 @@ row_sel_store_mysql_field(
 Note that the template in prebuilt may advise us to copy only a few
 columns to mysql_rec, other columns are left blank. All columns may not
 be needed in the query.
-@param[out]	mysql_rec		row in the MySQL format
-@param[in]	prebuilt		prebuilt structure
-@param[in]	rec			Innobase record in the index
-					which was described in prebuilt's
-					template, or in the clustered index;
-					must be protected by a page latch
-@param[in]	vrow			virtual columns
-@param[in]	rec_clust		whether the rec in the clustered index
-@param[in]	index			index of rec
-@param[in]	offsets			array returned by rec_get_offsets(rec)
-@return TRUE on success, FALSE if not all columns could be retrieved */
-static MY_ATTRIBUTE((warn_unused_result))
-ibool
-row_sel_store_mysql_rec(
+@param[out]	mysql_rec	row in the MySQL format
+@param[in]	prebuilt	cursor
+@param[in]	rec		Innobase record in the index
+				which was described in prebuilt's
+				template, or in the clustered index;
+				must be protected by a page latch
+@param[in]	vrow		virtual columns
+@param[in]	rec_clust	whether index must be the clustered index
+@param[in]	index		index of rec
+@param[in]	offsets		array returned by rec_get_offsets(rec)
+@retval true on success
+@retval false if not all columns could be retrieved */
+MY_ATTRIBUTE((warn_unused_result))
+static bool row_sel_store_mysql_rec(
 	byte*		mysql_rec,
 	row_prebuilt_t*	prebuilt,
 	const rec_t*	rec,
@@ -3057,13 +3057,18 @@ row_sel_store_mysql_rec(
 		const mysql_row_templ_t*templ = &prebuilt->mysql_template[i];
 
 		if (templ->is_virtual && dict_index_is_clust(index)) {
+			/* Virtual columns are never declared NOT NULL. */
+			ut_ad(templ->mysql_null_bit_mask);
 
 			/* Skip virtual columns if it is not a covered
 			search or virtual key read is not requested. */
-			if (!dict_index_has_virtual(prebuilt->index)
+			if (!rec_clust
+			    || !prebuilt->index->has_virtual()
 			    || (!prebuilt->read_just_key
-				&& !prebuilt->m_read_virtual_key)
-			    || !rec_clust) {
+				&& !prebuilt->m_read_virtual_key)) {
+				/* Initialize the NULL bit. */
+				mysql_rec[templ->mysql_null_byte_offset]
+					|= (byte) templ->mysql_null_bit_mask;
 				continue;
 			}
 
@@ -3138,7 +3143,7 @@ row_sel_store_mysql_rec(
 					       rec, index, offsets,
 					       field_no, templ)) {
 
-			DBUG_RETURN(FALSE);
+			DBUG_RETURN(false);
 		}
 	}
 
@@ -3155,7 +3160,7 @@ row_sel_store_mysql_rec(
 		}
 	}
 
-	DBUG_RETURN(TRUE);
+	DBUG_RETURN(true);
 }
 
 /*********************************************************************//**
