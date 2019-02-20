@@ -1933,7 +1933,10 @@ void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
 			ut_ad(index.table->instant);
 			ut_ad(!memcmp(infimum, field_ref_zero, 8));
 			ut_ad(!memcmp(supremum, field_ref_zero, 7));
-			ut_ad(supremum[7] == index.n_core_null_bytes);
+			/* The n_core_null_bytes only matters for
+			ROW_FORMAT=COMPACT and ROW_FORMAT=DYNAMIC tables. */
+			ut_ad(supremum[7] == index.n_core_null_bytes
+			      || !index.table->not_redundant());
 			return;
 		}
 		break;
