@@ -24,8 +24,8 @@ then
   sed -i -e '/Add support for verbose builds/,+2d' debian/rules
 
   # Don't include test suite package on Travis-CI to make the build time shorter
-  sed '/Package: mariadb-test-data/,+26d' -i debian/control
-  sed '/Package: mariadb-test/,+34d' -i debian/control
+  sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
+  sed '/Package: mariadb-test/,/^$/d' -i debian/control
 fi
 
 
@@ -47,7 +47,7 @@ fi
 if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
   sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,+9d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,/^$/d' -i debian/control
 fi
 
 # If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
@@ -82,11 +82,11 @@ GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+10d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 if [[ $GCCVERSION -lt 40800 ]]
 then
-  sed '/Package: mariadb-plugin-aws-key-management-10.2/,+12d' -i debian/control
+  sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
 fi
 
 # Don't build cassandra package if thrift is not installed
