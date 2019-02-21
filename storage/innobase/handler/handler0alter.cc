@@ -1263,7 +1263,14 @@ ha_innobase::check_if_supported_inplace_alter(
 				break;
 			default:
 				/* For any other data type, NULL
-				values are not converted. */
+				values are not converted.
+				(An AUTO_INCREMENT attribute cannot
+				be introduced to a column with
+				ALGORITHM=INPLACE.) */
+				ut_ad((MTYP_TYPENR((*af)->unireg_check)
+				       == Field::NEXT_NUMBER)
+				      == (MTYP_TYPENR(f->unireg_check)
+					  == Field::NEXT_NUMBER));
 				goto next_column;
 			}
 
