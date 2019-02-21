@@ -36,7 +36,7 @@ public:
   int start_transaction(const wsrep::ws_handle&,
                         const wsrep::ws_meta&);
   const wsrep::transaction& transaction() const;
-  void adopt_transaction(const wsrep::transaction&);
+  int adopt_transaction(const wsrep::transaction&);
   int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&) = 0;
   int append_fragment_and_commit(const wsrep::ws_handle&,
                                  const wsrep::ws_meta&,

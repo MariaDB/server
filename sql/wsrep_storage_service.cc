@@ -147,39 +147,14 @@ int Wsrep_storage_service::commit(const wsrep::ws_handle& ws_handle,
   WSREP_DEBUG("Storage service commit: %llu, %lld",
               ws_meta.transaction_id().get(), ws_meta.seqno().get());
   int ret= 0;
-  const bool do_binlog_commit= (opt_log_slave_updates && wsrep_gtid_mode);
   const bool is_ordered= !ws_meta.seqno().is_undefined();
-  /*
-    Write skip event into binlog if gtid_mode is on. This is to
-    maintain gtid continuity.
-  */
-  if (do_binlog_commit && is_ordered)
+
+  if (is_ordered)
   {
-    ret= wsrep_write_skip_event(m_thd);
+    ret= m_thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
   }
 
-  if (!ret && is_ordered)
-  {
-    ret= m_thd->wsrep_cs().prepare_for_ordering(ws_handle,
-                                                ws_meta, true);
-  }
-
-  if (!ret)
-  {
-    if (!do_binlog_commit && is_ordered)
-    {
-      ret= wsrep_before_commit(m_thd, true);
-    }
-    ret= ret || trans_commit(m_thd);
-    if (!do_binlog_commit && is_ordered)
-    {
-      if (opt_log_slave_updates)
-      {
-        ret= ret || wsrep_ordered_commit(m_thd, true, wsrep_apply_error());
-      }
-      ret= ret || wsrep_after_commit(m_thd, true);
-    }
-  }
+  ret= ret || trans_commit(m_thd);
 
   if (!is_ordered)
   {

@@ -7686,7 +7686,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader= queue_for_group_commit(entry);
 #ifdef WITH_WSREP
-  if (is_leader >= 0 &&
+  if (wsrep_run_commit_hook(entry->thd, true) && is_leader >= 0 &&
       wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
     return true;
 #endif /* WITH_WSREP */

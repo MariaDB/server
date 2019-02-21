@@ -1207,8 +1207,9 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
 
 static int prepare_or_error(handlerton *ht, THD *thd, bool all)
 {
-  #ifdef WITH_WSREP
-  if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION &&
+#ifdef WITH_WSREP
+  const bool run_wsrep_hooks= wsrep_run_commit_hook(thd, all);
+  if (run_wsrep_hooks && ht->flags & HTON_WSREP_REPLICATION &&
       wsrep_before_prepare(thd, all))
   {
     return(1);
@@ -1222,7 +1223,7 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
   }
 #ifdef WITH_WSREP
-  if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION &&
+  if (run_wsrep_hooks && !err && ht->flags & HTON_WSREP_REPLICATION &&
       wsrep_after_prepare(thd, all))
   {
     err= 1;
@@ -1369,6 +1370,9 @@ int ha_commit_trans(THD *thd, bool all)
   Ha_trx_info *ha_info= trans->ha_list;
   bool need_prepare_ordered, need_commit_ordered;
   my_xid xid;
+#ifdef WITH_WSREP
+  const bool run_wsrep_hooks= wsrep_run_commit_hook(thd, all);
+#endif /* WITH_WSREP */
   DBUG_ENTER("ha_commit_trans");
   DBUG_PRINT("info",("thd: %p  option_bits: %lu  all: %d",
                      thd, (ulong) thd->variables.option_bits, all));
@@ -1424,7 +1428,7 @@ int ha_commit_trans(THD *thd, bool all)
     if (is_real_trans)
       thd->transaction.cleanup();
 #ifdef WITH_WSREP
-    if (WSREP(thd) && all && !error)
+    if (wsrep_is_active(thd) && is_real_trans && !error)
     {
       wsrep_commit_empty(thd, all);
     }
@@ -1519,11 +1523,7 @@ int ha_commit_trans(THD *thd, bool all)
       This commit will not go through log_and_order() where wsrep commit
       ordering is normally done. Commit ordering must be done here.
     */
-    bool run_wsrep_commit= (WSREP(thd)              &&
-                            rw_ha_count             &&
-                            wsrep_thd_is_local(thd) &&
-                            wsrep_has_changes(thd, all));
-    if (run_wsrep_commit)
+    if (run_wsrep_hooks)
       error= wsrep_before_commit(thd, all);
     if (error)
     {
@@ -1533,8 +1533,8 @@ int ha_commit_trans(THD *thd, bool all)
 #endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
 #ifdef WITH_WSREP
-    if (run_wsrep_commit)
-      error= wsrep_after_commit(thd, all);
+    if (run_wsrep_hooks)
+      error= error || wsrep_after_commit(thd, all);
 #endif /* WITH_WSREP */
     goto done;
   }
@@ -1567,7 +1567,7 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
 
 #ifdef WITH_WSREP
-  if (!error && WSREP_ON)
+  if (run_wsrep_hooks && !error)
   {
     wsrep::seqno const s= wsrep_xid_seqno(thd->wsrep_xid);
     if (!s.is_undefined())
@@ -1584,7 +1584,7 @@ int ha_commit_trans(THD *thd, bool all)
     goto done;
   }
 #ifdef WITH_WSREP
-  if (wsrep_before_commit(thd, all))
+  if (run_wsrep_hooks && (error = wsrep_before_commit(thd, all)))
     goto wsrep_err;
 #endif /* WITH_WSREP */
   DEBUG_SYNC(thd, "ha_commit_trans_before_log_and_order");
@@ -1600,10 +1600,10 @@ int ha_commit_trans(THD *thd, bool all)
 
   error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;
 #ifdef WITH_WSREP
-  if (error || wsrep_after_commit(thd, all))
+  if (run_wsrep_hooks && (error || (error = wsrep_after_commit(thd, all))))
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    if (thd->wsrep_trx().state() == wsrep::transaction::s_must_abort)
+    if (wsrep_must_abort(thd))
     {
       mysql_mutex_unlock(&thd->LOCK_thd_data);
       (void)tc_log->unlog(cookie, xid);
@@ -1636,7 +1636,7 @@ done:
 #ifdef WITH_WSREP
 wsrep_err:
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  if (thd->wsrep_trx().state() == wsrep::transaction::s_must_abort)
+  if (run_wsrep_hooks && wsrep_must_abort(thd))
   {
     WSREP_DEBUG("BF abort has happened after prepare & certify");
     mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -1672,7 +1672,8 @@ end:
     thd->mdl_context.release_lock(mdl_request.ticket);
   }
 #ifdef WITH_WSREP
-  if (WSREP(thd) && all && !error && (rw_ha_count == 0))
+  if (wsrep_is_active(thd) && is_real_trans && !error && (rw_ha_count == 0) &&
+      wsrep_not_committed(thd))
   {
     wsrep_commit_empty(thd, all);
   }
