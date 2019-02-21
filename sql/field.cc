@@ -8975,7 +8975,7 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
         (uint32) geom_type != wkb_type)
     {
       const char *db= table->s->db.str;
-      const char *tab_name= table->s->error_table_name();
+      const char *tab_name= table->s->table_name.str;
 
       if (!db)
         db= "";
@@ -11022,7 +11022,7 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
 {
   THD *thd= get_thd();
   const char *db_name= table->s->db.str;
-  const char *table_name= table->s->error_table_name();
+  const char *table_name= table->s->table_name.str;
 
   if (!db_name)
     db_name= "";

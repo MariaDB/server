@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -558,7 +558,7 @@ static my_bool log_in_use_callback(THD *thd, const char *log_name)
   my_bool result= 0;
   mysql_mutex_lock(&thd->LOCK_thd_data);
   if (auto linfo= thd->current_linfo)
-    result= !memcmp(log_name, linfo->log_file_name, strlen(log_name) + 1);
+    result= !strcmp(log_name, linfo->log_file_name);
   mysql_mutex_unlock(&thd->LOCK_thd_data);
   return result;
 }

@@ -5450,7 +5450,7 @@ int TABLE::verify_constraints(bool ignore_failure)
         field_error.append((*chk)->name.str);
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_WARNING : 0), field_error.c_ptr(),
-                 s->db.str, s->error_table_name());
+                 s->db.str, s->table_name.str);
         return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
       }
     }

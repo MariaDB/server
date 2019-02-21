@@ -2898,6 +2898,22 @@ SELECT * FROM t2 WHERE f IN ( SELECT LEFT('foo',0) FROM t1 ORDER BY 1 );
 f
 DROP TABLE t1, t2;
 #
+# MDEV-18255: Server crashes in Bitmap<64u>::intersect
+#
+create table t1 (v1 varchar(1)) engine=myisam ;
+create table t2 (v1 varchar(1)) engine=myisam ;
+explain
+select 1 from t1 where exists
+(select 1 from t1 where t1.v1 in (select t2.v1 from t2 having t2.v1 < 'j')) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+select 1 from t1 where exists
+(select 1 from t1 where t1.v1 in (select t2.v1 from t2 having t2.v1 < 'j')) ;
+1
+drop table t1,t2;
+#
 # MDEV-9489: Assertion `0' failed in Protocol::end_statement() on
 # UNION ALL
 #

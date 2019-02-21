@@ -95,3 +95,10 @@ Warnings:
 Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 alter table t1;
 drop table t1;
+create temporary table t1 (a int default 0, check (a > 0));
+alter table t1 drop constraint if exists non_existing_constraint;
+Warnings:
+Note	1091	Can't DROP CONSTRAINT `non_existing_constraint`; check that it exists
+insert into t1 () values ();
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;

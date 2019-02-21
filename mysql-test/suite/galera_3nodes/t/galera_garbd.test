@@ -16,12 +16,22 @@
 --source suite/galera/include/galera_base_port.inc
 --let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
 --source suite/galera/include/galera_base_port.inc
 --let $NODE_GALERAPORT_3 = $_NODE_GALERAPORT
 
---connection node_3
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 --echo Killing node #3 to free ports for garbd ...
+--connection node_3
+--let $gp3 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('base_port =', @@wsrep_provider_options) + LENGTH('base_port = '))`
+--let $galera_port_3 = `SELECT SUBSTR('$gp3', 1, LOCATE(';', '$gp3') - 1)`
 --source include/shutdown_mysqld.inc
 
 --connection node_1
@@ -91,6 +101,8 @@ DROP TABLE t1;
 --connection node_3
 --source include/start_mysqld.inc
 
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
 
 # Workaround for galera#101
 

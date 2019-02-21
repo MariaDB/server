@@ -27,3 +27,9 @@ t2	CREATE TEMPORARY TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop temporary table t1, t2;
+create temporary table t1 (a int);
+alter table t1 add column f text;
+insert into t1 values ('x','foo');
+ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`a` at row 1
+drop temporary table t1;

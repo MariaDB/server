@@ -335,6 +335,8 @@ insert  into t1(`id`,`local_name`) values
 (12,'AL Monthly Installment'),
 (13,'AL Semi-Monthly Installment');
 
+ANALYZE TABLE t1;
+
 explain
 SELECT SQL_NO_CACHE t.id
 FROM t1 t

@@ -1734,6 +1734,10 @@ insert  into t1(`id`,`local_name`) values
 (11,'Rollover - Internet Payday'),
 (12,'AL Monthly Installment'),
 (13,'AL Semi-Monthly Installment');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 explain
 SELECT SQL_NO_CACHE t.id
 FROM t1 t

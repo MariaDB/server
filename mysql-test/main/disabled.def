@@ -18,6 +18,7 @@ innodb-wl5522-debug-zip  : broken upstream
 innodb_bug12902967       : broken upstream
 file_contents            : MDEV-6526 these files are not installed anymore
 max_statement_time       : cannot possibly work, depends on timing
+partition_open_files_limit : open_files_limit check broken by MDEV-18360
 mysqlcheck               : special tables like proxy , host specific to a system are shown
 flush_read_lock          : special tables like proxy , host specific to a system are shown
 join_cache               : enable after MDEV-17752 is fixed

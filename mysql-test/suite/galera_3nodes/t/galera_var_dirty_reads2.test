@@ -5,6 +5,17 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
 CREATE TABLE t1 (f1 INTEGER);
 INSERT INTO t1 VALUES (1);
 
@@ -111,3 +122,6 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 --source include/galera_wait_ready.inc
 
 DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

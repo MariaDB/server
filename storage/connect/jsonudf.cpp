@@ -1667,7 +1667,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 		int     j = 0, n = args->attribute_lengths[i];
 		my_bool b;  // true if attribute is zero terminated
 		PSZ     p;
-                const char *s = args->attributes[i];
+		PCSZ    s = args->attributes[i];
 
 		if (s && *s && (n || *s == '\'')) {
 			if ((b = (!n || !s[n])))
@@ -5805,6 +5805,52 @@ char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	return str;
 } // end of envar
+
+#if defined(DEVELOPMENT)
+extern char *GetUserVariable(PGLOBAL g, const uchar *varname);
+
+/*********************************************************************************/
+/*  Utility function returning a user variable value.                            */
+/*********************************************************************************/
+my_bool uvar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count != 1) {
+		strcpy(message, "Unique argument must be a user variable name");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen, true);
+
+	initid->maybe_null = true;
+	return JsonInit(initid, args, message, true, reslen, memlen, 2048);
+} // end of uvar_init
+
+char *uvar(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *)
+{
+	char   *str, varname[256];
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	int     n = MY_MIN(args->lengths[0], sizeof(varname) - 1);
+
+	PlugSubSet(g->Sarea, g->Sarea_Size);
+	memcpy(varname, args->args[0], n);
+	varname[n] = 0;
+
+	if (!(str = GetUserVariable(g, (const uchar*)&varname))) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = strlen(str);
+
+	return str;
+} // end of uvar
+
+void uvar_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of uvar_deinit
+#endif   // DEVELOPMENT
 
 /*********************************************************************************/
 /*  Returns the distinct number of B occurences in A.                            */

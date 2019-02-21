@@ -491,3 +491,12 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 DROP PROCEDURE get_index_id;
 DROP PROCEDURE get_table_id;
+create table t (a varchar(100)) engine=innodb;
+select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
+name	pos	mtype	prtype	len
+a	0	1	524303	100
+alter table t modify a varchar(110), algorithm=inplace;
+select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
+name	pos	mtype	prtype	len
+a	0	1	524303	110
+drop table t;

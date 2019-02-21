@@ -1629,7 +1629,20 @@ ibx_copy_incremental_over_full()
 			}
 		}
 
+		if (directory_exists(ROCKSDB_BACKUP_DIR, false)) {
+			if (my_rmtree(ROCKSDB_BACKUP_DIR, MYF(0))) {
+				die("Can't remove " ROCKSDB_BACKUP_DIR);
+			}
+		}
+		snprintf(path, sizeof(path), "%s/" ROCKSDB_BACKUP_DIR, xtrabackup_incremental_dir);
+		if (directory_exists(path, false)) {
+			if (my_mkdir(ROCKSDB_BACKUP_DIR, 0777, MYF(0))) {
+				die("my_mkdir failed for " ROCKSDB_BACKUP_DIR);
+			}
+			copy_or_move_dir(path, ROCKSDB_BACKUP_DIR, true, true);
+		}
 	}
+
 
 cleanup:
 	if (it != NULL) {

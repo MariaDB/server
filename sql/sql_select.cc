@@ -17864,7 +17864,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->no_rows_with_nulls= param->force_not_null_cols;
 
   table->s= share;
-  init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
+  init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname);
   share->blob_field= blob_field;
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key
@@ -18718,8 +18718,7 @@ bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
 bool open_tmp_table(TABLE *table)
 {
   int error;
-  if (unlikely((error= table->file->ha_open(table, table->s->table_name.str,
-                                            O_RDWR,
+  if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
                                             HA_OPEN_INTERNAL_TABLE))))
   {
@@ -18915,7 +18914,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       }
     }
 
-    if (unlikely((error= maria_create(share->table_name.str,
+    if (unlikely((error= maria_create(share->path.str,
                                       file_type,
                                       share->keys, &keydef,
                                       (uint) (*recinfo-start_recinfo),
@@ -19070,12 +19069,12 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   bzero((char*) &create_info,sizeof(create_info));
   create_info.data_file_length= table->in_use->variables.tmp_disk_table_size;
 
-  if (unlikely((error= mi_create(share->table_name.str, share->keys, &keydef,
-                                 (uint) (*recinfo-start_recinfo),
+  if (unlikely((error= mi_create(share->path.str, share->keys, &keydef,
+		                 (uint) (*recinfo-start_recinfo),
                                  start_recinfo,
-                                 share->uniques, &uniquedef,
+		                 share->uniques, &uniquedef,
                                  &create_info,
-                                 HA_CREATE_TMP_TABLE |
+		                 HA_CREATE_TMP_TABLE |
                                  HA_CREATE_INTERNAL_TABLE |
                                  ((share->db_create_options &
                                    HA_OPTION_PACK_RECORD) ?
@@ -19226,7 +19225,7 @@ err_killed:
   (void) table->file->ha_rnd_end();
   (void) new_table.file->ha_close();
  err1:
-  new_table.file->ha_delete_table(new_table.s->table_name.str);
+  new_table.file->ha_delete_table(new_table.s->path.str);
  err2:
   delete new_table.file;
   thd_proc_info(thd, save_proc_info);
@@ -19255,10 +19254,10 @@ free_tmp_table(THD *thd, TABLE *entry)
       entry->file->info(HA_STATUS_VARIABLE);
       thd->tmp_tables_size+= (entry->file->stats.data_file_length +
                               entry->file->stats.index_file_length);
-      entry->file->ha_drop_table(entry->s->table_name.str);
+      entry->file->ha_drop_table(entry->s->path.str);
     }
     else
-      entry->file->ha_delete_table(entry->s->table_name.str);
+      entry->file->ha_delete_table(entry->s->path.str);
     delete entry->file;
   }
 

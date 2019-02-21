@@ -184,9 +184,9 @@ void toku_instr_file_io_end(toku_io_instrumentation &io_instr, ssize_t count) {
 
 void toku_instr_mutex_init(const toku_instr_key &key, toku_mutex_t &mutex) {
     mutex.psi_mutex = PSI_MUTEX_CALL(init_mutex)(key.id(), &mutex.pmutex);
-#if TOKU_PTHREAD_DEBUG
+#if defined(TOKU_PTHREAD_DEBUG)
     mutex.instr_key_id = key.id();
-#endif
+#endif  // defined(TOKU_PTHREAD_DEBUG)
 }
 
 void toku_instr_mutex_destroy(PSI_mutex *&mutex_instr) {
@@ -242,9 +242,9 @@ void toku_instr_mutex_unlock(PSI_mutex *mutex_instr) {
 
 void toku_instr_cond_init(const toku_instr_key &key, toku_cond_t &cond) {
     cond.psi_cond = PSI_COND_CALL(init_cond)(key.id(), &cond.pcond);
-#if TOKU_PTHREAD_DEBUG
+#if defined(TOKU_PTHREAD_DEBUG)
     cond.instr_key_id = key.id();
-#endif
+#endif  //   // defined(TOKU_PTHREAD_DEBUG)
 }
 
 void toku_instr_cond_destroy(PSI_cond *&cond_instr) {
@@ -295,9 +295,9 @@ void toku_instr_cond_broadcast(const toku_cond_t &cond) {
 void toku_instr_rwlock_init(const toku_instr_key &key,
                             toku_pthread_rwlock_t &rwlock) {
     rwlock.psi_rwlock = PSI_RWLOCK_CALL(init_rwlock)(key.id(), &rwlock.rwlock);
-#if TOKU_PTHREAD_DEBUG
+#if defined(TOKU_PTHREAD_DEBUG)
     rwlock.instr_key_id = key.id();
-#endif
+#endif  // defined(TOKU_PTHREAD_DEBUG)
 }
 
 void toku_instr_rwlock_destroy(PSI_rwlock *&rwlock_instr) {

@@ -35,7 +35,6 @@ BEGIN
      AND variable_name != 'INNODB_BUFFER_POOL_LOAD_AT_STARTUP'
      AND variable_name not like 'GTID%POS'
      AND variable_name != 'GTID_BINLOG_STATE'
-     AND variable_name != 'AUTO_INCREMENT_INCREMENT'
    ORDER BY variable_name;
 
   -- Dump all databases, there should be none

@@ -2,9 +2,11 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
 connection node_3;
 Killing node #3 to free ports for garbd ...
+connection node_3;
 connection node_1;
 Starting garbd ...
 CREATE TABLE t1 (f1 INTEGER);

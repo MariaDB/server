@@ -400,7 +400,7 @@ then
     rm -rf "$RSYNC_PID"
 
     ADDR=$WSREP_SST_OPT_ADDR
-    if [[ ${ADDR:0:1} == '[' ]]; then
+    if [ "${ADDR#\[}" != "$ADDR" ]; then
         RSYNC_PORT=$(echo $ADDR | awk -F '\\]:' '{ print $2 }')
         RSYNC_ADDR=$(echo $ADDR | awk -F '\\]:' '{ print $1 }')"]"
     else

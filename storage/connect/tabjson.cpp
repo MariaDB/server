@@ -1,6 +1,6 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.5                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
+/* PROGRAM NAME: tabjson     Version 1.7                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2019  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
 
@@ -110,8 +110,8 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
                           buftyp, fldtyp, length, false, false);
 
   crp = qrp->Colresp->Next->Next->Next->Next->Next->Next;
-  crp->Name = "Nullable";
-  crp->Next->Name = "Jpath";
+	crp->Name = PlugDup(g, "Nullable");
+	crp->Next->Name = PlugDup(g, "Jpath");
 
   if (info || !qrp)
     return qrp;
@@ -173,6 +173,7 @@ JSONDISC::JSONDISC(PGLOBAL g, uint *lg)
 
 int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 {
+	char filename[_MAX_PATH];
 	bool mgo = (GetTypeID(topt->type) == TAB_MONGO);
 	PCSZ level = GetStringTableOption(g, topt, "Level", NULL);
 
@@ -207,6 +208,12 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 	if (!tdp->Fn && !tdp->Uri) {
 		strcpy(g->Message, MSG(MISSING_FNAME));
 		return 0;
+	} // endif Fn
+
+	if (tdp->Fn) {
+		//  We used the file name relative to recorded datapath
+		PlugSetPath(filename, tdp->Fn, tdp->GetPath());
+		tdp->Fn = PlugDup(g, filename);
 	} // endif Fn
 
 	if (trace(1))
@@ -342,7 +349,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 			strncpy(colname, jpp->GetKey(), 64);
 			fmt[bf] = 0;
 
-			if (Find(g, jpp->GetVal(), MY_MIN(lvl, 0)))
+			if (Find(g, jpp->GetVal(), colname, MY_MIN(lvl, 0)))
 				goto err;
 
 		} // endfor jpp
@@ -385,7 +392,7 @@ err:
 	return 0;
 }	// end of GetColumns
 
-bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, int j)
+bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 {
 	char *p, *pc = colname + strlen(colname);
 	int   ars;
@@ -413,12 +420,14 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, int j)
 				job = (PJOB)jsp;
 
 				for (PJPR jrp = job->GetFirst(); jrp; jrp = jrp->GetNext()) {
-					if (*jrp->GetKey() != '$') {
-						strncat(strncat(fmt, sep, 128), jrp->GetKey(), 128);
-						strncat(strncat(colname, "_", 64), jrp->GetKey(), 64);
+					PCSZ k = jrp->GetKey();
+
+					if (*k != '$') {
+						strncat(strncat(fmt, sep, 128), k, 128);
+						strncat(strncat(colname, "_", 64), k, 64);
 					} // endif Key
 
-					if (Find(g, jrp->GetVal(), j + 1))
+					if (Find(g, jrp->GetVal(), k, j + 1))
 						return true;
 
 					*p = *pc = 0;
@@ -428,13 +437,13 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, int j)
 			case TYPE_JAR:
 				jar = (PJAR)jsp;
 
-				if (all || (tdp->Xcol && !stricmp(tdp->Xcol, colname)))
+				if (all || (tdp->Xcol && !stricmp(tdp->Xcol, key)))
 					ars = jar->GetSize(false);
 				else
 					ars = MY_MIN(jar->GetSize(false), 1);
 
 				for (int k = 0; k < ars; k++) {
-					if (!tdp->Xcol || stricmp(tdp->Xcol, colname)) {
+					if (!tdp->Xcol || stricmp(tdp->Xcol, key)) {
 						sprintf(buf, "%d", k);
 
 						if (tdp->Uri)
@@ -448,7 +457,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, int j)
 					} else
 						strncat(fmt, (tdp->Uri ? sep : "[*]"), 128);
 
-					if (Find(g, jar->GetValue(k), j))
+					if (Find(g, jar->GetValue(k), "", j))
 						return true;
 
 					*p = *pc = 0;
@@ -522,7 +531,9 @@ void JSONDISC::AddColumn(PGLOBAL g)
 		n++;
 	} // endif jcp
 
-	pjcp = jcp;
+	if (jcp)
+	  pjcp = jcp;
+
 } // end of AddColumn
 
 
@@ -549,7 +560,7 @@ JSONDEF::JSONDEF(void)
 /***********************************************************************/
 /*  DefineAM: define specific AM block values.                         */
 /***********************************************************************/
-bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
+bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
 	Schema = GetStringCatInfo(g, "DBname", Schema);
 	Jmode = (JMODE)GetIntCatInfo("Jmode", MODE_OBJECT);
@@ -561,7 +572,8 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 	Sep = *GetStringCatInfo(g, "Separator", ".");
 	Accept = GetBoolCatInfo("Accept", false);
 
-	if (Uri = GetStringCatInfo(g, "Connect", NULL)) {
+	// Don't use url as uri when called from REST OEM module
+	if (stricmp(am, "REST") && (Uri = GetStringCatInfo(g, "Connect", NULL))) {
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 		Collname = GetStringCatInfo(g, "Name",
 			(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
@@ -2340,7 +2352,7 @@ void TDBJSON::CloseDB(PGLOBAL g)
 TDBJCL::TDBJCL(PJDEF tdp) : TDBCAT(tdp)
   {
   Topt = tdp->GetTopt();
-  Db = tdp->Schema;
+	Db = tdp->Schema;
 	Dsn = tdp->Uri;
   } // end of TDBJCL constructor
 

@@ -5891,7 +5891,8 @@ static bool is_candidate_key(KEY *key)
   KEY_PART_INFO *key_part;
   KEY_PART_INFO *key_part_end= key->key_part + key->user_defined_key_parts;
 
-  if (!(key->flags & HA_NOSAME) || (key->flags & HA_NULL_PART_KEY))
+  if (!(key->flags & HA_NOSAME) || (key->flags & HA_NULL_PART_KEY) ||
+      (key->flags & HA_KEY_HAS_PART_KEY_SEG))
     return false;
 
   for (key_part= key->key_part; key_part < key_part_end; key_part++)
@@ -6459,9 +6460,7 @@ static int compare_uint(const uint *s, const uint *t)
    @retval false success
 */
 
-static bool fill_alter_inplace_info(THD *thd,
-                                    TABLE *table,
-                                    bool varchar,
+static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
                                     Alter_inplace_info *ha_alter_info)
 {
   Field **f_ptr, *field, *old_field;
@@ -6469,7 +6468,6 @@ static bool fill_alter_inplace_info(THD *thd,
   Create_field *new_field;
   KEY_PART_INFO *key_part, *new_part;
   KEY_PART_INFO *end;
-  uint candidate_key_count= 0;
   Alter_info *alter_info= ha_alter_info->alter_info;
   DBUG_ENTER("fill_alter_inplace_info");
   DBUG_PRINT("info", ("alter_info->flags: %llu", alter_info->flags));
@@ -6773,8 +6771,13 @@ static bool fill_alter_inplace_info(THD *thd,
     Primary key index for the new table
   */
   const KEY* const new_pk= (ha_alter_info->key_count > 0 &&
-                            is_candidate_key(ha_alter_info->key_info_buffer)) ?
+                            (!my_strcasecmp(system_charset_info,
+                                ha_alter_info->key_info_buffer->name.str,
+                                primary_key_name) ||
+                            is_candidate_key(ha_alter_info->key_info_buffer))) ?
                            ha_alter_info->key_info_buffer : NULL;
+  const KEY *const old_pk= table->s->primary_key == MAX_KEY ? NULL :
+                           table->key_info + table->s->primary_key;
 
   DBUG_PRINT("info", ("index count old: %d  new: %d",
                       table->s->keys, ha_alter_info->key_count));
@@ -6874,8 +6877,7 @@ static bool fill_alter_inplace_info(THD *thd,
       (i) Old table doesn't have primary key, new table has it and vice-versa
       (ii) Primary key changed to another existing index
     */
-    if ((new_key == new_pk) !=
-        ((uint) (table_key - table->key_info) == table->s->primary_key))
+    if ((new_key == new_pk) != (table_key == old_pk))
       goto index_changed;
 
     /* Check that key comment is not changed. */
@@ -6937,22 +6939,6 @@ static bool fill_alter_inplace_info(THD *thd,
 
   /* Now let us calculate flags for storage engine API. */
 
-  /* Count all existing candidate keys. */
-  for (table_key= table->key_info; table_key < table_key_end; table_key++)
-  {
-    /*
-      Check if key is a candidate key, This key is either already primary key
-      or could be promoted to primary key if the original primary key is
-      dropped.
-      In MySQL one is allowed to create primary key with partial fields (i.e.
-      primary key which is not considered candidate). For simplicity we count
-      such key as a candidate key here.
-    */
-    if (((uint) (table_key - table->key_info) == table->s->primary_key) ||
-        is_candidate_key(table_key))
-      candidate_key_count++;
-  }
-
   /* Figure out what kind of indexes we are dropping. */
   KEY **dropped_key;
   KEY **dropped_key_end= ha_alter_info->index_drop_buffer +
@@ -6965,21 +6951,10 @@ static bool fill_alter_inplace_info(THD *thd,
 
     if (table_key->flags & HA_NOSAME)
     {
-      /*
-        Unique key. Check for PRIMARY KEY. Also see comment about primary
-        and candidate keys above.
-      */
-      if ((uint) (table_key - table->key_info) == table->s->primary_key)
-      {
+      if (table_key == old_pk)
         ha_alter_info->handler_flags|= ALTER_DROP_PK_INDEX;
-        candidate_key_count--;
-      }
       else
-      {
         ha_alter_info->handler_flags|= ALTER_DROP_UNIQUE_INDEX;
-        if (is_candidate_key(table_key))
-          candidate_key_count--;
-      }
     }
     else
       ha_alter_info->handler_flags|= ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX;
@@ -6992,24 +6967,10 @@ static bool fill_alter_inplace_info(THD *thd,
 
     if (new_key->flags & HA_NOSAME)
     {
-      bool is_pk= !my_strcasecmp(system_charset_info,
-                                 new_key->name.str, primary_key_name);
-
-      if ((!(new_key->flags & HA_KEY_HAS_PART_KEY_SEG) &&
-           !(new_key->flags & HA_NULL_PART_KEY)) ||
-          is_pk)
-      {
-        /* Candidate key or primary key! */
-        if (candidate_key_count == 0 || is_pk)
-          ha_alter_info->handler_flags|= ALTER_ADD_PK_INDEX;
-        else
-          ha_alter_info->handler_flags|= ALTER_ADD_UNIQUE_INDEX;
-        candidate_key_count++;
-      }
+      if (new_key == new_pk)
+        ha_alter_info->handler_flags|= ALTER_ADD_PK_INDEX;
       else
-      {
         ha_alter_info->handler_flags|= ALTER_ADD_UNIQUE_INDEX;
-      }
     }
     else
       ha_alter_info->handler_flags|= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX;
@@ -8432,7 +8393,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!drop)
       {
-        check->expr->walk(&Item::rename_fields_processor, 1, &column_rename_param);
+        if (alter_info->flags & ALTER_RENAME_COLUMN)
+        {
+          check->expr->walk(&Item::rename_fields_processor, 1,
+                            &column_rename_param);
+          table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+        }
         new_constraint_list.push_back(check, thd->mem_root);
       }
     }
@@ -9315,6 +9281,64 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   THD_STAGE_INFO(thd, stage_setup);
 
+  if (alter_info->flags & ALTER_DROP_CHECK_CONSTRAINT)
+  {
+    /*
+      ALTER TABLE DROP CONSTRAINT
+      should be replaced with ... DROP [FOREIGN] KEY
+      if the constraint is the FOREIGN KEY or UNIQUE one.
+    */
+
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+    List <FOREIGN_KEY_INFO> fk_child_key_list;
+    table->file->get_foreign_key_list(thd, &fk_child_key_list);
+
+    alter_info->flags&= ~ALTER_DROP_CHECK_CONSTRAINT;
+
+    while ((drop= drop_it++))
+    {
+      if (drop->type == Alter_drop::CHECK_CONSTRAINT)
+      {
+        {
+          /* Test if there is a FOREIGN KEY with this name. */
+          FOREIGN_KEY_INFO *f_key;
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+
+          while ((f_key= fk_key_it++))
+          {
+            if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                  drop->name) == 0)
+            {
+              drop->type= Alter_drop::FOREIGN_KEY;
+              alter_info->flags|= ALTER_DROP_FOREIGN_KEY;
+              goto do_continue;
+            }
+          }
+        }
+
+        {
+          /* Test if there is an UNIQUE with this name. */
+          uint n_key;
+
+          for (n_key=0; n_key < table->s->keys; n_key++)
+          {
+            if ((table->key_info[n_key].flags & HA_NOSAME) &&
+                my_strcasecmp(system_charset_info,
+                              drop->name, table->key_info[n_key].name.str) == 0) // Merge todo: review '.str'
+            {
+              drop->type= Alter_drop::KEY;
+              alter_info->flags|= ALTER_DROP_INDEX;
+              goto do_continue;
+            }
+          }
+        }
+      }
+      alter_info->flags|= ALTER_DROP_CHECK_CONSTRAINT;
+do_continue:;
+    }
+  }
+
   handle_if_exists_options(thd, table, alter_info);
 
   /*
@@ -9639,7 +9663,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
           thd->create_and_open_tmp_table(new_db_type, &frm,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db.str,
-                                         alter_ctx.tmp_name.str,
+                                         alter_ctx.new_name.str,
                                          false, true)))
       goto err_new_table_cleanup;
 
@@ -9755,7 +9779,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     goto err_new_table_cleanup;
 
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
-                      alter_ctx.new_db.str, alter_ctx.tmp_name.str,
+                      alter_ctx.new_db.str, alter_ctx.new_name.str,
                       create_info, &frm))
     goto err_new_table_cleanup;
 
@@ -9763,11 +9787,11 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   no_ha_table= false;
 
   /* Open the table since we need to copy the data. */
-  new_table= thd->create_and_open_tmp_table(new_db_type, &frm,
-                                            alter_ctx.get_tmp_path(),
-                                            alter_ctx.new_db.str,
-                                            alter_ctx.tmp_name.str,
-                                            true, true);
+  new_table=
+    thd->create_and_open_tmp_table(new_db_type, &frm, alter_ctx.get_tmp_path(),
+                                   alter_ctx.new_db.str,
+                                   alter_ctx.new_name.str,
+                                   true, true);
   if (!new_table)
     goto err_new_table_cleanup;
 
@@ -9827,7 +9851,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         goto err_new_table_cleanup;
     }
   }
-  new_table->s->orig_table_name= table->s->table_name.str;
 
   /*
     Note: In case of MERGE table, we do not attach children. We do not
@@ -10687,7 +10710,10 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
       {
         /* calculating table's checksum */
         ha_checksum crc= 0;
-        uchar null_mask=256 -  (1 << t->s->last_null_bit_pos);
+        DBUG_ASSERT(t->s->last_null_bit_pos < 8);
+        uchar null_mask= (t->s->last_null_bit_pos ?
+                          (256 -  (1 << t->s->last_null_bit_pos)):
+                          0);
 
         t->use_all_stored_columns();
 

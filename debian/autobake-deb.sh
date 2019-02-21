@@ -97,33 +97,6 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
-# AWS SDK requires c++11 -capable compiler.
-# Minimal supported versions are g++ 4.8 and clang 3.3.
-# AWS SDK also requires the build machine to have network access and git, so
-# it cannot be part of the base version included in Linux distros, but a pure
-# custom built plugin.
-if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && [[ -x "$(command -v git)" ]] && timeout 3s bash -c 'sed -n q </dev/tcp/github.com/22'
-then
-  cat <<EOF >> debian/control
-
-Package: mariadb-plugin-aws-key-management
-Architecture: any
-Breaks: mariadb-aws-key-management-10.1,
-        mariadb-aws-key-management-10.2
-Replaces: mariadb-aws-key-management-10.1,
-          mariadb-aws-key-management-10.2
-Depends: mariadb-server-10.4,
-         \${misc:Depends},
-         \${shlibs:Depends}
-Description: Amazon Web Service Key Management Service Plugin for MariaDB
- This encryption key management plugin gives an interface to the Amazon Web
- Services Key Management Service for managing encryption keys used for MariaDB
- data-at-rest encryption.
-EOF
-
-  sed -i -e "/-DPLUGIN_AWS_KEY_MANAGEMENT=NO/d" debian/rules
-fi
-
 # Don't build cassandra package if thrift is not installed
 if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
 then

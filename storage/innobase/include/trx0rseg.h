@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -194,7 +194,7 @@ struct trx_rseg_t {
 		      || (srv_undo_space_id_start > 0
 			  && space->id >= srv_undo_space_id_start
 			  && space->id <= srv_undo_space_id_start
-			  + srv_undo_tablespaces_active)
+			  + srv_undo_tablespaces_open)
 		      || !srv_was_started);
 		return(space->id != SRV_TMP_SPACE_ID);
 	}

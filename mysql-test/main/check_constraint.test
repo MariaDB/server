@@ -27,7 +27,6 @@ insert into t1 values (101,101),(102,102),(600,600),(103,103);
 select * from t1;
 set check_constraint_checks=@save_check_constraint;
 
---replace_regex /failed for.*/failed for table/
 --error ER_CONSTRAINT_FAILED
 alter table t1 add c int default 0 check (c < 10);
 

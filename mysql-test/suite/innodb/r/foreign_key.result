@@ -10,7 +10,7 @@ ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint 
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 121 "Duplicate key on write or update")
+ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
 set foreign_key_checks = 0;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 ERROR HY000: Duplicate FOREIGN KEY constraint name 'test/c1'
@@ -206,6 +206,61 @@ connection default;
 ERROR 70100: Query execution was interrupted
 disconnect fk;
 DROP TABLE t3,t1;
+#
+# MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+# or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
+#
+CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
+ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a b TIME;
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+DROP TABLE t1;
+#
+# MDEV-18256 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+# upon DROP FOREIGN KEY
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY fk1 (b) REFERENCES t1 (a))
+ENGINE=InnoDB;
+ALTER TABLE t2 DROP FOREIGN KEY fk1, DROP FOREIGN KEY fk1;
+DROP TABLE t2, t1;
+CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+Warnings:
+Warning	1088	failed to load FOREIGN KEY constraints
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+Warnings:
+Warning	1088	failed to load FOREIGN KEY constraints
+DROP TABLE t1;
+CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
+ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+Warnings:
+Warning	1088	failed to load FOREIGN KEY constraints
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+DROP TABLE t1;
+#
+# MDEV-18630 Conditional jump or move depends on uninitialised value
+# in ib_push_warning / dict_create_foreign_constraints_low
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+SHOW WARNINGS;
+Level	Code	Message
+Warning	150	Alter  table test/#sql-temporary with foreign key constraint failed. Referenced table `test`.`t2` not found in the data dictionary near 'FOREIGN KEY (a) REFERENCES t2 (b)'.
+Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+Warning	1215	Cannot add foreign key constraint for `t1`
+DROP TABLE t1;
 # Start of 10.2 tests
 #
 # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint

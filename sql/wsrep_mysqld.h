@@ -32,6 +32,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include <sql_priv.h>
 #include "mdl.h"
 #include "sql_table.h"
+#include "wsrep_mysqld_c.h"
 
 #include "wsrep/provider.hpp"
 #include "wsrep/streaming_context.hpp"

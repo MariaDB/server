@@ -20,7 +20,6 @@ if ($checksum_algorithm == "strict_full_crc32")
   let $error_code = 0;
 }
 
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error $error_code
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
@@ -49,7 +48,6 @@ CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;
 # FIXME: MDEV-13851 Encrypted table refuses some form of ALGORITHM=COPY,
 # but allows rebuild by FORCE
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error $error_code
 ALTER TABLE t1 ADD SPATIAL INDEX b1(coordinate), ALGORITHM=COPY;
 --error $error_code
