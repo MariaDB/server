@@ -49,7 +49,9 @@ ib_restore_tablespaces("test", "t1");
 EOF
 
 --remove_file $MYSQLD_DATADIR/test/t1.cfg
+--disable_warnings
 ALTER TABLE t1 IMPORT TABLESPACE;
+--enable_warnings
 SHOW CREATE TABLE t1;
 UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
 --replace_column 9 #
@@ -123,7 +125,9 @@ ib_restore_tablespaces("test", "t1");
 EOF
 
 --remove_file $MYSQLD_DATADIR/test/t1.cfg
+--disable_warnings
 ALTER TABLE t1 IMPORT TABLESPACE;
+--enable_warnings
 SHOW CREATE TABLE t1;
 UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
 SELECT COUNT(*) FROM t1;
