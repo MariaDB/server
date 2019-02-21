@@ -387,5 +387,14 @@ create or replace table t1 (
   period for system_time (row_start, row_end)
 ) engine=myisam with system versioning;
 
+--error ER_VERS_FIELD_WRONG_TYPE
+create table t (
+  a int,
+  row_start datetime(6) generated always as row start,
+  row_end datetime(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+
 drop database test;
 create database test;

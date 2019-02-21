@@ -7433,8 +7433,7 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
 
 static bool is_versioning_timestamp(const Create_field *f)
 {
-  return (f->type_handler() == &type_handler_datetime2 ||
-          f->type_handler() == &type_handler_timestamp2) &&
+  return f->type_handler() == &type_handler_timestamp2 &&
          f->length == MAX_DATETIME_FULL_WIDTH;
 }
 

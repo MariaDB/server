@@ -2025,7 +2025,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         switch (field_type)
         {
         case MYSQL_TYPE_TIMESTAMP2:
-        case MYSQL_TYPE_DATETIME2:
           break;
         case MYSQL_TYPE_LONGLONG:
           if (vers_can_native)
