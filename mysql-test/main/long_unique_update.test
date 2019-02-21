@@ -1,3 +1,6 @@
+#
+# MDEV-371 Unique indexes for blobs
+#
 --echo #structure of tests;
 --echo #1 test of table containing single unique blob column;
 --echo #2 test of table containing another unique int/ varchar etc column; 

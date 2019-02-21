@@ -3,6 +3,16 @@ insert into t1 values('RUC');
 insert into t1 values ('RUC');
 ERROR 23000: Duplicate entry 'RUC' for key 'a'
 drop table t1;
+create table t1 (a blob unique , c int unique) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH,
+  UNIQUE KEY `c` (`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1;
 #test for concurrent insert of long unique in innodb
 create table t1(a blob unique) engine= InnoDB;
 show create table t1;

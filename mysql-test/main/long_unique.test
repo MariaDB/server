@@ -1,6 +1,10 @@
 let datadir=`select @@datadir`;
 --source include/have_partition.inc
 
+#
+# MDEV-371 Unique indexes for blobs
+#
+
 --echo #Structure of tests
 --echo #First we will check all option for
 --echo #table containing single unique column
@@ -475,7 +479,7 @@ drop table t1;
 --error ER_BLOB_FIELD_IN_PART_FUNC_ERROR
 create table t1(a blob unique) partition by hash(a);
 --echo #key length > 2^16 -1
---error ER_TOO_LONG_HASH_KEYSEG
+--error ER_TOO_LONG_KEYPART
 create table t1(a blob, unique(a(65536)));
 create table t1(a blob, unique(a(65535)));
 show create table t1;

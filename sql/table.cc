@@ -1177,10 +1177,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   /* Now, initialize CURRENT_TIMESTAMP and UNIQUE_INDEX_HASH_FIELD fields */
   for (field_ptr= table->field; *field_ptr; field_ptr++)
-  { 
+  {
     Field *field= *field_ptr;
     if (field->flags & LONG_UNIQUE_HASH_FIELD)
-    { 
+    {
       List<Item> *field_list= new (mem_root) List<Item>();
       Item *list_item;
       KEY *key;
@@ -2443,8 +2443,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
       {
         share->long_unique_table= 1;
-        if (share->frm_version < FRM_VER_EXPRESSSIONS)
-          share->frm_version= FRM_VER_EXPRESSSIONS;
         hash_keypart= keyinfo->key_part + keyinfo->user_defined_key_parts;
         hash_keypart->length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
         hash_keypart->store_length= hash_keypart->length;
@@ -2453,8 +2451,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->key_type= 32834;
         /* Last n fields are unique_index_hash fields*/
         hash_keypart->offset= offset;
-//        hash_keypart->offset= share->reclength
-//                       - HA_HASH_FIELD_LENGTH*(share->fields - hash_field_used_no);
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
         hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
@@ -2472,7 +2468,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     KEY* key_first_info= NULL;
 
     if (primary_key >= MAX_KEY && keyinfo->flags & HA_NOSAME &&
-                                 keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
+        keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
     {
       /*
         If the UNIQUE key doesn't have NULL columns and is not a part key
@@ -2507,7 +2503,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
     if (share->use_ext_keys)
-    { 
+    {
       if (primary_key >= MAX_KEY)
       {
         add_first_key_parts= 0;
@@ -2566,7 +2562,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         for (i= 0; i < keyinfo->user_defined_key_parts; i++)
         {
           uint fieldnr= keyinfo->key_part[i].fieldnr;
-          field= share->field[keyinfo->key_part[i].fieldnr-1];
+          field= share->field[fieldnr-1];
 
           if (field->null_ptr)
             len_null_byte= HA_KEY_NULL_LENGTH;
@@ -2581,8 +2577,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
           ext_key_length+= keyinfo->key_part[i].length + len_null_byte
                             + length_bytes;
-          if (share->field[fieldnr-1]->key_length() !=
-              keyinfo->key_part[i].length)
+          if (field->key_length() != keyinfo->key_part[i].length)
 	  {
             add_keyparts_for_this_key= 0;
             break;
@@ -4258,6 +4253,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
 {
   size_t key_comment_total_bytes= 0;
   uint i;
+  uchar frm_format= create_info->expression_length ? FRM_VER_EXPRESSSIONS
+                                                   : FRM_VER_TRUE_VARCHAR;
   DBUG_ENTER("prepare_frm_header");
 
   /* Fix this when we have new .frm files;  Current limit is 4G rows (TODO) */
@@ -4265,17 +4262,6 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
     create_info->max_rows= UINT_MAX32;
   if (create_info->min_rows > UINT_MAX32)
     create_info->min_rows= UINT_MAX32;
-
-  size_t key_length, tmp_key_length, tmp, csid;
-  bzero((char*) fileinfo, FRM_HEADER_SIZE);
-  /* header */
-  fileinfo[0]=(uchar) 254;
-  fileinfo[1]= 1;
-  fileinfo[2]= (create_info->expression_length == 0 ? FRM_VER_TRUE_VARCHAR :
-                FRM_VER_EXPRESSSIONS);
-
-  DBUG_ASSERT(ha_storage_engine_is_enabled(create_info->db_type));
-  fileinfo[3]= (uchar) ha_legacy_type(create_info->db_type);
 
   /*
     Keep in sync with pack_keys() in unireg.cc
@@ -4295,7 +4281,19 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                 (key_info[i].comment.length > 0));
     if (key_info[i].flags & HA_USES_COMMENT)
       key_comment_total_bytes += 2 + key_info[i].comment.length;
+    if (key_info[i].algorithm == HA_KEY_ALG_LONG_HASH)
+      frm_format= FRM_VER_EXPRESSSIONS;
   }
+
+  size_t key_length, tmp_key_length, tmp, csid;
+  bzero((char*) fileinfo, FRM_HEADER_SIZE);
+  /* header */
+  fileinfo[0]=(uchar) 254;
+  fileinfo[1]= 1;
+  fileinfo[2]= frm_format;
+
+  DBUG_ASSERT(ha_storage_engine_is_enabled(create_info->db_type));
+  fileinfo[3]= (uchar) ha_legacy_type(create_info->db_type);
 
   key_length= keys * (8 + MAX_REF_PARTS * 9 + NAME_LEN + 1) + 16
               + key_comment_total_bytes;

@@ -7950,8 +7950,7 @@ ER_PERIOD_NOT_FOUND
         eng "Period %`s is not found in table"
 ER_PERIOD_COLUMNS_UPDATED
         eng "Column %`s used in period %`s specified in update SET list"
-
 ER_PERIOD_CONSTRAINT_DROP
         eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
-ER_TOO_LONG_HASH_KEYSEG
-        eng "Max key segment length is 65535"
+ER_TOO_LONG_KEYPART 42000 S1009
+        eng "Specified key part was too long; max key part length is %u bytes"

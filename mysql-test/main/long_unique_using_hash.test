@@ -1,3 +1,6 @@
+#
+# MDEV-371 Unique indexes for blobs
+#
 
 create table t1(a blob , unique(a) using hash);
 --query_vertical show keys from t1;

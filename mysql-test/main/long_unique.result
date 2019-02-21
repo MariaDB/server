@@ -1387,13 +1387,13 @@ create table t1(a blob unique) partition by hash(a);
 ERROR HY000: A BLOB field is not allowed in partition function
 #key length > 2^16 -1
 create table t1(a blob, unique(a(65536)));
-ERROR HY000: Max key segment length is 65535
+ERROR 42000: Specified key part was too long; max key part length is 65535 bytes
 create table t1(a blob, unique(a(65535)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
-  UNIQUE KEY `a` (`a`) USING HASH
+  UNIQUE KEY `a` (`a`(65535)) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 #64 indexes

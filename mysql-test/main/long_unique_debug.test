@@ -1,5 +1,9 @@
 --source include/have_debug.inc
---source include/have_innodb.inc
+
+#
+# MDEV-371 Unique indexes for blobs
+#
+
 --echo #In this test case we will check what will happen in the case of hash collision
 
 SET debug_dbug="d,same_long_unique_hash";

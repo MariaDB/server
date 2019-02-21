@@ -2778,23 +2778,26 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
 
   This will make checking for duplicated keys faster and ensure that
   PRIMARY keys are prioritized.
-  This will not reorder LONG_HASH indexes, because they must match the
-  order of their LONG_UNIQUE_HASH_FIELD's.
 */
 
 static int sort_keys(KEY *a, KEY *b)
 {
   ulong a_flags= a->flags, b_flags= b->flags;
   
+  /*
+    Do not reorder LONG_HASH indexes, because they must match the order
+    of their LONG_UNIQUE_HASH_FIELD's.
+  */
+  if (a->algorithm == HA_KEY_ALG_LONG_HASH &&
+      b->algorithm == HA_KEY_ALG_LONG_HASH)
+    return a->usable_key_parts - b->usable_key_parts;
+
   if (a_flags & HA_NOSAME)
   {
     if (!(b_flags & HA_NOSAME))
       return -1;
     if ((a_flags ^ b_flags) & HA_NULL_PART_KEY)
     {
-      if (a->algorithm == HA_KEY_ALG_LONG_HASH &&
-              b->algorithm == HA_KEY_ALG_LONG_HASH)
-        return a->usable_key_parts - b->usable_key_parts;
       /* Sort NOT NULL keys before other keys */
       return (a_flags & HA_NULL_PART_KEY) ? 1 : -1;
     }
@@ -2817,9 +2820,7 @@ static int sort_keys(KEY *a, KEY *b)
     Prefer original key order.	usable_key_parts contains here
     the original key position.
   */
-  return ((a->usable_key_parts < b->usable_key_parts) ? -1 :
-	  (a->usable_key_parts > b->usable_key_parts) ? 1 :
-	  0);
+  return a->usable_key_parts - b->usable_key_parts;
 }
 
 /*
@@ -3302,6 +3303,7 @@ static inline void make_long_hash_field_name(LEX_CSTRING *buf, uint num)
   buf->length= my_snprintf((char *)buf->str,
           LONG_HASH_FIELD_NAME_LENGTH, "DB_ROW_HASH_%u", num);
 }
+
 /**
   Add fully invisible hash field to table in case of long
   unique column
@@ -3313,7 +3315,6 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
                                       KEY *key_info)
 {
   List_iterator<Create_field> it(*create_list);
-//  CHARSET_INFO *field_cs;
   Create_field *dup_field, *cf= new (thd->mem_root) Create_field();
   cf->flags|= UNSIGNED_FLAG | LONG_UNIQUE_HASH_FIELD;
   cf->decimals= 0;
@@ -3336,18 +3337,6 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
       it.rewind();
     }
   }
-  /*  for (uint i= 0; i < key_info->user_defined_key_parts; i++)
-  {
-    dup_field= create_list->elem(key_info->key_part[i].fieldnr);
-    if (!i)
-      field_cs= dup_field->charset;
-    else if(field_cs != dup_field->charset)
-    {
-	  my_error(ER_MULTIPLE_CS_HASH_KEY, MYF(0));
-      return NULL;
-    }
-  }
-  cf->charset= field_cs;*/
   cf->field_name= field_name;
   cf->set_handler(&type_handler_longlong);
   key_info->algorithm= HA_KEY_ALG_LONG_HASH;
@@ -3940,27 +3929,27 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
 	if (f_is_blob(sql_field->pack_flag) ||
             (f_is_geom(sql_field->pack_flag) && key->type != Key::SPATIAL))
-	{
-	  if (!(file->ha_table_flags() & HA_CAN_INDEX_BLOBS))
-	  {
-	    my_error(ER_BLOB_USED_AS_KEY, MYF(0), column->field_name.str,
+        {
+          if (!(file->ha_table_flags() & HA_CAN_INDEX_BLOBS))
+          {
+            my_error(ER_BLOB_USED_AS_KEY, MYF(0), column->field_name.str,
                      file->table_type());
-	    DBUG_RETURN(TRUE);
-	  }
+            DBUG_RETURN(TRUE);
+          }
           if (f_is_geom(sql_field->pack_flag) && sql_field->geom_type ==
               Field::GEOM_POINT)
             column->length= MAX_LEN_GEOM_POINT_FIELD;
-	  if (!column->length)
-	  {
-        if (key->type == Key::PRIMARY)
-        {
-	      my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
-	      DBUG_RETURN(TRUE);
+          if (!column->length)
+          {
+            if (key->type == Key::PRIMARY)
+            {
+              my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
+              DBUG_RETURN(TRUE);
+            }
+            else
+              is_hash_field_needed= true;
+          }
         }
-        else
-          is_hash_field_needed= true;
-	  }
-	}
 #ifdef HAVE_SPATIAL
 	if (key->type == Key::SPATIAL)
 	{
@@ -4029,31 +4018,31 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
       if (column->length)
       {
-	if (f_is_blob(sql_field->pack_flag))
-	{
-	  key_part_length= MY_MIN(column->length,
-                               blob_length_by_type(sql_field->real_field_type())
-                               * sql_field->charset->mbmaxlen);
-	  if (key_part_length > max_key_length ||
-	      key_part_length > file->max_key_part_length())
-	  {
-	    if (key->type == Key::MULTIPLE)
-	    {
-	      key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
-	      /* not a critical problem */
-	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+        if (f_is_blob(sql_field->pack_flag))
+        {
+          key_part_length= MY_MIN(column->length,
+                                  blob_length_by_type(sql_field->real_field_type())
+                                  * sql_field->charset->mbmaxlen);
+          if (key_part_length > max_key_length ||
+              key_part_length > file->max_key_part_length())
+          {
+            if (key->type == Key::MULTIPLE)
+            {
+              key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
+              /* not a critical problem */
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                   ER_TOO_LONG_KEY,
                                   ER_THD(thd, ER_TOO_LONG_KEY),
                                   key_part_length);
               /* Align key length to multibyte char boundary */
               key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
-	    }
-	    else
-          is_hash_field_needed= true;
-	  }
-	}
+            }
+            else
+              is_hash_field_needed= true;
+          }
+        }
         // Catch invalid use of partial keys 
-	else if (!f_is_geom(sql_field->pack_flag) &&
+        else if (!f_is_geom(sql_field->pack_flag) &&
                  // is the key partial? 
                  column->length != key_part_length &&
                  // is prefix length bigger than field length? 
@@ -4067,11 +4056,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                    // and is this a 'unique' key?
                    (key_info->flags & HA_NOSAME))))
         {
-	  my_message(ER_WRONG_SUB_KEY, ER_THD(thd, ER_WRONG_SUB_KEY), MYF(0));
-	  DBUG_RETURN(TRUE);
-	}
-	else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
-	  key_part_length= column->length;
+          my_message(ER_WRONG_SUB_KEY, ER_THD(thd, ER_WRONG_SUB_KEY), MYF(0));
+          DBUG_RETURN(TRUE);
+        }
+        else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
+          key_part_length= column->length;
       }
       else if (key_part_length == 0 && (sql_field->flags & NOT_NULL_FLAG) &&
               !is_hash_field_needed)
@@ -4083,43 +4072,38 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (key_part_length > file->max_key_part_length() &&
           key->type != Key::FULLTEXT)
       {
-	if (key->type == Key::MULTIPLE)
-	{
-      key_part_length= file->max_key_part_length();
-	  /* not a critical problem */
-	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+        if (key->type == Key::MULTIPLE)
+        {
+          key_part_length= file->max_key_part_length();
+          /* not a critical problem */
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
                               key_part_length);
           /* Align key length to multibyte char boundary */
           key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
-	}
-	else
-	{
-      if(key->type == Key::UNIQUE)
-      {
-        is_hash_field_needed= true;
+        }
+        else
+        {
+          if (key->type == Key::UNIQUE)
+          {
+            is_hash_field_needed= true;
+          }
+          else
+          {
+            key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
+            my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+            DBUG_RETURN(TRUE);
+          }
+        }
       }
-      else
+      /* We can not store key_part_length more then 2^16 - 1 in frm */
+      if (is_hash_field_needed && column->length > UINT16_MAX)
       {
-	    key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
-	    my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-	    DBUG_RETURN(TRUE);
-	  }
-    }
+        my_error(ER_TOO_LONG_KEYPART, MYF(0),  UINT16_MAX);
+        DBUG_RETURN(TRUE);
       }
-      /* We can not store key_part_length more then 2^16 - 1 in frm
-         So we will simply make it zero */
-      if (is_hash_field_needed && column->length > (1<<16) - 1)
-      {
-	    my_error(ER_TOO_LONG_HASH_KEYSEG, MYF(0));
-	    DBUG_RETURN(TRUE);
-	  }
       else
         key_part_info->length= (uint16) key_part_length;
-      if (is_hash_field_needed &&
-           (key_part_info->length == sql_field->char_length * sql_field->charset->mbmaxlen ||
-            key_part_info->length == (1<<16) -1))
-        key_part_info->length= 0;
       /* Use packed keys for long strings on the first column */
       if (!((*db_options) & HA_OPTION_NO_PACK_KEYS) &&
           !((create_info->table_options & HA_OPTION_NO_PACK_KEYS)) &&
@@ -8385,13 +8369,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (cfield->field)			// Not new field
       {
         /*
-        if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-        {
-          Field *fld= cfield->field;
-          if (fld->max_display_length() == cfield->length*fld->charset()->mbmaxlen
-                      && fld->max_data_length() != key_part->length)
-            cfield->length= cfield->char_length= key_part->length;
-        }
           If the field can't have only a part used in a key according to its
           new type, or should not be used partially according to its
           previous type, or the field length is less than the key part
