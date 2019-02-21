@@ -453,7 +453,9 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   thd->variables.option_bits |= OPTION_BEGIN;
   thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
   DBUG_ASSERT(thd->wsrep_trx().active());
-  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
+  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing ||
+              (thd->wsrep_trx().state() == wsrep::transaction::s_prepared &&
+               thd->wsrep_trx().is_xa()));
 
   thd_proc_info(thd, "applying write set");
   /* moved dbug sync point here, after possible THD switch for SR transactions
