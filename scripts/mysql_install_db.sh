@@ -515,14 +515,14 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+# Use $auth_root_socket_user if explicitly specified.
+# Otherwise use the owner of datadir - ${user:-$USER}
+# Use 'root' as a fallback
+auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
+
 cat_sql()
 {
   echo "use mysql;"
-
-  # Use $auth_root_socket_user if explicitly specified.
-  # Otherwise use the owner of datadir - ${user:-$USER}
-  # Use 'root' as a fallback
-  auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
 
   case "$auth_root_authentication_method" in
     normal)
