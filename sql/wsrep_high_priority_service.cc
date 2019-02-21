@@ -195,7 +195,8 @@ int Wsrep_high_priority_service::start_transaction(
   const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
 {
   DBUG_ENTER(" Wsrep_high_priority_service::start_transaction");
-  DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta));
+  DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta) ||
+              trans_begin(m_thd));
 }
 
 const wsrep::transaction& Wsrep_high_priority_service::transaction() const
@@ -204,13 +205,22 @@ const wsrep::transaction& Wsrep_high_priority_service::transaction() const
   DBUG_RETURN(m_thd->wsrep_trx());
 }
 
-void Wsrep_high_priority_service::adopt_transaction(const wsrep::transaction& transaction)
+int Wsrep_high_priority_service::adopt_transaction(
+  const wsrep::transaction& transaction)
 {
   DBUG_ENTER(" Wsrep_high_priority_service::adopt_transaction");
+  /* Adopt transaction first to set up transaction meta data for
+     trans begin. If trans_begin() fails for some reason, roll back
+     the wsrep transaction before return. */
   m_thd->wsrep_cs().adopt_transaction(transaction);
-  DBUG_VOID_RETURN;
+  int ret= trans_begin(m_thd);
+  if (ret)
+  {
+    m_thd->wsrep_cs().before_rollback();
+    m_thd->wsrep_cs().after_rollback();
+  }
+  DBUG_RETURN(ret);
 }
-
 
 int Wsrep_high_priority_service::append_fragment_and_commit(
   const wsrep::ws_handle& ws_handle,
@@ -254,23 +264,8 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
                                                 ws_meta, true);
   }
 
-  if (!ret)
-  {
-    DBUG_ASSERT(wsrep_thd_trx_seqno(m_thd) > 0);
-    if (!do_binlog_commit)
-    {
-      ret= wsrep_before_commit(m_thd, true);
-    }
-    ret= ret || trans_commit(m_thd);
-    if (!do_binlog_commit)
-    {
-      if (opt_log_slave_updates)
-      {
-        ret= ret || wsrep_ordered_commit(m_thd, true, wsrep_apply_error());
-      }
-      ret= ret || wsrep_after_commit(m_thd, true);
-    }
-  }
+  ret= ret || trans_commit(m_thd);
+
   m_thd->wsrep_cs().after_applying();
   m_thd->mdl_context.release_transactional_locks();
 
@@ -298,33 +293,12 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
   thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
   thd_proc_info(thd, "committing");
 
-  int ret= 0;
   const bool is_ordered= !ws_meta.seqno().is_undefined();
-  /* If opt_log_slave_updates is not on, applier does not write
-     anything to binlog cache and neither wsrep_before_commit()
-     nor wsrep_after_commit() we be reached from binlog code
-     path for applier. Therefore run wsrep_before_commit()
-     and wsrep_after_commit() here. wsrep_ordered_commit()
-     will be called from wsrep_ordered_commit_if_no_binlog(). */
-  if (!opt_log_slave_updates && !opt_bin_log && is_ordered)
-  {
-    if (m_thd->transaction.all.no_2pc == false)
-    {
-      ret= wsrep_before_prepare(thd, true);
-      ret= ret || wsrep_after_prepare(thd, true);
-    }
-    ret= ret || wsrep_before_commit(thd, true);
-  }
-  ret= ret || trans_commit(thd);
+  int ret= trans_commit(thd);
 
   if (ret == 0)
   {
     m_rgi->cleanup_context(thd, 0);
-  }
-
-  if (ret == 0 && !opt_log_slave_updates && !opt_bin_log && is_ordered)
-  {
-    ret= wsrep_after_commit(thd, true);
   }
 
   m_thd->mdl_context.release_transactional_locks();
@@ -333,12 +307,25 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
 
   if (!is_ordered)
   {
-    /* Wsrep commit was not ordered so it does not go through commit time
-       hooks and remains active. Roll it back to make cleanup happen
-       in after_applying() call. */
     m_thd->wsrep_cs().before_rollback();
     m_thd->wsrep_cs().after_rollback();
   }
+  else if (m_thd->wsrep_trx().state() == wsrep::transaction::s_executing)
+  {
+    /*
+      Wsrep commit was ordered but it did not go through commit time
+      hooks and remains active. Cycle through commit hooks to release
+      commit order and to make cleanup happen in after_applying() call.
+
+      This is a workaround for CTAS with empty result set.
+    */
+    WSREP_DEBUG("Commit not finished for applier %llu", thd->thread_id);
+    ret= ret || m_thd->wsrep_cs().before_commit() ||
+      m_thd->wsrep_cs().ordered_commit() ||
+      m_thd->wsrep_cs().after_commit();
+  }
+
+  thd->lex->sql_command= SQLCOM_END;
 
   must_exit_= check_exit_status();
   DBUG_RETURN(ret);
@@ -380,6 +367,8 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
   trans_commit(thd);
 
   thd->close_temporary_tables();
+  thd->lex->sql_command= SQLCOM_END;
+
   wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
 
   must_exit_= check_exit_status();
