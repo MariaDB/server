@@ -4958,6 +4958,83 @@ class Send_field :public Sql_alloc {
   uint flags, decimals;
   enum_field_types type;
   Send_field() {}
+  Send_field(Field *field)
+  {
+    field->make_send_field(this);
+    DBUG_ASSERT(table_name != 0);
+    normalize();
+  }
+
+  Send_field(Field *field,
+             const char *db_name_arg,
+             const char *table_name_arg)
+   :db_name(db_name_arg),
+    table_name(table_name_arg),
+    org_table_name(table_name_arg),
+    col_name(field->field_name),
+    org_col_name(field->field_name),
+    length(field->field_length),
+    flags(field->table->maybe_null ?
+          (field->flags & ~NOT_NULL_FLAG) : field->flags),
+    decimals(field->decimals()),
+    type(field->type())
+  {
+    normalize();
+  }
+
+  // This should move to Type_handler eventually
+  static enum_field_types protocol_type_code(enum_field_types type)
+  {
+    /* Keep things compatible for old clients */
+    if (type == MYSQL_TYPE_VARCHAR)
+      return MYSQL_TYPE_VAR_STRING;
+    return type;
+  }
+  void normalize()
+  {
+    /* limit number of decimals for float and double */
+    if (type == MYSQL_TYPE_FLOAT || type == MYSQL_TYPE_DOUBLE)
+      set_if_smaller(decimals, FLOATING_POINT_DECIMALS);
+    /* Keep things compatible for old clients */
+    type= protocol_type_code(type);
+  }
+
+  // This should move to Type_handler eventually
+  uint32 max_char_length(CHARSET_INFO *cs) const
+  {
+    return type >= MYSQL_TYPE_TINY_BLOB && type <= MYSQL_TYPE_BLOB ?
+                   length / cs->mbminlen :
+                   length / cs->mbmaxlen;
+  }
+  uint32 max_octet_length(CHARSET_INFO *from, CHARSET_INFO *to) const
+  {
+    /*
+      For TEXT/BLOB columns, field_length describes the maximum data
+      length in bytes. There is no limit to the number of characters
+      that a TEXT column can store, as long as the data fits into
+      the designated space.
+      For the rest of textual columns, field_length is evaluated as
+      char_count * mbmaxlen, where character count is taken from the
+      definition of the column. In other words, the maximum number
+      of characters here is limited by the column definition.
+
+      When one has a LONG TEXT column with a single-byte
+      character set, and the connection character set is multi-byte, the
+      client may get fields longer than UINT_MAX32, due to
+      <character set column> -> <character set connection> conversion.
+      In that case column max length would not fit into the 4 bytes
+      reserved for it in the protocol. So we cut it here to UINT_MAX32.
+    */
+    return char_to_byte_length_safe(max_char_length(from), to->mbmaxlen);
+  }
+
+  // This should move to Type_handler eventually
+  bool is_sane() const
+  {
+    return (decimals <= FLOATING_POINT_DECIMALS ||
+            (type != MYSQL_TYPE_FLOAT && type != MYSQL_TYPE_DOUBLE)) &&
+           type != MYSQL_TYPE_VARCHAR;
+  }
 };
 
 

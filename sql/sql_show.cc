@@ -1521,7 +1521,6 @@ void
 mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
 {
   TABLE *table;
-  MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_list_fields");
   DBUG_PRINT("enter",("table: %s", table_list->table_name.str));
 
@@ -1531,28 +1530,18 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
     DBUG_VOID_RETURN;
   table= table_list->table;
 
-  List<Item> field_list;
+  List<Field> field_list;
 
   Field **ptr,*field;
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
     if (!wild || !wild[0] ||
         !wild_case_compare(system_charset_info, field->field_name.str,wild))
-    {
-      if (table_list->view)
-        field_list.push_back(new (mem_root)
-                             Item_ident_for_show(thd, field,
-                                                 table_list->view_db.str,
-                                                 table_list->view_name.str),
-                             mem_root);
-      else
-        field_list.push_back(new (mem_root) Item_field(thd, field), mem_root);
-    }
+      field_list.push_back(field);
   }
   restore_record(table, s->default_values);              // Get empty record
   table->use_all_columns();
-  if (thd->protocol->send_result_set_metadata(&field_list,
-                                              Protocol::SEND_DEFAULTS))
+  if (thd->protocol->send_list_fields(&field_list, table_list))
     DBUG_VOID_RETURN;
   my_eof(thd);
   DBUG_VOID_RETURN;
