@@ -344,7 +344,6 @@
 #define IS_EQUAL_NO 0
 #define IS_EQUAL_YES 1
 #define IS_EQUAL_PACK_LENGTH 2
-#define IS_EQUAL_BUT_AUTO_INC 3
 
 enum enum_parsing_place
 {

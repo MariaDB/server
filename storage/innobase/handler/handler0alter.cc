@@ -135,7 +135,6 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
 	| ALTER_COLUMN_UNVERSIONED
-	| ALTER_AUTO_INC
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
@@ -908,7 +907,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		| INNOBASE_ALTER_REBUILD)) {
 
 		if (ha_alter_info->handler_flags
-		    & (ALTER_STORED_COLUMN_TYPE | ALTER_AUTO_INC)) {
+		    & ALTER_STORED_COLUMN_TYPE) {
 			ha_alter_info->unsupported_reason = my_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE);
 		}

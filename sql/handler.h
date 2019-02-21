@@ -726,8 +726,6 @@ typedef ulonglong alter_table_operations;
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
 
-#define ALTER_AUTO_INC                       (1ULL << 61)
-
 /*
   Flags set in partition_flags when altering partitions
 */
