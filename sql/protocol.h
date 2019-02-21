@@ -25,8 +25,10 @@
 
 class i_string;
 class Field;
+class Send_field;
 class THD;
 class Item_param;
+struct TABLE_LIST;
 typedef struct st_mysql_field MYSQL_FIELD;
 typedef struct st_mysql_rows MYSQL_ROWS;
 
@@ -75,8 +77,9 @@ public:
   virtual ~Protocol() {}
   void init(THD* thd_arg);
 
-  enum { SEND_NUM_ROWS= 1, SEND_DEFAULTS= 2, SEND_EOF= 4 };
+  enum { SEND_NUM_ROWS= 1, SEND_EOF= 2 };
   virtual bool send_result_set_metadata(List<Item> *list, uint flags);
+  bool send_list_fields(List<Field> *list, const TABLE_LIST *table_list);
   bool send_result_set_row(List<Item> *row_items);
 
   bool store(I_List<i_string> *str_list);
@@ -113,6 +116,15 @@ public:
   virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)=0;
   virtual bool store(const char *from, size_t length, 
   		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
+  bool store_str(const char *s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+  {
+    DBUG_ASSERT(s);
+    return store(s, (uint) strlen(s), fromcs, tocs);
+  }
+  bool store_str(const LEX_CSTRING &s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+  {
+    return store(s.str, (uint) s.length, fromcs, tocs);
+  }
   virtual bool store(float from, uint32 decimals, String *buffer)=0;
   virtual bool store(double from, uint32 decimals, String *buffer)=0;
   virtual bool store(MYSQL_TIME *time, int decimals)=0;
@@ -122,7 +134,8 @@ public:
 
   virtual bool send_out_parameters(List<Item_param> *sp_params)=0;
 #ifdef EMBEDDED_LIBRARY
-  int begin_dataset();
+  bool begin_dataset();
+  bool begin_dataset(THD *thd, uint numfields);
   virtual void remove_last_row() {}
 #else
   void remove_last_row() {}
@@ -150,7 +163,12 @@ public:
 class Protocol_text :public Protocol
 {
 public:
-  Protocol_text(THD *thd_arg) :Protocol(thd_arg) {}
+  Protocol_text(THD *thd_arg, ulong prealloc= 0)
+   :Protocol(thd_arg)
+  {
+    if (prealloc)
+      packet->alloc(prealloc);
+  }
   virtual void prepare_for_resend();
   virtual bool store_null();
   virtual bool store_tiny(longlong from);
@@ -172,6 +190,13 @@ public:
 #ifdef EMBEDDED_LIBRARY
   void remove_last_row();
 #endif
+  bool store_field_metadata(const THD *thd, const Send_field &field,
+                            CHARSET_INFO *charset_for_protocol,
+                            uint pos);
+  bool store_field_metadata(THD *thd, Item *item, uint pos);
+  bool store_field_metadata_for_list_fields(const THD *thd, Field *field,
+                                            const TABLE_LIST *table_list,
+                                            uint pos);
   virtual enum enum_protocol_type type() { return PROTOCOL_TEXT; };
 };
 

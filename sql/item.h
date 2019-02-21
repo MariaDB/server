@@ -1298,7 +1298,6 @@ public:
    /*
      The default implementation for the Items that do not need native format:
      - Item_basic_value
-     - Item_ident_for_show
      - Item_copy
      - Item_exists_subselect
      - Item_sum_field
@@ -3236,45 +3235,6 @@ public:
                             const char *db_name,
                             const char *table_name, List_iterator<Item> *it,
                             bool any_privileges);
-};
-
-
-class Item_ident_for_show :public Item
-{
-public:
-  Field *field;
-  const char *db_name;
-  const char *table_name;
-
-  Item_ident_for_show(THD *thd, Field *par_field, const char *db_arg,
-                      const char *table_name_arg):
-    Item(thd), field(par_field), db_name(db_arg), table_name(table_name_arg)
-  {
-    Type_std_attributes::set(par_field->type_std_attributes());
-  }
-  enum Type type() const { return FIELD_ITEM; }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param)
-  {
-    DBUG_ASSERT(0);
-    return 0;
-  }
-  double val_real() { return field->val_real(); }
-  longlong val_int() { return field->val_int(); }
-  String *val_str(String *str) { return field->val_str(str); }
-  my_decimal *val_decimal(my_decimal *dec) { return field->val_decimal(dec); }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  {
-    return field->get_date(ltime, fuzzydate);
-  }
-  void make_send_field(THD *thd, Send_field *tmp_field);
-  const Type_handler *type_handler() const
-  {
-    const Type_handler *handler= field->type_handler();
-    return handler->type_handler_for_item_field();
-  }
-  Item* get_copy(THD *thd)
-  { return get_item_copy<Item_ident_for_show>(thd, this); }
 };
 
 

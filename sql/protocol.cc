@@ -788,6 +788,73 @@ bool Protocol::flush()
 
 #ifndef EMBEDDED_LIBRARY
 
+bool Protocol_text::store_field_metadata(const THD * thd,
+                                         const Send_field &field,
+                                         CHARSET_INFO *charset_for_protocol,
+                                         uint fieldnr)
+{
+  CHARSET_INFO *thd_charset= thd->variables.character_set_results;
+  char *pos;
+  CHARSET_INFO *cs= system_charset_info;
+  DBUG_ASSERT(field.is_sane());
+
+  if (thd->client_capabilities & CLIENT_PROTOCOL_41)
+  {
+    if (store(STRING_WITH_LEN("def"), cs, thd_charset) ||
+        store_str(field.db_name, cs, thd_charset) ||
+        store_str(field.table_name, cs, thd_charset) ||
+        store_str(field.org_table_name, cs, thd_charset) ||
+        store_str(field.col_name, cs, thd_charset) ||
+        store_str(field.org_col_name, cs, thd_charset) ||
+        packet->realloc(packet->length() + 12))
+      return true;
+    /* Store fixed length fields */
+    pos= (char*) packet->end();
+    *pos++= 12;                                // Length of packed fields
+    /* inject a NULL to test the client */
+    DBUG_EXECUTE_IF("poison_rs_fields", pos[-1]= (char) 0xfb;);
+    if (charset_for_protocol == &my_charset_bin || thd_charset == NULL)
+    {
+      /* No conversion */
+      int2store(pos, charset_for_protocol->number);
+      int4store(pos + 2, field.length);
+    }
+    else
+    {
+      /* With conversion */
+      int2store(pos, thd_charset->number);
+      uint32 field_length= field.max_octet_length(charset_for_protocol,
+                                                  thd_charset);
+      int4store(pos + 2, field_length);
+    }
+    pos[6]= field.type;
+    int2store(pos + 7, field.flags);
+    pos[9]= (char) field.decimals;
+    pos[10]= 0;                                // For the future
+    pos[11]= 0;                                // For the future
+    pos+= 12;
+  }
+  else
+  {
+    if (store_str(field.table_name, cs, thd_charset) ||
+        store_str(field.col_name, cs, thd_charset) ||
+        packet->realloc(packet->length() + 10))
+      return true;
+    pos= (char*) packet->end();
+    pos[0]= 3;
+    int3store(pos + 1, field.length);
+    pos[4]= 1;
+    pos[5]= field.type;
+    pos[6]= 3;
+    int2store(pos + 7, field.flags);
+    pos[9]= (char) field.decimals;
+    pos+= 10;
+  }
+  packet->length((uint) (pos - packet->ptr()));
+  return false;
+}
+
+
 /**
   Send name and type of result to client.
 
@@ -810,10 +877,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 {
   List_iterator_fast<Item> it(*list);
   Item *item;
-  ValueBuffer<MAX_FIELD_WIDTH> tmp;
-  Protocol_text prot(thd);
-  String *local_packet= prot.storage_packet();
-  CHARSET_INFO *thd_charset= thd->variables.character_set_results;
+  Protocol_text prot(thd, thd->variables.net_buffer_length);
   DBUG_ENTER("Protocol::send_result_set_metadata");
 
   if (flags & SEND_NUM_ROWS)
@@ -828,117 +892,17 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 #ifndef DBUG_OFF
   field_types= (enum_field_types*) thd->alloc(sizeof(field_types) *
 					      list->elements);
-  uint count= 0;
 #endif
 
-  /* We have to reallocate it here as a stored procedure may have reset it */
-  (void) local_packet->alloc(thd->variables.net_buffer_length);
-
-  while ((item=it++))
+  for (uint pos= 0; (item=it++); pos++)
   {
-    char *pos;
-    CHARSET_INFO *cs= system_charset_info;
-    Send_field field;
-    item->make_send_field(thd, &field);
-
-    /* limit number of decimals for float and double */
-    if (field.type == MYSQL_TYPE_FLOAT || field.type == MYSQL_TYPE_DOUBLE)
-      set_if_smaller(field.decimals, FLOATING_POINT_DECIMALS);
-
-    /* Keep things compatible for old clients */
-    if (field.type == MYSQL_TYPE_VARCHAR)
-      field.type= MYSQL_TYPE_VAR_STRING;
-
     prot.prepare_for_resend();
-
-    if (thd->client_capabilities & CLIENT_PROTOCOL_41)
-    {
-      if (prot.store(STRING_WITH_LEN("def"), cs, thd_charset) ||
-	  prot.store(field.db_name, (uint) strlen(field.db_name),
-		     cs, thd_charset) ||
-	  prot.store(field.table_name, (uint) strlen(field.table_name),
-		     cs, thd_charset) ||
-	  prot.store(field.org_table_name, (uint) strlen(field.org_table_name),
-		     cs, thd_charset) ||
-	  prot.store(field.col_name.str, (uint) field.col_name.length,
-		     cs, thd_charset) ||
-	  prot.store(field.org_col_name.str, (uint) field.org_col_name.length,
-		     cs, thd_charset) ||
-	  local_packet->realloc(local_packet->length()+12))
-	goto err;
-      /* Store fixed length fields */
-      pos= (char*) local_packet->ptr()+local_packet->length();
-      *pos++= 12;				// Length of packed fields
-      /* inject a NULL to test the client */
-      DBUG_EXECUTE_IF("poison_rs_fields", pos[-1]= (char) 0xfb;);
-      if (item->charset_for_protocol() == &my_charset_bin || thd_charset == NULL)
-      {
-        /* No conversion */
-        int2store(pos, item->charset_for_protocol()->number);
-        int4store(pos+2, field.length);
-      }
-      else
-      {
-        /* With conversion */
-        uint32 field_length, max_length;
-        int2store(pos, thd_charset->number);
-        /*
-          For TEXT/BLOB columns, field_length describes the maximum data
-          length in bytes. There is no limit to the number of characters
-          that a TEXT column can store, as long as the data fits into
-          the designated space.
-          For the rest of textual columns, field_length is evaluated as
-          char_count * mbmaxlen, where character count is taken from the
-          definition of the column. In other words, the maximum number
-          of characters here is limited by the column definition.
-
-          When one has a LONG TEXT column with a single-byte
-          character set, and the connection character set is multi-byte, the
-          client may get fields longer than UINT_MAX32, due to
-          <character set column> -> <character set connection> conversion.
-          In that case column max length does not fit into the 4 bytes
-          reserved for it in the protocol.
-        */
-        max_length= (field.type >= MYSQL_TYPE_TINY_BLOB &&
-                     field.type <= MYSQL_TYPE_BLOB) ?
-                     field.length / item->collation.collation->mbminlen :
-                     field.length / item->collation.collation->mbmaxlen;
-        field_length= char_to_byte_length_safe(max_length,
-                                               thd_charset->mbmaxlen);
-        int4store(pos + 2, field_length);
-      }
-      pos[6]= field.type;
-      int2store(pos+7,field.flags);
-      pos[9]= (char) field.decimals;
-      pos[10]= 0;				// For the future
-      pos[11]= 0;				// For the future
-      pos+= 12;
-    }
-    else
-    {
-      if (prot.store(field.table_name, (uint) strlen(field.table_name),
-		     cs, thd_charset) ||
-	  prot.store(field.col_name.str, (uint) field.col_name.length,
-		     cs, thd_charset) ||
-	  local_packet->realloc(local_packet->length()+10))
-	goto err;
-      pos= (char*) local_packet->ptr()+local_packet->length();
-      pos[0]=3;
-      int3store(pos+1,field.length);
-      pos[4]=1;
-      pos[5]=field.type;
-      pos[6]=3;
-      int2store(pos+7,field.flags);
-      pos[9]= (char) field.decimals;
-      pos+= 10;
-    }
-    local_packet->length((uint) (pos - local_packet->ptr()));
-    if (flags & SEND_DEFAULTS)
-      item->send(&prot, &tmp);			// Send default value
+    if (prot.store_field_metadata(thd, item, pos))
+      goto err;
     if (prot.write())
       DBUG_RETURN(1);
 #ifndef DBUG_OFF
-    field_types[count++]= field.type;
+    field_types[pos]= Send_field::protocol_type_code(item->field_type());
 #endif
   }
 
@@ -967,6 +931,38 @@ err:
 }
 
 
+bool Protocol::send_list_fields(List<Field> *list, const TABLE_LIST *table_list)
+{
+  DBUG_ENTER("Protocol::send_list_fields");
+  List_iterator_fast<Field> it(*list);
+  Field *fld;
+  Protocol_text prot(thd, thd->variables.net_buffer_length);
+
+#ifndef DBUG_OFF
+  field_types= (enum_field_types*) thd->alloc(sizeof(field_types) *
+                                              list->elements);
+#endif
+
+  for (uint pos= 0; (fld= it++); pos++)
+  {
+    prot.prepare_for_resend();
+    if (prot.store_field_metadata_for_list_fields(thd, fld, table_list, pos))
+      goto err;
+    prot.store(fld);   // Send default value
+    if (prot.write())
+      DBUG_RETURN(1);
+#ifndef DBUG_OFF
+    field_types[pos]= Send_field::protocol_type_code(fld->type());
+#endif
+  }
+  DBUG_RETURN(prepare_for_send(list->elements));
+
+err:
+  my_message(ER_OUT_OF_RESOURCES, ER_THD(thd, ER_OUT_OF_RESOURCES), MYF(0));
+  DBUG_RETURN(1);
+}
+
+
 bool Protocol::write()
 {
   DBUG_ENTER("Protocol::write");
@@ -974,6 +970,27 @@ bool Protocol::write()
                            packet->length()));
 }
 #endif /* EMBEDDED_LIBRARY */
+
+
+bool Protocol_text::store_field_metadata(THD *thd, Item *item, uint pos)
+{
+  Send_field field;
+  item->make_send_field(thd, &field);
+  field.normalize();
+  return store_field_metadata(thd, field, item->charset_for_protocol(), pos);
+}
+
+
+bool Protocol_text::store_field_metadata_for_list_fields(const THD *thd,
+                                                         Field *fld,
+                                                         const TABLE_LIST *tl,
+                                                         uint pos)
+{
+  Send_field field= tl->view ?
+                    Send_field(fld, tl->view_db.str, tl->view_name.str) :
+                    Send_field(fld);
+  return store_field_metadata(thd, field, fld->charset_for_protocol(), pos);
+}
 
 
 /**
