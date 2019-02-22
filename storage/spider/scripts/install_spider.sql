@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2018 Kentoku Shiba
+# Copyright (C) 2010-2019 Kentoku Shiba
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -481,6 +481,57 @@ begin
       alter table mysql.spider_xa_member
         engine=Aria transactional=1;
     end if;
+
+    /* table for ddl pushdown */
+    create table if not exists mysql.spider_rewrite_tables(
+      table_id bigint unsigned not null auto_increment,
+      db_name char(64) not null default '',
+      table_name char(64) not null default '',
+      primary key (table_id),
+      unique uk1(db_name, table_name)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    create table if not exists mysql.spider_rewrite_table_tables(
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null auto_increment,
+      partition_method varchar(18) default '',
+      partition_expression varchar(64) default '',
+      subpartition_method varchar(12) default '',
+      subpartition_expression varchar(64) default '',
+      connection_str text not null default '',
+      comment_str text not null default '',
+      primary key (table_id, partition_id),
+      unique uk1(table_id, partition_method, partition_expression, subpartition_method, subpartition_expression)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    create table if not exists mysql.spider_rewrite_table_partitions(
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null,
+      partition_ordinal_position bigint unsigned not null auto_increment,
+      partition_name varchar(64) not null default '',
+      partition_description varchar(64) not null default '',
+      connection_str text not null default '',
+      comment_str text not null default '',
+      primary key (table_id, partition_id, partition_ordinal_position),
+      unique key uk1 (table_id, partition_id, partition_name)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    create table if not exists mysql.spider_rewrite_table_subpartitions(
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null,
+      partition_ordinal_position bigint unsigned not null,
+      subpartition_ordinal_position bigint unsigned not null auto_increment,
+      subpartition_name varchar(64) not null default '',
+      subpartition_description varchar(64) not null default '',
+      connection_str text not null default '',
+      comment_str text not null default '',
+      primary key (table_id, partition_id, partition_ordinal_position, subpartition_ordinal_position),
+      unique key uk1 (table_id, partition_id, partition_ordinal_position, subpartition_name)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    create table if not exists mysql.spider_rewritten_tables(
+      db_name char(64) not null,
+      table_name char(64) not null,
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null,
+      primary key (db_name, table_name, table_id, partition_id)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
   end if;
 end;//
 delimiter ;
@@ -566,7 +617,6 @@ begin
       create function spider_copy_tables returns int soname 'ha_spider.dll';
     end if;
   end if;
-
   set @have_spider_flush_table_mon_cache_udf := 0;
   select @have_spider_flush_table_mon_cache_udf := 1 from mysql.func where name = 'spider_flush_table_mon_cache';
   if @have_spider_flush_table_mon_cache_udf = 0 then
@@ -576,7 +626,43 @@ begin
       create function spider_flush_table_mon_cache returns int soname 'ha_spider.dll';
     end if;
   end if;
-
+  if @server_name = 'MariaDB' and
+    (
+      @server_major_version > 10 or
+      (
+        @server_major_version = 10 and
+        @server_minor_version >= 4
+      )
+    )
+  then
+    set @have_spider_i_s_rewrite_plugin := 0;
+    select @have_spider_i_s_rewrite_plugin := 1 from INFORMATION_SCHEMA.plugins where PLUGIN_NAME = 'SPIDER_REWRITE';
+    set @have_spider_rewrite_plugin := 0;
+    select @have_spider_rewrite_plugin := 1 from mysql.plugin where name = 'spider_rewrite';
+    if @have_spider_i_s_rewrite_plugin = 0 then
+      if @have_spider_rewrite_plugin = 1 then
+        -- spider_rewrite plugin is present in mysql.plugin but not in
+        -- information_schema.plugins.  Remove spider_rewrite plugin entry
+        -- in mysql.plugin first.
+        delete from mysql.plugin where name = 'spider_rewrite';
+      end if;
+      -- Install spider_rewrite plugin
+      if @win_plugin = 0 then 
+        install plugin spider_rewrite soname 'ha_spider.so';
+      else
+        install plugin spider_rewrite soname 'ha_spider.dll';
+      end if;
+    end if;
+    set @have_spider_flush_rewrite_cache_udf := 0;
+    select @have_spider_flush_rewrite_cache_udf := 1 from mysql.func where name = 'spider_flush_rewrite_cache';
+    if @have_spider_flush_rewrite_cache_udf = 0 then
+      if @win_plugin = 0 then 
+        create function spider_flush_rewrite_cache returns int soname 'ha_spider.so';
+      else
+        create function spider_flush_rewrite_cache returns int soname 'ha_spider.dll';
+      end if;
+    end if;
+  end if;
 end;//
 delimiter ;
 call mysql.spider_plugin_installer;

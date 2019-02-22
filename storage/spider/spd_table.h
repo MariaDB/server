@@ -687,6 +687,16 @@ void spider_free_spider_object_for_share(
   ha_spider **spider
 );
 
+int spider_create_spider_object_for_share_with_sql_string(
+  SPIDER_TRX *trx,
+  SPIDER_SHARE *share,
+  ha_spider **spider
+);
+
+void spider_free_spider_object_for_share_with_sql_string(
+  ha_spider **spider
+);
+
 int spider_create_sts_threads(
   SPIDER_THREAD *spider_thread
 );

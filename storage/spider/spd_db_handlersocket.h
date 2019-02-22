@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2018 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -909,6 +910,10 @@ public:
   int set_sql_for_exec(
     spider_db_copy_table *tgt_ct,
     ulong sql_type
+  );
+  int set_sql_for_exec(
+    spider_db_sql *db_sql,
+    int link_idx
   );
   int execute_sql(
     ulong sql_type,

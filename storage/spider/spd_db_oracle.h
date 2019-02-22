@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2018 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,6 +14,17 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+class spider_oracle_sql: public spider_db_sql
+{
+public:
+  spider_oracle_sql();
+  ~spider_oracle_sql();
+  int append_create_or_replace();
+  int append_create_or_replace_table();
+  int append_if_not_exists();
+};
+
+#ifdef HAVE_ORACLE_OCI
 class spider_db_oracle;
 class spider_db_oracle_result;
 
@@ -647,6 +659,7 @@ private:
   int                     tmp_sql_pos4; /* insert val pos at tmp_table_join */
   int                     tmp_sql_pos5; /* end of drop tbl at tmp_table_join */
   spider_string           dup_update_sql;
+  spider_string           **query;
   spider_string           *exec_sql;
   spider_string           *exec_insert_sql;
   spider_string           *exec_update_sql;
@@ -1338,6 +1351,10 @@ public:
     spider_db_copy_table *tgt_ct,
     ulong sql_type
   );
+  int set_sql_for_exec(
+    spider_db_sql *db_sql,
+    int link_idx
+  );
   int execute_sql(
     ulong sql_type,
     SPIDER_CONN *conn,
@@ -1606,3 +1623,4 @@ public:
     spider_db_copy_table *source_ct
   );
 };
+#endif

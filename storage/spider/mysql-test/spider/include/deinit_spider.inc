@@ -1,8 +1,38 @@
+let $SERVER_NAME=
+  `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(version(), '-', 2), '-', -1)`;
+let $SERVER_MAJOR_VERSION=
+  `SELECT SUBSTRING_INDEX(version(), '.', 1)`;
+let $SERVER_MINOR_VERSION=
+  `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(version(), '.', 2), '.', -1)`;
+let $PLUGIN_VERSION=
+  `SELECT SUBSTRING_INDEX(plugin_version, '.', 1)
+     FROM information_schema.plugins
+    WHERE plugin_name = 'SPIDER'`;
+if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
+{
+  let $HAS_REWRITE=
+    `SELECT IF (STRCMP('$SERVER_NAME', 'MariaDB') = 0,
+                IF ($SERVER_MAJOR_VERSION = 10,
+                    IF ($SERVER_MINOR_VERSION < 4,  0, 1),
+                    IF ($SERVER_MAJOR_VERSION < 10, 0, 1)),
+                0)`;
+  if ($HAS_REWRITE)
+  {
+    DROP FUNCTION spider_flush_rewrite_cache;
+    UNINSTALL PLUGIN spider_rewrite;
+    DROP TABLE IF EXISTS mysql.spider_rewrite_tables;
+    DROP TABLE IF EXISTS mysql.spider_rewrite_table_tables;
+    DROP TABLE IF EXISTS mysql.spider_rewrite_table_partitions;
+    DROP TABLE IF EXISTS mysql.spider_rewrite_table_subpartitions;
+    DROP TABLE IF EXISTS mysql.spider_rewritten_tables;
+  }
+}
 DROP FUNCTION spider_direct_sql;
 DROP FUNCTION spider_bg_direct_sql;
 DROP FUNCTION spider_ping_table;
 DROP FUNCTION spider_copy_tables;
 DROP FUNCTION spider_flush_table_mon_cache;
+UNINSTALL PLUGIN spider_alloc_mem;
 UNINSTALL PLUGIN spider;
 DROP TABLE IF EXISTS mysql.spider_xa;
 DROP TABLE IF EXISTS mysql.spider_xa_member;

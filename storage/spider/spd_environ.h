@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba & 2017 MariaDB corp
+/* Copyright (C) 2008-2018 Kentoku Shiba
+   Copyright (C) 2017-2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,6 +19,7 @@
 */
 
 #ifndef SPD_ENVIRON_INCLUDED
+#define SPD_ENVIRON_INCLUDED
 
 #if (defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000)
 #define SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
@@ -40,6 +42,8 @@
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >=	100300
 #define SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
+#define SPIDER_PARTITION_HAS_CONNECTION_STRING
+#define SPIDER_TOKEN_10_3
 #endif
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >=	100309
@@ -49,5 +53,7 @@
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >=	100400
 #define SPIDER_USE_CONST_ITEM_FOR_STRING_INT_REAL_DECIMAL_DATE_ITEM
 #define SPIDER_SQL_CACHE_IS_IN_LEX
+#define SPIDER_REWRITE_AVAILABLE
+#define SPIDER_TOKEN_10_4
 #endif
 #endif /* SPD_ENVIRON_INCLUDED */

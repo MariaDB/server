@@ -1,0 +1,7 @@
+--source ../include/rewrite_simple_init.inc
+--echo
+--echo this test is for MDEV-16967
+--source rewrite.inc
+--source ../include/rewrite_simple_deinit.inc
+--echo
+--echo end of test

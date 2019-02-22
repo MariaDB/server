@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -27,6 +28,7 @@
 #include "key.h"
 #include "sql_base.h"
 #include "tztime.h"
+#include "lock.h"
 #endif
 #include "sql_select.h"
 #include "spd_err.h"
@@ -38,6 +40,34 @@
 
 extern handlerton *spider_hton_ptr;
 extern Time_zone *spd_tz_system;
+
+void spider_sys_init_one_table(
+  TABLE_LIST *table_list,
+  const char *db_nm,
+  uint db_nm_len,
+  const char *table_nm,
+  uint table_nm_len,
+  enum thr_lock_type lock_type
+) {
+  DBUG_ENTER("spider_sys_init_one_table");
+#ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
+  LEX_CSTRING db_name =
+  {
+    db_nm,
+    db_nm_len
+  };
+  LEX_CSTRING tbl_name =
+  {
+    table_nm,
+    table_nm_len
+  };
+  table_list->init_one_table(&db_name, &tbl_name, NULL, lock_type);
+#else
+  table_list->init_one_table(db_nm, db_nm_len,
+    table_nm, table_nm_len, table_nm, lock_type);
+#endif
+  DBUG_VOID_RETURN;
+}
 
 /**
   Insert a Spider system table row.
@@ -204,6 +234,7 @@ TABLE *spider_open_sys_table(
     if (!(table = (TABLE*) spider_malloc(spider_current_trx, 12,
       sizeof(*table), MYF(MY_WME))))
     {
+      my_error(HA_ERR_OUT_OF_MEM, MYF(0));
       *error_num = HA_ERR_OUT_OF_MEM;
       goto error_malloc;
     }
@@ -359,13 +390,13 @@ void spider_close_sys_table(
 bool spider_sys_open_tables(
   THD *thd,
   TABLE_LIST **tables,
+  uint *counter,
   Open_tables_backup *open_tables_backup
 ) {
-  uint counter;
   ulonglong utime_after_lock_backup = thd->utime_after_lock;
   DBUG_ENTER("spider_sys_open_tables");
   thd->reset_n_backup_open_tables_state(open_tables_backup);
-  if (open_tables(thd, tables, &counter,
+  if (open_tables(thd, tables, counter,
     MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK | MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
     MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT | MYSQL_LOCK_LOG_TABLE
   )) {
@@ -375,6 +406,17 @@ bool spider_sys_open_tables(
   }
   thd->utime_after_lock = utime_after_lock_backup;
   DBUG_RETURN(FALSE);
+}
+
+bool spider_sys_open_tables(
+  THD *thd,
+  TABLE_LIST **tables,
+  Open_tables_backup *open_tables_backup
+) {
+  uint counter;
+  DBUG_ENTER("spider_sys_open_tables");
+  DBUG_RETURN(spider_sys_open_tables(thd, tables, &counter,
+    open_tables_backup));
 }
 
 TABLE *spider_sys_open_table(
@@ -406,6 +448,24 @@ void spider_sys_close_table(
   DBUG_ENTER("spider_sys_close_table");
   close_thread_tables(thd);
   thd->restore_backup_open_tables_state(open_tables_backup);
+  DBUG_VOID_RETURN;
+}
+
+MYSQL_LOCK *spider_sys_lock_tables(
+  THD *thd,
+  TABLE **table,
+  uint counter
+) {
+  DBUG_ENTER("spider_sys_lock_tables");
+  DBUG_RETURN(mysql_lock_tables(thd, table, counter, 0));
+}
+
+void spider_sys_unlock_tables(
+  THD *thd,
+  MYSQL_LOCK *lock
+) {
+  DBUG_ENTER("spider_sys_unlock_tables");
+  mysql_unlock_tables(thd, lock);
   DBUG_VOID_RETURN;
 }
 #endif
@@ -3283,6 +3343,546 @@ int spider_sys_replace(
 error:
   DBUG_RETURN(error_num);
 }
+
+#ifdef SPIDER_REWRITE_AVAILABLE
+bool spider_copy_sys_rewrite_columns(
+  TABLE *table_from,
+  TABLE *table_to,
+  uint columns
+) {
+  DBUG_ENTER("spider_copy_sys_rewrite_columns");
+  do {
+    --columns;
+    if (table_to->field[columns]->store_field(table_from->field[columns]))
+    {
+      DBUG_RETURN(TRUE);
+    }
+  } while (columns);
+  DBUG_RETURN(FALSE);
+}
+
+int spider_get_sys_rewrite_tables(
+  TABLE *table,
+  SPIDER_RWTBL *info,
+  MEM_ROOT *mem_root
+) {
+  char *ptr;
+  int error_num = 0;
+  DBUG_ENTER("spider_get_sys_rewrite_tables");
+  if ((ptr = get_field(mem_root, table->field[0])))
+  {
+    info->table_id =
+      (ulonglong) my_strtoll10(ptr, (char**) NULL, &error_num);
+    if (error_num)
+    {
+      error_num = ER_SPIDER_INVALID_VALUE_NUM;
+      my_printf_error(ER_SPIDER_INVALID_VALUE_NUM,
+        ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+        ptr, SPIDER_SYS_RW_TBLS_TABLE_NAME_STR,
+        "table_id");
+      goto error;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "table_id=null",
+      SPIDER_SYS_RW_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider db_name is %s",
+    table->field[1]->is_null() ? "null" : "not null"));
+  if (!table->field[1]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[1])))
+    {
+      info->db_name.length = strlen(ptr);
+      info->db_name.str =
+        spider_create_string(ptr, info->db_name.length);
+    } else {
+      info->db_name.length = 0;
+      info->db_name.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "db_name=null",
+      SPIDER_SYS_RW_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider table_name is %s",
+    table->field[2]->is_null() ? "null" : "not null"));
+  if (!table->field[2]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[2])))
+    {
+      info->table_name.length = strlen(ptr);
+      info->table_name.str =
+        spider_create_string(ptr, info->table_name.length);
+    } else {
+      info->table_name.length = 0;
+      info->table_name.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "table_name=null",
+      SPIDER_SYS_RW_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+error:
+  DBUG_RETURN(error_num);
+}
+
+int spider_get_sys_rewrite_table_tables(
+  TABLE *table,
+  SPIDER_RWTBLTBL *info,
+  MEM_ROOT *mem_root
+) {
+  char *ptr;
+  int error_num = 0;
+  DBUG_ENTER("spider_get_sys_rewrite_table_tables");
+  if ((ptr = get_field(mem_root, table->field[1])))
+  {
+    info->partition_id =
+      (ulonglong) my_strtoll10(ptr, (char**) NULL, &error_num);
+    if (error_num)
+    {
+      error_num = ER_SPIDER_INVALID_VALUE_NUM;
+      my_printf_error(ER_SPIDER_INVALID_VALUE_NUM,
+        ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+        ptr, SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR,
+        "partition_id");
+      goto error;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "partition_id=null",
+      SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider partition_method is %s",
+    table->field[2]->is_null() ? "null" : "not null"));
+  if (!table->field[2]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[2])))
+    {
+      info->partition_method.length = strlen(ptr);
+      info->partition_method.str =
+        spider_create_string(ptr, info->partition_method.length);
+    } else {
+      info->partition_method.length = 0;
+      info->partition_method.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "partition_method=null",
+      SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider partition_expression is %s",
+    table->field[3]->is_null() ? "null" : "not null"));
+  if (!table->field[3]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[3])))
+    {
+      info->partition_expression.length = strlen(ptr);
+      info->partition_expression.str =
+        spider_create_string(ptr, info->partition_expression.length);
+    } else {
+      info->partition_expression.length = 0;
+      info->partition_expression.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "partition_expression=null",
+      SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider subpartition_method is %s",
+    table->field[4]->is_null() ? "null" : "not null"));
+  if (!table->field[4]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[4])))
+    {
+      info->subpartition_method.length = strlen(ptr);
+      info->subpartition_method.str =
+        spider_create_string(ptr, info->subpartition_method.length);
+    } else {
+      info->subpartition_method.length = 0;
+      info->subpartition_method.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "subpartition_method=null",
+      SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider subpartition_expression is %s",
+    table->field[5]->is_null() ? "null" : "not null"));
+  if (!table->field[5]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[5])))
+    {
+      info->subpartition_expression.length = strlen(ptr);
+      info->subpartition_expression.str =
+        spider_create_string(ptr, info->subpartition_expression.length);
+    } else {
+      info->subpartition_expression.length = 0;
+      info->subpartition_expression.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "subpartition_expression=null",
+      SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider connection_str is %s",
+    table->field[6]->is_null() ? "null" : "not null"));
+  if (!table->field[6]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[6])))
+    {
+      info->connection_str.length = strlen(ptr);
+      info->connection_str.str =
+        spider_create_string(ptr, info->connection_str.length);
+    } else {
+      info->connection_str.length = 0;
+      info->connection_str.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "connection_str=null",
+      SPIDER_SYS_RW_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider comment_str is %s",
+    table->field[7]->is_null() ? "null" : "not null"));
+  if (!table->field[7]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[7])))
+    {
+      info->comment_str.length = strlen(ptr);
+      info->comment_str.str =
+        spider_create_string(ptr, info->comment_str.length);
+    } else {
+      info->comment_str.length = 0;
+      info->comment_str.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "comment_str=null",
+      SPIDER_SYS_RW_TBLS_TABLE_NAME_STR);
+    goto error;
+  }
+error:
+  DBUG_RETURN(error_num);
+}
+
+int spider_get_sys_rewrite_table_partitions(
+  TABLE *table,
+  SPIDER_RWTBLPTT *info,
+  MEM_ROOT *mem_root
+) {
+  char *ptr;
+  int error_num = 0;
+  DBUG_ENTER("spider_get_sys_rewrite_table_partitions");
+  if ((ptr = get_field(mem_root, table->field[2])))
+  {
+    info->partition_ordinal_position =
+      (ulonglong) my_strtoll10(ptr, (char**) NULL, &error_num);
+    if (error_num)
+    {
+      error_num = ER_SPIDER_INVALID_VALUE_NUM;
+      my_printf_error(ER_SPIDER_INVALID_VALUE_NUM,
+        ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+        ptr, SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR,
+        "partition_ordinal_position");
+      goto error;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "partition_ordinal_position=null",
+      SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider partition_name is %s",
+    table->field[3]->is_null() ? "null" : "not null"));
+  if (!table->field[3]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[3])))
+    {
+      info->partition_name.length = strlen(ptr);
+      info->partition_name.str =
+        spider_create_string(ptr, info->partition_name.length);
+    } else {
+      info->partition_name.length = 0;
+      info->partition_name.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "partition_name=null",
+      SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider partition_description is %s",
+    table->field[4]->is_null() ? "null" : "not null"));
+  if (!table->field[4]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[4])))
+    {
+      info->partition_description.length = strlen(ptr);
+      info->partition_description.str =
+        spider_create_string(ptr, info->partition_description.length);
+    } else {
+      info->partition_description.length = 0;
+      info->partition_description.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "partition_description=null",
+      SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider connection_str is %s",
+    table->field[5]->is_null() ? "null" : "not null"));
+  if (!table->field[5]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[5])))
+    {
+      info->connection_str.length = strlen(ptr);
+      info->connection_str.str =
+        spider_create_string(ptr, info->connection_str.length);
+    } else {
+      info->connection_str.length = 0;
+      info->connection_str.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "connection_str=null",
+      SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider comment_str is %s",
+    table->field[6]->is_null() ? "null" : "not null"));
+  if (!table->field[6]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[6])))
+    {
+      info->comment_str.length = strlen(ptr);
+      info->comment_str.str =
+        spider_create_string(ptr, info->comment_str.length);
+    } else {
+      info->comment_str.length = 0;
+      info->comment_str.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "comment_str=null",
+      SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR);
+    goto error;
+  }
+error:
+  DBUG_RETURN(error_num);
+}
+
+int spider_get_sys_rewrite_table_subpartitions(
+  TABLE *table,
+  SPIDER_RWTBLSPTT *info,
+  MEM_ROOT *mem_root
+) {
+  char *ptr;
+  int error_num = 0;
+  DBUG_ENTER("spider_get_sys_rewrite_table_subpartitions");
+  if ((ptr = get_field(mem_root, table->field[3])))
+  {
+    info->subpartition_ordinal_position =
+      (ulonglong) my_strtoll10(ptr, (char**) NULL, &error_num);
+    if (error_num)
+    {
+      error_num = ER_SPIDER_INVALID_VALUE_NUM;
+      my_printf_error(ER_SPIDER_INVALID_VALUE_NUM,
+        ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+        ptr, SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR,
+        "subpartition_ordinal_position");
+      goto error;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "subpartition_ordinal_position=null",
+      SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider subpartition_name is %s",
+    table->field[4]->is_null() ? "null" : "not null"));
+  if (!table->field[4]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[4])))
+    {
+      info->subpartition_name.length = strlen(ptr);
+      info->subpartition_name.str =
+        spider_create_string(ptr, info->subpartition_name.length);
+    } else {
+      info->subpartition_name.length = 0;
+      info->subpartition_name.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "subpartition_name=null",
+      SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider subpartition_description is %s",
+    table->field[5]->is_null() ? "null" : "not null"));
+  if (!table->field[5]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[5])))
+    {
+      info->subpartition_description.length = strlen(ptr);
+      info->subpartition_description.str =
+        spider_create_string(ptr, info->subpartition_description.length);
+    } else {
+      info->subpartition_description.length = 0;
+      info->subpartition_description.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "subpartition_description=null",
+      SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider connection_str is %s",
+    table->field[6]->is_null() ? "null" : "not null"));
+  if (!table->field[6]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[6])))
+    {
+      info->connection_str.length = strlen(ptr);
+      info->connection_str.str =
+        spider_create_string(ptr, info->connection_str.length);
+    } else {
+      info->connection_str.length = 0;
+      info->connection_str.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "connection_str=null",
+      SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR);
+    goto error;
+  }
+  DBUG_PRINT("info", ("spider comment_str is %s",
+    table->field[7]->is_null() ? "null" : "not null"));
+  if (!table->field[7]->is_null())
+  {
+    if ((ptr = get_field(mem_root, table->field[7])))
+    {
+      info->comment_str.length = strlen(ptr);
+      info->comment_str.str =
+        spider_create_string(ptr, info->comment_str.length);
+    } else {
+      info->comment_str.length = 0;
+      info->comment_str.str = NullS;
+    }
+  } else {
+    error_num = ER_SPIDER_NOT_SUPPORTED_NUM;
+    my_printf_error(ER_SPIDER_NOT_SUPPORTED_NUM,
+      ER_SPIDER_NOT_SUPPORTED_STR, MYF(0),
+      "comment_str=null",
+      SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR);
+    goto error;
+  }
+error:
+  DBUG_RETURN(error_num);
+}
+
+void spider_store_rewritten_table_name(
+  TABLE *table,
+  LEX_CSTRING *schema_name,
+  LEX_CSTRING *table_name,
+  const struct charset_info_st *cs
+) {
+  DBUG_ENTER("spider_store_rewritten_table_name");
+  table->field[0]->store(schema_name->str, schema_name->length, cs);
+  table->field[1]->store(table_name->str, table_name->length, cs);
+  DBUG_VOID_RETURN;
+}
+
+void spider_store_rewritten_table_id(
+  TABLE *table,
+  SPIDER_RWTBL *info
+) {
+  DBUG_ENTER("spider_store_rewritten_table_id");
+  table->field[2]->store(info->table_id);
+  DBUG_VOID_RETURN;
+}
+
+void spider_store_rewritten_partition_id(
+  TABLE *table,
+  SPIDER_RWTBLTBL *info
+) {
+  DBUG_ENTER("spider_store_rewritten_partition_id");
+  table->field[3]->store(info->partition_id);
+  DBUG_VOID_RETURN;
+}
+
+int spider_insert_rewritten_table(
+  TABLE *table,
+  SPIDER_RWTBLTBL *info
+) {
+  int error_num;
+  char table_key[MAX_KEY_LENGTH];
+  DBUG_ENTER("spider_insert_rewritten_table");
+  spider_store_rewritten_partition_id(table, info);
+
+  if ((error_num = spider_check_sys_table(table, table_key)))
+  {
+    if (error_num != HA_ERR_KEY_NOT_FOUND && error_num != HA_ERR_END_OF_FILE)
+    {
+      table->file->print_error(error_num, MYF(0));
+      DBUG_RETURN(error_num);
+    }
+    if ((error_num = spider_write_sys_table_row(table)))
+    {
+      DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+#endif
 
 #ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table(

@@ -1,0 +1,12 @@
+--source ../include/rewrite_partition_init.inc
+--echo
+--echo this test is for MDEV-16967
+if (!$HAVE_PARTITION)
+{
+  --source ../include/rewrite_partition_deinit.inc
+  skip Test requires partitioning;
+}
+--source rewrite.inc
+--source ../include/rewrite_partition_deinit.inc
+--echo
+--echo end of test

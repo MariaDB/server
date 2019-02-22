@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -91,6 +92,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_SEMICOLON_LEN sizeof(SPIDER_SQL_SEMICOLON_STR) - 1
 #define SPIDER_SQL_VALUE_QUOTE_STR "'"
 #define SPIDER_SQL_VALUE_QUOTE_LEN (sizeof(SPIDER_SQL_VALUE_QUOTE_STR) - 1)
+#define SPIDER_SQL_DOUBLE_QUOTE_STR "\""
+#define SPIDER_SQL_DOUBLE_QUOTE_LEN (sizeof(SPIDER_SQL_DOUBLE_QUOTE_STR) - 1)
 
 #define SPIDER_SQL_DOT_STR "."
 #define SPIDER_SQL_DOT_LEN (sizeof(SPIDER_SQL_DOT_STR) - 1)
@@ -203,6 +206,24 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_CONNECTION_LEN (sizeof(SPIDER_SQL_CONNECTION_STR) - 1)
 #define SPIDER_SQL_LCL_NAME_QUOTE_STR "`"
 #define SPIDER_SQL_LCL_NAME_QUOTE_LEN (sizeof(SPIDER_SQL_LCL_NAME_QUOTE_STR) - 1)
+#define SPIDER_SQL_ENGINE_SPIDER_STR " engine spider "
+#define SPIDER_SQL_ENGINE_SPIDER_LEN (sizeof(SPIDER_SQL_ENGINE_SPIDER_STR) - 1)
+#define SPIDER_SQL_PARTITION_BY_STR " partition by "
+#define SPIDER_SQL_PARTITION_BY_LEN (sizeof(SPIDER_SQL_PARTITION_BY_STR) - 1)
+#define SPIDER_SQL_SUBPARTITION_BY_STR " subpartition by "
+#define SPIDER_SQL_SUBPARTITION_BY_LEN (sizeof(SPIDER_SQL_SUBPARTITION_BY_STR) - 1)
+#define SPIDER_SQL_VALUES_LESS_THAN_STR " values less than "
+#define SPIDER_SQL_VALUES_LESS_THAN_LEN (sizeof(SPIDER_SQL_VALUES_LESS_THAN_STR) - 1)
+#define SPIDER_SQL_VALUES_IN_STR " values in "
+#define SPIDER_SQL_VALUES_IN_LEN (sizeof(SPIDER_SQL_VALUES_IN_STR) - 1)
+#define SPIDER_SQL_DATABASE_STR "database"
+#define SPIDER_SQL_DATABASE_LEN (sizeof(SPIDER_SQL_DATABASE_STR) - 1)
+#define SPIDER_SQL_TABLE_STR "table"
+#define SPIDER_SQL_TABLE_LEN (sizeof(SPIDER_SQL_TABLE_STR) - 1)
+#define SPIDER_SQL_PARTITION_STR " partition "
+#define SPIDER_SQL_PARTITION_LEN (sizeof(SPIDER_SQL_PARTITION_STR) - 1)
+#define SPIDER_SQL_SUBPARTITION_STR " subpartition "
+#define SPIDER_SQL_SUBPARTITION_LEN (sizeof(SPIDER_SQL_SUBPARTITION_STR) - 1)
 
 #define SPIDER_CONN_KIND_MYSQL (1 << 0)
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -223,13 +244,14 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_TYPE_BULK_UPDATE_SQL (1 << 4)
 #define SPIDER_SQL_TYPE_TMP_SQL (1 << 5)
 #define SPIDER_SQL_TYPE_DROP_TMP_TABLE_SQL (1 << 6)
-#define SPIDER_SQL_TYPE_OTHER_SQL (1 << 7)
-#define SPIDER_SQL_TYPE_HANDLER (1 << 8)
-#define SPIDER_SQL_TYPE_SELECT_HS (1 << 9)
-#define SPIDER_SQL_TYPE_INSERT_HS (1 << 10)
-#define SPIDER_SQL_TYPE_UPDATE_HS (1 << 11)
-#define SPIDER_SQL_TYPE_DELETE_HS (1 << 12)
-#define SPIDER_SQL_TYPE_OTHER_HS (1 << 13)
+#define SPIDER_SQL_TYPE_DDL_SQL (1 << 7)
+#define SPIDER_SQL_TYPE_OTHER_SQL (1 << 8)
+#define SPIDER_SQL_TYPE_HANDLER (1 << 9)
+#define SPIDER_SQL_TYPE_SELECT_HS (1 << 10)
+#define SPIDER_SQL_TYPE_INSERT_HS (1 << 11)
+#define SPIDER_SQL_TYPE_UPDATE_HS (1 << 12)
+#define SPIDER_SQL_TYPE_DELETE_HS (1 << 13)
+#define SPIDER_SQL_TYPE_OTHER_HS (1 << 14)
 
 enum spider_bulk_upd_start {
   SPD_BU_NOT_START,
@@ -909,6 +931,105 @@ public:
     spider_string *str
   ) = 0;
 #endif
+};
+
+#define SPIDER_DB_SQL_STRINGS 2
+#define SPIDER_IDENT_SPACE 64 * 4 + 2
+#define SPIDER_TABLE_NAME_SPACE SPIDER_IDENT_SPACE * 2 + 1
+
+class SPIDER_RWTBLSPTT;
+class SPIDER_RWTBLPTT;
+class SPIDER_RWTBLTBL;
+class SPIDER_RWTBL;
+
+class spider_db_sql
+{
+protected:
+  bool sql_init;
+  LEX_CSTRING quote_char_for_ident;
+public:
+  uint dbton_id;
+  uint table_name_pos[SPIDER_DB_SQL_STRINGS];
+  uint sql_end_pos[SPIDER_DB_SQL_STRINGS];
+  spider_string *sql_str;
+  spider_db_sql *next;
+  spider_db_sql(
+    uint dbton_id_arg
+  ): sql_init(FALSE), dbton_id(dbton_id_arg),
+    sql_str(NULL), next(NULL) {}
+  spider_db_sql(
+    uint dbton_id_arg,
+    LEX_CSTRING quote_char
+  ): sql_init(FALSE), quote_char_for_ident(quote_char),
+    dbton_id(dbton_id_arg), sql_str(NULL), next(NULL) {}
+  virtual ~spider_db_sql();
+  virtual int init(
+    CHARSET_INFO *charset
+  );
+  virtual void reset(
+    CHARSET_INFO *charset
+  );
+  virtual void set_quote_char_for_ident(
+    LEX_CSTRING quote_char
+  );
+  virtual int append_parsed_symbol(
+    int symbol_tok,
+    union YYSTYPE *yylval_tok
+  );
+  virtual int append_parsed_symbol_ex(
+    int symbol_tok,
+    union YYSTYPE *yylval_tok
+  );
+  virtual int append_parsed_symbol(
+    int symbol_tok,
+    union YYSTYPE *yylval_tok,
+    spider_string *str
+  );
+  virtual int append_table_name_space();
+  virtual int append_table_name_space(uint str_id);
+  virtual void set_sql_end_pos();
+  virtual int append_create_or_replace() = 0;
+  virtual int append_create_or_replace_table() = 0;
+  virtual int append_if_not_exists() = 0;
+  virtual int append_table_option_name(
+    int symbol_tok,
+    union YYSTYPE *yylval_tok
+  );
+  virtual int append_table_option_value(
+    int symbol_tok,
+    union YYSTYPE *yylval_tok
+  );
+  virtual int append_table_option_character_set();
+  virtual int append_table_option_data_directory();
+  virtual int append_table_option_index_directory();
+  virtual int append_table_option_with_system_versioning();
+  virtual int append_ident(
+    uint str_id,
+    LEX_CSTRING *name
+  );
+  virtual int append_table_name(
+    uint str_id,
+    LEX_CSTRING *schema_name,
+    LEX_CSTRING *table_name
+  );
+  virtual int append_table_name(
+    LEX_CSTRING *schema_name,
+    LEX_CSTRING *table_name
+  );
+  virtual int append_spider_table(
+    LEX_CSTRING *table_name,
+    SPIDER_RWTBLTBL *rwtbltbl
+  );
+  virtual int append_spider_partition(
+    LEX_CSTRING *table_name,
+    SPIDER_RWTBLTBL *rwtbltbl,
+    SPIDER_RWTBLPTT *rwtblptt
+  );
+  virtual int append_spider_subpartition(
+    LEX_CSTRING *table_name,
+    SPIDER_RWTBLTBL *rwtbltbl,
+    SPIDER_RWTBLSPTT *rwtblsptt
+  );
 };
 
 class spider_db_row
@@ -1603,6 +1724,10 @@ public:
     spider_db_copy_table *tgt_ct,
     ulong sql_type
   ) = 0;
+  virtual int set_sql_for_exec(
+    spider_db_sql *db_sql,
+    int link_idx
+  ) = 0;
   virtual int execute_sql(
     ulong sql_type,
     SPIDER_CONN *conn,
@@ -1841,9 +1966,13 @@ typedef struct st_spider_dbton
   spider_db_copy_table *(*create_db_copy_table)(
     spider_db_share *db_share);
   SPIDER_DB_CONN *(*create_db_conn)(SPIDER_CONN *conn);
+  spider_db_sql *(*create_db_sql)();
   bool (*support_direct_join)();
   spider_db_util *db_util;
 } SPIDER_DBTON;
+
+spider_db_sql *spider_mariadb_create_sql();
+spider_db_sql *spider_oracle_create_sql();
 
 typedef struct st_spider_position
 {

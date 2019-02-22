@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -124,8 +125,17 @@
 #define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_STR "Table %s.%s open timeout"
+#define ER_SPIDER_NOT_SUPPORTED_NUM 12715
+#define ER_SPIDER_NOT_SUPPORTED_STR "%s is not supported by %s"
+#define ER_SPIDER_INVALID_VALUE_NUM 12716
+#define ER_SPIDER_INVALID_VALUE_STR "Invalid value %s in %s.%s"
+#define ER_SPIDER_SYNTAX_NUM 12717
+#define ER_SPIDER_SYNTAX_STR "%s detected a syntax error near '%-.80s' at line %d"
+#define ER_SPIDER_TOO_LONG_NUM 12718
+#define ER_SPIDER_TOO_LONG_STR "%s is too long"
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500
 #define ER_SPIDER_UNKNOWN_STR "unknown"
 #define ER_SPIDER_UNKNOWN_LEN (sizeof(ER_SPIDER_UNKNOWN_STR) - 1)
+#define ER_SPIDER_UNKNOWN_STR2 "unknown error %d is occured by %s"

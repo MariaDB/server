@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2018 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -60,6 +61,7 @@ extern const char spider_dig_upper[];
 spider_db_mysql_util spider_db_mysql_utility;
 spider_db_mariadb_util spider_db_mariadb_utility;
 
+extern LEX_CSTRING spider_ident_back_quote;
 #define SPIDER_SQL_NAME_QUOTE_STR "`"
 #define SPIDER_SQL_NAME_QUOTE_LEN (sizeof(SPIDER_SQL_NAME_QUOTE_STR) - 1)
 static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
@@ -218,6 +220,18 @@ int spider_mariadb_deinit()
   DBUG_RETURN(0);
 }
 
+spider_db_sql *spider_mysql_create_sql()
+{
+  DBUG_ENTER("spider_mysql_create_sql");
+  DBUG_RETURN(new spider_mysql_sql());
+}
+
+spider_db_sql *spider_mariadb_create_sql()
+{
+  DBUG_ENTER("spider_mariadb_create_sql");
+  DBUG_RETURN(new spider_mariadb_sql());
+}
+
 spider_db_share *spider_mysql_create_share(
   SPIDER_SHARE *share
 ) {
@@ -302,6 +316,7 @@ SPIDER_DBTON spider_dbton_mysql = {
   spider_mysql_create_handler,
   spider_mysql_create_copy_table,
   spider_mysql_create_conn,
+  spider_mysql_create_sql,
   spider_mysql_support_direct_join,
   &spider_db_mysql_utility
 };
@@ -316,9 +331,167 @@ SPIDER_DBTON spider_dbton_mariadb = {
   spider_mariadb_create_handler,
   spider_mariadb_create_copy_table,
   spider_mariadb_create_conn,
+  spider_mariadb_create_sql,
   spider_mariadb_support_direct_join,
   &spider_db_mariadb_utility
 };
+
+spider_mbase_sql::spider_mbase_sql(
+  uint dbton_id_arg
+): spider_db_sql(dbton_id_arg, spider_ident_back_quote)
+{
+  DBUG_ENTER("spider_mbase_sql::spider_mbase_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mbase_sql::~spider_mbase_sql()
+{
+  DBUG_ENTER("spider_mbase_sql::~spider_mbase_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mysql_sql::spider_mysql_sql():
+  spider_mbase_sql(spider_db_mysql_utility.dbton_id)
+{
+  DBUG_ENTER("spider_mysql_sql::spider_mysql_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mariadb_sql::spider_mariadb_sql():
+  spider_mbase_sql(spider_db_mariadb_utility.dbton_id)
+{
+  DBUG_ENTER("spider_mariadb_sql::spider_mariadb_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mysql_sql::~spider_mysql_sql()
+{
+  DBUG_ENTER("spider_mysql_sql::~spider_mysql_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mariadb_sql::~spider_mariadb_sql()
+{
+  DBUG_ENTER("spider_mariadb_sql::~spider_mariadb_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_mysql_sql::append_create_or_replace()
+{
+  DBUG_ENTER("spider_mysql_sql::append_create_or_replace");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+int spider_mariadb_sql::append_create_or_replace()
+{
+  DBUG_ENTER("spider_mariadb_sql::append_create_or_replace");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[0].append(STRING_WITH_LEN("or replace "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_mysql_sql::append_create_or_replace_table()
+{
+  DBUG_ENTER("spider_mysql_sql::append_create_or_replace_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[1].append(STRING_WITH_LEN("drop table if exists "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(append_table_name_space(1));
+}
+
+int spider_mariadb_sql::append_create_or_replace_table()
+{
+  DBUG_ENTER("spider_mariadb_sql::append_create_or_replace_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+int spider_mbase_sql::append_if_not_exists()
+{
+  DBUG_ENTER("spider_mbase_sql::append_if_not_exists");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[0].append(STRING_WITH_LEN("if not exists "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_mbase_sql::append_table_option_name(
+  int symbol_tok,
+  union YYSTYPE *yylval_tok
+) {
+  DBUG_ENTER("spider_mbase_sql::append_table_option_name");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(append_parsed_symbol(symbol_tok, yylval_tok, &sql_str[0]));
+}
+
+int spider_mbase_sql::append_table_option_value(
+  int symbol_tok,
+  union YYSTYPE *yylval_tok
+) {
+  DBUG_ENTER("spider_mbase_sql::append_table_option_value");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(append_parsed_symbol(symbol_tok, yylval_tok, &sql_str[0]));
+}
+
+int spider_mbase_sql::append_table_option_character_set()
+{
+  DBUG_ENTER("spider_mbase_sql::append_table_option_character_set");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[0].append(STRING_WITH_LEN("charset "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_mbase_sql::append_table_option_data_directory()
+{
+  DBUG_ENTER("spider_mbase_sql::append_table_option_data_directory");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[0].append(STRING_WITH_LEN("data directory "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_mbase_sql::append_table_option_index_directory()
+{
+  DBUG_ENTER("spider_mbase_sql::append_table_option_index_directory");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[0].append(STRING_WITH_LEN("index directory "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_mariadb_sql::append_table_option_with_system_versioning()
+{
+  DBUG_ENTER("spider_db_sql::append_table_option_with_system_versioning");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[0].append(STRING_WITH_LEN("with system versioning "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
 
 spider_db_mbase_row::spider_db_mbase_row(
   uint dbton_id
@@ -6811,6 +6984,8 @@ int spider_mbase_handler::init()
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &link_for_hash,
         sizeof(SPIDER_LINK_FOR_HASH) * share->link_count,
+      &query,
+        sizeof(spider_string *) * share->link_count,
       &minimum_select_bitmap,
         table ? sizeof(uchar) * no_bytes_in_map(table->read_set) : 0,
       NullS))
@@ -11965,6 +12140,45 @@ int spider_mbase_handler::set_sql_for_exec(
   DBUG_RETURN(0);
 }
 
+int spider_mbase_handler::set_sql_for_exec(
+  spider_db_sql *db_sql,
+  int link_idx
+) {
+  uint tmp_pos;
+  SPIDER_RESULT_LIST *result_list = &spider->result_list;
+  spider_string *str;
+  DBUG_ENTER("spider_mbase_handler::set_sql_for_exec");
+  DBUG_PRINT("info",("spider this=%p", this));
+  query[link_idx] = &result_list->sqls[link_idx];
+  str = query[link_idx];
+  if (str->reserve(db_sql->sql_end_pos[0] + db_sql->sql_end_pos[1] +
+    SPIDER_SQL_SEMICOLON_LEN))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  if (db_sql->sql_end_pos[1])
+  {
+    str->copy(db_sql->sql_str[1]);
+    str->length(db_sql->table_name_pos[1]);
+    append_table_name_with_adjusting(str, link_idx, SPIDER_SQL_TYPE_DDL_SQL);
+    str->length(db_sql->sql_end_pos[1]);
+    str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+    str->q_append(db_sql->sql_str[0].ptr(), db_sql->sql_end_pos[0]);
+    tmp_pos = str->length();
+    str->length(str->length() - db_sql->sql_end_pos[0] +
+      db_sql->table_name_pos[0]);
+    append_table_name_with_adjusting(str, link_idx, SPIDER_SQL_TYPE_DDL_SQL);
+    str->length(tmp_pos);
+  } else {
+    str->copy(db_sql->sql_str[0]);
+    str->length(db_sql->table_name_pos[0]);
+    append_table_name_with_adjusting(str, link_idx, SPIDER_SQL_TYPE_DDL_SQL);
+    str->length(db_sql->sql_end_pos[0]);
+  }
+  DBUG_PRINT("info",("spider str=%s", str->c_ptr_safe()));
+  DBUG_RETURN(0);
+}
+
 int spider_mbase_handler::execute_sql(
   ulong sql_type,
   SPIDER_CONN *conn,
@@ -12011,6 +12225,11 @@ int spider_mbase_handler::execute_sql(
     case SPIDER_SQL_TYPE_HANDLER:
       DBUG_PRINT("info",("spider SPIDER_SQL_TYPE_HANDLER"));
       tgt_sql = exec_ha_sql;
+      tgt_length = tgt_sql->length();
+      break;
+    case SPIDER_SQL_TYPE_DDL_SQL:
+      DBUG_PRINT("info",("spider SPIDER_SQL_TYPE_DDL_SQL"));
+      tgt_sql = query[conn->link_idx];
       tgt_length = tgt_sql->length();
       break;
     default:

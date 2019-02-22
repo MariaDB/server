@@ -1,0 +1,112 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection master_1;
+INSERT INTO mysql.spider_rewrite_tables VALUES (1, '%', '%');
+INSERT INTO mysql.spider_rewrite_table_tables VALUES (1, 1, '', '', '', '', 'srv "s_2_1"', '');
+select spider_flush_rewrite_cache();
+spider_flush_rewrite_cache()
+1
+
+this test is for MDEV-16967
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+CREATE DATABASE auto_test_remote2;
+CREATE DATABASE auto_test_remote3;
+CREATE DATABASE auto_test_remote4;
+
+create table and insert
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) CHILD2_1_ENGINE CHILD2_1_CHARSET
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `pkey` int(11) NOT NULL,
+  PRIMARY KEY (`pkey`)
+) ENGINE=SPIDER DEFAULT CHARSET=utf8 CONNECTION='table"tbl_a",srv "s_2_1"'
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+select test
+SELECT * FROM tbl_a ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+connection child2_1;
+SELECT argument FROM mysql.general_log;
+argument
+root@localhost as anonymous on 
+set session time_zone = '+00:00'
+SET NAMES utf8
+auto_test_remote
+CREATE TABLE `auto_test_remote`.`tbl_a`                                                                                                                                                                                                                                           (pkey INT NOT NULL ,PRIMARY KEY (pkey ))ENGINE InnoDB charset utf8
+
+root@localhost as anonymous on 
+set session time_zone = '+00:00'
+SET NAMES utf8
+auto_test_remote
+show table status from `auto_test_remote` like 'tbl_a'
+set session transaction isolation level repeatable read;set session autocommit = 1;set session sql_log_off = 0;start transaction
+insert into `auto_test_remote`.`tbl_a`(`pkey`)values(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)
+commit
+
+root@localhost as anonymous on 
+set session transaction isolation level repeatable read;set session autocommit = 1;set session sql_log_off = 0;set session time_zone = '+00:00';start transaction
+SET NAMES utf8
+auto_test_remote
+select t0.`pkey` `pkey` from `auto_test_remote`.`tbl_a` t0 order by `pkey`
+commit
+
+SELECT argument FROM mysql.general_log
+SELECT pkey FROM auto_test_remote.tbl_a ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+DROP DATABASE IF EXISTS auto_test_remote2;
+DROP DATABASE IF EXISTS auto_test_remote3;
+DROP DATABASE IF EXISTS auto_test_remote4;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

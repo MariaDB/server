@@ -3,6 +3,7 @@ let $VERSION_COMPILE_OS_WIN=
 if ($VERSION_COMPILE_OS_WIN)
 {
   INSTALL PLUGIN spider SONAME 'ha_spider.dll';
+  INSTALL PLUGIN spider_alloc_mem SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.dll';
   CREATE AGGREGATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_ping_table RETURNS INT SONAME 'ha_spider.dll';
@@ -54,6 +55,7 @@ if ($VERSION_COMPILE_OS_WIN)
 if (!$VERSION_COMPILE_OS_WIN)
 {
   INSTALL PLUGIN spider SONAME 'ha_spider.so';
+  INSTALL PLUGIN spider_alloc_mem SONAME 'ha_spider.so';
   CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
   CREATE AGGREGATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
   CREATE FUNCTION spider_ping_table RETURNS INT SONAME 'ha_spider.so';
@@ -420,6 +422,80 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     cardinality bigint not null default 0,
     primary key (db_name, table_name, key_seq)
   ) ENGINE=$ENGINE_NAME DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+  let $HAS_REWRITE=
+    `SELECT IF (STRCMP('$SERVER_NAME', 'MariaDB') = 0,
+                IF ($SERVER_MAJOR_VERSION = 10,
+                    IF ($SERVER_MINOR_VERSION < 4,  0, 1),
+                    IF ($SERVER_MAJOR_VERSION < 10, 0, 1)),
+                0)`;
+  if ($HAS_REWRITE)
+  {
+    DROP TABLE IF EXISTS mysql.spider_rewrite_tables;
+    CREATE TABLE mysql.spider_rewrite_tables(
+      table_id bigint unsigned not null auto_increment,
+      db_name char(64) not null default '',
+      table_name char(64) not null default '',
+      primary key (table_id),
+      unique uk1(db_name, table_name)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    DROP TABLE IF EXISTS mysql.spider_rewrite_table_partitions;
+    CREATE TABLE mysql.spider_rewrite_table_tables(
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null auto_increment,
+      partition_method varchar(18) default '',
+      partition_expression varchar(64) default '',
+      subpartition_method varchar(12) default '',
+      subpartition_expression varchar(64) default '',
+      connection_str text not null default '',
+      comment_str text not null default '',
+      primary key (table_id, partition_id),
+      unique uk1(table_id, partition_method, partition_expression, subpartition_method, subpartition_expression)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    DROP TABLE IF EXISTS mysql.spider_rewrite_table_partition_partitions;
+    CREATE TABLE mysql.spider_rewrite_table_partitions(
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null,
+      partition_ordinal_position bigint unsigned not null auto_increment,
+      partition_name varchar(64) not null default '',
+      partition_description varchar(64) not null default '',
+      connection_str text not null default '',
+      comment_str text not null default '',
+      primary key (table_id, partition_id, partition_ordinal_position),
+      unique key uk1 (table_id, partition_id, partition_name)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    DROP TABLE IF EXISTS mysql.spider_rewrite_table_partition_subpartitions;
+    CREATE TABLE mysql.spider_rewrite_table_subpartitions(
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null,
+      partition_ordinal_position bigint unsigned not null,
+      subpartition_ordinal_position bigint unsigned not null auto_increment,
+      subpartition_name varchar(64) not null default '',
+      subpartition_description varchar(64) not null default '',
+      connection_str text not null default '',
+      comment_str text not null default '',
+      primary key (table_id, partition_id, partition_ordinal_position, subpartition_ordinal_position),
+      unique key uk1 (table_id, partition_id, partition_ordinal_position, subpartition_name)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    DROP TABLE IF EXISTS mysql.spider_rewritten_tables;
+    CREATE TABLE mysql.spider_rewritten_tables(
+      db_name char(64) not null,
+      table_name char(64) not null,
+      table_id bigint unsigned not null,
+      partition_id bigint unsigned not null,
+      primary key (db_name, table_name, table_id, partition_id)
+    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;
+    if ($VERSION_COMPILE_OS_WIN)
+    {
+      INSTALL PLUGIN spider_rewrite SONAME 'ha_spider.dll';
+      CREATE FUNCTION spider_flush_rewrite_cache RETURNS INT SONAME 'ha_spider.dll';
+    }
+    if (!$VERSION_COMPILE_OS_WIN)
+    {
+      INSTALL PLUGIN spider_rewrite SONAME 'ha_spider.so';
+      CREATE FUNCTION spider_flush_rewrite_cache RETURNS INT SONAME 'ha_spider.so';
+    }
+  }
 }
 
 SET spider_internal_sql_log_off= 0;

@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -37,6 +38,12 @@
 extern struct st_mysql_plugin spider_i_s_alloc_mem;
 #ifdef MARIADB_BASE_VERSION
 extern struct st_maria_plugin spider_i_s_alloc_mem_maria;
+#endif
+#ifdef SPIDER_REWRITE_AVAILABLE
+extern struct st_mysql_plugin spider_audit_rewrite;
+#ifdef MARIADB_BASE_VERSION
+extern struct st_maria_plugin spider_audit_rewrite_maria;
+#endif
 #endif
 
 extern volatile ulonglong spider_mon_table_cache_version;
@@ -3526,6 +3533,9 @@ mysql_declare_plugin(spider)
   0,
 #endif
 },
+#ifdef SPIDER_REWRITE_AVAILABLE
+spider_audit_rewrite,
+#endif
 spider_i_s_alloc_mem
 mysql_declare_plugin_end;
 
@@ -3546,6 +3556,9 @@ maria_declare_plugin(spider)
   SPIDER_DETAIL_VERSION,
   MariaDB_PLUGIN_MATURITY_STABLE
 },
+#ifdef SPIDER_REWRITE_AVAILABLE
+spider_audit_rewrite_maria,
+#endif
 spider_i_s_alloc_mem_maria
 maria_declare_plugin_end;
 #endif

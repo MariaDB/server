@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2018 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -126,6 +127,7 @@ SPIDER_DBTON spider_dbton_handlersocket = {
   spider_handlersocket_create_handler,
   NULL,
   spider_handlersocket_create_conn,
+  NULL,
   spider_handlersocket_support_direct_join,
   &spider_db_handlersocket_utility
 };
@@ -5731,6 +5733,16 @@ int spider_handlersocket_handler::set_sql_for_exec(
 int spider_handlersocket_handler::set_sql_for_exec(
   spider_db_copy_table *tgt_ct,
   ulong sql_type
+) {
+  DBUG_ENTER("spider_handlersocket_handler::set_sql_for_exec");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+
+int spider_handlersocket_handler::set_sql_for_exec(
+  spider_db_sql *db_sql,
+  int link_idx
 ) {
   DBUG_ENTER("spider_handlersocket_handler::set_sql_for_exec");
   DBUG_PRINT("info",("spider this=%p", this));

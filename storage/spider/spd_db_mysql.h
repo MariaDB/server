@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2018 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -186,6 +187,48 @@ class spider_db_mariadb_util: public spider_db_mbase_util
 public:
   spider_db_mariadb_util();
   ~spider_db_mariadb_util();
+};
+
+class spider_mbase_sql: public spider_db_sql
+{
+public:
+  spider_mbase_sql(
+    uint dbton_id_arg
+  );
+  virtual ~spider_mbase_sql();
+  virtual int append_create_or_replace() = 0;
+  virtual int append_create_or_replace_table() = 0;
+  int append_if_not_exists();
+  int append_table_option_name(
+    int symbol_tok,
+    union YYSTYPE *yylval_tok
+  );
+  int append_table_option_value(
+    int symbol_tok,
+    union YYSTYPE *yylval_tok
+  );
+  int append_table_option_character_set();
+  int append_table_option_data_directory();
+  int append_table_option_index_directory();
+};
+
+class spider_mysql_sql: public spider_mbase_sql
+{
+public:
+  spider_mysql_sql();
+  ~spider_mysql_sql();
+  int append_create_or_replace();
+  int append_create_or_replace_table();
+};
+
+class spider_mariadb_sql: public spider_mbase_sql
+{
+public:
+  spider_mariadb_sql();
+  ~spider_mariadb_sql();
+  int append_create_or_replace();
+  int append_create_or_replace_table();
+  int append_table_option_with_system_versioning();
 };
 
 class spider_db_mbase_row: public spider_db_row
@@ -729,6 +772,7 @@ protected:
   int                     tmp_sql_pos4; /* insert val pos at tmp_table_join */
   int                     tmp_sql_pos5; /* end of drop tbl at tmp_table_join */
   spider_string           dup_update_sql;
+  spider_string           **query;
   spider_string           *exec_sql;
   spider_string           *exec_insert_sql;
   spider_string           *exec_update_sql;
@@ -1416,6 +1460,10 @@ public:
   int set_sql_for_exec(
     spider_db_copy_table *tgt_ct,
     ulong sql_type
+  );
+  int set_sql_for_exec(
+    spider_db_sql *db_sql,
+    int link_idx
   );
   int execute_sql(
     ulong sql_type,

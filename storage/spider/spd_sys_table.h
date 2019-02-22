@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,6 +14,8 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#define SPIDER_SYS_DB_NAME_STR "mysql"
+#define SPIDER_SYS_DB_NAME_LEN (sizeof(SPIDER_SYS_DB_NAME_STR) - 1)
 #define SPIDER_SYS_XA_TABLE_NAME_STR "spider_xa"
 #define SPIDER_SYS_XA_TABLE_NAME_LEN (sizeof(SPIDER_SYS_XA_TABLE_NAME_STR) - 1)
 #define SPIDER_SYS_XA_MEMBER_TABLE_NAME_STR "spider_xa_member"
@@ -31,6 +34,16 @@
 #define SPIDER_SYS_TABLE_STS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_TABLE_STS_TABLE_NAME_STR) - 1)
 #define SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR "spider_table_crd"
 #define SPIDER_SYS_TABLE_CRD_TABLE_NAME_LEN (sizeof(SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_RW_TBLS_TABLE_NAME_STR "spider_rewrite_tables"
+#define SPIDER_SYS_RW_TBLS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_RW_TBLS_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR "spider_rewrite_table_tables"
+#define SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_RW_TBL_TBLS_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR "spider_rewrite_table_partitions"
+#define SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_RW_TBL_PTTS_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR "spider_rewrite_table_subpartitions"
+#define SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_RW_TBL_SPTTS_TABLE_NAME_STR) - 1)
+#define SPIDER_SYS_RWN_TBLS_TABLE_NAME_STR "spider_rewritten_tables"
+#define SPIDER_SYS_RWN_TBLS_TABLE_NAME_LEN (sizeof(SPIDER_SYS_RWN_TBLS_TABLE_NAME_STR) - 1)
 
 #define SPIDER_SYS_XA_PREPARED_STR "PREPARED"
 #define SPIDER_SYS_XA_NOT_YET_STR "NOT YET"
@@ -67,6 +80,15 @@ public:
   uint table_name_length;
   uint link_id_length;
 };
+
+void spider_sys_init_one_table(
+  TABLE_LIST *table_list,
+  const char *db_nm,
+  uint db_nm_len,
+  const char *table_nm,
+  uint table_nm_len,
+  enum thr_lock_type lock_type
+);
 
 #if MYSQL_VERSION_ID < 50500
 TABLE *spider_open_sys_table(
@@ -106,6 +128,13 @@ void spider_close_sys_table(
 bool spider_sys_open_tables(
   THD *thd,
   TABLE_LIST **tables,
+  uint *counter,
+  Open_tables_backup *open_tables_backup
+);
+
+bool spider_sys_open_tables(
+  THD *thd,
+  TABLE_LIST **tables,
   Open_tables_backup *open_tables_backup
 );
 
@@ -118,6 +147,17 @@ TABLE *spider_sys_open_table(
 void spider_sys_close_table(
   THD *thd,
   Open_tables_backup *open_tables_backup
+);
+
+MYSQL_LOCK *spider_sys_lock_tables(
+  THD *thd,
+  TABLE **table,
+  uint counter
+);
+
+void spider_sys_unlock_tables(
+  THD *thd,
+  MYSQL_LOCK *lock
 );
 #endif
 
@@ -626,6 +666,60 @@ int spider_sys_replace(
   TABLE *table,
   bool *modified_non_trans_table
 );
+
+#ifdef SPIDER_REWRITE_AVAILABLE
+bool spider_copy_sys_rewrite_columns(
+  TABLE *table_from,
+  TABLE *table_to,
+  uint columns
+);
+
+int spider_get_sys_rewrite_tables(
+  TABLE *table,
+  SPIDER_RWTBL *info,
+  MEM_ROOT *mem_root
+);
+
+int spider_get_sys_rewrite_table_tables(
+  TABLE *table,
+  SPIDER_RWTBLTBL *info,
+  MEM_ROOT *mem_root
+);
+
+int spider_get_sys_rewrite_table_partitions(
+  TABLE *table,
+  SPIDER_RWTBLPTT *info,
+  MEM_ROOT *mem_root
+);
+
+int spider_get_sys_rewrite_table_subpartitions(
+  TABLE *table,
+  SPIDER_RWTBLSPTT *info,
+  MEM_ROOT *mem_root
+);
+
+void spider_store_rewritten_table_name(
+  TABLE *table,
+  LEX_CSTRING *schema_name,
+  LEX_CSTRING *table_name,
+  const struct charset_info_st *cs
+);
+
+void spider_store_rewritten_table_id(
+  TABLE *table,
+  SPIDER_RWTBL *info
+);
+
+void spider_store_rewritten_partition_id(
+  TABLE *table,
+  SPIDER_RWTBLTBL *info
+);
+
+int spider_insert_rewritten_table(
+  TABLE *table,
+  SPIDER_RWTBLTBL *info
+);
+#endif
 
 #ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table(

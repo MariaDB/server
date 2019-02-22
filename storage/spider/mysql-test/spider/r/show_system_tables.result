@@ -15,6 +15,11 @@ WHERE table_schema = 'mysql' AND table_name like '%spider_%';
 table_name	engine
 spider_link_failed_log	Aria
 spider_link_mon_servers	Aria
+spider_rewrite_table_partitions	Aria
+spider_rewrite_table_subpartitions	Aria
+spider_rewrite_table_tables	Aria
+spider_rewrite_tables	Aria
+spider_rewritten_tables	Aria
 spider_table_crd	Aria
 spider_table_position_for_recovery	Aria
 spider_table_sts	Aria

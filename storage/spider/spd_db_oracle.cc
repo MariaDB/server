@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2018 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,6 +31,12 @@
 #endif
 #endif
 
+#include "spd_db_include.h"
+#include "spd_db_oracle.h"
+
+#define SPIDER_DB_WRAPPER_ORACLE "oracle"
+extern LEX_CSTRING spider_ident_double_quote;
+
 #ifdef HAVE_ORACLE_OCI
 #if (defined(WIN32) || defined(_WIN32) || defined(WINDOWS) || defined(_WINDOWS))
 #include <Shlwapi.h>
@@ -38,9 +45,7 @@
 #include <oci.h>
 #include "spd_err.h"
 #include "spd_param.h"
-#include "spd_db_include.h"
 #include "spd_include.h"
-#include "spd_db_oracle.h"
 #include "ha_spider.h"
 #include "spd_conn.h"
 #include "spd_db_conn.h"
@@ -56,8 +61,6 @@ extern HASH spider_open_connections;
 extern HASH spider_ipport_conns;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern const char spider_dig_upper[];
-
-#define SPIDER_DB_WRAPPER_ORACLE "oracle"
 
 #define SPIDER_SQL_NAME_QUOTE_STR "\""
 #define SPIDER_SQL_NAME_QUOTE_LEN (sizeof(SPIDER_SQL_NAME_QUOTE_STR) - 1)
@@ -334,10 +337,76 @@ SPIDER_DBTON spider_dbton_oracle = {
   spider_oracle_create_handler,
   spider_oracle_create_copy_table,
   spider_oracle_create_conn,
+  spider_oracle_create_sql,
   spider_oracle_support_direct_join,
   &spider_db_oracle_utility
 };
+#else
+SPIDER_DBTON spider_dbton_oracle = {
+  0,
+  SPIDER_DB_WRAPPER_ORACLE,
+  SPIDER_DB_ACCESS_TYPE_SQL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  spider_oracle_create_sql,
+  NULL,
+  NULL
+};
+#endif
 
+spider_db_sql *spider_oracle_create_sql()
+{
+  DBUG_ENTER("spider_oracle_create_sql");
+  DBUG_RETURN(new spider_oracle_sql());
+}
+
+spider_oracle_sql::spider_oracle_sql():
+  spider_db_sql(spider_dbton_oracle.dbton_id, spider_ident_double_quote)
+{
+  DBUG_ENTER("spider_oracle_sql::spider_oracle_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_oracle_sql::~spider_oracle_sql()
+{
+  DBUG_ENTER("spider_oracle_sql::~spider_oracle_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_oracle_sql::append_create_or_replace()
+{
+  DBUG_ENTER("spider_oracle_sql::append_create_or_replace");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+int spider_oracle_sql::append_create_or_replace_table()
+{
+  DBUG_ENTER("spider_oracle_sql::append_create_or_replace_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (unlikely(sql_str[1].append(STRING_WITH_LEN("drop table "))))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(append_table_name_space(1));
+}
+
+int spider_oracle_sql::append_if_not_exists()
+{
+  DBUG_ENTER("spider_oracle_sql::append_if_not_exists");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+#ifdef HAVE_ORACLE_OCI
 spider_db_oracle_row::spider_db_oracle_row() :
   spider_db_row(spider_dbton_oracle.dbton_id),
   db_conn(NULL), result(NULL),
@@ -5391,6 +5460,8 @@ int spider_oracle_handler::init()
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &link_for_hash,
         sizeof(SPIDER_LINK_FOR_HASH) * share->link_count,
+      &query,
+        sizeof(spider_string *) * share->link_count,
       &minimum_select_bitmap,
         table ? sizeof(uchar) * no_bytes_in_map(table->read_set) : 0,
       NullS))
@@ -10882,6 +10953,45 @@ int spider_oracle_handler::set_sql_for_exec(
   DBUG_RETURN(0);
 }
 
+int spider_oracle_handler::set_sql_for_exec(
+  spider_db_sql *db_sql,
+  int link_idx
+) {
+  uint tmp_pos;
+  SPIDER_RESULT_LIST *result_list = &spider->result_list;
+  spider_string *str;
+  DBUG_ENTER("spider_oracle_handler::set_sql_for_exec");
+  DBUG_PRINT("info",("spider this=%p", this));
+  query[link_idx] = &result_list->sqls[link_idx];
+  str = query[link_idx];
+  if (str->reserve(db_sql->sql_end_pos[0] + db_sql->sql_end_pos[1] +
+    SPIDER_SQL_SEMICOLON_LEN))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  if (db_sql->sql_end_pos[1])
+  {
+    str->copy(db_sql->sql_str[1]);
+    str->length(db_sql->table_name_pos[1]);
+    append_table_name_with_adjusting(str, link_idx, SPIDER_SQL_TYPE_DDL_SQL);
+    str->length(db_sql->sql_end_pos[1]);
+    str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+    str->q_append(db_sql->sql_str[0].ptr(), db_sql->sql_end_pos[0]);
+    tmp_pos = str->length();
+    str->length(str->length() - db_sql->sql_end_pos[0] +
+      db_sql->table_name_pos[0]);
+    append_table_name_with_adjusting(str, link_idx, SPIDER_SQL_TYPE_DDL_SQL);
+    str->length(tmp_pos);
+  } else {
+    str->copy(db_sql->sql_str[0]);
+    str->length(db_sql->table_name_pos[0]);
+    append_table_name_with_adjusting(str, link_idx, SPIDER_SQL_TYPE_DDL_SQL);
+    str->length(db_sql->sql_end_pos[0]);
+  }
+  DBUG_PRINT("info",("spider query=%s", str->c_ptr_safe()));
+  DBUG_RETURN(0);
+}
+
 int spider_oracle_handler::execute_sql(
   ulong sql_type,
   SPIDER_CONN *conn,
@@ -10936,6 +11046,11 @@ int spider_oracle_handler::execute_sql(
     case SPIDER_SQL_TYPE_HANDLER:
       DBUG_PRINT("info",("spider SPIDER_SQL_TYPE_HANDLER"));
       tgt_sql = exec_ha_sql;
+      tgt_length = tgt_sql->length();
+      break;
+    case SPIDER_SQL_TYPE_DDL_SQL:
+      DBUG_PRINT("info",("spider SPIDER_SQL_TYPE_DDL_SQL"));
+      tgt_sql = query[conn->link_idx];
       tgt_length = tgt_sql->length();
       break;
     default:

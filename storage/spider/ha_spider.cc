@@ -9400,6 +9400,9 @@ ulonglong ha_spider::table_flags() const
 #ifdef HA_SLOW_CMP_REF
     HA_SLOW_CMP_REF |
 #endif
+#ifdef HA_CMP_REF_IS_EXPENSIVE
+    HA_CMP_REF_IS_EXPENSIVE |
+#endif
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
     HA_CAN_TABLE_CONDITION_PUSHDOWN |
 #endif

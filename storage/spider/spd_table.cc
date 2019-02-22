@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2091,7 +2092,11 @@ int spider_parse_connect_info(
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+#ifdef SPIDER_PARTITION_HAS_CONNECTION_STRING
+  for (roop_count = 6; roop_count > 0; roop_count--)
+#else
   for (roop_count = 4; roop_count > 0; roop_count--)
+#endif
 #else
   for (roop_count = 2; roop_count > 0; roop_count--)
 #endif
@@ -2104,7 +2109,25 @@ int spider_parse_connect_info(
     switch (roop_count)
     {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+#ifdef SPIDER_PARTITION_HAS_CONNECTION_STRING
+      case 6:
+        if (!sub_elem || sub_elem->connect_string.length == 0)
+          continue;
+        DBUG_PRINT("info",("spider create sub connect string"));
+        if (
+          !(connect_string = spider_create_string(
+            sub_elem->connect_string.str,
+            sub_elem->connect_string.length))
+        ) {
+          error_num = HA_ERR_OUT_OF_MEM;
+          goto error_alloc_conn_string;
+        }
+        DBUG_PRINT("info",("spider connect_string=%s", connect_string));
+        break;
+      case 5:
+#else
       case 4:
+#endif
         if (!sub_elem || !sub_elem->part_comment)
           continue;
         DBUG_PRINT("info",("spider create sub comment string"));
@@ -2118,6 +2141,22 @@ int spider_parse_connect_info(
         }
         DBUG_PRINT("info",("spider sub comment string=%s", connect_string));
         break;
+#ifdef SPIDER_PARTITION_HAS_CONNECTION_STRING
+      case 4:
+        if (!part_elem || part_elem->connect_string.length == 0)
+          continue;
+        DBUG_PRINT("info",("spider create part connect string"));
+        if (
+          !(connect_string = spider_create_string(
+            part_elem->connect_string.str,
+            part_elem->connect_string.length))
+        ) {
+          error_num = HA_ERR_OUT_OF_MEM;
+          goto error_alloc_conn_string;
+        }
+        DBUG_PRINT("info",("spider connect_string=%s", connect_string));
+        break;
+#endif
       case 3:
         if (!part_elem || !part_elem->part_comment)
           continue;
@@ -2134,20 +2173,6 @@ int spider_parse_connect_info(
         break;
 #endif
       case 2:
-        if (table_share->comment.length == 0)
-          continue;
-        DBUG_PRINT("info",("spider create comment string"));
-        if (
-          !(connect_string = spider_create_string(
-            table_share->comment.str,
-            table_share->comment.length))
-        ) {
-          error_num = HA_ERR_OUT_OF_MEM;
-          goto error_alloc_conn_string;
-        }
-        DBUG_PRINT("info",("spider comment string=%s", connect_string));
-        break;
-      default:
         if (table_share->connect_string.length == 0)
           continue;
         DBUG_PRINT("info",("spider create connect_string string"));
@@ -2160,6 +2185,20 @@ int spider_parse_connect_info(
           goto error_alloc_conn_string;
         }
         DBUG_PRINT("info",("spider connect_string=%s", connect_string));
+        break;
+      default:
+        if (table_share->comment.length == 0)
+          continue;
+        DBUG_PRINT("info",("spider create comment string"));
+        if (
+          !(connect_string = spider_create_string(
+            table_share->comment.str,
+            table_share->comment.length))
+        ) {
+          error_num = HA_ERR_OUT_OF_MEM;
+          goto error_alloc_conn_string;
+        }
+        DBUG_PRINT("info",("spider comment string=%s", connect_string));
         break;
     }
 
@@ -5736,6 +5775,7 @@ void spider_free_share_resource_only(
   pthread_mutex_destroy(&share->crd_mutex);
   pthread_mutex_destroy(&share->sts_mutex);
   pthread_mutex_destroy(&share->mutex);
+  free_root(&share->mem_root, MYF(0));
   spider_free(spider_current_trx, share, MYF(0));
   DBUG_VOID_RETURN;
 }
@@ -6848,7 +6888,7 @@ int spider_db_done(
     spider_destroy_thd(thd);
 
 /*
-DBUG_ASSERT(0);
+assert(0);
 */
   DBUG_RETURN(0);
 }
@@ -9731,6 +9771,40 @@ void spider_free_spider_object_for_share(
   spider_free(spider_current_trx, (*spider)->need_mons, MYF(0));
   delete (*spider);
   (*spider) = NULL;
+  DBUG_VOID_RETURN;
+}
+
+int spider_create_spider_object_for_share_with_sql_string(
+  SPIDER_TRX *trx,
+  SPIDER_SHARE *share,
+  ha_spider **spider
+) {
+  int error_num;
+  uint roop_count;
+  DBUG_ENTER("spider_create_spider_object_for_share_with_sql_string");
+  if ((error_num = spider_create_spider_object_for_share(trx, share, spider)))
+  {
+    DBUG_RETURN(error_num);
+  }
+  if (!((*spider)->result_list.sqls = new spider_string[share->all_link_count]))
+  {
+    spider_free_spider_object_for_share(spider);
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  for (roop_count = 0; roop_count < share->all_link_count; ++roop_count)
+  {
+    (*spider)->result_list.sqls[roop_count].init_calc_mem(262);
+    (*spider)->result_list.sqls[roop_count].set_charset(share->access_charset);
+  }
+  DBUG_RETURN(0);
+}
+
+void spider_free_spider_object_for_share_with_sql_string(
+  ha_spider **spider
+) {
+  DBUG_ENTER("spider_free_spider_object_for_share_with_sql_string");
+  delete [] (*spider)->result_list.sqls;
+  spider_free_spider_object_for_share(spider);
   DBUG_VOID_RETURN;
 }
 

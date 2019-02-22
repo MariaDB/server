@@ -1,4 +1,5 @@
-/* Copyright (C) 2009-2014 Kentoku Shiba
+/* Copyright (C) 2009-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -76,4 +77,8 @@ my_bool spider_copy_tables_init_body(
 
 void spider_copy_tables_deinit_body(
   UDF_INIT *initid
+);
+
+long long spider_flush_rewrite_cache_body(
+  char *error
 );

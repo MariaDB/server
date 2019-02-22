@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,8 +14,13 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#ifdef SPIDER_REWRITE_AVAILABLE
+#define SPIDER_DETAIL_VERSION "3.4.1"
+#define SPIDER_HEX_VERSION 0x0304
+#else
 #define SPIDER_DETAIL_VERSION "3.3.14"
 #define SPIDER_HEX_VERSION 0x0303
+#endif
 
 #if MYSQL_VERSION_ID < 50500
 #define spider_my_free(A,B) my_free(A,B)
@@ -260,7 +266,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           257
+#define SPIDER_MEM_CALC_LIST_NUM           264
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -1403,6 +1409,52 @@ class SPIDER_SORT
 {
 public:
   ulong sort;
+};
+
+class SPIDER_RWTBLSPTT
+{
+public:
+  ulonglong subpartition_ordinal_position;
+  LEX_CSTRING subpartition_name;
+  LEX_CSTRING subpartition_description;
+  LEX_CSTRING connection_str;
+  LEX_CSTRING comment_str;
+  SPIDER_RWTBLSPTT *next;
+};
+
+class SPIDER_RWTBLPTT
+{
+public:
+  ulonglong partition_ordinal_position;
+  LEX_CSTRING partition_name;
+  LEX_CSTRING partition_description;
+  LEX_CSTRING connection_str;
+  LEX_CSTRING comment_str;
+  SPIDER_RWTBLSPTT *ts;
+  SPIDER_RWTBLPTT *next;
+};
+
+class SPIDER_RWTBLTBL
+{
+public:
+  ulonglong partition_id;
+  LEX_CSTRING partition_method;
+  LEX_CSTRING partition_expression;
+  LEX_CSTRING subpartition_method;
+  LEX_CSTRING subpartition_expression;
+  LEX_CSTRING connection_str;
+  LEX_CSTRING comment_str;
+  SPIDER_RWTBLPTT *tp;
+  SPIDER_RWTBLTBL *next;
+};
+
+class SPIDER_RWTBL: public SPIDER_SORT
+{
+public:
+  ulonglong table_id;
+  LEX_CSTRING db_name;
+  LEX_CSTRING table_name;
+  SPIDER_RWTBLTBL *tt;
 };
 
 typedef struct st_spider_trx_ha
