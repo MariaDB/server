@@ -7035,28 +7035,6 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   return false;
 }
 
-bool Table_scope_and_contents_source_pod_st::vers_native(THD *thd) const
-{
-  if (ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING))
-    return true;
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_info *info= thd->work_part_info;
-  if (info && !(used_fields & HA_CREATE_USED_ENGINE))
-  {
-    if (handlerton *hton= info->default_engine_type)
-      return ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING);
-
-    List_iterator_fast<partition_element> it(info->partitions);
-    while (partition_element *partition_element= it++)
-    {
-      if (partition_element->find_engine_flag(HTON_NATIVE_SYS_VERSIONING))
-        return true;
-    }
-  }
-#endif
-  return false;
-}
 
 bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table,
@@ -7133,7 +7111,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(options & HA_VERSIONED_TABLE))
     return false;
   return vers_info.check_sys_fields(create_table.table_name, create_table.db,
-                                    alter_info, vers_native(thd));
+                                    alter_info);
 }
 
 
@@ -7242,8 +7220,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
   {
-    bool native= create_info->vers_native(thd);
-    if (check_sys_fields(table_name, share->db, alter_info, native))
+    if (check_sys_fields(table_name, share->db, alter_info))
       return true;
   }
 
@@ -7350,7 +7327,7 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
 
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
-                                       Alter_info *alter_info, bool native)
+                                       Alter_info *alter_info)
 {
   if (check_conditions(table_name, db))
     return true;
@@ -7381,8 +7358,7 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
     {
       f_check_unit= VERS_TIMESTAMP;
     }
-    else if (native
-      && f->type_handler() == &type_handler_longlong
+    else if (f->type_handler() == &type_handler_longlong
       && (f->flags & UNSIGNED_FLAG)
       && f->length == (MY_INT64_NUM_DECIMAL_DIGITS - 1))
     {

@@ -7907,8 +7907,8 @@ ER_UNUSED_24
 ER_VERS_TEMPORARY
 	eng "TEMPORARY tables do not support system versioning"
 
-ER_VERS_NOT_SUPPORTED
-        eng "%s is not supported for %s system-versioned tables"
+ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+        eng "Transactional system versioned tables do not support partitioning by ROW START or ROW END"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE
