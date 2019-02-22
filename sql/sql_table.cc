@@ -4097,9 +4097,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         }
       }
       /* We can not store key_part_length more then 2^16 - 1 in frm */
-      if (is_hash_field_needed && column->length > UINT16_MAX)
+      if (is_hash_field_needed && column->length > UINT_MAX16)
       {
-        my_error(ER_TOO_LONG_KEYPART, MYF(0),  UINT16_MAX);
+        my_error(ER_TOO_LONG_KEYPART, MYF(0),  UINT_MAX16);
         DBUG_RETURN(TRUE);
       }
       else

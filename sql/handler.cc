@@ -6542,7 +6542,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
           DBUG_ASSERT(!my_strcasecmp(system_charset_info, "left", fnc->func_name()));
           DBUG_ASSERT(fnc->arguments()[0]->type() == Item::FIELD_ITEM);
           t_field= static_cast<Item_field *>(fnc->arguments()[0])->field;
-          longlong length= fnc->arguments()[1]->val_int();
+          uint length= (uint)fnc->arguments()[1]->val_int();
           if (t_field->cmp_max(t_field->ptr, t_field->ptr + diff, length))
             is_same= false;
         }
