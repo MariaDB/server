@@ -3228,6 +3228,7 @@ public:
   {
     return false;
   }
+  virtual uint max_octet_length() const { return 0; }
   /**
     Prepared statement long data:
     Check whether this parameter data type is compatible with long data.
@@ -5864,6 +5865,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX8; }
 };
 
 
@@ -5879,6 +5881,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX24; }
 };
 
 
@@ -5896,6 +5899,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX32; }
 };
 
 
@@ -5911,6 +5915,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX16; }
 };
 
 
