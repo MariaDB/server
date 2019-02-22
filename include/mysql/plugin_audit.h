@@ -146,6 +146,58 @@ struct mysql_event_table
   unsigned long long query_id;
 };
 
+/*
+  AUDIT CLASS : QUERY_REWRITE
+
+  QUERY events occur before parsing the query and before checking query cache.
+  SLOW events occur after writing the query to the slow log.
+  BINLOG events occur before writing the query to the binary log as a statement.
+         (This events do not occur before writing the binary log as a row image)
+
+  FIRST_STATEMENT flag is set if the query is not multiple statements or the
+                  first statement of multiple statements.
+  FOR_EXECUTE flag should set by plug-in, if the query is rewritten and the
+              rewritten query should be executed instead of the query when
+              QUERY events occur.
+  FOR_GENERAL_LOG flag should set by plug-in, if the query is rewritten and the
+                  rewritten query should be written to the general log with the
+                  query when QUERY events occur.
+  FOR_SLOW_LOG flag should set by plug-in, if the query is rewritten and the
+               rewritten query should be written to the slow log with the query
+               when SLOW events occur.
+  FOR_BINARY_LOG flag should set by plug-in, if the query is rewritten and the
+                 rewritten query should be written to the binary log instead of
+                 the query when BINLOG events occur.
+  SKIP_BINARY_LOG flag should set by plug-in, if both the query and the
+                  rewritten query should not be written to the binary log when
+                  BINLOG events occur.
+*/
+
+#define MYSQL_AUDIT_QUERY_REWRITE_CLASS 16
+#define MYSQL_AUDIT_QUERY_REWRITE_CLASSMASK (1 << MYSQL_AUDIT_QUERY_REWRITE_CLASS)
+#define MYSQL_AUDIT_QUERY_REWRITE_QUERY  0
+#define MYSQL_AUDIT_QUERY_REWRITE_SLOW   1
+#define MYSQL_AUDIT_QUERY_REWRITE_BINLOG 2
+#define MYSQL_AUDIT_QUERY_REWRITE_FIRST_STATEMENT 1 << 0
+#define MYSQL_AUDIT_QUERY_REWRITE_FOR_EXECUTE     1 << 1
+#define MYSQL_AUDIT_QUERY_REWRITE_FOR_GENERAL_LOG 1 << 2
+#define MYSQL_AUDIT_QUERY_REWRITE_FOR_SLOW_LOG    1 << 3
+#define MYSQL_AUDIT_QUERY_REWRITE_FOR_BINARY_LOG  1 << 4
+#define MYSQL_AUDIT_QUERY_REWRITE_SKIP_BINARY_LOG 1 << 5
+
+struct mysql_event_query_rewrite
+{
+  unsigned int event_subclass;
+  unsigned int flags;
+  char *query;
+  char *rewritten_query;
+  const char *found_semicolon;
+  unsigned int query_length;
+  unsigned int rewritten_query_length;
+  const struct charset_info_st *query_charset;
+  unsigned long long query_id;
+};
+
 /*************************************************************************
   Here we define the descriptor structure, that is referred from
   st_mysql_plugin.

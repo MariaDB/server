@@ -1794,23 +1794,47 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                       thd->get_db(),
                       &thd->security_ctx->priv_user[0],
                       (char *) thd->security_ctx->host_or_ip);
-    char *packet_end= thd->query() + thd->query_length();
+    const char *semicolon;
+    char *query, *rwquery, *packet_end;
+    uint rwflags= 0, querylen, rwquerylen;
+    mysql_audit_query_rewrite(thd, TRUE, thd->query(), thd->query_length(),
+                              thd->query_charset(),
+                              &semicolon, &rwquery, &rwquerylen, &rwflags,
+                              thd->query_id);
+    if (thd->is_error())
+      break;
+    packet_end= thd->query() + thd->query_length();
     general_log_write(thd, command, thd->query(), thd->query_length());
     DBUG_PRINT("query",("%-.4096s",thd->query()));
+    if (rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_GENERAL_LOG)
+    {
+      general_log_write(thd, command, rwquery, rwquerylen);
+      DBUG_PRINT("query",("rewritten %-.4096s",rwquery));
+    }
 #if defined(ENABLED_PROFILING)
     thd->profiling.set_query_source(thd->query(), thd->query_length());
 #endif
     MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(),
                              thd->query_length());
 
+    if (rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_EXECUTE)
+    {
+      query= rwquery;
+      querylen= rwquerylen;
+    }
+    else
+    {
+      query= thd->query();
+      querylen= thd->query_length();
+    }
     Parser_state parser_state;
-    if (unlikely(parser_state.init(thd, thd->query(), thd->query_length())))
+    if (unlikely(parser_state.init(thd, query, querylen)))
       break;
 
 #ifdef WITH_WSREP
     if (WSREP_ON)
     {
-      if (wsrep_mysql_parse(thd, thd->query(), thd->query_length(),
+      if (wsrep_mysql_parse(thd, query, querylen,
                             &parser_state,
                             is_com_multi, is_next_command))
       {
@@ -1824,18 +1848,26 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
     }
     else
+    {
 #endif /* WITH_WSREP */
-      mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
+      mysql_parse(thd, query, querylen, &parser_state,
                   is_com_multi, is_next_command);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
+    if (!(rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_EXECUTE))
+    {
+      semicolon= parser_state.m_lip.found_semicolon;
+    }
 
-    while (!thd->killed && (parser_state.m_lip.found_semicolon != NULL) &&
+    while (!thd->killed && (semicolon != NULL) &&
            ! thd->is_error())
     {
       thd->get_stmt_da()->set_skip_flush();
       /*
         Multiple queries exist, execute them individually
       */
-      char *beginning_of_next_stmt= (char*) parser_state.m_lip.found_semicolon;
+      char *beginning_of_next_stmt= (char *) semicolon;
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
     ha_maria::implicit_commit(thd, FALSE);
@@ -1894,6 +1926,19 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                                                   com_statement_info[command].m_key,
                                                   thd->db.str, thd->db.length,
                                                   thd->charset());
+      rwflags= 0;
+      mysql_audit_query_rewrite(thd, FALSE, beginning_of_next_stmt, length,
+                                thd->query_charset(),
+                                &semicolon, &rwquery, &rwquerylen, &rwflags,
+                                thd->query_id);
+      if (thd->is_error())
+        break;
+      if (rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_GENERAL_LOG)
+      {
+        general_log_write(thd, command, rwquery, rwquerylen);
+        DBUG_PRINT("query",("rewritten %-.4096s",rwquery));
+      }
+
       THD_STAGE_INFO(thd, stage_init);
       MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, beginning_of_next_stmt,
                                length);
@@ -1909,13 +1954,23 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       if (!WSREP(thd))
         thd->set_time(); /* Reset the query start time. */
 
-      parser_state.reset(beginning_of_next_stmt, length);
+      if (rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_EXECUTE)
+      {
+        query= rwquery;
+        querylen= rwquerylen;
+      }
+      else
+      {
+        query= beginning_of_next_stmt;
+        querylen= length;
+      }
+      parser_state.reset(query, querylen);
 
 #ifdef WITH_WSREP
       if (WSREP_ON)
       {
-        if (wsrep_mysql_parse(thd, beginning_of_next_stmt,
-                              length, &parser_state,
+        if (wsrep_mysql_parse(thd, query, querylen,
+                              &parser_state,
                               is_com_multi, is_next_command))
         {
           WSREP_DEBUG("Deadlock error for: %s", thd->query());
@@ -1929,10 +1984,17 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         }
       }
       else
+      {
 #endif /* WITH_WSREP */
-      mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
-                  is_com_multi, is_next_command);
-
+        mysql_parse(thd, query, querylen, &parser_state,
+                    is_com_multi, is_next_command);
+#ifdef WITH_WSREP
+      }
+#endif /* WITH_WSREP */
+      if (!(rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_EXECUTE))
+      {
+        semicolon= (char*) parser_state.m_lip.found_semicolon;
+      }
     }
 
     DBUG_PRINT("info",("query ready"));
@@ -2530,6 +2592,13 @@ void log_slow_statement(THD *thd)
     THD_STAGE_INFO(thd, stage_logging_slow_query);
     slow_log_print(thd, thd->query(), thd->query_length(), 
                    thd->utime_after_query);
+    char *rwquery;
+    uint rwflags= 0, rwquerylen;
+    mysql_audit_query_rewrite_slow(thd, &rwquery, &rwquerylen, &rwflags,
+                                   thd->query_id);
+    if (rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_SLOW_LOG)
+      slow_log_print(thd, rwquery, rwquerylen,
+                     thd->utime_after_query);
   }
 
 end:

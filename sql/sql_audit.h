@@ -51,12 +51,18 @@ static inline bool mysql_audit_table_enabled()
   return mysql_global_audit_mask[0] & MYSQL_AUDIT_TABLE_CLASSMASK;
 }
 
+static inline bool mysql_audit_query_rewrite_enabled()
+{
+  return mysql_global_audit_mask[0] & MYSQL_AUDIT_QUERY_REWRITE_CLASSMASK;
+}
+
 #else
 static inline void mysql_audit_notify(THD *thd, uint event_class,
                                       const void *event) {}
 #define mysql_audit_general_enabled() 0
 #define mysql_audit_connection_enabled() 0
 #define mysql_audit_table_enabled() 0
+#define mysql_audit_query_rewrite_enabled() 0
 #endif
 extern void mysql_audit_release(THD *thd);
 
@@ -423,6 +429,114 @@ void mysql_audit_alter_table(THD *thd, TABLE_LIST *table)
     event.query_id= thd->query_id;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_TABLE_CLASS, &event);
+  }
+}
+
+/**
+  Call audit plugins of QUERY_REWRITE audit class,
+  MYSQL_AUDIT_QUERY_REWRITE_QUERY subtype.
+  
+  @param[in] thd
+  @param[in] firststmt        TRUE: the first statement
+  @param[in] query            Query string
+  @param[in] querylen         Query string length
+  @param[in] querychr         Query string charset
+  @param[out] semicolon       The position of semicolon in the query string
+  @param[out] rwquery         Rewritten query string
+  @param[out] rwquerylen      Rewritten query string length
+  @param[out] flags           1:for executing, 2:for general log
+*/
+ 
+static inline
+void mysql_audit_query_rewrite(THD *thd, bool firststmt,
+                               char *query, uint querylen,
+                               const struct charset_info_st *querychr,
+                               const char **semicolon,
+                               char **rwquery, uint *rwquerylen,
+                               uint *flags, ulonglong query_id)
+{
+  if (mysql_audit_query_rewrite_enabled())
+  {
+    mysql_event_query_rewrite event;
+
+    event.event_subclass= MYSQL_AUDIT_QUERY_REWRITE_QUERY;
+    event.flags= firststmt ? MYSQL_AUDIT_QUERY_REWRITE_FIRST_STATEMENT : 0;
+    event.query= query;
+    event.rewritten_query= NULL;
+    event.found_semicolon= NULL;
+    event.query_length= querylen;
+    event.rewritten_query_length= 0;
+    event.query_charset= querychr;
+    event.query_id= query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_QUERY_REWRITE_CLASS, &event);
+
+    *flags= event.flags;
+    *semicolon= (char *)event.found_semicolon;
+    *rwquery= event.rewritten_query;
+    *rwquerylen= event.rewritten_query_length;
+  }
+}
+
+/**
+  Call audit plugins of QUERY_REWRITE audit class,
+  MYSQL_AUDIT_QUERY_REWRITE_SLOW subtype.
+  
+  @param[in] thd
+  @param[out] rwquery         Rewritten query string
+  @param[out] rwquerylen      Rewritten query string length
+  @param[out] flags           4:for slow log
+*/
+ 
+static inline
+void mysql_audit_query_rewrite_slow(THD *thd,
+                                    char **rwquery, uint *rwquerylen,
+                                    uint *flags, ulonglong query_id)
+{
+  if (mysql_audit_query_rewrite_enabled())
+  {
+    mysql_event_query_rewrite event;
+
+    event.event_subclass= MYSQL_AUDIT_QUERY_REWRITE_SLOW;
+    event.flags= 0;
+    event.query_id= query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_QUERY_REWRITE_CLASS, &event);
+
+    *flags= event.flags;
+    *rwquery= event.rewritten_query;
+    *rwquerylen= event.rewritten_query_length;
+  }
+}
+
+/**
+  Call audit plugins of QUERY_REWRITE audit class,
+  MYSQL_AUDIT_QUERY_REWRITE_BINLOG subtype.
+  
+  @param[in] thd
+  @param[out] rwquery         Rewritten query string
+  @param[out] rwquerylen      Rewritten query string length
+  @param[out] flags           8:for binary log, 16:skip binary log write
+*/
+ 
+static inline
+void mysql_audit_query_rewrite_binlog(THD *thd,
+                                      char **rwquery, uint *rwquerylen,
+                                      uint *flags, ulonglong query_id)
+{
+  if (mysql_audit_query_rewrite_enabled())
+  {
+    mysql_event_query_rewrite event;
+
+    event.event_subclass= MYSQL_AUDIT_QUERY_REWRITE_BINLOG;
+    event.flags= 0;
+    event.query_id= query_id;
+
+    mysql_audit_notify(thd, MYSQL_AUDIT_QUERY_REWRITE_CLASS, &event);
+
+    *flags= event.flags;
+    *rwquery= event.rewritten_query;
+    *rwquerylen= event.rewritten_query_length;
   }
 }
 

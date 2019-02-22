@@ -627,6 +627,18 @@ struct mysql_event_table
   int read_only;
   unsigned long long query_id;
 };
+struct mysql_event_query_rewrite
+{
+  unsigned int event_subclass;
+  unsigned int flags;
+  char *query;
+  char *rewritten_query;
+  const char *found_semicolon;
+  unsigned int query_length;
+  unsigned int rewritten_query_length;
+  const struct charset_info_st *query_charset;
+  unsigned long long query_id;
+};
 struct st_mysql_audit
 {
   int interface_version;

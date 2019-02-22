@@ -1982,9 +1982,25 @@ int write_bin_log(THD *thd, bool clear_error,
       thd->clear_error();
     else
       errcode= query_error_code(thd, TRUE);
-    error= thd->binlog_query(THD::STMT_QUERY_TYPE,
-                             query, query_length, is_trans, FALSE, FALSE,
-                             errcode);
+    char *rwquery;
+    uint rwflags= 0, rwquerylen;
+    mysql_audit_query_rewrite_binlog(thd, &rwquery, &rwquerylen, &rwflags,
+                                     thd->query_id);
+    if (!(rwflags & MYSQL_AUDIT_QUERY_REWRITE_SKIP_BINARY_LOG))
+    {
+      if (rwflags & MYSQL_AUDIT_QUERY_REWRITE_FOR_BINARY_LOG)
+      {
+        error= thd->binlog_query(THD::STMT_QUERY_TYPE,
+                                 rwquery, rwquerylen, is_trans, FALSE, FALSE,
+                                 errcode);
+      }
+      else
+      {
+        error= thd->binlog_query(THD::STMT_QUERY_TYPE,
+                                 query, query_length, is_trans, FALSE, FALSE,
+                                 errcode);
+      }
+    }
     thd_proc_info(thd, 0);
   }
   return error;
