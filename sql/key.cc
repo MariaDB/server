@@ -441,8 +441,7 @@ void key_unpack(String *to, TABLE *table, KEY *key)
       }
     }
     field_unpack(to, key_part->field, table->record[0], key_part->length,
-                 MY_TEST(key_part->key_part_flag & HA_PART_KEY_SEG ||
-                     (key->algorithm == HA_KEY_ALG_LONG_HASH && key_part->length)));
+                 MY_TEST(key_part->key_part_flag & HA_PART_KEY_SEG));
  }
   dbug_tmp_restore_column_map(table->read_set, old_map);
   DBUG_VOID_RETURN;
