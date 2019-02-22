@@ -1744,10 +1744,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	was used.  This ensures that we don't get a problem when the
 	whole range of the key has been used.
       */
-      if (info->handle_duplicates == DUP_REPLACE &&
-          table->next_number_field &&
-          key_nr == table->s->next_number_index &&
-	  (insert_id_for_cur_row > 0))
+      if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
+          key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
 	goto err;
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
       {

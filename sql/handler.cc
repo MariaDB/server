@@ -4288,8 +4288,7 @@ err:
 */
 uint handler::get_dup_key(int error)
 {
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
   if (table->s->long_unique_table && table->file->errkey < table->s->keys)
     DBUG_RETURN(table->file->errkey);
@@ -6488,17 +6487,18 @@ static int wsrep_after_row(THD *thd)
 }
 #endif /* WITH_WSREP */
 
-static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_rec,
-                                   uint key_no)
+static int check_duplicate_long_entry_key(TABLE *table, handler *h,
+                                          uchar *new_rec, uint key_no)
 {
   Field *hash_field;
   int result, error= 0;
   KEY *key_info= table->key_info + key_no;
   hash_field= key_info->key_part->field;
-  DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
-      key_info->key_length == HA_HASH_KEY_LENGTH_WITH_NULL)
-    || key_info->key_length == HA_HASH_KEY_LENGTH_WITHOUT_NULL);
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
+
+  DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
+               key_info->key_length == HA_HASH_KEY_LENGTH_WITH_NULL)
+              || key_info->key_length == HA_HASH_KEY_LENGTH_WITHOUT_NULL);
 
   if (hash_field->is_real_null())
     return 0;
@@ -6507,7 +6507,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
 
   if (!table->check_unique_buf)
     table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
-                                    table->s->reclength);
+                                                 table->s->reclength);
 
   result= h->ha_index_init(key_no, 0);
   if (result)
@@ -6551,20 +6551,14 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
     while (!is_same && !(result= table->file->ha_index_next_same(table->check_unique_buf,
                          ptr, key_info->key_length)));
     if (is_same)
-    {
-      table->file->errkey= key_no;
       error= HA_ERR_FOUND_DUPP_KEY;
-      goto exit;
-    }
-    else
-      goto exit;
+    goto exit;
   }
   if (result == HA_ERR_LOCK_WAIT_TIMEOUT)
-  {
-    table->file->errkey= key_no;
     error= HA_ERR_LOCK_WAIT_TIMEOUT;
-  }
-  exit:
+exit:
+  if (error)
+    table->file->errkey= key_no;
   h->ha_index_end();
   return error;
 }

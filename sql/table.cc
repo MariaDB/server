@@ -712,9 +712,9 @@ err_not_open:
 
 static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                              uint keys, KEY *keyinfo,
-                             uint new_frm_ver, uint &ext_key_parts,
+                             uint new_frm_ver, uint *ext_key_parts,
                              TABLE_SHARE *share, uint len,
-                             KEY *first_keyinfo, char* &keynames)
+                             KEY *first_keyinfo, char** keynames)
 {
   uint i, j, n_length;
   KEY_PART_INFO *key_part= NULL;
@@ -770,8 +770,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
 
     if (i == 0)
     {
-      ext_key_parts+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0); 
-      n_length=keys * sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO);
+      (*ext_key_parts)+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0); 
+      n_length=keys * sizeof(KEY) + *ext_key_parts * sizeof(KEY_PART_INFO);
       if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
 				       n_length + len)))
         return 1;
@@ -780,7 +780,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo + keys);
 
       if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
-                                             sizeof(ulong) * ext_key_parts)))
+                                             sizeof(ulong) * *ext_key_parts)))
         return 1;
       first_key_part= key_part;
       first_key_parts= first_keyinfo->user_defined_key_parts;
@@ -825,8 +825,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
     {
       keyinfo->key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
-      //Storing key hash
-      key_part++;
+      key_part++; // reserved for the hash value
     }
 
     /*
@@ -865,8 +864,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       share->ext_key_parts++;
     share->ext_key_parts+= keyinfo->ext_key_parts;
   }
-  keynames=(char*) key_part;
-  strpos+= strnmov(keynames, (char *) strpos, frm_image_end - strpos) - keynames;
+  *keynames=(char*) key_part;
+  strpos+= strnmov(*keynames, (char *) strpos, frm_image_end - strpos) - *keynames;
   if (*strpos++) // key names are \0-terminated
     return 1;
 
@@ -1189,17 +1188,18 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       {
         key=table->key_info + key_index;
         parts= key->user_defined_key_parts;
-        if (key->algorithm == HA_KEY_ALG_LONG_HASH &&
-                key->key_part[key->user_defined_key_parts].fieldnr == field->field_index+ 1)
-            break;
+        if (key->key_part[parts].fieldnr == field->field_index + 1)
+          break;
       }
+      if (key->algorithm != HA_KEY_ALG_LONG_HASH)
+        goto end;
       KEY_PART_INFO *keypart;
       for (uint i=0; i < parts; i++)
       {
         keypart= key->key_part + i;
         if (!keypart->length)
         {
-          list_item= new(mem_root)Item_field(thd, keypart->field);
+          list_item= new (mem_root) Item_field(thd, keypart->field);
         }
         else
         {
@@ -1581,7 +1581,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
-  share->ext_key_parts= 0;
   thd->mem_root= &share->mem_root;
 
   if (write && write_frm_image(frm_image, frm_length))
@@ -1821,8 +1820,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_SUPPORTS_EXTENDED_KEYS);
 
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
-                         new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames))
+                         new_frm_ver, &ext_key_parts,
+                         share, len, &first_keyinfo, &keynames))
       goto err;
 
     if (next_chunk + 5 < buff_end)
@@ -1914,14 +1913,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   else
   {
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
-                         new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames))
+                         new_frm_ver, &ext_key_parts,
+                         share, len, &first_keyinfo, &keynames))
       goto err;
   }
   share->key_block_size= uint2korr(frm_image+62);
   keyinfo= share->key_info;
   for (uint i= 0; i < share->keys; i++, keyinfo++)
-    if(keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
+    if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
       hash_fields++;
 
   if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
@@ -2436,10 +2435,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     uint offset= share->reclength - HA_HASH_FIELD_LENGTH * hash_fields;
     for (uint i= 0; i < share->keys; i++, keyinfo++)
     {
-       /*
-         We need set value in hash key_part
-       */
-
+      /* We need set value in hash key_part */
       if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
       {
         share->long_unique_table= 1;

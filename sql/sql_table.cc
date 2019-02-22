@@ -4161,29 +4161,28 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       unique_key=1;
     key_info->key_length=(uint16) key_length;
     if (key_length > max_key_length && key->type != Key::FULLTEXT &&
-            !is_hash_field_needed)
+        !is_hash_field_needed)
     {
-      my_error(ER_TOO_LONG_KEY,MYF(0),max_key_length);
+      my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
       DBUG_RETURN(TRUE);
     }
 
-    if (is_hash_field_needed &&
-            key_info->algorithm != HA_KEY_ALG_UNDEF &&
-            key_info->algorithm != HA_KEY_ALG_HASH )
+    if (is_hash_field_needed && key_info->algorithm != HA_KEY_ALG_UNDEF &&
+       key_info->algorithm != HA_KEY_ALG_HASH )
     {
-	  my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
-	  DBUG_RETURN(TRUE);
+      my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
+      DBUG_RETURN(TRUE);
     }
     if (is_hash_field_needed ||
-            (key_info->algorithm == HA_KEY_ALG_HASH &&
-             key_info->flags & HA_NOSAME &&
-             !(file->ha_table_flags() & HA_CAN_HASH_KEYS ) &&
-             file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS))
+        (key_info->algorithm == HA_KEY_ALG_HASH &&
+         key_info->flags & HA_NOSAME &&
+         !(file->ha_table_flags() & HA_CAN_HASH_KEYS ) &&
+         file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS))
     {
       Create_field *hash_fld= add_hash_field(thd, &alter_info->create_list,
-                       key_info);
+                                             key_info);
       if (!hash_fld)
-	    DBUG_RETURN(TRUE);
+        DBUG_RETURN(TRUE);
       hash_fld->offset= record_offset;
       hash_fld->charset= create_info->default_table_charset;
       record_offset+= hash_fld->pack_length;
