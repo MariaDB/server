@@ -341,7 +341,15 @@ static bool set_up_field_array(THD *thd, TABLE *table,
   while ((field= *(ptr++))) 
   {
     if (field->flags & GET_FIXED_FIELDS_FLAG)
+    {
+      if (table->versioned(VERS_TRX_ID)
+          && unlikely(field->flags & VERS_SYSTEM_FIELD))
+      {
+        my_error(ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED, MYF(0));
+        DBUG_RETURN(TRUE);
+      }
       num_fields++;
+    }
   }
   if (unlikely(num_fields > MAX_REF_PARTS))
   {

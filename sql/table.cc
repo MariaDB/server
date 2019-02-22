@@ -1781,7 +1781,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err;
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
     versioned= VERS_TIMESTAMP;
-    vers_can_native= plugin_hton(se_plugin)->flags & HTON_NATIVE_SYS_VERSIONING;
+    vers_can_native= handler_file->vers_can_native(thd);
     row_start_field= row_start;
     row_end_field= row_end;
     status_var_increment(thd->status_var.feature_system_versioning);
