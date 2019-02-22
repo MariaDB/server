@@ -21,7 +21,6 @@ create or replace table t1(
   period for system_time(row_start, row_end)
 ) engine=InnoDB with system versioning;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_VERS_FIELD_WRONG_TYPE
 alter table t1  partition by system_time (
   partition p0 history,
