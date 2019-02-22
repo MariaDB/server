@@ -1562,27 +1562,12 @@ static my_bool kill_all_threads(THD *thd, void *)
 }
 
 
-static my_bool kill_all_threads_once_again(THD *thd, void *)
+static my_bool warn_threads_still_active(THD *thd, void *)
 {
-#ifndef __bsdi__				// Bug in BSDI kernel
-  if (thd->vio_ok())
-  {
-    if (global_system_variables.log_warnings)
-      sql_print_warning(ER_DEFAULT(ER_FORCING_CLOSE), my_progname,
-                        (ulong) thd->thread_id,
-                        (thd->main_security_ctx.user ?
-                         thd->main_security_ctx.user : ""));
-    /*
-      close_connection() might need a valid current_thd
-      for memory allocation tracking.
-    */
-    THD *save_thd= current_thd;
-    set_current_thd(thd);
-    close_connection(thd);
-    set_current_thd(save_thd);
-  }
-#endif
-
+  sql_print_warning("%s: Thread %llu (user : '%s') did not exit\n", my_progname,
+                    (ulonglong) thd->thread_id,
+                    (thd->main_security_ctx.user ?
+                     thd->main_security_ctx.user : ""));
   return 0;
 }
 
@@ -1735,12 +1720,8 @@ static void close_connections(void)
   for (int i= 0; thread_count && i < 1000; i++)
     my_sleep(20000);
 
-  /*
-    Force remaining threads to die by closing the connection to the client
-    This will ensure that threads that are waiting for a command from the
-    client on a blocking read call are aborted.
-  */
-  server_threads.iterate(kill_all_threads_once_again);
+  if (global_system_variables.log_warnings)
+    server_threads.iterate(warn_threads_still_active);
 
   end_slave();
 #ifdef WITH_WSREP
