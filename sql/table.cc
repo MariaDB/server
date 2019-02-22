@@ -2551,6 +2551,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         uint length_bytes= 0, len_null_byte= 0, ext_key_length= 0;
         Field *field;
 
+        if ((keyinfo-1)->algorithm == HA_KEY_ALG_LONG_HASH)
+          new_key_part++; // reserved for the hash value
+
         /* 
           Do not extend the key that contains a component
           defined over the beginning of a field.
@@ -2615,10 +2618,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           }
           share->ext_key_parts+= keyinfo->ext_key_parts;
         }
-        if (new_key_part != keyinfo->key_part &&
-        /* Dont override hash_keypart */
-                !(new_key_part->field &&
-                   new_key_part->field->flags & LONG_UNIQUE_HASH_FIELD))
+        if (new_key_part != keyinfo->key_part)
 	{
           memmove(new_key_part, keyinfo->key_part,
                   sizeof(KEY_PART_INFO) * keyinfo->ext_key_parts);
