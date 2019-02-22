@@ -6523,7 +6523,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
     uint arg_count= temp->argument_count();
     do
     {
-      long diff= table->check_unique_buf - new_rec;
+      my_ptrdiff_t diff= table->check_unique_buf - new_rec;
       is_same= true;
       for (uint j=0; is_same && j < arg_count; j++)
       {
@@ -6612,7 +6612,7 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
      Here we are comparing whether new record and old record are same
      with respect to fields in hash_str
    */
-  long reclength= table->record[1]-table->record[0];
+  uint reclength= (uint) (table->record[1] - table->record[0]);
   if (!table->update_handler)
     table->clone_handler_for_update();
   for (uint i= 0; i < table->s->keys; i++)
