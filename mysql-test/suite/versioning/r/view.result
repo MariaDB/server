@@ -64,13 +64,13 @@ select * from vt1;
 x
 1
 2
-# VIEW with parameters [#151]
+# VIEW with parameters [tempesta-tech/mariadb#151]
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
 vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `c` from `t1`	latin1	latin1_swedish_ci
-# VIEW over JOIN of versioned tables [#153]
+# VIEW over JOIN of versioned tables [tempesta-tech/mariadb#153]
 create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int) with system versioning;
 insert into t1 values (1);
@@ -82,7 +82,7 @@ a	b
 create or replace view vt12 as select * from t1 for system_time as of timestamp ('1970-01-01 00:00') cross join t2;
 select * from vt12;
 a	b
-# VIEW improvements [#183]
+# VIEW improvements [tempesta-tech/mariadb#183]
 create or replace table t3 (x int);
 create or replace view vt1 as select * from t1, t2, t3;
 show create view vt1;
@@ -96,12 +96,12 @@ create or replace view vt1 as select a, t2.row_end as endo from t3, t1, t2;
 show create view vt1;
 View	Create View	character_set_client	collation_connection
 vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`row_end` AS `endo` from ((`t3` join `t1`) join `t2`)	latin1	latin1_swedish_ci
-# VIEW over UNION [#269]
+# VIEW over UNION [tempesta-tech/mariadb#269]
 create or replace view vt1 as select * from t1 union select * from t1;
 select * from vt1;
 a
 1
-# VIEW over UNION with non-versioned [#393]
+# VIEW over UNION with non-versioned [tempesta-tech/mariadb#393]
 create or replace table t2 (a int);
 create or replace view vt1 as select * from t1 union select * from t2;
 select * from vt1;
@@ -118,16 +118,13 @@ execute stmt;
 a
 execute stmt;
 a
-drop database test;
-create database test;
-use test;
 #
 # MDEV-15146 SQLError[4122]: View is not system versioned
 #
-create table t1 (a int) with system versioning;
+create or replace table t1 (a int) with system versioning;
 insert t1 values (1),(2);
 set @a=now(6);
-create view v1 as select * from t1;
+create or replace view v1 as select * from t1;
 delete from t1;
 select * from v1;
 a
@@ -148,5 +145,66 @@ create or replace view v1 as select * from t1 for system_time as of date_sub(now
 show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`i` AS `i` from `t1` FOR SYSTEM_TIME AS OF current_timestamp() - interval 6 second	latin1	latin1_swedish_ci
-drop view v1;
-drop table t1;
+#
+# MDEV-18727 improve DML operation of System Versioning
+#
+create or replace table t1 (
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1), (2);
+create or replace view v1 as select * from t1 where x > 1;
+update v1 set x= x + 1;
+select *, check_row(row_start, row_end) from t1 for system_time all order by x;
+x	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+3	CURRENT ROW
+insert v1 values (4);
+select *, check_row(row_start, row_end) from t1 for system_time all order by x;
+x	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+3	CURRENT ROW
+4	CURRENT ROW
+delete from v1 where x < 4;
+select *, check_row(row_start, row_end) from t1 for system_time all order by x;
+x	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+3	HISTORICAL ROW
+4	CURRENT ROW
+# multi-update
+create or replace table t2 like t1;
+insert into t2 values (1), (2);
+create or replace view v2 as select * from t2 where x > 1;
+update v1, v2 set v1.x= v1.x + 1, v2.x= v2.x + 1 where v1.x = v2.x + 2;
+select *, check_row(row_start, row_end) from t1 for system_time all order by x;
+x	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	CURRENT ROW
+select *, check_row(row_start, row_end) from t2 for system_time all order by x;
+x	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+3	CURRENT ROW
+# multi-delete
+delete v1, v2 from v1 join v2 where v1.x = v2.x + 2;
+select *, check_row(row_start, row_end) from t1 for system_time all order by x;
+x	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	HISTORICAL ROW
+select *, check_row(row_start, row_end) from t2 for system_time all order by x;
+x	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+3	HISTORICAL ROW
+create or replace database test;

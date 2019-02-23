@@ -950,11 +950,6 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
-
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
@@ -1368,12 +1363,18 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   thd->lex->allow_sum_func.clear_all();
 
-  if (table_list->has_period())
-  {
-    *conds= select_lex->period_setup_conds(thd, table_list, *conds);
-    if (!*conds)
+  if (table_list->has_period() &&
+      select_lex->period_setup_conds(thd, table_list))
       DBUG_RETURN(true);
-  }
+
+  DBUG_ASSERT(table_list->table);
+  // conds could be cached from previous SP call
+  DBUG_ASSERT(!table_list->vers_conditions.is_set() ||
+              !*conds || thd->stmt_arena->is_stmt_execute());
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(TRUE);
+
+  *conds= select_lex->where;
 
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
@@ -1910,6 +1911,9 @@ bool mysql_multi_update(THD *thd,
 
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
+
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(1);
 
   res= mysql_select(thd,
                     table_list, select_lex->with_wild, total_list, conds,
@@ -2469,11 +2473,6 @@ int multi_update::send_data(List<Item> &not_used_values)
     */
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     if (table == table_to_update)
     {

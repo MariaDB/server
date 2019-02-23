@@ -1,6 +1,7 @@
 source suite/versioning/engines.inc;
 source suite/versioning/common.inc;
 
+--echo # Basic + delete from view
 replace_result $sys_datatype_expl SYS_DATATYPE;
 eval create or replace table t1(
     XNo int unsigned,
@@ -45,7 +46,7 @@ drop table log_tbl;
 drop view vt1;
 drop table t1;
 
-
+--echo # Check sys_start, sys_end
 replace_result $sys_datatype_expl SYS_DATATYPE;
 eval create or replace table t1(
     x int,
@@ -61,6 +62,7 @@ select * from t1;
 select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C from t1 for system_time all;
 drop table t1;
 
+--echo # Multi-delete
 replace_result $sys_datatype_expl SYS_DATATYPE;
 eval create or replace table t1(
     x int,
@@ -82,12 +84,6 @@ select x as t1_x_all from t1 for system_time all;
 select x as t2_x_all from t2 for system_time all;
 drop table t1;
 drop table t2;
-
---echo # Basic + delete from view
-
---echo # Check sys_start, sys_end
-
---echo # Multi-delete
 
 --echo # Update + delete
 create or replace table t1 (x int) with system versioning;
