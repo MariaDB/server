@@ -1086,6 +1086,8 @@ CREATE TABLE t1 (
 
 INSERT INTO t1 VALUES (9,0,2,6), (9930,0,0,NULL);
 
+analyze table t1;
+
 SET SESSION optimizer_switch='index_merge_intersection=off';
 SET SESSION optimizer_switch='index_merge_sort_union=off';
 
@@ -1117,6 +1119,8 @@ INSERT INTO t1 VALUES
   (95,0,5,6), (9935,0,5,5), (96,0,6,6), (9936,0,6,6),
   (97,0,7,6), (9937,0,7,7), (98,0,8,6), (9938,0,8,8),
   (99,0,9,6), (9939,0,9,9);
+
+analyze table t1;
 
 SET SESSION optimizer_switch='index_merge_union=off';
 
