@@ -2897,8 +2897,6 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" union "));
         if (union_all)
           str->append(STRING_WITH_LEN("all "));
-        else if (union_distinct == sl)
-          union_all= TRUE;
         break;
       case INTERSECT_TYPE:
         str->append(STRING_WITH_LEN(" intersect "));
@@ -2907,6 +2905,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" except "));
         break;
       }
+      if (sl == union_distinct)
+        union_all= TRUE;
     }
     if (sl->braces)
       str->append('(');
