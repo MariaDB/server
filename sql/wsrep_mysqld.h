@@ -434,19 +434,6 @@ bool wsrep_node_is_synced();
 bool wsrep_provider_is_SR_capable();
 
 /**
- * Mark current commit ordered if binlogging is not enabled.
- *
- * The purpose of this function is to leave commit order critical
- * section if binlog is not enabled.
- *
- * The function can be called from inside storage engine during commit.
- * Binlog options are checked inside the function.
- *
- * @return Zero in case of success, non-zero in case of failure.
- */
-int wsrep_ordered_commit_if_no_binlog(THD*, bool);
-
-/**
  * Initialize WSREP server instance.
  *
  * @return Zero on success, non-zero on error.

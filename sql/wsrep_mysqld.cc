@@ -2456,20 +2456,6 @@ bool wsrep_provider_is_SR_capable()
   return Wsrep_server_state::has_capability(wsrep::provider::capability::streaming);
 }
 
-
-int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
-{
-  if (((wsrep_thd_is_local(thd) &&
-        (WSREP_EMULATE_BINLOG(thd) || !thd->variables.sql_log_bin)) ||
-       (wsrep_thd_is_applying(thd) && !opt_log_slave_updates))
-      && wsrep_thd_trx_seqno(thd) > 0)
-  {
-    wsrep_apply_error unused;
-    return wsrep_ordered_commit(thd, all, unused);
-  }
-  return 0;
-}
-
 int wsrep_thd_retry_counter(const THD *thd)
 {
   return thd->wsrep_retry_counter;

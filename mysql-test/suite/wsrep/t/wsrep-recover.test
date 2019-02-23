@@ -22,7 +22,6 @@
 --source include/have_wsrep_provider.inc
 --source include/have_debug_sync.inc
 
-#
 # Binlog option for recovery run. This must be set in the test because
 # combinations file causes log-bin option to be set from command line,
 # not via my.cnf.
@@ -135,17 +134,15 @@ SELECT VARIABLE_VALUE `expect 7` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VAR
 #
 # This scenario will run two INSERTs in parallel so that they are
 # prepared out of order. The execution is stopped before commit
-# and the server is killed. The outcome of this scenario depends
-# on binlog settings:
+# and the server is killed.
 #
-# If binlog is off, the transactions will be recovered from InnoDB and
-# committed during recovery. The expected recovered seqno is 9, the
-# expected wsrep_last_committed after server is restarted is 10.
-#
-# If binlog is on, the transactions will be recovered from InnoDB but
-# will be rolled back since they are not logged yet in binlog. The
-# expected recovered seqno is 7, the expected wsrep_last_committed
-# after server is restarted is 8.
+# The transactions will be recovered from InnoDB but
+# will be rolled back:
+# - If binlog is on, the binlog acts as a transaction coordinator.
+#   The transaction is not logged into binlog, so the transaction is rolled
+#   back.
+# - If binlog is not on, the transaction is 1PC and the wsrep XID
+#   is not persisted before commit is complete.
 #
 
 --connect con1, localhost, root
@@ -168,12 +165,8 @@ SET DEBUG_SYNC = "now WAIT_FOR before_commit_order_reached_1";
 --connection default
 --source include/kill_mysqld.inc
 --source wsrep-recover-step.inc
-if ($log_bin) {
-   --echo Expect seqno 7
-}
-if (!$log_bin) {
-   --echo Expect seqno 9
-}
+--echo Expect seqno 7
+
 --echo $wsrep_recover_start_position_seqno
 --let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
 --source include/start_mysqld.inc
@@ -184,21 +177,13 @@ if (!$log_bin) {
 --disconnect con_ctrl
 --connection default
 
-if ($log_bin) {
-   SELECT VARIABLE_VALUE `expect 8` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
-}
-if (!$log_bin) {
-   SELECT VARIABLE_VALUE `expect 10` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
-}
+
+SELECT VARIABLE_VALUE `expect 8` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
 
 #
-# Final sanity check: The successful inserts into t1 should result
-if ($log_bin) {
-   --echo Expect row 5
-}
-if (!$log_bin) {
-   --echo Expect rows 5, 9, 10
-}
+# Final sanity check: The successful inserts into t1 should result single row
+#
+--echo Expect row 5
 SELECT * FROM t1;
 
 DROP TABLE t1;

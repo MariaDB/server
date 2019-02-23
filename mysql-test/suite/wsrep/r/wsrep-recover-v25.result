@@ -12,17 +12,4 @@ Expect seqno 5
 SELECT VARIABLE_VALUE `expect 6` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
 expect 6
 6
-connect con1, localhost, root;
-SET DEBUG_SYNC = "ha_commit_trans_after_prepare SIGNAL after_prepare_reached WAIT_FOR continue";
-INSERT INTO t1 VALUES (7);
-connection default;
-SET DEBUG_SYNC = "now WAIT_FOR after_prepare_reached";
-# Kill the server
-Expect seqno 7
-7
-Expect 5 7
-SELECT * FROM t1;
-f1
-5
-7
 DROP TABLE t1;

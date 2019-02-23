@@ -2202,7 +2202,19 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   {
     my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
   }
-
+#ifdef WITH_WSREP
+  /* If wsrep transaction is active and binlog emulation is on,
+     binlog write error may leave transaction without any registered
+     htons. This makes wsrep rollback hooks to be skipped and the
+     transaction will remain alive in wsrep world after rollback.
+     Register binlog hton here to ensure that rollback happens in full. */
+  if (wsrep_is_active(thd) && tc_log != &mysql_bin_log)
+  {
+    if (is_transactional)
+      trans_register_ha(thd, TRUE, binlog_hton);
+    trans_register_ha(thd, FALSE, binlog_hton);
+  }
+#endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
 }
 
@@ -5676,7 +5688,11 @@ THD::binlog_start_trans_and_stmt()
     this->binlog_set_stmt_begin();
     bool mstmt_mode= in_multi_stmt_transaction_mode();
 #ifdef WITH_WSREP
-      /* Write Gtid
+    if (wsrep_is_active(this) && tc_log != &mysql_bin_log)
+    {
+      DBUG_VOID_RETURN;
+    }
+    /* Write Gtid
          Get domain id only when gtid mode is set
          If this event is replicate through a master then ,
          we will forward the same gtid another nodes
