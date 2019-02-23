@@ -1002,6 +1002,15 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
         if (unit->optimized)
           DBUG_RETURN(FALSE);        
 	unit->optimized= TRUE;
+        if (!join)
+	{
+          /*
+            This happens when derived is used in SELECT for which
+            zer_result_cause != 0.
+            In this case join is already destroyed.
+	  */
+          DBUG_RETURN(FALSE);
+        }
       }
       if ((res= join->optimize()))
         goto err;

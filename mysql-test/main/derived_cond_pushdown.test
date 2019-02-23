@@ -3263,3 +3263,26 @@ set join_cache_level=default;
 DROP TABLE t1,t2;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-18679: materialized view with SELECT S containing materialized
+--echo #             derived when impossible WHERE has been detected for S
+--echo #
+
+create table t1 (pk int, f varchar(1));
+insert into t1 values
+  (3,'y'), (1,'x'), (7,'z');
+
+create view v1 as
+select t1.f
+  from t1, (select distinct * from t1) t
+  where t.f = t1.f and 1 = 0
+group by t1.f;
+
+select * from v1;
+explain select * from v1;
+
+drop view v1;
+drop table t1;
+
+--echo # End of 10.4 tests
