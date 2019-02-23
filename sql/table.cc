@@ -9455,6 +9455,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
   case SYSTEM_TIME_ALL:
     return true;
   case SYSTEM_TIME_BEFORE:
+  case SYSTEM_TIME_HISTORY:
     DBUG_ASSERT(0);
     return false;
   case SYSTEM_TIME_AS_OF:

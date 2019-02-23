@@ -5035,8 +5035,10 @@ end_with_restore_list:
     {
       result= new (thd->mem_root) multi_delete(thd, aux_tables,
                                                lex->table_count);
-      if (unlikely(result))
+      if (likely(result))
       {
+        if (unlikely(select_lex->vers_setup_conds(thd, aux_tables)))
+          goto multi_delete_error;
         res= mysql_select(thd,
                           select_lex->get_table_list(),
                           select_lex->with_wild,
@@ -5058,6 +5060,7 @@ end_with_restore_list:
           if (lex->describe || lex->analyze_stmt)
             res= thd->lex->explain->send_explain(thd);
         }
+      multi_delete_error:
         delete result;
       }
     }

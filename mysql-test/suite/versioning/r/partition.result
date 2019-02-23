@@ -551,6 +551,22 @@ insert into t1 values (1), (2);
 explain select max(pk) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+#
+# MDEV-18957 UPDATE with LIMIT clause is wrong for versioned partitioned tables
+#
+create or replace table t1 (
+x int,
+a varchar(255)
+) with system versioning partition by system_time (partition p1 history, partition pn current);
+insert into t1 (x) values (1), (2), (3), (4);
+update t1 set a= 'foo' limit 3;
+update t1 set a= 'bar' limit 4;
+select * from t1;
+x	a
+1	bar
+2	bar
+3	bar
+4	bar
 # Test cleanup
 drop database test;
 create database test;

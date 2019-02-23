@@ -1,3 +1,4 @@
+# Basic + delete from view
 create or replace table t1(
 XNo int unsigned,
 sys_start SYS_DATATYPE as row start invisible,
@@ -58,6 +59,7 @@ drop procedure log;
 drop table log_tbl;
 drop view vt1;
 drop table t1;
+# Check sys_start, sys_end
 create or replace table t1(
 x int,
 sys_start SYS_DATATYPE as row start invisible,
@@ -73,6 +75,7 @@ select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C from t1
 A	B	C
 1	1	1
 drop table t1;
+# Multi-delete
 create or replace table t1(
 x int,
 y int,
@@ -117,9 +120,6 @@ t2_x_all
 14
 drop table t1;
 drop table t2;
-# Basic + delete from view
-# Check sys_start, sys_end
-# Multi-delete
 # Update + delete
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
