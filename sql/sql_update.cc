@@ -865,11 +865,6 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
-
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
@@ -1256,6 +1251,11 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 #endif
 
   thd->lex->allow_sum_func.clear_all();
+
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(1);
+
+  *conds= select_lex->where;
 
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
@@ -1754,6 +1754,9 @@ bool mysql_multi_update(THD *thd,
 
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
+
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(1);
 
   res= mysql_select(thd,
                     table_list, select_lex->with_wild, total_list, conds,
@@ -2313,11 +2316,6 @@ int multi_update::send_data(List<Item> &not_used_values)
     */
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     if (table == table_to_update)
     {
