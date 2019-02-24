@@ -1929,8 +1929,11 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
   }
 
+  /* Do not push into WHERE from HAVING if cond_value == Item::COND_FALSE */
+
   if (thd->lex->sql_command == SQLCOM_SELECT &&
-      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING))
+      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING) &&
+      cond_value != Item::COND_FALSE)
   {
     having=
       select_lex->pushdown_from_having_into_where(thd, having);
@@ -15380,6 +15383,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   @param cond            condition to process
   @param cond_equal      multiple equalities to take into consideration
   @param table_join_idx  index to tables determining field preference
+  @param do_substitution if false: do not do any field substitution
 
   @note
     At the first glance full sort of fields in multiple equality
