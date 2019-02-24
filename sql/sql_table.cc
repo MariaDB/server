@@ -3941,13 +3941,15 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             column->length= MAX_LEN_GEOM_POINT_FIELD;
           if (!column->length)
           {
-            if (key->type == Key::PRIMARY)
+            if (key->type == Key::UNIQUE)
+              is_hash_field_needed= true;
+            else if (key->type == Key::MULTIPLE)
+              column->length= file->max_key_length() + 1;
+            else
             {
               my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
               DBUG_RETURN(TRUE);
             }
-            else
-              is_hash_field_needed= true;
           }
         }
 #ifdef HAVE_SPATIAL
