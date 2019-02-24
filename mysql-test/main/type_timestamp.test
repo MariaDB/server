@@ -367,6 +367,10 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 ( a TIMESTAMP, KEY ( a ) );
 
+INSERT INTO t1 VALUES( '2010-02-01 09:30:01' );
+INSERT INTO t1 VALUES( '2010-02-01 09:30:02' );
+INSERT INTO t1 VALUES( '2010-02-01 09:30:03' );
+INSERT INTO t1 VALUES( '2010-02-01 09:30:04' );
 INSERT INTO t1 VALUES( '2010-02-01 09:31:01' );
 INSERT INTO t1 VALUES( '2010-02-01 09:31:02' );
 INSERT INTO t1 VALUES( '2010-02-01 09:31:03' );
@@ -739,6 +743,35 @@ FLUSH TABLES;
 SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;
 DROP TABLE t1;
 SET time_zone=DEFAULT;
+
+--echo #
+--echo # MDEV-18072 Assertion `is_null() == item->null_value || conv' failed in Timestamp_or_zero_datetime_native_null::Timestamp_or_zero_datetime_native_null upon query with GROUP BY
+--echo #
+
+CREATE TABLE t1 (t TIMESTAMP);
+INSERT INTO t1 () VALUES (),();
+SELECT IF(0,t,NULL) AS f FROM t1 GROUP BY 'foo';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18145 Assertion `0' failed in Item::val_native upon SELECT subquery with timestamp
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (pk INT PRIMARY KEY, b TIMESTAMP) ENGINE=MyISAM;
+SELECT ( SELECT b FROM t1 LIMIT 1 ) AS sq FROM t2 LEFT JOIN t3 USING (pk);
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-18447 Assertion `!is_zero_datetime()' failed in Timestamp_or_zero_datetime::tv
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP DEFAULT 0, b TIMESTAMP DEFAULT 0, c TIME DEFAULT 0);
+INSERT INTO t1 VALUES (0,0,0);
+SELECT c IN (GREATEST(a,b)) FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests

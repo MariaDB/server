@@ -380,7 +380,7 @@ my_decimal::my_decimal(Field *field)
 {
   init();
   DBUG_ASSERT(!field->is_null());
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   my_decimal *dec=
 #endif
   field->val_decimal(this);

@@ -47,7 +47,7 @@ dict_hdr_get(
 	dict_hdr_t*	header;
 
 	block = buf_page_get(page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO),
-			     univ_page_size, RW_X_LATCH, mtr);
+			     0, RW_X_LATCH, mtr);
 	header = DICT_HDR + buf_block_get_frame(block);
 
 	buf_block_dbg_add_level(block, SYNC_DICT_HEADER);

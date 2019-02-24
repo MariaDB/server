@@ -3,8 +3,6 @@
 #
 source include/have_innodb.inc;
 source include/not_embedded.inc;
-source include/switch_to_mysql_user.inc;
-drop view mysql.user_bak;
 
 if (!$HA_BLACKHOLE_SO) {
   skip Need blackhole plugin;
@@ -12,6 +10,9 @@ if (!$HA_BLACKHOLE_SO) {
 if (!$HA_ARCHIVE_SO) {
   skip Need Archive plugin;
 }
+
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
 
 let $datadir= `select @@datadir`;
 

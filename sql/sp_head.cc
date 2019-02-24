@@ -29,6 +29,8 @@
 #include "sql_derived.h"       // mysql_handle_derived
 #include "sql_cte.h"
 #include "sql_select.h"        // Virtual_tmp_table
+#include "opt_trace.h"
+#include "my_json_writer.h"
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation
@@ -44,6 +46,9 @@
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
 #include "debug_sync.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -533,6 +538,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
   my_hash_init(&m_sptabs, system_charset_info, 0, 0, 0, sp_table_key, 0, 0);
   my_hash_init(&m_sroutines, system_charset_info, 0, 0, 0, sp_sroutine_key,
                0, 0);
+  m_security_ctx.init();
 
   DBUG_VOID_RETURN;
 }
@@ -1143,6 +1149,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   if (check_stack_overrun(thd, 7 * STACK_MIN_SIZE, (uchar*)&old_packet))
     DBUG_RETURN(TRUE);
 
+  opt_trace_disable_if_no_security_context_access(thd);
+
   /* init per-instruction memroot */
   init_sql_alloc(&execute_mem_root, "per_instruction_memroot",
                  MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
@@ -1324,6 +1332,13 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     sql_digest_state *parent_digest= thd->m_digest;
     thd->m_digest= NULL;
 
+#ifdef WITH_WSREP
+    if (WSREP(thd) && thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    {
+      thd->set_wsrep_next_trx_id(thd->query_id);
+      WSREP_DEBUG("assigned new next trx ID for SP,  trx id: %lu", thd->wsrep_next_trx_id());
+    }
+#endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);
 
     thd->m_digest= parent_digest;
@@ -1972,6 +1987,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     thd->variables.option_bits&= ~OPTION_BIN_LOG;
   }
 
+  opt_trace_disable_if_no_stored_proc_func_access(thd, this);
   /*
     Switch to call arena/mem_root so objects like sp_cursor or
     Item_cache holders for case expressions can be allocated on it.
@@ -2262,6 +2278,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     err_status= set_routine_security_ctx(thd, this, &save_security_ctx);
 #endif
 
+  opt_trace_disable_if_no_stored_proc_func_access(thd, this);
   if (!err_status)
   {
     err_status= execute(thd, TRUE);
@@ -3287,6 +3304,13 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     thd->lex->safe_to_cache_query= 0;
 #endif
 
+  Opt_trace_start ots(thd,  m_lex->query_tables,
+                        SQLCOM_SELECT, &m_lex->var_list,
+                        NULL, 0,
+                        thd->variables.character_set_client);
+
+  Json_writer_object trace_command(thd);
+  Json_writer_array trace_command_steps(thd, "steps");
   if (open_tables)
     res= check_dependencies_in_with_clauses(m_lex->with_clauses_list) ||
          instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
@@ -3566,6 +3590,24 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
                          (char *)thd->security_ctx->host_or_ip,
                          3);
   int res= mysql_execute_command(thd);
+#ifdef WITH_WSREP
+  if ((thd->is_fatal_error || thd->killed_errno()) &&
+      (thd->wsrep_trx().state() == wsrep::transaction::s_executing))
+  {
+    /*
+      SP was killed, and it is not due to a wsrep conflict.
+      We skip after_command hook at this point because
+      otherwise it clears the error, and cleans up the
+      whole transaction. For now we just return and finish
+      our handling once we are back to mysql_parse.
+     */
+    WSREP_DEBUG("Skipping after_command hook for killed SP");
+  }
+  else
+  {
+    (void) wsrep_after_statement(thd);
+  }
+#endif /* WITH_WSREP */
   MYSQL_QUERY_EXEC_DONE(res);
   *nextp= m_ip+1;
   return res;
@@ -4503,8 +4545,8 @@ int
 sp_instr_error::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_error::execute");
-
   my_message(m_errcode, ER_THD(thd, m_errcode), MYF(0));
+  WSREP_DEBUG("sp_instr_error: %s %d", ER_THD(thd, m_errcode), thd->is_error());
   *nextp= m_ip+1;
   DBUG_RETURN(-1);
 }

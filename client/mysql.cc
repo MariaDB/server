@@ -160,6 +160,7 @@ static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int connect_flag=CLIENT_INTERACTIVE;
 static my_bool opt_binary_mode= FALSE;
+static my_bool opt_connect_expired_password= FALSE;
 static int interrupted_query= 0;
 static char *current_host,*current_db,*current_user=0,*opt_password=0,
             *current_prompt=0, *delimiter_str= 0,
@@ -1686,6 +1687,11 @@ static struct my_option my_long_options[] =
    "piped to mysql or loaded using the 'source' command). This is necessary "
    "when processing output from mysqlbinlog that may contain blobs.",
    &opt_binary_mode, &opt_binary_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"connect-expired-password", 0,
+   "Notify the server that this client is prepared to handle expired "
+   "password sandbox mode even if --batch was specified.",
+   &opt_connect_expired_password, &opt_connect_expired_password, 0, GET_BOOL,
+   NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -4683,6 +4689,9 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   }
 
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
+
+  my_bool can_handle_expired= opt_connect_expired_password || !status.batch;
+  mysql_options(&mysql, MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS, &can_handle_expired);
 
   if (!do_connect(&mysql, host, user, password, database,
                   connect_flag | CLIENT_MULTI_STATEMENTS))

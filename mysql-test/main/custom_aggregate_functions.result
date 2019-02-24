@@ -573,7 +573,7 @@ select f3(sal) from t1;
 f3(sal)
 1000
 select f2(val) from t1;
-ERROR 22007: Incorrect integer value: 'ab' for column 'x' at row 1
+ERROR 22007: Incorrect integer value: 'ab' for column ``.``.`x` at row 1
 select val, id, c from (select f1(sal) as c from t2) as t1, t2;
 val	id	c
 10	2	17000

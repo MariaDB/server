@@ -158,7 +158,7 @@ CREATE TABLE t1 ( a int PRIMARY KEY );
 --let $query =  DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a
 --let $select = SELECT * FROM t1 WHERE t1.a > 0 ORDER BY t1.a
 --source include/explain_utils.inc
-INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t1 VALUES (1), (2), (3), (-1), (-2), (-3);
 --let $query =  DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a
 --let $select = SELECT * FROM t1 WHERE t1.a > 0 ORDER BY t1.a
 --source include/explain_utils.inc
@@ -640,7 +640,7 @@ DROP VIEW v1;
 
 --echo #63
 CREATE TABLE t1 (a INT, PRIMARY KEY(a));
-INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9);
 CREATE VIEW v1 (a) AS SELECT a FROM t1;
 --let $query =  DELETE   FROM v1 WHERE a < 4
 --let $select = SELECT * FROM v1 WHERE a < 4

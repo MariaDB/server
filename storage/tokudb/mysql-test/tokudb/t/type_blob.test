@@ -133,8 +133,6 @@ select c,count(*) from t1 group by c;
 select d,count(*) from t1 group by d;
 drop table t1;
 
--- error 1071
-create table t1 (a text, unique (a(21000))); # should give an error
 create table t1 (a text, key (a(2100)));    # key is auto-truncated
 replace_regex /ENGINE=[a-zA-Z]*/ENGINE=ENGINE/;
 show create table t1;

@@ -566,7 +566,7 @@ public:
       FALSE  Otherwise
   */
 
-  bool is_singlepoint()
+  bool is_singlepoint() const
   {
     /*
       Check for NEAR_MIN ("strictly less") and NO_MIN_RANGE (-inf < field)

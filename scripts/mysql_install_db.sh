@@ -37,26 +37,29 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-auth_root_authentication_method=normal
-auth_root_socket_user='root'
+auth_root_authentication_method=socket
+auth_root_socket_user=""
 skip_test_db=0
+
+dirname0=`dirname $0 2>/dev/null`
+dirname0=`dirname $dirname0 2>/dev/null`
 
 usage()
 {
   cat <<EOF
 Usage: $0 [OPTIONS]
   --auth-root-authentication-method=normal|socket
-                       Chooses the authentication method for the created initial
-                       root user. The default is 'normal' to creates a root user
-                       that can login without password, which can be insecure.
-                       The alternative 'socket' allows only the system root user
-                       to login as MariaDB root; this requires the unix socket
-                       authentication plugin.
+                       Chooses the authentication method for the created
+                       initial root user. The historical behavior is 'normal'
+                       to creates a root user that can login without password,
+                       which can be insecure. The default behavior 'socket'
+                       sets an invalid root password but allows the system root
+                       user to login as MariaDB root without a password.
   --auth-root-socket-user=user
                        Used with --auth-root-authentication-method=socket. It
-                       specifies the name of the MariaDB root account, as well
-                       as of the system account allowed to access it. Defaults
-                       to 'root'.
+                       specifies the name of the second MariaDB root account,
+                       as well as of the system account allowed to access it.
+                       Defaults to the value of --user.
   --basedir=path       The path to the MariaDB installation directory.
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
@@ -242,11 +245,6 @@ cannot_find_file()
   echo "If you don't want to do a full install, you can use the --srcdir"
   echo "option to only install the mysql database and privilege tables"
   echo
-  echo "If you compiled from source, you need to either run 'make install' to"
-  echo "copy the software into the correct location ready for operation."
-  echo "If you don't want to do a full install, you can use the --srcdir"
-  echo "option to only install the mysql database and privilege tables"
-  echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"
   echo "pointing to that location."
@@ -287,6 +285,9 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
+then
+  print_defaults="$dirname0/@bindir@/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -301,6 +302,8 @@ fi
 # in the my.cfg file, then re-run to merge with command line arguments.
 parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
+
+rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mysqld"
 
 # Configure paths to support files
 if test -n "$srcdir"
@@ -342,7 +345,18 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
-  plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
+  plugindir=`find_in_dirs --dir auth_pam.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
+  pamtooldir=$plugindir
+# relative from where the script was run for a relocatable install
+elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mysqld"
+then
+  basedir="$dirname0"
+  bindir="$basedir/@INSTALL_BINDIR@"
+  resolveip="$bindir/resolveip"
+  mysqld="$rel_mysqld"
+  srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  plugindir="$basedir/@INSTALL_PLUGINDIR@"
   pamtooldir=$plugindir
 else
   basedir="@prefix@"
@@ -501,17 +515,20 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+# Use $auth_root_socket_user if explicitly specified.
+# Otherwise use the owner of datadir - ${user:-$USER}
+# Use 'root' as a fallback
+auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
+
 cat_sql()
 {
   echo "use mysql;"
 
   case "$auth_root_authentication_method" in
     normal)
-      echo "SET @skip_auth_root_nopasswd=NULL;"
       echo "SET @auth_root_socket=NULL;"
       ;;
     socket)
-      echo "SET @skip_auth_root_nopasswd=1;"
       echo "SET @auth_root_socket='$auth_root_socket_user';"
       ;;
   esac
@@ -590,6 +607,16 @@ then
     echo "which will also give you the option of removing the test"
     echo "databases and anonymous user created by default.  This is"
     echo "strongly recommended for production servers."
+  else
+    echo
+    echo
+    echo "Two all-privilege accounts were created."
+    echo "One is root@localhost, it has no password, but you need to"
+    echo "be system 'root' user to connect. Use, for example, sudo mysql"
+    echo "The second is $auth_root_socket_user@localhost, it has no password either, but"
+    echo "you need to be the system '$auth_root_socket_user' user to connect."
+    echo "After connecting you can set the password, if you would need to be"
+    echo "able to connect as any of these users with a password and without sudo"
   fi
 
   echo

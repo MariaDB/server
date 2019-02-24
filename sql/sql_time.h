@@ -44,15 +44,15 @@ bool str_to_datetime_with_warn(THD *thd,
                                date_mode_t flags);
 bool double_to_datetime_with_warn(THD *thd, double value, MYSQL_TIME *ltime,
                                   date_mode_t fuzzydate,
-                                  const char *name);
+                                  const TABLE_SHARE *s, const char *name);
 bool decimal_to_datetime_with_warn(THD *thd,
                                    const my_decimal *value, MYSQL_TIME *ltime,
                                    date_mode_t fuzzydate,
-                                   const char *name);
+                                   const TABLE_SHARE *s, const char *name);
 bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
                                MYSQL_TIME *ltime,
                                date_mode_t fuzzydate,
-                               const char *name);
+                               const TABLE_SHARE *s, const char *name);
 
 bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
@@ -78,6 +78,7 @@ void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *str_val,
                                   timestamp_type time_type,
+                                  const TABLE_SHARE *s,
                                   const char *field_name);
 
 extern DATE_TIME_FORMAT *date_time_format_make(timestamp_type format_type,

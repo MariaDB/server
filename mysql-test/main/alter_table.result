@@ -752,12 +752,12 @@ create table t1(f1 int);
 alter table t1 add column f2 datetime not null, add column f21 date not null;
 insert into t1 values(1,'2000-01-01','2000-01-01');
 alter table t1 add column f3 datetime not null;
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'f3' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`f3` at row 1
 alter table t1 add column f3 date not null;
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'f3' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`f3` at row 1
 alter table t1 add column f4 datetime not null default '2002-02-02',
 add column f41 date not null;
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'f41' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`f41` at row 1
 alter table t1 add column f4 datetime not null default '2002-02-02',
 add column f41 date not null default '2002-02-02';
 select * from t1;
@@ -2467,6 +2467,55 @@ ALTER TABLE t1 ADD UNIQUE(i);
 ERROR 23000: Duplicate entry '1' for key 'i'
 UNLOCK TABLES;
 DROP TABLE t1;
+#
+# MDEV-17599 ALTER TABLE DROP CONSTRAINT does not work for foreign keys.
+#
+CREATE TABLE t1(id INT PRIMARY KEY, c1 INT) ENGINE= INNODB;
+CREATE TABLE t2(id INT PRIMARY KEY, c1 INT, c2 INT NOT NULL,
+CONSTRAINT sid FOREIGN KEY (`c1`) REFERENCES t1 (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+CONSTRAINT UNIQUE `ui`(c2)) ENGINE= INNODB;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ui` (`c2`),
+  KEY `sid` (`c1`),
+  CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `t1` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP CONSTRAINT sid;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ui` (`c2`),
+  KEY `sid` (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP CONSTRAINT ui;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `sid` (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP CONSTRAINT PRIMARY KEY;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  KEY `sid` (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
 #
 # End of 10.2 tests
 #

@@ -1,0 +1,45 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# A conflict between a streaming replication fragment and a local transaction
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+# Wait until a streaming replication fragment has arrived
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
+--source include/wait_condition.inc
+
+# Attempt a conflicting INSERT. This will block
+--send INSERT INTO t1 VALUES(1);
+
+# Observe the block from a separate connection
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'wsrep applier committed%';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'update';
+--source include/wait_condition.inc
+
+# Commit the remote transaction, causing the local transaction to return an error
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_DUP_ENTRY
+--reap
+
+DROP TABLE t1;

@@ -143,6 +143,7 @@ INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
+INCLUDE(submodules)
 INCLUDE(wsrep)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
@@ -250,8 +251,14 @@ ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
 
-OPTION(ENABLED_LOCAL_INFILE
- "If we should should enable LOAD DATA LOCAL by default" ${IF_WIN})
+SET(ENABLED_LOCAL_INFILE "AUTO" CACHE STRING "If we should should enable LOAD DATA LOCAL by default (OFF/ON/AUTO)")
+IF (ENABLED_LOCAL_INFILE MATCHES "^(0|FALSE)$")
+  SET(ENABLED_LOCAL_INFILE OFF)
+ELSEIF(ENABLED_LOCAL_INFILE MATCHES "^(1|TRUE)$")
+  SET(ENABLED_LOCAL_INFILE ON)
+ELSEIF (NOT ENABLED_LOCAL_INFILE MATCHES "^(ON|OFF|AUTO)$")
+  MESSAGE(FATAL_ERROR "ENABLED_LOCAL_INFILE must be one of OFF, ON, AUTO")
+ENDIF()
 
 # Set DBUG_OFF and other optional release-only flags for non-debug project types
 FOREACH(BUILD_TYPE RELEASE RELWITHDEBINFO MINSIZEREL)
@@ -342,6 +349,8 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
+SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 CHECK_PCRE()
 
@@ -376,7 +385,6 @@ ENDIF()
 
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 
-INCLUDE(submodules)
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
 # Add storage engines and plugins.
@@ -404,7 +412,7 @@ IF(NOT WITHOUT_SERVER)
   ENDIF(WITH_EMBEDDED_SERVER)
 
   IF(WITH_WSREP)
-    ADD_SUBDIRECTORY(wsrep)
+    ADD_SUBDIRECTORY(wsrep-lib)
   ENDIF()
 
   ADD_SUBDIRECTORY(mysql-test)
@@ -422,13 +430,10 @@ ENDIF()
 
 INCLUDE(cmake/abi_check.cmake)
 INCLUDE(cmake/tags.cmake)
-
-
-
-
 INCLUDE(for_clients)
 ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
+ADD_SUBDIRECTORY(extra/aws_sdk)
 
 IF(NOT CMAKE_CROSSCOMPILING)
   SET(EXPORTED comp_err comp_sql factorial)
@@ -503,5 +508,5 @@ ENDIF()
 
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
-You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
+You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
 ENDIF()

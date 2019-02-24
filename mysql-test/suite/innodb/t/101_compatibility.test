@@ -42,6 +42,7 @@ perl;
 do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_discard_tablespaces("test", "ti");
 ib_restore_tablespaces("test", "ti");
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
 my $ps = $ENV{INNODB_PAGE_SIZE};
 my $dd = $ENV{MYSQLD_DATADIR};
@@ -62,6 +63,7 @@ INSERT INTO ti VALUES(1);
 --source include/kill_mysqld.inc
 
 perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
 my $ps = $ENV{INNODB_PAGE_SIZE};
 my $dd = $ENV{MYSQLD_DATADIR};
@@ -81,6 +83,7 @@ CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
 --source include/shutdown_mysqld.inc
 
 perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
 my $ps = $ENV{INNODB_PAGE_SIZE};
 my $dd = $ENV{MYSQLD_DATADIR};

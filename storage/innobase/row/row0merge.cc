@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -115,14 +115,12 @@ public:
 	@param[in,out]	row_heap	memory heap
 	@param[in]	pcur		cluster index scanning cursor
 	@param[in,out]	scan_mtr	mini-transaction for pcur
-	@param[out]	mtr_committed	whether scan_mtr got committed
 	@return DB_SUCCESS if successful, else error number */
-	dberr_t insert(
+	inline dberr_t insert(
 		trx_id_t		trx_id,
 		mem_heap_t*		row_heap,
 		btr_pcur_t*		pcur,
-		mtr_t*			scan_mtr,
-		bool*			mtr_committed)
+		mtr_t*			scan_mtr)
 	{
 		big_rec_t*      big_rec;
 		rec_t*          rec;
@@ -150,11 +148,10 @@ public:
 			ut_ad(dtuple);
 
 			if (log_sys.check_flush_or_checkpoint) {
-				if (!(*mtr_committed)) {
+				if (scan_mtr->is_active()) {
 					btr_pcur_move_to_prev_on_page(pcur);
 					btr_pcur_store_position(pcur, scan_mtr);
-					mtr_commit(scan_mtr);
-					*mtr_committed = true;
+					scan_mtr->commit();
 				}
 
 				log_free_check();
@@ -445,7 +442,7 @@ row_merge_buf_redundant_convert(
 	const dfield_t*		row_field,
 	dfield_t*		field,
 	ulint			len,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	mem_heap_t*		heap)
 {
 	ut_ad(field->type.mbminlen == 1);
@@ -465,7 +462,7 @@ row_merge_buf_redundant_convert(
 			    field_ref_zero, BTR_EXTERN_FIELD_REF_SIZE));
 
 		byte*	data = btr_copy_externally_stored_field(
-			&ext_len, field_data, page_size, field_len, heap);
+			&ext_len, field_data, zip_size, field_len, heap);
 
 		ut_ad(ext_len < len);
 
@@ -707,13 +704,13 @@ row_merge_buf_add(
 				if (conv_heap != NULL) {
 					row_merge_buf_redundant_convert(
 						row_field, field, col->len,
-						dict_table_page_size(old_table),
+						old_table->space->zip_size(),
 						conv_heap);
 				} else {
 					/* Field length mismatch should not
 					happen when rebuilding redundant row
 					format table. */
-					ut_ad(dict_table_is_comp(index->table));
+					ut_ad(index->table->not_redundant());
 				}
 			}
 		}
@@ -1589,7 +1586,6 @@ row_mtuple_cmp(
 @param[in,out]	sp_heap		heap for tuples
 @param[in,out]	pcur		cluster index cursor
 @param[in,out]	mtr		mini transaction
-@param[in,out]	mtr_committed	whether scan_mtr got committed
 @return DB_SUCCESS or error number */
 static
 dberr_t
@@ -1600,8 +1596,7 @@ row_merge_spatial_rows(
 	mem_heap_t*		row_heap,
 	mem_heap_t*		sp_heap,
 	btr_pcur_t*		pcur,
-	mtr_t*			mtr,
-	bool*			mtr_committed)
+	mtr_t*			mtr)
 {
 	dberr_t			err = DB_SUCCESS;
 
@@ -1612,9 +1607,7 @@ row_merge_spatial_rows(
 	ut_ad(sp_heap != NULL);
 
 	for (ulint j = 0; j < num_spatial; j++) {
-		err = sp_tuples[j]->insert(
-			trx_id, row_heap,
-			pcur, mtr, mtr_committed);
+		err = sp_tuples[j]->insert(trx_id, row_heap, pcur, mtr);
 
 		if (err != DB_SUCCESS) {
 			return(err);
@@ -1718,7 +1711,7 @@ row_merge_read_clustered_index(
 	bool			allow_not_null)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
-	mem_heap_t*		row_heap;	/* Heap memory to create
+	mem_heap_t*		row_heap = NULL;/* Heap memory to create
 						clustered index tuples */
 	row_merge_buf_t**	merge_buf;	/* Temporary list for records*/
 	mem_heap_t*		v_heap = NULL;	/* Heap memory to process large
@@ -1933,22 +1926,19 @@ row_merge_read_clustered_index(
 
 	/* Scan the clustered index. */
 	for (;;) {
+		/* Do not continue if table pages are still encrypted */
+		if (!old_table->is_readable() || !new_table->is_readable()) {
+			err = DB_DECRYPTION_FAILED;
+			trx->error_key_num = 0;
+			goto func_exit;
+		}
+
 		const rec_t*	rec;
 		trx_id_t	rec_trx_id;
 		ulint*		offsets;
 		const dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
-
-		mem_heap_empty(row_heap);
-
-		/* Do not continue if table pages are still encrypted */
-		if (!old_table->is_readable() ||
-		    !new_table->is_readable()) {
-			err = DB_DECRYPTION_FAILED;
-			trx->error_key_num = 0;
-			goto func_exit;
-		}
 
 		mem_heap_empty(row_heap);
 
@@ -1975,23 +1965,20 @@ row_merge_read_clustered_index(
 			}
 
 			/* Insert the cached spatial index rows. */
-			bool	mtr_committed = false;
-
 			err = row_merge_spatial_rows(
 				trx->id, sp_tuples, num_spatial,
-				row_heap, sp_heap, &pcur,
-				&mtr, &mtr_committed);
+				row_heap, sp_heap, &pcur, &mtr);
 
 			if (err != DB_SUCCESS) {
 				goto func_exit;
 			}
 
-			if (mtr_committed) {
+			if (!mtr.is_active()) {
 				goto scan_next;
 			}
 
-			if (my_atomic_load32_explicit(&clust_index->lock.waiters,
-						      MY_MEMORY_ORDER_RELAXED)) {
+			if (clust_index->lock.waiters.load(
+						std::memory_order_relaxed)) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor
@@ -2029,7 +2016,9 @@ end_of_index:
 					row = NULL;
 					mtr_commit(&mtr);
 					mem_heap_free(row_heap);
+					row_heap = NULL;
 					ut_free(nonnull);
+					nonnull = NULL;
 					goto write_buffers;
 				}
 			} else {
@@ -2047,7 +2036,7 @@ end_of_index:
 				block = btr_block_get(
 					page_id_t(block->page.id.space(),
 						  next_page_no),
-					block->page.size,
+					block->zip_size(),
 					BTR_SEARCH_LEAF,
 					clust_index, &mtr);
 
@@ -2475,8 +2464,6 @@ write_buffers:
 					/* Temporary File is not used.
 					so insert sorted block to the index */
 					if (row != NULL) {
-						bool	mtr_committed = false;
-
 						/* We have to do insert the
 						cached spatial index rows, since
 						after the mtr_commit, the cluster
@@ -2487,8 +2474,7 @@ write_buffers:
 							trx->id, sp_tuples,
 							num_spatial,
 							row_heap, sp_heap,
-							&pcur, &mtr,
-							&mtr_committed);
+							&pcur, &mtr);
 
 						if (err != DB_SUCCESS) {
 							goto func_exit;
@@ -2503,13 +2489,13 @@ write_buffers:
 						current row will be invalid, and
 						we must reread it on the next
 						loop iteration. */
-						if (!mtr_committed) {
+						if (mtr.is_active()) {
 							btr_pcur_move_to_prev_on_page(
 								&pcur);
 							btr_pcur_store_position(
 								&pcur, &mtr);
 
-							mtr_commit(&mtr);
+							mtr.commit();
 						}
 					}
 
@@ -2666,7 +2652,7 @@ write_buffers:
 						buf->n_tuples, path)) {
 						err = DB_OUT_OF_MEMORY;
 						trx->error_key_num = i;
-						goto func_exit;
+						break;
 					}
 
 					/* Ensure that duplicates in the
@@ -2748,12 +2734,12 @@ write_buffers:
 	}
 
 func_exit:
-	/* row_merge_spatial_rows may have committed
-	the mtr	before an error occurs. */
 	if (mtr.is_active()) {
 		mtr_commit(&mtr);
 	}
-	mem_heap_free(row_heap);
+	if (row_heap) {
+		mem_heap_free(row_heap);
+	}
 	ut_free(nonnull);
 
 all_done:
@@ -3438,7 +3424,7 @@ void
 row_merge_copy_blobs(
 	const mrec_t*		mrec,
 	const ulint*		offsets,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	dtuple_t*		tuple,
 	mem_heap_t*		heap)
 {
@@ -3476,10 +3462,10 @@ row_merge_copy_blobs(
 				     BTR_EXTERN_FIELD_REF_SIZE));
 
 			data = btr_copy_externally_stored_field(
-				&len, field_data, page_size, field_len, heap);
+				&len, field_data, zip_size, field_len, heap);
 		} else {
 			data = btr_rec_copy_externally_stored_field(
-				mrec, offsets, page_size, i, &len, heap);
+				mrec, offsets, zip_size, i, &len, heap);
 		}
 
 		/* Because we have locked the table, any records
@@ -3677,8 +3663,7 @@ row_merge_insert_index_tuples(
 			row_log_table_blob_alloc() and
 			row_log_table_blob_free(). */
 			row_merge_copy_blobs(
-				mrec, offsets,
-				dict_table_page_size(old_table),
+				mrec, offsets, old_table->space->zip_size(),
 				dtuple, tuple_heap);
 		}
 

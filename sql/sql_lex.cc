@@ -766,6 +766,7 @@ void LEX::start(THD *thd_arg)
   win_spec= NULL;
 
   vers_conditions.empty();
+  period_conditions.empty();
 
   is_lex_started= TRUE;
 
@@ -1860,7 +1861,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
           else
           {
 #ifdef WITH_WSREP
-            if (WSREP(thd) && version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
+            if (WSREP(thd) && version == 99997 && wsrep_thd_is_local(thd))
             {
               WSREP_DEBUG("consistency check: %s", thd->query());
               thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;
@@ -2357,6 +2358,7 @@ void st_select_lex::init_query()
   join= 0;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
+  attach_to_conds.empty();
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
   having_fix_field_for_pushed_cond= 0;
@@ -2392,6 +2394,7 @@ void st_select_lex::init_query()
   tvc= 0;
   in_tvc= false;
   versioned_tables= 0;
+  pushdown_select= 0;
 }
 
 void st_select_lex::init_select()
@@ -3544,12 +3547,8 @@ void LEX::set_trg_event_type_for_tables()
     On a LOCK TABLE, all triggers must be pre-loaded for this TABLE_LIST
     when opening an associated TABLE.
   */
-    new_trg_event_map= static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_INSERT)) |
-                      static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_UPDATE)) |
-                      static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map= trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
+                       trg2bit(TRG_EVENT_DELETE);
     break;
   /*
     Basic INSERT. If there is an additional ON DUPLIATE KEY UPDATE
@@ -3580,20 +3579,17 @@ void LEX::set_trg_event_type_for_tables()
   */
   case SQLCOM_CREATE_TABLE:
   case SQLCOM_CREATE_SEQUENCE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_INSERT));
+    new_trg_event_map|= trg2bit(TRG_EVENT_INSERT);
     break;
   /* Basic update and multi-update */
   case SQLCOM_UPDATE:                           /* fall through */
   case SQLCOM_UPDATE_MULTI:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_UPDATE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_UPDATE);
     break;
   /* Basic delete and multi-delete */
   case SQLCOM_DELETE:                           /* fall through */
   case SQLCOM_DELETE_MULTI:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     break;
   default:
     break;
@@ -3601,16 +3597,27 @@ void LEX::set_trg_event_type_for_tables()
 
   switch (duplicates) {
   case DUP_UPDATE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_UPDATE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_UPDATE);
     break;
   case DUP_REPLACE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     break;
   case DUP_ERROR:
   default:
     break;
+  }
+
+  if (period_conditions.is_set())
+  {
+    switch (sql_command)
+    {
+    case SQLCOM_DELETE:
+    case SQLCOM_UPDATE:
+    case SQLCOM_REPLACE:
+      new_trg_event_map |= trg2bit(TRG_EVENT_INSERT);
+    default:
+      break;
+    }
   }
 
 
@@ -4138,6 +4145,8 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
           inner_join->select_options|= SELECT_DESCRIBE;
         }
         res= inner_join->optimize();
+        if (!inner_join->cleaned)
+          sl->update_used_tables();
         sl->update_correlated_cache();
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
@@ -4688,7 +4697,10 @@ void st_select_lex::set_explain_type(bool on_the_fly)
 
   if (master_unit()->thd->lex->first_select_lex() == this)
   {
-     type= is_primary ? "PRIMARY" : "SIMPLE";
+    if (pushdown_select)
+      type= pushed_select_text;
+    else
+      type= is_primary ? "PRIMARY" : "SIMPLE";
   }
   else
   {
@@ -4697,7 +4709,11 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       /* If we're a direct child of a UNION, we're the first sibling there */
       if (linkage == DERIVED_TABLE_TYPE)
       {
-        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+        bool is_pushed_master_unit= master_unit()->derived &&
+	                            master_unit()->derived->pushdown_derived;
+        if (is_pushed_master_unit)
+          type= pushed_derived_text;
+        else if (is_uncacheable & UNCACHEABLE_DEPENDENT)
           type= "LATERAL DERIVED";
         else
           type= "DERIVED";
@@ -7753,22 +7769,23 @@ void binlog_unsafe_map_init()
 
 /**
   @brief
-  Finding fiels that are used in the GROUP BY of this st_select_lex
+    Collect fiels that are used in the GROUP BY of this st_select_lex
     
   @param thd  The thread handle
 
   @details
-    This method looks through the fields which are used in the GROUP BY of this 
-    st_select_lex and saves this fields. 
+    This method looks through the fields that are used in the GROUP BY of this
+    st_select_lex and saves info on these fields.
 */
 
-void st_select_lex::collect_grouping_fields(THD *thd,
-                                            ORDER *grouping_list) 
+void st_select_lex::collect_grouping_fields_for_derived(THD *thd,
+                                                        ORDER *grouping_list)
 {
   grouping_tmp_fields.empty();
   List_iterator<Item> li(join->fields_list);
   Item *item= li++;
-  for (uint i= 0; i < master_unit()->derived->table->s->fields; i++, (item=li++))
+  for (uint i= 0; i < master_unit()->derived->table->s->fields;
+       i++, (item=li++))
   {
     for (ORDER *ord= grouping_list; ord; ord= ord->next)
     {
@@ -7782,17 +7799,49 @@ void st_select_lex::collect_grouping_fields(THD *thd,
   }
 }
 
+
+/**
+  Collect fields that are used in the GROUP BY of this SELECT
+*/
+
+bool st_select_lex::collect_grouping_fields(THD *thd)
+{
+  grouping_tmp_fields.empty();
+
+  for (ORDER *ord= group_list.first; ord; ord= ord->next)
+  {
+    Item *item= *ord->item;
+    if (item->type() != Item::FIELD_ITEM &&
+        !(item->type() == Item::REF_ITEM &&
+        ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
+        (((Item_ref *) item)->ref_type() == Item_ref::REF))))
+      continue;
+
+    Field_pair *grouping_tmp_field=
+      new Field_pair(((Item_field *)item->real_item())->field, item);
+    if (grouping_tmp_fields.push_back(grouping_tmp_field, thd->mem_root))
+      return false;
+  }
+  if (grouping_tmp_fields.elements)
+    return false;
+  return true;
+}
+
+
 /**
   @brief
    For a condition check possibility of exraction a formula over grouping fields 
-  
-  @param cond  The condition whose subformulas are to be analyzed
+
+  @param thd      The thread handle
+  @param cond     The condition whose subformulas are to be analyzed
+  @param checker  The checker callback function to be applied to the nodes
+                  of the tree of the object
   
   @details
     This method traverses the AND-OR condition cond and for each subformula of
     the condition it checks whether it can be usable for the extraction of a
     condition over the grouping fields of this select. The method uses
-    the call-back parameter check_processor to ckeck whether a primary formula
+    the call-back parameter checker to check whether a primary formula
     depends only on grouping fields.
     The subformulas that are not usable are marked with the flag NO_EXTRACTION_FL.
     The subformulas that can be entierly extracted are marked with the flag 
@@ -7806,12 +7855,19 @@ void st_select_lex::collect_grouping_fields(THD *thd,
 */ 
 
 void 
-st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond)
+st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond,
+                                                     Pushdown_checker checker)
 {
+  if (thd->having_pushdown &&
+      cond->get_extraction_flag() == NO_EXTRACTION_FL)
+    return;
   cond->clear_extraction_flag();
   if (cond->type() == Item::COND_ITEM)
   {
-    bool and_cond= ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC;
+    Item_cond_and *and_cond=
+      (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC) ?
+      ((Item_cond_and*) cond) : 0;
+
     List<Item> *arg_list=  ((Item_cond*) cond)->argument_list();
     List_iterator<Item> li(*arg_list);
     uint count= 0;         // to count items not containing NO_EXTRACTION_FL
@@ -7819,7 +7875,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond)
     Item *item;
     while ((item=li++))
     {
-      check_cond_extraction_for_grouping_fields(item);
+      check_cond_extraction_for_grouping_fields(thd, item, checker);
       if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
       {
         count++;
@@ -7832,7 +7888,9 @@ st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond)
     if ((and_cond && count == 0) || item)
       cond->set_extraction_flag(NO_EXTRACTION_FL);
     if (count_full == arg_list->elements)
+    {
       cond->set_extraction_flag(FULL_EXTRACTION_FL);
+    }
     if (cond->get_extraction_flag() != 0)
     {
       li.rewind();
@@ -7842,7 +7900,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond)
   }
   else
   {
-    int fl= cond->excl_dep_on_grouping_fields(this) ?
+    int fl= ((cond->*checker) ((uchar *)this)) ?
       FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
     cond->set_extraction_flag(fl);
   }
@@ -8428,130 +8486,6 @@ Item *Lex_trim_st::make_item_func_trim(THD *thd) const
 }
 
 
-/**
-  @brief
-    Extract from given item a condition pushable into WHERE clause
-
-  @param thd             the thread handle
-  @param cond            the item to extract a condition to be pushed
-                         into WHERE
-  @param remaining_cond  the condition that will remain of cond after
-                         the pushdown of its parts into the WHERE clause
-  @param transformer     the transformer callback function to be
-                         applied to the condition so it can be pushed
-                         down into the WHERE clause of this select
-  @param arg             parameter to be passed to the transformer
-
-  @details
-    This method checks if cond entirely or its parts can be
-    pushed into the WHERE clause of this select and prepares it for pushing.
-
-    First it checks wherever this select doesn't have any aggregation function
-    in its projection and GROUP BY clause. If so cond can be entirely
-    pushed into the WHERE clause of this select but before its fields should
-    be transformed with transformer_for_where to make it pushable.
-
-    Otherwise the method checks wherever any condition depending only on
-    grouping fields can be extracted from cond. If there is any it prepares it
-    for pushing using grouping_field_transformer_for_where and if it happens to
-    be a conjunct of cond it removes it from cond. It saves the result of
-    removal in remaining_cond.
-    The extracted condition is saved in cond_pushed_into_where of this select.
-
-  @note
-    When looking for pushable condition the method considers only the grouping
-    fields from the list grouping_tmp_fields whose elements are of the type
-    Field_pair. This list must be prepared before the call of the
-    function.
-
-  @note
-    This method is called for pushdown conditions into materialized
-    derived tables/views optimization.
-    Item::derived_field_transformer_for_where is passed as the actual
-    callback function.
-    Also it is called for pushdown conditions into materialized IN subqueries.
-    Item::in_subq_field_transformer_for_where is passed as the actual
-    callback function.
-*/
-
-void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
-                                                    Item **remaining_cond,
-                                                    Item_transformer transformer,
-                                                    uchar *arg)
-{
-  if (!cond_pushdown_is_allowed())
-    return;
-  thd->lex->current_select= this;
-  if (have_window_funcs())
-  {
-    Item *cond_over_partition_fields;
-    check_cond_extraction_for_grouping_fields(cond);
-    cond_over_partition_fields=
-      build_cond_for_grouping_fields(thd, cond, true);
-    if (cond_over_partition_fields)
-      cond_over_partition_fields= cond_over_partition_fields->transform(thd,
-                                &Item::grouping_field_transformer_for_where,
-                                (uchar*) this);
-    if (cond_over_partition_fields)
-    {
-      cond_over_partition_fields->walk(
-        &Item::cleanup_excluding_const_fields_processor, 0, 0);
-      cond_pushed_into_where= cond_over_partition_fields;
-    }
-
-    return;
-  }
-
-  if (!join->group_list && !with_sum_func)
-  {
-    cond=
-      cond->transform(thd, transformer, arg);
-    if (cond)
-    {
-      cond->walk(
-        &Item::cleanup_excluding_const_fields_processor, 0, 0);
-      cond_pushed_into_where= cond;
-    }
-
-    return;
-  }
-
-  /*
-    Figure out what can be extracted from cond
-    that could be pushed into the WHERE clause of this select
-  */
-  Item *cond_over_grouping_fields;
-  check_cond_extraction_for_grouping_fields(cond);
-  cond_over_grouping_fields=
-    build_cond_for_grouping_fields(thd, cond, true);
-
-  /*
-    Transform the references to the columns from the cond
-    pushed into the WHERE clause of this select to make them usable in
-    the new context
-  */
-  if (cond_over_grouping_fields)
-    cond_over_grouping_fields= cond_over_grouping_fields->transform(thd,
-                            &Item::grouping_field_transformer_for_where,
-                            (uchar*) this);
-
-  if (cond_over_grouping_fields)
-  {
-
-    /*
-      In cond remove top conjuncts that has been pushed into the WHERE
-      clause of this select
-    */
-    cond= remove_pushed_top_conjuncts(thd, cond);
-
-    cond_over_grouping_fields->walk(
-      &Item::cleanup_excluding_const_fields_processor, 0, 0);
-    cond_pushed_into_where= cond_over_grouping_fields;
-  }
-
-  *remaining_cond= cond;
-}
-
 Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
                                        Lex_ident_cli_st *cname, List<Item> *args)
 {
@@ -9098,6 +9032,7 @@ bool LEX::parsed_unit_in_brackets(SELECT_LEX_UNIT *unit)
 }
 
 
+
 /**
   Process tail of unit parsed in brackets
 */
@@ -9323,6 +9258,7 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit, char *place)
 }
 
 
+
 /**
   Process INSERT-like select
 */
@@ -9342,7 +9278,7 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
     return true;
 
   // fix "main" select
-  SELECT_LEX *blt= pop_select();
+  SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
   return false;
@@ -9587,3 +9523,640 @@ bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
                                                        lip->get_tok_start());
   return LEX::sp_proc_stmt_statement_finalize_buf(thd, qbuf);
 }
+
+
+/**
+  @brief
+    Extract from given item a condition pushable into WHERE clause
+
+  @param thd             the thread handle
+  @param cond            the item to extract a condition to be pushed
+                         into WHERE
+  @param remaining_cond  the condition that will remain of cond after
+                         the pushdown of its parts into the WHERE clause
+  @param transformer     the transformer callback function to be
+                         applied to the condition so it can be pushed
+                         down into the WHERE clause of this select
+  @param arg             parameter to be passed to the transformer
+
+  @details
+    This method checks if cond entirely or its parts can be
+    pushed into the WHERE clause of this select and prepares it for pushing.
+
+    First it checks wherever this select doesn't have any aggregation function
+    in its projection and GROUP BY clause. If so cond can be entirely
+    pushed into the WHERE clause of this select but before its fields should
+    be transformed with transformer_for_where to make it pushable.
+
+    Otherwise the method checks wherever any condition depending only on
+    grouping fields can be extracted from cond. If there is any it prepares it
+    for pushing using grouping_field_transformer_for_where and if it happens to
+    be a conjunct of cond it removes it from cond. It saves the result of
+    removal in remaining_cond.
+    The extracted condition is saved in cond_pushed_into_where of this select.
+
+  @note
+    When looking for pushable condition the method considers only the grouping
+    fields from the list grouping_tmp_fields whose elements are of the type
+    Field_pair. This list must be prepared before the call of the
+    function.
+
+  @note
+    This method is called for pushdown conditions into materialized
+    derived tables/views optimization.
+    Item::derived_field_transformer_for_where is passed as the actual
+    callback function.
+    Also it is called for pushdown conditions into materialized IN subqueries.
+    Item::in_subq_field_transformer_for_where is passed as the actual
+    callback function.
+*/
+
+void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
+                                                    Item **remaining_cond,
+                                                    Item_transformer transformer,
+                                                    uchar *arg)
+{
+  if (!cond_pushdown_is_allowed())
+    return;
+  thd->lex->current_select= this;
+  if (have_window_funcs())
+  {
+    Item *cond_over_partition_fields;
+    check_cond_extraction_for_grouping_fields(thd, cond,
+      &Item::dep_on_grouping_fields_checker);
+    cond_over_partition_fields=
+      build_cond_for_grouping_fields(thd, cond, true);
+    if (cond_over_partition_fields)
+      cond_over_partition_fields= cond_over_partition_fields->transform(thd,
+                                &Item::grouping_field_transformer_for_where,
+                                (uchar*) this);
+    if (cond_over_partition_fields)
+    {
+      cond_over_partition_fields->walk(
+        &Item::cleanup_excluding_const_fields_processor, 0, 0);
+      cond_pushed_into_where= cond_over_partition_fields;
+    }
+
+    return;
+  }
+
+  if (!join->group_list && !with_sum_func)
+  {
+    cond=
+      cond->transform(thd, transformer, arg);
+    if (cond)
+    {
+      cond->walk(
+        &Item::cleanup_excluding_const_fields_processor, 0, 0);
+      cond_pushed_into_where= cond;
+    }
+
+    return;
+  }
+
+  /*
+    Figure out what can be extracted from cond
+    that could be pushed into the WHERE clause of this select
+  */
+  Item *cond_over_grouping_fields;
+  check_cond_extraction_for_grouping_fields(thd, cond,
+    &Item::dep_on_grouping_fields_checker);
+  cond_over_grouping_fields=
+    build_cond_for_grouping_fields(thd, cond, true);
+
+  /*
+    Transform the references to the columns from the cond
+    pushed into the WHERE clause of this select to make them usable in
+    the new context
+  */
+  if (cond_over_grouping_fields)
+    cond_over_grouping_fields= cond_over_grouping_fields->transform(thd,
+                            &Item::grouping_field_transformer_for_where,
+                            (uchar*) this);
+
+  if (cond_over_grouping_fields)
+  {
+
+    /*
+      In cond remove top conjuncts that has been pushed into the WHERE
+      clause of this select
+    */
+    cond= remove_pushed_top_conjuncts(thd, cond);
+
+    cond_over_grouping_fields->walk(
+      &Item::cleanup_excluding_const_fields_processor, 0, 0);
+    cond_pushed_into_where= cond_over_grouping_fields;
+  }
+
+  *remaining_cond= cond;
+}
+
+
+/**
+  @brief
+    Mark OR-conditions as non-pushable to avoid repeatable pushdown
+
+  @param cond  The condition that should be marked (or its subformulas)
+
+  @details
+    In the case when OR-condition can be pushed into the HAVING clause
+    of the materialized derived table/view/IN subquery and some of
+    its parts can be pushed into the WHERE clause it can cause
+    repeatable pushdown in the pushdown from HAVING into WHERE clause.
+    Example:
+
+    SELECT *
+    FROM t1,
+    (
+      SELECT a,MAX(c) AS m_c
+      GROUP BY a
+    ) AS dt
+    WHERE ((dt.m_c>10) AND (dt.a>2)) OR ((dt.m_c<7) and (dt.a<3)) AND
+          (t1.a=v1.a);
+
+    after the pushdown into the materialized views/derived tables optimization
+    is done:
+
+    SELECT *
+    FROM t1,
+    (
+      SELECT a,MAX(c) AS m_c
+      WHERE (dt.a>2) OR (dt.a<3)
+      GROUP BY a
+      HAVING ((dt.m_c>10) AND (dt.a>2)) OR ((dt.m_c<7) and (dt.a<3))
+    ) AS dt
+    WHERE ((dt.m_c>10) AND (dt.a>2)) OR ((dt.m_c<7) and (dt.a<3)) AND
+          (t1.a=v1.a);
+
+    In the optimization stage for the select that defines derived table
+    in the pushdown from HAVING into WHERE optimization
+    (dt.a>2) OR (dt.a<3) will be again extracted from
+    ((dt.m_c>10) AND (dt.a>2)) OR ((dt.m_c<7) and (dt.a<3))
+    and pushed into the WHERE clause of the select that defines derived table.
+
+    To avoid it after conditions are pushed into the materialized derived
+    tables/views or IN subqueries OR-conditions that were pushed are marked
+    with NO_EXTRACTION_FL flag to avoid repeatable pushdown.
+*/
+
+void st_select_lex::mark_or_conds_to_avoid_pushdown(Item *cond)
+{
+  cond->walk(&Item::cleanup_excluding_const_fields_processor, 0, 0);
+
+  if (cond->type() == Item::COND_ITEM &&
+      ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+  {
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->type() == Item::COND_ITEM &&
+          ((Item_cond*) item)->functype() == Item_func::COND_OR_FUNC)
+        item->set_extraction_flag(NO_EXTRACTION_FL);
+    }
+  }
+  else if (cond->type() == Item::COND_ITEM &&
+          ((Item_cond*) cond)->functype() == Item_func::COND_OR_FUNC)
+    cond->set_extraction_flag(NO_EXTRACTION_FL);
+
+  cond_pushed_into_having= cond;
+}
+
+/**
+  @brief
+    Gets conditions that can be pushed down for pushdown from HAVING into WHERE
+
+  @param thd      The thread handle
+  @param cond     The condition from which the condition depended on grouping
+                  fields is to be extracted
+  @param checker  The checker callback function to be applied to the nodes
+                  of the tree of the object
+
+  @details
+    The method finds out what conditions can be extracted from cond depended
+    only on the grouping fields of this SELECT or fields equal to them.
+    If the condition that can be pushed is AND-condition it is splitted up
+    and for each its element it is checked if it can be pushed.
+    Pushable elements are attached to the attach_to_conds list.
+    If the condition isn't AND-condition it is entirely pushed into
+    the attach_to_conds list. If the condition that is extracted is a multiple
+    equality it is transformed into the set of equalities.
+
+    attach_to_conds list is created to be passed to
+    and_new_conditions_to_optimized_cond() method so extracted conditions can
+    be joined to the already optimized WHERE clause in the right way.
+
+  @note
+    The method is similar to st_select_lex::build_cond_for_grouping_fields() and
+    Item::build_pushable_cond().
+
+  @retval
+    true  - if an error occurs
+    false - otherwise
+*/
+
+bool
+st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd,
+                                                       Item *cond)
+{
+  Pushdown_checker checker=
+    &Item::pushable_equality_checker_for_having_pushdown;
+
+  bool is_multiple_equality= cond->type() == Item::FUNC_ITEM &&
+  ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC;
+
+  if (cond->get_extraction_flag() == NO_EXTRACTION_FL)
+    return false;
+
+  if (cond->type() == Item::COND_ITEM)
+  {
+    bool cond_and= false;
+    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+      cond_and= true;
+    List<Item> equalities;
+    List<Item> new_conds;
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+
+    while ((item=li++))
+    {
+      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+        continue;
+
+      if (item->type() == Item::FUNC_ITEM &&
+          ((Item_func*) item)->functype() == Item_func::MULT_EQUAL_FUNC)
+      {
+        equalities.empty();
+        if (((Item_equal*) item)->create_pushable_equalities(thd, &equalities,
+                                                      checker, (uchar *)this))
+          return true;
+        if (equalities.elements != 0)
+        {
+          if (cond_and)
+            new_conds.append(&equalities);
+          else
+          {
+            Item_cond_and *new_cond=
+              new (thd->mem_root) Item_cond_and(thd, equalities);
+            if (!new_cond || new_conds.push_back(new_cond, thd->mem_root))
+              return true;
+          }
+        }
+        else if (!cond_and)
+          return true;
+        continue;
+      }
+
+      Item *fix= item->build_pushable_cond(thd, checker, (uchar *)this);
+
+      if (!fix && !cond_and)
+      {
+        attach_to_conds.empty();
+        return false;
+      }
+      if (!fix)
+        continue;
+
+      if (new_conds.push_back(fix, thd->mem_root))
+        return true;
+    }
+    if (!cond_and)
+    {
+      Item_cond_or *new_cond= new (thd->mem_root) Item_cond_or(thd, new_conds);
+      if (attach_to_conds.push_back(new_cond, thd->mem_root))
+      return true;
+    }
+    else
+      attach_to_conds.append(&new_conds);
+  }
+  else if (is_multiple_equality)
+  {
+    List<Item> equalities;
+    Item_equal *item_equal= (Item_equal *)cond;
+    if (item_equal->create_pushable_equalities(thd, &equalities,
+                                               checker, (uchar *)this))
+      return true;
+    attach_to_conds.append(&equalities);
+    return false;
+  }
+  else if (cond->get_extraction_flag() != NO_EXTRACTION_FL)
+  {
+    Item *copy= cond->build_clone(thd);
+    if (attach_to_conds.push_back(copy, thd->mem_root))
+      return true;
+  }
+  return false;
+}
+
+
+/**
+  Check if the item is equal to some field in Field_pair 'field_pair'
+  from 'pair_list' and return found 'field_pair' if it exists.
+*/
+
+Field_pair *get_corresponding_field_pair(Item *item,
+                                         List<Field_pair> pair_list)
+{
+  DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+              (item->type() == Item::REF_ITEM &&
+               ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
+               (((Item_ref *) item)->ref_type() == Item_ref::REF))));
+
+  List_iterator<Field_pair> it(pair_list);
+  Field_pair *field_pair;
+  Item_field *field_item= (Item_field *) (item->real_item());
+  while ((field_pair= it++))
+  {
+    if (field_item->field == field_pair->field)
+      return field_pair;
+  }
+  return NULL;
+}
+
+
+/**
+  @brief
+    Collect fields in multiple equalities usable for pushdown from having
+
+  @param thd  The thread handle
+
+  @details
+    This method looks through the multiple equalities of the WHERE clause
+    trying to find any of them whose fields are used in the GROUP BY of the
+    SELECT. Any field from these multiple equality is included into the
+    the list of fields against which any candidate for pushing is checked.
+
+  @retval
+    true  - if an error occurs
+    false - otherwise
+*/
+
+bool st_select_lex::collect_fields_equal_to_grouping(THD *thd)
+{
+  if (!join->cond_equal || join->cond_equal->is_empty())
+    return false;
+
+  List_iterator_fast<Item_equal> li(join->cond_equal->current_level);
+  Item_equal *item_equal;
+
+  while ((item_equal= li++))
+  {
+    Item_equal_fields_iterator it(*item_equal);
+    Item *item;
+    while ((item= it++))
+    {
+      if (get_corresponding_field_pair(item, grouping_tmp_fields))
+        break;
+    }
+    if (!item)
+      break;
+
+    it.rewind();
+    while ((item= it++))
+    {
+      if (get_corresponding_field_pair(item, grouping_tmp_fields))
+        continue;
+      Field_pair *grouping_tmp_field=
+        new Field_pair(((Item_field *)item->real_item())->field, item);
+      if (grouping_tmp_fields.push_back(grouping_tmp_field, thd->mem_root))
+        return true;
+    }
+  }
+  return false;
+}
+
+/**
+  @brief
+    Cleanup and fix of the condition that is ready to be pushed down
+
+  @param thd   The thread handle
+  @param cond  The condition to be processed
+
+  @details
+    This method recursively traverses cond making cleanup and fix
+    where needed.
+    There is no need to make cleanup and fix for multiple equalities as
+    they are created so they can be immediately pushed down.
+
+  @retval
+    true  - if an error occurs
+    false - otherwise
+*/
+
+static
+bool cleanup_condition_pushed_from_having(THD *thd, Item *cond)
+{
+  if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+    return false;
+
+  if (cond->type() == Item::COND_ITEM)
+  {
+    List_iterator_fast<Item> it(*((Item_cond *)cond)->argument_list());
+    Item *item;
+
+    while ((item=it++))
+      cleanup_condition_pushed_from_having(thd, item);
+  }
+  else
+  {
+    cond->walk(&Item::cleanup_excluding_const_fields_processor, 0, 0);
+    if (cond->fix_fields(thd, NULL))
+      return true;
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Remove marked top conjuncts of condition for pushdown from HAVING into WHERE
+
+  @param thd    The thread handle
+  @param cond   The condition which subformulas are to be removed
+
+  @details
+    The function behavior is similar to remove_pushed_top_conjuncts()
+    except the case when 'cond' is the AND-condition.
+    As in the pushdown from HAVING into WHERE conditions are not just cloned
+    so they can be later pushed down as it is for pushdown into materialized
+    derived tables/views or IN subqueries, but also should be removed from
+    the HAVING clause.
+    The multiple equalities of the HAVING clause are not removed in this
+    function, but rather marked as to be removed later. Their removal is
+    done in substitute_for_best_equal_field() called for HAVING at the moment
+    when all multiple equalities referencing the top level multiple equalities
+    have been already eliminated.
+
+  @retval
+     condition without removed subformulas
+     0 if the whole 'cond' is removed
+*/
+
+Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
+{
+  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  {
+    cond->clear_extraction_flag();
+    if (cond->type() == Item::FUNC_ITEM &&
+        ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+    {
+      cond->set_extraction_flag(DELETION_FL);
+      return cond;
+    }
+    return 0;
+  }
+  if (cond->type() != Item::COND_ITEM)
+    return cond;
+
+  if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+  {
+    List<Item> *cond_arg_list= ((Item_cond_and *)cond)->argument_list();
+    List_iterator<Item> li(*cond_arg_list);
+    Item *item;
+    while ((item= li++))
+    {
+      if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+      {
+        item->clear_extraction_flag();
+        if (item->type() == Item::FUNC_ITEM &&
+            ((Item_func*) item)->functype() == Item_func::MULT_EQUAL_FUNC)
+          item->set_extraction_flag(DELETION_FL);
+        else
+          li.remove();
+      }
+    }
+    switch (cond_arg_list->elements)
+    {
+    case 0:
+      return 0;
+    case 1:
+      return (cond_arg_list->head());
+    default:
+      return cond;
+    }
+  }
+  return cond;
+}
+
+
+/**
+  @brief
+    Extract condition that can be pushed from HAVING clause into WHERE clause
+
+  @param thd           the thread handle
+  @param having        the HAVING clause of this select
+  @param having_equal  multiple equalities of HAVING
+
+  @details
+    This function builds the most restrictive condition depending only on
+    the fields used in the GROUP BY of this select (directly or indirectly
+    through equality) that can be extracted from the HAVING clause of this
+    select and pushes it into the WHERE clause of this select.
+
+    Example of the transformation:
+
+    SELECT t1.a,MAX(t1.b)
+    FROM t1
+    GROUP BY t1.a
+    HAVING (t1.a>2) AND (MAX(c)>12);
+
+    =>
+
+    SELECT t1.a,MAX(t1.b)
+    FROM t1
+    WHERE (t1.a>2)
+    GROUP BY t1.a
+    HAVING (MAX(c)>12);
+
+    In details:
+    1. Collect fields used in the GROUP BY grouping_fields of this SELECT
+    2. Collect fields equal to grouping_fields from the WHERE clause
+       of this SELECT and add them to the grouping_fields list.
+    3. Extract the most restrictive condition from the HAVING clause of this
+       select that depends only on the grouping fields (directly or indirectly
+       through equality). Store it in the attach_to_conds list.
+    4. Remove pushable conditions from the HAVING clause if it's possible.
+
+  @note
+    This method is similar to st_select_lex::pushdown_cond_into_where_clause().
+
+  @retval TRUE   if an error occurs
+  @retval FALSE  otherwise
+*/
+
+Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
+{
+  if (!having || !group_list.first)
+    return having;
+  if (!cond_pushdown_is_allowed())
+    return having;
+
+  st_select_lex *save_curr_select= thd->lex->current_select;
+  thd->lex->current_select= this;
+
+  /*
+    1. Collect fields used in the GROUP BY grouping fields of this SELECT
+    2. Collect fields equal to grouping_fields from the WHERE clause
+       of this SELECT and add them to the grouping fields list.
+  */
+  if (collect_grouping_fields(thd) ||
+      collect_fields_equal_to_grouping(thd))
+    return having;
+
+  /*
+    3. Extract the most restrictive condition from the HAVING clause of this
+       select that depends only on the grouping fields (directly or indirectly
+       through equality). Store it in the attach_to_conds list.
+  */
+  thd->having_pushdown= true;
+  List_iterator_fast<Item> it(attach_to_conds);
+  Item *item;
+  check_cond_extraction_for_grouping_fields(thd, having,
+    &Item::dep_on_grouping_fields_checker_for_having_pushdown);
+  if (build_pushable_cond_for_having_pushdown(thd, having))
+  {
+    attach_to_conds.empty();
+    goto exit;
+  }
+  if (attach_to_conds.elements != 0)
+  {
+    /*
+      4. Remove pushable conditions from the HAVING clause if it's possible.
+    */
+    having= remove_pushed_top_conjuncts_for_having(thd, having);
+
+    it.rewind();
+    while ((item=it++))
+    {
+      if (cleanup_condition_pushed_from_having(thd, item))
+      {
+        attach_to_conds.empty();
+        goto exit;
+      }
+    }
+    /*
+      Refresh having_equal as some of the multiple equalities of
+      having can be removed after pushdown.
+    */
+    join->having_equal= 0;
+    if (having)
+    {
+      if (having->type() == Item::COND_ITEM &&
+          ((Item_cond*) having)->functype() == Item_func::COND_AND_FUNC)
+      {
+        Item_cond_and *and_having= (Item_cond_and *)having;
+        join->having_equal= &and_having->m_cond_equal;
+      }
+      if (having->type() == Item::FUNC_ITEM &&
+         ((Item_func*) having)->functype() == Item_func::MULT_EQUAL_FUNC)
+       join->having_equal= new (thd->mem_root) COND_EQUAL((Item_equal *)having,
+                                                     thd->mem_root);
+    }
+  }
+exit:
+  thd->lex->current_select= save_curr_select;
+  thd->having_pushdown= false;
+  return having;
+}
+

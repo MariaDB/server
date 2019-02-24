@@ -34,7 +34,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "mach0data.h"
 #include "dict0dict.h"
 #include "fts0priv.h"
-#include "ut0crc32.h"
 #include "lock0lock.h"
 #include "sync0sync.h"
 #include "row0row.h"
@@ -81,10 +80,6 @@ const char table_name_t::part_suffix[4]
 #else
 = "#P#";
 #endif
-
-/** An interger randomly initialized at startup used to make a temporary
-table name as unuique as possible. */
-static ib_uint32_t	dict_temp_file_num;
 
 /** Display an identifier.
 @param[in,out]	s	output stream
@@ -1112,33 +1107,13 @@ dict_mem_create_temporary_tablename(
 	ut_ad(dbend);
 	size_t		dblen   = size_t(dbend - dbtab) + 1;
 
-	/* Increment a randomly initialized  number for each temp file. */
-	my_atomic_add32((int32*) &dict_temp_file_num, 1);
-
-	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20 + 1 + 10);
+	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20);
 	name = static_cast<char*>(mem_heap_alloc(heap, size));
 	memcpy(name, dbtab, dblen);
 	snprintf(name + dblen, size - dblen,
-		    TEMP_FILE_PREFIX_INNODB UINT64PF "-" UINT32PF,
-		    id, dict_temp_file_num);
+		 TEMP_FILE_PREFIX_INNODB UINT64PF, id);
 
 	return(name);
-}
-
-/** Initialize dict memory variables */
-void
-dict_mem_init(void)
-{
-	/* Initialize a randomly distributed temporary file number */
-	ib_uint32_t	now = static_cast<ib_uint32_t>(ut_time());
-
-	const byte*	buf = reinterpret_cast<const byte*>(&now);
-
-	dict_temp_file_num = ut_crc32(buf, sizeof(now));
-
-	DBUG_PRINT("dict_mem_init",
-		   ("Starting Temporary file number is " UINT32PF,
-		   dict_temp_file_num));
 }
 
 /** Validate the search order in the foreign key set.

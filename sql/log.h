@@ -18,7 +18,6 @@
 #define LOG_H
 
 #include "handler.h"                            /* my_xid */
-#include "wsrep.h"
 #include "wsrep_mysqld.h"
 #include "rpl_constants.h"
 
@@ -248,10 +247,6 @@ extern TC_LOG_DUMMY tc_log_dummy;
 
 class Relay_log_info;
 
-#ifdef HAVE_PSI_INTERFACE
-extern PSI_mutex_key key_LOG_INFO_lock;
-#endif
-
 /*
   Note that we destroy the lock mutex in the desctructor here.
   This means that object instances cannot be destroyed/go out of scope,
@@ -263,19 +258,11 @@ typedef struct st_log_info
   my_off_t index_file_offset, index_file_start_offset;
   my_off_t pos;
   bool fatal; // if the purge happens to give us a negative offset
-  mysql_mutex_t lock;
   st_log_info() : index_file_offset(0), index_file_start_offset(0),
       pos(0), fatal(0)
   {
     DBUG_ENTER("LOG_INFO");
     log_file_name[0] = '\0';
-    mysql_mutex_init(key_LOG_INFO_lock, &lock, MY_MUTEX_INIT_FAST);
-    DBUG_VOID_RETURN;
-  }
-  ~st_log_info()
-  {
-    DBUG_ENTER("~LOG_INFO");
-    mysql_mutex_destroy(&lock);
     DBUG_VOID_RETURN;
   }
 } LOG_INFO;
@@ -1212,6 +1199,10 @@ static inline TC_LOG *get_tc_log_implementation()
   return &tc_log_mmap;
 }
 
+#ifdef WITH_WSREP
+IO_CACHE* wsrep_get_trans_cache(THD *);
+void wsrep_thd_binlog_trx_reset(THD * thd);
+#endif /* WITH_WSREP */
 
 class Gtid_list_log_event;
 const char *

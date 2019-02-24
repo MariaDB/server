@@ -112,6 +112,12 @@ my_bool	net_flush(NET *net);
 #include <my_context.h>
 #include <mysql_async.h>
 
+typedef enum {
+  ALWAYS_ACCEPT,       /* heuristics is disabled, use CLIENT_LOCAL_FILES */
+  WAIT_FOR_QUERY,      /* heuristics is enabled, not sending files */
+  ACCEPT_FILE_REQUEST  /* heuristics is enabled, ready to send a file */
+} auto_local_infile_state;
+
 #define native_password_plugin_name "mysql_native_password"
 #define old_password_plugin_name    "mysql_old_password"
 
@@ -1375,8 +1381,10 @@ mysql_init(MYSQL *mysql)
     --enable-local-infile
   */
 
-#if defined(ENABLED_LOCAL_INFILE) && !defined(MYSQL_SERVER)
+#if ENABLED_LOCAL_INFILE && !defined(MYSQL_SERVER)
   mysql->options.client_flag|= CLIENT_LOCAL_FILES;
+  mysql->auto_local_infile= ENABLED_LOCAL_INFILE == LOCAL_INFILE_MODE_AUTO
+                            ? WAIT_FOR_QUERY : ALWAYS_ACCEPT;
 #endif
 
   mysql->options.methods_to_use= MYSQL_OPT_GUESS_CONNECTION;
@@ -3696,7 +3704,13 @@ static my_bool cli_read_query_result(MYSQL *mysql)
   ulong field_count;
   MYSQL_DATA *fields;
   ulong length;
+#ifdef MYSQL_CLIENT
+  my_bool can_local_infile= mysql->auto_local_infile != WAIT_FOR_QUERY;
+#endif
   DBUG_ENTER("cli_read_query_result");
+
+  if (mysql->auto_local_infile == ACCEPT_FILE_REQUEST)
+    mysql->auto_local_infile= WAIT_FOR_QUERY;
 
   if ((length = cli_safe_read(mysql)) == packet_error)
     DBUG_RETURN(1);
@@ -3734,7 +3748,8 @@ get_info:
   {
     int error;
 
-    if (!(mysql->options.client_flag & CLIENT_LOCAL_FILES))
+    if (!(mysql->options.client_flag & CLIENT_LOCAL_FILES) ||
+        !can_local_infile)
     {
       set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
       DBUG_RETURN(1);
@@ -3772,6 +3787,13 @@ int STDCALL
 mysql_send_query(MYSQL* mysql, const char* query, ulong length)
 {
   DBUG_ENTER("mysql_send_query");
+  if (mysql->options.client_flag & CLIENT_LOCAL_FILES &&
+      mysql->auto_local_infile == WAIT_FOR_QUERY &&
+      (*query == 'l' || *query == 'L'))
+  {
+    if (strncasecmp(query, STRING_WITH_LEN("load")) == 0)
+      mysql->auto_local_infile= ACCEPT_FILE_REQUEST;
+  }
   DBUG_RETURN(simple_command(mysql, COM_QUERY, (uchar*) query, length, 1));
 }
 
@@ -3985,10 +4007,12 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     mysql->options.protocol=MYSQL_PROTOCOL_PIPE; /* Force named pipe */
     break;
   case MYSQL_OPT_LOCAL_INFILE:			/* Allow LOAD DATA LOCAL ?*/
-    if (!arg || MY_TEST(*(uint*) arg))
+    if (!arg || *(uint*) arg)
       mysql->options.client_flag|= CLIENT_LOCAL_FILES;
     else
       mysql->options.client_flag&= ~CLIENT_LOCAL_FILES;
+    mysql->auto_local_infile= arg && *(uint*)arg == LOCAL_INFILE_MODE_AUTO
+                              ? WAIT_FOR_QUERY : ALWAYS_ACCEPT;
     break;
   case MYSQL_INIT_COMMAND:
     add_init_command(&mysql->options,arg);

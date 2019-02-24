@@ -1936,7 +1936,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_RSEG_HISTORY_LEN:
-		value = trx_sys.history_size();
+		value = trx_sys.rseg_history_len;
 		break;
 
 	case MONITOR_RSEG_CUR_SIZE:

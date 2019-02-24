@@ -306,3 +306,14 @@ select * from gso_grad_supr;
 
 drop table grad_degree;
 drop table gso_grad_supr;
+
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL, FULLTEXT KEY(b)) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+ALTER TABLE t1 ADD FULLTEXT KEY(b);
+SELECT * FROM t1;
+DROP TABLE t1;

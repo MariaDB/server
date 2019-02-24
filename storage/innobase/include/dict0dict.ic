@@ -652,20 +652,30 @@ dict_tf_to_fsp_flags(ulint table_flags)
 	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
 			return(ULINT_UNDEFINED););
 
-	/* Adjust bit zero. */
-	fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
+	/* Don't allow compressed row format for full crc32 algorithm */
+	if ((srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
+	     || srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_FULL_CRC32)
+	    && !(table_flags & DICT_TF_MASK_ZIP_SSIZE)
+	    && !page_compression_level) {
 
-	/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
-	fsp_flags |= table_flags
-		& (DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_ATOMIC_BLOBS);
+		fsp_flags = 1U << FSP_FLAGS_FCRC32_POS_MARKER;
+		fsp_flags |= FSP_FLAGS_FCRC32_PAGE_SSIZE();
+	} else {
+		/* Adjust bit zero. */
+		fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
 
-	fsp_flags |= FSP_FLAGS_PAGE_SSIZE();
+		/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
+		fsp_flags |= table_flags
+			& (DICT_TF_MASK_ZIP_SSIZE | DICT_TF_MASK_ATOMIC_BLOBS);
 
-	if (page_compression_level) {
-		fsp_flags |= FSP_FLAGS_MASK_PAGE_COMPRESSION;
+		fsp_flags |= FSP_FLAGS_PAGE_SSIZE();
+
+		if (page_compression_level) {
+			fsp_flags |= FSP_FLAGS_MASK_PAGE_COMPRESSION;
+		}
 	}
 
-	ut_a(fsp_flags_is_valid(fsp_flags, false));
+	ut_a(fil_space_t::is_valid_flags(fsp_flags, false));
 
 	if (DICT_TF_HAS_DATA_DIR(table_flags)) {
 		fsp_flags |= 1U << FSP_FLAGS_MEM_DATA_DIR;
@@ -709,28 +719,6 @@ dict_tf_to_sys_tables_type(
 			 | DICT_TF_MASK_NO_ROLLBACK);
 
 	return(type);
-}
-
-/** Extract the page size info from table flags.
-@param[in]	flags	flags
-@return a structure containing the compressed and uncompressed
-page sizes and a boolean indicating if the page is compressed. */
-UNIV_INLINE
-const page_size_t
-dict_tf_get_page_size(
-	ulint	flags)
-{
-	const ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
-
-	if (zip_ssize == 0) {
-		return(univ_page_size);
-	}
-
-	const ulint	zip_size = (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize;
-
-	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
-
-	return(page_size_t(zip_size, srv_page_size, true));
 }
 
 /*********************************************************************//**
@@ -1153,9 +1141,7 @@ dict_table_is_fts_column(
 
 		index = (dict_index_t*) ib_vector_getp(indexes, i);
 
-		if (dict_index_contains_col_or_prefix(
-			index, col_no, is_virtual)) {
-
+		if (index->contains_col_or_prefix(col_no, is_virtual)) {
 			return(i);
 		}
 	}
@@ -1281,7 +1267,7 @@ void
 dict_table_t::acquire()
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
-	my_atomic_add32_explicit(&n_ref_count, 1, MY_MEMORY_ORDER_RELAXED);
+	n_ref_count++;
 }
 
 /** Release the table handle.
@@ -1290,8 +1276,7 @@ inline
 bool
 dict_table_t::release()
 {
-	int32 n = my_atomic_add32_explicit(
-			&n_ref_count, -1, MY_MEMORY_ORDER_RELAXED);
+	auto n = n_ref_count--;
 	ut_ad(n > 0);
 	return n == 1;
 }

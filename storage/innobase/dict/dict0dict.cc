@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -437,7 +437,7 @@ dict_table_try_drop_aborted(
 	dict_table_t*	table,		/*!< in: table, or NULL if it
 					needs to be looked up again */
 	table_id_t	table_id,	/*!< in: table identifier */
-	int32		ref_count)	/*!< in: expected table->n_ref_count */
+	uint32_t	ref_count)	/*!< in: expected table->n_ref_count */
 {
 	trx_t*		trx;
 
@@ -905,47 +905,29 @@ dict_index_get_nth_col_or_prefix_pos(
 	return(ULINT_UNDEFINED);
 }
 
-/** Returns TRUE if the index contains a column or a prefix of that column.
-@param[in]	index		index
+/** Check if the index contains a column or a prefix of that column.
 @param[in]	n		column number
 @param[in]	is_virtual	whether it is a virtual col
-@return TRUE if contains the column or its prefix */
-bool
-dict_index_contains_col_or_prefix(
-	const dict_index_t*	index,
-	ulint			n,
-	bool			is_virtual)
+@return whether the index contains the column or its prefix */
+bool dict_index_t::contains_col_or_prefix(ulint n, bool is_virtual) const
 {
-	const dict_field_t*	field;
-	const dict_col_t*	col;
-	ulint			pos;
-	ulint			n_fields;
+	ut_ad(magic_n == DICT_INDEX_MAGIC_N);
 
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	if (dict_index_is_clust(index)) {
+	if (is_primary()) {
 		return(!is_virtual);
 	}
 
-	if (is_virtual) {
-		col = &dict_table_get_nth_v_col(index->table, n)->m_col;
-	} else {
-		col = dict_table_get_nth_col(index->table, n);
-	}
+	const dict_col_t* col = is_virtual
+		? &dict_table_get_nth_v_col(table, n)->m_col
+		: dict_table_get_nth_col(table, n);
 
-	n_fields = dict_index_get_n_fields(index);
-
-	for (pos = 0; pos < n_fields; pos++) {
-		field = dict_index_get_nth_field(index, pos);
-
-		if (col == field->col) {
-
-			return(true);
+	for (ulint pos = 0; pos < n_fields; pos++) {
+		if (col == fields[pos].col) {
+			return true;
 		}
 	}
 
-	return(false);
+	return false;
 }
 
 /********************************************************************//**
@@ -2136,10 +2118,9 @@ dict_index_too_big_for_tree(
 
 	comp = dict_table_is_comp(table);
 
-	const page_size_t page_size(dict_tf_get_page_size(table->flags));
+	const ulint zip_size = dict_tf_get_zip_size(table->flags);
 
-	if (page_size.is_compressed()
-	    && page_size.physical() < srv_page_size) {
+	if (zip_size && zip_size < srv_page_size) {
 		/* On a compressed page, two records must fit in the
 		uncompressed page modification log. On compressed pages
 		with size.physical() == srv_page_size,
@@ -2150,7 +2131,7 @@ dict_index_too_big_for_tree(
 		number in the page modification log.  The maximum
 		allowed node pointer size is half that. */
 		page_rec_max = page_zip_empty_size(new_index->n_fields,
-						   page_size.physical());
+						   zip_size);
 		if (page_rec_max) {
 			page_rec_max--;
 		}
@@ -4314,7 +4295,6 @@ dict_create_foreign_constraints_low(
 	const char*	create_table_name;
 	const char*	orig;
 	char	create_name[MAX_TABLE_NAME_LEN + 1];
-	char	operation[8];
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -4325,40 +4305,32 @@ dict_create_foreign_constraints_low(
 	orig = ptr;
 	ptr = dict_accept(cs, ptr, "ALTER", &success);
 
-	strcpy((char *)operation, success ? "Alter " : "Create ");
+	const char* const operation = success ? "Alter " : "Create ";
 
 	if (!success) {
 		orig = ptr;
 		ptr = dict_scan_to(ptr, "CREATE");
 		ptr = dict_scan_to(ptr, "TABLE");
 		ptr = dict_accept(cs, ptr, "TABLE", &success);
+		create_table_name = NULL;
 
 		if (success) {
 			ptr = dict_scan_table_name(cs, ptr, &table_to_create, name,
-					&success, heap, &create_table_name);
+						   &success, heap, &create_table_name);
 		}
 
-		if (success) {
-			char *bufend;
-			bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-					create_table_name, strlen(create_table_name),
-					trx->mysql_thd);
-			create_name[bufend-create_name]='\0';
-			ptr = orig;
-		} else {
-			char *bufend;
-			ptr = orig;
-			bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-					name, strlen(name), trx->mysql_thd);
-			create_name[bufend-create_name]='\0';
-		}
-
-		goto loop;
+		ptr = orig;
+		const char* n = create_table_name ? create_table_name : name;
+		char *bufend = innobase_convert_name(create_name, MAX_TABLE_NAME_LEN,
+						     n, strlen(n), trx->mysql_thd);
+		create_name[bufend-create_name] = '\0';
+	} else {
+		strncpy(create_name, name, sizeof create_name);
+		create_name[(sizeof create_name) - 1] = '\0';
 	}
 
 	if (table == NULL) {
 		mutex_enter(&dict_foreign_err_mutex);
-		dict_foreign_error_report_low(ef, create_name);
 		dict_foreign_error_report_low(ef, create_name);
 		fprintf(ef, "%s table %s with foreign key constraint"
 			" failed. Table %s not found from data dictionary."
@@ -4394,19 +4366,13 @@ dict_create_foreign_constraints_low(
 	ptr = dict_scan_table_name(cs, ptr, &table_to_alter, name,
 				   &success, heap, &referenced_table_name);
 
-	if (table_to_alter) {
-		char *bufend;
-		bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-				table_to_alter->name.m_name, strlen(table_to_alter->name.m_name),
-				trx->mysql_thd);
+	{
+		const char* n = table_to_alter
+			? table_to_alter->name.m_name : referenced_table_name;
+		char* bufend = innobase_convert_name(
+			create_name, MAX_TABLE_NAME_LEN, n, strlen(n),
+			trx->mysql_thd);
 		create_name[bufend-create_name]='\0';
-	} else {
-		char *bufend;
-		bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-				referenced_table_name, strlen(referenced_table_name),
-				trx->mysql_thd);
-		create_name[bufend-create_name]='\0';
-
 	}
 
 	if (!success) {
@@ -6821,6 +6787,7 @@ dict_index_zip_pad_update(
 	ulint	fail_pct;
 
 	ut_ad(info);
+	ut_ad(info->pad % ZIP_PAD_INCR == 0);
 
 	total = info->success + info->failure;
 
@@ -6845,17 +6812,16 @@ dict_index_zip_pad_update(
 	if (fail_pct > zip_threshold) {
 		/* Compression failures are more then user defined
 		threshold. Increase the pad size to reduce chances of
-		compression failures. */
-		ut_ad(info->pad % ZIP_PAD_INCR == 0);
+		compression failures.
 
-		/* Only do increment if it won't increase padding
+		Only do increment if it won't increase padding
 		beyond max pad size. */
 		if (info->pad + ZIP_PAD_INCR
 		    < (srv_page_size * zip_pad_max) / 100) {
 			/* Use atomics even though we have the mutex.
 			This is to ensure that we are able to read
 			info->pad atomically. */
-			my_atomic_addlint(&info->pad, ZIP_PAD_INCR);
+			info->pad += ZIP_PAD_INCR;
 
 			MONITOR_INC(MONITOR_PAD_INCREMENTS);
 		}
@@ -6873,11 +6839,10 @@ dict_index_zip_pad_update(
 		if (info->n_rounds >= ZIP_PAD_SUCCESSFUL_ROUND_LIMIT
 		    && info->pad > 0) {
 
-			ut_ad(info->pad % ZIP_PAD_INCR == 0);
 			/* Use atomics even though we have the mutex.
 			This is to ensure that we are able to read
 			info->pad atomically. */
-			my_atomic_addlint(&info->pad, ulint(-ZIP_PAD_INCR));
+			info->pad -= ZIP_PAD_INCR;
 
 			info->n_rounds = 0;
 
@@ -6950,7 +6915,7 @@ dict_index_zip_pad_optimal_page_size(
 		return(srv_page_size);
 	}
 
-	pad = my_atomic_loadlint(&index->zip_pad.pad);
+	pad = index->zip_pad.pad;
 
 	ut_ad(pad < srv_page_size);
 	sz = srv_page_size - pad;
@@ -6992,32 +6957,16 @@ UNIV_INTERN
 ulint
 dict_sys_get_size()
 {
-	ulint size = 0;
+	/* No mutex; this is a very crude approximation anyway */
+	ulint size = UT_LIST_GET_LEN(dict_sys->table_LRU)
+		+ UT_LIST_GET_LEN(dict_sys->table_non_LRU);
+	size *= sizeof(dict_table_t)
+		+ sizeof(dict_index_t) * 2
+		+ (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
+		+ sizeof(dict_field_t) * 5 /* total number of key fields */
+		+ 200; /* arbitrary, covering names and overhead */
 
-	ut_ad(dict_sys);
-
-	mutex_enter(&dict_sys->mutex);
-
-	for(ulint i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
-		dict_table_t* table;
-
-		for (table = static_cast<dict_table_t*>(HASH_GET_FIRST(dict_sys->table_hash,i));
-		     table != NULL;
-		     table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, table))) {
-			dict_index_t* index;
-			size += mem_heap_get_size(table->heap) + strlen(table->name.m_name) +1;
-
-			for(index = dict_table_get_first_index(table);
-			    index != NULL;
-			    index = dict_table_get_next_index(index)) {
-				size += mem_heap_get_size(index->heap);
-			}
-		}
-	}
-
-	mutex_exit(&dict_sys->mutex);
-
-	return (size);
+	return size;
 }
 
 /** Look for any dictionary objects that are found in the given tablespace.
@@ -7107,53 +7056,4 @@ dict_space_get_id(
 	rw_lock_x_unlock(dict_operation_lock);
 
 	return(id);
-}
-
-/** Determine the extent size (in pages) for the given table
-@param[in]	table	the table whose extent size is being
-			calculated.
-@return extent size in pages (256, 128 or 64) */
-ulint
-dict_table_extent_size(
-	const dict_table_t*	table)
-{
-	const ulint	mb_1 = 1024 * 1024;
-	const ulint	mb_2 = 2 * mb_1;
-	const ulint	mb_4 = 4 * mb_1;
-
-	page_size_t	page_size = dict_table_page_size(table);
-	ulint	pages_in_extent = FSP_EXTENT_SIZE;
-
-	if (page_size.is_compressed()) {
-
-		ulint	disk_page_size	= page_size.physical();
-
-		switch (disk_page_size) {
-		case 1024:
-			pages_in_extent = mb_1/1024;
-			break;
-		case 2048:
-			pages_in_extent = mb_1/2048;
-			break;
-		case 4096:
-			pages_in_extent = mb_1/4096;
-			break;
-		case 8192:
-			pages_in_extent = mb_1/8192;
-			break;
-		case 16384:
-			pages_in_extent = mb_1/16384;
-			break;
-		case 32768:
-			pages_in_extent = mb_2/32768;
-			break;
-		case 65536:
-			pages_in_extent = mb_4/65536;
-			break;
-		default:
-			ut_ad(0);
-		}
-	}
-
-	return(pages_in_extent);
 }

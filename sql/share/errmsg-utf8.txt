@@ -5449,8 +5449,8 @@ ER_DIVISION_BY_ZERO 22012
         ger "Division durch 0"
         hindi "0 से विभाजन"
 ER_TRUNCATED_WRONG_VALUE_FOR_FIELD  22007
-        eng "Incorrect %-.32s value: '%-.128s' for column '%.192s' at row %lu"
-        ger "Falscher %-.32s-Wert: '%-.128s' für Feld '%.192s' in Zeile %lu"
+        eng "Incorrect %-.32s value: '%-.128s' for column `%.192s`.`%.192s`.`%.192s` at row %lu"
+        ger "Falscher %-.32s-Wert: '%-.128s' für Feld '`%.192s`.`%.192s`.`%.192s` in Zeile %lu"
 ER_ILLEGAL_VALUE_FOR_TYPE 22007 
         eng "Illegal %s '%-.192s' value found during parsing"
         ger "Nicht zulässiger %s-Wert '%-.192s' beim Parsen gefunden"
@@ -5838,10 +5838,10 @@ ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR
         eng "Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed"
         ger "Konstante oder Random-Ausdrücke in (Unter-)Partitionsfunktionen sind nicht erlaubt"
         swe "Konstanta uttryck eller slumpmässiga uttryck är inte tillåtna (sub)partitioneringsfunktioner"
-ER_NO_CONST_EXPR_IN_RANGE_OR_LIST_ERROR
-        eng "Expression in RANGE/LIST VALUES must be constant"
-        ger "Ausdrücke in RANGE/LIST VALUES müssen konstant sein"
-        swe "Uttryck i RANGE/LIST VALUES måste vara ett konstant uttryck"
+ER_NOT_CONSTANT_EXPRESSION
+        eng "Expression in %s must be constant"
+        ger "Ausdrücke in %s müssen konstant sein"
+        swe "Uttryck i %s måste vara ett konstant uttryck"
 ER_FIELD_NOT_FOUND_PART_ERROR
         eng "Field in list of fields for partition function not found in table"
         ger "Felder in der Feldliste der Partitionierungsfunktion wurden in der Tabelle nicht gefunden"
@@ -6942,6 +6942,7 @@ ER_NOT_VALID_PASSWORD
 ER_MUST_CHANGE_PASSWORD
   eng "You must SET PASSWORD before executing this statement"
   bgn "Трябва първо да си смените паролата със SET PASSWORD за да можете да изпълните тази команда"
+  rum "Trebuie sa iti schimbi parola folosind SET PASSWORD inainte de a executa aceasta comanda"
 
 ER_FK_NO_INDEX_CHILD
         eng "Failed to add the foreign key constaint. Missing index for constraint '%s' in the foreign table '%s'"
@@ -7094,6 +7095,7 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
 ER_MUST_CHANGE_PASSWORD_LOGIN
   eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
   bgn "Паролата ви е изтекла. За да влезете трябва да я смените използвайки клиент който поддрържа такива пароли"
+  rum "Parola ta a expirat. Pentru a te loga, trebuie sa o schimbi folosind un client ce suporta parole expirate"
 
 ER_ROW_IN_WRONG_PARTITION
   eng "Found a row in wrong partition %s"
@@ -7931,3 +7933,24 @@ ER_BACKUP_STAGE_FAILED
         eng "Backup stage '%s' failed"
 ER_BACKUP_UNKNOWN_STAGE
         eng "Unknown backup stage: '%s'. Stage should be one of START, FLUSH, BLOCK_DDL, BLOCK_COMMIT or END"
+ER_USER_IS_BLOCKED
+        eng "User is blocked because of too many credential errors; unblock with 'FLUSH PRIVILEGES'"
+ER_ACCOUNT_HAS_BEEN_LOCKED
+        eng "Access denied, this account is locked"
+        rum "Acces refuzat, acest cont este blocat"
+ER_PERIOD_TEMPORARY_NOT_ALLOWED
+        eng "Application-time period table cannot be temporary"
+ER_PERIOD_TYPES_MISMATCH
+        eng "Fields of PERIOD FOR %`s have different types"
+ER_MORE_THAN_ONE_PERIOD
+        eng "Cannot specify more than one application-time period"
+ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+        eng "Period field %`s cannot be %s"
+ER_PERIOD_NOT_FOUND
+        eng "Period %`s is not found in table"
+ER_PERIOD_COLUMNS_UPDATED
+        eng "Column %`s used in period %`s specified in update SET list"
+ER_PERIOD_CONSTRAINT_DROP
+        eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
+ER_TOO_LONG_KEYPART 42000 S1009
+        eng "Specified key part was too long; max key part length is %u bytes"

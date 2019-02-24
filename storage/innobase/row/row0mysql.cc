@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3079,13 +3079,14 @@ row_discard_tablespace(
 	table->flags2 |= DICT_TF2_DISCARDED;
 	dict_table_change_id_in_cache(table, new_id);
 
-	/* Reset the root page numbers. */
+	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
+	if (index) index->clear_instant_alter();
 
-	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-	     index != 0;
-	     index = UT_LIST_GET_NEXT(indexes, index)) {
+	/* Reset the root page numbers. */
+	for (; index; index = UT_LIST_GET_NEXT(indexes, index)) {
 		index->page = FIL_NULL;
 	}
+
 	/* If the tablespace did not already exist or we couldn't
 	write to it, we treat that as a successful DISCARD. It is
 	unusable anyway. */
@@ -3315,6 +3316,7 @@ row_drop_table_for_mysql(
 	pars_info_t*	info			= NULL;
 	mem_heap_t*	heap			= NULL;
 
+
 	DBUG_ENTER("row_drop_table_for_mysql");
 	DBUG_PRINT("row_drop_table_for_mysql", ("table: '%s'", name));
 
@@ -3345,17 +3347,22 @@ row_drop_table_for_mysql(
 			| DICT_ERR_IGNORE_CORRUPT));
 
 	if (!table) {
-		err = DB_TABLE_NOT_FOUND;
-		goto funct_exit_all_freed;
+		if (locked_dictionary) {
+			row_mysql_unlock_data_dictionary(trx);
+		}
+		trx->op_info = "";
+		DBUG_RETURN(DB_TABLE_NOT_FOUND);
 	}
+
+	const bool is_temp_name = strstr(table->name.m_name,
+					 "/" TEMP_FILE_PREFIX);
 
 	if (table->is_temporary()) {
 		ut_ad(table->space == fil_system.temp_space);
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page),
-				 univ_page_size);
+			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page));
 		}
 		/* Remove the pointer to this table object from the list
 		of modified tables by the transaction because the object
@@ -3404,7 +3411,6 @@ row_drop_table_for_mysql(
 
 	/* make sure background stats thread is not running on the table */
 	ut_ad(!(table->stats_bg_flag & BG_STAT_IN_PROGRESS));
-
 	if (!table->no_rollback()) {
 		if (table->space != fil_system.sys_space) {
 #ifdef BTR_CUR_HASH_ADAPT
@@ -3419,8 +3425,11 @@ row_drop_table_for_mysql(
 			calling btr_search_drop_page_hash_index() while we
 			hold the InnoDB dictionary lock, we will drop any
 			adaptive hash index entries upfront. */
+			bool immune = is_temp_name
+				|| strstr(table->name.m_name, "/FTS");
+
 			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-				if (trx_is_interrupted(trx)
+				if ((!immune && trx_is_interrupted(trx))
 				    || srv_shutdown_state
 				    != SRV_SHUTDOWN_NONE) {
 					err = DB_INTERRUPTED;
@@ -3511,7 +3520,6 @@ row_drop_table_for_mysql(
 		}
 	}
 
-
 	DBUG_EXECUTE_IF("row_drop_table_add_to_background", goto defer;);
 
 	/* TODO: could we replace the counter n_foreign_key_checks_running
@@ -3522,7 +3530,7 @@ row_drop_table_for_mysql(
 
 	if (table->n_foreign_key_checks_running > 0) {
 defer:
-		if (!strstr(table->name.m_name, "/" TEMP_FILE_PREFIX)) {
+		if (!is_temp_name) {
 			heap = mem_heap_create(FN_REFLEN);
 			const char* tmp_name
 				= dict_mem_create_temporary_tablename(
@@ -4466,9 +4474,6 @@ row_rename_table_for_mysql(
 			"    = TO_BINARY(:old_table_name);\n"
 			"END;\n"
 			, FALSE, trx);
-		if (err != DB_SUCCESS) {
-			goto end;
-		}
 
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */

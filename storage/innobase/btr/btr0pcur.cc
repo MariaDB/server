@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -141,6 +141,7 @@ btr_pcur_store_position(
 		if (page_rec_is_supremum_low(offs)) {
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 		} else {
+before_first:
 			cursor->rel_pos = BTR_PCUR_BEFORE_FIRST_IN_TREE;
 		}
 
@@ -165,8 +166,14 @@ btr_pcur_store_position(
 		rec = page_rec_get_next(rec);
 
 		if (rec_is_metadata(rec, *index)) {
+			ut_ad(!page_has_prev(page));
+			ut_d(const rec_t* p = rec);
 			rec = page_rec_get_next(rec);
-			ut_ad(!page_rec_is_supremum(rec));
+			if (page_rec_is_supremum(rec)) {
+				ut_ad(page_has_next(page)
+				      || rec_is_alter_metadata(p, *index));
+				goto before_first;
+			}
 		}
 
 		cursor->rel_pos = BTR_PCUR_BEFORE;
@@ -469,7 +476,7 @@ btr_pcur_move_to_next_page(
 
 	next_block = btr_block_get(
 		page_id_t(block->page.id.space(), next_page_no),
-		block->page.size, mode,
+		block->zip_size(), mode,
 		btr_pcur_get_btr_cur(cursor)->index, mtr);
 
 	if (UNIV_UNLIKELY(!next_block)) {

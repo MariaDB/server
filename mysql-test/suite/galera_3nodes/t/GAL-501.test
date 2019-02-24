@@ -5,7 +5,13 @@
 # ist.recv_addr=[::1]
 
 --source include/galera_cluster.inc
---source include/have_ipv6.inc
+--source include/check_ipv6.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--connection node_3
+--source include/galera_wait_ready.inc
 
 # Confirm that initial handshake happened over ipv6
 

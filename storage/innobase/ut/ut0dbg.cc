@@ -52,7 +52,7 @@ ut_dbg_assertion_failed(
 	      " or crashes, even\n"
 	      "InnoDB: immediately after the mysqld startup, there may be\n"
 	      "InnoDB: corruption in the InnoDB tablespace. Please refer to\n"
-	      "InnoDB: https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/\n"
+	      "InnoDB: https://mariadb.com/kb/en/library/innodb-recovery-modes/\n"
 	      "InnoDB: about forcing recovery.\n", stderr);
 
 	fflush(stderr);

@@ -4354,25 +4354,23 @@ void wsrep_plugins_pre_init()
   members of wsrep startup threads with correct values, as these value
   were not available at the time these threads were created.
 */
+
+my_bool post_init_callback(THD *thd, void *)
+{
+  if (thd->wsrep_applier)
+  {
+    // Save options_bits as it will get overwritten in plugin_thdvar_init()
+    ulonglong option_bits_saved= thd->variables.option_bits;
+    plugin_thdvar_init(thd);
+    // Restore option_bits
+    thd->variables.option_bits= option_bits_saved;
+  }
+  return 0;
+}
+
+
 void wsrep_plugins_post_init()
 {
-  THD *thd;
-  I_List_iterator<THD> it(threads);
-
-  while ((thd= it++))
-  {
-    if (IF_WSREP(thd->wsrep_applier,1))
-    {
-      // Save options_bits as it will get overwritten in plugin_thdvar_init()
-      ulonglong option_bits_saved= thd->variables.option_bits;
-
-      plugin_thdvar_init(thd);
-
-      // Restore option_bits
-      thd->variables.option_bits= option_bits_saved;
-    }
-  }
-
-  return;
+  server_threads.iterate(post_init_callback);
 }
 #endif /* WITH_WSREP */

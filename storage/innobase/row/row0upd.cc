@@ -972,8 +972,9 @@ the equal ordering fields. NOTE: we compare the fields as binary strings!
 @param[in]	heap		memory heap from which allocated
 @param[in]	mysql_table	NULL, or mysql table object when
 				user thread invokes dml
+@param[out]	error		error number in case of failure
 @return own: update vector of differing fields, excluding roll ptr and
-trx id */
+trx id,if error is not equal to DB_SUCCESS, return NULL */
 upd_t*
 row_upd_build_difference_binary(
 	dict_index_t*	index,
@@ -983,7 +984,8 @@ row_upd_build_difference_binary(
 	bool		no_sys,
 	trx_t*		trx,
 	mem_heap_t*	heap,
-	TABLE*		mysql_table)
+	TABLE*		mysql_table,
+	dberr_t*	error)
 {
 	upd_field_t*	upd_field;
 	dfield_t*	dfield;
@@ -1082,6 +1084,11 @@ row_upd_build_difference_binary(
 				update->old_vrow, col, index,
 				&v_heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
+			if (vfield == NULL) {
+				if (v_heap) mem_heap_free(v_heap);
+				*error = DB_COMPUTE_VALUE_FAILED;
+				return(NULL);
+			}
 
 			if (!dfield_data_is_binary_equal(
 				dfield, vfield->len,
@@ -1124,7 +1131,7 @@ of the column and must not be poisoned with the new values.
 @param[in]	data		'internally' stored part of the field
 containing also the reference to the external part
 @param[in]	local_len	length of data, in bytes
-@param[in]	page_size	BLOB page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	len		input - length of prefix to
 fetch; output: fetched length of the prefix
 @param[in,out]	heap		heap where to allocate
@@ -1134,14 +1141,14 @@ byte*
 row_upd_ext_fetch(
 	const byte*		data,
 	ulint			local_len,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint*			len,
 	mem_heap_t*		heap)
 {
 	byte*	buf = static_cast<byte*>(mem_heap_alloc(heap, *len));
 
 	*len = btr_copy_externally_stored_field_prefix(
-		buf, *len, page_size, data, local_len);
+		buf, *len, zip_size, data, local_len);
 
 	/* We should never update records containing a half-deleted BLOB. */
 	ut_a(*len);
@@ -1157,7 +1164,7 @@ the given index entry field.
 @param[in]	uf		update field
 @param[in,out]	heap		memory heap for allocating and copying
 the new value
-@param[in]	page_size	page size */
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 static
 void
 row_upd_index_replace_new_col_val(
@@ -1166,7 +1173,7 @@ row_upd_index_replace_new_col_val(
 	const dict_col_t*	col,
 	const upd_field_t*	uf,
 	mem_heap_t*		heap,
-	const page_size_t&	page_size)
+	ulint			zip_size)
 {
 	ulint		len;
 	const byte*	data;
@@ -1190,7 +1197,7 @@ row_upd_index_replace_new_col_val(
 
 			len = field->prefix_len;
 
-			data = row_upd_ext_fetch(data, l, page_size,
+			data = row_upd_ext_fetch(data, l, zip_size,
 						 &len, heap);
 		}
 
@@ -1263,7 +1270,7 @@ row_upd_index_replace_metadata(
 	ut_ad(update->is_alter_metadata());
 	ut_ad(entry->info_bits == update->info_bits);
 	ut_ad(entry->n_fields == ulint(index->n_fields) + 1);
-	const page_size_t& page_size = dict_table_page_size(index->table);
+	const ulint zip_size = index->table->space->zip_size();
 	const ulint first = index->first_user_field();
 	ut_d(bool found_mblob = false);
 
@@ -1291,7 +1298,7 @@ row_upd_index_replace_metadata(
 		f -= f > first;
 		const dict_field_t* field = dict_index_get_nth_field(index, f);
 		row_upd_index_replace_new_col_val(dfield, field, field->col,
-						  uf, heap, page_size);
+						  uf, heap, zip_size);
 	}
 
 	ut_ad(found_mblob);
@@ -1319,7 +1326,7 @@ row_upd_index_replace_new_col_vals_index_pos(
 		return;
 	}
 
-	const page_size_t&	page_size = dict_table_page_size(index->table);
+	const ulint zip_size = index->table->space->zip_size();
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
@@ -1345,7 +1352,7 @@ row_upd_index_replace_new_col_vals_index_pos(
 		if (uf) {
 			row_upd_index_replace_new_col_val(
 				dtuple_get_nth_field(entry, i),
-				field, col, uf, heap, page_size);
+				field, col, uf, heap, zip_size);
 		}
 	}
 }
@@ -1371,7 +1378,7 @@ row_upd_index_replace_new_col_vals(
 	ulint			i;
 	const dict_index_t*	clust_index
 		= dict_table_get_first_index(index->table);
-	const page_size_t&	page_size = dict_table_page_size(index->table);
+	const ulint zip_size = index->table->space->zip_size();
 
 	ut_ad(!index->table->skip_alter_undo);
 
@@ -1401,7 +1408,7 @@ row_upd_index_replace_new_col_vals(
 		if (uf) {
 			row_upd_index_replace_new_col_val(
 				dtuple_get_nth_field(entry, i),
-				field, col, uf, heap, page_size);
+				field, col, uf, heap, zip_size);
 		}
 	}
 }
@@ -1625,8 +1632,7 @@ row_upd_replace(
 	}
 
 	if (n_ext_cols) {
-		*ext = row_ext_create(n_ext_cols, ext_cols, table->flags, row,
-				      heap);
+		*ext = row_ext_create(n_ext_cols, ext_cols, *table, row, heap);
 	} else {
 		*ext = NULL;
 	}
@@ -1734,11 +1740,9 @@ row_upd_changes_ord_field_binary_func(
 			mem_heap_t*	temp_heap = NULL;
 			const dfield_t*	new_field = &upd_field->new_val;
 
-			const page_size_t	page_size
-				= (ext != NULL)
-				? ext->page_size
-				: dict_table_page_size(
-					index->table);
+			const ulint zip_size = ext
+				? ext->zip_size
+				: index->table->space->zip_size();
 
 			ut_ad(dfield->data != NULL
 			      && dfield->len > GEO_DATA_HEADER_SIZE);
@@ -1755,7 +1759,7 @@ row_upd_changes_ord_field_binary_func(
 
 				dptr = btr_copy_externally_stored_field(
 					&dlen, dptr,
-					page_size,
+					zip_size,
 					flen,
 					temp_heap);
 			} else {
@@ -1818,7 +1822,7 @@ row_upd_changes_ord_field_binary_func(
 
 				dptr = btr_copy_externally_stored_field(
 					&dlen, dptr,
-					page_size,
+					zip_size,
 					flen,
 					temp_heap);
 			} else {
@@ -2422,7 +2426,7 @@ row_upd_sec_index_entry(
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
-		ut_ad(btr_validate_index(index, 0, false));
+		ut_ad(btr_validate_index(index, 0));
 		ut_ad(0);
 #endif /* UNIV_DEBUG */
 		break;
@@ -2458,7 +2462,7 @@ row_upd_sec_index_entry(
 					err = DB_SUCCESS;
 					break;
 				case DB_DEADLOCK:
-					if (wsrep_debug) {
+					if (wsrep_get_debug()) {
 						ib::warn() << "WSREP: sec index FK check fail for deadlock"
 							   << " index " << index->name
 							   << " table " << index->table->name;
@@ -2773,7 +2777,7 @@ check_fk:
 				err = DB_SUCCESS;
 				break;
 			case DB_DEADLOCK:
-				if (wsrep_debug) {
+				if (wsrep_get_debug()) {
 					ib::warn() << "WSREP: sec index FK check fail for deadlock"
 						   << " index " << index->name
 						   << " table " << index->table->name;
@@ -3002,7 +3006,7 @@ row_upd_del_mark_clust_rec(
 			err = DB_SUCCESS;
 			break;
 		case DB_DEADLOCK:
-			if (wsrep_debug) {
+			if (wsrep_get_debug()) {
 				ib::warn() << "WSREP: sec index FK check fail for deadlock"
 					   << " index " << index->name
 					   << " table " << index->table->name;
@@ -3187,6 +3191,7 @@ row_upd_clust_step(
 
 	if (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE) {
 
+		node->index = NULL;
 		err = row_upd_clust_rec(
 			flags, node, index, offsets, &heap, thr, &mtr);
 		goto exit_func;

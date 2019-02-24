@@ -194,7 +194,7 @@ INSERT into t31 set f1=1, f2=1, f3=1, f4='first';
 insert ignore into t31 set f1=1, f2=1, f3=2, f4='second',
 f9=2.2,  f10='seven samurai', f28=222.222, f35='222';
 Warnings:
-Warning	1366	Incorrect integer value: 'seven samurai' for column 'f10' at row 1
+Warning	1366	Incorrect integer value: 'seven samurai' for column `test`.`t31`.`f10` at row 1
 insert ignore into t31 values (1, 1, 3, 'third',
 /* f5  BIGINT,  */            333333333333333333333333,
 /* f6  BLOB,  */              '3333333333333333333333',

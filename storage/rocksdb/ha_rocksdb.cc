@@ -3770,7 +3770,6 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
         We get here when committing a statement within a transaction.
       */
       tx->make_stmt_savepoint_permanent();
-      tx->make_stmt_savepoint_permanent();
     }
 
     if (my_core::thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {
@@ -10754,6 +10753,11 @@ int ha_rocksdb::info(uint flag) {
         // Cached data is still valid, so use it instead
         stats.records += m_table_handler->m_mtcache_count;
         stats.data_file_length += m_table_handler->m_mtcache_size;
+      }
+
+      // Do like InnoDB does. stats.records=0 confuses the optimizer
+      if (stats.records == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
+        stats.records++;
       }
 
       if (rocksdb_debug_optimizer_n_rows > 0)

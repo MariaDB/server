@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2069,7 +2069,7 @@ bool Field_int::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
   ASSERT_COLUMN_MARKED_FOR_READ;
   Longlong_hybrid nr(val_int(), (flags & UNSIGNED_FLAG));
   return int_to_datetime_with_warn(get_thd(), nr, ltime,
-                                   fuzzydate, field_name.str);
+                                   fuzzydate, table->s, field_name.str);
 }
 
 
@@ -2256,7 +2256,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
 {
   StringBuffer<40> tmp;
-  Temporal::Warn_push warn(get_thd(), NullS, to, mode);
+  Temporal::Warn_push warn(get_thd(), NULL, NullS, to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(get_thd(), &warn,
                                               val_str(&tmp), mode);
   return !t->is_valid_temporal();
@@ -4832,7 +4832,7 @@ bool Field_real::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
   ASSERT_COLUMN_MARKED_FOR_READ;
   double nr= val_real();
   return double_to_datetime_with_warn(get_thd(), nr, ltime, fuzzydate,
-                                      field_name.str);
+                                      table->s, field_name.str);
 }
 
 
@@ -6318,8 +6318,8 @@ bool Field_year::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
   if (tmp || field_length != 4)
     tmp+= 1900;
   return int_to_datetime_with_warn(get_thd(),
-                                    Longlong_hybrid(tmp * 10000, true),
-                                    ltime, fuzzydate, field_name.str);
+                                   Longlong_hybrid(tmp * 10000, true),
+                                   ltime, fuzzydate, table->s, field_name.str);
 }
 
 
@@ -6796,7 +6796,12 @@ int Field_datetime::set_time()
   THD *thd= table->in_use;
   set_notnull();
   // Here we always truncate (not round), no matter what sql_mode is
-  store_datetime(Datetime(thd, thd->query_start_timeval()).trunc(decimals()));
+  if (decimals())
+    store_datetime(Datetime(thd, Timeval(thd->query_start(),
+                                         thd->query_start_sec_part())
+                            ).trunc(decimals()));
+  else
+    store_datetime(Datetime(thd, Timeval(thd->query_start(), 0)));
   return 0;
 }
 
@@ -7063,9 +7068,23 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->length == max_display_length();
+  if (new_field->type_handler() != type_handler())
+    return IS_EQUAL_NO;
+  if (new_field->length < max_display_length())
+    return IS_EQUAL_NO;
+  if (new_field->char_length < char_length())
+    return IS_EQUAL_NO;
+
+  const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+					     part_of_a_key))
+    return IS_EQUAL_NO;
+
+  if (new_field->length == max_display_length())
+    return new_field->charset == field_charset
+      ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
+
+  return IS_EQUAL_NO;
 }
 
 
@@ -7901,17 +7920,31 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
-  if (new_field->type_handler() == type_handler() &&
-      new_field->charset == field_charset &&
-      !new_field->compression_method() == !compression_method())
+  if (new_field->length < field_length)
+    return IS_EQUAL_NO;
+  if (new_field->char_length < char_length())
+    return IS_EQUAL_NO;
+  if (!new_field->compression_method() != !compression_method())
+    return IS_EQUAL_NO;
+
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+    return IS_EQUAL_NO;
+
+  const Type_handler *new_type_handler= new_field->type_handler();
+  if (new_type_handler == type_handler())
   {
     if (new_field->length == field_length)
-      return IS_EQUAL_YES;
-    if (new_field->length > field_length &&
-	((new_field->length <= 255 && field_length <= 255) ||
-	 (new_field->length > 255 && field_length > 255)))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer variable length
+      return new_field->charset == field_charset
+        ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
+    if (field_length <= 127 ||
+        new_field->length <= 255 ||
+        field_length > 255 ||
+        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
+      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
   }
+
   return IS_EQUAL_NO;
 }
 
@@ -8678,10 +8711,32 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->pack_length == pack_length() &&
-         !new_field->compression_method() == !compression_method();
+  if (new_field->type_handler() != type_handler())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (!new_field->compression_method() != !compression_method())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (new_field->pack_length != pack_length())
+  {
+    return IS_EQUAL_NO;
+  }
+
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+  {
+    return IS_EQUAL_NO;
+  }
+
+  if (field_charset != new_field->charset)
+  {
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  return IS_EQUAL_YES;
 }
 
 
@@ -8919,10 +8974,18 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
         geom_type != Field::GEOM_GEOMETRYCOLLECTION &&
         (uint32) geom_type != wkb_type)
     {
+      const char *db= table->s->db.str;
+      const char *tab_name= table->s->table_name.str;
+
+      if (!db)
+        db= "";
+      if (!tab_name)
+        tab_name= "";
+
       my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
                Geometry::ci_collection[geom_type]->m_name.str,
                Geometry::ci_collection[wkb_type]->m_name.str,
-               field_name.str,
+               db, tab_name, field_name.str,
                (ulong) table->in_use->get_stmt_da()->
                current_row_for_warning());
       goto err_exit;
@@ -9472,12 +9535,32 @@ bool Field_num::eq_def(const Field *field) const
 
 uint Field_num::is_equal(Create_field *new_field)
 {
-  return ((new_field->type_handler() == type_handler()) &&
-          ((new_field->flags & UNSIGNED_FLAG) == 
-           (uint) (flags & UNSIGNED_FLAG)) &&
-	  ((new_field->flags & AUTO_INCREMENT_FLAG) ==
-	   (uint) (flags & AUTO_INCREMENT_FLAG)) &&
-          (new_field->pack_length == pack_length()));
+  if ((new_field->flags ^ flags) & (UNSIGNED_FLAG | AUTO_INCREMENT_FLAG))
+    return IS_EQUAL_NO;
+
+  const Type_handler *th= type_handler(), *new_th = new_field->type_handler();
+
+  if (th == new_th && new_field->pack_length == pack_length())
+    return IS_EQUAL_YES;
+  /* FIXME: Test and consider returning IS_EQUAL_YES for the following:
+  TINYINT UNSIGNED to BIT(8)
+  SMALLINT UNSIGNED to BIT(16)
+  MEDIUMINT UNSIGNED to BIT(24)
+  INT UNSIGNED to BIT(32)
+  BIGINT UNSIGNED to BIT(64)
+
+  BIT(1..7) to TINYINT, or BIT(1..8) to TINYINT UNSIGNED
+  BIT(9..15) to SMALLINT, or BIT(9..16) to SMALLINT UNSIGNED
+  BIT(17..23) to MEDIUMINT, or BIT(17..24) to MEDIUMINT UNSIGNED
+  BIT(25..31) to INT, or BIT(25..32) to INT UNSIGNED
+  BIT(57..63) to BIGINT, or BIT(57..64) to BIGINT UNSIGNED
+
+  Note: InnoDB stores integers in big-endian format, and BIT appears
+  to use big-endian format. For storage engines that use little-endian
+  format for integers, we can only return IS_EQUAL_YES for the TINYINT
+  conversion. */
+
+  return IS_EQUAL_NO;
 }
 
 
@@ -9803,7 +9886,7 @@ int Field_bit::key_cmp(const uchar *str, uint length)
 }
 
 
-int Field_bit::cmp_offset(uint row_offset)
+int Field_bit::cmp_offset(my_ptrdiff_t row_offset)
 {
   if (bit_len)
   {
@@ -10420,6 +10503,13 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 }
 
 
+bool Column_definition::validate_check_constraint(THD *thd)
+{
+  return check_constraint &&
+         check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
+}
+
+
 bool Column_definition::check(THD *thd)
 {
   DBUG_ENTER("Column_definition::check");
@@ -10434,9 +10524,8 @@ bool Column_definition::check(THD *thd)
       DBUG_RETURN(TRUE);
   }
 
-  if (check_constraint &&
-      check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD))
-      DBUG_RETURN(1);
+  if (type_handler()->Column_definition_validate_check_constraint(thd, this))
+    DBUG_RETURN(TRUE);
 
   if (default_value)
   {
@@ -10725,6 +10814,10 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   interval=     dup_field->interval;
   vcol_info=    dup_field->vcol_info;
   invisible=    dup_field->invisible;
+  check_constraint= dup_field->check_constraint;
+  comment=      dup_field->comment;
+  option_list=  dup_field->option_list;
+  versioning=   dup_field->versioning;
 }
 
 
@@ -10917,7 +11010,8 @@ void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
   THD *thd= get_thd();
   if (thd->really_abort_on_warning() && level >= Sql_condition::WARN_LEVEL_WARN)
     thd->push_warning_truncated_value_for_field(level, typestr,
-                                                str->ptr(), field_name.str);
+                                                str->ptr(), table->s,
+                                                field_name.str);
   else
     set_warning(level, code, cuted_increment);
 }
@@ -10927,10 +11021,18 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
                                               const char *value)
 {
   THD *thd= get_thd();
+  const char *db_name= table->s->db.str;
+  const char *table_name= table->s->table_name.str;
+
+  if (!db_name)
+    db_name= "";
+  if (!table_name)
+    table_name= "";
+
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                       ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                      type_arg, value, field_name.str,
+                      type_arg, value, db_name, table_name, field_name.str,
                       static_cast<ulong>(thd->get_stmt_da()->
                       current_row_for_warning()));
 }

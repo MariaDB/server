@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE DATABASE database1;
 USE database1;
@@ -14,9 +16,9 @@ INSERT INTO t2 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, te
 connection node_2;
 DROP DATABASE database1;;
 connection node_1;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_1a;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_2;
 connection node_1;
 SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = 'database1';

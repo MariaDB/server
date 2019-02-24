@@ -329,6 +329,7 @@ unpack_row(rpl_group_info *rgi,
                              (int) (pack_ptr - old_pack_ptr)));
         if (!pack_ptr)
         {
+#ifdef WITH_WSREP
 	  if (WSREP_ON)
           {
             /*
@@ -344,7 +345,7 @@ unpack_row(rpl_group_info *rgi,
                        (table_found) ? "found" : "not found", row_end
             );
 	  }
-
+#endif /* WITH_WSREP */
           rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                       rgi->gtid_info(),
                       "Could not read field '%s' of table '%s.%s'",

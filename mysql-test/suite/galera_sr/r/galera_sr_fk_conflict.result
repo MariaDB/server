@@ -1,0 +1,39 @@
+connection node_2;
+connection node_1;
+CREATE TABLE grandparent (
+id INT NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
+CREATE TABLE parent (
+id INT NOT NULL PRIMARY KEY,
+grandparent_id INT,
+FOREIGN KEY (grandparent_id)
+REFERENCES grandparent(id)
+ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE child (
+id INT NOT NULL PRIMARY KEY, 
+grandparent_id INT,
+FOREIGN KEY (grandparent_id)
+REFERENCES parent(grandparent_id)
+ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO grandparent VALUES (1),(2),(3),(4);
+INSERT INTO parent VALUES (1,1), (2,2);
+INSERT INTO child VALUES (1,1), (2,2);
+connection node_1;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+UPDATE grandparent SET id = 5 WHERE id = 1;
+connection node_2;
+SET SESSION innodb_lock_wait_timeout = 1;
+UPDATE grandparent SET id = 10 WHERE id = 5;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DELETE FROM child;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection node_1;
+COMMIT;
+include/diff_servers.inc [servers=1 2]
+DROP TABLE child;
+DROP TABLE parent;
+DROP TABLE grandparent;

@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 CHAR(5)) ENGINE=InnoDB;
 CREATE TABLE t2 (f1 CHAR(5)) ENGINE=InnoDB;
 CREATE TABLE t3 (f1 CHAR(5)) ENGINE=InnoDB;
@@ -28,7 +30,7 @@ ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 ALTER TABLE t1 DROP COLUMN f1;
 connection node_1;
 EXECUTE st1;
-ERROR 22007: Incorrect integer value: 'abc' for column 'f2' at row 1
+ERROR 22007: Incorrect integer value: 'abc' for column `test`.`t1`.`f2` at row 1
 connection node_1;
 DROP TABLE t1;
 DROP TABLE t2;

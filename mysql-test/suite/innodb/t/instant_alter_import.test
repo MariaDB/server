@@ -1,0 +1,84 @@
+--source include/have_innodb.inc
+set default_storage_engine=innodb;
+
+--echo #
+--echo # MDEV-18295 IMPORT TABLESPACE fails with instant-altered tables
+--echo #
+
+create table t2 (x int, z int default 41);
+alter table t2 discard tablespace;
+
+create table t1 (x int);
+insert into t1 values (1);
+alter table t1 add z int default 42, algorithm instant;
+select * from t1;
+flush tables t1 for export;
+--let $MYSQLD_DATADIR= `select @@datadir`
+--move_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+unlock tables;
+
+--echo # The metadata has to be updated to instant ADD COLUMN.
+alter table t2 import tablespace;
+
+select * from t2;
+insert into t2 set x=2;
+select * from t2;
+
+alter table t1 discard tablespace;
+flush tables t2 for export;
+--move_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
+unlock tables;
+
+--echo # Both the metadata and the data file used instant ADD COLUMN.
+alter table t1 import tablespace;
+select * from t1;
+
+drop table t2;
+create table t2 select * from t1;
+
+alter table t1 discard tablespace;
+flush tables t2 for export;
+--move_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
+unlock tables;
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t1b.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1b.ibd
+
+--echo # The instant ADD COLUMN has to be removed from the metadata.
+alter table t1 import tablespace;
+select * from t1;
+
+--echo # Remove metadata for instant DROP COLUMN, then import
+alter table t1 drop x, add column x int first, algorithm instant;
+select * from t1;
+alter table t1 discard tablespace;
+
+--move_file $MYSQLD_DATADIR/test/t1b.cfg $MYSQLD_DATADIR/test/t1.cfg
+--move_file $MYSQLD_DATADIR/test/t1b.ibd $MYSQLD_DATADIR/test/t1.ibd
+alter table t1 import tablespace;
+select * from t1;
+
+--echo # Import a data file that contains instant DROP COLUMN metadata
+alter table t2 drop x;
+alter table t1 drop x, force;
+alter table t1 discard tablespace;
+
+flush tables t2 for export;
+--move_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
+unlock tables;
+
+--error ER_TABLE_SCHEMA_MISMATCH
+alter table t1 import tablespace;
+--error ER_TABLESPACE_DISCARDED
+select * from t1;
+--remove_file $MYSQLD_DATADIR/test/t1.cfg
+--error ER_INTERNAL_ERROR
+alter table t1 import tablespace;
+--error ER_TABLESPACE_DISCARDED
+select * from t1;
+
+drop table t2;
+drop table t1;

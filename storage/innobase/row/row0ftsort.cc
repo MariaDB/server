@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -808,7 +808,7 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
 
-	const page_size_t&	page_size = dict_table_page_size(table);
+	const ulint zip_size = table->space->zip_size();
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
 
@@ -838,7 +838,7 @@ loop:
 				doc.text.f_str =
 					btr_copy_externally_stored_field(
 						&doc.text.f_len, data,
-						page_size, data_len, blob_heap);
+						zip_size, data_len, blob_heap);
 			} else {
 				doc.text.f_str = data;
 				doc.text.f_len = data_len;
@@ -905,7 +905,7 @@ loop:
 			goto func_exit;
 		}
 
-		UNIV_MEM_INVALID(block[t_ctx.buf_used][0], srv_sort_buf_size);
+		UNIV_MEM_INVALID(block[t_ctx.buf_used], srv_sort_buf_size);
 		buf[t_ctx.buf_used] = row_merge_buf_empty(buf[t_ctx.buf_used]);
 		mycount[t_ctx.buf_used] += t_ctx.rows_added[t_ctx.buf_used];
 		t_ctx.rows_added[t_ctx.buf_used] = 0;
@@ -999,12 +999,11 @@ exit:
 					goto func_exit;
 				}
 
-				UNIV_MEM_INVALID(block[i][0],
-						 srv_sort_buf_size);
+				UNIV_MEM_INVALID(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
-					UNIV_MEM_INVALID(crypt_block[i][0],
-						 srv_sort_buf_size);
+					UNIV_MEM_INVALID(crypt_block[i],
+							 srv_sort_buf_size);
 				}
 			}
 

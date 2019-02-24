@@ -79,7 +79,6 @@ partition p1 values less than ('2016-10-18'),
 partition p2 values less than ('2020-10-19'));
 insert t1 values (0, '2000-01-02', 0);
 insert t1 values (1, '2020-01-02', 10);
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CONSTRAINT_FAILED
 alter table t1 add check (b in (0, 1));
 alter table t1 add check (b in (0, 10));
@@ -96,7 +95,6 @@ partition p1 values less than ('2016-10-18'),
 partition p2 values less than ('2020-10-19'));
 insert t1 values (0, '2000-01-02', 0);
 insert t1 values (1, '2020-01-02', 10);
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CONSTRAINT_FAILED
 alter table t1 add check (b in (0, 1));
 alter table t1 add check (b in (0, 10));

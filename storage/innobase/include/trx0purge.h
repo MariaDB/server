@@ -147,22 +147,19 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	rw_lock_t	latch;
 private:
-	/** whether purge is enabled; protected by latch and my_atomic */
-	int32_t		m_enabled;
+	/** whether purge is enabled; protected by latch and std::atomic */
+	std::atomic<bool>		m_enabled;
 	/** number of pending stop() calls without resume() */
-	int32_t		m_paused;
+	Atomic_counter<int32_t>		m_paused;
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	/** Total number of tasks submitted by srv_purge_coordinator_thread.
-	Not accessed by other threads. */
-	ulint	n_submitted;
-	/** Number of completed tasks. Accessed by srv_purge_coordinator
-	and srv_worker_thread by my_atomic. */
-	ulint	n_completed;
+	/** Number of not completed tasks. Accessed by srv_purge_coordinator
+	and srv_worker_thread by std::atomic. */
+	std::atomic<ulint>	n_tasks;
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator
@@ -232,7 +229,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t() : event(NULL), m_enabled(false) {}
+  purge_sys_t() : event(NULL), m_enabled(false), n_tasks(0) {}
 
 
   /** Create the instance */
@@ -242,39 +239,24 @@ public:
   void close();
 
   /** @return whether purge is enabled */
-  bool enabled()
-  {
-    return my_atomic_load32_explicit(&m_enabled, MY_MEMORY_ORDER_RELAXED);
-  }
-  /** @return whether purge is enabled */
-  bool enabled_latched()
-  {
-    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-    return bool(m_enabled);
-  }
+  bool enabled() { return m_enabled.load(std::memory_order_relaxed); }
   /** @return whether the purge coordinator is paused */
   bool paused()
-  { return my_atomic_load32_explicit(&m_paused, MY_MEMORY_ORDER_RELAXED); }
-  /** @return whether the purge coordinator is paused */
-  bool paused_latched()
-  {
-    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
-    return m_paused != 0;
-  }
+  { return m_paused != 0; }
 
   /** Enable purge at startup. Not protected by latch; the main thread
   will wait for purge_sys.enabled() in srv_start() */
   void coordinator_startup()
   {
     ut_ad(!enabled());
-    my_atomic_store32_explicit(&m_enabled, true, MY_MEMORY_ORDER_RELAXED);
+    m_enabled.store(true, std::memory_order_relaxed);
   }
 
   /** Disable purge at shutdown */
   void coordinator_shutdown()
   {
     ut_ad(enabled());
-    my_atomic_store32_explicit(&m_enabled, false, MY_MEMORY_ORDER_RELAXED);
+    m_enabled.store(false, std::memory_order_relaxed);
   }
 
   /** @return whether the purge coordinator thread is active */

@@ -203,6 +203,8 @@ enum enum_indicator_type
 #define VERS_UPDATE_UNVERSIONED_FLAG (1 << 29) /* column that doesn't support
                                                 system versioning when table
                                                 itself supports it*/
+#define LONG_UNIQUE_HASH_FIELD       (1<< 30) /* This field will store hash for unique
+                                                column */
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
@@ -333,12 +335,8 @@ enum enum_indicator_type
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
                            MARIADB_CLIENT_COM_MULTI |\
-                           MARIADB_CLIENT_STMT_BULK_OPERATIONS)
-
-/*
-  To be added later:
-  CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
-*/
+                           MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
+                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
 
 /*
   Switch off the flags that are optional and depending on build flags

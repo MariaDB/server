@@ -131,8 +131,6 @@ select c,count(*) from t1 group by c;
 select d,count(*) from t1 group by d;
 drop table t1;
 
--- error 1071
-create table t1 (a text, unique (a(2100))); # should give an error
 create table t1 (a text, key (a(2100)));    # key is auto-truncated
 show create table t1;
 drop table t1;
@@ -360,7 +358,8 @@ select * from t1 where txt >= 'Chevy';
 drop table t1;
 
 create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20)));
-insert into t1 (txt) values ('Chevy'), ('Chevy '), (NULL);
+insert into t1 (txt) values
+  ('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
 explain select * from t1 where txt='Chevy' or txt is NULL;
 select * from t1 where txt='Chevy ';

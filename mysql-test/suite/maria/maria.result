@@ -353,8 +353,6 @@ test.t1	check	status	OK
 drop table t1;
 CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), KEY t1 (a, b, c, d, e));
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
-CREATE TABLE t1 (a varchar(32000), unique key(a));
-ERROR 42000: Specified key was too long; max key length is 1000 bytes
 CREATE TABLE t1 (a varchar(1), b varchar(1), key (a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b));
 ERROR 42000: Too many key parts specified; max 32 parts allowed
 CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255));

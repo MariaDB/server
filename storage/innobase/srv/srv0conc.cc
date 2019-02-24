@@ -67,14 +67,12 @@ ulong	srv_thread_concurrency	= 0;
 
 /** Variables tracking the active and waiting threads. */
 struct srv_conc_t {
-	char		pad[CACHE_LINE_SIZE  - (sizeof(ulint) + sizeof(lint))];
-
 	/** Number of transactions that have declared_to_be_inside_innodb */
-	ulint	n_active;
+	MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<ulint> n_active;
 
 	/** Number of OS threads waiting in the FIFO for permission to
 	enter InnoDB */
-	ulint	n_waiting;
+	MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<ulint> n_waiting;
 };
 
 /* Control variables for tracking concurrency. */
@@ -121,8 +119,8 @@ srv_conc_enter_innodb_with_atomics(
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
 		if (wsrep_on(trx->mysql_thd) &&
-		    wsrep_trx_is_aborting(trx->mysql_thd)) {
-			if (wsrep_debug) {
+		    wsrep_thd_is_aborting(trx->mysql_thd)) {
+			if (wsrep_get_debug()) {
 				ib::info() <<
 					"srv_conc_enter due to MUST_ABORT";
 			}
@@ -133,8 +131,7 @@ srv_conc_enter_innodb_with_atomics(
 
 		if (srv_thread_concurrency == 0) {
 			if (notified_mysql) {
-				my_atomic_addlint(&srv_conc.n_waiting,
-						  ulint(-1));
+				srv_conc.n_waiting--;
 				thd_wait_end(trx->mysql_thd);
 			}
 
@@ -142,19 +139,14 @@ srv_conc_enter_innodb_with_atomics(
 		}
 
 		if (srv_conc.n_active < srv_thread_concurrency) {
-			ulint	n_active;
 
 			/* Check if there are any free tickets. */
-			n_active = my_atomic_addlint(
-				&srv_conc.n_active, 1) + 1;
-
-			if (n_active <= srv_thread_concurrency) {
+			if (srv_conc.n_active++ < srv_thread_concurrency) {
 
 				srv_enter_innodb_with_tickets(trx);
 
 				if (notified_mysql) {
-					my_atomic_addlint(&srv_conc.n_waiting,
-							  ulint(-1));
+					srv_conc.n_waiting--;
 					thd_wait_end(trx->mysql_thd);
 				}
 
@@ -176,11 +168,11 @@ srv_conc_enter_innodb_with_atomics(
 			/* Since there were no free seats, we relinquish
 			the overbooked ticket. */
 
-			my_atomic_addlint(&srv_conc.n_active, ulint(-1));
+			srv_conc.n_active--;
 		}
 
 		if (!notified_mysql) {
-			my_atomic_addlint(&srv_conc.n_waiting, 1);
+			srv_conc.n_waiting++;
 
 			thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 
@@ -224,7 +216,7 @@ srv_conc_exit_innodb_with_atomics(
 	trx->n_tickets_to_enter_innodb = 0;
 	trx->declared_to_be_inside_innodb = FALSE;
 
-	my_atomic_addlint(&srv_conc.n_active, ulint(-1));
+	srv_conc.n_active--;
 }
 
 /*********************************************************************//**
@@ -258,7 +250,7 @@ srv_conc_force_enter_innodb(
 		return;
 	}
 
-	(void) my_atomic_addlint(&srv_conc.n_active, 1);
+	srv_conc.n_active++;
 
 	trx->n_tickets_to_enter_innodb = 1;
 	trx->declared_to_be_inside_innodb = TRUE;
@@ -316,14 +308,14 @@ wsrep_srv_conc_cancel_wait(
 	   srv_conc_enter_innodb_with_atomics(). No need to cancel here,
 	   thr will wake up after os_sleep and let to enter innodb
 	*/
-	if (wsrep_debug) {
+	if (wsrep_get_debug()) {
 		ib::info() << "WSREP: conc slot cancel, no atomics";
 	}
 #else
 	// JAN: TODO: MySQL 5.7
 	//os_fast_mutex_lock(&srv_conc_mutex);
 	if (trx->wsrep_event) {
-		if (wsrep_debug) {
+		if (wsrep_get_debug()) {
 			ib::info() << "WSREP: conc slot cancel";
 		}
 		os_event_set(trx->wsrep_event);

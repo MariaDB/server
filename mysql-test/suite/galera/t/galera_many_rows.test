@@ -3,6 +3,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --connection node_1
 SET SESSION innodb_lock_wait_timeout=600;
 SET SESSION lock_wait_timeout=600;
@@ -52,3 +57,5 @@ COMMIT;
 
 DROP TABLE t1;
 DROP TABLE ten;
+
+--source include/auto_increment_offset_restore.inc

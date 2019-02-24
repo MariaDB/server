@@ -643,6 +643,9 @@ ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
                  MODIFY authentication_string TEXT NOT NULL;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user ADD password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL after password_expired;
+ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
+ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL;
 ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
@@ -760,7 +763,7 @@ ALTER TABLE column_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
 
 DELIMITER //
-IF 'BASE TABLE' = (select table_type from information_schema.tables where table_name='user') THEN
+IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN
   CREATE TABLE IF NOT EXISTS global_priv (Host char(60) binary DEFAULT '', User char(80) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
   SELECT Host, User, JSON_COMPACT(JSON_OBJECT('access',
                              1*('Y'=Select_priv)+
@@ -803,7 +806,10 @@ IF 'BASE TABLE' = (select table_type from information_schema.tables where table_
                     'max_user_connections', max_user_connections,
                     'max_statement_time', max_statement_time,
                     'plugin', if(plugin>'',plugin,if(length(password)=16,'mysql_old_password','mysql_native_password')),
-                    'authentication_string', if(plugin>'',authentication_string,password),
+                    'authentication_string', if(plugin>'' and authentication_string>'',authentication_string,password),
+                    'password_last_changed', if(password_expired='Y', 0, UNIX_TIMESTAMP(password_last_changed)),
+                    'password_lifetime', ifnull(password_lifetime, -1),
+                    'account_locked', 'Y'=account_locked,
                     'default_role', default_role,
                     'is_role', 'Y'=is_role)) as Priv
   FROM user;

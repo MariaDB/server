@@ -78,6 +78,7 @@ struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 class Vers_history_point;
+class Virtual_column_info;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -613,34 +614,36 @@ public:
               public Status
   {
   public:
-    void push_conversion_warnings(THD *thd, bool totally_useless_value, date_mode_t mode,
-                                 timestamp_type tstype, const char *name)
+    void push_conversion_warnings(THD *thd, bool totally_useless_value,
+                                  date_mode_t mode, timestamp_type tstype,
+                                  const TABLE_SHARE* s, const char *name)
     {
       const char *typestr= tstype >= 0 ? type_name_by_timestamp_type(tstype) :
                            mode & (TIME_INTERVAL_hhmmssff | TIME_INTERVAL_DAY) ?
                            "interval" :
                            mode & TIME_TIME_ONLY ? "time" : "datetime";
-      Temporal::push_conversion_warnings(thd, totally_useless_value, warnings, typestr,
-                                         name, ptr());
+      Temporal::push_conversion_warnings(thd, totally_useless_value, warnings,
+                                         typestr, s, name, ptr());
     }
   };
 
   class Warn_push: public Warn
   {
     THD *m_thd;
+    const TABLE_SHARE *m_s;
     const char *m_name;
     const MYSQL_TIME *m_ltime;
     date_mode_t m_mode;
   public:
-    Warn_push(THD *thd, const char *name,
+    Warn_push(THD *thd, const TABLE_SHARE *s, const char *name,
               const MYSQL_TIME *ltime, date_mode_t mode)
-     :m_thd(thd), m_name(name), m_ltime(ltime), m_mode(mode)
+    :m_thd(thd), m_s(s), m_name(name), m_ltime(ltime), m_mode(mode)
     { }
     ~Warn_push()
     {
       if (warnings)
         push_conversion_warnings(m_thd, m_ltime->time_type < 0,
-                                 m_mode, m_ltime->time_type, m_name);
+                                 m_mode, m_ltime->time_type, m_s, m_name);
     }
   };
 
@@ -681,6 +684,7 @@ public:
   }
   static void push_conversion_warnings(THD *thd, bool totally_useless_value, int warn,
                                        const char *type_name,
+                                       const TABLE_SHARE *s,
                                        const char *field_name,
                                        const char *value);
   /*
@@ -2432,6 +2436,12 @@ public:
       length(0); // safety
   }
   int save_in_field(Field *field, uint decimals) const;
+  Datetime to_datetime(THD *thd) const
+  {
+    return is_zero_datetime() ?
+           Datetime() :
+           Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+  }
   bool is_zero_datetime() const
   {
     return length() == 0;
@@ -2456,7 +2466,7 @@ public:
   Datetime to_datetime(THD *thd) const
   {
     return is_null() ? Datetime() :
-                       Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+                       Timestamp_or_zero_datetime_native::to_datetime(thd);
   }
   void to_TIME(THD *thd, MYSQL_TIME *to)
   {
@@ -3218,6 +3228,7 @@ public:
   {
     return false;
   }
+  virtual uint max_octet_length() const { return 0; }
   /**
     Prepared statement long data:
     Check whether this parameter data type is compatible with long data.
@@ -3328,6 +3339,10 @@ public:
   // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
   virtual void Column_definition_implicit_upgrade(Column_definition *c) const
   { }
+  // Validate CHECK constraint after the parser
+  virtual bool Column_definition_validate_check_constraint(THD *thd,
+                                                           Column_definition *c)
+                                                           const;
   // Fix attributes after the parser
   virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   /*
@@ -3662,6 +3677,10 @@ public:
 
   virtual bool
   Vers_history_point_resolve_unit(THD *thd, Vers_history_point *point) const;
+
+  static bool Charsets_are_compatible(const CHARSET_INFO *old_ci,
+                                      const CHARSET_INFO *new_ci,
+                                      bool part_of_a_key);
 };
 
 
@@ -5846,6 +5865,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX8; }
 };
 
 
@@ -5861,6 +5881,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX24; }
 };
 
 
@@ -5878,6 +5899,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX32; }
 };
 
 
@@ -5893,6 +5915,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  uint max_octet_length() const { return UINT_MAX16; }
 };
 
 
@@ -6233,11 +6256,6 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_datetime    type_handler_datetime;
 extern MYSQL_PLUGIN_IMPORT Type_handler_datetime2   type_handler_datetime2;
 extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp   type_handler_timestamp;
 extern MYSQL_PLUGIN_IMPORT Type_handler_timestamp2  type_handler_timestamp2;
-
-extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
-extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
-extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
-extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_interval_DDhhmmssff
   type_handler_interval_DDhhmmssff;

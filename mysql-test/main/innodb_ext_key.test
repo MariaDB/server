@@ -7,6 +7,13 @@ DROP DATABASE IF EXISTS dbt3_s001;
 
 SET SESSION STORAGE_ENGINE='InnoDB';
 
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
 CREATE DATABASE dbt3_s001;
 
 use dbt3_s001;
@@ -490,6 +497,7 @@ select
 from t1 A, t1 B;
 
 set optimizer_switch='extended_keys=off';
+--replace_column 9 #
 explain 
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 flush status;
@@ -497,6 +505,7 @@ select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 show status like 'handler_read%';
 
 set optimizer_switch='extended_keys=on';
+--replace_column 9 #
 explain 
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 flush status;
@@ -674,6 +683,8 @@ create table t2 (a bigint not null unique auto_increment, b varchar(10), primary
 insert into t1 (b) values (null), (null), (null);
 insert into t2 (b) values (null), (null), (null);
 
+analyze table t1,t2;
+
 set optimizer_switch='extended_keys=on';
 explain select a from t1 where b is null order by a desc limit 2;
 select a from t1 where b is null order by a desc limit 2;
@@ -725,6 +736,7 @@ if ($rows < 2)
 
 drop table t0,t1;
 
+--echo # 
 --echo # 
 --echo # MDEV-10360: Extended keys: index properties depend on index order
 --echo # 
@@ -821,3 +833,7 @@ INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
 explain format= json
 select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
 drop table t1;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

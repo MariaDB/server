@@ -10,6 +10,13 @@ set @@optimizer_switch='semijoin_with_cache=on';
 set @@optimizer_switch='outer_join_with_cache=on';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
 set @local_join_cache_test_optimizer_switch_default=@@optimizer_switch;
 set names utf8;
 
@@ -3886,6 +3893,8 @@ INSERT INTO t2 VALUES
  (NULL,'x'),(1,'x'),(3,'x'),(5,'x'),(8,'x'),(48,'x'),
  (228,'x'),(3,'y'),(1,'z'),(9,'z');
 
+ANALYZE TABLE t1,t2;
+
 CREATE TABLE temp
 SELECT t1.i1 AS f1, t1.v1 AS f2 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1));
 
@@ -3990,3 +3999,7 @@ set join_buffer_size = default;
 
 # The following command must be the last one the file 
 set @@optimizer_switch=@save_optimizer_switch;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

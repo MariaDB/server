@@ -1,7 +1,7 @@
 # Test fragmentation over configuration changes
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source suite/galera/include/galera_have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
@@ -54,7 +54,7 @@ INSERT INTO t1 VALUES (2, "bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 # Deadlock error should be returned since write set send was
 # interrupted by gcs
 --connection node_1
---error ER_LOCK_DEADLOCK
+--error ER_ERROR_DURING_COMMIT
 --reap
 
 # Do additional insert to verify that node_1 remain operational

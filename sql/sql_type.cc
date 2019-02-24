@@ -331,6 +331,7 @@ void Sec6::make_from_double(double nr, ulong *nanoseconds)
   {
     m_sec= LONGLONG_MAX;
     m_usec= 0;
+    *nanoseconds= 0;
   }
   else
   {
@@ -365,18 +366,21 @@ bool Sec6::convert_to_mysql_time(THD *thd, int *warn, MYSQL_TIME *ltime,
 }
 
 
-void Temporal::push_conversion_warnings(THD *thd, bool totally_useless_value, int warn,
+void Temporal::push_conversion_warnings(THD *thd, bool totally_useless_value,
+                                        int warn,
                                         const char *typestr,
+                                        const TABLE_SHARE *s,
                                         const char *field_name,
                                         const char *value)
 {
   if (MYSQL_TIME_WARN_HAVE_WARNINGS(warn))
     thd->push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
                                                totally_useless_value,
-                                               typestr, value, field_name);
+                                               typestr, value, s, field_name);
   else if (MYSQL_TIME_WARN_HAVE_NOTES(warn))
     thd->push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_NOTE,
-                                               false, typestr, value, field_name);
+                                               false, typestr, value, s,
+                                               field_name);
 }
 
 
@@ -2322,6 +2326,17 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
                    metadata & 0x00ff/*pack_length()*/,
                    ((const Field_enum*) target)->typelib, target->charset());
 }
+
+
+/*************************************************************************/
+
+bool Type_handler::
+       Column_definition_validate_check_constraint(THD *thd,
+                                                   Column_definition * c) const
+{
+  return c->validate_check_constraint(thd);
+}
+
 
 /*************************************************************************/
 bool Type_handler_null::
@@ -4389,7 +4404,8 @@ bool Type_handler::Item_get_date_with_warn(THD *thd, Item *item,
                                            MYSQL_TIME *ltime,
                                            date_mode_t fuzzydate) const
 {
-  Temporal::Warn_push warn(thd, item->field_name_or_null(), ltime, fuzzydate);
+  Temporal::Warn_push warn(thd, item->field_table_or_null(),
+                           item->field_name_or_null(), ltime, fuzzydate);
   Item_get_date(thd, item, &warn, ltime, fuzzydate);
   return ltime->time_type < 0;
 }
@@ -4400,7 +4416,8 @@ bool Type_handler::Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                                               MYSQL_TIME *ltime,
                                               date_mode_t mode) const
 {
-  Temporal::Warn_push warn(thd, item->field_name_or_null(), ltime, mode);
+  Temporal::Warn_push warn(thd, item->field_table_or_null(),
+                           item->field_name_or_null(), ltime, mode);
   Item_func_hybrid_field_type_get_date(thd, item, &warn, ltime, mode);
   return ltime->time_type < 0;
 }
@@ -8010,7 +8027,7 @@ static void literal_warn(THD *thd, const Item *item,
       ErrConvString err(str, length, cs);
       thd->push_warning_wrong_or_truncated_value(
                                    Sql_condition::time_warn_level(st->warnings),
-                                   false, typestr, err.ptr(), NullS);
+                                   false, typestr, err.ptr(), NULL, NullS);
     }
   }
   else if (send_error)
@@ -8187,4 +8204,50 @@ Type_handler_timestamp_common::Item_param_val_native(THD *thd,
   return
     item->get_date(thd, &ltime, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
     TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
+}
+
+static bool charsets_are_compatible(const char *old_cs_name,
+                                    const CHARSET_INFO *new_ci)
+{
+  const char *new_cs_name= new_ci->csname;
+
+  if (!strcmp(old_cs_name, new_cs_name))
+    return true;
+
+  if (!strcmp(old_cs_name, MY_UTF8MB3) && !strcmp(new_cs_name, MY_UTF8MB4))
+    return true;
+
+  if (!strcmp(old_cs_name, "ascii") && !(new_ci->state & MY_CS_NONASCII))
+    return true;
+
+  if (!strcmp(old_cs_name, "ucs2") && !strcmp(new_cs_name, "utf16"))
+    return true;
+
+  return false;
+}
+
+bool Type_handler::Charsets_are_compatible(const CHARSET_INFO *old_ci,
+                                           const CHARSET_INFO *new_ci,
+                                           bool part_of_a_key)
+{
+  const char *old_cs_name= old_ci->csname;
+  const char *new_cs_name= new_ci->csname;
+
+  if (!charsets_are_compatible(old_cs_name, new_ci))
+  {
+    return false;
+  }
+
+  if (!part_of_a_key)
+  {
+    return true;
+  }
+
+  if (strcmp(old_ci->name + strlen(old_cs_name),
+             new_ci->name + strlen(new_cs_name)))
+  {
+    return false;
+  }
+
+  return true;
 }

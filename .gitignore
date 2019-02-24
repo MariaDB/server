@@ -193,7 +193,9 @@ storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
 storage/rocksdb/ldb
+storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb
+storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/sst_dump
 storage/rocksdb/rdb_source_revision.h
 storage/tokudb/PerconaFT/buildheader/db.h

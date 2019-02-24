@@ -82,6 +82,10 @@
 
 #include "debug_sync.h"
 
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h" /* wsrep_start_transction() */
+#endif /* WITH_WSREP */
+
 #ifndef EMBEDDED_LIBRARY
 static bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
                               TABLE_LIST *table_list);
@@ -2184,11 +2188,11 @@ public:
     mysql_mutex_init(key_delayed_insert_mutex, &mutex, MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_delayed_insert_cond, &cond, NULL);
     mysql_cond_init(key_delayed_insert_cond_client, &cond_client, NULL);
-    mysql_mutex_lock(&LOCK_thread_count);
+    mysql_mutex_lock(&LOCK_delayed_insert);
     delayed_insert_threads++;
+    mysql_mutex_unlock(&LOCK_delayed_insert);
     delayed_lock= global_system_variables.low_priority_updates ?
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
-    mysql_mutex_unlock(&LOCK_thread_count);
     DBUG_VOID_RETURN;
   }
   ~Delayed_insert()
@@ -2206,15 +2210,9 @@ public:
     mysql_cond_destroy(&cond);
     mysql_cond_destroy(&cond_client);
 
-    /*
-      We could use unlink_not_visible_threads() here, but as
-      delayed_insert_threads also needs to be protected by
-      the LOCK_thread_count mutex, we open code this.
-    */
-    mysql_mutex_lock(&LOCK_thread_count);
-    thd.unlink();				// Must be unlinked under lock
+    server_threads.erase(&thd);
+    mysql_mutex_assert_owner(&LOCK_delayed_insert);
     delayed_insert_threads--;
-    mysql_mutex_unlock(&LOCK_thread_count);
 
     my_free(thd.query());
     thd.security_ctx->user= 0;
@@ -2936,7 +2934,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
   pthread_detach_this_thread();
   /* Add thread to THD list so that's it's visible in 'show processlist' */
   thd->set_start_time();
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   if (abort_loop)
     thd->set_killed(KILL_CONNECTION);
   else
@@ -3934,10 +3932,13 @@ bool select_insert::prepare_eof()
   DBUG_PRINT("enter", ("trans_table=%d, table_type='%s'",
                        trans_table, table->file->table_type()));
 
-  error= (IF_WSREP((thd->wsrep_conflict_state == MUST_ABORT ||
-                    thd->wsrep_conflict_state == CERT_FAILURE) ? -1 :, )
-          (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
-           table->file->ha_end_bulk_insert() : 0));
+#ifdef WITH_WSREP
+  error= (thd->wsrep_cs().current_error()) ? -1 :
+    (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
+#else
+    error= (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
+#endif /* WITH_WSREP */
+    table->file->ha_end_bulk_insert() : 0;
 
   if (likely(!error) && unlikely(thd->is_error()))
     error= thd->get_stmt_da()->sql_errno();
@@ -4146,10 +4147,8 @@ Field *Item::create_field_for_create_select(TABLE *table)
   @retval 0         Error
 */
 
-TABLE *select_create::create_table_from_items(THD *thd,
-                                      List<Item> *items,
-                                      MYSQL_LOCK **lock,
-                                      TABLEOP_HOOKS *hooks)
+TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
+                                      MYSQL_LOCK **lock, TABLEOP_HOOKS *hooks)
 {
   TABLE tmp_table;		// Used during 'Create_field()'
   TABLE_SHARE share;
@@ -4171,8 +4170,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);
 
-  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table,
-                                          true))
+  if (create_info->fix_create_fields(thd, alter_info, *create_table, true))
     DBUG_RETURN(NULL);
 
   while ((item=it++))
@@ -4211,7 +4209,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
-  if (create_info->vers_check_system_fields(thd, alter_info, *create_table))
+  if (create_info->check_fields(thd, alter_info, *create_table))
     DBUG_RETURN(NULL);
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
@@ -4534,9 +4532,16 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               /* suppress_use */ FALSE,
                               errcode);
   }
-
-  ha_fake_trx_id(thd);
-
+#ifdef WITH_WSREP
+  if (thd->wsrep_trx().active())
+  {
+    WSREP_DEBUG("transaction already started for CTAS");
+  }
+  else
+  {
+    wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+  }
+#endif
   return result;
 }
 
@@ -4594,10 +4599,18 @@ bool select_create::send_eof()
   if (!table->s->tmp_table)
   {
 #ifdef WITH_WSREP
-    if (WSREP_ON)
+    if (WSREP(thd))
     {
+      if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
+      {
+        wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
+      }
+      DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
+      WSREP_DEBUG("CTAS key append for trx: %lu thd %llu query %lld ",
+                  thd->wsrep_trx_id(), thd->thread_id, thd->query_id);
+
       /*
-         append table level exclusive key for CTAS
+        append table level exclusive key for CTAS
       */
       wsrep_key_arr_t key_arr= {0, 0};
       wsrep_prepare_keys_for_isolation(thd,
@@ -4605,38 +4618,34 @@ bool select_create::send_eof()
                                        create_table->table_name.str,
                                        table_list,
                                        &key_arr);
-      int rcode = wsrep->append_key(
-                                wsrep,
-                                &thd->wsrep_ws_handle,
-                                key_arr.keys, //&wkey,
-                                key_arr.keys_len,
-                                WSREP_KEY_EXCLUSIVE,
-                                false);
+      int rcode= wsrep_thd_append_key(thd, key_arr.keys, key_arr.keys_len,
+                                      WSREP_SERVICE_KEY_EXCLUSIVE);
       wsrep_keys_free(&key_arr);
-      if (rcode) {
+      if (rcode)
+      {
         DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
         WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
                     (wsrep_thd_query(thd)) ?
                     wsrep_thd_query(thd) : "void", rcode);
-        return true;
+        DBUG_RETURN(true);
       }
       /* If commit fails, we should be able to reset the OK status. */
-      thd->get_stmt_da()->set_overwrite_status(TRUE);
+      thd->get_stmt_da()->set_overwrite_status(true);
     }
 #endif /* WITH_WSREP */
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
 #ifdef WITH_WSREP
-    if (WSREP_ON)
+    if (WSREP(thd))
     {
       thd->get_stmt_da()->set_overwrite_status(FALSE);
       mysql_mutex_lock(&thd->LOCK_thd_data);
-      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      if (wsrep_current_error(thd))
       {
-        WSREP_DEBUG("select_create commit failed, thd: %lld  err: %d %s",
-                    (longlong) thd->thread_id, thd->wsrep_conflict_state,
-                    thd->query());
+        WSREP_DEBUG("select_create commit failed, thd: %llu err: %s %s",
+                    thd->thread_id,
+                    wsrep_thd_transaction_state_str(thd), WSREP_QUERY(thd));
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         abort_result_set();
         DBUG_RETURN(true);

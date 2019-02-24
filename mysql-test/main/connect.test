@@ -65,6 +65,10 @@ connect (fail_con,localhost,test,zorro,);
 source include/switch_to_mysql_user.inc;
 update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
 flush privileges;
+show grants for test@localhost;
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
 
 connect (con10,localhost,test,gambling2,);
 connect (con5,localhost,test,gambling2,mysql);

@@ -205,7 +205,6 @@ void Ack_receiver::run()
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->security_ctx->skip_grants();
-  thread_safe_increment32(&service_thread_count);
   thd->set_command(COM_DAEMON);
   init_net(&net, net_buff, REPLY_MESSAGE_MAX_LENGTH);
 
@@ -284,8 +283,6 @@ end:
   sql_print_information("Stopping ack receiver thread");
   m_status= ST_DOWN;
   delete thd;
-  thread_safe_decrement32(&service_thread_count);
-  signal_thd_deleted();
   mysql_cond_broadcast(&m_cond);
   mysql_mutex_unlock(&m_mutex);
   DBUG_VOID_RETURN;

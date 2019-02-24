@@ -1,4 +1,4 @@
-#!/bin/sh -ue
+#!/bin/bash -ue
 
 # Copyright (C) 2010-2014 Codership Oy
 #
@@ -88,7 +88,7 @@ check_pid_and_port()
     local is_listening_all="$(echo $port_info | \
         grep "*:$rsync_port" 2>/dev/null)"
     local is_listening_addr="$(echo $port_info | \
-        grep "$rsync_addr:$rsync_port" 2>/dev/null)"
+        grep -F "$rsync_addr:$rsync_port" 2>/dev/null)"
 
     if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
         if [ -z "$is_rsync" ]; then
@@ -119,7 +119,7 @@ is_local_ip()
     address="$address "
   fi
 
-  $get_addr_bin | grep "$address" > /dev/null
+  $get_addr_bin | grep -F "$address" > /dev/null
 }
 
 STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
@@ -147,6 +147,7 @@ if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
 then
     BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG_INDEX)
     BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG_INDEX)
+    BINLOG_INDEX_FILENAME=${BINLOG_INDEX_FILENAME%.index}.index
 fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
@@ -268,11 +269,12 @@ EOF
             OLD_PWD="$(pwd)"
             cd $BINLOG_DIRNAME
 
-            if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
-               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            if [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
             then
-               cd $BINLOG_INDEX_DIRNAME
-               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME}.index)
+                binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            else
+                cd $BINLOG_INDEX_DIRNAME
+                binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME})
             fi
 
             cd $BINLOG_DIRNAME
@@ -398,12 +400,17 @@ then
     rm -rf "$RSYNC_PID"
 
     ADDR=$WSREP_SST_OPT_ADDR
-    RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
-    RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    if [ "${ADDR#\[}" != "$ADDR" ]; then
+        RSYNC_PORT=$(echo $ADDR | awk -F '\\]:' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F '\\]:' '{ print $1 }')"]"
+    else
+        RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    fi
     if [ -z "$RSYNC_PORT" ]
     then
         RSYNC_PORT=4444
-        ADDR="$(echo $ADDR | awk -F ':' '{ print $1 }'):$RSYNC_PORT"
+        ADDR="$RSYNC_ADDR:$RSYNC_PORT"
     fi
 
     trap "exit 32" HUP PIPE
@@ -504,15 +511,16 @@ EOF
             # Clean up old binlog files first
             rm -f ${BINLOG_FILENAME}.*
             wsrep_log_info "Extracting binlog files:"
-            tar -xvf $BINLOG_TAR_FILE >&2
-            for ii in $(ls -1 ${BINLOG_FILENAME}.*)
-            do
-                if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
-                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
-		then
-                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
+            tar -xvf $BINLOG_TAR_FILE >> _binlog_tmp_files_$!
+            while read bin_file; do
+                if [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+                then
+                    echo ${BINLOG_DIRNAME}/${bin_file} >> ${BINLOG_FILENAME}.index
+                else
+                    echo ${BINLOG_DIRNAME}/${bin_file} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}
                 fi
-            done
+            done < _binlog_tmp_files_$!
+            rm -f _binlog_tmp_files_$!
         fi
         cd "$OLD_PWD"
 

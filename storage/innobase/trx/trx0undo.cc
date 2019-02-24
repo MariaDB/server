@@ -187,7 +187,7 @@ trx_undo_get_prev_rec_from_prev_page(
 	space = page_get_space_id(undo_page);
 
 	buf_block_t*	block = buf_page_get(
-		page_id_t(space, prev_page_no), univ_page_size,
+		page_id_t(space, prev_page_no), 0,
 		shared ? RW_S_LATCH : RW_X_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
@@ -1340,7 +1340,7 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 
 	buf_block_t*	block = buf_page_get(page_id_t(undo->rseg->space->id,
 						       undo->hdr_page_no),
-					     univ_page_size, RW_X_LATCH, mtr);
+					     0, RW_X_LATCH, mtr);
 	if (!block) {
 		return NULL;
 	}
@@ -1399,7 +1399,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	if (undo) {
 		return buf_page_get_gen(
 			page_id_t(undo->rseg->space->id, undo->last_page_no),
-			univ_page_size, RW_X_LATCH,
+			0, RW_X_LATCH,
 			buf_pool_is_obsolete(undo->withdraw_clock)
 			? NULL : undo->guess_block,
 			BUF_GET, __FILE__, __LINE__, mtr, err);
@@ -1455,7 +1455,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	if (*undo) {
 		return buf_page_get_gen(
 			page_id_t(rseg->space->id, (*undo)->last_page_no),
-			univ_page_size, RW_X_LATCH,
+			0, RW_X_LATCH,
 			buf_pool_is_obsolete((*undo)->withdraw_clock)
 			? NULL : (*undo)->guess_block,
 			BUF_GET, __FILE__, __LINE__, mtr, err);

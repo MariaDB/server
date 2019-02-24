@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 START SLAVE;
 connection node_1;
@@ -54,4 +56,6 @@ STOP SLAVE;
 RESET SLAVE ALL;
 CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
 connection node_1;
+set global wsrep_on=OFF;
 RESET MASTER;
+set global wsrep_on=ON;

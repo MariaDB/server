@@ -26,21 +26,15 @@ struct param {
 #include "auth_pam_tool.h"
 
 
-static int write_packet(struct param *param  __attribute__((unused)),
-                        const unsigned char *buf, int buf_len)
+static int roundtrip(struct param *param, const unsigned char *buf,
+                     int buf_len, unsigned char **pkt)
 {
   unsigned char b=  AP_CONV;
-  return write(1, &b, 1) < 1 ||
-         write_string(1, buf, buf_len);
-}
-
-
-static int read_packet(struct param *param, unsigned char **pkt)
-{
+  if (write(1, &b, 1) < 1 || write_string(1, buf, buf_len))
+    return -1;
   *pkt= (unsigned char *) param->buf;
   return read_string(0, (char *) param->buf, (int) sizeof(param->buf)) - 1;
 }
-
 
 typedef struct st_mysql_server_auth_info
 {

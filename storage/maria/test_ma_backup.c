@@ -32,7 +32,7 @@ static int create_test_table(const char *table_name, int stage);
 static int copy_table(const char *table_name, int stage);
 static void create_record(uchar *record,uint rownr);
 
-int main(int argc,char *argv[])
+int main(int argc __attribute__((unused)), char *argv[])
 {
   int error= 1;
   int i;

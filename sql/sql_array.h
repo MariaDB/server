@@ -165,6 +165,19 @@ public:
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
+  /// @returns pointer to n-th element
+  Elem *get_pos(size_t idx)
+  {
+    return ((Elem*)array.buffer) + idx;
+  }
+
+  /// @returns pointer to n-th element
+  const Elem *get_pos(size_t idx) const
+  {
+    return ((const Elem*)array.buffer) + idx;
+  }
+
+
   /**
      @retval false ok
      @retval true  OOM, @c my_error() has been called.

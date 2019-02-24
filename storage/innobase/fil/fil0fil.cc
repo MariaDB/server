@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -204,19 +204,11 @@ fil_validate_skip(void)
 /*===================*/
 {
 	/** The fil_validate() call skip counter. */
-	static int fil_validate_count = FIL_VALIDATE_SKIP;
+	static Atomic_counter<uint32_t> fil_validate_count;
 
 	/* We want to reduce the call frequency of the costly fil_validate()
 	check in debug builds. */
-	int count = my_atomic_add32_explicit(&fil_validate_count, -1,
-					     MY_MEMORY_ORDER_RELAXED);
-	if (count > 0) {
-		return(true);
-	}
-
-	my_atomic_store32_explicit(&fil_validate_count, FIL_VALIDATE_SKIP,
-				   MY_MEMORY_ORDER_RELAXED);
-	return(fil_validate());
+	return (fil_validate_count++ % FIL_VALIDATE_SKIP) || fil_validate();
 }
 #endif /* UNIV_DEBUG */
 
@@ -269,7 +261,7 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type);
 blocks at the end of file are ignored: they are not taken into account when
 calculating the byte offset within a space.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	byte_offset	remainder of offset in bytes; in aio this
 must be divisible by the OS block size
 @param[in]	len		how many bytes to read; this must not cross a
@@ -282,12 +274,12 @@ UNIV_INLINE
 dberr_t
 fil_read(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf)
 {
-	return(fil_io(IORequestRead, true, page_id, page_size,
+	return(fil_io(IORequestRead, true, page_id, zip_size,
 			byte_offset, len, buf, NULL));
 }
 
@@ -295,7 +287,7 @@ fil_read(
 blocks at the end of file are ignored: they are not taken into account when
 calculating the byte offset within a space.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	byte_offset	remainder of offset in bytes; in aio this
 must be divisible by the OS block size
 @param[in]	len		how many bytes to write; this must not cross
@@ -308,14 +300,14 @@ UNIV_INLINE
 dberr_t
 fil_write(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf)
 {
 	ut_ad(!srv_read_only_mode);
 
-	return(fil_io(IORequestWrite, true, page_id, page_size,
+	return(fil_io(IORequestWrite, true, page_id, zip_size,
 		      byte_offset, len, buf, NULL));
 }
 
@@ -397,8 +389,7 @@ void fil_space_t::set_imported()
 	const fil_node_t* node = UT_LIST_GET_FIRST(chain);
 	atomic_write_supported = node->atomic_write
 		&& srv_use_atomic_writes
-		&& my_test_if_atomic_write(node->handle,
-					   int(page_size_t(flags).physical()));
+		&& my_test_if_atomic_write(node->handle, physical_size());
 	purpose = FIL_TYPE_TABLESPACE;
 }
 
@@ -417,7 +408,7 @@ fil_space_is_flushed(
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 
-		if (node->modification_counter > node->flush_counter) {
+		if (node->needs_flush) {
 
 			ut_ad(!fil_buffering_disabled(space));
 			return(false);
@@ -454,8 +445,6 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 
 	ut_a(!is_raw || srv_start_raw_disk_in_use);
 
-	node->sync_event = os_event_create("fsync_event");
-
 	node->is_raw_disk = is_raw;
 
 	node->size = size;
@@ -487,8 +476,7 @@ bool fil_node_t::read_page0(bool first)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 	ut_a(space->purpose != FIL_TYPE_LOG);
-	const page_size_t page_size(space->flags);
-	const ulint psize = page_size.physical();
+	const ulint psize = space->physical_size();
 
 	os_offset_t size_bytes = os_file_get_size(handle);
 	ut_a(size_bytes != (os_offset_t) -1);
@@ -517,13 +505,7 @@ bool fil_node_t::read_page0(bool first)
 	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
 	const ulint free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
 					    + page);
-	/* Try to read crypt_data from page 0 if it is not yet read. */
-	if (!space->crypt_data) {
-		space->crypt_data = fil_space_read_crypt_data(page_size, page);
-	}
-	ut_free(buf2);
-
-	if (!fsp_flags_is_valid(flags, space->id)) {
+	if (!fil_space_t::is_valid_flags(flags, space->id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
 		if (cflags == ULINT_UNDEFINED
 		    || (cflags ^ space->flags) & ~FSP_FLAGS_MEM_MASK) {
@@ -532,11 +514,19 @@ bool fil_node_t::read_page0(bool first)
 				<< ib::hex(space->flags)
 				<< " but found " << ib::hex(flags)
 				<< " in the file " << name;
+			ut_free(buf2);
 			return false;
 		}
 
 		flags = cflags;
 	}
+
+	/* Try to read crypt_data from page 0 if it is not yet read. */
+	if (!space->crypt_data) {
+		space->crypt_data = fil_space_read_crypt_data(
+			fil_space_t::zip_size(flags), page);
+	}
+	ut_free(buf2);
 
 	if (UNIV_UNLIKELY(space_id != space->id)) {
 		ib::error() << "Expected tablespace id " << space->id
@@ -560,6 +550,11 @@ bool fil_node_t::read_page0(bool first)
 			extent size. Do not truncate valid data. */
 		} else {
 			size_bytes &= ~os_offset_t(mask);
+		}
+
+		if (space->flags != flags
+		    && fil_space_t::is_flags_equal(flags, space->flags)) {
+			space->flags = flags;
 		}
 
 		this->size = ulint(size_bytes / psize);
@@ -657,9 +652,7 @@ retry:
 			|| (node->atomic_write
 			    && srv_use_atomic_writes
 			    && my_test_if_atomic_write(
-				    node->handle,
-				    int(page_size_t(space->flags)
-					.physical())));
+				    node->handle, space->physical_size()));
 	}
 
 	ut_a(success);
@@ -686,7 +679,7 @@ void fil_node_t::close()
 	ut_a(n_pending == 0);
 	ut_a(n_pending_flushes == 0);
 	ut_a(!being_extended);
-	ut_a(modification_counter == flush_counter
+	ut_a(!needs_flush
 	     || space->purpose == FIL_TYPE_TEMPORARY
 	     || srv_fast_shutdown == 2
 	     || !srv_was_started);
@@ -735,7 +728,7 @@ fil_try_to_close_file_in_LRU(
 	     node != NULL;
 	     node = UT_LIST_GET_PREV(LRU, node)) {
 
-		if (node->modification_counter == node->flush_counter
+		if (!node->needs_flush
 		    && node->n_pending_flushes == 0
 		    && !node->being_extended) {
 
@@ -755,11 +748,9 @@ fil_try_to_close_file_in_LRU(
 				<< node->n_pending_flushes;
 		}
 
-		if (node->modification_counter != node->flush_counter) {
+		if (node->needs_flush) {
 			ib::warn() << "Cannot close file " << node->name
-				<< ", because modification count "
-				<< node->modification_counter <<
-				" != flush count " << node->flush_counter;
+				<< ", because is should be flushed first";
 		}
 
 		if (node->being_extended) {
@@ -772,10 +763,9 @@ fil_try_to_close_file_in_LRU(
 }
 
 /** Flush any writes cached by the file system.
-@param[in,out]	space	tablespace */
-static
-void
-fil_flush_low(fil_space_t* space)
+@param[in,out]	space		tablespace
+@param[in]	metadata	whether to update file system metadata */
+static void fil_flush_low(fil_space_t* space, bool metadata = false)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 	ut_ad(space);
@@ -785,7 +775,7 @@ fil_flush_low(fil_space_t* space)
 
 		/* No need to flush. User has explicitly disabled
 		buffering. */
-		ut_ad(!space->is_in_unflushed_spaces);
+		ut_ad(!space->is_in_unflushed_spaces());
 		ut_ad(fil_space_is_flushed(space));
 		ut_ad(space->n_pending_flushes == 0);
 
@@ -793,13 +783,12 @@ fil_flush_low(fil_space_t* space)
 		for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 		     node != NULL;
 		     node = UT_LIST_GET_NEXT(chain, node)) {
-			ut_ad(node->modification_counter
-			      == node->flush_counter);
+			ut_ad(!node->needs_flush);
 			ut_ad(node->n_pending_flushes == 0);
 		}
 #endif /* UNIV_DEBUG */
 
-		return;
+		if (!metadata) return;
 	}
 
 	/* Prevent dropping of the space while we are flushing */
@@ -809,9 +798,7 @@ fil_flush_low(fil_space_t* space)
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 
-		int64_t	old_mod_counter = node->modification_counter;
-
-		if (old_mod_counter <= node->flush_counter) {
+		if (!node->needs_flush) {
 			continue;
 		}
 
@@ -835,31 +822,10 @@ fil_flush_low(fil_space_t* space)
 			goto skip_flush;
 		}
 #endif /* _WIN32 */
-retry:
-		if (node->n_pending_flushes > 0) {
-			/* We want to avoid calling os_file_flush() on
-			the file twice at the same time, because we do
-			not know what bugs OS's may contain in file
-			i/o */
-
-			int64_t	sig_count = os_event_reset(node->sync_event);
-
-			mutex_exit(&fil_system.mutex);
-
-			os_event_wait_low(node->sync_event, sig_count);
-
-			mutex_enter(&fil_system.mutex);
-
-			if (node->flush_counter >= old_mod_counter) {
-
-				goto skip_flush;
-			}
-
-			goto retry;
-		}
 
 		ut_a(node->is_open());
 		node->n_pending_flushes++;
+		node->needs_flush = false;
 
 		mutex_exit(&fil_system.mutex);
 
@@ -867,17 +833,13 @@ retry:
 
 		mutex_enter(&fil_system.mutex);
 
-		os_event_set(node->sync_event);
-
 		node->n_pending_flushes--;
+#ifdef _WIN32
 skip_flush:
-		if (node->flush_counter < old_mod_counter) {
-			node->flush_counter = old_mod_counter;
-
-			if (space->is_in_unflushed_spaces
+#endif /* _WIN32 */
+		if (!node->needs_flush) {
+			if (space->is_in_unflushed_spaces()
 			    && fil_space_is_flushed(space)) {
-
-				space->is_in_unflushed_spaces = false;
 
 				UT_LIST_REMOVE(
 					fil_system.unflushed_spaces,
@@ -951,7 +913,7 @@ fil_space_extend_must_retry(
 	we have set the node->being_extended flag. */
 	mutex_exit(&fil_system.mutex);
 
-	ut_ad(size > space->size);
+	ut_ad(size >= space->size);
 
 	ulint		last_page_no		= space->size;
 	const ulint	file_start_page_no	= last_page_no - node->size;
@@ -962,8 +924,7 @@ fil_space_extend_must_retry(
 			node->handle, node->name);
 	}
 
-	const page_size_t	pageSize(space->flags);
-	const ulint		page_size = pageSize.physical();
+	const ulint	page_size = space->physical_size();
 
 	/* fil_read_first_page() expects srv_page_size bytes.
 	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
@@ -976,6 +937,7 @@ fil_space_extend_must_retry(
 
 	os_has_said_disk_full = *success;
 	if (*success) {
+		os_file_flush(node->handle);
 		last_page_no = size;
 	} else {
 		/* Let us measure the size of the file
@@ -1007,14 +969,14 @@ fil_space_extend_must_retry(
 	switch (space->id) {
 	case TRX_SYS_SPACE:
 		srv_sys_space.set_last_file_size(pages_in_MiB);
-		fil_flush_low(space);
+		fil_flush_low(space, true);
 		return(false);
 	default:
 		ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 		      || space->purpose == FIL_TYPE_IMPORT);
 		if (space->purpose == FIL_TYPE_TABLESPACE
 		    && !space->is_being_truncated) {
-			fil_flush_low(space);
+			fil_flush_low(space, true);
 		}
 		return(false);
 	case SRV_TMP_SPACE_ID:
@@ -1022,7 +984,6 @@ fil_space_extend_must_retry(
 		srv_tmp_space.set_last_file_size(pages_in_MiB);
 		return(false);
 	}
-
 }
 
 /*******************************************************************//**
@@ -1172,18 +1133,15 @@ fil_node_close_to_free(
 		/* We fool the assertion in fil_node_t::close() to think
 		there are no unflushed modifications in the file */
 
-		node->modification_counter = node->flush_counter;
-		os_event_set(node->sync_event);
+		node->needs_flush = false;
 
 		if (fil_buffering_disabled(space)) {
 
-			ut_ad(!space->is_in_unflushed_spaces);
+			ut_ad(!space->is_in_unflushed_spaces());
 			ut_ad(fil_space_is_flushed(space));
 
-		} else if (space->is_in_unflushed_spaces
+		} else if (space->is_in_unflushed_spaces()
 			   && fil_space_is_flushed(space)) {
-
-			space->is_in_unflushed_spaces = false;
 
 			UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
 		}
@@ -1205,16 +1163,14 @@ fil_space_detach(
 
 	HASH_DELETE(fil_space_t, hash, fil_system.spaces, space->id, space);
 
-	if (space->is_in_unflushed_spaces) {
+	if (space->is_in_unflushed_spaces()) {
 
 		ut_ad(!fil_buffering_disabled(space));
-		space->is_in_unflushed_spaces = false;
 
 		UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
 	}
 
-	if (space->is_in_rotation_list) {
-		space->is_in_rotation_list = false;
+	if (space->is_in_rotation_list()) {
 
 		UT_LIST_REMOVE(fil_system.rotation_list, space);
 	}
@@ -1260,7 +1216,6 @@ fil_space_free_low(
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
 		ut_d(space->size -= node->size);
-		os_event_destroy(node->sync_event);
 		ut_free(node->name);
 		fil_node_t* old_node = node;
 		node = UT_LIST_GET_NEXT(chain, node);
@@ -1348,7 +1303,7 @@ fil_space_create(
 	fil_space_t*	space;
 
 	ut_ad(fil_system.is_initialised());
-	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
+	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
 	ut_ad(purpose == FIL_TYPE_LOG
 	      || srv_page_size == UNIV_PAGE_SIZE_ORIG || flags != 0);
 
@@ -1436,11 +1391,8 @@ fil_space_create(
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
 		UT_LIST_ADD_LAST(fil_system.rotation_list, space);
-		space->is_in_rotation_list = true;
 		mutex_exit(&fil_system.mutex);
-		mutex_enter(&fil_crypt_threads_mutex);
 		os_event_set(fil_crypt_threads_event);
-		mutex_exit(&fil_crypt_threads_mutex);
 	} else {
 		mutex_exit(&fil_system.mutex);
 	}
@@ -1686,28 +1638,6 @@ void fil_space_t::close()
 	mutex_exit(&fil_system.mutex);
 }
 
-/** Returns the page size of the space and whether it is compressed or not.
-The tablespace must be cached in the memory cache.
-@param[in]	id	space id
-@param[out]	found	true if tablespace was found
-@return page size */
-const page_size_t
-fil_space_get_page_size(
-	ulint	id,
-	bool*	found)
-{
-	const ulint	flags = fil_space_get_flags(id);
-
-	if (flags == ULINT_UNDEFINED) {
-		*found = false;
-		return(univ_page_size);
-	}
-
-	*found = true;
-
-	return(page_size_t(flags));
-}
-
 void fil_system_t::create(ulint hash_size)
 {
 	ut_ad(this == &fil_system);
@@ -1945,13 +1875,19 @@ fil_write_flushed_lsn(
 
 	const page_id_t	page_id(TRX_SYS_SPACE, 0);
 
-	err = fil_read(page_id, univ_page_size, 0, srv_page_size,
-		       buf);
+	err = fil_read(page_id, 0, 0, srv_page_size, buf);
 
 	if (err == DB_SUCCESS) {
 		mach_write_to_8(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, lsn);
-		err = fil_write(page_id, univ_page_size, 0,
-				srv_page_size, buf);
+
+		ulint fsp_flags = mach_read_from_4(
+			buf + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
+
+		if (fil_space_t::full_crc32(fsp_flags)) {
+			buf_flush_assign_full_crc32_checksum(buf);
+		}
+
+		err = fil_write(page_id, 0, 0, srv_page_size, buf);
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
 
@@ -2068,7 +2004,7 @@ fil_op_write_log(
 	ulint		len;
 
 	ut_ad(first_page_no == 0 || type == MLOG_FILE_CREATE2);
-	ut_ad(fsp_flags_is_valid(flags, space_id));
+	ut_ad(fil_space_t::is_valid_flags(flags, space_id));
 
 	/* fil_name_parse() requires that there be at least one path
 	separator and that the file path end with ".ibd". */
@@ -2305,7 +2241,7 @@ fil_check_pending_ops(const fil_space_t* space, ulint count)
 		return 0;
 	}
 
-	if (ulint n_pending_ops = my_atomic_loadlint(&space->n_pending_ops)) {
+	if (ulint n_pending_ops = space->n_pending_ops) {
 
 		if (count > 5000) {
 			ib::warn() << "Trying to close/delete/truncate"
@@ -3019,7 +2955,7 @@ fil_ibd_create(
 	ut_ad(!srv_read_only_mode);
 	ut_a(space_id < SRV_LOG_SPACE_FIRST_ID);
 	ut_a(size >= FIL_IBD_FILE_INITIAL_SIZE);
-	ut_a(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, space_id));
+	ut_a(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, space_id));
 
 	/* Create the subdirectories in the path, if they are
 	not there already. */
@@ -3095,22 +3031,18 @@ err_exit:
 
 	memset(page, '\0', srv_page_size);
 
-	flags |= FSP_FLAGS_PAGE_SSIZE();
+	if (fil_space_t::full_crc32(flags)) {
+		flags |= FSP_FLAGS_FCRC32_PAGE_SSIZE();
+	} else {
+		flags |= FSP_FLAGS_PAGE_SSIZE();
+	}
+
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
-	const page_size_t	page_size(flags);
-	IORequest		request(IORequest::WRITE);
-
-	if (!page_size.is_compressed()) {
-
-		buf_flush_init_for_writing(NULL, page, NULL, 0);
-
-		*err = os_file_write(
-			request, path, file, page, 0, page_size.physical());
-	} else {
+	if (ulint zip_size = fil_space_t::zip_size(flags)) {
 		page_zip_des_t	page_zip;
-		page_zip_set_size(&page_zip, page_size.physical());
+		page_zip_set_size(&page_zip, zip_size);
 		page_zip.data = page + srv_page_size;
 #ifdef UNIV_DEBUG
 		page_zip.m_start =
@@ -3118,11 +3050,16 @@ err_exit:
 			page_zip.m_end = page_zip.m_nonempty =
 			page_zip.n_blobs = 0;
 
-		buf_flush_init_for_writing(NULL, page, &page_zip, 0);
+		buf_flush_init_for_writing(NULL, page, &page_zip, 0, false);
 
 		*err = os_file_write(
-			request, path, file, page_zip.data, 0,
-			page_size.physical());
+			IORequestWrite, path, file, page_zip.data, 0, zip_size);
+	} else {
+		buf_flush_init_for_writing(NULL, page, NULL, 0,
+					   fil_space_t::full_crc32(flags));
+
+		*err = os_file_write(
+			IORequestWrite, path, file, page, 0, srv_page_size);
 	}
 
 	ut_free(buf2);
@@ -3282,7 +3219,7 @@ corrupted:
 		return NULL;
 	}
 
-	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
+	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
 	df_default.init(tablename.m_name, flags);
 	df_dict.init(tablename.m_name, flags);
 	df_remote.init(tablename.m_name, flags);
@@ -3536,7 +3473,8 @@ skip_validate:
 		df_remote.get_first_page();
 
 	fil_space_crypt_t* crypt_data = first_page
-		? fil_space_read_crypt_data(page_size_t(flags), first_page)
+		? fil_space_read_crypt_data(fil_space_t::zip_size(flags),
+					    first_page)
 		: NULL;
 
 	fil_space_t* space = fil_space_create(
@@ -3884,7 +3822,8 @@ fil_ibd_load(
 
 	const byte* first_page = file.get_first_page();
 	fil_space_crypt_t* crypt_data = first_page
-		? fil_space_read_crypt_data(page_size_t(flags), first_page)
+		? fil_space_read_crypt_data(fil_space_t::zip_size(flags),
+					    first_page)
 		: NULL;
 	space = fil_space_create(
 		file.name(), space_id, flags, FIL_TYPE_TABLESPACE, crypt_data);
@@ -3947,7 +3886,10 @@ fil_file_readdir_next_file(
 void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(fsp_flags_is_valid(flags, space->id));
+	ut_ad(fil_space_t::is_valid_flags(flags, space->id));
+	if (space->full_crc32()) {
+		return;
+	}
 	if (!space->size && (space->purpose != FIL_TYPE_TABLESPACE
 			     || !fil_space_get_size(space->id))) {
 		return;
@@ -3958,9 +3900,15 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 	mtr_t	mtr;
 	mtr.start();
 	if (buf_block_t* b = buf_page_get(
-		    page_id_t(space->id, 0), page_size_t(flags),
+		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, &mtr)) {
 		ulint f = fsp_header_get_flags(b->frame);
+		if (fil_space_t::full_crc32(f)) {
+			goto func_exit;
+		}
+		if (fil_space_t::is_flags_equal(f, flags)) {
+			goto func_exit;
+		}
 		/* Suppress the message if only the DATA_DIR flag to differs. */
 		if ((f ^ flags) & ~(1U << FSP_FLAGS_POS_RESERVED)) {
 			ib::warn()
@@ -3969,13 +3917,11 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 				<< "' from " << ib::hex(f)
 				<< " to " << ib::hex(flags);
 		}
-		if (f != flags) {
-			mtr.set_named_space(space);
-			mlog_write_ulint(FSP_HEADER_OFFSET
-					 + FSP_SPACE_FLAGS + b->frame,
-					 flags, MLOG_4BYTES, &mtr);
-		}
+		mtr.set_named_space(space);
+		mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
+				 + b->frame, flags, MLOG_4BYTES, &mtr);
 	}
+func_exit:
 	mtr.commit();
 }
 
@@ -4106,24 +4052,21 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 		ut_ad(!srv_read_only_mode
 		      || node->space->purpose == FIL_TYPE_TEMPORARY);
 
-		++fil_system.modification_counter;
-
-		node->modification_counter = fil_system.modification_counter;
-
 		if (fil_buffering_disabled(node->space)) {
 
 			/* We don't need to keep track of unflushed
 			changes as user has explicitly disabled
 			buffering. */
-			ut_ad(!node->space->is_in_unflushed_spaces);
-			node->flush_counter = node->modification_counter;
+			ut_ad(!node->space->is_in_unflushed_spaces());
+			ut_ad(node->needs_flush == false);
 
-		} else if (!node->space->is_in_unflushed_spaces) {
+		} else {
+			node->needs_flush = true;
 
-			node->space->is_in_unflushed_spaces = true;
-
-			UT_LIST_ADD_FIRST(
-				fil_system.unflushed_spaces, node->space);
+			if (!node->space->is_in_unflushed_spaces()) {
+				UT_LIST_ADD_FIRST(fil_system.unflushed_spaces,
+						  node->space);
+			}
 		}
 	}
 
@@ -4162,7 +4105,7 @@ fil_report_invalid_page_access(
 @param[in,out] type	IO context
 @param[in] sync		true if synchronous aio is desired
 @param[in] page_id	page id
-@param[in] page_size	page size
+@param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in] byte_offset	remainder of offset in bytes; in aio this
 			must be divisible by the OS block size
 @param[in] len		how many bytes to read or write; this must
@@ -4181,7 +4124,7 @@ fil_io(
 	const IORequest&	type,
 	bool			sync,
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf,
@@ -4195,7 +4138,7 @@ fil_io(
 
 	ut_ad(len > 0);
 	ut_ad(byte_offset < srv_page_size);
-	ut_ad(!page_size.is_compressed() || byte_offset == 0);
+	ut_ad(!zip_size || byte_offset == 0);
 	ut_ad(srv_page_size == 1UL << srv_page_size_shift);
 	compile_time_assert((1U << UNIV_PAGE_SIZE_SHIFT_MAX)
 			    == UNIV_PAGE_SIZE_MAX);
@@ -4206,7 +4149,7 @@ fil_io(
 	/* ibuf bitmap pages must be read in the sync AIO mode: */
 	ut_ad(recv_no_ibuf_operations
 	      || req_type.is_write()
-	      || !ibuf_bitmap_page(page_id, page_size)
+	      || !ibuf_bitmap_page(page_id, zip_size)
 	      || sync
 	      || req_type.is_log());
 
@@ -4222,7 +4165,7 @@ fil_io(
 
 	} else if (req_type.is_read()
 		   && !recv_no_ibuf_operations
-		   && ibuf_page(page_id, page_size, NULL)) {
+		   && ibuf_page(page_id, zip_size, NULL)) {
 
 		mode = OS_AIO_IBUF;
 
@@ -4364,37 +4307,10 @@ fil_io(
 	/* Now we have made the changes in the data structures of fil_system */
 	mutex_exit(&fil_system.mutex);
 
-	/* Calculate the low 32 bits and the high 32 bits of the file offset */
+	if (!zip_size) zip_size = srv_page_size;
 
-	if (!page_size.is_compressed()) {
-
-		offset = ((os_offset_t) cur_page_no
-			  << srv_page_size_shift) + byte_offset;
-
-		ut_a(node->size - cur_page_no
-		     >= ((byte_offset + len + (srv_page_size - 1))
-			 >> srv_page_size_shift));
-	} else {
-		ulint	size_shift;
-
-		switch (page_size.physical()) {
-		case 1024: size_shift = 10; break;
-		case 2048: size_shift = 11; break;
-		case 4096: size_shift = 12; break;
-		case 8192: size_shift = 13; break;
-		case 16384: size_shift = 14; break;
-		case 32768: size_shift = 15; break;
-		case 65536: size_shift = 16; break;
-		default: ut_error;
-		}
-
-		offset = ((os_offset_t) cur_page_no << size_shift)
-			+ byte_offset;
-
-		ut_a(node->size - cur_page_no
-		     >= (len + (page_size.physical() - 1))
-		     / page_size.physical());
-	}
+	offset = os_offset_t(cur_page_no) * zip_size + byte_offset;
+	ut_ad(node->size - cur_page_no >= (len + (zip_size - 1)) / zip_size);
 
 	/* Do AIO */
 
@@ -5126,8 +5042,7 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 	ut_ad(mutex_own(&fil_system.mutex));
 	ut_ad(space);
 
-	if (space->is_in_rotation_list && !space->referenced()) {
-		space->is_in_rotation_list = false;
+	if (!space->referenced() && space->is_in_rotation_list()) {
 		ut_a(UT_LIST_GET_LEN(fil_system.rotation_list) > 0);
 		UT_LIST_REMOVE(fil_system.rotation_list, space);
 	}
@@ -5267,4 +5182,22 @@ fil_space_set_punch_hole(
 	bool			val)
 {
 	node->space->punch_hole = val;
+}
+
+/** Checks that this tablespace in a list of unflushed tablespaces.
+@return true if in a list */
+bool fil_space_t::is_in_unflushed_spaces() const {
+	ut_ad(mutex_own(&fil_system.mutex));
+
+	return fil_system.unflushed_spaces.start == this
+	       || unflushed_spaces.next || unflushed_spaces.prev;
+}
+
+/** Checks that this tablespace needs key rotation.
+@return true if in a rotation list */
+bool fil_space_t::is_in_rotation_list() const {
+	ut_ad(mutex_own(&fil_system.mutex));
+
+	return fil_system.rotation_list.start == this || rotation_list.next
+	       || rotation_list.prev;
 }

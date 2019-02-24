@@ -507,8 +507,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
 
 #ifdef WITH_WSREP
-  if (thd->wsrep_exec_mode == LOCAL_STATE)
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 #endif
 
   /* We should have only one table in table list. */
@@ -2183,8 +2182,7 @@ bool Table_triggers_list::process_triggers(THD *thd,
     This trigger must have been processed by the pre-locking
     algorithm.
   */
-  DBUG_ASSERT(trigger_table->pos_in_table_list->trg_event_map &
-              static_cast<uint>(1 << static_cast<int>(event)));
+  DBUG_ASSERT(trigger_table->pos_in_table_list->trg_event_map & trg2bit(event));
 
   thd->reset_sub_statement_state(&statement_state, SUB_STMT_TRIGGER);
 
@@ -2236,8 +2234,7 @@ add_tables_and_routines_for_triggers(THD *thd,
 
   for (int i= 0; i < (int)TRG_EVENT_MAX; i++)
   {
-    if (table_list->trg_event_map &
-        static_cast<uint8>(1 << static_cast<int>(i)))
+    if (table_list->trg_event_map & trg2bit(static_cast<trg_event_type>(i)))
     {
       for (int j= 0; j < (int)TRG_ACTION_MAX; j++)
       {

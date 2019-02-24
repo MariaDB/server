@@ -612,7 +612,13 @@ rec_init_offsets(
 	ulint	i	= 0;
 	ulint	offs;
 
-	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
+	/* This assertion was relaxed for the btr_cur_open_at_index_side()
+	call in btr_cur_instant_init_low(). We cannot invoke
+	index->is_instant(), because the same assertion would fail there
+	until btr_cur_instant_init_low() has invoked
+	dict_table_t::deserialise_columns(). */
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable)
+	      || (!leaf && index->n_core_fields != index->n_fields));
 	ut_d(offsets[2] = ulint(rec));
 	ut_d(offsets[3] = ulint(index));
 

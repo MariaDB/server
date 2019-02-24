@@ -107,7 +107,7 @@ SET time_zone='Europe/Moscow';
 CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 VALUES ('2010-03-28 01:59:59.0' /* Winter time */);
 INSERT INTO t1 VALUES ('2010-03-28 01:59:59.9' /* Rounds to the DST gap */);
-ERROR 22007: Incorrect datetime value: '2010-03-28 01:59:59.9' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '2010-03-28 01:59:59.9' for column `test`.`t1`.`a` at row 1
 SELECT * FROM t1;
 a
 2010-03-28 01:59:59

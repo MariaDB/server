@@ -280,7 +280,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
     DBG_THR(fprintf(stderr,
       "thread_stack = %p sizeof(THD)=%zu sizeof(mtx)=%zu "
       "O: %zu %zu %zu %zu %zu %zu %zu\n",
-      thd->thread_stack, sizeof(THD), sizeof(LOCK_thread_count),
+      thd->thread_stack, sizeof(THD), sizeof(mysql_mutex_t),
       DENA_THR_OFFSETOF(mdl_context),
       DENA_THR_OFFSETOF(net),
       DENA_THR_OFFSETOF(LOCK_thd_data),
@@ -307,7 +307,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
   }
   {
     thd->thread_id = next_thread_id();
-    add_to_active_threads(thd);
+    server_threads.insert(thd);
   }
 
   DBG_THR(fprintf(stderr, "HNDSOCK init thread wsts\n"));
@@ -341,10 +341,8 @@ dbcontext::term_thread()
   close_tables_if();
   my_pthread_setspecific_ptr(THR_THD, 0);
   {
-    pthread_mutex_lock(&LOCK_thread_count);
     delete thd;
     thd = 0;
-    pthread_mutex_unlock(&LOCK_thread_count);
     my_thread_end();
   }
 }

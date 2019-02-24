@@ -95,7 +95,9 @@ int mi_rnext_same(MI_INFO *info, uchar *buf)
         */
         if (info->lastpos < info->state->data_file_length && 
             (!info->index_cond_func || 
-             (icp_res= mi_check_index_cond(info, inx, buf)) != ICP_NO_MATCH))
+             (icp_res= mi_check_index_cond(info, inx, buf)) != ICP_NO_MATCH) &&
+            (!mi_check_rowid_filter_is_active(info) ||
+	     mi_check_rowid_filter(info)))
           break;
       }
   }

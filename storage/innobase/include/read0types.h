@@ -66,7 +66,14 @@ class ReadView
     Close view:
     READ_VIEW_STATE_OPEN -> READ_VIEW_STATE_CLOSED
   */
-  int32_t m_state;
+  std::atomic<uint32_t> m_state;
+
+
+  /** m_state getter for ReadView owner thread */
+  uint32_t state() const
+  {
+    return m_state.load(std::memory_order_relaxed);
+  }
 
 
 public:
@@ -134,35 +141,36 @@ loop:
     Closes the view.
 
     View becomes not visible to purge thread.
+
+    This method is intended to be called by ReadView owner thread, thus
+    m_state cannot change.
   */
   void close()
   {
-    ut_ad(m_state == READ_VIEW_STATE_CLOSED ||
-          m_state == READ_VIEW_STATE_OPEN);
-    if (m_state == READ_VIEW_STATE_OPEN)
-      my_atomic_store32_explicit(&m_state, READ_VIEW_STATE_CLOSED,
-                                 MY_MEMORY_ORDER_RELAXED);
+    ut_ad(state() == READ_VIEW_STATE_CLOSED ||
+          state() == READ_VIEW_STATE_OPEN);
+    m_state.store(READ_VIEW_STATE_CLOSED, std::memory_order_relaxed);
   }
 
 
   /** m_state getter for trx_sys::clone_oldest_view() trx_sys::size(). */
-  int32_t get_state() const
+  uint32_t get_state() const
   {
-    return my_atomic_load32_explicit(const_cast<int32*>(&m_state),
-                                     MY_MEMORY_ORDER_ACQUIRE);
+    return m_state.load(std::memory_order_acquire);
   }
 
 
   /**
     Returns true if view is open.
 
-    Only used by view owner thread, thus we can omit atomic operations.
+    This method is intended to be called by ReadView owner thread, thus
+    m_state cannot change.
   */
   bool is_open() const
   {
-    ut_ad(m_state == READ_VIEW_STATE_OPEN ||
-          m_state == READ_VIEW_STATE_CLOSED);
-    return m_state == READ_VIEW_STATE_OPEN;
+    ut_ad(state() == READ_VIEW_STATE_OPEN ||
+          state() == READ_VIEW_STATE_CLOSED);
+    return state() == READ_VIEW_STATE_OPEN;
   }
 
 

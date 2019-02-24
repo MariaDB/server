@@ -14,7 +14,6 @@ constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
@@ -190,6 +189,57 @@ reap;
 disconnect fk;
 
 DROP TABLE t3,t1;
+
+--echo #
+--echo # MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+--echo # or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
+--echo #
+CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
+ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a b TIME;
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18256 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+--echo # upon DROP FOREIGN KEY
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY fk1 (b) REFERENCES t1 (a))
+ENGINE=InnoDB;
+ALTER TABLE t2 DROP FOREIGN KEY fk1, DROP FOREIGN KEY fk1;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+DROP TABLE t1;
+
+CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
+ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18630 Conditional jump or move depends on uninitialised value
+--echo # in ib_push_warning / dict_create_foreign_constraints_low
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
+--replace_regex /#sql-[0-9_a-f-]*/#sql-temporary/
+SHOW WARNINGS;
+DROP TABLE t1;
 
 --echo # Start of 10.2 tests
 

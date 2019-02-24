@@ -44,7 +44,7 @@ a	b
 103	103
 set check_constraint_checks=@save_check_constraint;
 alter table t1 add c int default 0 check (c < 10);
-ERROR 23000: CONSTRAINT `max` failed for table
+ERROR 23000: CONSTRAINT `max` failed for `test`.`t1`
 set check_constraint_checks=0;
 alter table t1 add c int default 0 check (c < 10);
 alter table t1 add check (a+b+c < 500);

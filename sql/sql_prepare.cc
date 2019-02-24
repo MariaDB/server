@@ -112,6 +112,7 @@ When one supplies long data for a placeholder:
 #include "sp_cache.h"
 #include "sql_handler.h"  // mysql_ha_rm_tables
 #include "probes_mysql.h"
+#include "opt_trace.h"
 #ifdef EMBEDDED_LIBRARY
 /* include MYSQL_BIND headers */
 #include <mysql.h>
@@ -2273,6 +2274,17 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   lex->first_select_lex()->context.resolve_in_table_list_only(select_lex->
                                                      get_table_list());
 
+  /*
+    For the optimizer trace, this is the symmetric, for statement preparation,
+    of what is done at statement execution (in mysql_execute_command()).
+  */
+  Opt_trace_start ots(thd, tables, lex->sql_command, &lex->var_list,
+                      thd->query(), thd->query_length(),
+                      thd->variables.character_set_client);
+
+  Json_writer_object trace_command(thd);
+  Json_writer_array trace_command_steps(thd, "steps");
+
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
@@ -4188,15 +4200,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   if (set_parameters(expanded_query, packet, packet_end))
     return TRUE;
 
-#ifdef NOT_YET_FROM_MYSQL_5_6
-  if (unlikely(thd->security_ctx->password_expired && 
-               !lex->is_change_password))
-  {
-    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
-    return true;
-  }
-#endif
-
 reexecute:
   // Make sure that reprepare() did not create any new Items.
   DBUG_ASSERT(thd->free_list == NULL);
@@ -4218,30 +4221,6 @@ reexecute:
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-  if (WSREP_ON)
-  {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    switch (thd->wsrep_conflict_state)
-    {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-    }
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
-  }
-#endif /* WITH_WSREP */
 
   if (unlikely(error) &&
       (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
@@ -4361,16 +4340,6 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   }
   read_types= FALSE;
 
-#ifdef NOT_YET_FROM_MYSQL_5_6
-  if (unlikely(thd->security_ctx->password_expired &&
-               !lex->is_change_password))
-  {
-    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
-    thd->set_bulk_execution(0);
-    return true;
-  }
-#endif
-
   // iterations changed by set_bulk_parameters
   while ((iterations || start_param) && !error && !thd->is_error())
   {
@@ -4414,30 +4383,6 @@ reexecute:
     error= execute(expanded_query, open_cursor) || thd->is_error();
 
     thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-    if (WSREP_ON)
-    {
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      switch (thd->wsrep_conflict_state)
-      {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-      }
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
-    }
-#endif /* WITH_WSREP */
 
     if (unlikely(error) &&
         (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&

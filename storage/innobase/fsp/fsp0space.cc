@@ -118,8 +118,20 @@ Tablespace::open_or_create(bool is_temp)
 
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
+			ulint fsp_flags = 0;
+
+			switch (srv_checksum_algorithm) {
+			case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+			case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+				fsp_flags = (FSP_FLAGS_FCRC32_MASK_MARKER
+					     | FSP_FLAGS_FCRC32_PAGE_SSIZE());
+				break;
+			default:
+				fsp_flags = FSP_FLAGS_PAGE_SSIZE();
+			}
+
 			space = fil_space_create(
-				m_name, m_space_id, FSP_FLAGS_PAGE_SSIZE(),
+				m_name, m_space_id, fsp_flags,
 				is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
 				NULL);

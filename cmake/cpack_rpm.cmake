@@ -171,7 +171,7 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-    "galera" "rsync" "lsof" "grep" "gawk" "iproute"
+    "galera-4" "rsync" "lsof" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
 ENDIF()
 
@@ -214,6 +214,8 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("server" "mariadb-server")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
+ELSEIF(RPM MATCHES "(rhel|centos)8")
+  SET(PYTHON_SHEBANG "/usr/bin/python3")
 ENDIF()
 
 # workaround for lots of perl dependencies added by rpmbuild

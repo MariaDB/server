@@ -1,0 +1,6 @@
+!include ../my.cnf
+
+[mysqld.1]
+wsrep-on=OFF
+wsrep-provider=@ENV.WSREP_PROVIDER
+wsrep-cluster-address=gcomm://

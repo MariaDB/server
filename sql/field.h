@@ -540,7 +540,7 @@ public:
   bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
   Item *expr;
-  LEX_CSTRING name;                             /* Name of constraint */
+  Lex_ident name;                               /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
 
@@ -553,7 +553,7 @@ public:
     name.str= NULL;
     name.length= 0;
   };
-  ~Virtual_column_info() {}
+  ~Virtual_column_info() {};
   enum_vcol_info_type get_vcol_type() const
   {
     return vcol_type;
@@ -1083,7 +1083,7 @@ public:
   virtual int cmp(const uchar *,const uchar *)=0;
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U)
   { return memcmp(a,b,pack_length()); }
-  virtual int cmp_offset(uint row_offset)
+  virtual int cmp_offset(my_ptrdiff_t row_offset)
   { return cmp(ptr,ptr+row_offset); }
   virtual int cmp_binary_offset(uint row_offset)
   { return cmp_binary(ptr, ptr+row_offset); };
@@ -2100,7 +2100,7 @@ public:
   {
     my_decimal nr(ptr, precision, dec);
     return decimal_to_datetime_with_warn(get_thd(), &nr, ltime,
-                                         fuzzydate, field_name.str);
+                                         fuzzydate, table->s, field_name.str);
   }
   bool val_bool()
   {
@@ -4311,7 +4311,7 @@ public:
   int key_cmp(const uchar *a, const uchar *b)
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);
-  int cmp_offset(uint row_offset);
+  int cmp_offset(my_ptrdiff_t row_offset);
   bool update_min(Field *min_val, bool force_update)
   { 
     longlong val= val_int();
@@ -4560,15 +4560,17 @@ public:
 
   enum_column_versioning versioning;
 
+  Table_period_info *period;
+
   Column_definition()
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
     comment(null_clex_str),
-    on_update(NULL), invisible(VISIBLE), decimals(0),
+    on_update(NULL), invisible(VISIBLE), char_length(0), decimals(0),
     flags(0), pack_length(0), key_length(0),
     option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0),
-    versioning(VERSIONING_NOT_SET)
+    versioning(VERSIONING_NOT_SET), period(NULL)
   {
     interval_list.empty();
   }
@@ -4675,6 +4677,7 @@ public:
   bool fix_attributes_bit();
 
   bool check(THD *thd);
+  bool validate_check_constraint(THD *thd);
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
 

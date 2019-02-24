@@ -564,11 +564,6 @@ struct log_t{
     /** the byte offset of the above lsn */
     lsn_t				lsn_offset;
 
-    /** unaligned buffers */
-    byte*				file_header_bufs_ptr;
-    /** buffers for each file header in the group */
-    byte*				file_header_bufs[SRV_N_LOG_FILES_MAX];
-
     /** used only in recovery: recovery scan succeeded up to this
     lsn in this log group */
     lsn_t				scanned_lsn;
@@ -603,10 +598,7 @@ struct log_t{
     /** Close the redo log buffer. */
     void close()
     {
-      ut_free(file_header_bufs_ptr);
       n_files = 0;
-      file_header_bufs_ptr = NULL;
-      memset(file_header_bufs, 0, sizeof file_header_bufs);
     }
   } log;
 

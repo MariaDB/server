@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1084,15 +1084,8 @@ os_aio_validate_skip()
 /** Try os_aio_validate() every this many times */
 # define OS_AIO_VALIDATE_SKIP	13
 
-	static int os_aio_validate_count;
-
-	if (my_atomic_add32_explicit(&os_aio_validate_count, -1,
-				     MY_MEMORY_ORDER_RELAXED)
-	    % OS_AIO_VALIDATE_SKIP) {
-		return true;
-	}
-
-	return(os_aio_validate());
+	static Atomic_counter<uint32_t> os_aio_validate_count;
+	return (os_aio_validate_count++ % OS_AIO_VALIDATE_SKIP) || os_aio_validate();
 }
 #endif /* UNIV_DEBUG */
 
@@ -1762,6 +1755,8 @@ LinuxAIOHandler::resubmit(Slot* slot)
 	slot->n_bytes = 0;
 	slot->io_already_done = false;
 
+	compile_time_assert(sizeof(off_t) >= sizeof(os_offset_t));
+
 	struct iocb*	iocb = &slot->control;
 
 	if (slot->type.is_read()) {
@@ -1771,7 +1766,7 @@ LinuxAIOHandler::resubmit(Slot* slot)
 			slot->file,
 			slot->ptr,
 			slot->len,
-			static_cast<off_t>(slot->offset));
+			slot->offset);
 	} else {
 
 		ut_a(slot->type.is_write());
@@ -1781,7 +1776,7 @@ LinuxAIOHandler::resubmit(Slot* slot)
 			slot->file,
 			slot->ptr,
 			slot->len,
-			static_cast<off_t>(slot->offset));
+			slot->offset);
 	}
 
 	iocb->data = slot;
@@ -3516,8 +3511,6 @@ static WinIoInit win_io_init;
 
 /** Free storage space associated with a section of the file.
 @param[in]	fh		Open file handle
-@param[in]	page_size	Tablespace page size
-@param[in]	block_size	File system block size
 @param[in]	off		Starting offset (SEEK_SET)
 @param[in]	len		Size of the hole
 @return 0 on success or errno */
@@ -6260,7 +6253,7 @@ AIO::reserve_slot(
 #ifdef _WIN32
 	slot->len      = static_cast<DWORD>(len);
 #else
-	slot->len      = static_cast<ulint>(len);
+	slot->len      = len;
 #endif /* _WIN32 */
 	slot->type     = type;
 	slot->buf      = static_cast<byte*>(buf);

@@ -26,8 +26,8 @@ alter table foo drop index b;
 
 alter table foo add index c(c) clustering=yes;
 select c from foo;
-explain select * from foo where c > 300;
-select * from foo where c > 300;
+explain select * from foo where c > 500;
+select * from foo where c > 500;
 drop table foo;
 
 # simple test on hidden primary key

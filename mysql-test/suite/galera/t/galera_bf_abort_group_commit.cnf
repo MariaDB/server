@@ -1,0 +1,15 @@
+!include ../galera_2nodes.cnf
+
+# We set repl.commit_order=1 in order to disable provider commit
+# ordering.
+
+[mysqld.1]
+log-bin
+log-slave-updates
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;repl.commit_order=1'
+
+[mysqld.2]
+
+log-bin
+log-slave-updates
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;repl.commit_order=1'

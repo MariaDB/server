@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE EVENT event1 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT 1;
 connection node_2;

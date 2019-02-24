@@ -1,0 +1,4 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep-causal-reads=OFF

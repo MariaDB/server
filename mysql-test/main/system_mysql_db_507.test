@@ -89,6 +89,44 @@ where user like "%oo"
 order by user;
 
 --echo #
+--echo # Test account locking
+--echo #
+create user user1@localhost account lock;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+flush privileges;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+show create user user1@localhost;
+alter user user1@localhost account unlock;
+connect(con1,localhost,user1);
+disconnect con1;
+connection default;
+show create user user1@localhost;
+
+--echo #
+--echo # Test password expiration fields are loaded correctly
+--echo #
+create user user@localhost;
+show create user user@localhost;
+alter user user@localhost password expire;
+show create user user@localhost;
+set password for user@localhost= password('');
+alter user user@localhost password expire default;
+show create user user@localhost;
+alter user user@localhost password expire never;
+show create user user@localhost;
+alter user user@localhost password expire interval 123 day;
+show create user user@localhost;
+alter user user@localhost password expire;
+show create user user@localhost;
+set password for user@localhost= password('');
+show create user user@localhost;
+drop user user@localhost;
+
+--echo #
 --echo # Reset to final original state.
 --echo #
 --source include/switch_to_mysql_global_priv.inc

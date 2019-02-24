@@ -127,7 +127,7 @@ rf_bitmap_get_next_batch(
 							of pages */
 {
 	ulint	start_page_id;
-	const ulint	page_size	= ctxt->page_size.physical();
+	const ulint	page_size	= ctxt->page_size;
 
 	start_page_id = (ulint)(ctxt->offset / page_size);
 
