@@ -159,7 +159,8 @@ static COND *build_equal_items(JOIN *join, COND *cond,
 static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              COND *cond,
                                              COND_EQUAL *cond_equal,
-                                             void *table_join_idx);
+                                             void *table_join_idx,
+                                             bool do_substitution);
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
                             COND *conds, bool top, bool in_sj);
 static bool check_interleaving_with_nj(JOIN_TAB *next);
@@ -2304,7 +2305,7 @@ int JOIN::optimize_stage2()
   if (conds)
   {
     conds= substitute_for_best_equal_field(thd, NO_PARTICULAR_TAB, conds,
-                                           cond_equal, map2table);
+                                           cond_equal, map2table, true);
     if (unlikely(thd->is_error()))
     {
       error= 1;
@@ -2320,7 +2321,7 @@ int JOIN::optimize_stage2()
   if (having)
   {
     having= substitute_for_best_equal_field(thd, NO_PARTICULAR_TAB, having,
-                                            having_equal, map2table);
+                                            having_equal, map2table, false);
     if (thd->is_error())
     {
       error= 1;
@@ -2347,7 +2348,7 @@ int JOIN::optimize_stage2()
       *tab->on_expr_ref= substitute_for_best_equal_field(thd, NO_PARTICULAR_TAB,
                                                          *tab->on_expr_ref,
                                                          tab->cond_equal,
-                                                         map2table);
+                                                         map2table, true);
       if (unlikely(thd->is_error()))
       {
         error= 1;
@@ -2377,7 +2378,7 @@ int JOIN::optimize_stage2()
       while (equals)
       {
         ref_item= substitute_for_best_equal_field(thd, tab, ref_item,
-                                                  equals, map2table);
+                                                  equals, map2table, true);
         if (unlikely(thd->is_fatal_error))
           DBUG_RETURN(1);
 
@@ -15418,7 +15419,8 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
 static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              COND *cond,
                                              COND_EQUAL *cond_equal,
-                                             void *table_join_idx)
+                                             void *table_join_idx,
+                                             bool do_substitution)
 {
   Item_equal *item_equal;
   COND *org_cond= cond;                 // Return this in case of fatal error
@@ -15447,7 +15449,8 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
     {
       Item *new_item= substitute_for_best_equal_field(thd, context_tab,
                                                       item, cond_equal,
-                                                      table_join_idx);
+                                                      table_join_idx,
+                                                      do_substitution);
       /*
         This works OK with PS/SP re-execution as changes are made to
         the arguments of AND/OR items only
@@ -15529,7 +15532,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
     cond= eliminate_item_equal(thd, 0, cond_equal, item_equal);
     return cond ? cond : org_cond;
   }
-  else 
+  else if (do_substitution)
   {
     while (cond_equal)
     {
