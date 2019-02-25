@@ -1877,7 +1877,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             info->deleted++;
           else
             error= 0;
-          thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
           /*
             Since we pretend that we have done insert we should call
             its after triggers.
@@ -1918,7 +1917,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
     if (table->file->insert_id_for_cur_row == 0)
       table->file->insert_id_for_cur_row= insert_id_for_cur_row;
       
-    thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
     /*
       Restore column maps if they where replaced during an duplicate key
       problem.
