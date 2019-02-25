@@ -34,10 +34,8 @@ galera_gcs_fc_limit : Timeouts
 pool_of_threads: WSREP has not yet prepared node for application use
 galera_var_innodb_disallow_writes : Timeout
 MW-336 : nondeterministic wsrep_thread_count
-galera_binlog_stmt_autoinc : MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
 galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
 galera_var_node_address : MDEV-17151 Galera test failure on galera.galera_var_node_address
-galera_binlog_stmt_autoinc: MDEV-17106 Test failure on galera.galera_binlog_stmt_autoinc
 galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
