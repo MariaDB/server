@@ -693,7 +693,8 @@ public:
 			&& mbminlen == other.mbminlen
 			&& mbmaxlen == other.mbmaxlen
 			&& !((prtype ^ other.prtype)
-			     & ~(DATA_NOT_NULL | DATA_VERSIONED));
+			     & ~(DATA_NOT_NULL | DATA_VERSIONED
+				 | DATA_LONG_TRUE_VARCHAR));
 	}
 };
 
