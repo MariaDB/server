@@ -23914,7 +23914,9 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	      real_pos->type() == Item::COND_ITEM) &&
 	     !real_pos->with_sum_func)
     {						// Save for send fields
+      LEX_CSTRING real_name= pos->name;
       pos= real_pos;
+      pos->name= real_name;
       /* TODO:
 	 In most cases this result will be sent to the user.
 	 This should be changed to use copy_int or copy_real depending
