@@ -478,23 +478,24 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
      Note: releasing LOCK_global_system_variables may cause race condition, if 
      there can be several concurrent clients changing wsrep_provider
   */
+  WSREP_DEBUG("wsrep_cluster_address_update: %s", wsrep_cluster_address);
   mysql_mutex_unlock(&LOCK_global_system_variables);
   wsrep_stop_replication(thd);
-
 
   if (wsrep_start_replication())
   {
     wsrep_create_rollbacker();
     wsrep_create_appliers(wsrep_slave_threads);
   }
-
   /* locking order to be enforced is:
      1. LOCK_global_system_variables
-     2. LOCK_wsrep_slave_threads
+     2. LOCK_wsrep_cluster_config
+     => have to juggle mutexes to comply with this
   */
-  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+
+  mysql_mutex_unlock(&LOCK_wsrep_cluster_config);
   mysql_mutex_lock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+  mysql_mutex_lock(&LOCK_wsrep_cluster_config);
 
   return false;
 }

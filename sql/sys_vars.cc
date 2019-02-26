@@ -5347,13 +5347,13 @@ static Sys_var_charptr Sys_wsrep_cluster_name(
        ON_CHECK(wsrep_cluster_name_check),
        ON_UPDATE(wsrep_cluster_name_update));
 
-static PolyLock_mutex PLock_wsrep_slave_threads(&LOCK_wsrep_slave_threads);
+static PolyLock_mutex PLock_wsrep_cluster_config(&LOCK_wsrep_cluster_config);
 static Sys_var_charptr Sys_wsrep_cluster_address (
        "wsrep_cluster_address", "Address to initially connect to cluster",
        PREALLOCATED GLOBAL_VAR(wsrep_cluster_address), 
        CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""),
-       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
+       &PLock_wsrep_cluster_config, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_address_check), 
        ON_UPDATE(wsrep_cluster_address_update));
 
@@ -5384,7 +5384,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        "wsrep_slave_threads", "Number of slave appliers to launch",
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
-       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
+       &PLock_wsrep_cluster_config, NOT_IN_BINLOG,
        ON_CHECK(0),
        ON_UPDATE(wsrep_slave_threads_update));
 

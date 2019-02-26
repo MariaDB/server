@@ -1536,11 +1536,6 @@ static my_bool kill_all_threads(THD *thd, void *)
   if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
     return 0;
 
-#ifdef WITH_WSREP
-  /* skip wsrep system threads as well */
-  if (WSREP(thd) && (wsrep_thd_is_applying(thd) || thd->wsrep_applier))
-    return 0;
-#endif
   thd->set_killed(KILL_SERVER_HARD);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
   if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
@@ -1593,34 +1588,6 @@ static my_bool kill_all_threads_once_again(THD *thd, void *)
   }
 #endif
 
-#ifdef WITH_WSREP
-  /*
-   * WSREP_TODO:
-   *       this code block may turn out redundant. wsrep->disconnect()
-   *       should terminate slave threads gracefully, and we don't need
-   *       to signal them here.
-   *       The code here makes sure mysqld will not hang during shutdown
-   *       even if wsrep provider has problems in shutting down.
-   */
-  if (WSREP(thd) && wsrep_thd_is_applying(thd))
-  {
-    sql_print_information("closing wsrep system thread");
-    thd->set_killed(KILL_CONNECTION);
-    MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
-    if (thd->mysys_var)
-    {
-      thd->mysys_var->abort=1;
-      mysql_mutex_lock(&thd->mysys_var->mutex);
-      if (thd->mysys_var->current_cond)
-      {
-        mysql_mutex_lock(thd->mysys_var->current_mutex);
-        mysql_cond_broadcast(thd->mysys_var->current_cond);
-        mysql_mutex_unlock(thd->mysys_var->current_mutex);
-      }
-      mysql_mutex_unlock(&thd->mysys_var->mutex);
-    }
-  }
-#endif
   return 0;
 }
 

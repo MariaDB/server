@@ -60,11 +60,11 @@ static void wsrep_replication_process(THD *thd,
   enum wsrep::provider::status
     ret= Wsrep_server_state::get_provider().run_applier(&applier_service);
 
-  WSREP_INFO("Applier thread exiting %d", ret);
-  mysql_mutex_lock(&LOCK_thread_count);
+  WSREP_INFO("Applier thread exiting ret: %d thd: %llu", ret, thd->thread_id);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   wsrep_close_applier(thd);
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_cond_broadcast(&COND_wsrep_slave_threads);
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
   delete thd->system_thread_info.rpl_sql_info;
   delete thd->wsrep_rgi->rli->mi;
@@ -87,7 +87,6 @@ static bool create_wsrep_THD(Wsrep_thd_args* args)
 {
   ulong old_wsrep_running_threads= wsrep_running_threads;
   pthread_t unused;
-  mysql_mutex_lock(&LOCK_thread_count);
 
   bool res= pthread_create(&unused, &connection_attrib, start_wsrep_THD,
                            args);
@@ -96,10 +95,11 @@ static bool create_wsrep_THD(Wsrep_thd_args* args)
     is fully initialized (otherwise a THD initialization code might
     try to access a partially initialized server data structure - MDEV-8208).
   */
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   if (!mysqld_server_initialized)
     while (old_wsrep_running_threads == wsrep_running_threads)
-      mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+      mysql_cond_wait(&COND_wsrep_slave_threads, &LOCK_wsrep_slave_threads);
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
   return res;
 }
 
@@ -115,6 +115,7 @@ void wsrep_create_appliers(long threads)
 
   if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
   {
+    WSREP_DEBUG("wsrep_create_appliers exit due to empty address");
     return;
   }
 
@@ -138,6 +139,7 @@ static void wsrep_rollback_process(THD *rollbacker,
   THD* thd= NULL;
   DBUG_ASSERT(!wsrep_rollback_queue);
   wsrep_rollback_queue= new Wsrep_thd_queue(rollbacker);
+  WSREP_INFO("Starting rollbacker thread %llu", rollbacker->thread_id);
 
   thd_proc_info(rollbacker, "wsrep aborter idle");
   while ((thd= wsrep_rollback_queue->pop_front()) != NULL)
@@ -266,7 +268,7 @@ static void wsrep_rollback_process(THD *rollbacker,
   delete wsrep_rollback_queue;
   wsrep_rollback_queue= NULL;
 
-  sql_print_information("WSREP: rollbacker thread exiting");
+  WSREP_INFO("rollbacker thread exiting %llu", rollbacker->thread_id);
 
   DBUG_ASSERT(rollbacker->killed != NOT_KILLED);
   DBUG_PRINT("wsrep",("wsrep rollbacker thread exiting"));
@@ -279,6 +281,7 @@ static void wsrep_post_rollback_process(THD *post_rollbacker,
   DBUG_ENTER("wsrep_post_rollback_process");
   THD* thd= NULL;
 
+  WSREP_INFO("Starting post rollbacker thread %llu", post_rollbacker->thread_id);
   DBUG_ASSERT(!wsrep_post_rollback_queue);
   wsrep_post_rollback_queue= new Wsrep_thd_queue(post_rollbacker);
 
@@ -301,12 +304,13 @@ static void wsrep_post_rollback_process(THD *post_rollbacker,
 
   DBUG_ASSERT(post_rollbacker->killed != NOT_KILLED);
   DBUG_PRINT("wsrep",("wsrep post rollbacker thread exiting"));
+  WSREP_INFO("post rollbacker thread exiting %llu", post_rollbacker->thread_id);
   DBUG_VOID_RETURN;
 }
 
 void wsrep_create_rollbacker()
 {
-  if (wsrep_provider && strcasecmp(wsrep_provider, "none"))
+  if (wsrep_cluster_address && wsrep_cluster_address[0] != 0)
   {
     Wsrep_thd_args* args= new Wsrep_thd_args(wsrep_rollback_process, 0);
 
