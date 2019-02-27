@@ -1197,19 +1197,16 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       for (uint i=0; i < parts; i++)
       {
         keypart= key->key_part + i;
-        if (!keypart->length)
-        {
-          list_item= new (mem_root) Item_field(thd, keypart->field);
-        }
-        else
+        if (keypart->key_part_flag & HA_PART_KEY_SEG)
         {
           int length= keypart->length/keypart->field->charset()->mbmaxlen;
-          list_item= new(mem_root)Item_func_left(thd,
-                      new (mem_root)Item_field(thd, keypart->field),
-                      new (mem_root) Item_int(thd, length));
+          list_item= new (mem_root) Item_func_left(thd,
+                       new (mem_root) Item_field(thd, keypart->field),
+                       new (mem_root) Item_int(thd, length));
           list_item->fix_fields(thd, NULL);
-          keypart->key_part_flag |= HA_PART_KEY_SEG;
         }
+        else
+          list_item= new (mem_root) Item_field(thd, keypart->field);
         field_list->push_back(list_item, mem_root);
       }
       Item_func_hash *hash_item= new(mem_root)Item_func_hash(thd, *field_list);
@@ -2716,11 +2713,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
               field->part_of_sortkey= share->keys_in_use;
           }
         }
-        if (field->key_length() != key_part->length &&
-             keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
+        if (field->key_length() != key_part->length)
         {
 #ifndef TO_BE_DELETED_ON_PRODUCTION
-          if (field->type() == MYSQL_TYPE_NEWDECIMAL)
+          if (field->type() == MYSQL_TYPE_NEWDECIMAL &&
+              keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
           {
             /*
               Fix a fatal error in decimal key handling that causes crashes
