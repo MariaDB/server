@@ -43,7 +43,7 @@ MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
 Data records:                   10  Deleted blocks:                 0
-Recordlength:                   20
+Recordlength:                   12
 
 table description:
 Key Start Len Index   Type
@@ -131,7 +131,7 @@ MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
 Data records:                    7  Deleted blocks:                 0
-Recordlength:                   20
+Recordlength:                   12
 
 table description:
 Key Start Len Index   Type
@@ -366,7 +366,7 @@ MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
 Data records:                    8  Deleted blocks:                 0
-Recordlength:                 3072
+Recordlength:                 3040
 
 table description:
 Key Start Len Index   Type
@@ -723,7 +723,7 @@ MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
 Data records:                    9  Deleted blocks:                 0
-Recordlength:                 5092
+Recordlength:                 5059
 
 table description:
 Key Start Len Index   Type

@@ -2449,6 +2449,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
         keyinfo->flags|= HA_NOSAME;
         share->virtual_fields++;
+        share->stored_fields--;
+        if (record + share->stored_rec_length >= hash_field->ptr)
+          share->stored_rec_length= (ulong)(hash_field->ptr - record - 1);
         hash_field_used_no++;
         offset+= HA_HASH_FIELD_LENGTH;
       }
