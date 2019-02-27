@@ -1688,9 +1688,9 @@ select count(*) from t1 where x = 18446744073709551601;
 count(*)
 1
 drop table t1;
-SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_buffer_pool_pages_total';
-variable_value
-ok
+SELECT IF(variable_value BETWEEN 488 AND 512, 'OK', variable_value) FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_buffer_pool_pages_total';
+IF(variable_value BETWEEN 488 AND 512, 'OK', variable_value)
+OK
 SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_page_size';
 variable_value
 16384

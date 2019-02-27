@@ -1587,11 +1587,6 @@ buf_chunk_init(
 	/* Round down to a multiple of page size,
 	although it already should be. */
 	mem_size = ut_2pow_round(mem_size, ulint(srv_page_size));
-	/* Reserve space for the block descriptors. */
-	mem_size += ut_2pow_round((mem_size >> srv_page_size_shift)
-				  * (sizeof *block)
-				  + (srv_page_size - 1),
-				  ulint(srv_page_size));
 
 	DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return(NULL););
 
@@ -1913,8 +1908,7 @@ buf_pool_init_instance(
 			ut_min(BUF_READ_AHEAD_PAGES,
 			       ut_2_power_up(buf_pool->curr_size /
 					     BUF_READ_AHEAD_PORTION));
-		buf_pool->curr_pool_size = buf_pool->curr_size
-			<< srv_page_size_shift;
+		buf_pool->curr_pool_size = buf_pool_size;
 
 		buf_pool->old_size = buf_pool->curr_size;
 		buf_pool->n_chunks_new = buf_pool->n_chunks;
@@ -2718,11 +2712,11 @@ buf_pool_resize()
 		ut_ad(UT_LIST_GET_LEN(buf_pool->withdraw) == 0);
 		ut_ad(buf_pool->flush_rbt == NULL);
 
-		buf_pool->curr_size = new_instance_size;
-
 		buf_pool->n_chunks_new =
 			(new_instance_size << srv_page_size_shift)
 			/ srv_buf_pool_chunk_unit;
+
+		buf_pool->curr_size = buf_pool->n_chunks_new * buf_pool->chunks->size;
 
 		buf_pool_mutex_exit(buf_pool);
 	}
@@ -3053,7 +3047,7 @@ calc_buf_pool_size:
 				       ut_2_power_up(buf_pool->curr_size /
 						      BUF_READ_AHEAD_PORTION));
 			buf_pool->curr_pool_size
-				= buf_pool->curr_size << srv_page_size_shift;
+				= buf_pool->n_chunks * srv_buf_pool_chunk_unit;
 			curr_size += buf_pool->curr_pool_size;
 			buf_pool->old_size = buf_pool->curr_size;
 		}
