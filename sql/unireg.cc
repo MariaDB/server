@@ -691,7 +691,7 @@ static bool pack_vcols(String *buf, List<Create_field> &create_fields,
 
   for (uint field_nr=0; (field= it++); field_nr++)
   {
-    if (field->vcol_info)
+    if (field->vcol_info && field->vcol_info->expr)
       if (pack_expression(buf, field->vcol_info, field_nr,
                           field->vcol_info->stored_in_db
                           ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))

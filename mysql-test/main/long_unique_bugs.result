@@ -10,3 +10,13 @@ create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, 
 load data infile 'load.data' into table tmp;
 delete from tmp;
 drop table t1;
+create table t1 (b blob) engine=innodb;
+alter table t1 add unique (b);
+alter table t1 force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` blob DEFAULT NULL,
+  UNIQUE KEY `b` (`b`) USING HASH
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1;

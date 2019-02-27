@@ -3321,6 +3321,8 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
   cf->length= cf->char_length= cf->pack_length= HA_HASH_FIELD_LENGTH;
   cf->invisible= INVISIBLE_FULL;
   cf->pack_flag|= FIELDFLAG_MAYBE_NULL;
+  cf->vcol_info= new (thd->mem_root) Virtual_column_info();
+  cf->vcol_info->stored_in_db= false;
   uint num= 1;
   LEX_CSTRING field_name;
   field_name.str= (char *)thd->alloc(LONG_HASH_FIELD_NAME_LENGTH);

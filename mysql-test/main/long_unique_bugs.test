@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+
 #
 # MDEV-18707 Server crash in my_hash_sort_bin, ASAN heap-use-after-free in Field::is_null, server hang, corrupted double-linked list
 #
@@ -15,3 +17,12 @@ delete from tmp;
 drop table t1;
 --let $datadir= `SELECT @@datadir`
 --remove_file $datadir/test/load.data
+
+#
+# MDEV-18712 InnoDB indexes are inconsistent with what defined in .frm for table after rebuilding table with index on blob
+#
+create table t1 (b blob) engine=innodb;
+alter table t1 add unique (b);
+alter table t1 force;
+show create table t1;
+drop table t1;
