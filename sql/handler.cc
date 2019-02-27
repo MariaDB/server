@@ -6558,7 +6558,14 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
     error= HA_ERR_LOCK_WAIT_TIMEOUT;
 exit:
   if (error)
+  {
     table->file->errkey= key_no;
+    if (h->ha_table_flags() & HA_DUPLICATE_POS)
+    {
+      h->position(table->check_unique_buf);
+      memcpy(table->file->dup_ref, h->ref, h->ref_length);
+    }
+  }
   h->ha_index_end();
   return error;
 }

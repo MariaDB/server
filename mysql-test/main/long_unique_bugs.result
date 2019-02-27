@@ -53,3 +53,7 @@ create temporary table t1 (f blob, unique(f)) engine=innodb;
 insert into t1 values (1);
 replace into t1 values (1);
 drop table t1;
+create table t (b blob, unique(b)) engine=myisam;
+insert into t values ('foo');
+replace into t values ('foo');
+drop table t;
