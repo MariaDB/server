@@ -23,7 +23,6 @@ galera_as_slave_replication_bundle : MDEV-13549 Galera test failures
 galera_ssl_upgrade : MDEV-13549 Galera test failures
 galera.MW-329 : wsrep_local_replays not stable
 MW-416 : MDEV-13549 Galera test failures
-MW-388 : MDEV-13549 Galera test failures
 galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
 galera_gc_fc_limit : MDEV-17061 Test failure on galera.galera_gc_fc_limit
 galera_as_slave_replication_budle : MDEV-15785 Test case galera_as_slave_replication_bundle caused debug assertion
