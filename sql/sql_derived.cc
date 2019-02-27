@@ -90,6 +90,7 @@ mysql_handle_derived(LEX *lex, uint phases)
 	 sl= sl->next_select_in_list())
     {
       TABLE_LIST *cursor= sl->get_table_list();
+      sl->changed_elements|= TOUCHED_SEL_DERIVED;
       /*
         DT_MERGE_FOR_INSERT is not needed for views/derived tables inside
         subqueries. Views and derived tables of subqueries should be
@@ -1002,8 +1003,7 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
                        derived->get_unit()));
   st_select_lex_unit *unit= derived->get_unit();
 
-  if (derived->table)
-    derived->merged_for_insert= FALSE;
+  derived->merged_for_insert= FALSE;
   unit->unclean();
   unit->types.empty();
   /* for derived tables & PS (which can't be reset by Item_subquery) */

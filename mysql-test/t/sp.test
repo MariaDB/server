@@ -9373,5 +9373,46 @@ CALL sp;
 DROP PROCEDURE sp;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17055: Server crashes in find_order_in_list upon
+--echo # 2nd (3rd) execution of SP with UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (c INT);
+
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 ORDER BY a, b LIMIT 1;
+LOCK TABLE t2 READ;
+--error ER_TABLE_NOT_LOCKED
+CALL sp;
+UNLOCK TABLES;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+
+# Cleanup
+DROP PROCEDURE sp;
+
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
+LOCK TABLE t2 READ;
+--error ER_TABLE_NOT_LOCKED
+CALL sp;
+UNLOCK TABLES;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+
+# Cleanup
+DROP PROCEDURE sp;
+
+DROP VIEW v1;
+DROP TABLE t1, t2;
 
 --echo # End of 5.5 test

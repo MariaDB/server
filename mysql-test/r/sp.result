@@ -8072,4 +8072,37 @@ CALL sp;
 c	a	b	a	b
 DROP PROCEDURE sp;
 DROP TABLE t1;
+#
+# MDEV-17055: Server crashes in find_order_in_list upon
+# 2nd (3rd) execution of SP with UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (c INT);
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 ORDER BY a, b LIMIT 1;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1, t2;
 # End of 5.5 test
