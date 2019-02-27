@@ -1709,7 +1709,7 @@ SELECT count(*) FROM t1, t2
 # Alter from 4-byte charset to 3-byte charset, error
 --disable_warnings
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8, ALGORITHM=COPY;
 --enable_warnings
 SHOW CREATE TABLE t1;
 --sorted_result

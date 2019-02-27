@@ -635,6 +635,8 @@ typedef ulonglong alter_table_operations;
 #define ALTER_RECREATE              (1ULL << 10)
 // Set for CONVERT TO
 #define ALTER_CONVERT_TO            (1ULL << 11)
+// Set for field charset change
+#define ALTER_CONVERT_FIELD_CHARSET (1ULL << 12)
 // Set for ADD FOREIGN KEY
 #define ALTER_ADD_FOREIGN_KEY       (1ULL << 21)
 // Set for DROP FOREIGN KEY

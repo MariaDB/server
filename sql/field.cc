@@ -7068,23 +7068,35 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
+  const bool charset_changed= field_charset != new_field->charset;
+
   if (new_field->type_handler() != type_handler())
     return IS_EQUAL_NO;
-  if (new_field->length < max_display_length())
+  if (new_field->length < max_display_length() && !charset_changed)
     return IS_EQUAL_NO;
   if (new_field->char_length < char_length())
     return IS_EQUAL_NO;
 
-  const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
-  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
-					     part_of_a_key))
+  if (charset_changed)
+  {
+    if (field_charset == &my_charset_bin ||
+        new_field->charset == &my_charset_bin)
+      return IS_EQUAL_NO;
+
+    const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+    if (Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                              part_of_a_key) &&
+        new_field->length == max_display_length())
+    {
+      return IS_EQUAL_PACK_LENGTH;
+    }
+    return IS_EQUAL_BUT_CHARSET;
+  }
+
+  if (new_field->length != max_display_length())
     return IS_EQUAL_NO;
 
-  if (new_field->length == max_display_length())
-    return new_field->charset == field_charset
-      ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
-
-  return IS_EQUAL_NO;
+  return IS_EQUAL_YES;
 }
 
 
@@ -7920,24 +7932,35 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
-  if (new_field->length < field_length)
+  const bool charset_changed= field_charset != new_field->charset;
+
+  if (new_field->length < field_length && !charset_changed)
     return IS_EQUAL_NO;
   if (new_field->char_length < char_length())
     return IS_EQUAL_NO;
   if (!new_field->compression_method() != !compression_method())
     return IS_EQUAL_NO;
 
-  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
-  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
-                                             part_of_a_key))
-    return IS_EQUAL_NO;
+  if (charset_changed)
+  {
+    if (field_charset == &my_charset_bin ||
+        new_field->charset == &my_charset_bin)
+      return IS_EQUAL_NO;
+
+    if (new_field->type_handler() != type_handler())
+      return IS_EQUAL_NO;
+
+    bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+    if (!Type_handler::Charsets_are_compatible(
+            field_charset, new_field->charset, part_of_a_key))
+      return IS_EQUAL_BUT_CHARSET;
+  }
 
   const Type_handler *new_type_handler= new_field->type_handler();
   if (new_type_handler == type_handler())
   {
     if (new_field->length == field_length)
-      return new_field->charset == field_charset
-        ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
+      return charset_changed ? IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
     if (field_length <= 127 ||
         new_field->length <= 255 ||
         field_length > 255 ||
@@ -8711,7 +8734,9 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
-  if (new_field->type_handler() != type_handler())
+  const bool charset_changed= field_charset != new_field->charset;
+
+  if (new_field->type_handler() != type_handler() && !charset_changed)
   {
     return IS_EQUAL_NO;
   }
@@ -8721,18 +8746,22 @@ uint Field_blob::is_equal(Create_field *new_field)
   }
   if (new_field->pack_length != pack_length())
   {
-    return IS_EQUAL_NO;
+    if (!charset_changed)
+      return IS_EQUAL_NO;
   }
 
-  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
-  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
-                                             part_of_a_key))
+  if (charset_changed)
   {
-    return IS_EQUAL_NO;
-  }
+    if (field_charset == &my_charset_bin ||
+        new_field->charset == &my_charset_bin)
+      return IS_EQUAL_NO;
 
-  if (field_charset != new_field->charset)
-  {
+    bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+    if (!Type_handler::Charsets_are_compatible(
+            field_charset, new_field->charset, part_of_a_key))
+    {
+      return IS_EQUAL_BUT_CHARSET;
+    }
     return IS_EQUAL_PACK_LENGTH;
   }
 

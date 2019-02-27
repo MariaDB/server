@@ -6736,6 +6736,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         */
         ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH;
         break;
+      case IS_EQUAL_BUT_CHARSET:
+        ha_alter_info->handler_flags|= ALTER_CONVERT_FIELD_CHARSET;
+	break;
       default:
         DBUG_ASSERT(0);
         /* Safety. */

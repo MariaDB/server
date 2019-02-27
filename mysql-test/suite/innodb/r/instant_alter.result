@@ -334,8 +334,8 @@ Note	1265	Data truncated for column 'c7' at row 1
 Note	1265	Data truncated for column 'c8' at row 1
 ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
 CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
-affected rows: 4
-info: Records: 4  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 INSERT INTO t3 SET id=5, c2=9;
 Warnings:
 Note	1265	Data truncated for column 'c7' at row 1
@@ -1158,8 +1158,8 @@ Note	1265	Data truncated for column 'c7' at row 1
 Note	1265	Data truncated for column 'c8' at row 1
 ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
 CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
-affected rows: 4
-info: Records: 4  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 INSERT INTO t3 SET id=5, c2=9;
 Warnings:
 Note	1265	Data truncated for column 'c7' at row 1
@@ -1982,8 +1982,8 @@ Note	1265	Data truncated for column 'c7' at row 1
 Note	1265	Data truncated for column 'c8' at row 1
 ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
 CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
-affected rows: 4
-info: Records: 4  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 INSERT INTO t3 SET id=5, c2=9;
 Warnings:
 Note	1265	Data truncated for column 'c7' at row 1

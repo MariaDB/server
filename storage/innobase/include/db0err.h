@@ -141,6 +141,8 @@ enum dberr_t {
 					or missing or incorrect key or
 					incorret AES method or algorithm. */
 
+	DB_TRUNCATED_WRONG_VALUE_FOR_FIELD,
+
 	DB_IO_ERROR = 100,		/*!< Generic IO error */
 
 	DB_IO_PARTIAL_FAILED,		/*!< Partial IO request failed */

@@ -71,7 +71,7 @@ alter table various_cases
   algorithm=inplace;
 
 # Can not grow storage in bytes from CHAR
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table various_cases
   modify a char(150) charset utf8mb4,
   algorithm=instant;
@@ -94,67 +94,6 @@ alter table all_texts
 drop table all_texts;
 
 
-create table all_binaries (
-  a tinyblob,
-  b blob,
-  c mediumblob,
-  d longblob,
-  e varbinary(150),
-  f binary(150)
-) engine=innodb;
-
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_binaries modify a tinytext, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_binaries modify b text, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_binaries modify c mediumtext, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_binaries modify d longtext, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_binaries modify e varchar(150), algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_binaries modify f char(150), algorithm=instant;
-
-drop table all_binaries;
-
-create table all_strings (
-  a tinytext,
-  b text,
-  c mediumtext,
-  d longtext,
-  e varchar(150),
-  f char(150)
-) engine=innodb;
-
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify a tinyblob, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify b blob, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify c mediumblob, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify d longblob, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify e varbinary(150), algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify f binary(150), algorithm=instant;
-
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify a tinytext charset binary, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify b text charset binary, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify c mediumtext charset binary, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify d longtext charset binary, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify e varchar(150) charset binary, algorithm=instant;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table all_strings modify f char(150) charset binary, algorithm=instant;
-
-drop table all_strings;
-
 create table key_part_change (
   a char(150) charset ascii,
   b char(150) charset ascii,
@@ -162,7 +101,7 @@ create table key_part_change (
   unique key ab (a,b)
 ) engine=innodb;
 
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table key_part_change
   modify a char(150) charset utf8mb4,
   drop index ab,
@@ -177,7 +116,7 @@ create table key_part_change_and_rename (
   unique key ab (a,b)
 ) engine=innodb;
 
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table key_part_change_and_rename
   change a b char(100) charset utf8mb4,
   change b a char(100) charset utf8mb4,
@@ -467,12 +406,12 @@ while ($counter <= $data_size) {
     change a a varchar(50) charset $to_charset collate $to_collate,
     algorithm=instant;
 
-  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
   eval alter table tmp
     modify b varchar(50) charset $to_charset collate $to_collate,
     algorithm=instant;
 
-  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
   eval alter table tmp
     modify c varchar(50) charset $to_charset collate $to_collate,
     algorithm=instant;
@@ -520,12 +459,12 @@ while ($counter <= $data_size) {
     unique key b_idx (b(150))
   ) engine=innodb;
 
-  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
   eval alter table tmp
     change a a varchar(150) charset $to_charset collate $to_collate,
     algorithm=instant;
 
-  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
   eval alter table tmp
     modify b text charset $to_charset collate $to_collate,
     algorithm=instant;

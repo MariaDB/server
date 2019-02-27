@@ -2014,8 +2014,8 @@ ALTER TABLE tm1 ORDER BY b;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0
 ALTER TABLE ti1 CONVERT TO CHARACTER SET utf16;
-affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tm1 CONVERT TO CHARACTER SET utf16;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0

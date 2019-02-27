@@ -1646,6 +1646,128 @@ row_geo_field_is_valid(
 	return(true);
 }
 
+
+class charset_converter_t {
+public:
+	charset_converter_t(const dict_table_t* old_table,
+			    const dict_table_t* new_table)
+	{
+		if (dict_table_get_n_cols(old_table)
+		    != dict_table_get_n_cols(new_table)) {
+			return;
+		}
+
+		for (size_t i = 0; i < dict_table_get_n_cols(old_table); i++) {
+			const dict_col_t* old_col
+			    = dict_table_get_nth_col(old_table, i);
+			const dict_col_t* new_col
+			    = dict_table_get_nth_col(new_table, i);
+
+			const auto old_mysql_type
+			    = dtype_get_mysql_type(old_col->prtype);
+			if (old_mysql_type != MYSQL_TYPE_VARCHAR
+			    && old_mysql_type != MYSQL_TYPE_STRING
+			    && old_mysql_type != MYSQL_TYPE_BLOB) {
+				continue;
+			}
+
+			const auto new_mysql_type
+			    = dtype_get_mysql_type(new_col->prtype);
+			if (old_mysql_type != new_mysql_type) {
+				continue;
+			}
+
+			CHARSET_INFO* old_charset = get_charset(
+			    dtype_get_charset_coll(old_col->prtype), MYF(0));
+			CHARSET_INFO* new_charset = get_charset(
+			    dtype_get_charset_coll(new_col->prtype), MYF(0));
+			if (old_charset == new_charset) {
+				continue;
+			}
+
+			infos.push_back(conversion_info_t{
+			    old_col, old_mysql_type, old_charset, new_charset});
+		}
+	}
+
+	bool convert_if_needed(const dtuple_t* row, mem_heap_t* row_heap,
+			       const dict_table_t* old_table,
+			       const TABLE* mariadb_table, ulong n_rows) const
+	{
+		for (const auto& info : infos) {
+			dfield_t* dfield
+			    = dtuple_get_nth_field(row, info.old_col->ind);
+
+			if (dfield->len == UNIV_SQL_NULL) {
+				continue;
+			}
+
+			const size_t old_max_chars
+			    = dfield->len / info.old_col->mbminlen;
+			const size_t buf_size
+			    = old_max_chars * dfield->type.mbmaxlen;
+
+			char* new_data = static_cast<char*>(
+			    mem_heap_alloc(row_heap, buf_size));
+
+			MY_STRCOPY_STATUS copy_status;
+			MY_STRCONV_STATUS conv_status;
+			const auto converted_len = my_convert_fix(
+			    info.new_charset, new_data, buf_size,
+			    info.old_charset, static_cast<char*>(dfield->data),
+			    dfield->len, old_max_chars, &copy_status,
+			    &conv_status);
+
+			if (const char* err_pos
+			    = conv_status.m_cannot_convert_error_pos) {
+				char tmp[32];
+				convert_to_printable(
+				    tmp, sizeof(tmp), err_pos,
+				    static_cast<const char*>(dfield->data)
+					+ dfield->len - err_pos,
+				    info.old_charset, 6);
+				my_error(
+				    ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
+				    "string", tmp, mariadb_table->s->db.str,
+				    mariadb_table->s->table_name.str,
+				    info.old_col->name(*old_table), n_rows);
+				return false;
+			}
+
+			dfield->data = new_data;
+			if (info.mysql_type == MYSQL_TYPE_VARCHAR
+			    || info.mysql_type == MYSQL_TYPE_BLOB) {
+				dfield->len = converted_len;
+			} else {
+				ut_ad(info.mysql_type == MYSQL_TYPE_STRING);
+
+				const auto new_len = dfield->type.len;
+				if (new_len > converted_len) {
+					info.new_charset->cset->fill(
+					    info.new_charset,
+					    new_data + converted_len,
+					    new_len - converted_len,
+					    info.new_charset->pad_char);
+				}
+				dfield->len = new_len;
+			}
+		}
+
+		return true;
+	}
+
+private:
+	struct conversion_info_t {
+		const dict_col_t *old_col;
+		size_t mysql_type;
+		CHARSET_INFO *old_charset;
+		CHARSET_INFO *new_charset;
+	};
+
+	std::vector<conversion_info_t> infos;
+};
+
+
 /** Reads clustered index of the table and create temporary files
 containing the index entries for the indexes to be built.
 @param[in]	trx		transaction
@@ -1923,6 +2045,8 @@ row_merge_read_clustered_index(
 	mach_write_to_8(new_sys_trx_start, trx->id);
 	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
 	uint64_t	n_rows = 0;
+
+	charset_converter_t charset_converter(old_table, new_table);
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -2323,6 +2447,13 @@ end_of_index:
 			dfield_set_data(start, new_sys_trx_start, 8);
 			dfield_set_data(end, new_sys_trx_end, 8);
 			vers_update_trt = true;
+		}
+
+		if (!charset_converter.convert_if_needed(
+			row, row_heap, old_table, table,
+			static_cast<ulong>(n_rows + 1))) {
+			err = DB_TRUNCATED_WRONG_VALUE_FOR_FIELD;
+			break;
 		}
 
 write_buffers:

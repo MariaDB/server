@@ -354,6 +354,7 @@
   data dictionary without changing table rows
 */
 #define IS_EQUAL_PACK_LENGTH 2
+#define IS_EQUAL_BUT_CHARSET 3
 
 enum enum_parsing_place
 {

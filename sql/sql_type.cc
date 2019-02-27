@@ -8230,6 +8230,9 @@ bool Type_handler::Charsets_are_compatible(const CHARSET_INFO *old_ci,
                                            const CHARSET_INFO *new_ci,
                                            bool part_of_a_key)
 {
+  DBUG_ASSERT(old_ci != &my_charset_bin);
+  DBUG_ASSERT(new_ci != &my_charset_bin);
+
   const char *old_cs_name= old_ci->csname;
   const char *new_cs_name= new_ci->csname;
 

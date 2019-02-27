@@ -235,6 +235,13 @@ the underlying datatype of GEOMETRY data. */
 /* Mask to get the Charset Collation number (0x7fff) */
 #define CHAR_COLL_MASK		MAX_CHAR_COLL_NUM
 
+/** Gets the MySQL type code from a prtype.
+@param[in]	prtype	precise type
+@return MySQL type code; this is NOT an InnoDB type code! */
+inline ulint dtype_get_mysql_type(ulint prtype)
+{
+	return prtype & DATA_MYSQL_TYPE_MASK;
+}
 /*********************************************************************//**
 Gets the MySQL type code from a dtype.
 @return MySQL type code; this is NOT an InnoDB type code! */

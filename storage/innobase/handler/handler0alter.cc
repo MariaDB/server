@@ -92,6 +92,7 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_STORED_COLUMN_TYPE
 	*/
 	| INNOBASE_ALTER_VERSIONED_REBUILD
+	| ALTER_CONVERT_FIELD_CHARSET
 	;
 
 /** Operations that require changes to data */
@@ -1228,6 +1229,10 @@ my_error_innodb(
 	case DB_TABLESPACE_EXISTS:
 		my_error(ER_TABLESPACE_EXISTS, MYF(0), table);
 		break;
+	case DB_TRUNCATED_WRONG_VALUE_FOR_FIELD:
+		// my_error was called somewhere else
+		break;
+
 
 #ifdef UNIV_DEBUG
 	case DB_SUCCESS:
