@@ -6548,7 +6548,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
         }
       }
     }
-    while (!is_same && !(result= table->file->ha_index_next_same(table->check_unique_buf,
+    while (!is_same && !(result= h->ha_index_next_same(table->check_unique_buf,
                          ptr, key_info->key_length)));
     if (is_same)
       error= HA_ERR_FOUND_DUPP_KEY;
@@ -6651,9 +6651,12 @@ int handler::ha_write_row(uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
-  if (table->s->long_unique_table &&
-          (error= check_duplicate_long_entries(table, table->file, buf)))
-    DBUG_RETURN(error);
+  if (table->s->long_unique_table)
+  {
+    handler *h= table->update_handler ? table->update_handler : table->file;
+    if ((error= check_duplicate_long_entries(table, h, buf)))
+      DBUG_RETURN(error);
+  }
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
                       { error= write_row(buf); })
 
