@@ -3057,9 +3057,6 @@ static bool row_sel_store_mysql_rec(
 		const mysql_row_templ_t*templ = &prebuilt->mysql_template[i];
 
 		if (templ->is_virtual && dict_index_is_clust(index)) {
-			/* Virtual columns are never declared NOT NULL. */
-			ut_ad(templ->mysql_null_bit_mask);
-
 			/* Skip virtual columns if it is not a covered
 			search or virtual key read is not requested. */
 			if (!rec_clust
@@ -3067,8 +3064,10 @@ static bool row_sel_store_mysql_rec(
 			    || (!prebuilt->read_just_key
 				&& !prebuilt->m_read_virtual_key)) {
 				/* Initialize the NULL bit. */
-				mysql_rec[templ->mysql_null_byte_offset]
-					|= (byte) templ->mysql_null_bit_mask;
+				if (templ->mysql_null_bit_mask) {
+					mysql_rec[templ->mysql_null_byte_offset]
+						|= (byte) templ->mysql_null_bit_mask;
+				}
 				continue;
 			}
 

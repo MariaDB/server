@@ -26,3 +26,10 @@ replace into t1 (pk) values (1);
 alter table t1 force;
 replace into t1 (pk) values (1);
 drop table t1;
+create table t1 (t time, unique(t)) engine=innodb;
+insert into t1 values (null),(null);
+alter ignore table t1 modify t text not null default '';
+Warnings:
+Warning	1265	Data truncated for column 't' at row 1
+Warning	1265	Data truncated for column 't' at row 2
+drop table t1;

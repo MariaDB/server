@@ -36,3 +36,11 @@ replace into t1 (pk) values (1);
 alter table t1 force;
 replace into t1 (pk) values (1);
 drop table t1;
+
+#
+# MDEV-18722 Assertion `templ->mysql_null_bit_mask' failed in row_sel_store_mysql_rec upon modifying indexed column into blob
+#
+create table t1 (t time, unique(t)) engine=innodb;
+insert into t1 values (null),(null);
+alter ignore table t1 modify t text not null default '';
+drop table t1;
