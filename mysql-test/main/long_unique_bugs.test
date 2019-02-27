@@ -56,3 +56,11 @@ update t1 set f = 'foo';
 select * from t1;
 select pk, f, row_end > DATE'2030-01-01' from t1 for system_time all;
 drop table t1;
+
+#
+# MDEV-18747 InnoDB: Failing assertion: table->get_ref_count() == 0 upon dropping temporary table with unique blob
+#
+create temporary table t1 (f blob, unique(f)) engine=innodb;
+insert into t1 values (1);
+replace into t1 values (1);
+drop table t1;

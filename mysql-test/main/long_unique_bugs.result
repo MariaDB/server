@@ -49,3 +49,7 @@ pk	f	row_end > DATE'2030-01-01'
 1	foo	0
 1	bar	0
 drop table t1;
+create temporary table t1 (f blob, unique(f)) engine=innodb;
+insert into t1 values (1);
+replace into t1 values (1);
+drop table t1;
