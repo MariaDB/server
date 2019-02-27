@@ -4719,6 +4719,20 @@ bool LEX::is_partition_management() const
            alter_info.flags ==  Alter_info::ALTER_REORGANIZE_PARTITION));
 }
 
+
+bool Sql_cmd::log_slow_enabled_statement(const THD *thd) const
+{
+  return global_system_variables.sql_log_slow && thd->variables.sql_log_slow;
+}
+
+
+bool Sql_cmd_admin::log_slow_enabled_statement(const THD *thd) const
+{
+  return opt_log_slow_admin_statements &&
+         Sql_cmd::log_slow_enabled_statement(thd);
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 

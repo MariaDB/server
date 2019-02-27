@@ -302,8 +302,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                         "INDEX DIRECTORY");
   create_info.data_file_name= create_info.index_file_name= NULL;
 
-  thd->enable_slow_log= opt_log_slow_admin_statements;
-
 #ifdef WITH_WSREP
   TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 
@@ -351,8 +349,6 @@ bool Sql_cmd_discard_import_tablespace::execute(THD *thd)
 
   if (check_grant(thd, ALTER_ACL, table_list, false, UINT_MAX, false))
     return true;
-
-  thd->enable_slow_log= opt_log_slow_admin_statements;
 
   /*
     Check if we attempt to alter mysql.slow_log or

@@ -363,7 +363,7 @@ private:
   statements.
   @todo move Alter_info and other ALTER generic structures from Lex here.
 */
-class Sql_cmd_common_alter_table : public Sql_cmd
+class Sql_cmd_common_alter_table : public Sql_cmd_admin
 {
 protected:
   /**

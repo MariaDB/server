@@ -4528,7 +4528,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
            thd->variables.sql_log_slow= opt_log_slow_slave_statements;
          }
 
-        thd->enable_slow_log= thd->variables.sql_log_slow;
+        thd->enable_slow_log= true;
         mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
         /* Finalize server status flags after executing a statement. */
         thd->update_server_status();
