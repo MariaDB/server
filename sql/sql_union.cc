@@ -215,8 +215,9 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
     called at the first execution of the statement, while first_execution
     shows whether this is called at the first execution of the union that
     may form just a subselect.
-  */    
-  if (!fake_select_lex->first_execution && first_execution)
+  */
+  if ((fake_select_lex->changed_elements & TOUCHED_SEL_COND) &&
+      first_execution)
   {
     for (ORDER *order= global_parameters->order_list.first;
          order;
