@@ -4933,6 +4933,8 @@ public:
      be able to delete applier service object in case of background
      rollback. */
   Wsrep_applier_service* wsrep_applier_service;
+  /* wait_for_commit struct for binlog group commit */
+  wait_for_commit wsrep_wfc;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

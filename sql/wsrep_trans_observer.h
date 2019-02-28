@@ -21,7 +21,7 @@
 #include "wsrep_applier.h" /* wsrep_apply_error */
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
-
+#include "wsrep_binlog.h" /* register/deregister group commit */
 #include "my_dbug.h"
 
 class THD;
@@ -243,7 +243,6 @@ static inline int wsrep_after_prepare(THD* thd, bool all)
   DBUG_RETURN(ret);
 }
 
-
 /*
   Called before the transaction is committed.
 
@@ -265,6 +264,7 @@ static inline int wsrep_before_commit(THD* thd, bool all)
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
     wsrep_xid_init(&thd->wsrep_xid,
                    thd->wsrep_trx().ws_meta().gtid());
+    wsrep_register_for_group_commit(thd);
   }
   DBUG_RETURN(ret);
 }
@@ -305,10 +305,14 @@ static inline int wsrep_after_commit(THD* thd, bool all)
               (long long)wsrep_thd_trx_seqno(thd),
               wsrep_has_changes(thd));
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
-  DBUG_RETURN((thd->wsrep_trx().state() == wsrep::transaction::s_committing
-               ? thd->wsrep_cs().ordered_commit() : 0) ||
-              (thd->wsrep_xid.null(),
-               thd->wsrep_cs().after_commit()));
+  int ret= 0;
+  if (thd->wsrep_trx().state() == wsrep::transaction::s_committing)
+  {
+    ret= thd->wsrep_cs().ordered_commit();
+  }
+  wsrep_unregister_from_group_commit(thd);
+  thd->wsrep_xid.null();
+  DBUG_RETURN(ret || thd->wsrep_cs().after_commit());
 }
 
 /*

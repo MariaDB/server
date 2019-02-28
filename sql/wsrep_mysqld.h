@@ -306,6 +306,7 @@ extern mysql_mutex_t LOCK_wsrep_desync;
 extern mysql_mutex_t LOCK_wsrep_SR_pool;
 extern mysql_mutex_t LOCK_wsrep_SR_store;
 extern mysql_mutex_t LOCK_wsrep_config_state;
+extern mysql_mutex_t LOCK_wsrep_group_commit;
 extern my_bool       wsrep_emulate_bin_log;
 extern int           wsrep_to_isolation;
 #ifdef GTID_SUPPORT

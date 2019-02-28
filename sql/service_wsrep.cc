@@ -264,8 +264,8 @@ extern "C" int wsrep_thd_append_key(THD *thd,
 extern "C" void wsrep_commit_ordered(THD *thd)
 {
   if (wsrep_is_active(thd) &&
-      tc_log != &mysql_bin_log &&
-      thd->wsrep_trx().state() == wsrep::transaction::s_committing)
+      thd->wsrep_trx().state() == wsrep::transaction::s_committing &&
+      !wsrep_commit_will_write_binlog(thd))
   {
     thd->wsrep_cs().ordered_commit();
   }

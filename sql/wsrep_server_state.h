@@ -25,6 +25,7 @@
 #include "wsrep_mutex.h"
 #include "wsrep_condition_variable.h"
 
+class wait_for_commit;
 class Wsrep_server_state : public wsrep::server_state
 {
 public:
@@ -49,6 +50,7 @@ public:
   {
     return (get_provider().capabilities() & capability);
   }
+
 private:
   Wsrep_server_state(const std::string& name,
                      const std::string& incoming_address,
@@ -56,11 +58,12 @@ private:
                      const std::string& working_dir,
                      const wsrep::gtid& initial_position,
                      int max_protocol_version);
+  ~Wsrep_server_state();
   Wsrep_mutex m_mutex;
   Wsrep_condition_variable m_cond;
   Wsrep_server_service m_service;
-
   static Wsrep_server_state* m_instance;
+
 };
 
 #endif // WSREP_SERVER_STATE_H

@@ -7702,9 +7702,24 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader= queue_for_group_commit(entry);
 #ifdef WITH_WSREP
-  if (wsrep_run_commit_hook(entry->thd, true) && is_leader >= 0 &&
-      wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
-    return true;
+  if (wsrep_is_active(entry->thd) &&
+      wsrep_run_commit_hook(entry->thd, entry->all))
+  {
+    /*
+      Release commit order and if leader, wait for prior commit to
+      complete. This establishes total order for group leaders.
+    */
+    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
+    {
+      entry->thd->wakeup_subsequent_commits(1);
+      return 1;
+    }
+    if (is_leader)
+    {
+      if (entry->thd->wait_for_prior_commit())
+        return 1;
+    }
+  }
 #endif /* WITH_WSREP */
   /*
     The first in the queue handles group commit for all; the others just wait

@@ -682,7 +682,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
                         m_wsrep_cond,
                         Wsrep_server_state::instance(),
                         m_wsrep_client_service,
-                        wsrep::client_id(thread_id))
+                        wsrep::client_id(thread_id)),
+   wsrep_applier_service(NULL),
+   wsrep_wfc()
 #endif /*WITH_WSREP */
 {
   ulong tmp;

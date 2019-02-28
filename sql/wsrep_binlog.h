@@ -74,4 +74,32 @@ int wsrep_write_dummy_event(THD* thd, const char *msg);
 
 void wsrep_register_binlog_handler(THD *thd, bool trx);
 
+/**
+   Return true if committing THD will write to binlog during commit.
+   This is the case for:
+   - Local THD, binlog is open
+   - Replaying THD, binlog is open
+   - Applier THD, log-slave-updates is enabled
+*/
+bool wsrep_commit_will_write_binlog(THD *thd);
+
+/**
+   Register THD for group commit. The wsrep_trx must be in committing state,
+   i.e. the call must be done after wsrep_before_commit() but before
+   commit order is released.
+
+   This call will release commit order critical section if it is
+   determined that the commit will go through binlog group commit.
+ */
+void wsrep_register_for_group_commit(THD *thd);
+
+/**
+   Deregister THD from group commit. The wsrep_trx must be in committing state,
+   as for wsrep_register_for_group_commit() above.
+
+   This call must be used only for THDs which will not go through
+   binlog group commit.
+*/
+void wsrep_unregister_from_group_commit(THD *thd);
+
 #endif /* WSREP_BINLOG_H */
