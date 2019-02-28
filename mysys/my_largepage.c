@@ -20,7 +20,11 @@
 #endif
 #ifdef HAVE_LINUX_LARGE_PAGES
 #include <linux/mman.h>
+#include <dirent.h>
 #endif
+
+
+static inline my_bool my_is_2pow(size_t n) { return !((n) & ((n) - 1)); }
 
 static uint my_get_large_page_size_int(void);
 static uchar* my_large_malloc_int(size_t *size, myf my_flags);
@@ -119,6 +123,63 @@ uint my_get_large_page_size_int(void)
   
 finish:
   DBUG_RETURN(size * 1024);
+}
+
+/* Descending sort */
+
+static int size_t_cmp(const void *a, const void *b)
+{
+  const size_t *ia= (const size_t *)a; // casting pointer types
+  const size_t *ib= (const size_t *)b;
+  if (*ib > *ia)
+  {
+       return 1;
+  }
+  else if (*ib < *ia)
+  {
+       return -1;
+  }
+  return 0;
+}
+
+/* Linux-specific function to determine the sizes of large pages */
+
+void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+{
+  DIR *dirp;
+  struct dirent *r;
+  int i= 0;
+  DBUG_ENTER("my_get_large_page_sizes");
+
+  dirp= opendir("/sys/kernel/mm/hugepages");
+  if (dirp == NULL)
+  {
+    perror("Warning: failed to open /sys/kernel/mm/hugepages");
+  }
+  else
+  {
+    while (i < my_large_page_sizes_length &&
+          (r= readdir(dirp)))
+    {
+      if (strncmp("hugepages-", r->d_name, 10) == 0)
+      {
+        sizes[i]= strtoull(r->d_name + 10, NULL, 10) * 1024ULL;
+        if (!my_is_2pow(sizes[i]))
+        {
+          fprintf(stderr, "Warning: non-power of 2 large page size (%zu) found, skipping\n", sizes[i]);
+          sizes[i]= 0;
+          continue;
+        }
+        ++i;
+      }
+    }
+    if (closedir(dirp))
+    {
+      perror("Warning: failed to close /sys/kernel/mm/hugepages");
+    }
+    qsort(sizes, i, sizeof(size_t), size_t_cmp);
+  }
+  DBUG_VOID_RETURN;
 }
 
 /* Linux-specific large pages allocator  */
