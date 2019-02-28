@@ -1606,7 +1606,7 @@ bool JOIN::make_range_rowid_filters()
     tab->table->force_index= true;
     (void) sel->test_quick_select(thd, filter_map, (table_map) 0,
                                   (ha_rows) HA_POS_ERROR,
-				  true, false, true);
+                                  true, false, true, true);
     tab->table->force_index= force_index_save;
     if (thd->is_error())
       goto no_filter;
@@ -4623,7 +4623,8 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
                 select->test_quick_select(thd, *(key_map *)keys,
                                           (table_map) 0,
                                           limit, 0, FALSE,
-                                          TRUE /* remove_where_parts*/)) ==
+                                          TRUE,     /* remove_where_parts*/
+                                          FALSE)) ==
                1))
       DBUG_RETURN(select->quick->records);
     if (unlikely(error == -1))
@@ -11356,7 +11357,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 					OPTION_FOUND_ROWS ?
 					HA_POS_ERROR :
 					join->unit->select_limit_cnt), 0,
-                                        FALSE, FALSE) < 0)
+                                       FALSE, FALSE, FALSE) < 0)
             {
 	      /*
 		Before reporting "Impossible WHERE" for the whole query
@@ -11370,7 +11371,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                           OPTION_FOUND_ROWS ?
                                           HA_POS_ERROR :
                                           join->unit->select_limit_cnt),0,
-                                          FALSE, FALSE) < 0)
+                                         FALSE, FALSE, FALSE) < 0)
 		DBUG_RETURN(1);			// Impossible WHERE
             }
             else
@@ -20899,7 +20900,8 @@ test_if_quick_select(JOIN_TAB *tab)
 
   int res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                           (table_map) 0, HA_POS_ERROR, 0,
-                                          FALSE, /*remove where parts*/FALSE);
+                                          FALSE, /*remove where parts*/FALSE,
+                                          FALSE);
   if (tab->explain_plan && tab->explain_plan->range_checked_fer)
     tab->explain_plan->range_checked_fer->collect_data(tab->select->quick);
 
@@ -22763,9 +22765,9 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
           res= select->test_quick_select(tab->join->thd, new_ref_key_map, 0,
                                          (tab->join->select_options &
                                           OPTION_FOUND_ROWS) ?
-                                         HA_POS_ERROR :
-                                         tab->join->unit->select_limit_cnt,TRUE,
-                                         TRUE, FALSE) <= 0;
+                                          HA_POS_ERROR :
+                                          tab->join->unit->select_limit_cnt,TRUE,
+                                         TRUE, FALSE, FALSE) <= 0;
           if (res)
           {
             select->cond= save_cond;
@@ -22867,7 +22869,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                 join->select_options & OPTION_FOUND_ROWS ?
                                 HA_POS_ERROR :
                                 join->unit->select_limit_cnt,
-                                TRUE, FALSE, FALSE);
+                                TRUE, FALSE, FALSE, FALSE);
 
       if (cond_saved)
         select->cond= saved_cond;

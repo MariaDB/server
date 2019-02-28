@@ -2586,6 +2586,9 @@ static int fill_used_fields_bitmap(PARAM *param)
       limit             Query limit
       force_quick_range Prefer to use range (instead of full table scan) even
                         if it is more expensive.
+      remove_false_parts_of_where  Remove parts of OR-clauses for which range
+                                   analysis produced SEL_TREE(IMPOSSIBLE)
+      only_single_index_range_scan Evaluate only single index range scans
 
   NOTES
     Updates the following in the select parameter:
@@ -2644,7 +2647,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 				  table_map prev_tables,
 				  ha_rows limit, bool force_quick_range, 
                                   bool ordered_output,
-                                  bool remove_false_parts_of_where)
+                                  bool remove_false_parts_of_where,
+                                  bool only_single_index_range_scan)
 {
   uint idx;
   double scan_time;
@@ -2824,7 +2828,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     }
 
     TABLE_READ_PLAN *best_trp= NULL;
-    TRP_GROUP_MIN_MAX *group_trp;
+    TRP_GROUP_MIN_MAX *group_trp= NULL;
     double best_read_time= read_time;
 
     if (cond)
@@ -2859,7 +2863,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       Try to construct a QUICK_GROUP_MIN_MAX_SELECT.
       Notice that it can be constructed no matter if there is a range tree.
     */
-    group_trp= get_best_group_min_max(&param, tree, best_read_time);
+    if (!only_single_index_range_scan)
+      group_trp= get_best_group_min_max(&param, tree, best_read_time);
     if (group_trp)
     {
       param.table->quick_condition_rows= MY_MIN(group_trp->records,
@@ -2907,7 +2912,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         table deletes.
       */
       if ((thd->lex->sql_command != SQLCOM_DELETE) && 
-           optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE))
+           optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
+          !only_single_index_range_scan)
       {
         /*
           Get best non-covering ROR-intersection plan and prepare data for
@@ -2935,7 +2941,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       */
       if (param.table->covering_keys.is_clear_all() &&
           optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
-          optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_INTERSECT))
+          optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_INTERSECT) &&
+          !only_single_index_range_scan)
       {
         if ((intersect_trp= get_best_index_intersect(&param, tree,
                                                     best_read_time)))
@@ -2948,7 +2955,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       }
 
       if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
-          head->stat_records() != 0)
+          head->stat_records() != 0 && !only_single_index_range_scan)
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;

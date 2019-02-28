@@ -228,4 +228,6 @@ DROP VIEW v1;
 
 DROP DATABASE dbt3_s001;
 
+use test;
+
 set @@use_stat_tables=@save_use_stat_tables;

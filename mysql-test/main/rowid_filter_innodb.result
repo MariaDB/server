@@ -1869,5 +1869,114 @@ ALTER TABLE orders DROP CONSTRAINT o_price;
 ALTER TABLE orders DROP COLUMN o_totaldiscount;
 DROP VIEW v1;
 DROP DATABASE dbt3_s001;
+use test;
 set @@use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-18755: possible RORI-plan and possible plan with range filter
+#
+create table t1 (
+pk int not null primary key, f1 varchar(10), f2 varchar(30), a int(10),
+key (f1), key (f2)
+) engine=innodb;
+insert into t1 values
+(2,'a','a',2),(3,'a','a',null),(4,'a','a',55),(5,'a','a',4),(6,'a','a',0),
+(7,'a','a',1),(8,'a','a',4),(9,'a','a',null),(10,'a','a',0),(11,'a','a',0),
+(12,'a','a',null),(13,'a','a',49778),(14,'a','a',6),(15,'a','a',3),
+(16,'a','a',233),(17,'a','a',-1),(18,'a','a',5),(19,'a','a',-1),
+(20,'a','a',null),(21,'a','a',0),(22,'a','a',null),(23,'a','a',53840),
+(24,'a','a',null),(25,'a','a',null),(26,'a','a',5),(27,'a','a',43454),
+(28,'a','a',0),(29,'a','a',0),(30,'a','a',null),(59,'a','a',null),
+(60,'a','a',null),(61,'a','a',-1),(62,'a','a',null),(63,'a','a',0),
+(64,'a','a',14468),(65,'a','a',0),(66,'a','a',28),(67,'a','a',null),
+(68,'a','a',14983),(69,'a','a',null),(70,'a','a',3),(71,'a','a',null),
+(72,'a','a',null),(73,'a','a',237),(74,'a','a',2),(75,'a','a',0),
+(76,'a','a',6),(77,'a','a',5),(78,'a','a',0),(79,'a','a',1),(80,'a','a',-1),
+(81,'a','a',20),(82,'a','a',0),(83,'a','a',0),(84,'a','a',null),
+(85,'a','a',-1),(86,'a','a',5),(87,'a','a',null),(88,'a','a',160),
+(89,null,null,null),(90,'a','a',14785),(91,'a','a',0),(92,'a','a',null);
+( select * from t1
+where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
+union
+( select * from t1
+where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')));
+pk	f1	f2	a
+explain ( select * from t1
+where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
+union
+( select * from t1
+where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref|filter	f1,f2	f2|f1	33|13	const	1 (2%)	Using index condition; Using where; Using rowid filter
+2	UNION	t1	ref|filter	f1,f2	f2|f1	33|13	const	1 (2%)	Using index condition; Using where; Using rowid filter
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json ( select * from t1
+where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
+union
+( select * from t1
+where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')));
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,2>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "table": {
+              "table_name": "t1",
+              "access_type": "ref",
+              "possible_keys": ["f1", "f2"],
+              "key": "f2",
+              "key_length": "33",
+              "used_key_parts": ["f2"],
+              "ref": ["const"],
+              "rowid_filter": {
+                "range": {
+                  "key": "f1",
+                  "used_key_parts": ["f1"]
+                },
+                "rows": 1,
+                "selectivity_pct": 1.5873
+              },
+              "rows": 1,
+              "filtered": 100,
+              "index_condition": "t1.f2 is null",
+              "attached_condition": "t1.f1 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
+            }
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 2,
+            "operation": "UNION",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ref",
+              "possible_keys": ["f1", "f2"],
+              "key": "f2",
+              "key_length": "33",
+              "used_key_parts": ["f2"],
+              "ref": ["const"],
+              "rowid_filter": {
+                "range": {
+                  "key": "f1",
+                  "used_key_parts": ["f1"]
+                },
+                "rows": 1,
+                "selectivity_pct": 1.5873
+              },
+              "rows": 1,
+              "filtered": 100,
+              "index_condition": "t1.f2 is null",
+              "attached_condition": "t1.f1 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+drop table t1;
 SET SESSION STORAGE_ENGINE=DEFAULT;
