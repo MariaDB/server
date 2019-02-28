@@ -4391,6 +4391,16 @@ public:
   bool parsed_create_view(SELECT_LEX_UNIT *unit, int check);
   bool select_finalize(st_select_lex_unit *expr);
   void relink_hack(st_select_lex *select_lex);
+
+  bool stmt_install_plugin(const DDL_options_st &opt,
+                           const Lex_ident_sys_st &name,
+                           const LEX_CSTRING &soname);
+  void stmt_install_plugin(const LEX_CSTRING &soname);
+
+  bool stmt_uninstall_plugin_by_name(const DDL_options_st &opt,
+                                     const Lex_ident_sys_st &name);
+  bool stmt_uninstall_plugin_by_soname(const DDL_options_st &opt,
+                                       const LEX_CSTRING &soname);
 };
 
 

@@ -10160,3 +10160,50 @@ exit:
   return having;
 }
 
+
+bool LEX::stmt_install_plugin(const DDL_options_st &opt,
+                              const Lex_ident_sys_st &name,
+                              const LEX_CSTRING &soname)
+{
+  create_info.init();
+  if (add_create_options_with_check(opt))
+    return true;
+  sql_command= SQLCOM_INSTALL_PLUGIN;
+  comment= name;
+  ident= soname;
+  return false;
+}
+
+
+void LEX::stmt_install_plugin(const LEX_CSTRING &soname)
+{
+  sql_command= SQLCOM_INSTALL_PLUGIN;
+  comment= null_clex_str;
+  ident= soname;
+}
+
+
+bool LEX::stmt_uninstall_plugin_by_name(const DDL_options_st &opt,
+                                        const Lex_ident_sys_st &name)
+{
+  check_opt.init();
+  if (add_create_options_with_check(opt))
+    return true;
+  sql_command= SQLCOM_UNINSTALL_PLUGIN;
+  comment= name;
+  ident= null_clex_str;
+  return false;
+}
+
+
+bool LEX::stmt_uninstall_plugin_by_soname(const DDL_options_st &opt,
+                                          const LEX_CSTRING &soname)
+{
+  check_opt.init();
+  if (add_create_options_with_check(opt))
+    return true;
+  sql_command= SQLCOM_UNINSTALL_PLUGIN;
+  comment= null_clex_str;
+  ident= soname;
+  return false;
+}

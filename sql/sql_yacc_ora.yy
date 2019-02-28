@@ -18170,44 +18170,36 @@ opt_migrate:
         ;
 
 install:
-          INSTALL_SYM PLUGIN_SYM ident SONAME_SYM TEXT_STRING_sys
+          INSTALL_SYM PLUGIN_SYM opt_if_not_exists ident SONAME_SYM TEXT_STRING_sys
           {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_INSTALL_PLUGIN;
-            lex->comment= $3;
-            lex->ident= $5;
+            if (Lex->stmt_install_plugin($3, $4, $6))
+              MYSQL_YYABORT;
           }
         | INSTALL_SYM SONAME_SYM TEXT_STRING_sys
           {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_INSTALL_PLUGIN;
-            lex->comment= null_clex_str;
-            lex->ident= $3;
+            Lex->stmt_install_plugin($3);
           }
         ;
 
 uninstall:
-          UNINSTALL_SYM PLUGIN_SYM ident
+          UNINSTALL_SYM PLUGIN_SYM opt_if_exists ident
           {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_UNINSTALL_PLUGIN;
-            lex->comment= $3;
+            if (Lex->stmt_uninstall_plugin_by_name($3, $4))
+              MYSQL_YYABORT;
           }
-        | UNINSTALL_SYM SONAME_SYM TEXT_STRING_sys
+        | UNINSTALL_SYM SONAME_SYM opt_if_exists TEXT_STRING_sys
           {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_UNINSTALL_PLUGIN;
-            lex->comment= null_clex_str;
-            lex->ident= $3;
+            if (Lex->stmt_uninstall_plugin_by_soname($3, $4))
+              MYSQL_YYABORT;
           }
         ;
 
 /* Avoid compiler warning from sql_yacc.cc where yyerrlab1 is not used */
 keep_gcc_happy:
           IMPOSSIBLE_ACTION
-          {
-	    YYERROR;
-          }
+        {
+          YYERROR;
+        }
         ;
 
 /**
