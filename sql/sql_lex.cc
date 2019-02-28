@@ -3593,14 +3593,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
 
 bool st_select_lex::handle_derived(LEX *lex, uint phases)
 {
-  for (TABLE_LIST *cursor= (TABLE_LIST*) table_list.first;
-       cursor;
-       cursor= cursor->next_local)
-  {
-    if (cursor->is_view_or_derived() && cursor->handle_derived(lex, phases))
-      return TRUE;
-  }
-  return FALSE;
+  return lex->handle_list_of_derived(table_list.first, phases);
 }
 
 

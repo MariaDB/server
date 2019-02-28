@@ -200,36 +200,6 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
 
 
 /**
-  Run specified phases for derived tables/views in the given list
-
-  @param lex        LEX for this thread
-  @param table_list list of derived tables/view to handle
-  @param phase_map  phases to process tables/views through
-
-  @details
-  This function runs phases specified by the 'phases_map' on derived
-  tables/views found in the 'dt_list' with help of the
-  TABLE_LIST::handle_derived function.
-  'lex' is passed as an argument to the TABLE_LIST::handle_derived.
-
-  @return FALSE ok
-  @return TRUE  error
-*/
-
-bool
-mysql_handle_list_of_derived(LEX *lex, TABLE_LIST *table_list, uint phases)
-{
-  for (TABLE_LIST *tl= table_list; tl; tl= tl->next_local)
-  {
-    if (tl->is_view_or_derived() &&
-        tl->handle_derived(lex, phases))
-      return TRUE;
-  }
-  return FALSE;
-}
-
-
-/**
   Merge a derived table/view into the embedding select
 
   @param thd     thread handle

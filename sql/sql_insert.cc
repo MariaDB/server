@@ -1404,7 +1404,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE); 
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE); 
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_PREPARE))
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE); 
   /*
     For subqueries in VALUES() we should not see the table in which we are

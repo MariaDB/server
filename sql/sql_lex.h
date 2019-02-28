@@ -2785,6 +2785,31 @@ struct LEX: public Query_tables_list
   }
 
   bool save_prep_leaf_tables();
+
+  /*
+    Run specified phases for derived tables/views in the given list
+
+    @param table_list - list of derived tables/view to handle
+    @param phase      - phases to process tables/views through
+
+    @details
+    This method runs phases specified by the 'phases' on derived
+    tables/views found in the 'table_list' with help of the
+    TABLE_LIST::handle_derived function.
+    'this' is passed as an argument to the TABLE_LIST::handle_derived.
+
+    @return false -  ok
+    @return true  -  error
+  */
+  bool handle_list_of_derived(TABLE_LIST *table_list, uint phases)
+  {
+    for (TABLE_LIST *tl= table_list; tl; tl= tl->next_local)
+    {
+      if (tl->is_view_or_derived() && tl->handle_derived(this, phases))
+        return true;
+    }
+    return false;
+  }
 };
 
 

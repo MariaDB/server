@@ -22,7 +22,6 @@ struct LEX;
 
 bool mysql_handle_derived(LEX *lex, uint phases);
 bool mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases);
-bool mysql_handle_list_of_derived(LEX *lex, TABLE_LIST *dt_list, uint phases);
 
 /**
    Cleans up the SELECT_LEX_UNIT for the derived table (if any).
