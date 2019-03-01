@@ -757,6 +757,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   st_trg_execution_order trg_execution_order;
 
   /* enums */
+  enum enum_sp_suid_behaviour sp_suid;
   enum enum_view_suid view_suid;
   enum Condition_information_item::Name cond_info_item_name;
   enum enum_diag_condition_item_name diag_condition_item_name;
@@ -2054,7 +2055,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_extended_describe shutdown
         opt_format_json
         prepare prepare_src execute deallocate
-        statement sp_suid
+        statement
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
         view_list_opt view_list view_select
@@ -2101,6 +2102,7 @@ END_OF_INPUT
 %type <view_suid> view_suid opt_view_suid
 
 %type <plsql_cursor_attr> plsql_cursor_attr
+%type <sp_suid> sp_suid
 
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
@@ -3365,7 +3367,7 @@ sp_chistic:
         | MODIFIES_SYM SQL_SYM DATA_SYM
           { Lex->sp_chistics.daccess= SP_MODIFIES_SQL_DATA; }
         | sp_suid
-          {}
+          { Lex->sp_chistics.suid= $1; }
         ;
 
 /* Create characteristics */
@@ -3375,14 +3377,8 @@ sp_c_chistic:
         ;
 
 sp_suid:
-          SQL_SYM SECURITY_SYM DEFINER_SYM
-          {
-            Lex->sp_chistics.suid= SP_IS_SUID;
-          }
-        | SQL_SYM SECURITY_SYM INVOKER_SYM
-          {
-            Lex->sp_chistics.suid= SP_IS_NOT_SUID;
-          }
+          SQL_SYM SECURITY_SYM DEFINER_SYM { $$= SP_IS_SUID; }
+        | SQL_SYM SECURITY_SYM INVOKER_SYM { $$= SP_IS_NOT_SUID; }
         ;
 
 call:

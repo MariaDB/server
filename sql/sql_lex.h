@@ -223,6 +223,14 @@ enum plsql_cursor_attr_t
 };
 
 
+enum enum_sp_suid_behaviour
+{
+  SP_IS_DEFAULT_SUID= 0,
+  SP_IS_NOT_SUID,
+  SP_IS_SUID
+};
+
+
 /* These may not be declared yet */
 class Table_ident;
 class sql_exchange;
@@ -343,13 +351,6 @@ extern const LEX_STRING  empty_lex_str;
 extern MYSQL_PLUGIN_IMPORT const LEX_CSTRING empty_clex_str;
 extern const LEX_CSTRING star_clex_str;
 extern const LEX_CSTRING param_clex_str;
-
-enum enum_sp_suid_behaviour
-{
-  SP_IS_DEFAULT_SUID= 0,
-  SP_IS_NOT_SUID,
-  SP_IS_SUID
-};
 
 enum enum_sp_data_access
 {
