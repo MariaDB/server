@@ -1654,7 +1654,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   case COM_REGISTER_SLAVE:
   {
     status_var_increment(thd->status_var.com_register_slave);
-    if (!register_slave(thd, (uchar*)packet, packet_length))
+    if (!thd->register_slave((uchar*) packet, packet_length))
       my_ok(thd);
     break;
   }
@@ -2094,7 +2094,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
       if (nlen < FN_REFLEN)
         mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
-      unregister_slave(thd,1,1);
+      thd->unregister_slave();
       /*  fake COM_QUIT -- if we get here, the thread needs to terminate */
       error = TRUE;
       break;

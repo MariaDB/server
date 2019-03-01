@@ -21,17 +21,6 @@
 #ifdef HAVE_REPLICATION
 #include "slave.h"
 
-typedef struct st_slave_info
-{
-  uint32 server_id;
-  uint32 master_id;
-  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH+1];
-  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  uint16 port;
-  THD* thd;
-} SLAVE_INFO;
-
 struct slave_connection_state;
 
 extern my_bool opt_show_slave_auth_info;

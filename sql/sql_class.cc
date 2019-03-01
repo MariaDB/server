@@ -642,6 +642,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    tdc_hash_pins(0),
    xid_hash_pins(0),
    m_tmp_tables_locked(false)
+#ifdef HAVE_REPLICATION
+   ,
+   slave_info(0)
+#endif
 #ifdef WITH_WSREP
    ,
    wsrep_applier(is_wsrep_applier),
@@ -1562,6 +1566,9 @@ void THD::cleanup(void)
   DBUG_ASSERT(!mdl_context.has_locks());
 
   apc_target.destroy();
+#ifdef HAVE_REPLICATION
+  unregister_slave();
+#endif
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
