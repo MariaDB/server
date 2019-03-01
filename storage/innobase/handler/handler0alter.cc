@@ -5142,14 +5142,12 @@ error_handled:
 	ut_ad(!user_table->drop_aborted);
 
 err_exit:
-#ifdef UNIV_DEBUG
 	/* Clear the to_be_dropped flag in the data dictionary cache. */
 	for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
 		DBUG_ASSERT(ctx->drop_index[i]->is_committed());
 		DBUG_ASSERT(ctx->drop_index[i]->to_be_dropped);
 		ctx->drop_index[i]->to_be_dropped = 0;
 	}
-#endif /* UNIV_DEBUG */
 
 	row_mysql_unlock_data_dictionary(ctx->trx);
 

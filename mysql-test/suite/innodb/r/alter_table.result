@@ -38,3 +38,18 @@ Warnings:
 Warning	1105	ORDER BY ignored as there is a user-defined clustered index in the table 't1'
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-18775 Server crashes in dict_table_t::instant_column
+# upon ADD COLUMN
+#
+CREATE TABLE tx (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk), KEY (a), FOREIGN KEY (a) REFERENCES tx (pk)) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=OFF;
+ALTER TABLE t1 DROP a;
+ERROR HY000: Cannot drop column 'a': needed in a foreign key constraint 'test/t1_ibfk_1'
+SET FOREIGN_KEY_CHECKS=ON;
+ALTER TABLE t1 ADD b INT;
+ALTER TABLE t1 DROP a;
+ERROR HY000: Cannot drop index 'a': needed in a foreign key constraint
+ALTER TABLE t1 ADD c INT;
+DROP TABLE t1, tx;

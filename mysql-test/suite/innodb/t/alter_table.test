@@ -38,3 +38,24 @@ ALTER TABLE t1 ORDER BY a;
 DROP TABLE t1;
 
 SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-18775 Server crashes in dict_table_t::instant_column
+--echo # upon ADD COLUMN
+--echo #
+
+CREATE TABLE tx (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk), KEY (a), FOREIGN KEY (a) REFERENCES tx (pk)) ENGINE=InnoDB;
+
+SET FOREIGN_KEY_CHECKS=OFF;
+
+--error ER_FK_COLUMN_CANNOT_DROP
+ALTER TABLE t1 DROP a;
+
+SET FOREIGN_KEY_CHECKS=ON;
+
+ALTER TABLE t1 ADD b INT;
+--error ER_DROP_INDEX_FK
+ALTER TABLE t1 DROP a;
+ALTER TABLE t1 ADD c INT;
+DROP TABLE t1, tx;
