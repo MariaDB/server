@@ -4244,6 +4244,7 @@ public:
     return check_create_options(create_info);
   }
   bool sp_add_cfetch(THD *thd, const LEX_CSTRING *name);
+  bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
                               uint scope,

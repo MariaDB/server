@@ -1563,7 +1563,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
         view_list_opt view_list view_select
         trigger_tail sp_tail sf_tail event_tail
-        udf_tail create_function_tail
+        udf_tail
+        create_function_tail_standalone
+        create_aggregate_function_tail_standalone
         install uninstall partition_entry binlog_base64_event
         normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
@@ -2403,13 +2405,23 @@ create:
           {
             Lex->pop_select(); //main select
           }
+        | create_or_replace definer AGGREGATE_SYM FUNCTION_SYM
+          {
+            if (Lex->main_select_push())
+              MYSQL_YYABORT;
+            Lex->create_info.set($1);
+          }
+          sf_tail_aggregate_standalone
+          {
+            Lex->pop_select(); //main select
+          }
         | create_or_replace no_definer FUNCTION_SYM
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             Lex->create_info.set($1);
           }
-          create_function_tail
+          create_function_tail_standalone
           {
             Lex->pop_select(); //main select
           }
@@ -2418,9 +2430,8 @@ create:
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             Lex->create_info.set($1);
-            Lex->udf.type= UDFTYPE_AGGREGATE;
           }
-          udf_tail
+          create_aggregate_function_tail_standalone
           {
             Lex->pop_select(); //main select
           }
@@ -2500,6 +2511,39 @@ create:
             if (unlikely(Lex->create_package_finalize(thd, $6, $16, $9, $15)))
               MYSQL_YYABORT;
           }
+        ;
+
+sf_tail_not_aggregate_standalone:
+        sf_tail_standalone
+        {
+          if (unlikely(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR))
+          {
+            my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0)));
+          }
+          Lex->sphead->set_chistics_agg_type(NOT_AGGREGATE);
+        }
+        ;
+
+sf_tail_aggregate_standalone:
+        sf_tail_standalone
+        {
+          if (unlikely(!(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR)))
+          {
+            my_yyabort_error((ER_INVALID_AGGREGATE_FUNCTION, MYF(0)));
+          }
+          Lex->sphead->set_chistics_agg_type(GROUP_AGGREGATE);
+        }
+        ;
+
+create_function_tail_standalone:
+          sf_tail_not_aggregate_standalone { }
+        | udf_tail { Lex->udf.type= UDFTYPE_FUNCTION; }
+        ;
+
+
+create_aggregate_function_tail_standalone:
+          sf_tail_aggregate_standalone { }
+        | udf_tail { Lex->udf.type= UDFTYPE_AGGREGATE; }
         ;
 
 package_implementation_executable_section:
@@ -2696,10 +2740,6 @@ package_specification_element:
           }
         ;
 
-create_function_tail:
-          sf_tail_standalone { }
-        | udf_tail { Lex->udf.type= UDFTYPE_FUNCTION; }
-        ;
 
 opt_sequence:
          /* empty */ { }
@@ -4281,7 +4321,12 @@ sp_proc_stmt_fetch_head:
         ;
 
 sp_proc_stmt_fetch:
-          sp_proc_stmt_fetch_head sp_fetch_list { }
+         sp_proc_stmt_fetch_head sp_fetch_list { }
+       | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
+         {
+           if (unlikely(Lex->sp_add_agg_cfetch()))
+             MYSQL_YYABORT;
+         }
         ;
 
 sp_proc_stmt_close:
@@ -18008,11 +18053,6 @@ sf_tail:
           {
             if (unlikely(Lex->sp_body_finalize_function(thd)))
               MYSQL_YYABORT;
-            if (unlikely(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR))
-            {
-              my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0)));
-            }
-            Lex->sphead->set_chistics_agg_type(NOT_AGGREGATE);
           }
         ;
 

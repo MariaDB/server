@@ -8186,6 +8186,15 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
 }
 
 
+bool LEX::sp_add_agg_cfetch()
+{
+  sphead->m_flags|= sp_head::HAS_AGGREGATE_INSTR;
+  sp_instr_agg_cfetch *i=
+    new (thd->mem_root) sp_instr_agg_cfetch(sphead->instructions(), spcont);
+  return i == NULL || sphead->add_instr(i);
+}
+
+
 bool LEX::create_or_alter_view_finalize(THD *thd, Table_ident *table_ident)
 {
   sql_command= SQLCOM_CREATE_VIEW;

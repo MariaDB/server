@@ -2060,7 +2060,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
         view_list_opt view_list view_select
         trigger_tail sp_tail sf_tail event_tail
-        udf_tail create_function_tail create_aggregate_function_tail
+        udf_tail
+        create_function_tail
+        create_aggregate_function_tail
         install uninstall partition_entry binlog_base64_event
         normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
@@ -2975,10 +2977,10 @@ create_function_tail:
         ;
 
 create_aggregate_function_tail:
-          sf_tail_aggregate
-          { }
+          sf_tail_aggregate { }
         | udf_tail { Lex->udf.type= UDFTYPE_AGGREGATE; }
         ;
+
 opt_sequence:
          /* empty */ { }
         | sequence_defs
@@ -4421,15 +4423,8 @@ sp_proc_stmt_fetch:
          sp_proc_stmt_fetch_head sp_fetch_list { }
        | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
          {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            lex->sphead->m_flags|= sp_head::HAS_AGGREGATE_INSTR;
-            sp_instr_agg_cfetch *i=
-              new (thd->mem_root) sp_instr_agg_cfetch(sp->instructions(),
-                                                      lex->spcont);
-            if (unlikely(i == NULL) ||
-                unlikely(sp->add_instr(i)))
-              MYSQL_YYABORT;
+           if (unlikely(Lex->sp_add_agg_cfetch()))
+             MYSQL_YYABORT;
          }
         ;
 

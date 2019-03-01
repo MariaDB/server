@@ -1,0 +1,66 @@
+SET sql_mode=ORACLE;
+
+delimiter |;
+--error ER_INVALID_AGGREGATE_FUNCTION
+create aggregate function f1(x INT) return INT AS
+begin
+  insert into t1(sal) values (x);
+  return x;
+end|
+
+--error ER_NOT_AGGREGATE_FUNCTION
+create function f1(x INT) return INT AS
+begin
+  set x=5;
+  fetch group next row;
+return x+1;
+end |
+
+DELIMITER ;|
+
+
+CREATE TABLE marks(stud_id INT, grade_count INT); 
+INSERT INTO marks VALUES (1,6), (2,4), (3,7), (4,5), (5,8);
+SELECT * FROM marks;
+
+--echo # Using PL/SQL syntax: EXCEPTION WHEN NO_DATA_FOUND
+
+DELIMITER //;
+CREATE AGGREGATE FUNCTION IF NOT EXISTS aggregate_count(x INT) RETURN INT AS
+  count_students INT DEFAULT 0;
+BEGIN  
+  LOOP  
+    FETCH GROUP NEXT ROW;  
+    IF x THEN  
+      count_students:= count_students + 1;
+    END IF;  
+  END LOOP;  
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RETURN count_students;
+END aggregate_count //
+DELIMITER ;//
+SELECT aggregate_count(stud_id) FROM marks;
+DROP FUNCTION IF EXISTS aggregate_count;
+
+
+--echo # Using SQL/PSM systax: CONTINUE HANDLER
+
+DELIMITER //;
+CREATE AGGREGATE FUNCTION IF NOT EXISTS aggregate_count(x INT) RETURN INT AS
+  count_students INT DEFAULT 0;
+  CONTINUE HANDLER FOR NOT FOUND RETURN count_students;
+BEGIN  
+  LOOP  
+    FETCH GROUP NEXT ROW;  
+    IF x THEN  
+      SET count_students= count_students + 1;
+    END IF;  
+  END LOOP;  
+END //
+DELIMITER ;//
+SELECT aggregate_count(stud_id) FROM marks;
+DROP FUNCTION IF EXISTS aggregate_count;
+
+
+DROP TABLE marks;
