@@ -927,30 +927,22 @@ SPIDER_DB_ROW *spider_db_oracle_result::fetch_row_from_tmp_table(
 
 int spider_db_oracle_result::fetch_table_status(
   int mode,
-  ha_rows &records,
-  ulong &mean_rec_length,
-  ulonglong &data_file_length,
-  ulonglong &max_data_file_length,
-  ulonglong &index_file_length,
-  ulonglong &auto_increment_value,
-  time_t &create_time,
-  time_t &update_time,
-  time_t &check_time
+  ha_statistics &stat
 ) {
   DBUG_ENTER("spider_db_oracle_result::fetch_table_status");
   DBUG_PRINT("info",("spider this=%p", this));
   /* TODO: develop later */
-  records = 2;
-  mean_rec_length = 65535;
-  data_file_length = 65535;
-  max_data_file_length = 65535;
-  index_file_length = 65535;
+  stat.records = 2;
+  stat.mean_rec_length = 65535;
+  stat.data_file_length = 65535;
+  stat.max_data_file_length = 65535;
+  stat.index_file_length = 65535;
 /*
   auto_increment_value = 0;
 */
-  create_time = (time_t) 0;
-  update_time = (time_t) 0;
-  check_time = (time_t) 0;
+  stat.create_time = (time_t) 0;
+  stat.update_time = (time_t) 0;
+  stat.check_time = (time_t) 0;
   DBUG_RETURN(0);
 }
 
@@ -1349,7 +1341,7 @@ int spider_db_oracle::connect(
   this->connect_retry_interval = connect_retry_interval;
   if ((error_num = spider_create_conn_thread(conn)))
     DBUG_RETURN(error_num);
-  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_CONNECT, TRUE, NULL,
+  spider_bg_conn_simple_action(conn, SPIDER_SIMPLE_CONNECT, TRUE, NULL,
     0, NULL);
 
   if (stored_error_num)
@@ -1440,7 +1432,7 @@ void spider_db_oracle::disconnect()
   DBUG_PRINT("info",("spider this=%p", this));
   if (!conn->bg_init)
     DBUG_VOID_RETURN;
-  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_DISCONNECT, TRUE, NULL,
+  spider_bg_conn_simple_action(conn, SPIDER_SIMPLE_DISCONNECT, TRUE, NULL,
     0, NULL);
   DBUG_VOID_RETURN;
 }
@@ -11143,15 +11135,15 @@ int spider_oracle_handler::show_table_status(
     if (error_num)
       DBUG_RETURN(error_num);
 */
-    if (!share->records)
-      share->records = 10000;
-    share->mean_rec_length = 65535;
-    share->data_file_length = 65535;
-    share->max_data_file_length = 65535;
-    share->index_file_length = 65535;
-    share->create_time = (time_t) 0;
-    share->update_time = (time_t) 0;
-    share->check_time = (time_t) 0;
+    if (!share->stat.records)
+      share->stat.records = 10000;
+    share->stat.mean_rec_length = 65535;
+    share->stat.data_file_length = 65535;
+    share->stat.max_data_file_length = 65535;
+    share->stat.index_file_length = 65535;
+    share->stat.create_time = (time_t) 0;
+    share->stat.update_time = (time_t) 0;
+    share->stat.check_time = (time_t) 0;
   } else {
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11235,16 +11227,9 @@ int spider_oracle_handler::show_table_status(
     pthread_mutex_unlock(&conn->mta_conn_mutex);
     error_num = res->fetch_table_status(
       sts_mode,
-      share->records,
-      share->mean_rec_length,
-      share->data_file_length,
-      share->max_data_file_length,
-      share->index_file_length,
-      auto_increment_value,
-      share->create_time,
-      share->update_time,
-      share->check_time
+      share->stat
     );
+    auto_increment_value = share->stat.auto_increment_value;
     res->free_result();
     delete res;
     if (error_num)

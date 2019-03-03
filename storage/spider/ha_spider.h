@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -170,7 +171,7 @@ public:
   bool               high_priority;
   bool               insert_delayed;
   bool               use_pre_call;
-  bool               use_pre_records;
+  bool               use_pre_action;
   bool               pre_bitmap_checked;
   enum thr_lock_type lock_type;
   int                lock_mode;
@@ -243,6 +244,11 @@ public:
   SPIDER_ITEM_HLD    *direct_aggregate_item_current;
 #endif
   ha_rows            table_rows;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  ulonglong          checksum_val;
+  bool               checksum_null;
+  uint               action_flags;
+#endif
 
   /* for fulltext search */
   bool               ft_init_and_first;
@@ -512,6 +518,10 @@ public:
   int check_crd();
   int pre_records();
   ha_rows records();
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  int pre_calculate_checksum();
+  int calculate_checksum();
+#endif
   const char *table_type() const;
   ulonglong table_flags() const;
   const char *index_type(

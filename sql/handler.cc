@@ -4899,6 +4899,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->update_time=          stats.update_time;
   stat_info->check_time=           stats.check_time;
   stat_info->check_sum=            stats.checksum;
+  stat_info->check_sum_null=       stats.checksum_null;
 }
 
 

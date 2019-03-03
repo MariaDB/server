@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -116,7 +117,7 @@ ha_spider::ha_spider(
   use_fields = FALSE;
 #endif
   use_pre_call = FALSE;
-  use_pre_records = FALSE;
+  use_pre_action = FALSE;
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -228,7 +229,7 @@ ha_spider::ha_spider(
   use_fields = FALSE;
 #endif
   use_pre_call = FALSE;
-  use_pre_records = FALSE;
+  use_pre_action = FALSE;
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -1805,7 +1806,7 @@ int ha_spider::reset()
   high_priority = FALSE;
   insert_delayed = FALSE;
   use_pre_call = FALSE;
-  use_pre_records = FALSE;
+  use_pre_action = FALSE;
   pre_bitmap_checked = FALSE;
   bulk_insert = FALSE;
   clone_bitmap_init = FALSE;
@@ -8760,22 +8761,24 @@ int ha_spider::info(
     }
 
     if (flag & HA_STATUS_TIME)
-      stats.update_time = (ulong) share->update_time;
+      stats.update_time = (ulong) share->stat.update_time;
     if (flag & (HA_STATUS_CONST | HA_STATUS_VARIABLE))
     {
-      stats.max_data_file_length = share->max_data_file_length;
-      stats.create_time = (ulong) share->create_time;
+      stats.max_data_file_length = share->stat.max_data_file_length;
+      stats.create_time = share->stat.create_time;
       stats.block_size = spider_param_block_size(thd);
     }
     if (flag & HA_STATUS_VARIABLE)
     {
-      stats.data_file_length = share->data_file_length;
-      stats.index_file_length = share->index_file_length;
-      stats.records = share->records;
-      stats.mean_rec_length = share->mean_rec_length;
-      stats.check_time = (ulong) share->check_time;
+      stats.data_file_length = share->stat.data_file_length;
+      stats.index_file_length = share->stat.index_file_length;
+      stats.records = share->stat.records;
+      stats.mean_rec_length = share->stat.mean_rec_length;
+      stats.check_time = share->stat.check_time;
       if (stats.records <= 1 /* && (flag & HA_STATUS_NO_LOCK) */ )
         stats.records = 2;
+      stats.checksum = share->stat.checksum;
+      stats.checksum_null = share->stat.checksum_null;
     }
     if (flag & HA_STATUS_AUTO)
     {
@@ -9014,7 +9017,7 @@ ha_rows ha_spider::records_in_range(
     key_part_map tgt_key_part_map;
     KEY_PART_INFO *key_part;
     Field *field = NULL;
-    double rows = (double) share->records;
+    double rows = (double) share->stat.records;
     double weight, rate;
     DBUG_PRINT("info",("spider rows1=%f", rows));
     if (start_key)
@@ -9323,11 +9326,12 @@ int ha_spider::pre_records()
     result_list.casual_read[search_link_idx] =
       spider_param_casual_read(thd, share->casual_read);
   }
-  if ((error_num = spider_db_show_records(this, search_link_idx, TRUE)))
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_RECORDS, this,
+    search_link_idx, TRUE)))
   {
     DBUG_RETURN(check_error_mode(error_num));
   }
-  use_pre_records = TRUE;
+  use_pre_action = TRUE;
   DBUG_RETURN(0);
 }
 
@@ -9339,14 +9343,14 @@ ha_rows ha_spider::records()
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_command == SQLCOM_ALTER_TABLE)
   {
-    use_pre_records = FALSE;
+    use_pre_action = FALSE;
     DBUG_RETURN(0);
   }
   if (!(share->additional_table_flags & HA_HAS_RECORDS) && !this->result_list.direct_limit_offset)
   {
     DBUG_RETURN(handler::records());
   }
-  if (!use_pre_records && !this->result_list.direct_limit_offset)
+  if (!use_pre_action && !this->result_list.direct_limit_offset)
   {
     THD *thd = trx->thd;
     if (
@@ -9357,16 +9361,83 @@ ha_rows ha_spider::records()
         spider_param_casual_read(thd, share->casual_read);
     }
   }
-  if ((error_num = spider_db_show_records(this, search_link_idx, FALSE)))
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_RECORDS, this,
+    search_link_idx, FALSE)))
   {
-    use_pre_records = FALSE;
+    use_pre_action = FALSE;
     check_error_mode(error_num);
     DBUG_RETURN(HA_POS_ERROR);
   }
-  use_pre_records = FALSE;
-  share->records = table_rows;
+  use_pre_action = FALSE;
+  share->stat.records = table_rows;
   DBUG_RETURN(table_rows);
 }
+
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+int ha_spider::pre_calculate_checksum()
+{
+  int error_num;
+  backup_error_status();
+  DBUG_ENTER("ha_spider::pre_calculate_checksum");
+  DBUG_PRINT("info",("spider this=%p", this));
+  THD *thd = trx->thd;
+  if (
+    spider_param_sync_autocommit(thd) &&
+    (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+  ) {
+    result_list.casual_read[search_link_idx] =
+      spider_param_casual_read(thd, share->casual_read);
+  }
+  action_flags = T_EXTEND;
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE, this,
+    search_link_idx, TRUE)))
+  {
+    DBUG_RETURN(check_error_mode(error_num));
+  }
+  use_pre_action = TRUE;
+  DBUG_RETURN(0);
+}
+
+int ha_spider::calculate_checksum()
+{
+  int error_num;
+  backup_error_status();
+  DBUG_ENTER("ha_spider::calculate_checksum");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (!use_pre_action && !this->result_list.direct_limit_offset)
+  {
+    THD *thd = trx->thd;
+    if (
+      spider_param_sync_autocommit(thd) &&
+      (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    ) {
+      result_list.casual_read[search_link_idx] =
+        spider_param_casual_read(thd, share->casual_read);
+    }
+  }
+  action_flags = T_EXTEND;
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE, this,
+    search_link_idx, FALSE)))
+  {
+    use_pre_action = FALSE;
+    DBUG_RETURN(check_error_mode(error_num));
+  }
+  use_pre_action = FALSE;
+  if (checksum_null)
+  {
+    share->stat.checksum_null = TRUE;
+    share->stat.checksum = 0;
+    stats.checksum_null = TRUE;
+    stats.checksum = 0;
+  } else {
+    share->stat.checksum_null = FALSE;
+    share->stat.checksum = checksum_val;
+    stats.checksum_null = FALSE;
+    stats.checksum = checksum_val;
+  }
+  DBUG_RETURN(0);
+}
+#endif
 
 const char *ha_spider::table_type() const
 {
@@ -11172,8 +11243,9 @@ double ha_spider::scan_time()
   DBUG_ENTER("ha_spider::scan_time");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider scan_time = %.6f",
-    share->scan_rate * share->records * share->mean_rec_length + 2));
-  DBUG_RETURN(share->scan_rate * share->records * share->mean_rec_length + 2);
+    share->scan_rate * share->stat.records * share->stat.mean_rec_length + 2));
+  DBUG_RETURN(share->scan_rate * share->stat.records *
+    share->stat.mean_rec_length + 2);
 }
 
 double ha_spider::read_time(
@@ -11192,8 +11264,8 @@ double ha_spider::read_time(
       rows / 2 + 2);
   } else {
     DBUG_PRINT("info",("spider read_time = %.6f",
-      share->read_rate * share->mean_rec_length * rows + 2));
-    DBUG_RETURN(share->read_rate * share->mean_rec_length * rows + 2);
+      share->read_rate * share->stat.mean_rec_length * rows + 2));
+    DBUG_RETURN(share->read_rate * share->stat.mean_rec_length * rows + 2);
   }
 }
 

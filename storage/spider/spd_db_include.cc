@@ -41,6 +41,16 @@ spider_db_result::spider_db_result(
   DBUG_VOID_RETURN;
 }
 
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+int spider_db_result::fetch_table_checksum(
+  ha_spider *spider
+) {
+  DBUG_ENTER("spider_db_result::fetch_table_checksum");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(0);
+}
+#endif
+
 spider_db_conn::spider_db_conn(
   SPIDER_CONN *in_conn
 ) : conn(in_conn), dbton_id(in_conn->dbton_id)
@@ -49,3 +59,20 @@ spider_db_conn::spider_db_conn(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
 }
+
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+bool spider_db_share::checksum_support()
+{
+  DBUG_ENTER("spider_db_share::checksum_support");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+int spider_db_handler::checksum_table(
+  int link_idx
+) {
+  DBUG_ENTER("spider_db_handler::checksum_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(0);
+}
+#endif
