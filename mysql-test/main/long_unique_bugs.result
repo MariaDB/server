@@ -63,3 +63,24 @@ ALTER TABLE t1 DROP x, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 UPDATE t1 SET x = 'bar';
 DROP TABLE t1;
+create table t1(a blob unique , b blob);
+insert into t1 values(1,1),(2,1);
+alter table t1 add unique(b);
+ERROR 23000: Duplicate entry '1' for key 'b'
+show keys from t1;;
+Table	t1
+Non_unique	0
+Key_name	a
+Seq_in_index	1
+Column_name	a
+Collation	A
+Cardinality	NULL
+Sub_part	NULL
+Packed	NULL
+Null	YES
+Index_type	HASH
+Comment	
+Index_comment	
+insert into t1 values(1,1);
+ERROR 23000: Duplicate entry '1' for key 'a'
+DROP TABLE t1;

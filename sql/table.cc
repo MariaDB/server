@@ -8983,6 +8983,7 @@ void setup_keyinfo_hash(KEY *key_info)
   key_info->key_part-= no_of_keyparts;
   key_info->user_defined_key_parts= key_info->usable_key_parts=
                key_info->ext_key_parts= no_of_keyparts;
+  key_info->flags|= HA_NOSAME;
 }
 /*
   re_setup_keyinfo_hash reverts th setup_keyinfo_hash and this type of
@@ -8997,6 +8998,7 @@ void re_setup_keyinfo_hash(KEY *key_info)
     key_info->key_part++;
   key_info->user_defined_key_parts= key_info->usable_key_parts=
                key_info->ext_key_parts= 1;
+  key_info->flags&= ~HA_NOSAME;
 }
 /**
   @brief clone of current handler.

@@ -82,3 +82,15 @@ INSERT INTO t1 VALUES (1,'foo');
 ALTER TABLE t1 DROP x, ALGORITHM=INPLACE;
 UPDATE t1 SET x = 'bar';
 DROP TABLE t1;
+
+#
+# MDEV-18799 Long unique does not work after failed alter table
+#
+create table t1(a blob unique , b blob);
+insert into t1 values(1,1),(2,1);
+--error ER_DUP_ENTRY
+alter table t1 add unique(b);
+--query_vertical show keys from t1;
+--error ER_DUP_ENTRY
+insert into t1 values(1,1);
+DROP TABLE t1;
