@@ -169,6 +169,16 @@ public:
   {
     ((LEX_CSTRING &) *this)= null_clex_str;
   }
+  Lex_ident_sys(const char *name, size_t length)
+  {
+    LEX_CSTRING tmp= {name, length};
+    set_valid_utf8(&tmp);
+  }
+  Lex_ident_sys & operator=(const Lex_ident_sys_st &name)
+  {
+    Lex_ident_sys_st::operator=(name);
+    return *this;
+  }
 };
 
 
@@ -2990,6 +3000,56 @@ struct Account_options: public USER_RESOURCES
 class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
 
+
+class Lex_prepared_stmt
+{
+  Lex_ident_sys m_name; // Statement name (in all queries)
+  Item *m_code;         // PREPARE or EXECUTE IMMEDIATE source expression
+  List<Item> m_params;  // List of parameters for EXECUTE [IMMEDIATE]
+public:
+
+  Lex_prepared_stmt()
+   :m_code(NULL)
+  { }
+  const Lex_ident_sys &name() const
+  {
+    return m_name;
+  }
+  uint param_count() const
+  {
+    return m_params.elements;
+  }
+  List<Item> &params()
+  {
+    return m_params;
+  }
+  void set(const Lex_ident_sys_st &ident, Item *code, List<Item> *params)
+  {
+    DBUG_ASSERT(m_params.elements == 0);
+    m_name= ident;
+    m_code= code;
+    if (params)
+      m_params= *params;
+  }
+  bool params_fix_fields(THD *thd)
+  {
+    // Fix Items in the EXECUTE..USING list
+    List_iterator_fast<Item> param_it(m_params);
+    while (Item *param= param_it++)
+    {
+      if (param->fix_fields_if_needed_for_scalar(thd, 0))
+        return true;
+    }
+    return false;
+  }
+  bool get_dynamic_sql_string(THD *thd, LEX_CSTRING *dst, String *buffer);
+  void lex_start()
+  {
+    m_params.empty();
+  }
+};
+
+
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
@@ -3254,12 +3314,7 @@ public:
     creating or last of tables referenced by foreign keys).
   */
   TABLE_LIST *create_last_non_select_table;
-  /* Prepared statements SQL syntax:*/
-  LEX_CSTRING prepared_stmt_name; /* Statement name (in all queries) */
-  /* PREPARE or EXECUTE IMMEDIATE source expression */
-  Item *prepared_stmt_code;
-  /* Names of user variables holding parameters (in EXECUTE) */
-  List<Item> prepared_stmt_params;
+  Lex_prepared_stmt prepared_stmt;
   sp_head *sphead;
   sp_name *spname;
   bool sp_lex_in_use;   // Keep track on lex usage in SPs for error handling
@@ -3647,18 +3702,6 @@ public:
   bool sp_proc_stmt_statement_finalize_buf(THD *, const LEX_CSTRING &qbuf);
   bool sp_proc_stmt_statement_finalize(THD *, bool no_lookahead);
 
-  bool get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer);
-  bool prepared_stmt_params_fix_fields(THD *thd)
-  {
-    // Fix Items in the EXECUTE..USING list
-    List_iterator_fast<Item> param_it(prepared_stmt_params);
-    while (Item *param= param_it++)
-    {
-      if (param->fix_fields_if_needed_for_scalar(thd, 0))
-        return true;
-    }
-    return false;
-  }
   sp_variable *sp_param_init(LEX_CSTRING *name);
   bool sp_param_fill_definition(sp_variable *spvar);
 
@@ -4403,6 +4446,11 @@ public:
                                      const Lex_ident_sys_st &name);
   bool stmt_uninstall_plugin_by_soname(const DDL_options_st &opt,
                                        const LEX_CSTRING &soname);
+  bool stmt_prepare_validate(const char *stmt_type);
+  bool stmt_prepare(const Lex_ident_sys_st &ident, Item *code);
+  bool stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params);
+  bool stmt_execute_immediate(Item *code, List<Item> *params);
+  void stmt_deallocate_prepare(const Lex_ident_sys_st &ident);
 };
 
 

@@ -1338,11 +1338,10 @@ bool Protocol_text::store_time(MYSQL_TIME *tm, int decimals)
 
 bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
 {
-  DBUG_ASSERT(sp_params->elements ==
-              thd->lex->prepared_stmt_params.elements);
+  DBUG_ASSERT(sp_params->elements == thd->lex->prepared_stmt.param_count());
 
   List_iterator_fast<Item_param> item_param_it(*sp_params);
-  List_iterator_fast<Item> param_it(thd->lex->prepared_stmt_params);
+  List_iterator_fast<Item> param_it(thd->lex->prepared_stmt.params());
 
   while (true)
   {

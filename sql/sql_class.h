@@ -1214,7 +1214,7 @@ public:
 
   int insert(THD *thd, Statement *statement);
 
-  Statement *find_by_name(LEX_CSTRING *name)
+  Statement *find_by_name(const LEX_CSTRING *name)
   {
     Statement *stmt;
     stmt= (Statement*)my_hash_search(&names_hash, (uchar*)name->str,

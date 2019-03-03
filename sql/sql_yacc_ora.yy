@@ -1357,7 +1357,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <item>
         literal insert_ident order_ident temporal_literal
-        simple_ident expr sum_expr in_sum_expr
+        simple_ident expr prepare_src sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
@@ -1398,6 +1398,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
         decode_when_list_oracle
+        execute_using
+        execute_params
 
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
@@ -1557,7 +1559,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         select_var_list select_var_list_init help
         opt_extended_describe shutdown
         opt_format_json
-        prepare prepare_src execute deallocate
+        prepare execute deallocate
         statement
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
@@ -1827,9 +1829,7 @@ statement:
 deallocate:
           deallocate_or_drop PREPARE_SYM ident
           {
-            LEX *lex= thd->lex;
-            lex->sql_command= SQLCOM_DEALLOCATE_PREPARE;
-            lex->prepared_stmt_name= $3;
+            Lex->stmt_deallocate_prepare($3);
           }
         ;
 
@@ -1841,12 +1841,8 @@ deallocate_or_drop:
 prepare:
           PREPARE_SYM ident FROM prepare_src
           {
-            LEX *lex= thd->lex;
-            if (unlikely(lex->table_or_sp_used()))
-              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
-                               "PREPARE..FROM"));
-            lex->sql_command= SQLCOM_PREPARE;
-            lex->prepared_stmt_name= $2;
+            if (Lex->stmt_prepare($2, $4))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -1854,56 +1850,47 @@ prepare_src:
           { Lex->expr_allows_subselect= false; }
           expr
           {
-            Lex->prepared_stmt_code= $2;
             Lex->expr_allows_subselect= true;
+            $$= $2;
           }
         ;
 
 execute:
-          EXECUTE_SYM ident
+          EXECUTE_SYM ident execute_using
           {
-            LEX *lex= thd->lex;
-            lex->sql_command= SQLCOM_EXECUTE;
-            lex->prepared_stmt_name= $2;
+            if (Lex->stmt_execute($2, $3))
+              MYSQL_YYABORT;
           }
-          execute_using
-          {}
-        | EXECUTE_SYM IMMEDIATE_SYM prepare_src
+        | EXECUTE_SYM IMMEDIATE_SYM prepare_src execute_using
           {
-            if (unlikely(Lex->table_or_sp_used()))
-              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
-                               "EXECUTE IMMEDIATE"));
-            Lex->sql_command= SQLCOM_EXECUTE_IMMEDIATE;
+            if (Lex->stmt_execute_immediate($3, $4))
+              MYSQL_YYABORT;
           }
-          execute_using
-          {}
         ;
 
 execute_using:
-          /* nothing */
+          /* nothing */    { $$= NULL; }
         | USING            { Lex->expr_allows_subselect= false; }
-          execute_var_list
+          execute_params
           {
-            if (unlikely(Lex->table_or_sp_used()))
-              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
-                               "EXECUTE..USING"));
+            $$= $3;
             Lex->expr_allows_subselect= true;
           }
         ;
 
-execute_var_list:
-          execute_var_list ',' execute_var_ident
-        | execute_var_ident
-        ;
-
-execute_var_ident:
+execute_params:
           expr_or_default
           {
-            if (unlikely(Lex->prepared_stmt_params.push_back($1,
-                         thd->mem_root)))
+            if (unlikely(!($$= List<Item>::make(thd->mem_root, $1))))
+              MYSQL_YYABORT;
+          }
+        | execute_params ',' expr_or_default
+          {
+            if (($$= $1)->push_back($3, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
+
 
 /* help */
 
@@ -11919,9 +11906,7 @@ opt_expr_list:
 expr_list:
           expr
           {
-            $$= new (thd->mem_root) List<Item>;
-            if (unlikely($$ == NULL) ||
-                unlikely($$->push_back($1, thd->mem_root)))
+            if (unlikely(!($$= List<Item>::make(thd->mem_root, $1))))
               MYSQL_YYABORT;
           }
         | expr_list ',' expr

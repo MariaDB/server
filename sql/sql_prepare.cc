@@ -190,7 +190,7 @@ public:
   void setup_set_params();
   virtual Query_arena::Type type() const;
   virtual void cleanup_stmt();
-  bool set_name(LEX_CSTRING *name);
+  bool set_name(const LEX_CSTRING *name);
   inline void close_cursor() { delete cursor; cursor= 0; }
   inline bool is_in_use() { return flags & (uint) IS_IN_USE; }
   inline bool is_sql_prepare() const { return flags & (uint) IS_SQL_PREPARE; }
@@ -2664,7 +2664,7 @@ end:
 }
 
 /**
-  Get an SQL statement from an item in lex->prepared_stmt_code.
+  Get an SQL statement from an item in m_code.
 
   This function can return pointers to very different memory classes:
   - a static string "NULL", if the item returned NULL
@@ -2689,13 +2689,15 @@ end:
   @retval       true on error (out of memory)
 */
 
-bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
+bool Lex_prepared_stmt::get_dynamic_sql_string(THD *thd,
+                                               LEX_CSTRING *dst,
+                                               String *buffer)
 {
-  if (prepared_stmt_code->fix_fields_if_needed_for_scalar(thd, NULL))
+  if (m_code->fix_fields_if_needed_for_scalar(thd, NULL))
     return true;
 
-  const String *str= prepared_stmt_code->val_str(buffer);
-  if (prepared_stmt_code->null_value)
+  const String *str= m_code->val_str(buffer);
+  if (m_code->null_value)
   {
     /*
       Prepare source was NULL, so we need to set "str" to
@@ -2776,7 +2778,7 @@ bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
 void mysql_sql_stmt_prepare(THD *thd)
 {
   LEX *lex= thd->lex;
-  LEX_CSTRING *name= &lex->prepared_stmt_name;
+  const LEX_CSTRING *name= &lex->prepared_stmt.name();
   Prepared_statement *stmt;
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_prepare");
@@ -2801,7 +2803,7 @@ void mysql_sql_stmt_prepare(THD *thd)
     See comments in get_dynamic_sql_string().
   */
   StringBuffer<256> buffer;
-  if (lex->get_dynamic_sql_string(&query, &buffer) ||
+  if (lex->prepared_stmt.get_dynamic_sql_string(thd, &query, &buffer) ||
       ! (stmt= new Prepared_statement(thd)))
   {
     DBUG_VOID_RETURN;                           /* out of memory */
@@ -2864,7 +2866,7 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_execute_immediate");
 
-  if (lex->prepared_stmt_params_fix_fields(thd))
+  if (lex->prepared_stmt.params_fix_fields(thd))
     DBUG_VOID_RETURN;
 
   /*
@@ -2876,7 +2878,7 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     See comments in get_dynamic_sql_string().
   */
   StringBuffer<256> buffer;
-  if (lex->get_dynamic_sql_string(&query, &buffer) ||
+  if (lex->prepared_stmt.get_dynamic_sql_string(thd, &query, &buffer) ||
       !(stmt= new Prepared_statement(thd)))
     DBUG_VOID_RETURN;                           // out of memory
 
@@ -3265,7 +3267,7 @@ void mysql_sql_stmt_execute(THD *thd)
 {
   LEX *lex= thd->lex;
   Prepared_statement *stmt;
-  LEX_CSTRING *name= &lex->prepared_stmt_name;
+  const LEX_CSTRING *name= &lex->prepared_stmt.name();
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
   DBUG_ENTER("mysql_sql_stmt_execute");
@@ -3278,7 +3280,7 @@ void mysql_sql_stmt_execute(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  if (stmt->param_count != lex->prepared_stmt_params.elements)
+  if (stmt->param_count != lex->prepared_stmt.param_count())
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), "EXECUTE");
     DBUG_VOID_RETURN;
@@ -3286,7 +3288,7 @@ void mysql_sql_stmt_execute(THD *thd)
 
   DBUG_PRINT("info",("stmt: %p", stmt));
 
-  if (lex->prepared_stmt_params_fix_fields(thd))
+  if (lex->prepared_stmt.params_fix_fields(thd))
     DBUG_VOID_RETURN;
 
   /*
@@ -3506,7 +3508,7 @@ void mysqld_stmt_close(THD *thd, char *packet)
 void mysql_sql_stmt_close(THD *thd)
 {
   Prepared_statement* stmt;
-  LEX_CSTRING *name= &thd->lex->prepared_stmt_name;
+  const LEX_CSTRING *name= &thd->lex->prepared_stmt.name();
   DBUG_PRINT("info", ("DEALLOCATE PREPARE: %.*s\n", (int) name->length,
                       name->str));
 
@@ -3871,7 +3873,7 @@ void Prepared_statement::cleanup_stmt()
 }
 
 
-bool Prepared_statement::set_name(LEX_CSTRING *name_arg)
+bool Prepared_statement::set_name(const LEX_CSTRING *name_arg)
 {
   name.length= name_arg->length;
   name.str= (char*) memdup_root(mem_root, name_arg->str, name_arg->length);
@@ -4120,7 +4122,7 @@ Prepared_statement::set_parameters(String *expanded_query,
   if (is_sql_ps)
   {
     /* SQL prepared statement */
-    res= set_params_from_actual_params(this, thd->lex->prepared_stmt_params,
+    res= set_params_from_actual_params(this, thd->lex->prepared_stmt.params(),
                                        expanded_query);
   }
   else if (param_count)
@@ -4849,7 +4851,7 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
   if (unlikely(prepare(query, query_len)))
     DBUG_RETURN(true);
 
-  if (param_count != thd->lex->prepared_stmt_params.elements)
+  if (param_count != thd->lex->prepared_stmt.param_count())
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), "EXECUTE");
     deallocate_immediate();

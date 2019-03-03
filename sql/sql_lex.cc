@@ -705,7 +705,7 @@ void LEX::start(THD *thd_arg)
   with_persistent_for_clause= FALSE;
   column_list= NULL;
   index_list= NULL;
-  prepared_stmt_params.empty();
+  prepared_stmt.lex_start();
   auxiliary_table_list.empty();
   unit.next= unit.master= unit.link_next= unit.return_to= 0;
   unit.prev= unit.link_prev= 0;
@@ -10215,4 +10215,51 @@ bool LEX::stmt_uninstall_plugin_by_soname(const DDL_options_st &opt,
   comment= null_clex_str;
   ident= soname;
   return false;
+}
+
+
+bool LEX::stmt_prepare_validate(const char *stmt_type)
+{
+  if (unlikely(table_or_sp_used()))
+  {
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0), stmt_type);
+    return true;
+  }
+  return check_main_unit_semantics();
+}
+
+
+bool LEX::stmt_prepare(const Lex_ident_sys_st &ident, Item *code)
+{
+  sql_command= SQLCOM_PREPARE;
+  if (stmt_prepare_validate("PREPARE..FROM"))
+    return true;
+  prepared_stmt.set(ident, code, NULL);
+  return false;
+}
+
+
+bool LEX::stmt_execute_immediate(Item *code, List<Item> *params)
+{
+  sql_command= SQLCOM_EXECUTE_IMMEDIATE;
+  if (stmt_prepare_validate("EXECUTE IMMEDIATE"))
+    return true;
+  static const Lex_ident_sys immediate(STRING_WITH_LEN("IMMEDIATE"));
+  prepared_stmt.set(immediate, code, params);
+  return false;
+}
+
+
+bool LEX::stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params)
+{
+  sql_command= SQLCOM_EXECUTE;
+  prepared_stmt.set(ident, NULL, params);
+  return stmt_prepare_validate("EXECUTE..USING");
+}
+
+
+void LEX::stmt_deallocate_prepare(const Lex_ident_sys_st &ident)
+{
+  sql_command= SQLCOM_DEALLOCATE_PREPARE;
+  prepared_stmt.set(ident, NULL, NULL);
 }

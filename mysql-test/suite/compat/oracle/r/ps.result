@@ -163,7 +163,7 @@ RETURN 'test';
 END;
 $$
 EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
-ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 DROP FUNCTION f1;
 #
 # Testing simple expressions

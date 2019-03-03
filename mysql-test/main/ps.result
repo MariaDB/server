@@ -4663,7 +4663,7 @@ EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING (SELECT 1);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
 CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
 EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
-ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 DROP FUNCTION f1;
 #
 # DDL
