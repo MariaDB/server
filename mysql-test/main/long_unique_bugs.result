@@ -57,3 +57,9 @@ create table t (b blob, unique(b)) engine=myisam;
 insert into t values ('foo');
 replace into t values ('foo');
 drop table t;
+CREATE TABLE t1 (f INT, x BLOB, UNIQUE (x));
+INSERT INTO t1 VALUES (1,'foo');
+ALTER TABLE t1 DROP x, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+UPDATE t1 SET x = 'bar';
+DROP TABLE t1;

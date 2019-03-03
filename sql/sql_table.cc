@@ -8476,6 +8476,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_parts, key_info->option_list, DDL_options());
       new_key_list.push_back(key, thd->mem_root);
     }
+    if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+      re_setup_keyinfo_hash(key_info);
   }
   {
     Key *key;

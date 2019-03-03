@@ -72,3 +72,13 @@ create table t (b blob, unique(b)) engine=myisam;
 insert into t values ('foo');
 replace into t values ('foo');
 drop table t;
+
+#
+# MDEV-18790 Server crash in fields_in_hash_keyinfo after unsuccessful attempt to drop BLOB with long index
+#
+CREATE TABLE t1 (f INT, x BLOB, UNIQUE (x));
+INSERT INTO t1 VALUES (1,'foo');
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 DROP x, ALGORITHM=INPLACE;
+UPDATE t1 SET x = 'bar';
+DROP TABLE t1;
