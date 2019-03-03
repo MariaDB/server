@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2017 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1126,6 +1127,7 @@ void spider_string::q_append(
 ) {
   DBUG_ENTER("spider_string::q_append");
   DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(str.alloced_length() >= str.length() + data_len);
   str.q_append(data, data_len);
   DBUG_VOID_RETURN;
 }

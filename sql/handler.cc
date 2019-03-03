@@ -5001,7 +5001,20 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->check_time=           stats.check_time;
   stat_info->check_sum=            0;
   if (table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
-    stat_info->check_sum= checksum();
+  {
+    stat_info->check_sum_null= FALSE;
+    if (table_flags() & HA_HAS_CHECKSUM_EXTENDED)
+    {
+      ulonglong crc= 0;
+      if (!pre_checksum_opt(0) &&
+          !checksum_opt(&crc, 0))
+        stat_info->check_sum= crc;
+      else
+        stat_info->check_sum_null= TRUE;
+    }
+    else
+      stat_info->check_sum= checksum();
+  }
   return;
 }
 

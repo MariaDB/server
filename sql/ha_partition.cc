@@ -8373,7 +8373,20 @@ void ha_partition::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->check_time=           file->stats.check_time;
   stat_info->check_sum= 0;
   if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
-    stat_info->check_sum= file->checksum();
+  {
+    stat_info->check_sum_null= FALSE;
+    if (file->ha_table_flags() & HA_HAS_CHECKSUM_EXTENDED)
+    {
+      ulonglong crc= 0;
+      if (!file->pre_checksum_opt(0) &&
+          !file->checksum_opt(&crc, 0))
+        stat_info->check_sum= crc;
+      else
+        stat_info->check_sum_null= TRUE;
+    }
+    else
+      stat_info->check_sum= file->checksum();
+  }
   return;
 }
 
@@ -10611,6 +10624,41 @@ uint ha_partition::checksum() const
     } while (*(++file));
   }
   DBUG_RETURN(sum);
+}
+
+bool ha_partition::checksum_opt(ulonglong *crc, uint flags)
+{
+  ha_checksum sum= 0;
+
+  DBUG_ENTER("ha_partition::checksum_opt");
+  if ((table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)))
+  {
+    handler **file= m_file;
+    do
+    {
+      ulonglong child_crc= 0;
+      if ((*file)->checksum_opt(&child_crc, flags))
+        DBUG_RETURN(TRUE);
+      sum+= child_crc;
+    } while (*(++file));
+  }
+  *crc= (ulonglong) sum;
+  DBUG_RETURN(FALSE);
+}
+
+bool ha_partition::pre_checksum_opt(uint flags)
+{
+  DBUG_ENTER("ha_partition::pre_checksum_opt");
+  if ((table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)))
+  {
+    handler **file= m_file;
+    do
+    {
+      if ((*file)->pre_checksum_opt(flags))
+        DBUG_RETURN(TRUE);
+    } while (*(++file));
+  }
+  DBUG_RETURN(FALSE);
 }
 
 

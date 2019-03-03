@@ -153,6 +153,15 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_USING_HASH_LEN sizeof(SPIDER_SQL_USING_HASH_STR) - 1
 #endif
 
+#define SPIDER_SQL_SHOW_RECORDS_RECORDS_POS 0
+#define SPIDER_SQL_EXPLAIN_SELECT_RECORDS_POS 8
+
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+#define SPIDER_SQL_CHECKSUM_CHECKSUM_POS 1
+#define SPIDER_SQL_CHECKSUM_TABLE_STR "checksum table "
+#define SPIDER_SQL_CHECKSUM_TABLE_LEN (sizeof(SPIDER_SQL_CHECKSUM_TABLE_STR) - 1)
+#endif
+
 #define SPIDER_SQL_LIKE_STR " like "
 #define SPIDER_SQL_LIKE_LEN (sizeof(SPIDER_SQL_LIKE_STR) - 1)
 #define SPIDER_SQL_LIMIT1_STR " limit 1"
@@ -1242,13 +1251,14 @@ int spider_db_mbase_result::fetch_table_status(
   DBUG_RETURN(0);
 }
 
-int spider_db_mbase_result::fetch_table_records(
-  int mode,
-  ha_rows &records
+int spider_db_mbase_result::fetch_simple_action(
+  uint simple_action,
+  uint position,
+  void *param
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mbase_result::fetch_table_records");
+  DBUG_ENTER("spider_db_mbase_result::fetch_simple_action");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
@@ -1261,31 +1271,77 @@ int spider_db_mbase_result::fetch_table_records(
     }
     DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
   }
-  if (mode == 1)
+  if (num_fields() <= position)
   {
-    if (mysql_row[0])
+    DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
+  }
+  switch (simple_action)
+  {
+    case SPIDER_SIMPLE_RECORDS:
     {
-      records =
-        (ha_rows) my_strtoll10(mysql_row[0], (char**) NULL, &error_num);
-    } else
-      records = (ha_rows) 0;
-    DBUG_PRINT("info",
-      ("spider records=%lld", records));
-  } else {
-    if (num_fields() != 10)
-    {
-      DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
+      ha_rows *records = (ha_rows *) param;
+      if (mysql_row[position])
+      {
+        *records =
+          (ha_rows) my_strtoll10(mysql_row[position], (char**) NULL,
+          &error_num);
+      } else {
+        *records = (ha_rows) 0;
+      }
+      DBUG_PRINT("info", ("spider records=%lld", *records));
+      break;
     }
-
-    if (mysql_row[8])
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+    case SPIDER_SIMPLE_CHECKSUM_TABLE:
     {
-      records =
-        (ha_rows) my_strtoll10(mysql_row[8], (char**) NULL, &error_num);
-    } else
-      records = 0;
+      ha_spider *spider = (ha_spider *) param;
+      if (mysql_row[position])
+      {
+        spider->checksum_val =
+          (ulonglong) my_strtoll10(mysql_row[position], (char**) NULL,
+          &error_num);
+        DBUG_PRINT("info", ("spider checksum=%llu", spider->checksum_val));
+        spider->checksum_null = FALSE;
+      } else {
+        spider->checksum_null = TRUE;
+        DBUG_PRINT("info", ("spider checksum is null"));
+      }
+      break;
+    }
+#endif
+    default:
+      DBUG_ASSERT(0);
+      break;
   }
   DBUG_RETURN(0);
 }
+
+int spider_db_mbase_result::fetch_table_records(
+  int mode,
+  ha_rows &records
+) {
+  DBUG_ENTER("spider_db_mbase_result::fetch_table_records");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (mode == 1)
+  {
+    DBUG_RETURN(fetch_simple_action(SPIDER_SIMPLE_RECORDS,
+      SPIDER_SQL_SHOW_RECORDS_RECORDS_POS, &records));
+  } else {
+    DBUG_RETURN(fetch_simple_action(SPIDER_SIMPLE_RECORDS,
+      SPIDER_SQL_EXPLAIN_SELECT_RECORDS_POS, &records));
+  }
+}
+
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+int spider_db_mbase_result::fetch_table_checksum(
+  ha_spider *spider
+) {
+  DBUG_ENTER("spider_db_mbase_result::fetch_table_checksum");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(fetch_simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE,
+    SPIDER_SQL_CHECKSUM_CHECKSUM_POS, spider));
+}
+#endif
 
 int spider_db_mbase_result::fetch_table_cardinality(
   int mode,
@@ -6845,6 +6901,15 @@ int spider_mbase_share::discover_table_structure(
       break;
   }
   DBUG_RETURN(error_num);
+}
+#endif
+
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+bool spider_mbase_share::checksum_support()
+{
+  DBUG_ENTER("spider_mbase_share::checksum_support");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
 }
 #endif
 
@@ -12862,7 +12927,8 @@ int spider_mbase_handler::show_index(
   DBUG_RETURN(0);
 }
 
-int spider_mbase_handler::show_records(
+int spider_mbase_handler::simple_action(
+  uint simple_action,
   int link_idx
 ) {
   int error_num;
@@ -12870,7 +12936,49 @@ int spider_mbase_handler::show_records(
   SPIDER_DB_RESULT *res;
   SPIDER_SHARE *share = spider->share;
   uint pos = spider->conn_link_idx[link_idx];
-  DBUG_ENTER("spider_mbase_handler::show_records");
+  spider_string *str;
+  DBUG_ENTER("spider_mbase_handler::simple_action");
+  switch (simple_action)
+  {
+    case SPIDER_SIMPLE_RECORDS:
+      DBUG_PRINT("info",("spider simple records"));
+      str = &mysql_share->show_records[pos];
+      break;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+    case SPIDER_SIMPLE_CHECKSUM_TABLE:
+      DBUG_PRINT("info",("spider simple checksum_table"));
+      str = &spider->result_list.sqls[link_idx];
+      str->length(0);
+      if (str->reserve(
+        SPIDER_SQL_CHECKSUM_TABLE_LEN +
+        mysql_share->db_nm_max_length +
+        SPIDER_SQL_DOT_LEN +
+        mysql_share->table_nm_max_length +
+        /* SPIDER_SQL_NAME_QUOTE_LEN */ 4 +
+        ((spider->action_flags & T_QUICK) ? SPIDER_SQL_SQL_QUICK_LEN : 0) +
+        ((spider->action_flags & T_EXTEND) ? SPIDER_SQL_SQL_EXTENDED_LEN : 0)
+      ))
+      {
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      }
+      str->q_append(SPIDER_SQL_CHECKSUM_TABLE_STR,
+        SPIDER_SQL_CHECKSUM_TABLE_LEN);
+      mysql_share->append_table_name(str, pos);
+      if (spider->action_flags & T_QUICK)
+      {
+        str->q_append(SPIDER_SQL_SQL_QUICK_STR, SPIDER_SQL_SQL_QUICK_LEN);
+      }
+      if (spider->action_flags & T_EXTEND)
+      {
+        str->q_append(SPIDER_SQL_SQL_EXTENDED_STR,
+          SPIDER_SQL_SQL_EXTENDED_LEN);
+      }
+      break;
+#endif
+    default:
+      DBUG_ASSERT(0);
+      break;
+  }
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
@@ -12883,8 +12991,8 @@ int spider_mbase_handler::show_records(
     (
       spider_db_query(
         conn,
-        mysql_share->show_records[pos].ptr(),
-        mysql_share->show_records[pos].length(),
+        str->ptr(),
+        str->length(),
         -1,
         &spider->need_mons[link_idx]) &&
       (error_num = spider_db_errorno(conn))
@@ -12917,8 +13025,8 @@ int spider_mbase_handler::show_records(
         share);
       if (spider_db_query(
         conn,
-        mysql_share->show_records[pos].ptr(),
-        mysql_share->show_records[pos].length(),
+        str->ptr(),
+        str->length(),
         -1,
         &spider->need_mons[link_idx])
       ) {
@@ -12960,10 +13068,22 @@ int spider_mbase_handler::show_records(
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
-  error_num = res->fetch_table_records(
-    1,
-    spider->table_rows
-  );
+  switch (simple_action)
+  {
+    case SPIDER_SIMPLE_RECORDS:
+      DBUG_PRINT("info",("spider simple records"));
+      error_num = res->fetch_table_records(1, spider->table_rows);
+      break;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+    case SPIDER_SIMPLE_CHECKSUM_TABLE:
+      DBUG_PRINT("info",("spider simple checksum_table"));
+      error_num = res->fetch_table_checksum(spider);
+      break;
+#endif
+    default:
+      DBUG_ASSERT(0);
+      break;
+  }
   res->free_result();
   delete res;
   if (error_num)
@@ -12971,9 +13091,33 @@ int spider_mbase_handler::show_records(
     DBUG_PRINT("info", ("spider error_num=%d 7", error_num));
     DBUG_RETURN(error_num);
   }
+  DBUG_RETURN(0);
+}
+
+int spider_mbase_handler::show_records(
+  int link_idx
+) {
+  int error_num;
+  DBUG_ENTER("spider_mbase_handler::show_records");
+  error_num = simple_action(SPIDER_SIMPLE_RECORDS, link_idx);
+  if (error_num)
+  {
+    DBUG_PRINT("info", ("spider error_num=%d", error_num));
+    DBUG_RETURN(error_num);
+  }
   spider->trx->direct_aggregate_count++;
   DBUG_RETURN(0);
 }
+
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+int spider_mbase_handler::checksum_table(
+  int link_idx
+) {
+  DBUG_ENTER("spider_mbase_handler::checksum_table");
+  DBUG_RETURN(simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE, link_idx));
+  DBUG_RETURN(0);
+}
+#endif
 
 int spider_mbase_handler::show_last_insert_id(
   int link_idx,

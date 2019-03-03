@@ -692,7 +692,14 @@ int spider_db_show_table_status(
   uint flag
 );
 
-int spider_db_show_records(
+int spider_db_simple_action(
+  uint simple_action,
+  spider_db_handler *db_handler,
+  int link_idx
+);
+
+int spider_db_simple_action(
+  uint simple_action,
   ha_spider *spider,
   int link_idx,
   bool pre_call

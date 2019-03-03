@@ -323,7 +323,10 @@ enum enum_alter_inplace_result {
 /** whether every data field explicitly stores length
 (holds for InnoDB ROW_FORMAT=REDUNDANT) */
 #define HA_EXTENDED_TYPES_CONVERSION (1ULL << 57)
-#define HA_LAST_TABLE_FLAG HA_EXTENDED_TYPES_CONVERSION
+
+/* Has checksum extended */
+#define HA_HAS_CHECKSUM_EXTENDED    (1ULL << 59)
+#define HA_LAST_TABLE_FLAG HA_HAS_CHECKSUM_EXTENDED
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -1925,6 +1928,7 @@ typedef struct {
   time_t check_time;
   time_t update_time;
   ulonglong check_sum;
+  bool check_sum_null;
 } PARTITION_STATS;
 
 #define UNDEF_NODEGROUP 65535
@@ -3922,6 +3926,8 @@ public:
   virtual uint min_record_length(uint options) const { return 1; }
 
   virtual uint checksum() const { return 0; }
+  virtual bool checksum_opt(ulonglong *crc, uint flags) { return TRUE; }
+  virtual bool pre_checksum_opt(uint flags) { return FALSE; }
   virtual bool is_crashed() const  { return 0; }
   virtual bool auto_repair(int error) const { return 0; }
 

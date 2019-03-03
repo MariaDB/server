@@ -1418,7 +1418,7 @@ int spider_db_oracle::connect(
   this->connect_retry_interval = connect_retry_interval;
   if ((error_num = spider_create_conn_thread(conn)))
     DBUG_RETURN(error_num);
-  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_CONNECT, TRUE, NULL,
+  spider_bg_conn_simple_action(conn, SPIDER_SIMPLE_CONNECT, TRUE, NULL,
     0, NULL);
 
   if (stored_error_num)
@@ -1509,7 +1509,7 @@ void spider_db_oracle::disconnect()
   DBUG_PRINT("info",("spider this=%p", this));
   if (!conn->bg_init)
     DBUG_VOID_RETURN;
-  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_DISCONNECT, TRUE, NULL,
+  spider_bg_conn_simple_action(conn, SPIDER_SIMPLE_DISCONNECT, TRUE, NULL,
     0, NULL);
   DBUG_VOID_RETURN;
 }

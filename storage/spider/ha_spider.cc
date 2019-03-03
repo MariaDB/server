@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -116,7 +117,7 @@ ha_spider::ha_spider(
   use_fields = FALSE;
 #endif
   use_pre_call = FALSE;
-  use_pre_records = FALSE;
+  use_pre_action = FALSE;
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -228,7 +229,7 @@ ha_spider::ha_spider(
   use_fields = FALSE;
 #endif
   use_pre_call = FALSE;
-  use_pre_records = FALSE;
+  use_pre_action = FALSE;
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -1805,7 +1806,7 @@ int ha_spider::reset()
   high_priority = FALSE;
   insert_delayed = FALSE;
   use_pre_call = FALSE;
-  use_pre_records = FALSE;
+  use_pre_action = FALSE;
   pre_bitmap_checked = FALSE;
   bulk_insert = FALSE;
   clone_bitmap_init = FALSE;
@@ -9323,11 +9324,12 @@ int ha_spider::pre_records()
     result_list.casual_read[search_link_idx] =
       spider_param_casual_read(thd, share->casual_read);
   }
-  if ((error_num = spider_db_show_records(this, search_link_idx, TRUE)))
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_RECORDS, this,
+    search_link_idx, TRUE)))
   {
     DBUG_RETURN(check_error_mode(error_num));
   }
-  use_pre_records = TRUE;
+  use_pre_action = TRUE;
   DBUG_RETURN(0);
 }
 
@@ -9339,14 +9341,14 @@ ha_rows ha_spider::records()
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_command == SQLCOM_ALTER_TABLE)
   {
-    use_pre_records = FALSE;
+    use_pre_action = FALSE;
     DBUG_RETURN(0);
   }
   if (!(share->additional_table_flags & HA_HAS_RECORDS) && !this->result_list.direct_limit_offset)
   {
     DBUG_RETURN(handler::records());
   }
-  if (!use_pre_records && !this->result_list.direct_limit_offset)
+  if (!use_pre_action && !this->result_list.direct_limit_offset)
   {
     THD *thd = trx->thd;
     if (
@@ -9357,16 +9359,80 @@ ha_rows ha_spider::records()
         spider_param_casual_read(thd, share->casual_read);
     }
   }
-  if ((error_num = spider_db_show_records(this, search_link_idx, FALSE)))
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_RECORDS, this,
+    search_link_idx, FALSE)))
   {
-    use_pre_records = FALSE;
+    use_pre_action = FALSE;
     check_error_mode(error_num);
     DBUG_RETURN(HA_POS_ERROR);
   }
-  use_pre_records = FALSE;
+  use_pre_action = FALSE;
   share->records = table_rows;
   DBUG_RETURN(table_rows);
 }
+
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+bool ha_spider::pre_checksum_opt(
+  uint flags
+) {
+  int error_num;
+  backup_error_status();
+  DBUG_ENTER("ha_spider::pre_checksum_opt");
+  DBUG_PRINT("info",("spider this=%p", this));
+  THD *thd = trx->thd;
+  if (
+    spider_param_sync_autocommit(thd) &&
+    (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+  ) {
+    result_list.casual_read[search_link_idx] =
+      spider_param_casual_read(thd, share->casual_read);
+  }
+  action_flags = flags;
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE, this,
+    search_link_idx, TRUE)))
+  {
+    DBUG_RETURN((check_error_mode(error_num) != 0));
+  }
+  use_pre_action = TRUE;
+  DBUG_RETURN(FALSE);
+}
+
+bool ha_spider::checksum_opt(
+  ulonglong *crc,
+  uint flags
+) {
+  int error_num;
+  backup_error_status();
+  DBUG_ENTER("ha_spider::checksum_opt");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (!use_pre_action && !this->result_list.direct_limit_offset)
+  {
+    THD *thd = trx->thd;
+    if (
+      spider_param_sync_autocommit(thd) &&
+      (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    ) {
+      result_list.casual_read[search_link_idx] =
+        spider_param_casual_read(thd, share->casual_read);
+    }
+  }
+  action_flags = flags;
+  if ((error_num = spider_db_simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE, this,
+    search_link_idx, FALSE)))
+  {
+    use_pre_action = FALSE;
+    check_error_mode(error_num);
+    DBUG_RETURN(TRUE);
+  }
+  use_pre_action = FALSE;
+  if (checksum_null)
+  {
+    DBUG_RETURN(TRUE);
+  }
+  *crc = checksum_val;
+  DBUG_RETURN(FALSE);
+}
+#endif
 
 const char *ha_spider::table_type() const
 {

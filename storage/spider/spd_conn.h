@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -17,10 +18,13 @@
 #define SPIDER_LOCK_MODE_SHARED              1
 #define SPIDER_LOCK_MODE_EXCLUSIVE           2
 
-#define SPIDER_BG_SIMPLE_NO_ACTION           0
-#define SPIDER_BG_SIMPLE_CONNECT             1
-#define SPIDER_BG_SIMPLE_DISCONNECT          2
-#define SPIDER_BG_SIMPLE_RECORDS             3
+#define SPIDER_SIMPLE_NO_ACTION           0
+#define SPIDER_SIMPLE_CONNECT             1
+#define SPIDER_SIMPLE_DISCONNECT          2
+#define SPIDER_SIMPLE_RECORDS             3
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+#define SPIDER_SIMPLE_CHECKSUM_TABLE      4
+#endif
 
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,

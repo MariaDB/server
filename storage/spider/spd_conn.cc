@@ -2802,23 +2802,20 @@ void *spider_bg_conn_action(
     {
       switch (conn->bg_simple_action)
       {
-        case SPIDER_BG_SIMPLE_CONNECT:
+        case SPIDER_SIMPLE_CONNECT:
           conn->db_conn->bg_connect();
           break;
-        case SPIDER_BG_SIMPLE_DISCONNECT:
+        case SPIDER_SIMPLE_DISCONNECT:
           conn->db_conn->bg_disconnect();
           break;
-        case SPIDER_BG_SIMPLE_RECORDS:
-          DBUG_PRINT("info",("spider bg simple records"));
+        default:
           spider = (ha_spider*) conn->bg_target;
           *conn->bg_error_num =
-            spider->dbton_handler[conn->dbton_id]->
-              show_records(conn->link_idx);
-          break;
-        default:
+            spider_db_simple_action(conn->bg_simple_action,
+              spider->dbton_handler[conn->dbton_id], conn->link_idx);
           break;
       }
-      conn->bg_simple_action = SPIDER_BG_SIMPLE_NO_ACTION;
+      conn->bg_simple_action = SPIDER_SIMPLE_NO_ACTION;
       if (conn->bg_caller_wait)
       {
         pthread_mutex_lock(&conn->bg_conn_sync_mutex);
