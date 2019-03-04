@@ -936,14 +936,18 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
     ulong new_vreclength= file->s->vreclength;
     for (Field **vf= table->vfield; *vf; vf++)
     {
-      uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
-      set_if_bigger(new_vreclength, vf_end);
-      indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      if (!(*vf)->stored_in_db())
+      {
+        uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
+        set_if_bigger(new_vreclength, vf_end);
+        indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      }
     }
     if (!indexed_vcols)
       return;
     file->s->vreclength= new_vreclength;
   }
+  DBUG_ASSERT(file->s->base.reclength < file->s->vreclength);
   param->fix_record= compute_vcols;
   table->use_all_columns();
   table->vcol_set= &table->s->all_set;
