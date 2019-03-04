@@ -3355,6 +3355,56 @@ int spider_param_slave_trx_isolation()
   DBUG_RETURN(spider_slave_trx_isolation);
 }
 
+/*
+ -1 :not set
+  0-:seconds of timeout
+ */
+static MYSQL_THDVAR_INT(
+  remote_wait_timeout, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Wait timeout on remote server", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  2147483647, /* max */
+  0 /* blk */
+);
+
+int spider_param_remote_wait_timeout(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_remote_wait_timeout");
+  if (likely(thd))
+    DBUG_RETURN(THDVAR(thd, remote_wait_timeout));
+  DBUG_RETURN(-1);
+}
+
+/*
+ -1 :not set
+  0-:seconds of timeout
+ */
+static MYSQL_THDVAR_INT(
+  wait_timeout, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Wait timeout of setting to remote server", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  604800, /* def */
+  -1, /* min */
+  2147483647, /* max */
+  0 /* blk */
+);
+
+int spider_param_wait_timeout(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_wait_timeout");
+  if (likely(thd))
+    DBUG_RETURN(THDVAR(thd, wait_timeout));
+  DBUG_RETURN(604800);
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3505,6 +3555,8 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(table_crd_thread_count),
 #endif
   MYSQL_SYSVAR(slave_trx_isolation),
+  MYSQL_SYSVAR(remote_wait_timeout),
+  MYSQL_SYSVAR(wait_timeout),
   NULL
 };
 
