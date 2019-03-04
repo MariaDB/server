@@ -13,6 +13,7 @@ connection node_1;
 SET @@debug_dbug = "d,sync.wsrep_before_mdl_wait";
 SELECT * FROM t2;;
 connection node_1a;
+SET @@debug_dbug = "d,sync.wsrep_after_BF_victim_lock";
 connection node_2;
 UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
 connection node_1a;

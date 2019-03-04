@@ -41,8 +41,9 @@ connection node_1;
 INSERT INTO t1 VALUES (5);
 connection node_2;
 SELECT MAX(id) FROM t1 ;
-SET GLOBAL debug_dbug = "";
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;
+SET GLOBAL debug_dbug = "";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 connection node_2;
 MAX(id)
