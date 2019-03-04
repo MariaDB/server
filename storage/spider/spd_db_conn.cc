@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -381,6 +382,13 @@ int spider_db_conn_queue_action(
           append_sql_log_off(&sql_str, conn->queued_sql_log_off_val))
       ) ||
       (
+        conn->queued_wait_timeout &&
+        conn->queued_wait_timeout_val != conn->wait_timeout &&
+        conn->db_conn->set_wait_timeout_in_bulk_sql() &&
+        (error_num = spider_dbton[conn->dbton_id].db_util->
+          append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
+      ) ||
+      (
         conn->queued_time_zone &&
         conn->queued_time_zone_val != conn->time_zone &&
         conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -453,6 +461,15 @@ int spider_db_conn_queue_action(
       DBUG_RETURN(error_num);
     }
     if (
+      conn->queued_wait_timeout &&
+      conn->queued_wait_timeout_val != conn->wait_timeout &&
+      !conn->db_conn->set_wait_timeout_in_bulk_sql() &&
+      (error_num = spider_dbton[conn->dbton_id].db_util->
+        append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+    if (
       conn->queued_time_zone &&
       conn->queued_time_zone_val != conn->time_zone &&
       !conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -517,6 +534,13 @@ int spider_db_conn_queue_action(
       conn->trx_isolation = thd_tx_isolation(conn->thd);
       DBUG_PRINT("info", ("spider conn->trx_isolation=%d",
         conn->trx_isolation));
+    }
+
+    if (
+      conn->queued_wait_timeout &&
+      conn->queued_wait_timeout_val != conn->wait_timeout
+    ) {
+      conn->wait_timeout = conn->queued_wait_timeout_val;
     }
 
     if (conn->queued_autocommit)
