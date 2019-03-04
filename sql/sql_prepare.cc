@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2944,7 +2944,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
   }
   for (; sl; sl= sl->next_select_in_list())
   {
-    if (!sl->first_execution)
+    if (sl->changed_elements & TOUCHED_SEL_COND)
     {
       /* remove option which was put by mysql_explain_union() */
       sl->options&= ~SELECT_DESCRIBE;
@@ -2991,8 +2991,13 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
           order->next= sl->group_list_ptrs->at(ix+1);
         }
       }
+    }
+    { // no harm to do it (item_ptr set on parsing)
+      ORDER *order;
       for (order= sl->group_list.first; order; order= order->next)
+      {
         order->item= &order->item_ptr;
+      }
       /* Fix ORDER list */
       for (order= sl->order_list.first; order; order= order->next)
         order->item= &order->item_ptr;
@@ -3006,15 +3011,16 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
         for (order= win_spec->order_list->first; order; order= order->next)
           order->item= &order->item_ptr;
       }
-
-      {
-#ifndef DBUG_OFF
-        bool res=
-#endif
-          sl->handle_derived(lex, DT_REINIT);
-        DBUG_ASSERT(res == 0);
-      }
     }
+    if (sl->changed_elements & TOUCHED_SEL_DERIVED)
+    {
+#ifndef DBUG_OFF
+      bool res=
+#endif
+        sl->handle_derived(lex, DT_REINIT);
+      DBUG_ASSERT(res == 0);
+    }
+
     {
       SELECT_LEX_UNIT *unit= sl->master_unit();
       unit->unclean();

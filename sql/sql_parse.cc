@@ -1616,7 +1616,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     Commands which always take a long time are logged into
     the slow log only if opt_log_slow_admin_statements is set.
   */
-  thd->enable_slow_log= thd->variables.sql_log_slow;
+  thd->enable_slow_log= true;
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
   thd->reset_kill_query();
@@ -2444,6 +2444,31 @@ com_multi_end:
 }
 
 
+static bool log_slow_enabled_statement(const THD *thd)
+{
+  /*
+    TODO-10.4: Add classes Sql_cmd_create_index and Sql_cmd_drop_index
+    for symmetry with other admin commands, so these statements can be
+    handled by this command:
+  */
+  if (thd->lex->m_sql_cmd)
+    return thd->lex->m_sql_cmd->log_slow_enabled_statement(thd);
+
+  /*
+    Currently CREATE INDEX or DROP INDEX cause a full table rebuild
+    and thus classify as slow administrative statements just like
+    ALTER TABLE.
+  */
+  if ((thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
+       thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
+      !opt_log_slow_admin_statements)
+    return true;
+
+  return global_system_variables.sql_log_slow &&
+         thd->variables.sql_log_slow;
+}
+
+
 /*
   @note
     This function must call delete_explain_query().
@@ -2460,13 +2485,18 @@ void log_slow_statement(THD *thd)
   if (unlikely(thd->in_sub_stmt))
     goto end;                           // Don't set time for sub stmt
 
+  /*
+    Skip both long_query_count increment and logging if the current
+    statement forces slow log suppression (e.g. an SP statement).
 
-  /* Follow the slow log filter configuration. */ 
-  if (!thd->enable_slow_log || !global_system_variables.sql_log_slow ||
-      (thd->variables.log_slow_filter
-        && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
-    goto end; 
- 
+    Note, we don't check for global_system_variables.sql_log_slow here.
+    According to the manual, the "Slow_queries" status variable does not require
+    sql_log_slow to be ON. So even if sql_log_slow is OFF, we still need to
+    continue and increment long_query_count (and skip only logging, see below):
+  */
+  if (!thd->enable_slow_log)
+    goto end; // E.g. SP statement
+
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
        ((thd->server_status &
          (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
@@ -2475,12 +2505,24 @@ void log_slow_statement(THD *thd)
       thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
   {
     thd->status_var.long_query_count++;
+
+    if (!log_slow_enabled_statement(thd))
+      goto end;
+
     /*
       If rate limiting of slow log writes is enabled, decide whether to log
       this query to the log or not.
     */ 
     if (thd->variables.log_slow_rate_limit > 1 &&
         (global_query_id % thd->variables.log_slow_rate_limit) != 0)
+      goto end;
+
+    /*
+      Follow the slow log filter configuration:
+      skip logging if the current statement matches the filter.
+    */
+    if (thd->variables.log_slow_filter &&
+        !(thd->variables.log_slow_filter & thd->query_plan_flags))
       goto end;
 
     THD_STAGE_INFO(thd, stage_logging_slow_query);
@@ -4033,12 +4075,6 @@ end_with_restore_list:
     if (check_one_table_access(thd, INDEX_ACL, all_tables))
       goto error; /* purecov: inspected */
     WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
-    /*
-      Currently CREATE INDEX or DROP INDEX cause a full table rebuild
-      and thus classify as slow administrative statements just like
-      ALTER TABLE.
-    */
-    thd->enable_slow_log&= opt_log_slow_admin_statements;
     thd->query_plan_flags|= QPLAN_ADMIN;
 
     bzero((char*) &create_info, sizeof(create_info));
