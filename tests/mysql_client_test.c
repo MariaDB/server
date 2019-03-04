@@ -18426,6 +18426,7 @@ static void test_bug42373()
   DIE_UNLESS(rc == 1);
 
   mysql_stmt_close(stmt);
+  mysql_close(&con);
 
   /* Now try with a multi-statement. */
   DIE_UNLESS(mysql_client_init(&con));
@@ -18888,8 +18889,6 @@ static void test_progress_reporting()
 
 
   conn= client_connect(CLIENT_PROGRESS_OBSOLETE, MYSQL_PROTOCOL_TCP, 0);
-  if (!(conn->server_capabilities & CLIENT_PROGRESS_OBSOLETE))
-    return;
   DIE_UNLESS(conn->client_flag & CLIENT_PROGRESS_OBSOLETE);
 
   mysql_options(conn, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
@@ -19739,6 +19738,7 @@ static void test_bulk_delete()
     DIE_IF(atoi(row[0]) != 3);
   }
   DIE_IF(i != 1);
+  mysql_free_result(result);
 
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
