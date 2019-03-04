@@ -4451,6 +4451,11 @@ public:
   bool stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params);
   bool stmt_execute_immediate(Item *code, List<Item> *params);
   void stmt_deallocate_prepare(const Lex_ident_sys_st &ident);
+
+  bool stmt_alter_table_exchange_partition(Table_ident *table);
+
+  void stmt_purge_to(const LEX_CSTRING &to);
+  bool stmt_purge_before(Item *item);
 };
 
 

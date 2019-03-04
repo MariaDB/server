@@ -31,8 +31,10 @@
 #include "sql_select.h"
 #include "sql_cte.h"
 #include "sql_signal.h"
+#include "sql_truncate.h"                      // Sql_cmd_truncate_table
+#include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
 #include "sql_partition.h"
-
+#include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
 
 void LEX::parse_error(uint err_number)
 {
@@ -8756,7 +8758,7 @@ bool LEX::tvc_finalize()
 bool LEX::tvc_finalize_derived()
 {
   derived_tables|= DERIVED_SUBQUERY;
-  if (unlikely(!expr_allows_subselect || sql_command == (int)SQLCOM_PURGE))
+  if (unlikely(!expr_allows_subselect))
   {
     thd->parse_error();
     return true;
@@ -9004,7 +9006,7 @@ Item *LEX::create_item_query_expression(THD *thd,
                                         const char *tok_start,
                                         st_select_lex_unit *unit)
 {
-  if (!expr_allows_subselect || sql_command == SQLCOM_PURGE)
+  if (!expr_allows_subselect)
   {
     thd->parse_error(ER_SYNTAX_ERROR, tok_start);
     return NULL;
@@ -9247,8 +9249,7 @@ SELECT_LEX_UNIT *LEX::parsed_body_unit_tail(SELECT_LEX_UNIT *unit,
 
 SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit, char *place)
 {
-  if (!expr_allows_subselect ||
-      sql_command == (int)SQLCOM_PURGE)
+  if (!expr_allows_subselect)
   {
     thd->parse_error(ER_SYNTAX_ERROR, place);
     return NULL;
@@ -10262,4 +10263,42 @@ void LEX::stmt_deallocate_prepare(const Lex_ident_sys_st &ident)
 {
   sql_command= SQLCOM_DEALLOCATE_PREPARE;
   prepared_stmt.set(ident, NULL, NULL);
+}
+
+
+bool LEX::stmt_alter_table_exchange_partition(Table_ident *table)
+{
+  DBUG_ASSERT(sql_command == SQLCOM_ALTER_TABLE);
+  first_select_lex()->db= table->db;
+  if (first_select_lex()->db.str == NULL &&
+      copy_db_to(&first_select_lex()->db))
+    return true;
+  name= table->table;
+  alter_info.partition_flags|= ALTER_PARTITION_EXCHANGE;
+  if (!first_select_lex()->add_table_to_list(thd, table, NULL,
+                                             TL_OPTION_UPDATING,
+                                             TL_READ_NO_INSERT,
+                                             MDL_SHARED_NO_WRITE))
+    return true;
+  DBUG_ASSERT(!m_sql_cmd);
+  m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table_exchange_partition();
+  return m_sql_cmd == NULL;
+}
+
+
+void LEX::stmt_purge_to(const LEX_CSTRING &to)
+{
+  type= 0;
+  sql_command= SQLCOM_PURGE;
+  to_log= to.str;
+}
+
+
+bool LEX::stmt_purge_before(Item *item)
+{
+  type= 0;
+  sql_command= SQLCOM_PURGE_BEFORE;
+  value_list.empty();
+  value_list.push_front(item, thd->mem_root);
+  return check_main_unit_semantics();
 }

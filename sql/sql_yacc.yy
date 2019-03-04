@@ -1856,7 +1856,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <item>
         literal insert_ident order_ident temporal_literal
-        simple_ident expr prepare_src sum_expr in_sum_expr
+        simple_ident expr expr_no_subselect sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
@@ -2318,14 +2318,14 @@ deallocate_or_drop:
         ;
 
 prepare:
-          PREPARE_SYM ident FROM prepare_src
+          PREPARE_SYM ident FROM expr_no_subselect
           {
             if (Lex->stmt_prepare($2, $4))
               MYSQL_YYABORT;
           }
         ;
 
-prepare_src:
+expr_no_subselect:
           { Lex->expr_allows_subselect= false; }
           expr
           {
@@ -2340,7 +2340,7 @@ execute:
             if (Lex->stmt_execute($2, $3))
               MYSQL_YYABORT;
           }
-        | EXECUTE_SYM IMMEDIATE_SYM prepare_src execute_using
+        | EXECUTE_SYM IMMEDIATE_SYM expr_no_subselect execute_using
           {
             if (Lex->stmt_execute_immediate($3, $4))
               MYSQL_YYABORT;
@@ -8182,23 +8182,7 @@ alter_commands:
         | EXCHANGE_SYM PARTITION_SYM alt_part_name_item
           WITH TABLE_SYM table_ident have_partitioning
           {
-            LEX *lex= thd->lex;
-            lex->first_select_lex()->db=$6->db;
-            if (lex->first_select_lex()->db.str == NULL &&
-                lex->copy_db_to(&lex->first_select_lex()->db))
-            {
-              MYSQL_YYABORT;
-            }
-            lex->name= $6->table;
-            lex->alter_info.partition_flags|= ALTER_PARTITION_EXCHANGE;
-            if (!lex->first_select_lex()->
-              add_table_to_list(thd, $6, NULL, TL_OPTION_UPDATING,
-                                TL_READ_NO_INSERT, MDL_SHARED_NO_WRITE))
-              MYSQL_YYABORT;
-            DBUG_ASSERT(!lex->m_sql_cmd);
-            lex->m_sql_cmd= new (thd->mem_root)
-                               Sql_cmd_alter_table_exchange_partition();
-            if (unlikely(lex->m_sql_cmd == NULL))
+            if (Lex->stmt_alter_table_exchange_partition($6))
               MYSQL_YYABORT;
           }
         ;
@@ -14715,35 +14699,17 @@ master_reset_options:
         ;
 
 purge:
-          PURGE
+          PURGE master_or_binary LOGS_SYM TO_SYM TEXT_STRING_sys
           {
-            LEX *lex=Lex;
-            lex->type=0;
-            lex->sql_command = SQLCOM_PURGE;
+            Lex->stmt_purge_to($5);
           }
-          purge_options
-          {}
-        ;
-
-purge_options:
-          master_or_binary LOGS_SYM purge_option
-        ;
-
-purge_option:
-          TO_SYM TEXT_STRING_sys
+        | PURGE master_or_binary LOGS_SYM BEFORE_SYM expr_no_subselect
           {
-            Lex->to_log = $2.str;
-          }
-        | BEFORE_SYM expr
-          {
-            LEX *lex= Lex;
-            lex->value_list.empty();
-            lex->value_list.push_front($2, thd->mem_root);
-            lex->sql_command= SQLCOM_PURGE_BEFORE;
-            if (Lex->check_main_unit_semantics())
+            if (Lex->stmt_purge_before($5))
               MYSQL_YYABORT;
           }
         ;
+
 
 /* kill threads */
 
