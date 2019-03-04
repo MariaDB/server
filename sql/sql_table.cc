@@ -4179,6 +4179,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
     if (is_hash_field_needed ||
         (key_info->algorithm == HA_KEY_ALG_HASH &&
+         key->type != Key::PRIMARY &&
          key_info->flags & HA_NOSAME &&
          !(file->ha_table_flags() & HA_CAN_HASH_KEYS ) &&
          file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS))

@@ -141,3 +141,12 @@ CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
 ALTER TABLE t1 DROP x;
 SELECT * FROM t1 WHERE f LIKE 'foo';
 DROP TABLE t1;
+
+#
+# MDEV-18800 Server crash in instant_alter_column_possible or
+#   Assertion `!pk->has_virtual()' failed in instant_alter_column_possible upon adding key
+#
+CREATE TABLE t1 (pk INT, PRIMARY KEY USING HASH (pk)) ENGINE=InnoDB;
+--query_vertical show keys from t1;
+ALTER TABLE t1 ADD INDEX (pk);
+DROP TABLE t1;

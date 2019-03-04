@@ -112,3 +112,20 @@ ERROR 42000: Can't DROP COLUMN `x`; check that it exists
 SELECT * FROM t1 WHERE f LIKE 'foo';
 f
 DROP TABLE t1;
+CREATE TABLE t1 (pk INT, PRIMARY KEY USING HASH (pk)) ENGINE=InnoDB;
+show keys from t1;;
+Table	t1
+Non_unique	0
+Key_name	PRIMARY
+Seq_in_index	1
+Column_name	pk
+Collation	A
+Cardinality	0
+Sub_part	NULL
+Packed	NULL
+Null	
+Index_type	BTREE
+Comment	
+Index_comment	
+ALTER TABLE t1 ADD INDEX (pk);
+DROP TABLE t1;
