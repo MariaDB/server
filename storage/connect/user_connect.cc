@@ -177,6 +177,7 @@ bool user_connect::CheckCleanup(bool force)
     g->Createas = 0;
     g->Alchecked = 0;
     g->Mrr = 0;
+		g->More = 0;
     last_query_id= thdp->query_id;
 
     if (trace(65) && !force)
