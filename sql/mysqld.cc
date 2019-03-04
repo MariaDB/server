@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4299,7 +4299,7 @@ static int init_common_variables()
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
-  mysql_real_data_home_len= strlen(mysql_real_data_home);
+  mysql_real_data_home_len= uint(strlen(mysql_real_data_home));
 
   if (!opt_abort)
   {
