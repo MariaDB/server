@@ -614,3 +614,31 @@ create table t2 (b int);
 insert into t2 values (1),(2);
 update t1, t2 set a = 1;
 drop table t1, t2;
+#
+# MDEV-17091 Assertion `old_part_id == m_last_part' failed in
+# ha_partition::update_row or `part_id == m_last_part' in
+# ha_partition::delete_row upon UPDATE/DELETE after dropping versioning
+#
+create or replace table t1 (pk int primary key, f int) engine=innodb
+with system versioning
+partition by key() partitions 2;
+insert into t1 values (1,10),(2,20);
+# expected to hit same partition
+select * from t1 partition (p0);
+pk	f
+1	10
+2	20
+alter table t1 drop system versioning;
+# 1 and 2 are expected to be in different partitions
+select * from t1 partition(p0);
+pk	f
+1	10
+select * from t1 partition(p1);
+pk	f
+2	20
+update t1 set f=pk;
+delete from t1;
+drop table t1;
+# Test cleanup
+drop database test;
+create database test;
