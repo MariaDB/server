@@ -13679,12 +13679,11 @@ delete:
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_DELETE;
-            mysql_init_select(lex);
             YYPS->m_lock_type= TL_WRITE_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_WRITE;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
-
+            mysql_init_select(lex);
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
           }
