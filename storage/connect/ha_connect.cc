@@ -3663,7 +3663,7 @@ int ha_connect::update_row(const uchar *old_data, const uchar *new_data)
 
   // Check values for possible change in indexed column
   if ((rc= CheckRecord(g, old_data, new_data)))
-	  DBUG_RETURN(rc);
+		DBUG_RETURN(rc);
 
   if (CntUpdateRow(g, tdbp)) {
     DBUG_PRINT("update_row", ("%s", g->Message));
@@ -4712,7 +4712,7 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
     case TL_WRITE_ONLY:
       newmode= MODE_WRITE;
 			break;
-    case TL_READ:
+		case TL_READ:
     case TL_READ_WITH_SHARED_LOCKS:
     case TL_READ_HIGH_PRIORITY:
     case TL_READ_NO_INSERT:
@@ -4950,7 +4950,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 int ha_connect::check_stmt(PGLOBAL g, MODE newmode, bool cras)
 {
 	int rc= 0;
-	DBUG_ENTER("ha_connect::check_lock");
+	DBUG_ENTER("ha_connect::check_stmt");
 
 	// If this is the start of a new query, cleanup the previous one
   if (xp->CheckCleanup()) {
@@ -4966,7 +4966,7 @@ int ha_connect::check_stmt(PGLOBAL g, MODE newmode, bool cras)
 
   // Set or reset the good database environment
   if (CntCheckDB(g, this, GetDBName(NULL))) {
-    htrc("%p check_lock: %s\n", this, g->Message);
+    htrc("%p check_stmt: %s\n", this, g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
   // This can NOT be called without open called first, but
   // the table can have been closed since then
@@ -4987,7 +4987,7 @@ int ha_connect::check_stmt(PGLOBAL g, MODE newmode, bool cras)
   } // endif tdbp
 
   if (trace(1))
-    htrc("check_lock: rc=%d\n", rc);
+    htrc("check_stmt: rc=%d\n", rc);
 
   DBUG_RETURN(rc);
 } // end of check_stmt
