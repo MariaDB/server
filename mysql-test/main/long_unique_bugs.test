@@ -94,3 +94,50 @@ alter table t1 add unique(b);
 --error ER_DUP_ENTRY
 insert into t1 values(1,1);
 DROP TABLE t1;
+
+#
+# MDEV-18792 ASAN unknown-crash in _mi_pack_key upon UPDATE after failed ALTER on a table with long BLOB key
+#
+CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=MyISAM;
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 DROP x;
+UPDATE t1 SET b = 0 WHERE a = 'foo';
+DROP TABLE t1;
+
+#
+# MDEV-18793 Assertion `0' failed in row_sel_convert_mysql_key_to_innobase, ASAN unknown-crash in
+#    row_mysql_store_col_in_innobase_format, warning " InnoDB: Using a partial-field key prefix in search"
+#
+CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=InnoDB;
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 DROP x;
+UPDATE t1 SET b = 0 WHERE a = 'foo';
+DROP TABLE t1;
+
+#
+# MDEV-18795 InnoDB: Failing assertion: field->prefix_len > 0 upon DML on table with BLOB index
+#
+CREATE TEMPORARY TABLE t1 (f BLOB, UNIQUE(f)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+--error ER_INDEX_COLUMN_TOO_LONG
+ALTER TABLE t1 ADD KEY (f);
+TRUNCATE TABLE t1;
+SELECT * FROM t1 WHERE f LIKE 'foo';
+DROP TABLE t1;
+
+#
+# MDEV-18798 InnoDB: No matching column for `DB_ROW_HASH_1`and server crash in
+#   ha_innobase::commit_inplace_alter_table upon ALTER on table with UNIQUE key
+#
+CREATE TABLE t1 (a INT, UNIQUE ind USING HASH (a)) ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS b a INT;
+DROP TABLE t1;
+
+#
+# MDEV-18801 InnoDB: Failing assertion: field->col->mtype == type or ASAN heap-buffer-overflow
+#   in row_sel_convert_mysql_key_to_innobase upon SELECT on table with long index
+#
+CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 DROP x;
+SELECT * FROM t1 WHERE f LIKE 'foo';
+DROP TABLE t1;

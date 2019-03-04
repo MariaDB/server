@@ -84,3 +84,31 @@ Index_comment
 insert into t1 values(1,1);
 ERROR 23000: Duplicate entry '1' for key 'a'
 DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP x;
+ERROR 42000: Can't DROP COLUMN `x`; check that it exists
+UPDATE t1 SET b = 0 WHERE a = 'foo';
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP x;
+ERROR 42000: Can't DROP COLUMN `x`; check that it exists
+UPDATE t1 SET b = 0 WHERE a = 'foo';
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (f BLOB, UNIQUE(f)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 ADD KEY (f);
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+TRUNCATE TABLE t1;
+SELECT * FROM t1 WHERE f LIKE 'foo';
+f
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, UNIQUE ind USING HASH (a)) ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS b a INT;
+Warnings:
+Note	1054	Unknown column 'b' in 't1'
+DROP TABLE t1;
+CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP x;
+ERROR 42000: Can't DROP COLUMN `x`; check that it exists
+SELECT * FROM t1 WHERE f LIKE 'foo';
+f
+DROP TABLE t1;
