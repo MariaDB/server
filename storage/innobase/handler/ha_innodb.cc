@@ -11301,7 +11301,7 @@ err_col:
 			err = row_create_table_for_mysql(
 				table, m_trx,
 				fil_encryption_t(options->encryption),
-				options->encryption_key_id);
+				uint32_t(options->encryption_key_id));
 			m_drop_before_rollback = (err == DB_SUCCESS);
 		}
 
@@ -11800,12 +11800,13 @@ create_table_info_t::check_table_options()
 		}
 		/* fall through */
 	case FIL_ENCRYPTION_ON:
-		if (!encryption_key_id_exists(options->encryption_key_id)) {
+		const uint32_t key_id = uint32_t(options->encryption_key_id);
+		if (!encryption_key_id_exists(key_id)) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ENCRYPTION_KEY_ID %u not available",
-				options->encryption_key_id);
+				key_id);
 			return "ENCRYPTION_KEY_ID";
 		}
 
