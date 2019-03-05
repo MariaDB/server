@@ -87,3 +87,119 @@ c
 0
 1
 DROP TABLE t1;
+CREATE TABLE t1(c INT, g INT AS (c) PERSISTENT) ENGINE=InnoDB;
+CREATE TABLE t2(c INT, v INT AS (c) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t3(c INT, v INT AS (c) VIRTUAL, INDEX(v)) ENGINE=InnoDB;
+INSERT INTO t1 SET c=NULL;
+INSERT INTO t2 SET c=NULL;
+INSERT INTO t3 SET c=NULL;
+SET @old_sql_mode = @@sql_mode;
+SET sql_mode = '';
+ALTER TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER TABLE t2 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER TABLE t3 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SET sql_mode = @old_sql_mode;
+SELECT * FROM t1;
+c	g
+0	0
+SELECT * FROM t2;
+c	v
+0	0
+SELECT * FROM t3;
+c	v
+0	0
+SELECT v FROM t3 FORCE INDEX(v);
+v
+0
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1(c INT, g INT AS (c) PERSISTENT) ENGINE=InnoDB;
+CREATE TABLE t2(c INT, v INT AS (c) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t3(c INT, v INT AS (c) VIRTUAL, INDEX(v)) ENGINE=InnoDB;
+INSERT INTO t1 SET c=NULL;
+INSERT INTO t2 SET c=NULL;
+INSERT INTO t3 SET c=NULL;
+ALTER IGNORE TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER IGNORE TABLE t2 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER IGNORE TABLE t3 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT * FROM t1;
+c	g
+0	0
+SELECT * FROM t2;
+c	v
+0	0
+SELECT * FROM t3;
+c	v
+0	0
+SELECT v FROM t3 FORCE INDEX(v);
+v
+0
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1(c INT, g INT AS (c) PERSISTENT) ENGINE=InnoDB;
+CREATE TABLE t2(c INT, v INT AS (c) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t3(c INT, v INT AS (c) VIRTUAL, INDEX(v)) ENGINE=InnoDB;
+INSERT INTO t1 SET c=NULL;
+INSERT INTO t2 SET c=NULL;
+INSERT INTO t3 SET c=NULL;
+ALTER TABLE t1 MODIFY c INT NOT NULL;
+ERROR 22004: Invalid use of NULL value
+ALTER TABLE t2 MODIFY c INT NOT NULL;
+ERROR 22004: Invalid use of NULL value
+ALTER TABLE t3 MODIFY c INT NOT NULL;
+ERROR 01000: Data truncated for column 'c' at row 1
+UPDATE t1 SET c=0;
+UPDATE t2 SET c=0;
+UPDATE t3 SET c=0;
+ALTER TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 MODIFY c INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# MDEV-18819 FIXME: This should not require ALGORITHM=COPY.
+ALTER TABLE t3 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+c	g
+0	0
+SELECT * FROM t2;
+c	v
+0	0
+SELECT * FROM t3;
+c	v
+0	0
+DROP TABLE t1,t2,t3;
