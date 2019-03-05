@@ -6689,6 +6689,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
     next=tmp;
   }
   join->best_ref[idx]=table;
+  join->positions[idx].spl_plan= 0;
 }
 
 

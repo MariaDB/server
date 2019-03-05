@@ -94,3 +94,32 @@ eval EXPLAIN $q;
 set join_cache_level=default;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug mdev-18467: join of grouping view and a base table as inner operand
+--echo #                 of left join with on condition containing impossible range
+--echo #
+
+create table t1 (f1 int, f2 int, key(f2)) engine=InnoDB;
+insert into t1 values (3,33), (7,77), (1,11);
+
+create table t2 (f1 int, f2 int, primary key (f1)) engine=InnoDB;
+insert into t2 values (3,33), (9,99), (1,11);
+
+create view v1 as
+  select f1, max(f2) as f2 from t2 group by f1;
+
+let $q=
+select t.f2
+  from t1
+       left join
+       (v1 join t1 as t on v1.f1=t.f1 and t.f2 = null)
+       on t1.f1=t.f1;
+
+eval $q;
+eval explain $q;
+eval set statement optimizer_switch='split_materialized=off' for explain $q;
+
+drop view v1;
+
+drop table t1,t2;
