@@ -2591,7 +2591,7 @@ ha_mroonga::~ha_mroonga()
   }
   if (blob_buffers)
   {
-    delete [] blob_buffers;
+    ::delete [] blob_buffers;
   }
   grn_obj_unlink(ctx, &top_left_point);
   grn_obj_unlink(ctx, &bottom_right_point);
