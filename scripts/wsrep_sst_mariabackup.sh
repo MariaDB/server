@@ -826,7 +826,7 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -949,8 +949,8 @@ then
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
     ib_home_dir=$INNODB_DATA_HOME_DIR
-    ib_log_dir=$(parse_cnf mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf mysqld innodb-undo-directory "")
+    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
 
     stagemsg="Joiner-Recv"
 
@@ -1028,7 +1028,7 @@ then
             find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
         fi
 
-        tempdir=$(parse_cnf mysqld log-bin "")
+        tempdir=$(parse_cnf --mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)
