@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@
 #include "records.h"                            // init_read_record,
 #include "filesort.h"
 #include "uniques.h"
-#include "sql_derived.h"                        // mysql_handle_list_of_derived
+#include "sql_derived.h"                        // mysql_handle_derived
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
 
@@ -335,9 +335,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
   }
 
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
+  if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_PREPARE))
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
   if (!table_list->single_table_updatable())

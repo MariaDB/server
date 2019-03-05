@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2317,7 +2317,7 @@ void st_select_lex::init_query()
   hidden_bit_fields= 0;
   subquery_in_having= explicit_limit= 0;
   is_item_list_lookup= 0;
-  first_execution= 1;
+  changed_elements= 0;
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
   parsing_place= NO_MATTER;
@@ -3843,10 +3843,11 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
                                             Item **having_conds)
 {
   DBUG_ENTER("st_select_lex::fix_prepare_information");
-  if (!thd->stmt_arena->is_conventional() && first_execution)
+  if (!thd->stmt_arena->is_conventional() &&
+      !(changed_elements & TOUCHED_SEL_COND))
   {
     Query_arena_stmt on_stmt_arena(thd);
-    first_execution= 0;
+    changed_elements|= TOUCHED_SEL_COND;
     if (group_list.first)
     {
       if (!group_list_ptrs)
@@ -4097,14 +4098,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
 
 bool st_select_lex::handle_derived(LEX *lex, uint phases)
 {
-  for (TABLE_LIST *cursor= (TABLE_LIST*) table_list.first;
-       cursor;
-       cursor= cursor->next_local)
-  {
-    if (cursor->is_view_or_derived() && cursor->handle_derived(lex, phases))
-      return TRUE;
-  }
-  return FALSE;
+  return lex->handle_list_of_derived(table_list.first, phases);
 }
 
 
@@ -5107,6 +5101,20 @@ bool LEX::is_partition_management() const
   return (sql_command == SQLCOM_ALTER_TABLE &&
           (alter_info.partition_flags ==  ALTER_PARTITION_ADD ||
            alter_info.partition_flags ==  ALTER_PARTITION_REORGANIZE));
+}
+
+
+bool Sql_cmd::log_slow_enabled_statement(const THD *thd) const
+{
+  return global_system_variables.sql_log_slow && thd->variables.sql_log_slow;
+}
+
+
+bool Sql_cmd_admin::log_slow_enabled_statement(const THD *thd) const
+{
+  return !MY_TEST(thd->variables.log_slow_disabled_statements &
+                  LOG_SLOW_DISABLE_ADMIN) &&
+         Sql_cmd::log_slow_enabled_statement(thd);
 }
 
 

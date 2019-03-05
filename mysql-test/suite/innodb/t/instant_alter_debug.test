@@ -248,7 +248,7 @@ UPDATE t1 SET d=1;
 
 connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
-send ALTER IGNORE TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY (a,d);
+send ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY (a,d);
 
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
