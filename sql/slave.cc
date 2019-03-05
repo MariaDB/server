@@ -995,6 +995,8 @@ static void make_slave_transaction_retry_errors_printable(void)
 }
 
 
+#define DEFAULT_SLAVE_RETRY_ERRORS 9
+
 bool init_slave_transaction_retry_errors(const char* arg)
 {
   const char *p;
@@ -1006,7 +1008,7 @@ bool init_slave_transaction_retry_errors(const char* arg)
   if (!arg)
     arg= "";
 
-  slave_transaction_retry_error_length= 2;
+  slave_transaction_retry_error_length= DEFAULT_SLAVE_RETRY_ERRORS;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
   for (p= arg; *p; )
@@ -1029,11 +1031,18 @@ bool init_slave_transaction_retry_errors(const char* arg)
     currently, InnoDB deadlock detected by InnoDB or lock
     wait timeout (innodb_lock_wait_timeout exceeded
   */
-  slave_transaction_retry_errors[0]= ER_LOCK_DEADLOCK;
-  slave_transaction_retry_errors[1]= ER_LOCK_WAIT_TIMEOUT;
+  slave_transaction_retry_errors[0]= ER_NET_READ_ERROR;
+  slave_transaction_retry_errors[1]= ER_NET_READ_INTERRUPTED;
+  slave_transaction_retry_errors[2]= ER_NET_ERROR_ON_WRITE;
+  slave_transaction_retry_errors[3]= ER_NET_WRITE_INTERRUPTED;
+  slave_transaction_retry_errors[4]= ER_LOCK_WAIT_TIMEOUT;
+  slave_transaction_retry_errors[5]= ER_LOCK_DEADLOCK;
+  slave_transaction_retry_errors[6]= ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
+  slave_transaction_retry_errors[7]= 2013; /* CR_SERVER_LOST */
+  slave_transaction_retry_errors[8]= 12701; /* ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM */
 
   /* Add user codes after this */
-  for (p= arg, i= 2; *p; )
+  for (p= arg, i= DEFAULT_SLAVE_RETRY_ERRORS; *p; )
   {
     if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
       break;
