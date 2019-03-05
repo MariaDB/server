@@ -12,7 +12,7 @@ set sql_mode=ansi_quotes;
 set global div_precision_increment=5;
 
 --replace_regex /^\/\S+/PATH/
---replace_result $MASTER_MYPORT MASTER_MYPORT
+--replace_result $MASTER_MYPORT MASTER_MYPORT 372736 299008
 select * from information_schema.system_variables
   where variable_name not like 'aria%' and
         variable_name not like 'debug%' and

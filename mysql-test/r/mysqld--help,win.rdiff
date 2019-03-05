@@ -133,6 +133,6 @@
 -thread-pool-oversubscribe 3
 -thread-pool-stall-limit 500
 +thread-pool-min-threads 1
- thread-stack 295936
+ thread-stack 299008
  time-format %H:%i:%s
  timed-mutexes FALSE

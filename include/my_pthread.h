@@ -734,7 +734,11 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#define DEFAULT_THREAD_STACK	(289*1024L)
+#ifdef __SANITIZE_ADDRESS__
+#define DEFAULT_THREAD_STACK	(364*1024L)
+#else
+#define DEFAULT_THREAD_STACK	(292*1024L)
+#endif
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0

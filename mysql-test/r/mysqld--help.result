@@ -1449,7 +1449,7 @@ thread-pool-idle-timeout 60
 thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
 thread-pool-stall-limit 500
-thread-stack 295936
+thread-stack 299008
 time-format %H:%i:%s
 timed-mutexes FALSE
 tmp-table-size 16777216
