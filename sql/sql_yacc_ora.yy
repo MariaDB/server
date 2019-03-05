@@ -1564,7 +1564,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
         view_list_opt view_list view_select
-        trigger_tail sp_tail sf_tail event_tail
+        trigger_tail event_tail
         udf_tail
         create_function_tail_standalone
         create_aggregate_function_tail_standalone
@@ -2362,15 +2362,14 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace definer_opt PROCEDURE_SYM
+        | create_or_replace definer_opt PROCEDURE_SYM opt_if_not_exists
           {
-            if (Lex->main_select_push())
+            if (Lex->stmt_create_procedure_start($1 | $4))
               MYSQL_YYABORT;
-            Lex->create_info.set($1);
           }
           sp_tail_standalone
           {
-            Lex->pop_select(); //main select
+            Lex->stmt_create_routine_finalize();
           }
         | create_or_replace definer_opt EVENT_SYM
           {
@@ -2382,45 +2381,41 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace definer FUNCTION_SYM
+        | create_or_replace definer FUNCTION_SYM opt_if_not_exists
           {
-            if (Lex->main_select_push())
+            if (Lex->stmt_create_function_start($1 | $4))
               MYSQL_YYABORT;
-            Lex->create_info.set($1);
           }
           sf_tail_standalone
           {
-            Lex->pop_select(); //main select
+            Lex->stmt_create_routine_finalize();
           }
-        | create_or_replace definer AGGREGATE_SYM FUNCTION_SYM
+        | create_or_replace definer AGGREGATE_SYM FUNCTION_SYM opt_if_not_exists
           {
-            if (Lex->main_select_push())
+            if (Lex->stmt_create_function_start($1 | $5))
               MYSQL_YYABORT;
-            Lex->create_info.set($1);
           }
           sf_tail_aggregate_standalone
           {
-            Lex->pop_select(); //main select
+            Lex->stmt_create_routine_finalize();
           }
-        | create_or_replace no_definer FUNCTION_SYM
+        | create_or_replace no_definer FUNCTION_SYM opt_if_not_exists
           {
-            if (Lex->main_select_push())
+            if (Lex->stmt_create_function_start($1 | $4))
               MYSQL_YYABORT;
-            Lex->create_info.set($1);
           }
           create_function_tail_standalone
           {
-            Lex->pop_select(); //main select
+            Lex->stmt_create_routine_finalize();
           }
-        | create_or_replace no_definer AGGREGATE_SYM FUNCTION_SYM
+        | create_or_replace no_definer AGGREGATE_SYM FUNCTION_SYM opt_if_not_exists
           {
-            if (Lex->main_select_push())
+            if (Lex->stmt_create_function_start($1 | $5))
               MYSQL_YYABORT;
-            Lex->create_info.set($1);
           }
           create_aggregate_function_tail_standalone
           {
-            Lex->pop_select(); //main select
+            Lex->stmt_create_routine_finalize();
           }
         | create_or_replace USER_SYM opt_if_not_exists clear_privileges
           grant_list opt_require_clause opt_resource_options opt_account_locking opt_password_expiration
@@ -17952,18 +17947,15 @@ trigger_tail:
 **************************************************************************/
 
 udf_tail:
-          opt_if_not_exists ident
-          RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
+          ident RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
           {
             LEX *lex= thd->lex;
-            if (unlikely(lex->add_create_options_with_check($1)))
-              MYSQL_YYABORT;
-            if (unlikely(is_native_function(thd, & $2)))
-              my_yyabort_error((ER_NATIVE_FCT_NAME_COLLISION, MYF(0), $2.str));
+            if (unlikely(is_native_function(thd, & $1)))
+              my_yyabort_error((ER_NATIVE_FCT_NAME_COLLISION, MYF(0), $1.str));
             lex->sql_command= SQLCOM_CREATE_FUNCTION;
-            lex->udf.name= $2;
-            lex->udf.returns= (Item_result) $4;
-            lex->udf.dl= $6.str;
+            lex->udf.name= $1;
+            lex->udf.returns= (Item_result) $3;
+            lex->udf.dl= $5.str;
           }
         ;
 
@@ -17984,12 +17976,10 @@ sf_return_type:
           }
         ;
 
-sf_tail:
-          opt_if_not_exists
+sf_tail_standalone:
           sp_name
           {
-            Lex->sql_command= SQLCOM_CREATE_SPFUNCTION;
-            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1, $2,
+            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
                                                          &sp_handler_function)))
               MYSQL_YYABORT;
           }
@@ -18005,17 +17995,17 @@ sf_tail:
           }
           sp_tail_is
           sp_body
+          opt_sp_name
           {
-            if (unlikely(Lex->sp_body_finalize_function(thd)))
+            if (unlikely(Lex->sp_body_finalize_function_standalone(thd, $9)))
               MYSQL_YYABORT;
           }
         ;
 
-sp_tail:
-          opt_if_not_exists sp_name
+sp_tail_standalone:
+          sp_name
           {
-            Lex->sql_command= SQLCOM_CREATE_PROCEDURE;
-            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1, $2,
+            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
                                                          &sp_handler_procedure)))
               MYSQL_YYABORT;
           }
@@ -18027,31 +18017,13 @@ sp_tail:
           }
           sp_tail_is
           sp_body
+          opt_sp_name
           {
-            if (unlikely(Lex->sp_body_finalize_procedure(thd)))
+            if (unlikely(Lex->sp_body_finalize_procedure_standalone(thd, $8)))
               MYSQL_YYABORT;
           }
         ;
 
-sf_tail_standalone:
-          sf_tail opt_sp_name
-          {
-            if (unlikely($2 && !$2->eq(Lex->sphead)))
-              my_yyabort_error((ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
-                                ErrConvDQName($2).ptr(),
-                                ErrConvDQName(Lex->sphead).ptr()));
-          }
-        ;
-
-sp_tail_standalone:
-          sp_tail opt_sp_name
-          {
-            if (unlikely($2 && !$2->eq(Lex->sphead)))
-              my_yyabort_error((ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
-                                ErrConvDQName($2).ptr(),
-                                ErrConvDQName(Lex->sphead).ptr()));
-          }
-        ;
 
 opt_package_routine_end_name:
           /* Empty */ { $$= null_clex_str; }

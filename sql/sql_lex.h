@@ -3737,16 +3737,10 @@ public:
   sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
                                      const Sp_handler *sph);
-  sp_head *make_sp_head_no_recursive(THD *thd,
-                                     DDL_options_st options, sp_name *name,
-                                     const Sp_handler *sph)
-  {
-    if (add_create_options_with_check(options))
-      return NULL;
-    return make_sp_head_no_recursive(thd, name, sph);
-  }
   bool sp_body_finalize_function(THD *);
   bool sp_body_finalize_procedure(THD *);
+  bool sp_body_finalize_function_standalone(THD *, const sp_name *end_name);
+  bool sp_body_finalize_procedure_standalone(THD *, const sp_name *end_name);
   sp_package *create_package_start(THD *thd,
                                    enum_sql_command command,
                                    const Sp_handler *sph,
@@ -4486,6 +4480,28 @@ public:
 
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);
+
+private:
+  bool stmt_create_routine_start(const DDL_options_st &options)
+  {
+    create_info.set(options);
+    return main_select_push() || check_create_options(options);
+  }
+public:
+  bool stmt_create_function_start(const DDL_options_st &options)
+  {
+    sql_command= SQLCOM_CREATE_SPFUNCTION;
+    return stmt_create_routine_start(options);
+  }
+  bool stmt_create_procedure_start(const DDL_options_st &options)
+  {
+    sql_command= SQLCOM_CREATE_PROCEDURE;
+    return stmt_create_routine_start(options);
+  }
+  void stmt_create_routine_finalize()
+  {
+    pop_select(); // main select
+  }
 };
 
 

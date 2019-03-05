@@ -6532,6 +6532,14 @@ bool LEX::sp_body_finalize_procedure(THD *thd)
 }
 
 
+bool LEX::sp_body_finalize_procedure_standalone(THD *thd,
+                                                const sp_name *end_name)
+{
+  return sp_body_finalize_procedure(thd) ||
+         sphead->check_standalone_routine_end_name(end_name);
+}
+
+
 bool LEX::sp_body_finalize_function(THD *thd)
 {
   if (sphead->is_not_allowed_in_function("function"))
@@ -6545,6 +6553,14 @@ bool LEX::sp_body_finalize_function(THD *thd)
     return true;
   (void) is_native_function_with_warn(thd, &sphead->m_name);
   return false;
+}
+
+
+bool LEX::sp_body_finalize_function_standalone(THD *thd,
+                                               const sp_name *end_name)
+{
+  return sp_body_finalize_function(thd) ||
+         sphead->check_standalone_routine_end_name(end_name);
 }
 
 

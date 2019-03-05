@@ -5168,6 +5168,19 @@ err:
 }
 
 
+bool
+sp_head::check_standalone_routine_end_name(const sp_name *end_name) const
+{
+  if (end_name && !end_name->eq(this))
+  {
+    my_error(ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
+             ErrConvDQName(end_name).ptr(), ErrConvDQName(this).ptr());
+    return true;
+  }
+  return false;
+}
+
+
 ulong sp_head::sp_cache_version() const
 {
   return m_parent ? m_parent->sp_cache_version() : m_sp_cache_version;

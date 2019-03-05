@@ -412,6 +412,7 @@ public:
                                             const LEX_CSTRING *field_name,
                                             Item *val, LEX *lex);
   bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
+  bool check_standalone_routine_end_name(const sp_name *end_name) const;
 private:
   /**
     Generate a code to set a single cursor parameter variable.
