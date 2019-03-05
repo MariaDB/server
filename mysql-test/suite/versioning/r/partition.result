@@ -530,6 +530,7 @@ set timestamp=1523466002.799571;
 insert into t1 values (11),(12);
 set timestamp=1523466004.169435;
 delete from t1 where pk in (11, 12);
+set timestamp= default;
 #
 # MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
 #
@@ -682,6 +683,41 @@ create table t1 (a int) with system versioning partition by system_time
 (partition p1 history, partition pn current);
 alter table t1 add partition (partition p2);
 ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+# MDEV-17891 Assertion failures in select_insert::abort_result_set and
+#            mysql_load upon attempt to replace into a full table
+set @@max_heap_table_size= 1024*1024;
+create or replace table t1 (
+pk integer auto_increment,
+primary key (pk),
+f varchar(45000)
+) with system versioning engine=memory
+partition by system_time interval 1 year (partition p1 history,
+partition pn current);
+# fill the table until full
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 (f) select f from t1;
+ERROR HY000: The table 't1' is full
+# leave space for exactly one record in current partition
+delete from t1 where pk = 1;
+# copy all data into history partition
+replace into t1 select * from t1;
+replace into t1 select * from t1;
+ERROR HY000: The table 't1' is full
+create or replace table t1 (
+pk integer auto_increment,
+primary key (pk),
+f varchar(45000)
+) with system versioning engine=memory
+partition by system_time interval 1 year (partition p1 history,
+partition pn current);
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+select * from t1 into outfile 'load.data';
+load data infile 'load.data' replace into table t1;
+load data infile 'load.data' replace into table t1;
+ERROR HY000: The table 't1' is full
+load data infile 'load.data' replace into table t1;
+ERROR HY000: The table 't1' is full
+set @@max_heap_table_size= 1048576;
 drop table t1;
 #
 # MDEV-22178 Assertion `info->alias.str' failed in partition_info::check_partition_info instead of ER_VERS_WRONG_PARTS

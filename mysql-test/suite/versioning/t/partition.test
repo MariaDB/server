@@ -482,6 +482,7 @@ set timestamp=1523466002.799571;
 insert into t1 values (11),(12);
 set timestamp=1523466004.169435;
 delete from t1 where pk in (11, 12);
+set timestamp= default;
 
 --echo #
 --echo # MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
@@ -649,7 +650,51 @@ create table t1 (a int) with system versioning partition by system_time
 --error ER_PARTITION_WRONG_TYPE
 alter table t1 add partition (partition p2);
 
+--echo # MDEV-17891 Assertion failures in select_insert::abort_result_set and
+--echo #            mysql_load upon attempt to replace into a full table
+
+--let $max_heap_table_size_orig= `select @@max_heap_table_size;`
+set @@max_heap_table_size= 1024*1024;
+create or replace table t1 (
+  pk integer auto_increment,
+  primary key (pk),
+  f varchar(45000)
+) with system versioning engine=memory
+  partition by system_time interval 1 year (partition p1 history,
+                                            partition pn current);
+
+--echo # fill the table until full
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+--error ER_RECORD_FILE_FULL
+insert into t1 (f) select f from t1;
+--echo # leave space for exactly one record in current partition
+delete from t1 where pk = 1;
+--echo # copy all data into history partition
+replace into t1 select * from t1;
+--error ER_RECORD_FILE_FULL
+replace into t1 select * from t1;
+
+create or replace table t1 (
+  pk integer auto_increment,
+  primary key (pk),
+  f varchar(45000)
+) with system versioning engine=memory
+  partition by system_time interval 1 year (partition p1 history,
+                                            partition pn current);
+
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+
+select * from t1 into outfile 'load.data';
+load data infile 'load.data' replace into table t1;
+--error ER_RECORD_FILE_FULL
+load data infile 'load.data' replace into table t1;
+--error ER_RECORD_FILE_FULL
+load data infile 'load.data' replace into table t1;
+
 # Cleanup
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load.data
+eval set @@max_heap_table_size= $max_heap_table_size_orig;
 drop table t1;
 
 --echo #
