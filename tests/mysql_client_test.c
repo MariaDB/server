@@ -20166,6 +20166,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     printf("%.*s %.*s\n", (int)addrlen, row[0], (int)addrlen, normalized_addr);
     DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
     DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
+    mysql_free_result(result);
     mysql_close(m);
   }
   sprintf(query,"DROP USER 'u'@'%s'",normalized_addr);
@@ -20204,6 +20205,7 @@ static void test_proxy_header_localhost()
   mytest(result);
   row = mysql_fetch_row(result);
   DIE_UNLESS(strcmp(row[0], "localhost") == 0);
+  mysql_free_result(result);
   mysql_close(m);
   rc = mysql_query(mysql,  "DROP USER 'u'@'localhost'");
   myquery(rc);
@@ -20301,6 +20303,7 @@ static void test_bulk_autoinc()
   {
     DIE_IF(atoi(row[0]) != id[i++]);
   }
+  mysql_free_result(result);
   rc= mysql_query(mysql, "DROP TABLE ai_field_value");
   myquery(rc);
 }
@@ -20416,6 +20419,7 @@ static void test_explain_meta()
     mct_close_log();
     DIE("num_fields != 1");
   }
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN SELECT 1");
@@ -20432,6 +20436,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json SELECT 1");
@@ -20448,6 +20453,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20465,6 +20471,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json SELECT 1");
@@ -20481,6 +20488,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "CREATE TABLE t1 (a int)");
@@ -20500,6 +20508,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json INSERT INTO t1 values(1)");
@@ -20516,6 +20525,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20533,6 +20543,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json INSERT INTO t1 values(1)");
@@ -20549,6 +20560,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20566,6 +20578,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json  UPDATE t1 set a=2");
@@ -20582,6 +20595,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20599,6 +20613,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json UPDATE t1 set a=2");
@@ -20615,6 +20630,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20632,6 +20648,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json DELETE FROM t1");
@@ -20648,6 +20665,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20665,6 +20683,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json DELETE FROM t1");
@@ -20681,6 +20700,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "DROP TABLE t1");
