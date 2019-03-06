@@ -142,6 +142,40 @@ static int size_t_cmp(const void *a, const void *b)
   return 0;
 }
 
+/*
+  Returns the next large page size smaller or equal to the passed in size.
+
+  The search starts at my_large_page_sizes[*start].
+
+  Assumes my_get_large_page_sizes(my_large_page_sizes) has been called before use.
+
+  For first use, have *start=0. There is no need to increment *start.
+
+  @param[in]     sz size to be searched for.
+  @param[in,out] start ptr to int representing offset in my_large_page_sizes to start from.
+  *start is updated during search and can be used to search again if 0 isn't returned.
+
+  @returns the next size found. *start will be incremented to the next potential size.
+  @retval  a large page size that is valid on this system or 0 if no large page size possible.
+*/
+size_t my_next_large_page_size(size_t sz, int *start)
+{
+  size_t cur;
+  DBUG_ENTER("my_next_large_page_size");
+
+  while (*start < my_large_page_sizes_length
+         && my_large_page_sizes[*start] > 0)
+  {
+    cur= *start;
+    (*start)++;
+    if (my_large_page_sizes[cur] <= sz)
+    {
+      DBUG_RETURN(my_large_page_sizes[cur]);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
 /* Linux-specific function to determine the sizes of large pages */
 
 void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
