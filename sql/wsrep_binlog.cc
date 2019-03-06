@@ -375,7 +375,7 @@ int wsrep_write_dummy_event(THD *orig_thd, const char *msg)
 
 bool wsrep_commit_will_write_binlog(THD *thd)
 {
-  return (tc_log == &mysql_bin_log && /* binlog enabled*/
+  return (!wsrep_emulate_bin_log && /* binlog enabled*/
           (wsrep_thd_is_local(thd) || /* local thd*/
            (thd->wsrep_applier_service && /* applier and log-slave-updates */
             opt_log_slave_updates)));
@@ -384,12 +384,12 @@ bool wsrep_commit_will_write_binlog(THD *thd)
 /*
   The last THD/commit_for_wait registered for group commit.
 */
-wait_for_commit *commit_order_tail= NULL;
+static wait_for_commit *commit_order_tail= NULL;
 
 void wsrep_register_for_group_commit(THD *thd)
 {
   DBUG_ENTER("wsrep_register_for_group_commit");
-  if (tc_log != &mysql_bin_log)
+  if (wsrep_emulate_bin_log)
   {
     /* Binlog is off, no need to maintain group commit queue */
     DBUG_VOID_RETURN;

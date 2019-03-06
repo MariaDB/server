@@ -2208,7 +2208,7 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
      htons. This makes wsrep rollback hooks to be skipped and the
      transaction will remain alive in wsrep world after rollback.
      Register binlog hton here to ensure that rollback happens in full. */
-  if (wsrep_is_active(thd) && tc_log != &mysql_bin_log)
+  if (WSREP_EMULATE_BINLOG(thd))
   {
     if (is_transactional)
       trans_register_ha(thd, TRUE, binlog_hton);
@@ -5688,7 +5688,14 @@ THD::binlog_start_trans_and_stmt()
     this->binlog_set_stmt_begin();
     bool mstmt_mode= in_multi_stmt_transaction_mode();
 #ifdef WITH_WSREP
-    if (wsrep_is_active(this) && tc_log != &mysql_bin_log)
+    /*
+      With wsrep binlog emulation we can skip the rest because the
+      binlog cache will not be written into binlog. Note however that
+      because of this the hton callbacks will not get called to clean
+      up the cache, so this must be done explicitly when the transaction
+      terminates.
+    */
+    if (WSREP_EMULATE_BINLOG_NNULL(this))
     {
       DBUG_VOID_RETURN;
     }

@@ -25,7 +25,6 @@
 #include "wsrep_mutex.h"
 #include "wsrep_condition_variable.h"
 
-class wait_for_commit;
 class Wsrep_server_state : public wsrep::server_state
 {
 public:
