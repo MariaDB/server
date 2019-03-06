@@ -4418,6 +4418,7 @@ row_merge_create_index(
 		this index, to ensure read consistency. */
 		ut_ad(index->trx_id == trx->id);
 	} else {
+		dict_mem_index_free(index);
 		index = NULL;
 	}
 

@@ -4860,7 +4860,7 @@ new_clustered_failed:
 
 	/* Create the indexes in SYS_INDEXES and load into dictionary. */
 
-	for (ulint a = 0; a < ctx->num_to_add_index; a++) {
+	for (int a = 0; a < ctx->num_to_add_index; a++) {
 
 		if (index_defs[a].ind_type & DICT_VIRTUAL
 		    && ctx->num_to_drop_vcol > 0 && !new_clustered) {
@@ -4877,6 +4877,9 @@ new_clustered_failed:
 		if (!ctx->add_index[a]) {
 			error = ctx->trx->error_state;
 			DBUG_ASSERT(error != DB_SUCCESS);
+			while (--a >= 0) {
+				dict_mem_index_free(ctx->add_index[a]);
+			}
 			goto error_handling;
 		}
 
