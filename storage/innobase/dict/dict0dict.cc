@@ -1572,13 +1572,8 @@ dict_table_rename_in_cache(
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	/* store the old/current name to an automatic variable */
-	if (strlen(table->name.m_name) + 1 <= sizeof(old_name)) {
-		strcpy(old_name, table->name.m_name);
-	} else {
-		ib::fatal() << "Too long table name: "
-			<< table->name
-			<< ", max length is " << MAX_FULL_NAME_LEN;
-	}
+	ut_a(strlen(table->name.m_name) < sizeof old_name);
+	strcpy(old_name, table->name.m_name);
 
 	fold = ut_fold_string(new_name);
 
@@ -1768,7 +1763,7 @@ dict_table_rename_in_cache(
 
 			ulint	db_len;
 			char*	old_id;
-			char    old_name_cs_filename[MAX_TABLE_NAME_LEN+20];
+			char    old_name_cs_filename[MAX_FULL_NAME_LEN+1];
 			uint    errors = 0;
 
 			/* All table names are internally stored in charset
@@ -1785,7 +1780,8 @@ dict_table_rename_in_cache(
 			in old_name_cs_filename */
 
 			strncpy(old_name_cs_filename, old_name,
-				MAX_TABLE_NAME_LEN);
+				MAX_FULL_NAME_LEN);
+			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
 			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
 
 				innobase_convert_to_system_charset(
@@ -1807,7 +1803,9 @@ dict_table_rename_in_cache(
 					/* Old name already in
 					my_charset_filename */
 					strncpy(old_name_cs_filename, old_name,
-						MAX_TABLE_NAME_LEN);
+						MAX_FULL_NAME_LEN);
+					old_name_cs_filename[MAX_FULL_NAME_LEN]
+						= '\0';
 				}
 			}
 
@@ -1833,7 +1831,7 @@ dict_table_rename_in_cache(
 
 				/* This is a generated >= 4.0.18 format id */
 
-				char	table_name[MAX_TABLE_NAME_LEN] = "";
+				char	table_name[MAX_TABLE_NAME_LEN + 1];
 				uint	errors = 0;
 
 				if (strlen(table->name.m_name)
@@ -1848,6 +1846,7 @@ dict_table_rename_in_cache(
 				/* Convert the table name to UTF-8 */
 				strncpy(table_name, table->name.m_name,
 					MAX_TABLE_NAME_LEN);
+				table_name[MAX_TABLE_NAME_LEN] = '\0';
 				innobase_convert_to_system_charset(
 					strchr(table_name, '/') + 1,
 					strchr(table->name.m_name, '/') + 1,
@@ -1857,9 +1856,10 @@ dict_table_rename_in_cache(
 					/* Table name could not be converted
 					from charset my_charset_filename to
 					UTF-8. This means that the table name
-					is already in UTF-8 (#mysql#50). */
+					is already in UTF-8 (#mysql50#). */
 					strncpy(table_name, table->name.m_name,
 						MAX_TABLE_NAME_LEN);
+					table_name[MAX_TABLE_NAME_LEN] = '\0';
 				}
 
 				/* Replace the prefix 'databasename/tablename'
