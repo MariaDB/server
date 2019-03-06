@@ -37,7 +37,7 @@ set x=5;
 fetch group next row;
 return x+1;
 end |
-ERROR HY000: Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
 create aggregate function f1(x INT) returns INT
 begin
 declare continue handler for not found return x;
@@ -1153,3 +1153,36 @@ i	sum(i)
 NULL	8
 drop function agg_sum;
 drop table t1;
+#
+# MDEV-18813 PROCEDURE and anonymous blocks silently ignore FETCH GROUP NEXT ROW
+#
+CREATE PROCEDURE p1()
+BEGIN
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+BEGIN NOT ATOMIC
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE DEFINER=root@localhost  FUNCTION f1() RETURNS INT
+BEGIN
+FETCH GROUP NEXT ROW;
+RETURN 0;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1
+AFTER INSERT ON t1 FOR EACH ROW 
+FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+DROP TABLE t1;
+CREATE EVENT ev1
+ON SCHEDULE EVERY 1 HOUR
+STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH
+ENDS CURRENT_TIMESTAMP + INTERVAL 1 MONTH + INTERVAL 1 WEEK
+DO FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context

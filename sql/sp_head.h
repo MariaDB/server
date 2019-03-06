@@ -183,6 +183,11 @@ private:
     set_chistics() makes sure this.
   */
   Sp_chistics m_chistics;
+  void set_chistics(const st_sp_chistics &chistics);
+  inline void set_chistics_agg_type(enum enum_sp_aggregate_type type)
+  {
+    m_chistics.agg_type= type;
+  }
 public:
   sql_mode_t m_sql_mode;		///< For SHOW CREATE and execution
   bool       m_explicit_name;                   /**< Prepend the db name? */
@@ -319,7 +324,8 @@ public:
   static void
   operator delete(void *ptr, size_t size) throw ();
 
-  sp_head(sp_package *parent, const Sp_handler *handler);
+  sp_head(sp_package *parent, const Sp_handler *handler,
+          enum_sp_aggregate_type);
 
   /// Initialize after we have reset mem_root
   void
@@ -413,6 +419,9 @@ public:
                                             Item *val, LEX *lex);
   bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
   bool check_standalone_routine_end_name(const sp_name *end_name) const;
+  bool check_group_aggregate_instructions_function() const;
+  bool check_group_aggregate_instructions_forbid() const;
+  bool check_group_aggregate_instructions_require() const;
 private:
   /**
     Generate a code to set a single cursor parameter variable.
@@ -730,11 +739,7 @@ public:
                                           const LEX_CSTRING &db,
                                           const LEX_CSTRING &table);
 
-  void set_chistics(const st_sp_chistics &chistics);
-  inline void set_chistics_agg_type(enum enum_sp_aggregate_type type)
-  {
-    m_chistics.agg_type= type;
-  }
+  void set_c_chistics(const st_sp_chistics &chistics);
   void set_info(longlong created, longlong modified,
 		const st_sp_chistics &chistics, sql_mode_t sql_mode);
 

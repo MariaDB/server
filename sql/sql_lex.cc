@@ -35,6 +35,7 @@
 #include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
+#include "event_parse_data.h"
 
 void LEX::parse_error(uint err_number)
 {
@@ -6469,13 +6470,14 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name1,
 
 
 sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
-                           const Sp_handler *sph)
+                           const Sp_handler *sph,
+                           enum_sp_aggregate_type agg_type)
 {
   sp_package *package= get_sp_package();
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if (likely((sp= new sp_head(package, sph))))
+  if (likely((sp= new sp_head(package, sph, agg_type))))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
@@ -6498,7 +6500,8 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
 
 
 sp_head *LEX::make_sp_head_no_recursive(THD *thd, const sp_name *name,
-                                        const Sp_handler *sph)
+                                        const Sp_handler *sph,
+                                        enum_sp_aggregate_type agg_type)
 {
   sp_package *package= thd->lex->get_sp_package();
   /*
@@ -6516,19 +6519,26 @@ sp_head *LEX::make_sp_head_no_recursive(THD *thd, const sp_name *name,
       (package &&
        (sph == &sp_handler_package_procedure ||
         sph == &sp_handler_package_function)))
-    return make_sp_head(thd, name, sph);
+    return make_sp_head(thd, name, sph, agg_type);
   my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
   return NULL;
 }
 
 
-bool LEX::sp_body_finalize_procedure(THD *thd)
+bool LEX::sp_body_finalize_routine(THD *thd)
 {
   if (sphead->check_unresolved_goto())
     return true;
   sphead->set_stmt_end(thd);
   sphead->restore_thd_mem_root(thd);
   return false;
+}
+
+
+bool LEX::sp_body_finalize_procedure(THD *thd)
+{
+  return sphead->check_group_aggregate_instructions_forbid() ||
+         sp_body_finalize_routine(thd);
 }
 
 
@@ -6542,25 +6552,41 @@ bool LEX::sp_body_finalize_procedure_standalone(THD *thd,
 
 bool LEX::sp_body_finalize_function(THD *thd)
 {
-  if (sphead->is_not_allowed_in_function("function"))
+  if (sphead->is_not_allowed_in_function("function") ||
+      sphead->check_group_aggregate_instructions_function())
     return true;
   if (!(sphead->m_flags & sp_head::HAS_RETURN))
   {
     my_error(ER_SP_NORETURN, MYF(0), ErrConvDQName(sphead).ptr());
     return true;
   }
-  if (sp_body_finalize_procedure(thd))
+  if (sp_body_finalize_routine(thd))
     return true;
   (void) is_native_function_with_warn(thd, &sphead->m_name);
   return false;
 }
 
 
-bool LEX::sp_body_finalize_function_standalone(THD *thd,
-                                               const sp_name *end_name)
+bool LEX::sp_body_finalize_trigger(THD *thd)
 {
-  return sp_body_finalize_function(thd) ||
-         sphead->check_standalone_routine_end_name(end_name);
+  return sphead->is_not_allowed_in_function("trigger") ||
+         sp_body_finalize_procedure(thd);
+}
+
+
+bool LEX::sp_body_finalize_event(THD *thd)
+{
+  event_parse_data->body_changed= true;
+  return sp_body_finalize_procedure(thd);
+}
+
+
+bool LEX::stmt_create_stored_function_finalize_standalone(const sp_name *end_name)
+{
+  if (sphead->check_standalone_routine_end_name(end_name))
+    return true;
+  stmt_create_routine_finalize();
+  return false;
 }
 
 
@@ -6855,7 +6881,7 @@ bool LEX::maybe_start_compound_statement(THD *thd)
 {
   if (!sphead)
   {
-    if (!make_sp_head(thd, NULL, &sp_handler_procedure))
+    if (!make_sp_head(thd, NULL, &sp_handler_procedure, DEFAULT_AGGREGATE))
       return true;
     sphead->set_suid(SP_IS_NOT_SUID);
     sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_ptr());
@@ -8376,6 +8402,7 @@ bool LEX::create_package_finalize(THD *thd,
              exp ? ErrConvDQName(name).ptr() : name->m_name.str);
     return true;
   }
+  // TODO: reuse code in LEX::create_package_finalize and sp_head::set_stmt_end
   sphead->m_body.length= body_end - body_start;
   if (unlikely(!(sphead->m_body.str= thd->strmake(body_start,
                                                   sphead->m_body.length))))
@@ -8390,7 +8417,8 @@ bool LEX::create_package_finalize(THD *thd,
   sphead->restore_thd_mem_root(thd);
   sp_package *pkg= sphead->get_package();
   DBUG_ASSERT(pkg);
-  return pkg->validate_after_parser(thd);
+  return sphead->check_group_aggregate_instructions_forbid() ||
+         pkg->validate_after_parser(thd);
 }
 
 
@@ -10325,4 +10353,41 @@ bool LEX::stmt_purge_before(Item *item)
   value_list.empty();
   value_list.push_front(item, thd->mem_root);
   return check_main_unit_semantics();
+}
+
+
+bool LEX::stmt_create_udf_function(const DDL_options_st &options,
+                                   enum_sp_aggregate_type agg_type,
+                                   const Lex_ident_sys_st &name,
+                                   Item_result return_type,
+                                   const LEX_CSTRING &soname)
+{
+  if (stmt_create_function_start(options))
+    return true;
+
+   if (unlikely(is_native_function(thd, &name)))
+   {
+     my_error(ER_NATIVE_FCT_NAME_COLLISION, MYF(0), name.str);
+     return true;
+   }
+   sql_command= SQLCOM_CREATE_FUNCTION;
+   udf.name= name;
+   udf.returns= return_type;
+   udf.dl= soname.str;
+   udf.type= agg_type == GROUP_AGGREGATE ? UDFTYPE_AGGREGATE :
+                                           UDFTYPE_FUNCTION;
+   stmt_create_routine_finalize();
+   return false;
+}
+
+
+bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
+                                            enum_sp_aggregate_type agg_type,
+                                            const sp_name *spname)
+{
+  if (stmt_create_function_start(options) ||
+      unlikely(!make_sp_head_no_recursive(thd, spname,
+                                          &sp_handler_function, agg_type)))
+    return true;
+  return false;
 }

@@ -241,6 +241,14 @@ enum enum_sp_suid_behaviour
 };
 
 
+enum enum_sp_aggregate_type
+{
+  DEFAULT_AGGREGATE= 0,
+  NOT_AGGREGATE,
+  GROUP_AGGREGATE
+};
+
+
 /* These may not be declared yet */
 class Table_ident;
 class sql_exchange;
@@ -369,13 +377,6 @@ enum enum_sp_data_access
   SP_NO_SQL,
   SP_READS_SQL_DATA,
   SP_MODIFIES_SQL_DATA
-};
-
-enum enum_sp_aggregate_type
-{
-  DEFAULT_AGGREGATE= 0,
-  NOT_AGGREGATE,
-  GROUP_AGGREGATE
 };
 
 const LEX_CSTRING sp_data_access_name[]=
@@ -3734,12 +3735,16 @@ public:
   sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name1,
                                   const LEX_CSTRING *name2);
   sp_name *make_sp_name_package_routine(THD *thd, const LEX_CSTRING *name);
-  sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph);
+  sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph,
+                        enum_sp_aggregate_type agg_type);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
-                                     const Sp_handler *sph);
+                                     const Sp_handler *sph,
+                                     enum_sp_aggregate_type agg_type);
+  bool sp_body_finalize_routine(THD *);
+  bool sp_body_finalize_trigger(THD *);
+  bool sp_body_finalize_event(THD *);
   bool sp_body_finalize_function(THD *);
   bool sp_body_finalize_procedure(THD *);
-  bool sp_body_finalize_function_standalone(THD *, const sp_name *end_name);
   bool sp_body_finalize_procedure_standalone(THD *, const sp_name *end_name);
   sp_package *create_package_start(THD *thd,
                                    enum_sql_command command,
@@ -4502,6 +4507,17 @@ public:
   {
     pop_select(); // main select
   }
+
+  bool stmt_create_stored_function_start(const DDL_options_st &options,
+                                         enum_sp_aggregate_type,
+                                         const sp_name *name);
+  bool stmt_create_stored_function_finalize_standalone(const sp_name *end_name);
+
+  bool stmt_create_udf_function(const DDL_options_st &options,
+                                enum_sp_aggregate_type agg_type,
+                                const Lex_ident_sys_st &name,
+                                Item_result return_type,
+                                const LEX_CSTRING &soname);
 };
 
 

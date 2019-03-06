@@ -5170,7 +5170,7 @@ RETURN CONCAT(']]>, ', c1, '!');
 	<routines>
 		<routine Function="straße" sql_mode="" character_set_client="utf8" collation_connection="utf8_general_ci" Database_Collation="latin1_swedish_ci">
 <![CDATA[
-CREATE DEFINER=`root`@`localhost` FUNCTION `straße`( c1 CHAR(20)) RETURNS char(50) CHARSET latin1
+CREATE DEFINER=`root`@`localhost` FUNCTION `straße`(c1 CHAR(20)) RETURNS char(50) CHARSET latin1
     DETERMINISTIC
 RETURN CONCAT(']]]]><![CDATA[>, ', c1, '!')
 ]]>

@@ -489,7 +489,8 @@ sp_head::operator delete(void *ptr, size_t size) throw()
 }
 
 
-sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
+sp_head::sp_head(sp_package *parent, const Sp_handler *sph,
+                 enum_sp_aggregate_type agg_type)
   :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
    Database_qualified_name(&null_clex_str, &null_clex_str),
    m_parent(parent),
@@ -522,6 +523,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
    m_pcont(new (&main_mem_root) sp_pcontext()),
    m_cont_level(0)
 {
+  set_chistics_agg_type(agg_type);
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
@@ -547,7 +549,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
 sp_package::sp_package(LEX *top_level_lex,
                        const sp_name *name,
                        const Sp_handler *sph)
- :sp_head(NULL, sph),
+ :sp_head(NULL, sph, DEFAULT_AGGREGATE),
   m_current_routine(NULL),
   m_top_level_lex(top_level_lex),
   m_rcontext(NULL),
@@ -2680,6 +2682,17 @@ sp_head::set_chistics(const st_sp_chistics &chistics)
                                          m_chistics.comment.str,
                                          m_chistics.comment.length);
 }
+
+
+void
+sp_head::set_c_chistics(const st_sp_chistics &chistics)
+{
+  // Set all chistics but preserve agg_type.
+  enum_sp_aggregate_type save_agg_type= agg_type();
+  set_chistics(chistics);
+  set_chistics_agg_type(save_agg_type);
+}
+
 
 void
 sp_head::set_info(longlong created, longlong modified,
@@ -5131,6 +5144,36 @@ bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
     return true;
   fill_spvar_using_table_rowtype_reference(thd, spvar, ref);
   return false;
+}
+
+
+bool sp_head::check_group_aggregate_instructions_forbid() const
+{
+  if (unlikely(m_flags & sp_head::HAS_AGGREGATE_INSTR))
+  {
+    my_error(ER_NOT_AGGREGATE_FUNCTION, MYF(0));
+    return true;
+  }
+  return false;
+}
+
+
+bool sp_head::check_group_aggregate_instructions_require() const
+{
+  if (unlikely(!(m_flags & HAS_AGGREGATE_INSTR)))
+  {
+    my_error(ER_INVALID_AGGREGATE_FUNCTION, MYF(0));
+    return true;
+  }
+  return false;
+}
+
+
+bool sp_head::check_group_aggregate_instructions_function() const
+{
+  return agg_type() == GROUP_AGGREGATE ?
+         check_group_aggregate_instructions_require() :
+         check_group_aggregate_instructions_forbid();
 }
 
 

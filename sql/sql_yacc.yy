@@ -758,6 +758,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 
   /* enums */
   enum enum_sp_suid_behaviour sp_suid;
+  enum enum_sp_aggregate_type sp_aggregate_type;
   enum enum_view_suid view_suid;
   enum Condition_information_item::Name cond_info_item_name;
   enum enum_diag_condition_item_name diag_condition_item_name;
@@ -2061,10 +2062,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
         view_list_opt view_list view_select
-        trigger_tail sp_tail sf_tail event_tail
-        udf_tail
-        create_function_tail
-        create_aggregate_function_tail
+        trigger_tail sp_tail event_tail
         install uninstall partition_entry binlog_base64_event
         normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
@@ -2107,6 +2105,7 @@ END_OF_INPUT
 
 %type <plsql_cursor_attr> plsql_cursor_attr
 %type <sp_suid> sp_suid
+%type <sp_aggregate_type> opt_aggregate
 
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
@@ -2860,41 +2859,36 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace definer FUNCTION_SYM opt_if_not_exists
+        | create_or_replace definer opt_aggregate FUNCTION_SYM opt_if_not_exists
+          sp_name '('
           {
-            if (Lex->stmt_create_function_start($1 | $4))
+            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
               MYSQL_YYABORT;
           }
-          sf_tail
+          sp_fdparam_list ')'
+          sf_return_type
+          sf_c_chistics_and_body
           {
             Lex->stmt_create_routine_finalize();
           }
-        | create_or_replace definer AGGREGATE_SYM FUNCTION_SYM opt_if_not_exists
+        | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
+          sp_name '('
           {
-            if (Lex->stmt_create_function_start($1 | $5))
+            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
               MYSQL_YYABORT;
           }
-          sf_tail_aggregate
+          sp_fdparam_list ')'
+          sf_return_type
+          sf_c_chistics_and_body
           {
             Lex->stmt_create_routine_finalize();
           }
-        | create_or_replace no_definer FUNCTION_SYM opt_if_not_exists
+        | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
+          ident RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
           {
-            if (Lex->stmt_create_function_start($1 | $4))
+            if (Lex->stmt_create_udf_function($1 | $5, $3, $6,
+                                              (Item_result) $8, $10))
               MYSQL_YYABORT;
-          }
-          create_function_tail
-          {
-            Lex->stmt_create_routine_finalize();
-          }
-        | create_or_replace no_definer AGGREGATE_SYM FUNCTION_SYM opt_if_not_exists
-          {
-            if (Lex->stmt_create_function_start($1 | $5))
-              MYSQL_YYABORT;
-          }
-          create_aggregate_function_tail
-          {
-            Lex->stmt_create_routine_finalize();
           }
         | create_or_replace USER_SYM opt_if_not_exists clear_privileges
           grant_list opt_require_clause opt_resource_options opt_account_locking opt_password_expiration
@@ -2921,38 +2915,6 @@ create:
         | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
           server_def
           { }
-        ;
-
-sf_tail_not_aggregate:
-        sf_tail
-        {
-          if (unlikely(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR))
-          {
-            my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0)));
-          }
-          Lex->sphead->set_chistics_agg_type(NOT_AGGREGATE);
-        }
-        ;
-
-sf_tail_aggregate:
-        sf_tail
-        {
-          if (unlikely(!(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR)))
-          {
-            my_yyabort_error((ER_INVALID_AGGREGATE_FUNCTION, MYF(0)));
-          }
-          Lex->sphead->set_chistics_agg_type(GROUP_AGGREGATE);
-        }
-        ;
-
-create_function_tail:
-          sf_tail_not_aggregate { }
-        | udf_tail { Lex->udf.type= UDFTYPE_FUNCTION; }
-        ;
-
-create_aggregate_function_tail:
-          sf_tail_aggregate { }
-        | udf_tail { Lex->udf.type= UDFTYPE_AGGREGATE; }
         ;
 
 opt_sequence:
@@ -3275,20 +3237,17 @@ ev_sql_stmt:
               
             if (unlikely(!lex->make_sp_head(thd,
                                             lex->event_parse_data->identifier,
-                                            &sp_handler_procedure)))
+                                            &sp_handler_procedure,
+                                            DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
           sp_proc_stmt
           {
-            LEX *lex= thd->lex;
-
             /* return back to the original memory root ASAP */
-            lex->sphead->set_stmt_end(thd);
-            lex->sphead->restore_thd_mem_root(thd);
-
-            lex->event_parse_data->body_changed= TRUE;
+            if (Lex->sp_body_finalize_event(thd))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -3303,6 +3262,11 @@ clear_privileges:
            lex->first_select_lex()->db= null_clex_str;
            lex->account_options.reset();
          }
+        ;
+
+opt_aggregate:
+          /* Empty */   { $$= NOT_AGGREGATE; }
+        | AGGREGATE_SYM { $$= GROUP_AGGREGATE; }
         ;
 
 sp_name:
@@ -3391,7 +3355,18 @@ sp_cparams:
 /* Stored FUNCTION parameter declaration list */
 sp_fdparam_list:
           /* Empty */
-        | sp_fdparams
+          {
+            Lex->sphead->m_param_begin= YYLIP->get_cpp_tok_start();
+            Lex->sphead->m_param_end= Lex->sphead->m_param_begin;
+          }
+        |
+          {
+            Lex->sphead->m_param_begin= YYLIP->get_cpp_tok_start();
+          }
+          sp_fdparams
+          {
+            Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
+          }
         ;
 
 sp_fdparams:
@@ -3463,18 +3438,6 @@ sp_opt_inout:
         | IN_SYM      { $$= sp_variable::MODE_IN; }
         | OUT_SYM     { $$= sp_variable::MODE_OUT; }
         | INOUT_SYM   { $$= sp_variable::MODE_INOUT; }
-        ;
-
-sp_parenthesized_fdparam_list:
-          '('
-          {
-            Lex->sphead->m_param_begin= YYLIP->get_cpp_tok_start() + 1;
-          }
-          sp_fdparam_list
-          ')'
-          {
-            Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
-          }
         ;
 
 sp_parenthesized_pdparam_list:
@@ -17415,8 +17378,8 @@ compound_statement:
           sp_proc_stmt_compound_ok
           {
             Lex->sql_command= SQLCOM_COMPOUND;
-            Lex->sphead->set_stmt_end(thd);
-            Lex->sphead->restore_thd_mem_root(thd);
+            if (Lex->sp_body_finalize_procedure(thd))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -17702,7 +17665,8 @@ trigger_tail:
             (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($17);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
-            if (unlikely(!lex->make_sp_head(thd, $4, &sp_handler_trigger)))
+            if (unlikely(!lex->make_sp_head(thd, $4, &sp_handler_trigger,
+                                            DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
@@ -17710,13 +17674,9 @@ trigger_tail:
           sp_proc_stmt /* $19 */
           { /* $20 */
             LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
-            sp->set_stmt_end(thd);
-            sp->restore_thd_mem_root(thd);
-
-            if (unlikely(sp->is_not_allowed_in_function("trigger")))
+            if (lex->sp_body_finalize_trigger(thd))
               MYSQL_YYABORT;
 
             /*
@@ -17738,19 +17698,6 @@ trigger_tail:
 
 **************************************************************************/
 
-udf_tail:
-          ident RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
-          {
-            LEX *lex= thd->lex;
-            if (unlikely(is_native_function(thd, & $1)))
-              my_yyabort_error((ER_NATIVE_FCT_NAME_COLLISION, MYF(0), $1.str));
-            lex->sql_command= SQLCOM_CREATE_FUNCTION;
-            lex->udf.name= $1;
-            lex->udf.returns= (Item_result) $3;
-            lex->udf.dl= $5.str;
-          }
-        ;
-
 
 sf_return_type:
           RETURNS_SYM
@@ -17768,22 +17715,12 @@ sf_return_type:
           }
         ;
 
-sf_tail:
-          sp_name
-          {
-            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
-                                                         &sp_handler_function)))
-              MYSQL_YYABORT;
-          }
-          sp_parenthesized_fdparam_list
-          sf_return_type
+sf_c_chistics_and_body:
           sp_c_chistics
           {
             LEX *lex= thd->lex;
-            Lex_input_stream *lip= YYLIP;
-
-            lex->sphead->set_chistics(lex->sp_chistics);
-            lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
+            lex->sphead->set_c_chistics(lex->sp_chistics);
+            lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_proc_stmt_in_returns_clause
           {
@@ -17792,17 +17729,19 @@ sf_tail:
           }
         ;
 
+
 sp_tail:
           sp_name
           {
             if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
-                                                         &sp_handler_procedure)))
+                                                         &sp_handler_procedure,
+                                                         DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
           }
           sp_parenthesized_pdparam_list
           sp_c_chistics
           {
-            Lex->sphead->set_chistics(Lex->sp_chistics);
+            Lex->sphead->set_c_chistics(Lex->sp_chistics);
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_proc_stmt
