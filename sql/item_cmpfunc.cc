@@ -1182,6 +1182,8 @@ longlong Item_func_truth::val_int()
 
 bool Item_in_optimizer::is_top_level_item()
 {
+  if (invisible_mode())
+    return FALSE;
   return ((Item_in_subselect *)args[1])->is_top_level_item();
 }
 
@@ -1237,8 +1239,7 @@ void Item_in_optimizer::print(String *str, enum_query_type query_type)
 
 void Item_in_optimizer::restore_first_argument()
 {
-  if (args[1]->type() == Item::SUBSELECT_ITEM &&
-      ((Item_subselect *)args[1])->is_in_predicate())
+  if (!invisible_mode())
   {
     args[0]= ((Item_in_subselect *)args[1])->left_expr;
   }
@@ -1255,8 +1256,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     it is args[0].
   */
   Item **ref0= args;
-  if (args[1]->type() == Item::SUBSELECT_ITEM &&
-      ((Item_subselect *)args[1])->is_in_predicate())
+  if (!invisible_mode())
   {
     /*
        left_expr->fix_fields() may cause left_expr to be substituted for
