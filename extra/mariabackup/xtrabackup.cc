@@ -2251,8 +2251,9 @@ check_if_skip_table(
 		return(FALSE);
 	}
 
-	strncpy(buf, dbname, FN_REFLEN);
-	buf[tbname - 1 - dbname] = 0;
+	strncpy(buf, dbname, FN_REFLEN - 1);
+	buf[FN_REFLEN - 1] = '\0';
+	buf[tbname - 1 - dbname] = '\0';
 
 	const skip_database_check_result skip_database =
 			check_if_skip_database(buf);
@@ -2260,7 +2261,6 @@ check_if_skip_table(
 		return (TRUE);
 	}
 
-	buf[FN_REFLEN - 1] = '\0';
 	buf[tbname - 1 - dbname] = '.';
 
 	/* Check if there's a suffix in the table name. If so, truncate it. We
@@ -4990,7 +4990,8 @@ xtrabackup_apply_delta(
 	}
 	dst_path[strlen(dst_path) - 6] = '\0';
 
-	strncpy(space_name, filename, FN_REFLEN);
+	strncpy(space_name, filename, FN_REFLEN - 1);
+	space_name[FN_REFLEN - 1] = '\0';
 	space_name[strlen(space_name) -  6] = 0;
 
 	if (!get_meta_path(src_path, meta_path)) {
@@ -6036,7 +6037,8 @@ skip_check:
 				p = next + 1;
 			}
 			info_file_path[len - 4] = 0;
-			strncpy(table_name, prev, FN_REFLEN);
+			strncpy(table_name, prev, FN_REFLEN - 1);
+			table_name[FN_REFLEN - 1] = '\0';
 
 			info_file_path[len - 4] = '.';
 
@@ -6072,8 +6074,7 @@ skip_check:
 			mach_write_to_4(page    , 0x78706f72UL);
 			mach_write_to_4(page + 4, 0x74696e66UL);/*"xportinf"*/
 			mach_write_to_4(page + 8, n_index);
-			strncpy((char *) page + 12,
-				table_name, 500);
+			strncpy((char *) page + 12, table_name, FN_REFLEN);
 
 			msg("mariabackup: export metadata of "
 			    "table '%s' to file `%s` "
