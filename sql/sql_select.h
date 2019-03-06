@@ -676,7 +676,8 @@ typedef struct st_join_table {
   void add_keyuses_for_splitting();
   SplM_plan_info *choose_best_splitting(double record_count,
                                         table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+                     bool is_const_table);
 } JOIN_TAB;
 
 

@@ -700,9 +700,25 @@ static MYSQL_THDVAR_BOOL(compression_default, PLUGIN_VAR_OPCMDARG,
   "Is compression the default for new tables", 
   NULL, NULL, FALSE);
 
+/** Update callback for SET [SESSION] innodb_default_encryption_key_id */
+static void
+innodb_default_encryption_key_id_update(THD* thd, st_mysql_sys_var* var,
+					void* var_ptr, const void *save)
+{
+	uint key_id = *static_cast<const uint*>(save);
+	if (key_id != FIL_DEFAULT_ENCRYPTION_KEY
+	    && !encryption_key_id_exists(key_id)) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    ER_WRONG_ARGUMENTS,
+				    "innodb_default_encryption_key=%u"
+				    " is not available", key_id);
+	}
+	*static_cast<uint*>(var_ptr) = key_id;
+}
+
 static MYSQL_THDVAR_UINT(default_encryption_key_id, PLUGIN_VAR_RQCMDARG,
 			 "Default encryption key id used for table encryption.",
-			 NULL, NULL,
+			 NULL, innodb_default_encryption_key_id_update,
 			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
 
 /**
@@ -8102,8 +8118,8 @@ ha_innobase::write_row(
 
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
-		col_max_value = innobase_get_int_col_max_value(
-			table->next_number_field);
+		col_max_value =
+			table->next_number_field->get_max_int_value();
 
 		/* Get the value that MySQL attempted to store in the table.*/
 		auto_inc = table->next_number_field->val_uint();
@@ -8178,15 +8194,30 @@ set_max_autoinc:
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
-					ut_a(m_prebuilt->autoinc_increment > 0);
 
 					ulonglong	offset;
 					ulonglong	increment;
 					dberr_t		err;
-
-					offset = m_prebuilt->autoinc_offset;
-					increment = m_prebuilt->autoinc_increment;
-
+#ifdef WITH_WSREP
+					/* Applier threads which are processing
+					ROW events and don't go through server
+					level autoinc processing, therefore
+					m_prebuilt autoinc values don't get
+					properly assigned. Fetch values from
+					server side. */
+					if (wsrep_on(m_user_thd) &&
+					    wsrep_thd_is_applying(m_user_thd))
+					{
+					    wsrep_thd_auto_increment_variables(
+						m_user_thd, &offset, &increment);
+					}
+					else
+#endif /* WITH_WSREP */
+					{
+					    ut_a(m_prebuilt->autoinc_increment > 0);
+					    offset = m_prebuilt->autoinc_offset;
+					    increment = m_prebuilt->autoinc_increment;
+					}
 					auto_inc = innobase_next_autoinc(
 						auto_inc,
 						1, increment, offset,
@@ -8877,12 +8908,27 @@ ha_innobase::update_row(
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
 
+		ulonglong	offset;
+		ulonglong	increment;
+#ifdef WITH_WSREP
+		/* Applier threads which are processing
+		ROW events and don't go through server
+		level autoinc processing, therefore
+		m_prebuilt autoinc values don't get
+		properly assigned. Fetch values from
+		server side. */
+		if (wsrep_on(m_user_thd) &&
+		    wsrep_thd_is_applying(m_user_thd))
+			wsrep_thd_auto_increment_variables(
+				m_user_thd, &offset, &increment);
+		else
+#endif /* WITH_WSREP */
+			offset = m_prebuilt->autoinc_offset,
+				increment = m_prebuilt->autoinc_increment;
+
 		autoinc = innobase_next_autoinc(
-			autoinc, 1,
-			m_prebuilt->autoinc_increment,
-			m_prebuilt->autoinc_offset,
-			innobase_get_int_col_max_value(
-				table->found_next_number_field));
+			autoinc, 1, increment, offset,
+			table->found_next_number_field->get_max_int_value());
 
 		error = innobase_set_max_autoinc(autoinc);
 
@@ -11139,8 +11185,8 @@ err_col:
 		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
 				table, m_trx,
-				(fil_encryption_t)options->encryption,
-				(uint32_t)options->encryption_key_id);
+				fil_encryption_t(options->encryption),
+				uint32_t(options->encryption_key_id));
 			m_drop_before_rollback = (err == DB_SUCCESS);
 		}
 
@@ -11559,42 +11605,72 @@ const char*
 create_table_info_t::check_table_options()
 {
 	enum row_type row_format = m_create_info->row_type;
-	ha_table_option_struct *options= m_form->s->option_struct;
-	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
-	bool should_encrypt = (encrypt == FIL_ENCRYPTION_ON);
+	const ha_table_option_struct *options= m_form->s->option_struct;
 
-	/* Currently we do not support encryption for
-	spatial indexes thus do not allow creating table with forced
-	encryption */
-	for(ulint i = 0; i < m_form->s->keys; i++) {
-		const KEY* key = m_form->key_info + i;
-		if (key->flags & HA_SPATIAL && should_encrypt
-		    && (options->page_compressed
-			|| srv_checksum_algorithm
-			< SRV_CHECKSUM_ALGORITHM_FULL_CRC32)) {
-			push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_UNSUPPORTED,
-				"InnoDB: ENCRYPTED=ON not supported for table because "
-				"it contains spatial index.");
-			return "ENCRYPTED";
+	switch (options->encryption) {
+	case FIL_ENCRYPTION_OFF:
+		if (options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
+			push_warning(
+				m_thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: ENCRYPTED=NO implies"
+				" ENCRYPTION_KEY_ID=1");
+			compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
+		}
+		if (srv_encrypt_tables != 2) {
+			break;
+		}
+		push_warning(
+			m_thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_WRONG_CREATE_OPTION,
+			"InnoDB: ENCRYPTED=NO cannot be used with"
+			" innodb_encrypt_tables=FORCE");
+		return "ENCRYPTED";
+	case FIL_ENCRYPTION_DEFAULT:
+		if (!srv_encrypt_tables) {
+			break;
+		}
+		/* fall through */
+	case FIL_ENCRYPTION_ON:
+		const uint32_t key_id = uint32_t(options->encryption_key_id);
+		if (!encryption_key_id_exists(key_id)) {
+			push_warning_printf(
+				m_thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: ENCRYPTION_KEY_ID %u not available",
+				key_id);
+			return "ENCRYPTION_KEY_ID";
+		}
+
+		/* We do not support encryption for spatial indexes,
+		except if innodb_checksum_algorithm=full_crc32.
+		Do not allow ENCRYPTED=YES if any SPATIAL INDEX exists. */
+		if (options->encryption != FIL_ENCRYPTION_ON
+		    || (!options->page_compressed
+			&& srv_checksum_algorithm
+			>= SRV_CHECKSUM_ALGORITHM_FULL_CRC32)) {
+			break;
+		}
+		for (ulint i = 0; i < m_form->s->keys; i++) {
+			if (m_form->key_info[i].flags & HA_SPATIAL) {
+				push_warning(m_thd,
+					     Sql_condition::WARN_LEVEL_WARN,
+					     HA_ERR_UNSUPPORTED,
+					     "InnoDB: ENCRYPTED=YES is not"
+					     " supported for SPATIAL INDEX");
+				return "ENCRYPTED";
+			}
 		}
 	}
 
-	if (encrypt != FIL_ENCRYPTION_DEFAULT && !m_allow_file_per_table) {
+	if (!m_allow_file_per_table
+	    && options->encryption != FIL_ENCRYPTION_DEFAULT) {
 		push_warning(
 			m_thd, Sql_condition::WARN_LEVEL_WARN,
 			HA_WRONG_CREATE_OPTION,
 			"InnoDB: ENCRYPTED requires innodb_file_per_table");
 		return "ENCRYPTED";
  	}
-
-	if (encrypt == FIL_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
-		push_warning(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_WRONG_CREATE_OPTION,
-			"InnoDB: ENCRYPTED=OFF cannot be used when innodb_encrypt_tables=FORCE");
-		return "ENCRYPTED";
-	}
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
@@ -11666,46 +11742,6 @@ create_table_info_t::check_table_options()
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
 		}
-	}
-
-	/* If encryption is set up make sure that used key_id is found */
-	if (encrypt == FIL_ENCRYPTION_ON ||
-		(encrypt == FIL_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
-		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ENCRYPTION_KEY_ID %u not available",
-				(uint)options->encryption_key_id
-			);
-			return "ENCRYPTION_KEY_ID";
-		}
-	}
-
-	/* Ignore nondefault key_id if encryption is set off */
-	if (encrypt == FIL_ENCRYPTION_OFF &&
-		options->encryption_key_id != THDVAR(m_thd, default_encryption_key_id)) {
-		push_warning_printf(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_WRONG_CREATE_OPTION,
-			"InnoDB: Ignored ENCRYPTION_KEY_ID %u when encryption is disabled",
-			(uint)options->encryption_key_id
-		);
-		options->encryption_key_id = FIL_DEFAULT_ENCRYPTION_KEY;
-	}
-
-	/* If default encryption is used and encryption is disabled, you may
-	not use nondefault encryption_key_id as it is not stored anywhere. */
-	if (encrypt == FIL_ENCRYPTION_DEFAULT
-	    && !srv_encrypt_tables
-	    && options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
-		compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
-		push_warning_printf(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_WRONG_CREATE_OPTION,
-			"InnoDB: innodb_encrypt_tables=OFF only allows ENCRYPTION_KEY_ID=1"
-			);
-		return "ENCRYPTION_KEY_ID";
 	}
 
 	return NULL;
@@ -16522,7 +16558,8 @@ ha_innobase::get_auto_increment(
 
 	/* We need the upper limit of the col type to check for
 	whether we update the table autoinc counter or not. */
-	ulonglong	col_max_value = innobase_get_int_col_max_value(table->next_number_field);
+	ulonglong col_max_value =
+			table->next_number_field->get_max_int_value();
 
 	/** The following logic is needed to avoid duplicate key error
 	for autoincrement column.
@@ -16603,10 +16640,9 @@ ha_innobase::get_auto_increment(
 			if (!wsrep_on(m_user_thd)) {
 				current = autoinc
 					- m_prebuilt->autoinc_increment;
+				current = innobase_next_autoinc(
+					current, 1, increment, offset, col_max_value);
 			}
-
-			current = innobase_next_autoinc(
-				current, 1, increment, offset, col_max_value);
 
 			dict_table_autoinc_initialize(
 				m_prebuilt->table, current);

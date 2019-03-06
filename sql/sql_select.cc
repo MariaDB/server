@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018 MariaDB Corporation
+   Copyright (c) 2009, 2019 MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1270,7 +1270,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
       select_lex->check_unrestricted_recursive(
                       thd->variables.only_standard_compliant_cte))
     DBUG_RETURN(-1);
-  if (select_lex->first_execution)
+  if (!(select_lex->changed_elements & TOUCHED_SEL_COND))
     select_lex->check_subqueries_with_recursive_references();
   
   int res= check_and_do_in_subquery_rewrites(this);
@@ -7062,6 +7062,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
     next=tmp;
   }
   join->best_ref[idx]=table;
+  join->positions[idx].spl_plan= 0;
 }
 
 
@@ -24536,7 +24537,9 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	      real_pos->type() == Item::COND_ITEM) &&
 	     !real_pos->with_sum_func())
     {						// Save for send fields
+      LEX_CSTRING real_name= pos->name;
       pos= real_pos;
+      pos->name= real_name;
       /* TODO:
 	 In most cases this result will be sent to the user.
 	 This should be changed to use copy_int or copy_real depending

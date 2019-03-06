@@ -97,6 +97,9 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
+# Always remove aws plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
+sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
+
 # Don't build cassandra package if thrift is not installed
 if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
 then

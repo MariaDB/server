@@ -1834,6 +1834,17 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
 	}
 
+	/* InnoDB cannot IGNORE when creating unique indexes. IGNORE
+	should silently delete some duplicate rows. Our inplace_alter
+	code will not delete anything from existing indexes. */
+	if (ha_alter_info->ignore
+	    && (ha_alter_info->handler_flags
+		& (ALTER_ADD_PK_INDEX | ALTER_ADD_UNIQUE_INDEX))) {
+		ha_alter_info->unsupported_reason = my_get_err_msg(
+			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_IGNORE);
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
 	/* DROP PRIMARY KEY is only allowed in combination with ADD
 	PRIMARY KEY. */
 	if ((ha_alter_info->handler_flags
@@ -1844,15 +1855,16 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-	/* If a column change from NOT NULL to NULL,
-	and there's a implict pk on this column. the
-	table should be rebuild. The change should
-	only go through the "Copy" method. */
-	if ((ha_alter_info->handler_flags
-	     & ALTER_COLUMN_NULLABLE)) {
+	if (ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE) {
+		/* If a NOT NULL attribute is going to be removed and
+		a UNIQUE INDEX on the column had been promoted to an
+		implicit PRIMARY KEY, the table should be rebuilt by
+		ALGORITHM=COPY. (Theoretically, we could support
+		rebuilding by ALGORITHM=INPLACE if a PRIMARY KEY is
+		going to be added, either explicitly or by promoting
+		another UNIQUE KEY.) */
 		const uint my_primary_key = altered_table->s->primary_key;
 
-		/* See if MYSQL table has no pk but we do. */
 		if (UNIV_UNLIKELY(my_primary_key >= MAX_KEY)
 		    && !dict_index_is_auto_gen_clust(
 			    dict_table_get_first_index(m_prebuilt->table))) {
@@ -2138,8 +2150,15 @@ ha_innobase::check_if_supported_inplace_alter(
 				& ALTER_ADD_COLUMN));
 
 		if (const Field* f = cf->field) {
-			/* This could be changing an existing column
+			if (!f->real_maybe_null() || (*af)->real_maybe_null())
+				goto next_column;
+			/* We are changing an existing column
 			from NULL to NOT NULL. */
+			DBUG_ASSERT(ha_alter_info->handler_flags
+				    & ALTER_COLUMN_NOT_NULLABLE);
+			/* Virtual columns are never NOT NULL. */
+			DBUG_ASSERT(f->stored_in_db());
+
 			switch ((*af)->type()) {
 			case MYSQL_TYPE_TIMESTAMP:
 			case MYSQL_TYPE_TIMESTAMP2:
@@ -2148,20 +2167,12 @@ ha_innobase::check_if_supported_inplace_alter(
 				replaced. Ensure that the DEFAULT
 				expression is not changing during
 				ALTER TABLE. */
-				if (!f->real_maybe_null()
-				    || (*af)->real_maybe_null()) {
-					/* The column was NOT NULL, or it
-					will allow NULL after ALTER TABLE. */
-					goto next_column;
-				}
-
 				if (!(*af)->default_value
 				    && (*af)->is_real_null()) {
 					/* No DEFAULT value is
 					specified. We can report
 					errors for any NULL values for
 					the TIMESTAMP. */
-
 					goto next_column;
 				}
 				break;
@@ -6957,14 +6968,12 @@ error_handled:
 	ut_ad(!user_table->drop_aborted);
 
 err_exit:
-#ifdef UNIV_DEBUG
 	/* Clear the to_be_dropped flag in the data dictionary cache. */
 	for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
 		DBUG_ASSERT(ctx->drop_index[i]->is_committed());
 		DBUG_ASSERT(ctx->drop_index[i]->to_be_dropped);
 		ctx->drop_index[i]->to_be_dropped = 0;
 	}
-#endif /* UNIV_DEBUG */
 
 	if (ctx->trx) {
 		row_mysql_unlock_data_dictionary(ctx->trx);

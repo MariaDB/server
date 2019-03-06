@@ -6,7 +6,7 @@
 --source include/galera_cluster.inc
 --source include/have_binlog_format_row.inc
 --source include/have_debug_sync.inc
-SET @orig_debug=@@debug;
+SET @orig_debug=@@debug_dbug;
 
 --connection node_2
 # Make sure no signals have been leftover from previous tests to surprise us.
@@ -92,7 +92,6 @@ SHOW WARNINGS;
 --enable_result_log
 
 # Unblock the background INSERT and remove the sync point.
-#SET GLOBAL debug_dbug = "-d,sync.wsrep_apply_cb";
 SET GLOBAL debug_dbug = @orig_debug;
 
 SET SESSION debug_sync = "now SIGNAL signal.wsrep_apply_cb";

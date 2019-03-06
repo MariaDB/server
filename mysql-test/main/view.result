@@ -6717,5 +6717,27 @@ drop table t1;
 ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IF NOT EXISTS v1 AS SELECT 1' at line 1
 #
+# MDEV-18605: Loss of column aliases by using view and group
+#
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1;
+INSERT INTO t1 (id, foo) VALUES (1,1),(2,2);
+SELECT v.id, v.foo AS bar  FROM v1 v
+WHERE id = 2;
+id	bar
+2	2
+SELECT v.id, v.foo AS bar  FROM v1 v
+GROUP BY v.id;
+id	bar
+1	1
+2	2
+SELECT v.id, v.foo AS bar  FROM v1 v
+WHERE id = 2
+GROUP BY v.id;
+id	bar
+2	2
+Drop View v1;
+Drop table t1;
+#
 # End of 10.3 tests
 #

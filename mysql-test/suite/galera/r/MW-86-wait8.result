@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-SET @orig_debug=@@debug;
+SET @orig_debug=@@debug_dbug;
 connection node_2;
 SELECT @@debug_sync;
 @@debug_sync

@@ -1234,11 +1234,8 @@ fsp_page_create(
 	} else {
 		rw_lock_sx_lock(&block->lock);
 	}
-	mutex_enter(&block->mutex);
 
 	buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-
-	mutex_exit(&block->mutex);
 	mtr_memo_push(init_mtr, block, rw_latch == RW_X_LATCH
 		      ? MTR_MEMO_PAGE_X_FIX : MTR_MEMO_PAGE_SX_FIX);
 
