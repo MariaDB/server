@@ -513,7 +513,8 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 	5.6+. We want to make "local" copies for the backup. */
 	strncpy(cursor->rel_path,
 		xb_get_relative_path(cursor->abs_path, FALSE),
-		sizeof(cursor->rel_path));
+		(sizeof cursor->rel_path) - 1);
+	cursor->rel_path[(sizeof cursor->rel_path) - 1] = '\0';
 
 	cursor->file = os_file_create_simple_no_error_handling(
 		0, cursor->abs_path,
@@ -646,8 +647,7 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
 	/* make a parent directory path */
 	if (!(parent= (char *)malloc(len)))
           return(-1);
-	strncpy(parent, pathname, len);
-	parent[len-1]= 0;
+	memcpy(parent, pathname, len);
 
 	for (p = parent + strlen(parent);
 	    !is_path_separator(*p) && p != parent; p--) ;

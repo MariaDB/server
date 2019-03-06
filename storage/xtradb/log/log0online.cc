@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011-2012 Percona Inc. All Rights Reserved.
-Copyright (C) 2016, MariaDB Corporation.
+Copyright (C) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1453,8 +1453,9 @@ log_online_setup_bitmap_file_range(
 
 			bitmap_files->files[array_pos].seq_num = file_seq_num;
 			strncpy(bitmap_files->files[array_pos].name,
-				bitmap_dir_file_info.name, FN_REFLEN);
-			bitmap_files->files[array_pos].name[FN_REFLEN - 1]
+				bitmap_dir_file_info.name,
+				OS_FILE_MAX_PATH);
+			bitmap_files->files[array_pos].name[OS_FILE_MAX_PATH]
 				= '\0';
 			bitmap_files->files[array_pos].start_lsn
 				= file_start_lsn;

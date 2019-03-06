@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -673,17 +673,16 @@ fts_fetch_index_words(
 	fts_zip_t*	zip = static_cast<fts_zip_t*>(user_arg);
 	que_node_t*	exp = sel_node->select_list;
 	dfield_t*	dfield = que_node_get_val(exp);
-	short		len =  static_cast<short>(dfield_get_len(dfield));
+
+	ut_a(dfield_get_len(dfield) <= FTS_MAX_WORD_LEN);
+
+	uint16		len = uint16(dfield_get_len(dfield));
 	void*		data = dfield_get_data(dfield);
 
 	/* Skip the duplicate words. */
-	if (zip->word.f_len == static_cast<ulint>(len)
-	    && !memcmp(zip->word.f_str, data, len)) {
-
+	if (zip->word.f_len == len && !memcmp(zip->word.f_str, data, len)) {
 		return(TRUE);
 	}
-
-	ut_a(len <= FTS_MAX_WORD_LEN);
 
 	memcpy(zip->word.f_str, data, len);
 	zip->word.f_len = len;
@@ -692,6 +691,9 @@ fts_fetch_index_words(
 	ut_a(zip->zp->next_in == NULL);
 
 	/* The string is prefixed by len. */
+	/* FIXME: This is not byte order agnostic (InnoDB data files
+	with FULLTEXT INDEX are not portable between little-endian and
+	big-endian systems!) */
 	zip->zp->next_in = reinterpret_cast<byte*>(&len);
 	zip->zp->avail_in = sizeof(len);
 
@@ -717,14 +719,13 @@ fts_fetch_index_words(
 				ut_a(len <= FTS_MAX_WORD_LEN);
 				len = 0;
 			}
-			break;
+			continue;
 
 		case Z_STREAM_END:
 		case Z_BUF_ERROR:
 		case Z_STREAM_ERROR:
 		default:
 			ut_error;
-			break;
 		}
 	}
 

@@ -2420,6 +2420,11 @@ com_multi_end:
     thd->packet.shrink(thd->variables.net_buffer_length); // Reclaim some memory
   }
   thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
+  /*
+    LEX::m_sql_cmd can point to Sql_cmd allocated on thd->mem_root.
+    Unlink it now, before freeing the root.
+  */
+  thd->lex->m_sql_cmd= NULL;
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
 
 #if defined(ENABLED_PROFILING)

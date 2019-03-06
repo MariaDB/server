@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011-2012, Percona Inc. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -146,7 +147,7 @@ struct log_online_bitmap_file_range_struct {
 	size_t	count;					/*!< Number of files */
 	/*!< Dynamically-allocated array of info about individual files */
 	struct files_t {
-		char	name[FN_REFLEN];	/*!< Name of a file */
+		char	name[OS_FILE_MAX_PATH+1];/*!< Name of a file */
 		lsn_t	start_lsn;		/*!< Starting LSN of data in
 						this file */
 		ulong	seq_num;		/*!< Sequence number of	this
