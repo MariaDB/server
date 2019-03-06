@@ -1581,6 +1581,13 @@ bool JOIN::make_range_rowid_filters()
 {
   DBUG_ENTER("make_range_rowid_filters");
 
+  /*
+    Do not build range filters with detected impossible WHERE.
+    Anyway conditions cannot be used anymore to extract ranges for filters.
+  */
+  if (const_table_map != found_const_table_map)
+    DBUG_RETURN(0);
+
   JOIN_TAB *tab;
 
   for (tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -7051,6 +7058,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 //  join->positions[idx].loosescan_key= MAX_KEY; /* Not a LooseScan */
   join->positions[idx].sj_strategy= SJ_OPT_NONE;
   join->positions[idx].use_join_buffer= FALSE;
+  join->positions[idx].range_rowid_filter_info= 0;
 
   /* Move the const table as down as possible in best_ref */
   JOIN_TAB **pos=join->best_ref+idx+1;

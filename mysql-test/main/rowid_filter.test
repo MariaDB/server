@@ -230,4 +230,35 @@ DROP DATABASE dbt3_s001;
 
 use test;
 
+--echo #
+--echo # MDEV-18816: potential range filter for one join table with
+--echo #             impossible WHERE for another
+--echo #
+
+create table t1 (
+  pk int not null primary key, c2 varchar(10) , i1 int,key (c2)
+) engine=myisam;
+insert into t1 values  (1,'a',-5),(2,'a',null);
+
+create table t2 (
+ pk int, i1 int, c1 varchar(30) , key c1 (c1(30)), key i1 (i1)
+) engine=myisam;
+insert into t2 values
+  (1,-5,'a'),(2,null,'a'),(3,null,'a'),(4,null,'a'),(5,5,'a'),(6,null,'a'),
+  (7,4,'a'),(8,55,'a'),(9,null,'a'),(10,null,'a'),(11,null,'a'),(12,-5,'a'),
+  (13,-5,'a'),(14,null,'a'),(15,null,'a'),(16,-5,'a'),(17,-5,'a');
+
+let $q=
+select 1
+  from t1
+       left join
+       t2 join t1 as t1_a on t2.i1 = t1_a.pk
+       on t1.c2 = t2.c1
+where t1_a.pk is null and t1_a.i1 != 3;
+
+eval $q;
+eval explain extended $q;
+
+drop table t1,t2;
+
 set @@use_stat_tables=@save_use_stat_tables;
