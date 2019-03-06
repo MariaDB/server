@@ -95,7 +95,7 @@ INFORMATION_SCHEMA.GLOBAL_STATUS
 WHERE
 VARIABLE_NAME='SLOW_QUERIES';
 Slow_queries_increment
-0
+1
 # Although this query is disallowed by log_slow_filter, it should still increment Slow_queries
 SET log_slow_filter=filesort;
 SELECT sleep(0.2) INTO @tmp FROM DUAL;
@@ -110,7 +110,7 @@ INFORMATION_SCHEMA.GLOBAL_STATUS
 WHERE
 VARIABLE_NAME='SLOW_QUERIES';
 Slow_queries_increment
-0
+1
 SET log_slow_filter=DEFAULT;
 SET @@long_query_time=default;
 SET GLOBAL slow_query_log= @org_slow_query_log;

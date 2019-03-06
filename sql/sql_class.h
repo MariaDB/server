@@ -4839,8 +4839,6 @@ public:
 
   inline void prepare_logs_for_admin_command()
   {
-    enable_slow_log&= !MY_TEST(variables.log_slow_disabled_statements &
-                               LOG_SLOW_DISABLE_ADMIN);
     query_plan_flags|= QPLAN_ADMIN;
   }
 };

@@ -7702,7 +7702,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   if (opt_bin_log)
     reset_dynamic(&user_var_events);
   DBUG_ASSERT(user_var_events_alloc == &main_mem_root);
-  enable_slow_log= variables.sql_log_slow;
+  enable_slow_log= true;
   get_stmt_da()->reset_for_next_command();
   rand_used= 0;
   m_sent_row_count= m_examined_row_count= 0;
