@@ -717,15 +717,15 @@ fts_fetch_index_words(
 				zip->zp->next_in = static_cast<byte*>(data);
 				zip->zp->avail_in = len;
 				ut_a(len <= FTS_MAX_WORD_LEN);
+				len = 0;
 			}
-			break;
+			continue;
 
 		case Z_STREAM_END:
 		case Z_BUF_ERROR:
 		case Z_STREAM_ERROR:
 		default:
 			ut_error;
-			break;
 		}
 	}
 
