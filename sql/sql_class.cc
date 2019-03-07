@@ -644,6 +644,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    m_tmp_tables_locked(false)
 #ifdef HAVE_REPLICATION
    ,
+   current_linfo(0),
    slave_info(0)
 #endif
 #ifdef WITH_WSREP
@@ -751,7 +752,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   progress.arena= 0;
   progress.report_to_client= 0;
   progress.max_counter= 0;
-  current_linfo =  0;
   slave_thread = 0;
   connection_name.str= 0;
   connection_name.length= 0;

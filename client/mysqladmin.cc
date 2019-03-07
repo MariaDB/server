@@ -40,7 +40,8 @@ ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
                opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
-               opt_vertical= 0, tty_password= 0, opt_nobeep;
+               opt_vertical= 0, tty_password= 0, opt_nobeep,
+               opt_shutdown_wait_for_slaves= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
 static uint opt_count_iterations= 0, my_end_arg;
@@ -218,6 +219,11 @@ static struct my_option my_long_options[] =
   {"shutdown_timeout", OPT_SHUTDOWN_TIMEOUT, "", &opt_shutdown_timeout,
    &opt_shutdown_timeout, 0, GET_ULONG, REQUIRED_ARG,
    SHUTDOWN_DEF_TIMEOUT, 0, 3600*12, 0, 1, 0},
+  {"wait_for_all_slaves", OPT_SHUTDOWN_WAIT_FOR_SLAVES,
+   "Defers shutdown until after all binlogged events have been sent to "
+   "all connected slaves", &opt_shutdown_wait_for_slaves,
+   &opt_shutdown_wait_for_slaves, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   0, 0, 0},
   {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
     &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -693,7 +699,17 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	  !stat(pidfile, &pidfile_status))
 	last_modified= pidfile_status.st_mtime;
 
-      if (mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
+      if (opt_shutdown_wait_for_slaves)
+      {
+        sprintf(buff, "SHUTDOWN WAIT FOR ALL SLAVES");
+        if (mysql_query(mysql, buff))
+        {
+          my_printf_error(0, "%s failed; error: '%-.200s'",
+                          error_flags, buff, mysql_error(mysql));
+          return -1;
+        }
+      }
+      else if (mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
       {
 	my_printf_error(0, "shutdown failed; error: '%s'", error_flags,
 			mysql_error(mysql));

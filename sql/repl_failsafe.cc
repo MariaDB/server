@@ -147,17 +147,27 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   if (!(si->master_id= uint4korr(p)))
     si->master_id= global_system_variables.server_id;
 
-  binlog_dump_thread_count++;
   unregister_slave();
   mysql_mutex_lock(&LOCK_thd_data);
   slave_info= si;
   mysql_mutex_unlock(&LOCK_thd_data);
+  binlog_dump_thread_count++;
   return 0;
 
 err:
   delete si;
   my_message(ER_UNKNOWN_ERROR, errmsg, MYF(0)); /* purecov: inspected */
   return 1;
+}
+
+
+bool THD::is_binlog_dump_thread()
+{
+  mysql_mutex_lock(&LOCK_thd_data);
+  bool res= slave_info != NULL;
+  mysql_mutex_unlock(&LOCK_thd_data);
+
+  return res;
 }
 
 

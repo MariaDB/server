@@ -3226,6 +3226,7 @@ public:
   /* The following is used by KILL */
   killed_state kill_signal;
   killed_type  kill_type;
+  bool is_shutdown_wait_for_slaves;
   /*
     This variable is used in post-parse stage to declare that sum-functions,
     or functions which have sense only if GROUP BY is present, are allowed.

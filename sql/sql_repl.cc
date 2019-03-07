@@ -506,6 +506,22 @@ static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * 
   DBUG_RETURN(ret);
 }
 
+
+/**
+  Set current_linfo
+
+  Setting current_linfo needs to be done with LOCK_thd_data to ensure that
+  adjust_linfo_offsets doesn't use a structure that may be deleted.
+*/
+
+void THD::set_current_linfo(LOG_INFO *linfo)
+{
+  mysql_mutex_lock(&LOCK_thd_data);
+  current_linfo= linfo;
+  mysql_mutex_unlock(&LOCK_thd_data);
+}
+
+
 /*
   Adjust the position pointer in the binary log file for all running slaves
 
@@ -2125,9 +2141,8 @@ static int init_binlog_sender(binlog_send_info *info,
 
   // set current pos too
   linfo->pos= *pos;
-
   // note: publish that we use file, before we open it
-  thd->current_linfo= linfo;
+  thd->set_current_linfo(linfo);
 
   if (check_start_offset(info, linfo->log_file_name, *pos))
     return 1;
@@ -2365,14 +2380,15 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   DBUG_RETURN(0);
 }
 
-static bool should_stop(binlog_send_info *info)
+static bool should_stop(binlog_send_info *info, bool kill_server_check= false)
 {
   return
-      info->net->error ||
-      info->net->vio == NULL ||
-      info->thd->killed ||
-      info->error != 0 ||
-      info->should_stop;
+    info->net->error ||
+    info->net->vio == NULL ||
+    (info->thd->killed &&
+     (info->thd->killed != KILL_SERVER || kill_server_check)) ||
+    info->error != 0 ||
+    info->should_stop;
 }
 
 /**
@@ -2393,7 +2409,7 @@ static int wait_new_events(binlog_send_info *info,         /* in */
                         &stage_master_has_sent_all_binlog_to_slave,
                         &old_stage);
 
-  while (!should_stop(info))
+  while (!should_stop(info, true))
   {
     *end_pos_ptr= mysql_bin_log.get_binlog_end_pos(binlog_end_pos_filename);
     if (strcmp(linfo->log_file_name, binlog_end_pos_filename) != 0)
@@ -2745,6 +2761,14 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     info->error= ER_UNKNOWN_ERROR;
     goto err;
   }
+  DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
+                 {
+                   const char act[]=
+                     "now "
+                     "WAIT_FOR greetings_from_kill_mysql";
+                   DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
 
   /*
     heartbeat_period from @master_heartbeat_period user variable
@@ -3952,7 +3976,7 @@ bool mysql_show_binlog_events(THD* thd)
       goto err;
     }
 
-    thd->current_linfo= &linfo;
+    thd->set_current_linfo(&linfo);
 
     if ((file=open_binlog(&log, linfo.log_file_name, &errmsg)) < 0)
       goto err;

@@ -4550,7 +4550,8 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: See also */,
      qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
-     qr/InnoDB: User stopword table .* does not exist./
+     qr/InnoDB: User stopword table .* does not exist./,
+     qr/Dump thread [0-9]+ last sent to server [0-9]+ binlog file:pos .+/
 
     );
 

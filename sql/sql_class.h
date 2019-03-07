@@ -3194,12 +3194,6 @@ public:
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
 
-  /*
-    If we do a purge of binary logs, log index info of the threads
-    that are currently reading it needs to be adjusted. To do that
-    each thread that is using LOG_INFO needs to adjust the pointer to it
-  */
-  LOG_INFO*  current_linfo;
   NET*       slave_net;			// network connection from slave -> m.
 
   /*
@@ -4813,10 +4807,20 @@ private:
 
 public:
 #ifdef HAVE_REPLICATION
+  /*
+    If we do a purge of binary logs, log index info of the threads
+    that are currently reading it needs to be adjusted. To do that
+    each thread that is using LOG_INFO needs to adjust the pointer to it
+  */
+  LOG_INFO *current_linfo;
   Slave_info *slave_info;
+
+  void set_current_linfo(LOG_INFO *linfo);
+  void reset_current_linfo() { set_current_linfo(0); }
 
   int register_slave(uchar *packet, size_t packet_length);
   void unregister_slave();
+  bool is_binlog_dump_thread();
 #endif
 
   inline ulong wsrep_binlog_format() const
@@ -4974,18 +4978,6 @@ public:
       (transaction.stmt.m_unsafe_rollback_flags &
        (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
-  }
-  /*
-    Reset current_linfo
-    Setting current_linfo to 0 needs to be done with LOCK_thd_data to
-    ensure that adjust_linfo_offsets doesn't use a structure that may
-    be deleted.
-  */
-  inline void reset_current_linfo()
-  {
-    mysql_mutex_lock(&LOCK_thd_data);
-    current_linfo= 0;
-    mysql_mutex_unlock(&LOCK_thd_data);
   }
 
 
