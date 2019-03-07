@@ -4304,7 +4304,7 @@ row_merge_rename_tables_dict(
 @param[in,out]	index	index
 @param[in]	add_v	new virtual columns added along with add index call
 @return DB_SUCCESS or error code */
-MY_ATTRIBUTE((nonnull(1,2,3), warn_unused_result))
+MY_ATTRIBUTE((nonnull(1,2), warn_unused_result))
 static
 dberr_t
 row_merge_create_index_graph(
