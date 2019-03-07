@@ -1,5 +1,5 @@
-/* Copyright (c) 2005, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+/* Copyright (c) 2005, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2601,7 +2601,7 @@ my_xpath_parse(MY_XPATH *xpath, const char *str, const char *strend)
 
 void Item_xml_str_func::fix_length_and_dec()
 {
-  String *xp, tmp;
+  String *xp;
   MY_XPATH xpath;
   int rc;
 
@@ -2628,7 +2628,7 @@ void Item_xml_str_func::fix_length_and_dec()
     return;
   }
 
-  if (!(xp= args[1]->val_str(&tmp)))
+  if (!(xp= args[1]->val_str(&xpath_tmp_value)))
     return;
   my_xpath_init(&xpath);
   xpath.cs= collation.collation;
