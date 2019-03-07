@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -572,8 +573,7 @@ handle_new_error:
 	switch (err) {
 	case DB_LOCK_WAIT_TIMEOUT:
 		if (row_rollback_on_timeout) {
-			trx_general_rollback_for_mysql(trx, NULL);
-			break;
+			goto rollback;
 		}
 		/* fall through */
 	case DB_DUPLICATE_KEY:
@@ -586,6 +586,7 @@ handle_new_error:
 	case DB_TOO_MANY_CONCURRENT_TRXS:
 	case DB_OUT_OF_FILE_SPACE:
 	case DB_INTERRUPTED:
+	rollback_to_savept:
 		if (savept) {
 			/* Roll back the latest, possibly incomplete
 			insertion or update */
@@ -609,6 +610,7 @@ handle_new_error:
 
 	case DB_DEADLOCK:
 	case DB_LOCK_TABLE_FULL:
+	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
 
@@ -638,14 +640,14 @@ handle_new_error:
 		      "InnoDB: you dump the tables, look at\n"
 		      "InnoDB: " REFMAN "forcing-innodb-recovery.html"
 		      " for help.\n", stderr);
-		break;
+		goto rollback_to_savept;
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
 		fprintf(stderr, "InnoDB: Cannot delete/update rows with"
 			" cascading foreign key constraints that exceed max"
 			" depth of %lu\n"
 			"Please drop excessive foreign constraints"
 			" and try again\n", (ulong) DICT_FK_MAX_RECURSIVE_LOAD);
-		break;
+		goto rollback_to_savept;
 	default:
 		fprintf(stderr, "InnoDB: unknown error code %lu\n",
 			(ulong) err);
