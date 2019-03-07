@@ -4860,8 +4860,7 @@ new_clustered_failed:
 
 	/* Create the indexes in SYS_INDEXES and load into dictionary. */
 
-	for (int a = 0; a < ctx->num_to_add_index; a++) {
-
+	for (ulint a = 0; a < ctx->num_to_add_index; a++) {
 		if (index_defs[a].ind_type & DICT_VIRTUAL
 		    && ctx->num_to_drop_vcol > 0 && !new_clustered) {
 			innodb_v_adjust_idx_col(ha_alter_info, old_table,
@@ -4869,17 +4868,23 @@ new_clustered_failed:
 						&index_defs[a]);
 		}
 
+		DBUG_EXECUTE_IF(
+			"create_index_metadata_fail",
+			if (a + 1 == ctx->num_to_add_index) {
+				ctx->trx->error_state = DB_OUT_OF_FILE_SPACE;
+				ctx->add_index[a] = NULL;
+				goto index_created;
+			});
 		ctx->add_index[a] = row_merge_create_index(
 			ctx->trx, ctx->new_table, &index_defs[a], add_v);
-
+#ifndef DBUG_OFF
+index_created:
+#endif
 		add_key_nums[a] = index_defs[a].key_number;
 
 		if (!ctx->add_index[a]) {
 			error = ctx->trx->error_state;
 			DBUG_ASSERT(error != DB_SUCCESS);
-			while (--a >= 0) {
-				dict_mem_index_free(ctx->add_index[a]);
-			}
 			goto error_handling;
 		}
 

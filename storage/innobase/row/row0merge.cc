@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4310,7 +4310,7 @@ dberr_t
 row_merge_create_index_graph(
 	trx_t*			trx,
 	dict_table_t*		table,
-	dict_index_t*		index,
+	dict_index_t*&		index,
 	const dict_add_v_col_t* add_v)
 {
 	ind_node_t*	node;		/*!< Index creation node */
@@ -4336,6 +4336,8 @@ row_merge_create_index_graph(
 	que_run_threads(thr);
 
 	err = trx->error_state;
+
+	index = node->index;
 
 	que_graph_free((que_t*) que_node_get_parent(thr));
 
@@ -4400,25 +4402,23 @@ row_merge_create_index(
 		dict_mem_index_add_field(index, name, ifield->prefix_len);
 	}
 
+	ut_d(const dict_index_t* const index_template = index);
 	/* Add the index to SYS_INDEXES, using the index prototype. */
 	err = row_merge_create_index_graph(trx, table, index, add_v);
 
 	if (err == DB_SUCCESS) {
-
-		index = dict_table_get_index_on_name(table, index_def->name,
-						     index_def->rebuild);
-
-		ut_a(index);
-
+		ut_ad(index != index_template);
 		index->parser = index_def->parser;
 		index->has_new_v_col = has_new_v_col;
-
 		/* Note the id of the transaction that created this
 		index, we use it to restrict readers from accessing
 		this index, to ensure read consistency. */
 		ut_ad(index->trx_id == trx->id);
 	} else {
-		dict_mem_index_free(index);
+		ut_ad(!index || index == index_template);
+		if (index) {
+			dict_mem_index_free(index);
+		}
 		index = NULL;
 	}
 

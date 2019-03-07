@@ -6198,23 +6198,16 @@ dict_ind_free()
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 {
 	dict_index_t*	index;
 
 	index = dict_table_get_first_index(table);
 
 	while (index != NULL) {
-		if (index->is_committed() == committed
-		    && strcmp(index->name, name) == 0) {
-
+		if (index->is_committed() && !strcmp(index->name, name)) {
 			return(index);
 		}
 
