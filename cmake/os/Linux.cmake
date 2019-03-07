@@ -40,6 +40,3 @@ ENDIF()
 
 # 64 bit file offset support flag
 SET(_FILE_OFFSET_BITS 64)
-
-# Linux specific multiple sized HUGETLB /large page support
-CHECK_SYMBOL_EXISTS(MAP_HUGE_SHIFT linux/mman.h HAVE_LINUX_LARGE_PAGES)
