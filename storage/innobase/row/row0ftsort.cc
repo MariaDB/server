@@ -96,8 +96,8 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 0);
 	field->name = NULL;
 	field->prefix_len = 0;
-	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+	field->col = new(mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)))
+		dict_col_t();
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
 	field->col->mtype = charset == &my_charset_latin1
 		? DATA_VARCHAR : DATA_VARMYSQL;
@@ -111,8 +111,8 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 1);
 	field->name = NULL;
 	field->prefix_len = 0;
-	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+	field->col = new(mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)))
+		dict_col_t();
 	field->col->mtype = DATA_INT;
 	*opt_doc_id_size = FALSE;
 
@@ -146,21 +146,16 @@ row_merge_create_fts_sort_index(
 
 	field->col->prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
 
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
-
 	/* The third field is on the word's position in the original doc */
 	field = dict_index_get_nth_field(new_index, 2);
 	field->name = NULL;
 	field->prefix_len = 0;
-	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+	field->col = new(mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)))
+		dict_col_t();
 	field->col->mtype = DATA_INT;
 	field->col->len = 4 ;
 	field->fixed_len = 4;
 	field->col->prtype = DATA_NOT_NULL;
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
 
 	return(new_index);
 }

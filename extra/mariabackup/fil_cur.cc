@@ -147,7 +147,8 @@ xb_fil_cur_open(
 
 	cursor->space_id = node->space->id;
 
-	strncpy(cursor->abs_path, node->name, sizeof(cursor->abs_path));
+	strncpy(cursor->abs_path, node->name, (sizeof cursor->abs_path) - 1);
+	cursor->abs_path[(sizeof cursor->abs_path) - 1] = '\0';
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system
@@ -155,7 +156,8 @@ xb_fil_cur_open(
 	We want to make "local" copies for the backup. */
 	strncpy(cursor->rel_path,
 		xb_get_relative_path(cursor->abs_path, cursor->is_system()),
-		sizeof(cursor->rel_path));
+		(sizeof cursor->rel_path) - 1);
+	cursor->rel_path[(sizeof cursor->rel_path) - 1] = '\0';
 
 	/* In the backup mode we should already have a tablespace handle created
 	by fil_ibd_load() unless it is a system

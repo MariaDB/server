@@ -2406,8 +2406,9 @@ check_if_skip_table(
 		return(FALSE);
 	}
 
-	strncpy(buf, dbname, FN_REFLEN);
-	buf[tbname - 1 - dbname] = 0;
+	strncpy(buf, dbname, FN_REFLEN - 1);
+	buf[FN_REFLEN - 1] = '\0';
+	buf[tbname - 1 - dbname] = '\0';
 
 	const skip_database_check_result skip_database =
 			check_if_skip_database(buf);
@@ -2415,7 +2416,6 @@ check_if_skip_table(
 		return (TRUE);
 	}
 
-	buf[FN_REFLEN - 1] = '\0';
 	buf[tbname - 1 - dbname] = '.';
 
 	/* Check if there's a suffix in the table name. If so, truncate it. We
@@ -4857,7 +4857,8 @@ xtrabackup_apply_delta(
 	}
 	dst_path[strlen(dst_path) - 6] = '\0';
 
-	strncpy(space_name, filename, FN_REFLEN);
+	strncpy(space_name, filename, FN_REFLEN - 1);
+	space_name[FN_REFLEN - 1] = '\0';
 	space_name[strlen(space_name) -  6] = 0;
 
 	if (!get_meta_path(src_path, meta_path)) {
