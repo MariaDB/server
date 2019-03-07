@@ -3097,10 +3097,18 @@ prepare_inplace_alter_table_dict(
 	/* Create the indexes in SYS_INDEXES and load into dictionary. */
 
 	for (ulint a = 0; a < ctx->num_to_add_index; a++) {
-
+		DBUG_EXECUTE_IF(
+			"create_index_metadata_fail",
+			if (a + 1 == ctx->num_to_add_index) {
+				ctx->trx->error_state = DB_OUT_OF_FILE_SPACE;
+				ctx->add_index[a] = NULL;
+				goto index_created;
+			});
 		ctx->add_index[a] = row_merge_create_index(
 			ctx->trx, ctx->new_table, &index_defs[a]);
-
+#ifndef DBUG_OFF
+index_created:
+#endif
 		add_key_nums[a] = index_defs[a].key_number;
 
 		if (!ctx->add_index[a]) {
