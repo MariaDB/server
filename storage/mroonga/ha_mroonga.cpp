@@ -2600,7 +2600,7 @@ ha_mroonga::~ha_mroonga()
   }
   if (blob_buffers)
   {
-    delete [] blob_buffers;
+    ::delete [] blob_buffers;
   }
   grn_obj_unlink(ctx, &top_left_point);
   grn_obj_unlink(ctx, &bottom_right_point);
@@ -14539,6 +14539,7 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
         ALTER_COLUMN_NULLABLE |
         ALTER_COLUMN_NOT_NULLABLE |
         ALTER_COLUMN_STORAGE_TYPE |
+        ALTER_ADD_STORED_GENERATED_COLUMN |
         ALTER_COLUMN_COLUMN_FORMAT
       )
     )
@@ -14657,7 +14658,6 @@ enum_alter_inplace_result ha_mroonga::storage_check_if_supported_inplace_alter(
     ALTER_DROP_UNIQUE_INDEX |
     MRN_ALTER_INPLACE_INFO_ADD_VIRTUAL_COLUMN |
     MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN |
-    MRN_ALTER_INPLACE_INFO_ADD_STORED_GENERATED_COLUMN |
     ALTER_DROP_COLUMN |
     ALTER_COLUMN_NAME;
   if (ha_alter_info->handler_flags & explicitly_unsupported_flags) {

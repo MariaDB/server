@@ -103,6 +103,9 @@ WHERE table_name = 't2';
 
 --source include/restart_mysqld.inc
 
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 
@@ -148,6 +151,7 @@ SET FOREIGN_KEY_CHECKS=1;
 call mtr.add_suppression("InnoDB: Possible reasons:");
 call mtr.add_suppression("InnoDB: \\([12]\\) Table ");
 call mtr.add_suppression("InnoDB: If table `test`\\.`t2` is a temporary table");
+call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15\\.");
 --enable_query_log
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -165,7 +169,7 @@ DROP DATABASE best;
 --echo #
 --echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
 --echo #
-connect (fk, localhost, root,,);
+connect (con1, localhost, root,,);
 INSERT INTO t1 SET a=1;
 BEGIN;
 DELETE FROM t1;
@@ -174,7 +178,7 @@ connection default;
 let $ID= `SELECT @id := CONNECTION_ID()`;
 send INSERT INTO t3 SET a=1;
 
-connection fk;
+connection con1;
 # Check that the above SELECT is blocked
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
@@ -186,7 +190,10 @@ kill query @id;
 connection default;
 --error ER_QUERY_INTERRUPTED
 reap;
-disconnect fk;
+
+connection con1;
+ROLLBACK;
+connection default;
 
 DROP TABLE t3,t1;
 
@@ -286,7 +293,7 @@ INSERT INTO matchmaking_group_maps VALUES (10,55),(11,66);
 BEGIN;
 UPDATE users SET name = 'qux' WHERE id = 1;
 
---connect (con1,localhost,root,,)
+--connection con1
 SET innodb_lock_wait_timeout= 1;
 DELETE FROM matchmaking_groups WHERE id = 10;
 
@@ -442,9 +449,43 @@ kill query @id;
 connection default;
 --error ER_QUERY_INTERRUPTED
 reap;
-disconnect con1;
+
+connection con1;
+ROLLBACK;
+connection default;
 
 DROP TABLE t2,t1;
+
+--echo #
+--echo # MDEV-18272 InnoDB index corruption after failed DELETE CASCADE
+--echo #
+CREATE TABLE t1 (
+  pk TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  a TINYINT UNSIGNED NOT NULL, b TINYINT UNSIGNED NOT NULL, KEY(b),
+  CONSTRAINT FOREIGN KEY (a) REFERENCES t1 (b) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (a,b) VALUES
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
+(0,1),(0,1),(1,0);
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+DELETE IGNORE FROM t1 WHERE b = 1;
+
+SELECT a FROM t1 FORCE INDEX(a);
+# This would wrongly return the empty result if
+# the "goto rollback_to_savept" in row_mysql_handle_errors() is reverted.
+SELECT * FROM t1;
+# Allow purge to continue by closing the read view.
+disconnect con1;
+
+# Wait for purge. With the fix reverted, the server would crash here.
+--source include/wait_all_purged.inc
+CHECK TABLE t1;
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo # End of 10.2 tests
 
