@@ -1367,9 +1367,12 @@ static Sys_var_mybool Sys_large_files_support(
 
 static Sys_var_uint Sys_large_page_size(
        "large_page_size",
-       "If large page support is enabled, this shows the size of memory pages",
+       "Previously showed the size of large memory pages, unused since "
+       "multiple page size support was added",
        READ_ONLY GLOBAL_VAR(opt_large_page_size), NO_CMD_LINE,
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(""));
 
 static Sys_var_mybool Sys_large_pages(
        "large_pages", "Enable support for large pages",

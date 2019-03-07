@@ -3950,17 +3950,9 @@ static int init_common_variables()
   /* Initialize large page size */
   if (opt_large_pages)
   {
-    SYSVAR_AUTOSIZE(opt_large_page_size, my_get_large_page_size());
-    if (opt_large_page_size)
-    {
-      DBUG_PRINT("info", ("Large page set, large_page_size = %d",
-                 opt_large_page_size));
-      my_use_large_pages= 1;
-      my_large_page_size= opt_large_page_size;
-      my_get_large_page_sizes(my_large_page_sizes);
-    }
-    else
-      SYSVAR_AUTOSIZE(opt_large_pages, 0);
+    DBUG_PRINT("info", ("Large page set"));
+    my_use_large_pages= 1;
+    my_get_large_page_sizes(my_large_page_sizes);
   }
 #endif /* HAVE_LARGE_PAGE_OPTION */
 #ifdef HAVE_SOLARIS_LARGE_PAGES
