@@ -111,3 +111,18 @@ drop table t3;
 drop table t2;
 drop table t1;
 set debug_sync='reset';
+
+
+--echo #
+--echo # MDEV-17595 - Server crashes in copy_data_between_tables or
+--echo #              Assertion `thd->transaction.stmt.is_empty() ||
+--echo #              (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)'
+--echo #              fails in close_tables_for_reopen upon concurrent
+--echo #              ALTER TABLE and FLUSH
+--echo #
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+CREATE TABLE t2 (b INT, KEY(b)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(2);
+ALTER TABLE t2 ADD FOREIGN KEY(b) REFERENCES t1(a), LOCK=EXCLUSIVE;
+DROP TABLE t2, t1;

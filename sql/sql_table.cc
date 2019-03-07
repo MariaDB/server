@@ -9074,6 +9074,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       new_table->file->get_foreign_key_list(thd, &fk_list);
       while ((fk= fk_list_it++))
       {
+        MDL_request mdl_request;
+
         if (lower_case_table_names)
         {
          char buf[NAME_LEN];
@@ -9085,20 +9087,14 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
          len = my_casedn_str(files_charset_info, buf);
          thd->make_lex_string(fk->referenced_table, buf, len);
         }
-        if (table_already_fk_prelocked(table_list, fk->referenced_db,
-                                       fk->referenced_table, TL_READ_NO_INSERT))
-          continue;
 
-        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-        tl->init_one_table_for_prelocking(fk->referenced_db->str, fk->referenced_db->length,
-                           fk->referenced_table->str, fk->referenced_table->length,
-                           NULL, TL_READ_NO_INSERT, false, NULL, 0,
-                           &thd->lex->query_tables_last);
+        mdl_request.init(MDL_key::TABLE,
+                         fk->referenced_db->str, fk->referenced_table->str,
+                         MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
+        if (thd->mdl_context.acquire_lock(&mdl_request,
+                                          thd->variables.lock_wait_timeout))
+          goto err_new_table_cleanup;
       }
-
-      if (open_tables(thd, &table_list->next_global, &tables_opened, 0,
-                      &alter_prelocking_strategy))
-        goto err_new_table_cleanup;
     }
   }
   /*
