@@ -54,7 +54,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "mysqld.h"
 #include "encryption_plugin.h"
 #include <sstream>
-
+#include "page0zip.h"
 
 char *tool_name;
 char tool_args[2048];
@@ -350,6 +350,7 @@ get_mysql_vars(MYSQL *connection)
 	char *innodb_undo_directory_var = NULL;
 	char *innodb_page_size_var = NULL;
 	char *innodb_undo_tablespaces_var = NULL;
+	char *page_zip_level_var = NULL;
 	char *endptr;
 	unsigned long server_version = mysql_get_server_version(connection);
 
@@ -379,6 +380,7 @@ get_mysql_vars(MYSQL *connection)
 		{"innodb_undo_directory", &innodb_undo_directory_var},
 		{"innodb_page_size", &innodb_page_size_var},
 		{"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
+		{"innodb_compression_level", &page_zip_level_var},
 		{NULL, NULL}
 	};
 
@@ -512,7 +514,13 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (innodb_undo_tablespaces_var) {
-		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var, &endptr, 10);
+		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var,
+					       &endptr, 10);
+		ut_ad(*endptr == 0);
+	}
+
+	if (page_zip_level_var != NULL) {
+		page_zip_level = strtoul(page_zip_level_var, &endptr, 10);
 		ut_ad(*endptr == 0);
 	}
 
@@ -1574,6 +1582,7 @@ bool write_backup_config_file()
 		"innodb_log_block_size=%lu\n"
 		"innodb_undo_directory=%s\n"
 		"innodb_undo_tablespaces=%lu\n"
+		"innodb_compression_level=%u\n"
 		"%s%s\n"
 		"%s%s\n"
 		"%s\n",
@@ -1586,6 +1595,7 @@ bool write_backup_config_file()
 		srv_log_block_size,
 		srv_undo_dir,
 		srv_undo_tablespaces,
+		page_zip_level,
 		innobase_doublewrite_file ? "innodb_doublewrite_file=" : "",
 		innobase_doublewrite_file ? innobase_doublewrite_file : "",
 		innobase_buffer_pool_filename ?
