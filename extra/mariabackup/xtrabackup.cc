@@ -830,6 +830,7 @@ enum options_xtrabackup
   OPT_XTRA_TABLES_EXCLUDE,
   OPT_XTRA_DATABASES_EXCLUDE,
   OPT_PROTOCOL,
+  OPT_INNODB_COMPRESSION_LEVEL,
   OPT_LOCK_DDL_PER_TABLE,
   OPT_ROCKSDB_DATADIR,
   OPT_BACKUP_ROCKSDB,
@@ -1358,6 +1359,11 @@ struct my_option xb_server_options[] =
    (G_PTR*)&srv_undo_tablespaces, (G_PTR*)&srv_undo_tablespaces,
    0, GET_ULONG, REQUIRED_ARG, 0, 0, 126, 0, 1, 0},
 
+  {"innodb_compression_level", OPT_INNODB_COMPRESSION_LEVEL,
+   "Compression level used for zlib compression.",
+   (G_PTR*)&page_zip_level, (G_PTR*)&page_zip_level,
+   0, GET_UINT, REQUIRED_ARG, 6, 0, 9, 0, 0, 0},
+
   {"defaults_group", OPT_DEFAULTS_GROUP, "defaults group in config file (default \"mysqld\").",
    (G_PTR*) &defaults_group, (G_PTR*) &defaults_group,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1693,6 +1699,10 @@ xb_get_one_option(int optid,
     ut_a(srv_checksum_algorithm <= SRV_CHECKSUM_ALGORITHM_STRICT_NONE);
 
     ADD_PRINT_PARAM_OPT(innodb_checksum_algorithm_names[srv_checksum_algorithm]);
+    break;
+
+  case OPT_INNODB_COMPRESSION_LEVEL:
+    ADD_PRINT_PARAM_OPT(page_zip_level);
     break;
 
   case OPT_INNODB_BUFFER_POOL_FILENAME:
