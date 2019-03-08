@@ -6383,7 +6383,7 @@ end_with_restore_list:
       DBUG_ASSERT(first_table == all_tables && first_table != 0);
     /* fall through */
   case SQLCOM_ALTER_SEQUENCE:
-      thd->query_plan_flags|= QPLAN_ADMIN;
+    thd->prepare_logs_for_admin_command();
     /* fall through */
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
