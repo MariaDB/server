@@ -198,6 +198,7 @@ static uint delimiter_length= 1;
 unsigned short terminal_width= 80;
 
 static uint opt_protocol=0;
+static const char *opt_protocol_type= "";
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 #include "sslopt-vars.h"
@@ -1604,7 +1605,8 @@ static struct my_option my_long_options[] =
    &current_prompt, &current_prompt, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
-   0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &opt_protocol_type, &opt_protocol_type, 0, GET_STR,  REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
   {"quick", 'q',
    "Don't cache result, print it row by row. This may slow down the server "
    "if the output is suspended. Doesn't use history file.",
@@ -1785,8 +1787,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     break;
   case OPT_MYSQL_PROTOCOL:
 #ifndef EMBEDDED_LIBRARY
-    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
-                                              opt->name)) <= 0)
+    if (!argument[0])
+      opt_protocol= 0;
+    else if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                                   opt->name)) <= 0)
       exit(1);
 #endif
     break;
@@ -1873,6 +1877,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case 'W':
 #ifdef __WIN__
     opt_protocol = MYSQL_PROTOCOL_PIPE;
+    opt_protcol_type= "pipe";
 #endif
     break;
 #include <sslopt-case.h>
