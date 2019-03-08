@@ -3609,7 +3609,7 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
   {
     /*
       SP was killed, and it is not due to a wsrep conflict.
-      We skip after_command hook at this point because
+      We skip after_statement hook at this point because
       otherwise it clears the error, and cleans up the
       whole transaction. For now we just return and finish
       our handling once we are back to mysql_parse.
@@ -3619,6 +3619,18 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
   else
   {
     (void) wsrep_after_statement(thd);
+    /*
+      Final wsrep error status for statement is known only after
+      wsrep_after_statement() call. If the error is set, override
+      error in thd diagnostics area and reset wsrep client_state error
+      so that the error does not get propagated via client-server protocol.
+    */
+    if (wsrep_current_error(thd))
+    {
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      thd->wsrep_cs().reset_error();
+    }
   }
 #endif /* WITH_WSREP */
   MYSQL_QUERY_EXEC_DONE(res);
