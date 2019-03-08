@@ -5659,11 +5659,9 @@ index_created:
 				if (index) {
 					dict_mem_index_free(index);
 				}
-				a++;
 error_handling_drop_uncached:
-				while (a < ctx->num_to_add_index) {
-					dict_mem_index_free(
-						ctx->add_index[a++]);
+				while (++a < ctx->num_to_add_index) {
+					dict_mem_index_free(ctx->add_index[a]);
 				}
 				goto error_handling;
 			} else {
@@ -5693,10 +5691,6 @@ error_handling_drop_uncached:
 				/* No need to allocate a modification log. */
 				DBUG_ASSERT(!index->online_log);
 			} else {
-				DBUG_EXECUTE_IF(
-					"innodb_OOM_prepare_inplace_alter",
-					error = DB_OUT_OF_MEMORY;
-					goto error_handling_drop_uncached;);
 				rw_lock_x_lock(&ctx->add_index[a]->lock);
 
 				bool ok = row_log_allocate(
@@ -5707,6 +5701,14 @@ error_handling_drop_uncached:
 					ctx->allow_not_null);
 
 				rw_lock_x_unlock(&index->lock);
+
+				DBUG_EXECUTE_IF(
+					"innodb_OOM_prepare_add_index",
+					if (ok && a == 1) {
+						row_log_free(
+							index->online_log);
+						ok = false;
+					});
 
 				if (!ok) {
 					error = DB_OUT_OF_MEMORY;
