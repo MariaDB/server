@@ -56,8 +56,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "encryption_plugin.h"
 #include <sstream>
 #include <sql_error.h>
-#include <ut0ut.h>
-
+#include "page0zip.h"
 
 char *tool_name;
 char tool_args[2048];
@@ -353,6 +352,7 @@ get_mysql_vars(MYSQL *connection)
 	char *innodb_undo_directory_var = NULL;
 	char *innodb_page_size_var = NULL;
 	char *innodb_undo_tablespaces_var = NULL;
+	char *page_zip_level_var = NULL;
 	char *endptr;
 	unsigned long server_version = mysql_get_server_version(connection);
 
@@ -382,6 +382,7 @@ get_mysql_vars(MYSQL *connection)
 		{"innodb_undo_directory", &innodb_undo_directory_var},
 		{"innodb_page_size", &innodb_page_size_var},
 		{"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
+		{"innodb_compression_level", &page_zip_level_var},
 		{NULL, NULL}
 	};
 
@@ -515,7 +516,13 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (innodb_undo_tablespaces_var) {
-		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var, &endptr, 10);
+		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var,
+					       &endptr, 10);
+		ut_ad(*endptr == 0);
+	}
+
+	if (page_zip_level_var != NULL) {
+		page_zip_level = strtoul(page_zip_level_var, &endptr, 10);
 		ut_ad(*endptr == 0);
 	}
 
@@ -1557,6 +1564,7 @@ bool write_backup_config_file()
 		"innodb_page_size=%lu\n"
 		"innodb_undo_directory=%s\n"
 		"innodb_undo_tablespaces=%lu\n"
+		"innodb_compression_level=%u\n"
 		"%s%s\n"
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
@@ -1566,6 +1574,7 @@ bool write_backup_config_file()
 		srv_page_size,
 		srv_undo_dir,
 		srv_undo_tablespaces,
+		page_zip_level,
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",
 		innobase_buffer_pool_filename ?
