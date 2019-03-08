@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1877,7 +1877,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case 'W':
 #ifdef __WIN__
     opt_protocol = MYSQL_PROTOCOL_PIPE;
-    opt_protcol_type= "pipe";
+    opt_protocol_type= "pipe";
 #endif
     break;
 #include <sslopt-case.h>
