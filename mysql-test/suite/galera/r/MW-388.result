@@ -23,15 +23,15 @@ SET SESSION wsrep_sync_wait = 0;
 SET SESSION DEBUG_SYNC = 'wsrep_after_certification SIGNAL wsrep_after_certification_reached WAIT_FOR wsrep_after_certification_continue';
 CALL insert_proc ();;
 connection node_1a;
-SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_replication_reached";
+SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_certification_reached";
 SET GLOBAL DEBUG_DBUG = "";
-SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
+SET DEBUG_SYNC = "now SIGNAL wsrep_after_certification_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 connection node_2;
 connection node_1;
-SELECT @errno = 1213;
-@errno = 1213
-1
+SELECT @errno `expect 1213`;
+expect 1213
+1213
 SELECT * FROM t1;
 f1	f2
 1	node 2

@@ -47,16 +47,17 @@ SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_certification_reached";
 
 
 SET GLOBAL DEBUG_DBUG = "";
-SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
+SET DEBUG_SYNC = "now SIGNAL wsrep_after_certification_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
 --connection node_2
 --reap
 
 --connection node_1
-# We expect no errors here, because the handler in insert_proc() caught the deadlock error
+# We expect no errors here, because the handler in insert_proc()
+# caught the deadlock error
 --reap
-SELECT @errno = 1213;
+SELECT @errno `expect 1213`;
 SELECT * FROM t1;
 
 --connection node_2
