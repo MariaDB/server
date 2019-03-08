@@ -137,6 +137,8 @@ SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
 PRIMARY
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
@@ -194,17 +196,19 @@ DROP DATABASE best;
 #
 # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
 #
-connect  fk, localhost, root,,;
+connect  con1, localhost, root,,;
 INSERT INTO t1 SET a=1;
 BEGIN;
 DELETE FROM t1;
 connection default;
 INSERT INTO t3 SET a=1;
-connection fk;
+connection con1;
 kill query @id;
 connection default;
 ERROR 70100: Query execution was interrupted
-disconnect fk;
+connection con1;
+ROLLBACK;
+connection default;
 DROP TABLE t3,t1;
 #
 # MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
@@ -298,7 +302,7 @@ INSERT INTO matchmaking_group_users VALUES (10,1),(11,2);
 INSERT INTO matchmaking_group_maps VALUES (10,55),(11,66);
 BEGIN;
 UPDATE users SET name = 'qux' WHERE id = 1;
-connect  con1,localhost,root,,;
+connection con1;
 SET innodb_lock_wait_timeout= 1;
 DELETE FROM matchmaking_groups WHERE id = 10;
 connection default;
@@ -443,6 +447,69 @@ connection con1;
 kill query @id;
 connection default;
 ERROR 70100: Query execution was interrupted
-disconnect con1;
+connection con1;
+ROLLBACK;
+connection default;
 DROP TABLE t2,t1;
+#
+# MDEV-18272 InnoDB index corruption after failed DELETE CASCADE
+#
+CREATE TABLE t1 (
+pk TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+a TINYINT UNSIGNED NOT NULL, b TINYINT UNSIGNED NOT NULL, KEY(b),
+CONSTRAINT FOREIGN KEY (a) REFERENCES t1 (b) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
+(0,1),(0,1),(1,0);
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE IGNORE FROM t1 WHERE b = 1;
+Warnings:
+Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 20. Please drop extra constraints and try again
+Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 20. Please drop extra constraints and try again
+Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+SELECT a FROM t1 FORCE INDEX(a);
+a
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+1
+SELECT * FROM t1;
+pk	a	b
+1	0	0
+2	0	0
+3	0	0
+4	0	0
+5	0	0
+6	0	0
+7	0	0
+8	0	0
+9	0	0
+10	0	0
+11	0	0
+12	0	0
+13	0	1
+14	0	1
+15	1	0
+disconnect con1;
+InnoDB		0 transactions not purged
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 # End of 10.2 tests
