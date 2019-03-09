@@ -2375,22 +2375,6 @@ void wsrep_wait_appliers_close(THD *thd)
   */
 }
 
-void wsrep_kill_mysql(THD *thd)
-{
-  if (mysqld_server_started)
-  {
-    if (!abort_loop)
-    {
-      WSREP_INFO("starting shutdown");
-      kill_mysql(thd);
-    }
-  }
-  else
-  {
-    unireg_abort(1);
-  }
-}
-
 void
 wsrep_last_committed_id(wsrep_gtid_t* gtid)
 {

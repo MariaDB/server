@@ -195,7 +195,6 @@ extern int  wsrep_wait_committing_connections_close(int wait_time);
 extern void wsrep_close_applier(THD *thd);
 extern void wsrep_wait_appliers_close(THD *thd);
 extern void wsrep_close_applier_threads(int count);
-extern void wsrep_kill_mysql(THD *thd);
 
 
 /* new defines */

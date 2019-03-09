@@ -510,7 +510,7 @@ handle_slave_background(void *arg __attribute__((unused)))
                     &old_stage);
     for (;;)
     {
-      stop= abort_loop || thd->killed || slave_background_thread_stop;
+      stop= thd->killed || slave_background_thread_stop;
       kill_list= slave_background_kill_list;
       create_list= slave_background_gtid_pos_create_list;
       pending_deletes= slave_background_gtid_pending_delete_flag;
@@ -1474,7 +1474,7 @@ static bool io_slave_killed(Master_info* mi)
   DBUG_ENTER("io_slave_killed");
 
   DBUG_ASSERT(mi->slave_running); // tracking buffer overrun
-  DBUG_RETURN(mi->abort_slave || abort_loop || mi->io_thd->killed);
+  DBUG_RETURN(mi->abort_slave || mi->io_thd->killed);
 }
 
 /**
@@ -1499,7 +1499,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
 
   DBUG_ASSERT(rli->sql_driver_thd == thd);
   DBUG_ASSERT(rli->slave_running == 1);// tracking buffer overrun
-  if (abort_loop || rli->sql_driver_thd->killed || rli->abort_slave)
+  if (rli->sql_driver_thd->killed || rli->abort_slave)
   {
     /*
       The transaction should always be binlogged if OPTION_KEEP_LOG is
