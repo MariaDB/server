@@ -314,6 +314,8 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     share->state.open_count= 1;
     share->changed= 1;
     _ma_mark_file_changed_now(share);
+    if (share->temporary)
+      break;
     /* fall through */
   case HA_EXTRA_PREPARE_FOR_RENAME:
   {
