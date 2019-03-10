@@ -2437,6 +2437,7 @@ DROP TABLE t1;
 # Bug#15943 mysql_next_result hangs on invalid SHOW CREATE VIEW
 #
 
+--disable_ps_protocol
 delimiter //;
 drop table if exists t1;
 drop view if exists v1;
@@ -2447,6 +2448,7 @@ show create view v1;
 drop view v1;
 //
 delimiter ;//
+--enable_ps_protocol
 
 
 #
@@ -3957,7 +3959,9 @@ CREATE VIEW v1 AS SELECT f1() FROM t1;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 copy_file std_data/bug48449.frm $MYSQLD_DATADIR/test/v2.frm;
 
+enable_prepare_warnings;
 SHOW CREATE VIEW v1;
+disable_prepare_warnings;
 
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;

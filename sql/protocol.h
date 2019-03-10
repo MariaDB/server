@@ -230,13 +230,8 @@ class Protocol_discard : public Protocol_text
 {
 public:
   Protocol_discard(THD *thd_arg) : Protocol_text(thd_arg) {}
-  virtual bool send_result_set_metadata(List<Item> *list, uint flags)
-  {
-    // Don't pas Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF flags 
-    return Protocol_text::send_result_set_metadata(list, 0);
-  }
-
   bool write() { return 0; }
+  bool send_result_set_metadata(List<Item> *, uint) { return 0; }
   bool send_eof(uint, uint) { return 0; }
   void prepare_for_resend() { IF_DBUG(field_pos= 0,); }
   

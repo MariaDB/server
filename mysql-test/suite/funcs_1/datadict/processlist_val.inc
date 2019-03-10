@@ -94,6 +94,7 @@ echo
 # 1. Just dump what we get
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
+--replace_result Execute Query
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS>
 SHOW FULL PROCESSLIST;
 #
@@ -167,6 +168,7 @@ let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
 # 1. Just dump what we get
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 7 <STATE> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
+--replace_result Execute Query
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
 #
@@ -212,6 +214,7 @@ echo
 connection con1;
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
+--replace_result Execute Query
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
 
@@ -246,6 +249,7 @@ connection con2;
 # Just dump what we get
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
+--replace_result Execute Query
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
 #
@@ -306,6 +310,7 @@ WHERE ID = @test_user_con2_id AND Command IN('Query','Execute')
 # 1. Just dump what we get
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
+--replace_result Execute Query
 --replace_column 1 <ID> 3 <HOST_NAME> 6 <TIME>
 SHOW FULL PROCESSLIST;
 #
@@ -436,8 +441,10 @@ echo
 ;
 --replace_column 1 <ID> 3 <HOST_NAME> 5 <COMMAND> 6 <TIME> 7 <STATE> 9 <TIME_MS> 13 <MEMORY> 14 <ROWS> 15 <QUERY_ID> 17 <TID>
 SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
+--replace_result Execute Query
 --replace_column 1 <ID> 3 <HOST_NAME> 5 <COMMAND> 6 <TIME> 7 <STATE>
 SHOW FULL PROCESSLIST;
+--replace_result Execute Query
 --replace_column 1 <ID> 3 <HOST_NAME> 5 <COMMAND> 6 <TIME> 7 <STATE>
 SHOW PROCESSLIST;
 UNLOCK TABLES;

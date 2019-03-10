@@ -12994,6 +12994,7 @@ load:
           LOAD data_or_xml
           {
             LEX *lex= thd->lex;
+            mysql_init_select(lex);
 
             if (lex->sphead)
             {

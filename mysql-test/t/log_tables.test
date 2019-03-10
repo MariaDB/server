@@ -855,7 +855,9 @@ SET GLOBAL slow_query_log = @old_slow_query_log;
 #
 
 select CONNECTION_ID() into @thread_id;
+--disable_ps_protocol
 truncate table mysql.general_log;
+--enable_ps_protocol
 set global general_log = on;
 --disable_result_log
 set @lparam = "000 001 002 003 004 005 006 007 008 009"

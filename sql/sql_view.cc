@@ -330,12 +330,11 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     {
       if (!tbl->table_in_first_from_clause)
       {
-        if (check_access(thd, SELECT_ACL, tbl->db,
-                         &tbl->grant.privilege,
-                         &tbl->grant.m_internal,
-                         0, 0) ||
-            check_grant(thd, SELECT_ACL, tbl, FALSE, 1, FALSE))
+        if (check_single_table_access(thd, SELECT_ACL, tbl, FALSE))
+        {
+          tbl->hide_view_error(thd);
           goto err;
+        }
       }
     }
   }

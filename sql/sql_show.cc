@@ -1148,6 +1148,48 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
                       table_list->table_name));
 
+  if (lex->only_view)
+  {
+    if (check_table_access(thd, SELECT_ACL, table_list, FALSE, 1, FALSE))
+    {
+      DBUG_PRINT("debug", ("check_table_access failed"));
+      my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
+              "SHOW", thd->security_ctx->priv_user,
+              thd->security_ctx->host_or_ip, table_list->alias);
+      goto exit;
+    }
+    DBUG_PRINT("debug", ("check_table_access succeeded"));
+
+    /* Ignore temporary tables if this is "SHOW CREATE VIEW" */
+    table_list->open_type= OT_BASE_ONLY;
+  }
+  else
+  {
+    /*
+      Temporary tables should be opened for SHOW CREATE TABLE, but not
+      for SHOW CREATE VIEW.
+    */
+    if (open_temporary_tables(thd, table_list))
+      goto exit;
+
+    /*
+      The fact that check_some_access() returned FALSE does not mean that
+      access is granted. We need to check if table_list->grant.privilege
+      contains any table-specific privilege.
+    */
+    DBUG_PRINT("debug", ("table_list->grant.privilege: %lx",
+                         table_list->grant.privilege));
+    if (check_some_access(thd, SHOW_CREATE_TABLE_ACLS, table_list) ||
+        (table_list->grant.privilege & SHOW_CREATE_TABLE_ACLS) == 0)
+    {
+      my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
+              "SHOW", thd->security_ctx->priv_user,
+              thd->security_ctx->host_or_ip, table_list->alias);
+      goto exit;
+    }
+  }
+  /* Access is granted. Execute the command.  */
+
   /* We want to preserve the tree for views. */
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
 

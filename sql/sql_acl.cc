@@ -7776,6 +7776,51 @@ void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
   fields->push_back(field, thd->mem_root);
 }
 
+bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
+                   const char **hostname, const char **rolename)
+{
+  if (lex_user->user.str == current_user.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    return 0;
+  }
+  if (lex_user->user.str == current_role.str)
+  {
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+  if (lex_user->user.str == current_user_and_current_role.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+
+  Security_context *sctx= thd->security_ctx;
+  bool do_check_access;
+
+  if (!(lex_user= get_current_user(thd, lex_user)))
+    return 1;
+
+  if (lex_user->is_role())
+  {
+    *rolename= lex_user->user.str;
+    do_check_access= strcmp(*rolename, sctx->priv_role);
+  }
+  else
+  {
+    *username= lex_user->user.str;
+    *hostname= lex_user->host.str;
+    do_check_access= strcmp(*username, sctx->priv_user) ||
+                     strcmp(*hostname, sctx->priv_host);
+  }
+
+  if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
+    return 1;
+  return 0;
+}
 
 /*
   SHOW GRANTS;  Send grants for a user to the client
@@ -7791,9 +7836,9 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   ACL_ROLE *acl_role= NULL;
   char buff[1024];
   Protocol *protocol= thd->protocol;
-  char *username= NULL;
-  char *hostname= NULL;
-  char *rolename= NULL;
+  const char *username= NULL;
+  const char *hostname= NULL;
+  const char *rolename= NULL;
   DBUG_ENTER("mysql_show_grants");
 
   if (!initialized)
@@ -7802,46 +7847,9 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
-  if (lex_user->user.str == current_user.str)
-  {
-    username= thd->security_ctx->priv_user;
-    hostname= thd->security_ctx->priv_host;
-  }
-  else if (lex_user->user.str == current_role.str)
-  {
-    rolename= thd->security_ctx->priv_role;
-  }
-  else if (lex_user->user.str == current_user_and_current_role.str)
-  {
-    username= thd->security_ctx->priv_user;
-    hostname= thd->security_ctx->priv_host;
-    rolename= thd->security_ctx->priv_role;
-  }
-  else
-  {
-    Security_context *sctx= thd->security_ctx;
-    bool do_check_access;
+  if (get_show_user(thd, lex_user, &username, &hostname, &rolename))
+    DBUG_RETURN(TRUE);
 
-    lex_user= get_current_user(thd, lex_user);
-    if (!lex_user)
-      DBUG_RETURN(TRUE);
-
-    if (lex_user->is_role())
-    {
-      rolename= lex_user->user.str;
-      do_check_access= strcmp(rolename, sctx->priv_role);
-    }
-    else
-    {
-      username= lex_user->user.str;
-      hostname= lex_user->host.str;
-      do_check_access= strcmp(username, sctx->priv_user) ||
-                       strcmp(hostname, sctx->priv_host);
-    }
-
-    if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
-      DBUG_RETURN(TRUE);
-  }
   DBUG_ASSERT(rolename || username);
 
   List<Item> field_list;

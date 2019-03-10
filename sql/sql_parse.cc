@@ -3007,7 +3007,11 @@ mysql_execute_command(THD *thd)
       if (lex->sql_command == SQLCOM_SELECT)
         WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);
       else
+      {
         WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
+        if (lex->sql_command == SQLCOM_SHOW_PROFILE)
+          thd->profiling.discard_current_query();
+      }
 
     thd->status_var.last_query_cost= 0.0;
 
@@ -3723,49 +3727,6 @@ end_with_restore_list:
       DBUG_PRINT("debug", ("lex->only_view: %d, table: %s.%s",
                            lex->only_view,
                            first_table->db, first_table->table_name));
-      if (lex->only_view)
-      {
-        if (check_table_access(thd, SELECT_ACL, first_table, FALSE, 1, FALSE))
-        {
-          DBUG_PRINT("debug", ("check_table_access failed"));
-          my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
-                  "SHOW", thd->security_ctx->priv_user,
-                  thd->security_ctx->host_or_ip, first_table->alias);
-          goto error;
-        }
-        DBUG_PRINT("debug", ("check_table_access succeeded"));
-
-        /* Ignore temporary tables if this is "SHOW CREATE VIEW" */
-        first_table->open_type= OT_BASE_ONLY;
-
-      }
-      else
-      {
-        /*
-          Temporary tables should be opened for SHOW CREATE TABLE, but not
-          for SHOW CREATE VIEW.
-        */
-        if (open_temporary_tables(thd, all_tables))
-          goto error;
-
-        /*
-          The fact that check_some_access() returned FALSE does not mean that
-          access is granted. We need to check if first_table->grant.privilege
-          contains any table-specific privilege.
-        */
-        DBUG_PRINT("debug", ("first_table->grant.privilege: %lx",
-                             first_table->grant.privilege));
-        if (check_some_access(thd, SHOW_CREATE_TABLE_ACLS, first_table) ||
-            (first_table->grant.privilege & SHOW_CREATE_TABLE_ACLS) == 0)
-        {
-          my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
-                  "SHOW", thd->security_ctx->priv_user,
-                  thd->security_ctx->host_or_ip, first_table->alias);
-          goto error;
-        }
-      }
-
-      /* Access is granted. Execute the command.  */
       res= mysqld_show_create(thd, first_table);
       break;
 #endif
@@ -4116,7 +4077,7 @@ end_with_restore_list:
   case SQLCOM_DELETE:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
-    select_result *sel_result=lex->result;
+    select_result *sel_result= NULL;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (WSREP_CLIENT(thd) &&
         wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
@@ -4147,16 +4108,15 @@ end_with_restore_list:
       }
       else
       {
-        if (!(sel_result= lex->result) &&
-            !(sel_result= new (thd->mem_root) select_send(thd)))
-          return 1;
+        if (!lex->result && !(sel_result= new (thd->mem_root) select_send(thd)))
+          goto error;
       }
     }
 
     res = mysql_delete(thd, all_tables, 
                        select_lex->where, &select_lex->order_list,
                        unit->select_limit_cnt, select_lex->options,
-                       sel_result);
+                       lex->result ? lex->result : sel_result);
 
     if (replaced_protocol)
     {
@@ -6517,7 +6477,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
       Check_grant will grant access if there is any column privileges on
       all of the tables thanks to the fourth parameter (bool show_table).
     */
-    if (check_grant(thd, SELECT_ACL, dst_table, TRUE, UINT_MAX, FALSE))
+    if (check_grant(thd, SELECT_ACL, dst_table, TRUE, 1, FALSE))
       return TRUE; /* Access denied */
 
     close_thread_tables(thd);
