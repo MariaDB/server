@@ -1,7 +1,5 @@
 connection node_1;
 connection node_2;
-connection node_1;
-connection node_2;
 connection node_2;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);

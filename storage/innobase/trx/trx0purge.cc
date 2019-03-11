@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -148,7 +148,8 @@ purge_graph_build()
 
 	for (ulint i = 0; i < srv_n_purge_threads; ++i) {
 		que_thr_t*	thr = que_thr_create(fork, heap, NULL);
-		thr->child = row_purge_node_create(thr, heap);
+		thr->child = new(mem_heap_zalloc(heap, sizeof(purge_node_t)))
+			purge_node_t(thr);
 	}
 
 	return(fork);
@@ -1404,7 +1405,7 @@ ulint
 trx_purge_attach_undo_recs(ulint n_purge_threads)
 {
 	que_thr_t*	thr;
-	ulint		i = 0;
+	ulint		i;
 	ulint		n_pages_handled = 0;
 	ulint		n_thrs = UT_LIST_GET_LEN(purge_sys.query->thrs);
 
@@ -1412,6 +1413,8 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 
 	purge_sys.head = purge_sys.tail;
 
+#ifdef UNIV_DEBUG
+	i = 0;
 	/* Debug code to validate some pre-requisites and reset done flag. */
 	for (thr = UT_LIST_GET_FIRST(purge_sys.query->thrs);
 	     thr != NULL && i < n_purge_threads;
@@ -1422,16 +1425,16 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 		/* Get the purge node. */
 		node = (purge_node_t*) thr->child;
 
-		ut_a(que_node_get_type(node) == QUE_NODE_PURGE);
-		ut_a(node->undo_recs == NULL);
-		ut_a(node->done);
-
-		node->done = FALSE;
+		ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
+		ut_ad(node->undo_recs == NULL);
+		ut_ad(!node->in_progress);
+		ut_d(node->in_progress = true);
 	}
 
 	/* There should never be fewer nodes than threads, the inverse
 	however is allowed because we only use purge threads as needed. */
-	ut_a(i == n_purge_threads);
+	ut_ad(i == n_purge_threads);
+#endif
 
 	/* Fetch and parse the UNDO records. The UNDO records are added
 	to a per purge node vector. */
