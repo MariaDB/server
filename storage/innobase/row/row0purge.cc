@@ -954,14 +954,18 @@ row_purge_parse_undo_rec(
 
 	node->rec_type = type;
 
-	if ((type == TRX_UNDO_UPD_DEL_REC && !*updated_extern)
-	    || node->is_skipped(table_id)) {
+	if (type == TRX_UNDO_UPD_DEL_REC && !*updated_extern) {
+skip:
 		node->table = NULL;
 		return false;
 	}
 
 	ptr = trx_undo_update_rec_get_sys_cols(ptr, &node->trx_id, &roll_ptr,
 					       &info_bits);
+
+	if (node->is_skipped(table_id)) {
+		goto skip;
+	}
 
 	/* Prevent DROP TABLE etc. from running when we are doing the purge
 	for this row */
