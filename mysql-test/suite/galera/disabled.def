@@ -32,9 +32,10 @@ galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_
 galera_concurrent_ctas : MDEV-18180 Galera test failure on galera.galera_concurrent_ctas
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
 galera_flush :  MariaDB does not have global.thread_statistics
+galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_gcs_fc_limit : MDEV-17061 Timeout in wait_condition.inc for PROCESSLIST
-galera_ist_mariabackup : Leaves port open
-galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read transfer status
+galera_ist_mariabackup : MDEV-18829 test leaves port open
+galera_ist_progress: MDEV-15236 fails when trying to read transfer status
 galera_kill_applier : race condition at the start of the test
 galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
 galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges

@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
-# Copyright (C) 2017 MariaDB
+# Copyright (C) 2017-2019 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -667,7 +667,7 @@ monitor_process()
             exit 32
         fi
 
-        if ! ps -p "${sst_stream_pid}" &>/dev/null; then 
+        if ! ps -p "${sst_stream_pid}" &>/dev/null; then
             break
         fi
 
@@ -707,10 +707,7 @@ if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
 fi
 # if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
-fi
-if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir "")
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
 fi
 if [ ! -z "$INNODB_DATA_HOME_DIR" ]; then
    INNOEXTRA+=" --innodb-data-home-dir=$INNODB_DATA_HOME_DIR"
@@ -829,7 +826,7 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -952,8 +949,8 @@ then
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
     ib_home_dir=$INNODB_DATA_HOME_DIR
-    ib_log_dir=$(parse_cnf mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf mysqld innodb-undo-directory "")
+    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
 
     stagemsg="Joiner-Recv"
 
@@ -1023,15 +1020,14 @@ then
         jpid=$!
         wsrep_log_info "Proceeding with SST"
 
-
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
 	if [ "${OS}" = "FreeBSD" ]; then
             find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
         else
             find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
-        fi
+	fi
 
-        tempdir=$(parse_cnf mysqld log-bin "")
+        tempdir=$(parse_cnf --mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)

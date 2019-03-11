@@ -3059,23 +3059,13 @@ row_import_read_cfg(
 	return(err);
 }
 
-/*****************************************************************//**
-Update the <space, root page> of a table's indexes from the values
-in the data dictionary.
+/** Update the root page numbers and tablespace ID of a table.
+@param[in,out]	trx	dictionary transaction
+@param[in,out]	table	persistent table
+@param[in]	reset	whether to reset the fields to FIL_NULL
 @return DB_SUCCESS or error code */
 dberr_t
-row_import_update_index_root(
-/*=========================*/
-	trx_t*			trx,		/*!< in/out: transaction that
-						covers the update */
-	const dict_table_t*	table,		/*!< in: Table for which we want
-						to set the root page_no */
-	bool			reset,		/*!< in: if true then set to
-						FIL_NUL */
-	bool			dict_locked)	/*!< in: Set to true if the
-						caller already owns the
-						dict_sys_t:: mutex. */
-
+row_import_update_index_root(trx_t* trx, dict_table_t* table, bool reset)
 {
 	const dict_index_t*	index;
 	que_t*			graph = 0;
@@ -3093,9 +3083,7 @@ row_import_update_index_root(
 		"WHERE TABLE_ID = :table_id AND ID = :index_id;\n"
 		"END;\n"};
 
-	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-	}
+	table->def_trx_id = trx->id;
 
 	for (index = dict_table_get_first_index(table);
 	     index != 0;
@@ -3169,10 +3157,6 @@ row_import_update_index_root(
 	}
 
 	que_graph_free(graph);
-
-	if (!dict_locked) {
-		mutex_exit(&dict_sys->mutex);
-	}
 
 	return(err);
 }
@@ -4119,7 +4103,7 @@ row_import_for_mysql(
 	row_mysql_lock_data_dictionary(trx);
 
 	/* Update the root pages of the table's indexes. */
-	err = row_import_update_index_root(trx, table, false, true);
+	err = row_import_update_index_root(trx, table, false);
 
 	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));

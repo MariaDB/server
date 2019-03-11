@@ -28,7 +28,6 @@ WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
-WSREP_SST_OPT_SUFFIX_VALUE=""
 INNODB_DATA_HOME_DIR_ARG=""
 
 while [ $# -gt 0 ]; do
@@ -94,7 +93,6 @@ case "$1" in
         ;;
     '--defaults-group-suffix')
         readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$2"
-        readonly WSREP_SST_OPT_SUFFIX_VALUE="$2"
         shift
         ;;
     '--host')
