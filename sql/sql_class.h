@@ -5458,6 +5458,11 @@ public:
 */
 #define CF_UPDATES_DATA (1U << 18)
 
+/**
+  Not logged into slow log as "admin commands"
+*/
+#define CF_ADMIN_COMMAND (1U << 19)
+
 /* Bits in server_command_flags */
 
 /**

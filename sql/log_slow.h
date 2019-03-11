@@ -34,4 +34,5 @@
 #define QPLAN_FILESORT_PRIORITY_QUEUE       (1U << 9)
  
 /* ... */
+#define QPLAN_STATUS          (1U << 31) /* not in the slow_log_filter */
 #define QPLAN_MAX             (1U << 31) /* reserved as placeholder */

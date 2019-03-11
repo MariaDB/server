@@ -145,8 +145,6 @@ public:
   */
   virtual bool execute(THD *thd) = 0;
 
-  virtual bool log_slow_enabled_statement(const THD *thd) const;
-
 protected:
   Sql_cmd()
   {}
@@ -162,18 +160,5 @@ protected:
     DBUG_ASSERT(FALSE);
   }
 };
-
-
-class Sql_cmd_admin: public Sql_cmd
-{
-public:
-  Sql_cmd_admin()
-  {}
-  ~Sql_cmd_admin()
-  {}
-  bool log_slow_enabled_statement(const THD *thd) const;
-};
-
-
 
 #endif // SQL_CMD_INCLUDED

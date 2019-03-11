@@ -309,10 +309,11 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_TABLE]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_CAN_GENERATE_ROW_EVENTS;
-  sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
+  sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
+                                            CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
   sql_command_flags[SQLCOM_ALTER_TABLE]=    CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
-                                            CF_INSERTS_DATA;
+                                            CF_INSERTS_DATA | CF_ADMIN_COMMAND;
   sql_command_flags[SQLCOM_TRUNCATE]=       CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_TABLE]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
@@ -324,7 +325,8 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_DB_UPGRADE]= CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_DB]=       CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_RENAME_TABLE]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_DROP_INDEX]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
+  sql_command_flags[SQLCOM_DROP_INDEX]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
+                                            CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
   sql_command_flags[SQLCOM_CREATE_VIEW]=    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_VIEW]=      CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
@@ -492,10 +494,14 @@ void init_update_queries(void)
     The following admin table operations are allowed
     on log tables.
   */
-  sql_command_flags[SQLCOM_REPAIR]=    CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
-  sql_command_flags[SQLCOM_OPTIMIZE]|= CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
-  sql_command_flags[SQLCOM_ANALYZE]=   CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
-  sql_command_flags[SQLCOM_CHECK]=     CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
+  sql_command_flags[SQLCOM_REPAIR]=    CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS |
+                                       CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
+  sql_command_flags[SQLCOM_OPTIMIZE]|= CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS |
+                                       CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
+  sql_command_flags[SQLCOM_ANALYZE]=   CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS |
+                                       CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
+  sql_command_flags[SQLCOM_CHECK]=     CF_WRITE_LOGS_COMMAND | CF_AUTO_COMMIT_TRANS |
+                                       CF_REPORT_PROGRESS | CF_ADMIN_COMMAND;
   sql_command_flags[SQLCOM_CHECKSUM]=  CF_REPORT_PROGRESS;
 
   sql_command_flags[SQLCOM_CREATE_USER]|=       CF_AUTO_COMMIT_TRANS;
@@ -1304,10 +1310,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                                                m_key);
   thd->set_command(command);
 
-  /*
-    Commands which always take a long time are logged into
-    the slow log only if opt_log_slow_admin_statements is set.
-  */
   thd->enable_slow_log= true;
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
@@ -1718,7 +1720,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
       status_var_increment(thd->status_var.com_other);
 
-      thd->enable_slow_log&= opt_log_slow_admin_statements;
       thd->query_plan_flags|= QPLAN_ADMIN;
       if (check_global_access(thd, REPL_SLAVE_ACL))
 	break;
@@ -2018,31 +2019,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 }
 
 
-static bool log_slow_enabled_statement(const THD *thd)
-{
-  /*
-    TODO-10.4: Add classes Sql_cmd_create_index and Sql_cmd_drop_index
-    for symmetry with other admin commands, so these statements can be
-    handled by this command:
-  */
-  if (thd->lex->m_sql_cmd)
-    return thd->lex->m_sql_cmd->log_slow_enabled_statement(thd);
-
-  /*
-    Currently CREATE INDEX or DROP INDEX cause a full table rebuild
-    and thus classify as slow administrative statements just like
-    ALTER TABLE.
-  */
-  if ((thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
-       thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !opt_log_slow_admin_statements)
-    return true;
-
-  return global_system_variables.sql_log_slow &&
-         thd->variables.sql_log_slow;
-}
-
-
 /*
   @note
     This function must call delete_explain_query().
@@ -2075,12 +2051,20 @@ void log_slow_statement(THD *thd)
        ((thd->server_status &
          (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
         opt_log_queries_not_using_indexes &&
-        !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
+        !(thd->query_plan_flags & QPLAN_STATUS))) &&
       thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
   {
     thd->status_var.long_query_count++;
 
-    if (!log_slow_enabled_statement(thd))
+    /*
+      until opt_log_slow_admin_statements is removed, it
+      duplicates slow_log_filter=admin
+    */
+    if ((thd->query_plan_flags & QPLAN_ADMIN) &&
+        !opt_log_slow_admin_statements)
+      goto end;
+
+    if (!global_system_variables.sql_log_slow || !thd->variables.sql_log_slow)
       goto end;
 
     /*
@@ -2953,6 +2937,11 @@ mysql_execute_command(THD *thd)
       goto error;
   }
 
+  if (sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND)
+    thd->query_plan_flags|= QPLAN_STATUS;
+  if (sql_command_flags[lex->sql_command] & CF_ADMIN_COMMAND)
+    thd->query_plan_flags|= QPLAN_ADMIN;
+
   /* Start timeouts */
   thd->set_query_timer();
 
@@ -3574,7 +3563,6 @@ end_with_restore_list:
     if (check_one_table_access(thd, INDEX_ACL, all_tables))
       goto error; /* purecov: inspected */
     WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
-    thd->query_plan_flags|= QPLAN_ADMIN;
 
     bzero((char*) &create_info, sizeof(create_info));
     create_info.db_type= 0;
@@ -5732,7 +5720,6 @@ end_with_restore_list:
   case SQLCOM_REPAIR:
   case SQLCOM_TRUNCATE:
   case SQLCOM_ALTER_TABLE:
-      thd->query_plan_flags|= QPLAN_ADMIN;
       DBUG_ASSERT(first_table == all_tables && first_table != 0);
     /* fall through */
   case SQLCOM_SIGNAL:
