@@ -1,3 +1,4 @@
+connection node_1;
 SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
 COUNT(DISTINCT uuid) = 2
 1

@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
-# Copyright (C) 2017 MariaDB
+# Copyright (C) 2017-2019 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -77,7 +77,7 @@ sdecomp=""
 # 5.6.21 PXC and later can't donate to an older joiner
 sst_ver=1
 
-if which pv &>/dev/null && pv --help | grep -q FORMAT;then 
+if pv --help 2>/dev/null | grep -q FORMAT;then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
@@ -175,10 +175,8 @@ get_transfer()
     fi
 
     if [[ $tfmt == 'nc' ]];then
-        if [[ ! -x `which nc` ]];then 
-            wsrep_log_error "nc(netcat) not found in path: $PATH"
-            exit 2
-        fi
+	wsrep_check_programs nc
+
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat;then 
@@ -205,11 +203,8 @@ get_transfer()
         fi
     else
         tfmt='socat'
+	wsrep_check_programs socat
         wsrep_log_info "Using socat as streamer"
-        if [[ ! -x `which socat` ]];then 
-            wsrep_log_error "socat not found in path: $PATH"
-            exit 2
-        fi
 
         if [[ $encrypt -eq 2 || $encrypt -eq 3 ]] && ! socat -V | grep -q "WITH_OPENSSL 1";then
             wsrep_log_error "Encryption requested, but socat is not OpenSSL enabled (encrypt=$encrypt)"
@@ -298,7 +293,7 @@ get_footprint()
 adjust_progress()
 {
 
-    if [[ ! -x `which pv` ]];then 
+    if ! command -v pv >/dev/null;then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -603,7 +598,7 @@ recv_joiner()
     pushd ${dir} 1>/dev/null
     set +e
 
-    if [[ $tmt -gt 0 && -x `which timeout` ]];then 
+    if [[ $tmt -gt 0 ]] && command -v timeout >/dev/null;then
         if timeout --help | grep -q -- '-k';then 
             ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
         else 
@@ -673,7 +668,7 @@ monitor_process()
             exit 32
         fi
 
-        if ! ps -p "${sst_stream_pid}" &>/dev/null; then 
+        if ! ps -p "${sst_stream_pid}" &>/dev/null; then
             break
         fi
 
@@ -682,10 +677,7 @@ monitor_process()
     done
 }
 
-if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then 
-    wsrep_log_error "${INNOBACKUPEX_BIN} not in path: $PATH"
-    exit 2
-fi
+wsrep_check_programs "$INNOBACKUPEX_BIN"
 
 rm -f "${MAGIC_FILE}"
 
@@ -709,9 +701,30 @@ fi
 
 INNOEXTRA=""
 
+INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
+# Try to set INNODB_DATA_HOME_DIR from the command line:
+if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
+fi
+# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
+fi
+if [ ! -z "$INNODB_DATA_HOME_DIR" ]; then
+   INNOEXTRA+=" --innodb-data-home-dir=$INNODB_DATA_HOME_DIR"
+fi
+
+if [ -n "$INNODB_DATA_HOME_DIR" ]; then
+    # handle both relative and absolute paths
+    INNODB_DATA_HOME_DIR=$(cd $DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
+else
+    # default to datadir
+    INNODB_DATA_HOME_DIR=$(cd $DATA; pwd -P)
+fi
+
 if [[ $ssyslog -eq 1 ]];then 
 
-    if [[ ! -x `which logger` ]];then 
+    if ! command -v logger >/dev/null;then
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     else
 
@@ -729,7 +742,7 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
         }
 
-        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts --apply-log \$rebuildcmd \${DATA} 2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
+        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} 2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
         INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
         INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
@@ -738,8 +751,8 @@ else
 
 if [[ "$sstlogarchive" -eq 1 ]]
 then
-    ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S")
-    newfile=""    
+    ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S.%N")
+    newfile=""
 
     if [[ ! -z "$sstlogarchivedir" ]]
     then
@@ -793,7 +806,7 @@ then
 
 fi
  
-    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts --apply-log \$rebuildcmd \${DATA} &> ${INNOAPPLYLOG}"
+    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &> ${INNOAPPLYLOG}"
     INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &> ${INNOMOVELOG}"
     INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> ${INNOBACKUPLOG}"
 fi
@@ -814,7 +827,7 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -936,9 +949,9 @@ then
     [[ -e $SST_PROGRESS_FILE ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
-    ib_home_dir=$(parse_cnf mysqld innodb-data-home-dir "")
-    ib_log_dir=$(parse_cnf mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf mysqld innodb-undo-directory "")
+    ib_home_dir=$INNODB_DATA_HOME_DIR
+    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
 
     stagemsg="Joiner-Recv"
 
@@ -1008,15 +1021,14 @@ then
         jpid=$!
         wsrep_log_info "Proceeding with SST"
 
-
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
 	if [ "${OS}" = "FreeBSD" ]; then
             find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
         else
             find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
-        fi
+	fi
 
-        tempdir=$(parse_cnf mysqld log-bin "")
+        tempdir=$(parse_cnf --mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)
@@ -1061,7 +1073,7 @@ then
 
             wsrep_log_info "Compressed qpress files found"
 
-            if [[ ! -x `which qpress` ]];then 
+	    if ! command -v qpress >/dev/null;then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi
