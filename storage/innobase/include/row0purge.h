@@ -115,13 +115,16 @@ public:
 	mem_heap_t*	heap;	/*!< memory heap used as auxiliary storage for
 				row; this must be emptied after a successful
 				purge of a row */
-	ibool		found_clust;/* TRUE if the clustered index record
+	ibool		found_clust;/*!< whether the clustered index record
 				determined by ref was found in the clustered
 				index, and we were able to position pcur on
 				it */
 	btr_pcur_t	pcur;	/*!< persistent cursor used in searching the
 				clustered index record */
-	ibool		done;	/* Debug flag */
+#ifdef UNIV_DEBUG
+	/** whether the operation is in progress */
+	bool		in_progress;
+#endif
 	trx_id_t	trx_id;	/*!< trx id for this purging record */
 
 	/** Virtual column information about opening of MariaDB table.
@@ -130,8 +133,7 @@ public:
 
 	/** Constructor */
 	explicit purge_node_t(que_thr_t* parent) :
-		common(QUE_NODE_PURGE, parent), heap(mem_heap_create(256)),
-		done(TRUE)
+		common(QUE_NODE_PURGE, parent), heap(mem_heap_create(256))
 	{}
 
 #ifdef UNIV_DEBUG
@@ -166,6 +168,34 @@ public:
 		DBUG_ASSERT(limit >= trx_id || !srv_safe_truncate);
 		unavailable_table_id = id;
 		def_trx_id = limit;
+	}
+
+	/** Start processing an undo log record. */
+	void start()
+	{
+		ut_ad(in_progress);
+		DBUG_ASSERT(common.type == QUE_NODE_PURGE);
+
+		table = NULL;
+		row = NULL;
+		ref = NULL;
+		index = NULL;
+		update = NULL;
+		found_clust = FALSE;
+		rec_type = ULINT_UNDEFINED;
+		cmpl_info = ULINT_UNDEFINED;
+	}
+
+	/** Reset the state at end
+	@return the query graph parent */
+	que_node_t* end()
+	{
+		DBUG_ASSERT(common.type == QUE_NODE_PURGE);
+		undo_recs = NULL;
+		ut_d(in_progress = false);
+		vcol_info.reset();
+		mem_heap_empty(heap);
+		return common.parent;
 	}
 };
 

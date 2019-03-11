@@ -1176,25 +1176,11 @@ row_purge_end(
 /*==========*/
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	purge_node_t*	node;
-
 	ut_ad(thr);
 
-	node = static_cast<purge_node_t*>(thr->run_node);
-
-	ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
-
-	thr->run_node = que_node_get_parent(node);
-
-	node->undo_recs = NULL;
-
-	node->done = TRUE;
-
-	node->vcol_info.reset();
+	thr->run_node = static_cast<purge_node_t*>(thr->run_node)->end();
 
 	ut_a(thr->run_node != NULL);
-
-	mem_heap_empty(node->heap);
 }
 
 /***********************************************************//**
@@ -1212,18 +1198,7 @@ row_purge_step(
 
 	node = static_cast<purge_node_t*>(thr->run_node);
 
-	node->table = NULL;
-	node->row = NULL;
-	node->ref = NULL;
-	node->index = NULL;
-	node->update = NULL;
-	node->found_clust = FALSE;
-	node->rec_type = ULINT_UNDEFINED;
-	node->cmpl_info = ULINT_UNDEFINED;
-
-	ut_a(!node->done);
-
-	ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
+	node->start();
 
 	if (!(node->undo_recs == NULL || ib_vector_is_empty(node->undo_recs))) {
 		trx_purge_rec_t*purge_rec;
