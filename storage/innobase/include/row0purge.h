@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,16 +34,6 @@ Created 3/14/1997 Heikki Tuuri
 #include "row0types.h"
 #include "ut0vec.h"
 #include "row0mysql.h"
-
-/** Create a purge node to a query graph.
-@param[in]	parent	parent node, i.e., a thr node
-@param[in]	heap	memory heap where created
-@return own: purge node */
-purge_node_t*
-row_purge_node_create(
-	que_thr_t*	parent,
-	mem_heap_t*	heap)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Determines if it is possible to remove a secondary index entry.
 Removal is possible if the secondary index entry does not refer to any
@@ -102,6 +92,13 @@ struct purge_node_t{
 
 	ulint		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
 				... */
+private:
+	/** latest unavailable table ID (do not bother looking up again) */
+	table_id_t	unavailable_table_id;
+	/** the latest modification of the table definition identified by
+	unavailable_table_id, or TRX_ID_MAX */
+	trx_id_t	def_trx_id;
+public:
 	dict_table_t*	table;	/*!< table where purge is done */
 
 	ulint		cmpl_info;/* compiler analysis info of an update */
@@ -131,6 +128,12 @@ struct purge_node_t{
 	It resets after processing each undo log record. */
 	purge_vcol_info_t	vcol_info;
 
+	/** Constructor */
+	explicit purge_node_t(que_thr_t* parent) :
+		common(QUE_NODE_PURGE, parent), heap(mem_heap_create(256)),
+		done(TRUE)
+	{}
+
 #ifdef UNIV_DEBUG
 	/***********************************************************//**
 	Validate the persisent cursor. The purge node has two references
@@ -146,6 +149,24 @@ struct purge_node_t{
 	computation.
 	@return true if the table failed to open. */
 	bool vcol_op_failed() const { return !vcol_info.validate(); }
+
+	/** Determine if a table should be skipped in purge.
+	@param[in]	table_id	table identifier
+	@return	whether to skip the table lookup and processing */
+	bool is_skipped(table_id_t id) const
+	{
+		return id == unavailable_table_id && trx_id <= def_trx_id;
+	}
+
+	/** Remember that a table should be skipped in purge.
+	@param[in]	id	table identifier
+	@param[in]	limit	last transaction for which to skip */
+	void skip(table_id_t id, trx_id_t limit)
+	{
+		DBUG_ASSERT(limit >= trx_id || !srv_safe_truncate);
+		unavailable_table_id = id;
+		def_trx_id = limit;
+	}
 };
 
 #endif

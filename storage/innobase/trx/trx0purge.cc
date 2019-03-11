@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -182,7 +182,8 @@ purge_graph_build()
 
 	for (ulint i = 0; i < srv_n_purge_threads; ++i) {
 		que_thr_t*	thr = que_thr_create(fork, heap, NULL);
-		thr->child = row_purge_node_create(thr, heap);
+		thr->child = new(mem_heap_zalloc(heap, sizeof(purge_node_t)))
+			purge_node_t(thr);
 	}
 
 	return(fork);
