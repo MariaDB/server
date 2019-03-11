@@ -830,3 +830,15 @@ SET sql_mode=default;
 select JSON_VALID( '{"a":1]' );
 JSON_VALID( '{"a":1]' )
 0
+#
+# MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
+#
+SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'));
+JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'))
+["str", {"plugin": "unix_socket"}]
+SELECT CHARSET(JSON_ARRAY());
+CHARSET(JSON_ARRAY())
+latin1
+SELECT CHARSET(JSON_OBJECT());
+CHARSET(JSON_OBJECT())
+latin1
