@@ -995,7 +995,7 @@ public:
   unit_common_op common_op();
 
   void reset_distinct();
-  void fix_distinct(st_select_lex_unit *new_unit);
+  void fix_distinct();
 
   void register_select_chain(SELECT_LEX *first_sel);
 

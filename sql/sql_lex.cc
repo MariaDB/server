@@ -5427,6 +5427,7 @@ SELECT_LEX *LEX::wrap_select_chain_into_derived(SELECT_LEX *sel)
      DBUG_RETURN(NULL);
   Name_resolution_context *context= &dummy_select->context;
   dummy_select->automatic_brackets= FALSE;
+  sel->distinct= TRUE; // First select has not this attribute (safety)
 
   if (!(unit= dummy_select->attach_selects_chain(sel, context)))
     DBUG_RETURN(NULL);
@@ -8838,19 +8839,10 @@ void st_select_lex_unit::reset_distinct()
 }
 
 
-void st_select_lex_unit::fix_distinct(st_select_lex_unit *new_unit)
+void st_select_lex_unit::fix_distinct()
 {
-  if (union_distinct)
-  {
-    if (this != union_distinct->master_unit())
-    {
-      DBUG_ASSERT(new_unit == union_distinct->master_unit());
-      new_unit->union_distinct= union_distinct;
-      reset_distinct();
-    }
-    else
-      new_unit->reset_distinct();
-  }
+  if (union_distinct && this != union_distinct->master_unit())
+    reset_distinct();
 }
 
 
@@ -9089,6 +9081,7 @@ bool LEX::parsed_unit_in_brackets(SELECT_LEX_UNIT *unit)
     /* There is a priority jump starting from first_in_nest */
     if (create_priority_nest(first_in_nest) == NULL)
       return true;
+    unit->fix_distinct();
   }
   push_select(unit->fake_select_lex);
   return false;
@@ -9236,6 +9229,7 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
       /* There is a priority jump starting from first_in_nest */
       if ((last= create_priority_nest(first_in_nest)) == NULL)
         return NULL;
+      unit->fix_distinct();
     }
     sel1->first_nested= last->first_nested;
   }
@@ -9273,6 +9267,7 @@ bool LEX::parsed_body_unit(SELECT_LEX_UNIT *unit)
     /* There is a priority jump starting from first_in_nest */
     if (create_priority_nest(first_in_nest) == NULL)
       return true;
+    unit->fix_distinct();
   }
   push_select(unit->fake_select_lex);
   return false;
