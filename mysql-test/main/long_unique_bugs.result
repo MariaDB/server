@@ -171,3 +171,18 @@ insert into t1(a,b) values(2,2);
 insert into t1(a,b) values(2,3);
 insert into t1(a,b) values(3,2);
 drop table t1;
+CREATE TABLE t1 ( 
+a CHAR(128),
+b CHAR(128) AS (a),
+c DATETIME,
+UNIQUE(c,b(64))
+) ENGINE=InnoDB;
+ALTER TABLE t1 MODIFY COLUMN c VARCHAR(4096);
+drop table t1;
+CREATE TABLE t1 (
+a CHAR(128),
+b CHAR(128) AS (a),
+c varchar(5000),
+UNIQUE(c,b(64))
+) ENGINE=InnoDB;
+drop table t1;

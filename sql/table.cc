@@ -3708,9 +3708,14 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       for ( ; key_part < key_part_end; key_part++)
       {
         Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
-
+        /*
+         There's no need to create a prefix
+         Field for HA_KEY_ALG_LONG_HASH indexes, as they implement prefixing via
+         Iten_func_left anyway (see parse_vcol_defs())
+        */
         if (field->key_length() != key_part->length &&
-            !(field->flags & BLOB_FLAG))
+            !(field->flags & BLOB_FLAG) &&
+            key_info->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           /*
             We are using only a prefix of the column as a key:
