@@ -63,6 +63,10 @@ public:
     spider_string *str,
     int wait_timeout
   );
+  int append_sql_mode(
+    spider_string *str,
+    sql_mode_t sql_mode
+  );
   int append_time_zone(
     spider_string *str,
     Time_zone *time_zone
@@ -387,6 +391,11 @@ public:
   bool set_wait_timeout_in_bulk_sql();
   int set_wait_timeout(
     int wait_timeout,
+    int *need_mon
+  );
+  bool set_sql_mode_in_bulk_sql();
+  int set_sql_mode(
+    sql_mode_t sql_mode,
     int *need_mon
   );
   bool set_time_zone_in_bulk_sql();

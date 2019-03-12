@@ -839,6 +839,10 @@ public:
     spider_string *str,
     int wait_timeout
   ) = 0;
+  virtual int append_sql_mode(
+    spider_string *str,
+    sql_mode_t sql_mode
+  ) = 0;
   virtual int append_time_zone(
     spider_string *str,
     Time_zone *time_zone
@@ -1141,6 +1145,11 @@ public:
   virtual bool set_wait_timeout_in_bulk_sql() = 0;
   virtual int set_wait_timeout(
     int wait_timeout,
+    int *need_mon
+  ) = 0;
+  virtual bool set_sql_mode_in_bulk_sql() = 0;
+  virtual int set_sql_mode(
+    sql_mode_t sql_mode,
     int *need_mon
   ) = 0;
   virtual bool set_time_zone_in_bulk_sql() = 0;

@@ -2121,6 +2121,23 @@ int spider_db_oracle::set_wait_timeout(
   DBUG_RETURN(0);
 }
 
+bool spider_db_oracle::set_sql_mode_in_bulk_sql()
+{
+  DBUG_ENTER("spider_db_oracle::set_sql_mode_in_bulk_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+int spider_db_oracle::set_sql_mode(
+  sql_mode_t sql_mode,
+  int *need_mon
+) {
+  DBUG_ENTER("spider_db_oracle::set_sql_mode");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
 bool spider_db_oracle::set_time_zone_in_bulk_sql()
 {
   DBUG_ENTER("spider_db_oracle::set_time_zone_in_bulk_sql");
@@ -2832,6 +2849,16 @@ int spider_db_oracle_util::append_wait_timeout(
   int wait_timeout
 ) {
   DBUG_ENTER("spider_db_oracle_util::append_wait_timeout");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+int spider_db_oracle_util::append_sql_mode(
+  spider_string *str,
+  sql_mode_t sql_mode
+) {
+  DBUG_ENTER("spider_db_oracle_util::append_sql_mode");
   DBUG_PRINT("info",("spider this=%p", this));
   /* nothing to do */
   DBUG_RETURN(0);

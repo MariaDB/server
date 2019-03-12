@@ -389,6 +389,13 @@ int spider_db_conn_queue_action(
           append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
       ) ||
       (
+        conn->queued_sql_mode &&
+        conn->queued_sql_mode_val != conn->sql_mode &&
+        conn->db_conn->set_sql_mode_in_bulk_sql() &&
+        (error_num = spider_dbton[conn->dbton_id].db_util->
+          append_sql_mode(&sql_str, conn->queued_sql_mode_val))
+      ) ||
+      (
         conn->queued_time_zone &&
         conn->queued_time_zone_val != conn->time_zone &&
         conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -470,6 +477,15 @@ int spider_db_conn_queue_action(
       DBUG_RETURN(error_num);
     }
     if (
+      conn->queued_sql_mode &&
+      conn->queued_sql_mode_val != conn->sql_mode &&
+      !conn->db_conn->set_sql_mode_in_bulk_sql() &&
+      (error_num = spider_dbton[conn->dbton_id].db_util->
+        append_sql_mode(&sql_str, conn->queued_sql_mode_val))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+    if (
       conn->queued_time_zone &&
       conn->queued_time_zone_val != conn->time_zone &&
       !conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -541,6 +557,13 @@ int spider_db_conn_queue_action(
       conn->queued_wait_timeout_val != conn->wait_timeout
     ) {
       conn->wait_timeout = conn->queued_wait_timeout_val;
+    }
+
+    if (
+      conn->queued_sql_mode &&
+      conn->queued_sql_mode_val != conn->sql_mode
+    ) {
+      conn->sql_mode = conn->queued_sql_mode_val;
     }
 
     if (conn->queued_autocommit)

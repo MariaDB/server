@@ -3405,6 +3405,26 @@ int spider_param_wait_timeout(
   DBUG_RETURN(604800);
 }
 
+/*
+  FALSE: no sync
+  TRUE:  sync
+ */
+static MYSQL_THDVAR_BOOL(
+  sync_sql_mode, /* name */
+  PLUGIN_VAR_OPCMDARG, /* opt */
+  "Sync sql_mode", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  TRUE /* def */
+);
+
+bool spider_param_sync_sql_mode(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_sync_sql_mode");
+  DBUG_RETURN(THDVAR(thd, sync_sql_mode));
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3557,6 +3577,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(slave_trx_isolation),
   MYSQL_SYSVAR(remote_wait_timeout),
   MYSQL_SYSVAR(wait_timeout),
+  MYSQL_SYSVAR(sync_sql_mode),
   NULL
 };
 

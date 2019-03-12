@@ -1684,6 +1684,16 @@ int spider_check_and_set_wait_timeout(
   DBUG_RETURN(0);
 }
 
+int spider_check_and_set_sql_mode(
+  THD *thd,
+  SPIDER_CONN *conn,
+  int *need_mon
+) {
+  DBUG_ENTER("spider_check_and_set_sql_mode");
+  spider_conn_queue_sql_mode(conn, thd->variables.sql_mode);
+  DBUG_RETURN(0);
+}
+
 int spider_check_and_set_time_zone(
   THD *thd,
   SPIDER_CONN *conn,
@@ -1885,6 +1895,9 @@ int spider_internal_start_trx(
       &spider->need_mons[link_idx])) ||
     (error_num = spider_check_and_set_wait_timeout(thd, conn,
       &spider->need_mons[link_idx])) ||
+    (spider_param_sync_sql_mode(thd) &&
+      (error_num = spider_check_and_set_sql_mode(thd, conn,
+        &spider->need_mons[link_idx]))) ||
     (sync_autocommit &&
       (error_num = spider_check_and_set_autocommit(thd, conn,
         &spider->need_mons[link_idx])))
