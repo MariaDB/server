@@ -428,3 +428,6 @@ int spider_param_remote_wait_timeout(
 int spider_param_wait_timeout(
   THD *thd
 );
+bool spider_param_sync_sql_mode(
+  THD *thd
+);

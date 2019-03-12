@@ -106,6 +106,12 @@ int spider_check_and_set_wait_timeout(
   int *need_mon
 );
 
+int spider_check_and_set_sql_mode(
+  THD *thd,
+  SPIDER_CONN *conn,
+  int *need_mon
+);
+
 int spider_check_and_set_time_zone(
   THD *thd,
   SPIDER_CONN *conn,

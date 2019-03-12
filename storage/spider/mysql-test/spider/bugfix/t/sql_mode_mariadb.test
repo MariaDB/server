@@ -1,0 +1,5 @@
+--source ../include/sql_mode_mariadb_init.inc
+--source sql_mode.inc
+--source ../include/sql_mode_mariadb_deinit.inc
+--echo
+--echo end of test

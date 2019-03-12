@@ -1,0 +1,5 @@
+--source ../include/sql_mode_mysql_init.inc
+--source sql_mode.inc
+--source ../include/sql_mode_mysql_deinit.inc
+--echo
+--echo end of test

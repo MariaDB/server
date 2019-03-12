@@ -80,14 +80,14 @@ auto_test_remote2
 show table status from `auto_test_remote2` like 'tbl_a'
 auto_test_remote
 show index from `auto_test_remote`.`tbl_a`
-set session transaction isolation level repeatable read;set session autocommit = 1;set session sql_log_off = 0;set session wait_timeout = 604800;start transaction
+set session transaction isolation level repeatable read;set session autocommit = 1;set session sql_log_off = 0;set session wait_timeout = 604800;set session sql_mode = 'strict_trans_tables,error_for_division_by_zero,no_auto_create_user,no_engine_substitution';start transaction
 insert into `auto_test_remote`.`tbl_a`(`pkey`)values(0),(1),(4),(5),(8),(9)
 auto_test_remote2
 insert into `auto_test_remote2`.`tbl_a`(`pkey`)values(2),(3),(6),(7)
 commit
 
 root@localhost as anonymous on 
-set session transaction isolation level repeatable read;set session autocommit = 1;set session sql_log_off = 0;set session wait_timeout = 604800;set session time_zone = '+00:00';start transaction
+set session transaction isolation level repeatable read;set session autocommit = 1;set session sql_log_off = 0;set session wait_timeout = 604800;set session sql_mode = 'strict_trans_tables,error_for_division_by_zero,no_auto_create_user,no_engine_substitution';set session time_zone = '+00:00';start transaction
 SET NAMES utf8
 auto_test_remote
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
