@@ -1031,6 +1031,11 @@ row_purge_parse_undo_rec(
 		return false;
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
+		/* These records do not store any transaction identifier.
+
+		FIXME: Update SYS_TABLES.ID on both DISCARD TABLESPACE
+		and IMPORT TABLESPACE to get rid of the repeated lookups! */
+		node->trx_id = TRX_ID_MAX;
 		break;
 	default:
 #ifdef UNIV_DEBUG
@@ -1116,9 +1121,7 @@ inaccessible:
 		node->table = NULL;
 err_exit:
 		rw_lock_s_unlock(dict_operation_lock);
-		if (table_id) {
-			node->skip(table_id, trx_id);
-		}
+		node->skip(table_id, trx_id);
 		return(false);
 	}
 

@@ -222,3 +222,16 @@ ERROR 23000: CONSTRAINT `t.b` failed for `test`.`t`
 insert into t values (1,1);
 ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
 drop table t;
+create table t1 (a int auto_increment primary key, b int, check (b > 5));
+insert t1 (b) values (1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+insert t1 (b) values (10);
+select * from t1 where a is null;
+a	b
+set sql_auto_is_null=1;
+select * from t1 where a is null;
+a	b
+1	10
+insert t1 (b) values (1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;

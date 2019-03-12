@@ -192,6 +192,7 @@ static char TMPDIR[FN_REFLEN];
 static char global_subst_from[200];
 static char global_subst_to[200];
 static char *global_subst= NULL;
+static char *read_command_buf= NULL;
 static MEM_ROOT require_file_root;
 static const my_bool my_true= 1;
 static const my_bool my_false= 0;
@@ -1531,6 +1532,7 @@ void free_used_memory()
   free_defaults(default_argv);
   free_root(&require_file_root, MYF(0));
   free_re();
+  my_free(read_command_buf);
 #ifdef _WIN32
   free_tmp_sh_file();
   free_win_path_patterns();
@@ -6552,7 +6554,6 @@ static inline bool is_escape_char(char c, char in_string)
 
 */
 
-static char *read_command_buf= NULL;
 static size_t read_command_buflen= 0;
 static const size_t max_multibyte_length= 6;
 

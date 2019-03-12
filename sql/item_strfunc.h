@@ -1437,6 +1437,7 @@ public:
              (cs->state & MY_CS_UNICODE));
     }
   }
+  bool is_json_type() { return args[0]->is_json_type(); }
   String *val_str(String *);
   longlong val_int()
   {

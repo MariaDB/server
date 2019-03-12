@@ -1483,9 +1483,10 @@ bool Item_func_json_array::fix_length_and_dec()
 
   if (arg_count == 0)
   {
-    collation.set(&my_charset_utf8_general_ci,
+    THD* thd= current_thd;
+    collation.set(thd->variables.collation_connection,
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-    tmp_val.set_charset(&my_charset_utf8_general_ci);
+    tmp_val.set_charset(thd->variables.collation_connection);
     max_length= 2;
     return FALSE;
   }

@@ -162,3 +162,17 @@ insert into t values (-1, 0);
 insert into t values (1,1);
 
 drop table t;
+
+#
+# check constraints and auto_is_null typo
+#
+create table t1 (a int auto_increment primary key, b int, check (b > 5));
+--error ER_CONSTRAINT_FAILED
+insert t1 (b) values (1);
+insert t1 (b) values (10);
+select * from t1 where a is null;
+set sql_auto_is_null=1;
+select * from t1 where a is null;
+--error ER_CONSTRAINT_FAILED
+insert t1 (b) values (1);
+drop table t1;

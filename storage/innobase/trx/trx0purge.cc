@@ -148,7 +148,7 @@ purge_graph_build()
 
 	for (ulint i = 0; i < srv_n_purge_threads; ++i) {
 		que_thr_t*	thr = que_thr_create(fork, heap, NULL);
-		thr->child = new(mem_heap_zalloc(heap, sizeof(purge_node_t)))
+		thr->child = new(mem_heap_alloc(heap, sizeof(purge_node_t)))
 			purge_node_t(thr);
 	}
 

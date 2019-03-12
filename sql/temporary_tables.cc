@@ -504,6 +504,7 @@ bool THD::close_temporary_tables()
     /* Traverse the table list. */
     while ((table= share->all_tmp_tables.pop_front()))
     {
+      table->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
       free_temporary_table(table);
     }
   }
@@ -588,9 +589,7 @@ bool THD::rename_temporary_table(TABLE *table,
   @return false                       Table was dropped
           true                        Error
 */
-bool THD::drop_temporary_table(TABLE *table,
-                               bool *is_trans,
-                               bool delete_table)
+bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
 {
   DBUG_ENTER("THD::drop_temporary_table");
 
@@ -633,7 +632,8 @@ bool THD::drop_temporary_table(TABLE *table,
       parallel replication
     */
     tab->in_use= this;
-
+    if (delete_table)
+      tab->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
     free_temporary_table(tab);
   }
 
@@ -1435,8 +1435,7 @@ bool THD::log_events_and_free_tmp_shares()
 
   @return void
 */
-void THD::free_tmp_table_share(TMP_TABLE_SHARE *share,
-                               bool delete_table)
+void THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
 {
   DBUG_ENTER("THD::free_tmp_table_share");
 
