@@ -19,10 +19,12 @@ SET GLOBAL wsrep_slave_threads = 0;
 SHOW WARNINGS;
 SELECT @@wsrep_slave_threads = 1;
 
+--echo # wsrep_slave_threads = 1
 SET GLOBAL wsrep_slave_threads = 1;
+
 # There is a separate wsrep_aborter thread at all times
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Increase the number of slave threads. The change takes effect immediately
@@ -38,11 +40,13 @@ INSERT INTO t1 VALUES (1);
 --let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) FROM t1;
 
+--echo # wsrep_slave_threads = 64
 --let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
 --source include/wait_condition.inc
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Reduce the number of slave threads. The change is not immediate -- a thread will only exit after a replication event
@@ -54,8 +58,8 @@ SET GLOBAL wsrep_slave_threads = 1;
 
 --disable_result_log
 --disable_query_log
-# Generate 64 replication events
---let $count = 64
+# Generate 66 replication events
+--let $count = 66
 while ($count)
 {
   INSERT INTO t2 VALUES (DEFAULT);
@@ -65,15 +69,16 @@ while ($count)
 --enable_result_log
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 64 FROM t2;
+--let $wait_condition = SELECT COUNT(*) = 66 FROM t2;
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 64 FROM t2;
+SELECT COUNT(*) FROM t2;
 
+--echo # wsrep_slave_threads = 1
 --let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
 --source include/wait_condition.inc
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
 
@@ -98,6 +103,9 @@ SET GLOBAL wsrep_slave_threads = 1;
 INSERT INTO t1 VALUES (DEFAULT);
 INSERT INTO t1 VALUES (DEFAULT);
 INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
 DROP TABLE t1;
 
 --connection node_2
@@ -113,6 +121,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
 #
 --let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user'
 --source include/wait_condition.inc
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --echo # End of tests
