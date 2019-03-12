@@ -2047,6 +2047,9 @@ void log_slow_statement(THD *thd)
   if (!thd->enable_slow_log)
     goto end; // E.g. SP statement
 
+  DBUG_EXECUTE_IF("simulate_slow_query",
+                  thd->server_status|= SERVER_QUERY_WAS_SLOW;);
+
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
        ((thd->server_status &
          (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
