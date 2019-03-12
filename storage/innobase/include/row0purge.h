@@ -133,7 +133,14 @@ public:
 
 	/** Constructor */
 	explicit purge_node_t(que_thr_t* parent) :
-		common(QUE_NODE_PURGE, parent), heap(mem_heap_create(256))
+		common(QUE_NODE_PURGE, parent),
+		undo_recs(NULL),
+		unavailable_table_id(0),
+		heap(mem_heap_create(256)),
+#ifdef UNIV_DEBUG
+		in_progress(false),
+#endif
+		vcol_info()
 	{}
 
 #ifdef UNIV_DEBUG
