@@ -789,6 +789,8 @@ struct TABLE_SHARE
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
 
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
+
   /*
     Set share's table cache key and update its db and table name appropriately.
 
@@ -1337,6 +1339,7 @@ public:
   bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list) const;
@@ -1763,6 +1766,7 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   inline void init_one_table(const char *db_name_arg,
                              size_t db_length_arg,
                              const char *table_name_arg,
@@ -1778,7 +1782,7 @@ struct TABLE_LIST
     else
       mdl_type= MDL_SHARED_READ;
 
-    bzero((char*) this, sizeof(*this));
+    reset();
     db= (char*) db_name_arg;
     db_length= db_length_arg;
     table_name= (char*) table_name_arg;
@@ -2272,8 +2276,7 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  bool is_table_ref_id_equal(TABLE_SHARE *s) const
+  inline bool is_table_ref_id_equal(TABLE_SHARE *s) const
   {
     return (m_table_ref_type == s->get_table_ref_type() &&
             m_table_ref_version == s->get_table_ref_version());
@@ -2285,12 +2288,10 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  void set_table_ref_id(TABLE_SHARE *s)
+  inline void set_table_ref_id(TABLE_SHARE *s)
   { set_table_ref_id(s->get_table_ref_type(), s->get_table_ref_version()); }
 
-  inline
-  void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
+  inline void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
                         ulong table_ref_version_arg)
   {
     m_table_ref_type= table_ref_type_arg;

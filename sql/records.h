@@ -69,8 +69,6 @@ struct READ_RECORD
   */
   Copy_field *copy_field;
   Copy_field *copy_field_end;
-public:
-  READ_RECORD() {}
 };
 
 bool init_read_record(READ_RECORD *info, THD *thd, TABLE *reg_form,

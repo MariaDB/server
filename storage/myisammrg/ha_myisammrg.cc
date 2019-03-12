@@ -1466,48 +1466,40 @@ void ha_myisammrg::update_create_info(HA_CREATE_INFO *create_info)
 
   if (!(create_info->used_fields & HA_CREATE_USED_UNION))
   {
-    TABLE_LIST *child_table;
-    THD *thd=current_thd;
-
-    create_info->merge_list.next= &create_info->merge_list.first;
-    create_info->merge_list.elements=0;
+    TABLE_LIST *child_table, *end= NULL;
+    THD *thd=ha_thd();
 
     if (children_l != NULL)
     {
-      for (child_table= children_l;;
-           child_table= child_table->next_global)
+      for (child_table= children_l;; child_table= child_table->next_global)
       {
         TABLE_LIST *ptr;
 
         if (!(ptr= (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST))))
-          goto err;
+          DBUG_VOID_RETURN;
 
         if (!(ptr->table_name= thd->strmake(child_table->table_name,
                                             child_table->table_name_length)))
-          goto err;
-        if (child_table->db && !(ptr->db= thd->strmake(child_table->db,
-                                   child_table->db_length)))
-          goto err;
+          DBUG_VOID_RETURN;
+        if (child_table->db &&
+            !(ptr->db= thd->strmake(child_table->db, child_table->db_length)))
+          DBUG_VOID_RETURN;
 
-        create_info->merge_list.elements++;
-        (*create_info->merge_list.next)= ptr;
-        create_info->merge_list.next= &ptr->next_local;
+        if (create_info->merge_list)
+          end->next_local= ptr;
+        else
+          create_info->merge_list= ptr;
+        end= ptr;
 
         if (&child_table->next_global == children_last_l)
           break;
       }
     }
-    *create_info->merge_list.next=0;
   }
   if (!(create_info->used_fields & HA_CREATE_USED_INSERT_METHOD))
   {
     create_info->merge_insert_method = file->merge_insert_method;
   }
-  DBUG_VOID_RETURN;
-
-err:
-  create_info->merge_list.elements=0;
-  create_info->merge_list.first=0;
   DBUG_VOID_RETURN;
 }
 
@@ -1516,18 +1508,21 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
 {
   char buff[FN_REFLEN];
   const char **table_names, **pos;
-  TABLE_LIST *tables= create_info->merge_list.first;
-  THD *thd= current_thd;
+  TABLE_LIST *tables= create_info->merge_list;
+  THD *thd= ha_thd();
   size_t dirlgt= dirname_length(name);
+  uint ntables= 0;
   DBUG_ENTER("ha_myisammrg::create_mrg");
 
+  for (tables= create_info->merge_list; tables; tables= tables->next_local)
+    ntables++;
+
   /* Allocate a table_names array in thread mem_root. */
-  if (!(table_names= (const char**)
-        thd->alloc((create_info->merge_list.elements+1) * sizeof(char*))))
+  if (!(pos= table_names= (const char**) thd->alloc((ntables + 1) * sizeof(char*))))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
 
   /* Create child path names. */
-  for (pos= table_names; tables; tables= tables->next_local)
+  for (tables= create_info->merge_list; tables; tables= tables->next_local)
   {
     const char *table_name= buff;
 

@@ -298,9 +298,9 @@ bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num)
 } // get_ev_num_info
 
 
-void free_string(String *s)
+void free_string(void* str, TREE_FREE, void*)
 {
-  s->free();
+  ((String*)str)->free();
 }
 
 

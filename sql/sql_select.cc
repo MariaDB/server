@@ -2329,7 +2329,7 @@ void JOIN::restore_tmp()
 {
   DBUG_PRINT("info", ("restore_tmp this %p tmp_join %p", this, tmp_join));
   DBUG_ASSERT(tmp_join != this);
-  memcpy(tmp_join, this, (size_t) sizeof(JOIN));
+  memcpy((void*)tmp_join, this, (size_t) sizeof(JOIN));
 }
 
 
@@ -3610,7 +3610,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(1);
 
   /* The following should be optimized to only clear critical things */
-  bzero(stat, sizeof(JOIN_TAB)* table_count);
+  bzero((void*)stat, sizeof(JOIN_TAB)* table_count);
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
     (void) new ((char*) (join->positions + i)) POSITION;
@@ -8758,7 +8758,7 @@ get_best_combination(JOIN *join)
         1. Put into main join order a JOIN_TAB that represents a lookup or scan
            in the temptable.
       */
-      bzero(j, sizeof(JOIN_TAB));
+      bzero((void*)j, sizeof(JOIN_TAB));
       j->join= join;
       j->table= NULL; //temporary way to tell SJM tables from others.
       j->ref.key = -1;
@@ -9360,7 +9360,7 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
   row_limit= unit->select_limit_cnt;
   do_send_rows= row_limit ? 1 : 0;
 
-  bzero(join_tab, sizeof(JOIN_TAB));
+  bzero((void*)join_tab, sizeof(JOIN_TAB));
   join_tab->table=temp_table;
   join_tab->set_select_cond(NULL, __LINE__);
   join_tab->type= JT_ALL;			/* Map through all records */
@@ -17275,11 +17275,11 @@ TABLE *create_virtual_tmp_table(THD *thd, List<Create_field> &field_list)
                         NullS))
     return 0;
 
-  bzero(table, sizeof(*table));
-  bzero(share, sizeof(*share));
+  table->reset();
   table->field= field;
   table->s= share;
   table->temp_pool_slot= MY_BIT_NONE;
+  share->reset();
   share->blob_field= blob_field;
   share->fields= field_count;
   setup_tmp_table_column_bitmaps(table, bitmaps);

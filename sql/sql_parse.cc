@@ -8948,7 +8948,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
     goto err;
 
   /* If it is a merge table, check privileges for merge children. */
-  if (lex->create_info.merge_list.first)
+  if (lex->create_info.merge_list)
   {
     /*
       The user must have (SELECT_ACL | UPDATE_ACL | DELETE_ACL) on the
@@ -8986,8 +8986,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
     */
 
     if (check_table_access(thd, SELECT_ACL | UPDATE_ACL | DELETE_ACL,
-                           lex->create_info.merge_list.first,
-                           FALSE, UINT_MAX, FALSE))
+                           lex->create_info.merge_list, FALSE, UINT_MAX, FALSE))
       goto err;
   }
 

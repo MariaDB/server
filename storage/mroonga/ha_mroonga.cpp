@@ -2982,9 +2982,9 @@ int ha_mroonga::create_share_for_create() const
   TABLE_LIST *table_list = MRN_LEX_GET_TABLE_LIST(lex);
   MRN_DBUG_ENTER_METHOD();
   wrap_handler_for_create = NULL;
-  memset(&table_for_create, 0, sizeof(TABLE));
+  table_for_create.reset();
+  table_share_for_create.reset();
   memset(&share_for_create, 0, sizeof(MRN_SHARE));
-  memset(&table_share_for_create, 0, sizeof(TABLE_SHARE));
   if (table_share) {
     table_share_for_create.comment = table_share->comment;
     table_share_for_create.connect_string = table_share->connect_string;
@@ -14535,8 +14535,8 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
   ) {
     DBUG_RETURN(HA_ALTER_ERROR);
   }
-  memcpy(wrap_altered_table, altered_table, sizeof(TABLE));
-  memcpy(wrap_altered_table_share, altered_table->s, sizeof(TABLE_SHARE));
+  *wrap_altered_table= *altered_table;
+  *wrap_altered_table_share= *altered_table->s;
   mrn_init_sql_alloc(ha_thd(), &(wrap_altered_table_share->mem_root));
 
   n_keys = ha_alter_info->index_drop_count;

@@ -1687,7 +1687,6 @@ struct Table_scope_and_contents_source_st
   uint options;				/* OR of HA_CREATE_ options */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
-  SQL_I_List<TABLE_LIST> merge_list;
   handlerton *db_type;
   /**
     Row type of the table definition.
@@ -1716,6 +1715,7 @@ struct Table_scope_and_contents_source_st
   TABLE_LIST *pos_in_locked_tables;
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
+  TABLE_LIST *merge_list;
 
   void init()
   {

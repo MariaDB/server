@@ -6266,7 +6266,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         {
           TABLE_LIST table_list;
           uint view_access;
-          memset(&table_list, 0, sizeof(table_list));
+          table_list.reset();
           table_list.db= tables->db;
           table_list.table_name= tables->table_name;
           table_list.grant.privilege= thd->col_access;

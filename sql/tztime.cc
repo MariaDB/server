@@ -1537,16 +1537,11 @@ my_offset_tzs_get_key(Time_zone_offset *entry,
 static void
 tz_init_table_list(TABLE_LIST *tz_tabs)
 {
-  bzero(tz_tabs, sizeof(TABLE_LIST) * MY_TZ_TABLES_COUNT);
-
   for (int i= 0; i < MY_TZ_TABLES_COUNT; i++)
   {
-    tz_tabs[i].alias= tz_tabs[i].table_name= tz_tables_names[i].str;
-    tz_tabs[i].table_name_length= tz_tables_names[i].length;
-    tz_tabs[i].db= tz_tables_db_name.str;
-    tz_tabs[i].db_length= tz_tables_db_name.length;
-    tz_tabs[i].lock_type= TL_READ;
-
+    tz_tabs[i].init_one_table(tz_tables_db_name.str, tz_tables_db_name.length,
+                              tz_tables_names[i].str, tz_tables_names[i].length,
+                              NULL, TL_READ);
     if (i != MY_TZ_TABLES_COUNT - 1)
       tz_tabs[i].next_global= tz_tabs[i].next_local= &tz_tabs[i+1];
     if (i != 0)

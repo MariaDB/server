@@ -233,7 +233,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
   /* If it is a merge table, check privileges for merge children. */
-  if (create_info.merge_list.first)
+  if (create_info.merge_list)
   {
     /*
       The user must have (SELECT_ACL | UPDATE_ACL | DELETE_ACL) on the
@@ -271,7 +271,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     */
 
     if (check_table_access(thd, SELECT_ACL | UPDATE_ACL | DELETE_ACL,
-                           create_info.merge_list.first, FALSE, UINT_MAX, FALSE))
+                           create_info.merge_list, FALSE, UINT_MAX, FALSE))
       DBUG_RETURN(TRUE);
   }
 
@@ -282,9 +282,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   {
     // Rename of table
     TABLE_LIST tmp_table;
-    memset(&tmp_table, 0, sizeof(tmp_table));
-    tmp_table.table_name= lex->name.str;
-    tmp_table.db= select_lex->db;
+    tmp_table.init_one_table(select_lex->db, strlen(select_lex->db),
+                             lex->name.str, lex->name.length,
+                             lex->name.str, TL_IGNORE);
     tmp_table.grant.privilege= priv;
     if (check_grant(thd, INSERT_ACL | CREATE_ACL, &tmp_table, FALSE,
                     UINT_MAX, FALSE))

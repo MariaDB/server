@@ -359,8 +359,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     sql_handler->reset();
   }    
   sql_handler->table= table;
-  memcpy(&sql_handler->mdl_request, &tables->mdl_request,
-         sizeof(tables->mdl_request));
 
   if (!(sql_handler->lock= get_lock_data(thd, &sql_handler->table, 1,
                                          GET_LOCK_STORE_LOCKS)))
@@ -373,6 +371,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
 
   if (error)
     goto err;
+
+  sql_handler->mdl_request.move_from(tables->mdl_request);
 
   /* Always read all columns */
   table->read_set= &table->s->all_set;
@@ -402,9 +402,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     in asserts.
   */
   table->open_by_handler= 1;
-
-  /* Safety, cleanup the pointer to satisfy MDL assertions. */
-  tables->mdl_request.ticket= NULL;
 
   if (! reopen)
     my_ok(thd);

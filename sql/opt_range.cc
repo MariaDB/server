@@ -1340,8 +1340,7 @@ QUICK_RANGE_SELECT::~QUICK_RANGE_SELECT()
   - Use rowids from unique to run a disk-ordered sweep
 */
 
-QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param,
-                                                 TABLE *table)
+QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param, TABLE *table)
   :unique(NULL), pk_quick_select(NULL), thd(thd_param)
 {
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT");
@@ -5111,6 +5110,16 @@ typedef struct st_partial_index_intersect_info
   key_map filtered_scans;    /* scans to be filtered by cpk conditions       */
          
   MY_BITMAP *intersect_fields;     /* bitmap of fields used in intersection  */
+
+  void init()
+  {
+    common_info= NULL;
+    intersect_fields= NULL;
+    records_sent_to_unique= records= length= in_memory= use_cpk_filter= 0;
+    cost= index_read_cost= in_memory_cost= 0.0;
+    filtered_scans.init();
+    filtered_scans.clear_all();
+  }
 } PARTIAL_INDEX_INTERSECT_INFO;
 
 
@@ -5247,8 +5256,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   if (!n_index_scans)
     return 1;
 
-  bzero(init, sizeof(*init));
-  init->filtered_scans.init();
+  init->init();
   init->common_info= common;
   init->cost= cutoff_cost;
 

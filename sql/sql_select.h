@@ -199,7 +199,6 @@ class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
 
 typedef struct st_join_table {
-  st_join_table() {}                          /* Remove gcc warning */
   TABLE		*table;
   KEYUSE	*keyuse;			/**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
