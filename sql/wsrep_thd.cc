@@ -698,3 +698,13 @@ void wsrep_thd_auto_increment_variables(THD* thd,
     *increment= thd->variables.auto_increment_increment;
   }
 }
+
+my_bool wsrep_thd_is_applier(MYSQL_THD thd)
+{
+  my_bool is_applier= false;
+
+  if (thd && thd->wsrep_applier)
+    is_applier= true;
+
+  return (is_applier);
+}

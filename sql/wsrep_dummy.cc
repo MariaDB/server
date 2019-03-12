@@ -141,3 +141,6 @@ void wsrep_unlock_rollback()
 
 void wsrep_set_data_home_dir(const char *)
 { }
+
+my_bool wsrep_thd_is_applier(MYSQL_THD thd)
+{ return false; }
