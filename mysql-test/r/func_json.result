@@ -842,3 +842,6 @@ latin1
 SELECT CHARSET(JSON_OBJECT());
 CHARSET(JSON_OBJECT())
 latin1
+#
+# End of 10.2 tests
+#

@@ -494,3 +494,6 @@ SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket
 SELECT CHARSET(JSON_ARRAY());
 SELECT CHARSET(JSON_OBJECT());
 
+--echo #
+--echo # End of 10.2 tests
+--echo #
