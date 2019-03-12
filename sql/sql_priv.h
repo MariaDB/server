@@ -126,7 +126,7 @@
 #define TMP_TABLE_ALL_COLUMNS   (1ULL << 12)    // SELECT, intern
 #define OPTION_WARNINGS         (1ULL << 13)    // THD, user
 #define OPTION_AUTO_IS_NULL     (1ULL << 14)    // THD, user, binlog
-#define OPTION_NO_CHECK_CONSTRAINT_CHECKS  (1ULL << 14)
+#define OPTION_NO_CHECK_CONSTRAINT_CHECKS  (1ULL << 15)
 #define OPTION_SAFE_UPDATES     (1ULL << 16)    // THD, user
 #define OPTION_BUFFER_RESULT    (1ULL << 17)    // SELECT, user
 #define OPTION_BIN_LOG          (1ULL << 18)    // THD, user

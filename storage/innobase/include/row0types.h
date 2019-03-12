@@ -69,6 +69,11 @@ private:
 	TABLE*	mariadb_table;
 
 public:
+	/** Default constructor */
+	purge_vcol_info_t() :
+		requested(false), used(false), first_use(false),
+		mariadb_table(NULL)
+	{}
 	/** Reset the state. */
 	void reset()
 	{

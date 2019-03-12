@@ -2643,14 +2643,18 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
-			if (recv_sys->found_corrupt_log
-			    || type == MLOG_CHECKPOINT
-			    || (ptr != end_ptr
-				&& (*ptr & MLOG_SINGLE_REC_FLAG))) {
-				recv_sys->found_corrupt_log = true;
+			if (recv_sys->found_corrupt_log) {
+corrupted_log:
 				recv_report_corrupt_log(
 					ptr, type, space, page_no);
 				return(true);
+			}
+
+			if (ptr == end_ptr) {
+			} else if (type == MLOG_CHECKPOINT
+				   || (*ptr & MLOG_SINGLE_REC_FLAG)) {
+				recv_sys->found_corrupt_log = true;
+				goto corrupted_log;
 			}
 
 			if (recv_sys->found_corrupt_fs) {

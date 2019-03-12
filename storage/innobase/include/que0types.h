@@ -87,8 +87,9 @@ struct que_common_t{
 				explicitly */
 
 	/** Constructor */
-	que_common_t(ulint type, que_node_t* parent)
-		: type(type), parent(parent), brother(), val(), val_buf_size()
+	que_common_t(ulint type, que_node_t* parent) :
+		type(type), parent(parent), brother(NULL),
+		val(), val_buf_size(0)
 	{}
 };
 
