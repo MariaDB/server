@@ -883,7 +883,10 @@ Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
   DBUG_ENTER("SELECT_LEX::period_setup_conds");
 
   if (skip_setup_conds(thd))
-    DBUG_RETURN(NULL);
+    DBUG_RETURN(where);
+
+  Query_arena backup;
+  Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
 
   DBUG_ASSERT(!tables->next_local && tables->table);
 
@@ -896,6 +899,8 @@ Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
     if (!table->table->s->period.name.streq(conds.name))
     {
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(NULL);
     }
 
@@ -903,7 +908,12 @@ Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
     result= and_items(thd, result,
                       period_get_condition(thd, table, this, &conds, true));
   }
-  DBUG_RETURN(and_items(thd, where, result));
+  result= and_items(thd, where, result);
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  DBUG_RETURN(result);
 }
 
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)

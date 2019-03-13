@@ -291,7 +291,7 @@ ERROR 42S02: 'v' is a view
 # View can't be used
 create or replace view v as select t.* from t, t as t1;
 delete from v for portion of p from '2000-01-01' to '2018-01-01';
-ERROR 42S02: 'v' is a view
+ERROR HY000: Can not delete from join view 'test.v'
 # auto_increment field overflow
 create or replace table t (id tinyint auto_increment primary key,
 s date, e date, period for apptime(s,e));

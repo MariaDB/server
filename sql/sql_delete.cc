@@ -380,18 +380,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       table_list->on_expr= NULL;
     }
   }
-  if (table_list->has_period())
-  {
-    if (table_list->is_view_or_derived())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
-
-    conds= select_lex->period_setup_conds(thd, table_list, conds);
-    if (!conds)
-      DBUG_RETURN(true);
-  }
 
   if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
@@ -1055,6 +1043,20 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
     if (select_lex->vers_setup_conds(thd, table_list))
       DBUG_RETURN(true);
   }
+
+  if (table_list->has_period())
+  {
+    if (table_list->is_view_or_derived())
+    {
+      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+      DBUG_RETURN(true);
+    }
+
+    *conds= select_lex->period_setup_conds(thd, table_list, *conds);
+    if (!*conds)
+      DBUG_RETURN(true);
+  }
+
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num,
                               &select_lex->hidden_bit_fields)) ||
       setup_fields(thd, Ref_ptr_array(),

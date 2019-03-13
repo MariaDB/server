@@ -133,7 +133,7 @@ delete from v for portion of p from '2000-01-01' to '2018-01-01';
 
 --echo # View can't be used
 create or replace view v as select t.* from t, t as t1;
---error ER_IT_IS_A_VIEW
+--error ER_VIEW_DELETE_MERGE_VIEW
 delete from v for portion of p from '2000-01-01' to '2018-01-01';
 
 --echo # auto_increment field overflow
