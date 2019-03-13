@@ -73,6 +73,7 @@ sql_text
 [slow] CREATE INDEX t1a ON t1 (a)
 [slow] DROP INDEX t1a ON t1
 [slow] ALTER TABLE t2 RENAME t2
+[slow] RENAME TABLE t2 TO t3
 [slow] ALTER TABLE t4 MODIFY a INT DEFAULT 1
 #
 # Expect none of admin DDL statements in the slow log (ON,filesort)
@@ -120,7 +121,6 @@ sql_text
 [slow] CREATE TABLE t1 (a INT)
 [slow] DROP TABLE t1
 [slow] CREATE TABLE t2 (a INT)
-[slow] RENAME TABLE t2 TO t3
 [slow] DROP TABLE t3
 [slow] CREATE TABLE t4 (a INT)
 [slow] PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1'
