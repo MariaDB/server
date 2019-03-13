@@ -2254,3 +2254,7 @@ select e.id,
  (select max(t1.v) from t1 where t1.id=e.id) + (row_number() over (partition by e.id order by e.v)) as sum_a_b
 from t1 e;
 drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
