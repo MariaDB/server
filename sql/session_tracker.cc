@@ -15,7 +15,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
-#ifndef EMBEDDED_LIBRARY
 #include "sql_plugin.h"
 #include "session_tracker.h"
 
@@ -60,8 +59,6 @@ public:
 
 class Session_sysvars_tracker : public State_tracker
 {
-private:
-
   struct sysvar_node_st {
     sys_var *m_svar;
     bool *test_load;
@@ -216,7 +213,6 @@ public:
   }
 
   bool enable(THD *thd);
-  bool check_str(THD *thd, LEX_STRING *val);
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
   void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
@@ -239,18 +235,7 @@ public:
 
 class Current_schema_tracker : public State_tracker
 {
-private:
-  bool schema_track_inited;
-
 public:
-
-  Current_schema_tracker()
-  {
-    schema_track_inited= false;
-  }
-
-  bool enable(THD *thd)
-  { return update(thd, NULL); }
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
 };
@@ -272,8 +257,6 @@ public:
 class Session_state_change_tracker : public State_tracker
 {
 public:
-  bool enable(THD *thd)
-  { return update(thd, NULL); };
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
 };
@@ -655,27 +638,6 @@ bool Session_sysvars_tracker::enable(THD *thd)
 
 
 /**
-  Check system variable name(s).
-
-  @note This function is called from the ON_CHECK() function of the
-        session_track_system_variables' sys_var class.
-
-  @param thd    [IN]        The thd handle.
-  @param var    [IN]        A pointer to set_var holding the specified list of
-                            system variable names.
-
-  @retval true  Error
-  @retval false Success
-*/
-
-inline bool Session_sysvars_tracker::check_str(THD *thd, LEX_STRING *val)
-{
-  return Session_sysvars_tracker::check_var_list(thd, *val, true,
-                                                 thd->charset(), true);
-}
-
-
-/**
   Once the value of the @@session_track_system_variables has been
   successfully updated, this function calls
   Session_sysvars_tracker::vars_list::copy updating the hash in orig_list
@@ -935,17 +897,6 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
 
 
 ///////////////////////////////////////////////////////////////////////////////
-
-
-Transaction_state_tracker::Transaction_state_tracker()
-{
-  m_enabled        = false;
-  tx_changed       = TX_CHG_NONE;
-  tx_curr_state    =
-  tx_reported_state= TX_EMPTY;
-  tx_read_flags    = TX_READ_INHERIT;
-  tx_isol_level    = TX_ISOL_INHERIT;
-}
 
 /**
   Enable/disable the tracker based on @@session_track_transaction_info.
@@ -1597,5 +1548,3 @@ void Session_tracker::store(THD *thd, String *buf)
 
   net_store_length(data - 1, length);
 }
-
-#endif //EMBEDDED_LIBRARY

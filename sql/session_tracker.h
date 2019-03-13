@@ -90,7 +90,7 @@ public:
   void reset_changed() { m_changed= false; }
 
   /** Called in the constructor of THD*/
-  virtual bool enable(THD *thd)= 0;
+  virtual bool enable(THD *thd) { return update(thd, 0); }
 
   /** To be invoked when the tracker's system variable is updated (ON_UPDATE).*/
   virtual bool update(THD *thd, set_var *var)= 0;
@@ -119,7 +119,6 @@ bool sysvartrack_value_construct(THD *thd, char *val, size_t len);
 
 class Session_tracker
 {
-private:
   State_tracker *m_trackers[SESSION_TRACKER_END];
 
   /* The following two functions are private to disable copying. */
@@ -234,14 +233,16 @@ enum enum_session_track_transaction_info {
 
 class Transaction_state_tracker : public State_tracker
 {
-private:
   /** Helper function: turn table info into table access flag */
   enum_tx_state calc_trx_state(THD *thd, thr_lock_type l, bool has_trx);
 public:
   /** Constructor */
-  Transaction_state_tracker();
-  bool enable(THD *thd)
-  { return update(thd, NULL); }
+  Transaction_state_tracker(): tx_changed(TX_CHG_NONE),
+                               tx_curr_state(TX_EMPTY),
+                               tx_reported_state(TX_EMPTY),
+                               tx_read_flags(TX_READ_INHERIT),
+                               tx_isol_level(TX_ISOL_INHERIT) {}
+
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
 
