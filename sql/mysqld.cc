@@ -7074,11 +7074,9 @@ struct my_option my_long_options[]=
   MYSQL_COMPATIBILITY_OPTION("binlog-order-commits"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("log-throttle-queries-not-using-indexes"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("end-markers-in-json"),
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace"),              // OPTIMIZER_TRACE
   MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-features"),     // OPTIMIZER_TRACE
   MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-offset"),       // OPTIMIZER_TRACE
   MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-limit"),        // OPTIMIZER_TRACE
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-max-mem-size"), // OPTIMIZER_TRACE
   MYSQL_TO_BE_IMPLEMENTED_OPTION("eq-range-index-dive-limit"),
   MYSQL_COMPATIBILITY_OPTION("server-id-bits"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-rows-search-algorithms"), // HAVE_REPLICATION
