@@ -129,6 +129,20 @@ longlong Item::val_datetime_packed_result(THD *thd)
 }
 
 
+longlong Item::val_time_packed_result(THD *thd)
+{
+  MYSQL_TIME ltime;
+  if (get_date_result(thd, &ltime, Time::Options_cmp(thd)))
+    return 0;
+  if (ltime.time_type == MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  int warn= 0;
+  Time tmp(&warn, &ltime, 0);
+  DBUG_ASSERT(tmp.is_valid_time());
+  return tmp.to_packed();
+}
+
+
 /*
   For the items which don't have its own fast val_str_ascii()
   implementation we provide a generic slower version,

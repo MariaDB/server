@@ -1431,5 +1431,22 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-18876 Assertion `is_valid_time_slow()' failed in Time::valid_MYSQL_TIME_to_valid_value
+--echo #
+
+CREATE TABLE t1 (f INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT f FROM t1 ORDER BY 1 && ( '1972-11-06 16:58:58' BETWEEN CONVERT( 0, TIME ) AND '20:31:05' );
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(32));
+INSERT INTO t1 VALUES ('1972-11-06 16:58:58');
+SELECT * FROM t1 WHERE a < TIME'20:31:05';
+SELECT a < TIME'20:31:05' FROM t1;
+DROP TABLE t1;
+
+SELECT '1972-11-06 16:58:58' < TIME'20:31:05';
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

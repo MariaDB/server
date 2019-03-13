@@ -1708,12 +1708,7 @@ public:
     return Time(thd, this, Time::Options_cmp(thd)).to_packed();
   }
   longlong val_datetime_packed_result(THD *thd);
-  longlong val_time_packed_result(THD *thd)
-  {
-    MYSQL_TIME ltime;
-    return get_date_result(thd, &ltime, Time::Options_cmp(thd)) ? 0 :
-           pack_time(&ltime);
-  }
+  longlong val_time_packed_result(THD *thd);
 
   virtual bool get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return get_date(thd, ltime,fuzzydate); }
