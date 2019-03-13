@@ -98,8 +98,7 @@ class Session_sysvars_tracker : public State_tracker
                my_hash_element(&m_registered_sysvars, i));
     }
   public:
-    vars_list() :
-      buffer_length(0)
+    vars_list(): buffer_length(0), track_all(false)
     {
       m_mem_flag= current_thd ? MY_THREAD_SPECIFIC : 0;
       init();
@@ -150,30 +149,16 @@ class Session_sysvars_tracker : public State_tracker
     Two objects of vars_list type are maintained to manage
     various operations.
   */
-  vars_list *orig_list, *tool_list;
+  vars_list orig_list;
 
 public:
-  Session_sysvars_tracker()
-  {
-    orig_list= new (std::nothrow) vars_list();
-    tool_list= new (std::nothrow) vars_list();
-  }
-
-  ~Session_sysvars_tracker()
-  {
-    if (orig_list)
-      delete orig_list;
-    if (tool_list)
-      delete tool_list;
-  }
-
   size_t get_buffer_length()
   {
-    return orig_list->get_buffer_length();
+    return orig_list.get_buffer_length();
   }
   bool construct_var_list(char *buf, size_t buf_len)
   {
-    return orig_list->construct_var_list(buf, buf_len);
+    return orig_list.construct_var_list(buf, buf_len);
   }
 
   bool enable(THD *thd);
@@ -249,7 +234,6 @@ void Session_sysvars_tracker::vars_list::reinit()
 
 void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 {
-  reinit();
   track_all= from->track_all;
   free_hash();
   buffer_length= from->buffer_length;
@@ -271,10 +255,7 @@ bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
   sysvar_node_st *node;
   if (!(node= (sysvar_node_st *) my_malloc(sizeof(sysvar_node_st),
                                            MYF(MY_WME | m_mem_flag))))
-  {
-    reinit();
     return true;
-  }
 
   node->m_svar= (sys_var *)svar;
   node->test_load= node->m_svar->test_load;
@@ -285,7 +266,6 @@ bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
     if (!search((sys_var *)svar))
     {
       //EOF (error is already reported)
-      reinit();
       return true;
     }
   }
@@ -322,7 +302,6 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
   const char separator= ',';
   char *token, *lasts= NULL;
   size_t rest= var_list.length;
-  reinit();
 
   if (!var_list.str || var_list.length == 0)
   {
@@ -573,14 +552,13 @@ bool Session_sysvars_tracker::enable(THD *thd)
   LEX_STRING tmp;
   tmp.str= global_system_variables.session_track_system_variables;
   tmp.length= safe_strlen(tmp.str);
-  if (tool_list->parse_var_list(thd, tmp,
-                                true, thd->charset(), false) == true)
+  if (orig_list.parse_var_list(thd, tmp, true, thd->charset(), false) == true)
   {
     mysql_mutex_unlock(&LOCK_plugin);
+    orig_list.reinit();
     return true;
   }
   mysql_mutex_unlock(&LOCK_plugin);
-  orig_list->copy(tool_list, thd);
   m_enabled= true;
 
   return false;
@@ -593,6 +571,9 @@ bool Session_sysvars_tracker::enable(THD *thd)
   Session_sysvars_tracker::vars_list::copy updating the hash in orig_list
   which represents the system variables to be tracked.
 
+  We are doing via tool list because there possible errors with memory
+  in this case value will be unchanged.
+
   @note This function is called from the ON_UPDATE() function of the
         session_track_system_variables' sys_var class.
 
@@ -604,15 +585,11 @@ bool Session_sysvars_tracker::enable(THD *thd)
 
 bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 {
-  /*
-    We are doing via tool list because there possible errors with memory
-    in this case value will be unchanged.
-  */
-  tool_list->reinit();
-  if (tool_list->parse_var_list(thd, var->save_result.string_value, true,
-                                thd->charset(), true))
+  vars_list tool_list;
+  if (tool_list.parse_var_list(thd, var->save_result.string_value, true,
+                               thd->charset(), true))
     return true;
-  orig_list->copy(tool_list, thd);
+  orig_list.copy(&tool_list, thd);
   return false;
 }
 
@@ -694,13 +671,13 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
 
 bool Session_sysvars_tracker::store(THD *thd, String *buf)
 {
-  if (!orig_list->is_enabled())
+  if (!orig_list.is_enabled())
     return false;
 
-  if (orig_list->store(thd, buf))
+  if (orig_list.store(thd, buf))
     return true;
 
-  orig_list->reset();
+  orig_list.reset();
 
   return false;
 }
@@ -721,7 +698,7 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd,
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if (orig_list->is_enabled() && (node= orig_list->insert_or_search(svar)))
+  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(svar)))
   {
     node->m_changed= true;
     State_tracker::mark_as_changed(thd, var);
