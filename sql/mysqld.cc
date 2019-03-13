@@ -9494,7 +9494,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   else
     global_system_variables.option_bits&= ~OPTION_BIG_SELECTS;
 
-  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS &&
+  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS && WSREP_ON &&
       global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
   {
 
