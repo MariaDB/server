@@ -209,7 +209,6 @@ public:
     return result;
   }
 
-  void reset();
   bool enable(THD *thd);
   bool check_str(THD *thd, LEX_STRING *val);
   bool update(THD *thd, set_var *var);
@@ -241,7 +240,6 @@ class Current_schema_tracker : public State_tracker
 {
 private:
   bool schema_track_inited;
-  void reset();
 
 public:
 
@@ -272,17 +270,11 @@ public:
 
 class Session_state_change_tracker : public State_tracker
 {
-private:
-
-  void reset();
-
 public:
-  Session_state_change_tracker();
   bool enable(THD *thd)
   { return update(thd, NULL); };
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
-  bool is_state_changed(THD*);
 };
 
 
@@ -829,7 +821,7 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
   if (orig_list->store(thd, buf))
     return true;
 
-  reset();
+  orig_list->reset();
 
   return false;
 }
@@ -890,17 +882,6 @@ my_bool Session_sysvars_tracker::reset_variable(void *ptr,
 void Session_sysvars_tracker::vars_list::reset()
 {
   my_hash_iterate(&m_registered_sysvars, &reset_variable, NULL);
-}
-
-/**
-  Prepare/reset the m_registered_sysvars hash for next statement.
-*/
-
-void Session_sysvars_tracker::reset()
-{
-
-  orig_list->reset();
-  m_changed= false;
 }
 
 static Session_sysvars_tracker* sysvar_tracker(THD *thd)
@@ -991,21 +972,7 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
   /* Length and current schema name */
   buf->q_net_store_data((const uchar *)thd->db.str, thd->db.length);
 
-  reset();
-
   return false;
-}
-
-
-/**
-  Reset the m_changed flag for next statement.
-
-  @return                   void
-*/
-
-void Current_schema_tracker::reset()
-{
-  m_changed= false;
 }
 
 
@@ -1331,21 +1298,10 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
     }
   }
 
-  reset();
+  tx_reported_state= tx_curr_state;
+  tx_changed= TX_CHG_NONE;
 
   return false;
-}
-
-
-/**
-  Reset the m_changed flag for next statement.
-*/
-
-void Transaction_state_tracker::reset()
-{
-  m_changed=  false;
-  tx_reported_state=  tx_curr_state;
-  tx_changed=  TX_CHG_NONE;
 }
 
 
@@ -1518,11 +1474,6 @@ void Transaction_state_tracker::set_isol_level(THD *thd,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Session_state_change_tracker::Session_state_change_tracker()
-{
-  m_changed= false;
-}
-
 /**
   @Enable/disable the tracker based on @@session_track_state_change value.
 
@@ -1560,32 +1511,10 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
   /* Length of the overall entity (1 byte) */
   buf->q_append('\1');
 
-  DBUG_ASSERT(is_state_changed(thd));
+  DBUG_ASSERT(is_changed());
   buf->q_append('1');
 
-  reset();
-
   return false;
-}
-
-
-/**
-  Reset the m_changed flag for next statement.
-*/
-
-void Session_state_change_tracker::reset()
-{
-  m_changed= false;
-}
-
-
-/**
-  Find if there is a session state change.
-*/
-
-bool Session_state_change_tracker::is_state_changed(THD *)
-{
-  return m_changed;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1682,11 +1611,15 @@ void Session_tracker::store(THD *thd, String *buf)
   /* Get total length. */
   for (int i= 0; i < SESSION_TRACKER_END; i++)
   {
-    if (m_trackers[i]->is_changed() &&
-        m_trackers[i]->store(thd, buf))
+    if (m_trackers[i]->is_changed())
     {
-      buf->length(start); // it is safer to have 0-length block in case of error
-      return;
+      if (m_trackers[i]->store(thd, buf))
+      {
+        // it is safer to have 0-length block in case of error
+        buf->length(start);
+        return;
+      }
+      m_trackers[i]->reset_changed();
     }
   }
 

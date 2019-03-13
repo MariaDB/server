@@ -67,6 +67,7 @@ protected:
   */
   bool m_enabled;
 
+private:
   /** Has the session state type changed ? */
   bool m_changed;
 
@@ -85,6 +86,8 @@ public:
 
   bool is_changed() const
   { return m_changed; }
+
+  void reset_changed() { m_changed= false; }
 
   /** Called in the constructor of THD*/
   virtual bool enable(THD *thd)= 0;
@@ -275,8 +278,6 @@ private:
 
   /**  isolation level */
   enum enum_tx_isol_level  tx_isol_level;
-
-  void reset();
 
   inline void update_change_flags(THD *thd)
   {
