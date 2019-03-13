@@ -14010,6 +14010,8 @@ rocksdb_set_update_cf_options(THD *const /* unused */,
 
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
 
+  my_free(*reinterpret_cast<void **>(var_ptr));
+
   if (!val) {
     *reinterpret_cast<char **>(var_ptr) = nullptr;
     RDB_MUTEX_UNLOCK_CHECK(rdb_sysvars_mutex);
