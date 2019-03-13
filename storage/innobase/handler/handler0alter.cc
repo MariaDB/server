@@ -626,14 +626,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-#if 0
-	if (altered_table->file->ht != ht) {
-		/* Non-native partitioning table engine. No longer supported,
-		due to implementation of native InnoDB partitioning. */
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-#endif
-
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
 	}

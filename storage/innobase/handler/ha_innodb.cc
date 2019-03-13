@@ -2990,7 +2990,6 @@ ha_innobase::ha_innobase(
 	TABLE_SHARE*	table_arg)
 	:handler(hton, table_arg),
 	m_prebuilt(),
-	m_prebuilt_ptr(&m_prebuilt),
 	m_user_thd(),
 	m_int_table_flags(HA_REC_NOT_IN_SEQ
 			  | HA_NULL_IN_KEY
@@ -3656,9 +3655,6 @@ innobase_init_abort()
 /** Return partitioning flags. */
 static uint innobase_partition_flags()
 {
-	/* JAN: TODO: MYSQL 5.7
-	return(HA_CAN_EXCHANGE_PARTITION | HA_CANNOT_PARTITION_FK);
-	*/
 	return (0);
 }
 
@@ -13238,8 +13234,6 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 		}
 	}
 
-	/* TODO: remove this when the conversion tool from ha_partition to
-	native innodb partitioning is completed */
 	if (err == DB_TABLE_NOT_FOUND
 	    && innobase_get_lower_case_table_names() == 1) {
 		char*	is_part = is_partition(norm_name);
