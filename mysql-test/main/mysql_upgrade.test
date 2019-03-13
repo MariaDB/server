@@ -269,3 +269,17 @@ connection default;
 drop user user3@localhost;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+
+#
+# MDEV-18275 Live upgrade from 5.5 does not work: InnoDB stat tables are used before creation
+#
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
+--echo # mysql_upgrade --force --silent 2>&1
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
+--echo # End of 10.4 tests

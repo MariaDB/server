@@ -670,35 +670,19 @@ SHOW WARNINGS;
 # Convering the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
 
-# fix bad data when upgrading from unfixed InnoDB (MDEV-13360)
-set @str="delete from innodb_index_stats where length(table_name) > 64";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
-set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
-prepare stmt from @str;
-execute stmt;
+DELIMITER //
+if @have_innodb then
+  # fix bad data when upgrading from unfixed InnoDB (MDEV-13360)
+  delete from innodb_index_stats where length(table_name) > 64;
+  delete from innodb_table_stats where length(table_name) > 64;
 
-# update table_name and timestamp fields in the innodb stat tables
-set @str="alter table mysql.innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199)";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
+  # update table_name and timestamp fields in the innodb stat tables
+  alter table innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
+  alter table innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
 
-set @str="alter table mysql.innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199)";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
-
-set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
-prepare stmt from @str;
-execute stmt;
-
-SET @innodb_index_stats_fk= (select count(*) from information_schema.referential_constraints where constraint_schema='mysql' and table_name = 'innodb_index_stats' and referenced_table_name = 'innodb_table_stats' and constraint_name = 'innodb_index_stats_ibfk_1');
-SET @str=IF(@innodb_index_stats_fk > 0 and @have_innodb > 0, "ALTER TABLE mysql.innodb_index_stats DROP FOREIGN KEY `innodb_index_stats_ibfk_1`", "SET @dummy = 0");
-PREPARE stmt FROM @str;
-EXECUTE stmt;
-DROP PREPARE stmt; 
+  alter table innodb_index_stats drop foreign key if exists innodb_index_stats_ibfk_1;
+end if //
+DELIMITER ;
 
 # MDEV-4332 longer user names
 alter table user         modify User         char(80)  binary not null default '';

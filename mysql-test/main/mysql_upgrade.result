@@ -624,3 +624,9 @@ connection default;
 drop user user3@localhost;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+drop view mysql.user_bak;
+drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
+# mysql_upgrade --force --silent 2>&1
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# End of 10.4 tests
