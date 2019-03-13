@@ -13623,12 +13623,26 @@ int ha_innobase::truncate()
 	if (!err) {
 		/* Reopen the newly created table, and drop the
 		original table that was renamed to temp_name. */
-		close();
+
+		row_prebuilt_t* prebuilt = m_prebuilt;
+		uchar* upd_buf = m_upd_buf;
+		ulint upd_buf_size = m_upd_buf_size;
+		/* Mimic ha_innobase::close(). */
+		m_prebuilt = NULL;
+		m_upd_buf = NULL;
+		m_upd_buf_size = 0;
 		err = open(name, 0, 0);
 		if (!err) {
 			m_prebuilt->stored_select_lock_type = stored_lock;
 			m_prebuilt->table->update_time = update_time;
+			row_prebuilt_free(prebuilt, FALSE);
 			delete_table(temp_name, SQLCOM_TRUNCATE);
+			my_free(upd_buf);
+		} else {
+			/* Revert to the old table before truncation. */
+			m_prebuilt = prebuilt;
+			m_upd_buf = upd_buf;
+			m_upd_buf_size = upd_buf_size;
 		}
 	}
 

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1044,14 +1044,7 @@ dict_mem_index_free(
 	mem_heap_free(index->heap);
 }
 
-/** Create a temporary tablename like "#sql-ibtid-inc where
-  tid = the Table ID
-  inc = a randomly initialized number that is incremented for each file
-The table ID is a 64 bit integer, can use up to 20 digits, and is
-initialized at bootstrap. The second number is 32 bits, can use up to 10
-digits, and is initialized at startup to a randomly distributed number.
-It is hoped that the combination of these two numbers will provide a
-reasonably unique temporary file name.
+/** Create a temporary tablename like "#sql-ibNNN".
 @param[in]	heap	A memory heap
 @param[in]	dbtab	Table name in the form database/table name
 @param[in]	id	Table id
@@ -1066,8 +1059,19 @@ dict_mem_create_temporary_tablename(
 	char*		name;
 	const char*	dbend   = strchr(dbtab, '/');
 	ut_ad(dbend);
-	size_t		dblen   = dbend - dbtab + 1;
+	size_t		dblen   = size_t(dbend - dbtab) + 1;
 
+	if (srv_safe_truncate) {
+		/* InnoDB will drop all #sql tables at startup.
+		Therefore, the id alone should generate a unique
+		and previously non-existent name. */
+		size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20);
+		name = static_cast<char*>(mem_heap_alloc(heap, size));
+		memcpy(name, dbtab, dblen);
+		snprintf(name + dblen, size - dblen,
+			 TEMP_FILE_PREFIX_INNODB UINT64PF, id);
+		return name;
+	}
 	/* Increment a randomly initialized  number for each temp file. */
 	my_atomic_add32((int32*) &dict_temp_file_num, 1);
 
