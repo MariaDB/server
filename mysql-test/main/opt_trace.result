@@ -2931,7 +2931,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         {
                           "index": "pk",
                           "index_scan_cost": 1.0023,
-                          "cumulateed_index_scan_cost": 1.0023,
+                          "cumulated_index_scan_cost": 1.0023,
                           "disk_sweep_cost": 0.9008,
                           "cumulative_total_cost": 1.9031,
                           "usable": true,

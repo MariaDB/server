@@ -6842,7 +6842,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
   }
 
   info->total_cost= info->index_scan_costs;
-  trace_costs->add("cumulateed_index_scan_cost", info->index_scan_costs);
+  trace_costs->add("cumulated_index_scan_cost", info->index_scan_costs);
   DBUG_PRINT("info", ("info->total_cost: %g", info->total_cost));
   if (!info->is_covering)
   {
