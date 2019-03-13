@@ -718,9 +718,14 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     goto got_error;
 
   if (table_list->has_period())
+  {
     table->use_all_columns();
+    table->rpl_write_set= table->write_set;
+  }
   else
+  {
     table->mark_columns_needed_for_delete();
+  }
 
   if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
       !table->prepare_triggers_for_delete_stmt_or_event())
