@@ -432,6 +432,16 @@ int mysql_update(THD *thd,
   if (mysql_prepare_update(thd, table_list, &conds, order_num, order))
     DBUG_RETURN(1);
 
+  if (table_list->has_period())
+  {
+    if (!table_list->period_conditions.start.item->const_item()
+        || !table_list->period_conditions.end.item->const_item())
+    {
+      my_error(ER_NOT_CONSTANT_EXPRESSION, MYF(0), "FOR PORTION OF");
+      DBUG_RETURN(true);
+    }
+  }
+
   old_covering_keys= table->covering_keys;		// Keys used in WHERE
   /* Check the fields we are going to modify */
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1366,15 +1376,6 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);
 
-  if (table_list->has_period())
-  {
-    if (!table_list->period_conditions.start.item->const_item()
-        || !table_list->period_conditions.end.item->const_item())
-    {
-      my_error(ER_NOT_CONSTANT_EXPRESSION, MYF(0), "FOR PORTION OF");
-      DBUG_RETURN(true);
-    }
-  }
 
   select_lex->fix_prepare_information(thd, conds, &fake_conds);
   DBUG_RETURN(FALSE);
@@ -1664,6 +1665,17 @@ int mysql_multi_update_prepare(THD *thd)
 
   if (mysql_handle_derived(lex, DT_PREPARE))
     DBUG_RETURN(TRUE);
+
+  if (table_list->has_period())
+  {
+    /*
+      Multi-table update is not supported on syntax lexel. However it's possible
+      to get here through PREPARE with update of multi-table view.
+     */
+    DBUG_ASSERT(table_list->is_view_or_derived());
+    my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
 
   if (setup_tables_and_check_access(thd,
                                     &lex->first_select_lex()->context,

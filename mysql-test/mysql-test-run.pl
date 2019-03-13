@@ -200,6 +200,7 @@ my @DEFAULT_SUITES= qw(
     unit-
     vcol-
     versioning-
+    period-
   );
 my $opt_suites;
 
