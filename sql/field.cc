@@ -3469,7 +3469,7 @@ uint Field_new_decimal::is_equal(Create_field *new_field)
   return ((new_field->type_handler() == type_handler()) &&
           ((new_field->flags & UNSIGNED_FLAG) == 
            (uint) (flags & UNSIGNED_FLAG)) &&
-          ((new_field->flags & AUTO_INCREMENT_FLAG) ==
+          ((new_field->flags & AUTO_INCREMENT_FLAG) <=
            (uint) (flags & AUTO_INCREMENT_FLAG)) &&
           (new_field->length == max_display_length()) &&
           (new_field->decimals == dec));
@@ -9535,7 +9535,8 @@ bool Field_num::eq_def(const Field *field) const
 
 uint Field_num::is_equal(Create_field *new_field)
 {
-  if ((new_field->flags ^ flags) & (UNSIGNED_FLAG | AUTO_INCREMENT_FLAG))
+  if (((new_field->flags & UNSIGNED_FLAG) != (flags & UNSIGNED_FLAG)) ||
+      ((new_field->flags & AUTO_INCREMENT_FLAG) > (flags & AUTO_INCREMENT_FLAG)))
     return IS_EQUAL_NO;
 
   const Type_handler *th= type_handler(), *new_th = new_field->type_handler();
