@@ -34,20 +34,6 @@ void State_tracker::mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name)
 }
 
 
-class Not_implemented_tracker : public State_tracker
-{
-public:
-  bool enable(THD *thd)
-  { return false; }
-  bool update(THD *, set_var *)
-  { return false; }
-  bool store(THD *, String *)
-  { return false; }
-  void mark_as_changed(THD *, LEX_CSTRING *tracked_item_name)
-  {}
-
-};
-
 /**
   Session_sysvars_tracker
 
@@ -1443,8 +1429,6 @@ void Session_tracker::enable(THD *thd)
     new (std::nothrow) Current_schema_tracker;
   m_trackers[SESSION_STATE_CHANGE_TRACKER]=
     new (std::nothrow) Session_state_change_tracker;
-  m_trackers[SESSION_GTIDS_TRACKER]=
-    new (std::nothrow) Not_implemented_tracker;
   m_trackers[TRANSACTION_INFO_TRACKER]=
     new (std::nothrow) Transaction_state_tracker;
 
