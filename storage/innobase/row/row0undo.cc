@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -440,8 +440,9 @@ row_undo(
 	case UNDO_UPDATE_TEMPORARY:
 		err = row_undo_mod(node, thr);
 		break;
-	case UNDO_NODE_FETCH_NEXT:
+	default:
 		ut_ad(!"wrong state");
+		err = DB_CORRUPTION;
 	}
 
 	if (locked_data_dict) {
