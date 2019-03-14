@@ -1930,5 +1930,12 @@ DROP TABLE t1;
 SELECT NULLIF('foo', FROM_UNIXTIME('2012-12-12 12:12:12', TRIM(0)));
 
 --echo #
+--echo # MDEV-18626 ASAN stack-buffer-overflow in int10_to_str / make_date_time upon DATE_FORMAT
+--echo #
+
+SELECT DATE_FORMAT(100000000000, '%j');
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

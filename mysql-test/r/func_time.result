@@ -3444,5 +3444,11 @@ foo
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: '2012-12-12 12:12:12'
 #
+# MDEV-18626 ASAN stack-buffer-overflow in int10_to_str / make_date_time upon DATE_FORMAT
+#
+SELECT DATE_FORMAT(100000000000, '%j');
+DATE_FORMAT(100000000000, '%j')
+NULL
+#
 # End of 10.1 tests
 #
