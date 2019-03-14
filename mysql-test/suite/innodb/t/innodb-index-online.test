@@ -225,10 +225,7 @@ SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2e_created WAIT_FOR dml2_done';
 # Ensure that the ALTER TABLE will be executed even with some concurrent DML.
 SET lock_wait_timeout = 10;
 --send
-# FIXME: MDEV-13668
-#ALTER TABLE t1 CHANGE c2 c22 INT, DROP INDEX c2d, ADD INDEX c2e(c22),
-ALTER TABLE t1 DROP INDEX c2d, ADD INDEX c2e(c2),
-ALGORITHM = INPLACE;
+ALTER TABLE t1 CHANGE c2 c22 INT, DROP INDEX c2d, ADD INDEX c2e(c22, c3(10)), ALGORITHM = NOCOPY;
 
 # Generate some log (delete-mark, delete-unmark, insert etc.)
 # while the index creation is blocked. Some of this may run

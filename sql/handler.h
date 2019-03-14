@@ -43,6 +43,7 @@
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
 #include "sql_sequence.h"
+#include "mem_root_array.h"
 
 class Alter_info;
 class Virtual_column_info;
@@ -635,6 +636,8 @@ typedef ulonglong alter_table_operations;
 #define ALTER_RECREATE              (1ULL << 10)
 // Set for CONVERT TO
 #define ALTER_CONVERT_TO            (1ULL << 11)
+// Set for DROP ... ADD some_index
+#define ALTER_RENAME_INDEX          (1ULL << 12)
 // Set for ADD FOREIGN KEY
 #define ALTER_ADD_FOREIGN_KEY       (1ULL << 21)
 // Set for DROP FOREIGN KEY
@@ -2368,6 +2371,29 @@ public:
   uint *index_add_buffer;
 
   /**
+     Old and new index names. Used for index rename.
+  */
+  struct Rename_key_pair
+  {
+    Rename_key_pair(const KEY *old_key, const KEY *new_key)
+        : old_key(old_key), new_key(new_key)
+    {
+    }
+    const KEY *old_key;
+    const KEY *new_key;
+  };
+  /**
+     Vector of key pairs from DROP/ADD index which can be renamed.
+  */
+  typedef Mem_root_array<Rename_key_pair, true> Rename_keys_vector;
+
+  /**
+     A list of indexes which should be renamed.
+     Index definitions stays the same.
+  */
+  Rename_keys_vector rename_keys;
+
+  /**
      Context information to allow handlers to keep context between in-place
      alter API calls.
 
@@ -2428,23 +2454,7 @@ public:
                      Alter_info *alter_info_arg,
                      KEY *key_info_arg, uint key_count_arg,
                      partition_info *modified_part_info_arg,
-                     bool ignore_arg)
-    : create_info(create_info_arg),
-    alter_info(alter_info_arg),
-    key_info_buffer(key_info_arg),
-    key_count(key_count_arg),
-    index_drop_count(0),
-    index_drop_buffer(NULL),
-    index_add_count(0),
-    index_add_buffer(NULL),
-    handler_ctx(NULL),
-    group_commit_ctx(NULL),
-    handler_flags(0),
-    modified_part_info(modified_part_info_arg),
-    ignore(ignore_arg),
-    online(false),
-    unsupported_reason(NULL)
-  {}
+                     bool ignore_arg);
 
   ~Alter_inplace_info()
   {
