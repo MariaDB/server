@@ -35,16 +35,10 @@ connection server_1;
 DROP TABLE t1;
 connection server_2;
 include/start_slave.inc
-Warnings:
-Note	1254	Slave is already running
 connection server_3;
 include/start_slave.inc
-Warnings:
-Note	1254	Slave is already running
 connection server_4;
 include/start_slave.inc
-Warnings:
-Note	1254	Slave is already running
 connection server_2;
 include/stop_slave.inc
 include/start_slave.inc

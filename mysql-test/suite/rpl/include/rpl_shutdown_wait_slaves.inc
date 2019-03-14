@@ -76,8 +76,16 @@ EOF
 DROP TABLE t1;
 
 --connection server_2
+--disable_warnings
 --source include/start_slave.inc
+--enable_warnings
+
 --connection server_3
+--disable_warnings
 --source include/start_slave.inc
+--enable_warnings
+
 --connection server_4
+--disable_warnings
 --source include/start_slave.inc
+--enable_warnings
