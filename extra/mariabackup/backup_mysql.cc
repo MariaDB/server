@@ -66,7 +66,6 @@ unsigned long mysql_server_version = 0;
 /* server capabilities */
 bool have_changed_page_bitmaps = false;
 bool have_backup_locks = false;
-bool have_backup_safe_binlog_info = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
 bool have_flush_engine_logs = false;
@@ -358,8 +357,6 @@ get_mysql_vars(MYSQL *connection)
 
 	mysql_variable mysql_vars[] = {
 		{"have_backup_locks", &have_backup_locks_var},
-		{"have_backup_safe_binlog_info",
-		 &have_backup_safe_binlog_info_var},
 		{"log_bin", &log_bin_var},
 		{"lock_wait_timeout", &lock_wait_timeout_var},
 		{"gtid_mode", &gtid_mode_var},
@@ -392,22 +389,12 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (opt_binlog_info == BINLOG_INFO_AUTO) {
-
-		if (have_backup_safe_binlog_info_var != NULL)
-			opt_binlog_info = BINLOG_INFO_LOCKLESS;
-		else if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
+		if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
 			opt_binlog_info = BINLOG_INFO_ON;
 		else
 			opt_binlog_info = BINLOG_INFO_OFF;
 	}
 
-	if (have_backup_safe_binlog_info_var == NULL &&
-	    opt_binlog_info == BINLOG_INFO_LOCKLESS) {
-
-		msg("Error: --binlog-info=LOCKLESS is not supported by the "
-		    "server\n");
-		return(false);
-	}
 
 	if (lock_wait_timeout_var != NULL) {
 		have_lock_wait_timeout = true;

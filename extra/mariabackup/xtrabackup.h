@@ -161,7 +161,7 @@ extern uint		opt_safe_slave_backup_timeout;
 
 extern const char	*opt_history;
 
-enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_LOCKLESS, BINLOG_INFO_ON,
+enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
 
 extern ulong opt_binlog_info;
