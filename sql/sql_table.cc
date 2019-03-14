@@ -6502,31 +6502,101 @@ remove_key:
 }
 
 
-/**
-  Get Create_field object for newly created table by field index.
-
-  @param alter_info  Alter_info describing newly created table.
-  @param idx         Field index.
-*/
-
-static Create_field *get_field_by_index(Alter_info *alter_info, uint idx)
-{
-  List_iterator_fast<Create_field> field_it(alter_info->create_list);
-  uint field_idx= 0;
-  Create_field *field;
-
-  while ((field= field_it++) && field_idx < idx)
-  { field_idx++; }
-
-  return field;
-}
-
-
 static int compare_uint(const uint *s, const uint *t)
 {
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 
+enum class Compare_keys
+{
+  Equal,
+  EqualButKeyPartLength,
+  NotEqual
+};
+
+Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
+                                   Alter_info *alter_info, const TABLE *table,
+                                   const KEY *const new_pk,
+                                   const KEY *const old_pk)
+{
+  Compare_keys result= Compare_keys::Equal;
+
+  if ((table_key->algorithm != new_key->algorithm) ||
+      ((table_key->flags & HA_KEYFLAG_MASK) !=
+       (new_key->flags & HA_KEYFLAG_MASK)) ||
+      (table_key->user_defined_key_parts != new_key->user_defined_key_parts))
+    return Compare_keys::NotEqual;
+
+  if (table_key->block_size != new_key->block_size)
+    return Compare_keys::NotEqual;
+
+  if (engine_options_differ(table_key->option_struct, new_key->option_struct,
+                            table->file->ht->index_options))
+    return Compare_keys::NotEqual;
+
+  const KEY_PART_INFO *end=
+      table_key->key_part + table_key->user_defined_key_parts;
+  for (const KEY_PART_INFO *key_part= table_key->key_part,
+                           *new_part= new_key->key_part;
+       key_part < end; key_part++, new_part++)
+  {
+    Create_field *new_field= alter_info->create_list.elem(new_part->fieldnr);
+    const Field *old_field= table->field[key_part->fieldnr - 1];
+    /*
+      If there is a change in index length due to column expansion
+      like varchar(X) changed to varchar(X + N) and has a compatible
+      packed data representation, we mark it for fast/INPLACE change
+      in index definition. InnoDB supports INPLACE for this cases
+
+      Key definition has changed if we are using a different field or
+      if the user key part length is different.
+    */
+    auto old_field_len= old_field->pack_length();
+
+    if (old_field->type() == MYSQL_TYPE_VARCHAR)
+    {
+      old_field_len= (old_field->pack_length() -
+                      ((Field_varstring *) old_field)->length_bytes);
+    }
+
+    if (key_part->length == old_field_len &&
+        key_part->length < new_part->length &&
+        (key_part->field->is_equal((Create_field *) new_field) ==
+         IS_EQUAL_PACK_LENGTH))
+    {
+      result= Compare_keys::EqualButKeyPartLength;
+    }
+    else if (key_part->length != new_part->length)
+      return Compare_keys::NotEqual;
+
+    /*
+      For prefix keys KEY_PART_INFO::field points to cloned Field
+      object with adjusted length. So below we have to check field
+      indexes instead of simply comparing pointers to Field objects.
+    */
+    if (!new_field->field ||
+        new_field->field->field_index != key_part->fieldnr - 1)
+      return Compare_keys::NotEqual;
+  }
+
+  /*
+  Rebuild the index if following condition get satisfied:
+
+  (i) Old table doesn't have primary key, new table has it and vice-versa
+  (ii) Primary key changed to another existing index
+*/
+  if ((new_key == new_pk) != (table_key == old_pk))
+    return Compare_keys::NotEqual;
+
+  /* Check that key comment is not changed. */
+  if (table_key->comment.length != new_key->comment.length ||
+      (table_key->comment.length &&
+       memcmp(table_key->comment.str, new_key->comment.str,
+              table_key->comment.length) != 0))
+    return Compare_keys::NotEqual;
+
+  return result;
+}
 
 /**
    Compare original and new versions of a table and fill Alter_inplace_info
@@ -6573,21 +6643,21 @@ static int compare_uint(const uint *s, const uint *t)
 static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
                                     Alter_inplace_info *ha_alter_info)
 {
-  Field **f_ptr, *field, *old_field;
+  Field **f_ptr, *field;
   List_iterator_fast<Create_field> new_field_it;
   Create_field *new_field;
-  KEY_PART_INFO *key_part, *new_part;
-  KEY_PART_INFO *end;
   Alter_info *alter_info= ha_alter_info->alter_info;
   DBUG_ENTER("fill_alter_inplace_info");
   DBUG_PRINT("info", ("alter_info->flags: %llu", alter_info->flags));
 
   /* Allocate result buffers. */
+  DBUG_ASSERT(ha_alter_info->rename_keys.mem_root() == thd->mem_root);
   if (! (ha_alter_info->index_drop_buffer=
           (KEY**) thd->alloc(sizeof(KEY*) * table->s->keys)) ||
       ! (ha_alter_info->index_add_buffer=
           (uint*) thd->alloc(sizeof(uint) *
-                            alter_info->key_list.elements)))
+                            alter_info->key_list.elements)) ||
+      ha_alter_info->rename_keys.reserve(ha_alter_info->index_add_count))
     DBUG_RETURN(true);
 
   /*
@@ -6871,7 +6941,6 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
     Go through keys and check if the original ones are compatible
     with new table.
   */
-  uint old_field_len= 0;
   KEY *table_key;
   KEY *table_key_end= table->key_info + table->s->keys;
   KEY *new_key;
@@ -6918,88 +6987,18 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       continue;
     }
 
-    /* Check that the key types are compatible between old and new tables. */
-    if ((table_key->algorithm != new_key->algorithm) ||
-        ((table_key->flags & HA_KEYFLAG_MASK) !=
-         (new_key->flags & HA_KEYFLAG_MASK)) ||
-        (table_key->user_defined_key_parts !=
-         new_key->user_defined_key_parts))
-      goto index_changed;
-
-    if (table_key->block_size != new_key->block_size)
-      goto index_changed;
-
-    if (engine_options_differ(table_key->option_struct, new_key->option_struct,
-                              table->file->ht->index_options))
-      goto index_changed;
-
-    /*
-      Check that the key parts remain compatible between the old and
-      new tables.
-    */
-    end= table_key->key_part + table_key->user_defined_key_parts;
-    for (key_part= table_key->key_part, new_part= new_key->key_part;
-         key_part < end;
-         key_part++, new_part++)
+    switch (compare_keys_but_name(table_key, new_key, alter_info, table, new_pk,
+                                  old_pk))
     {
-      new_field= get_field_by_index(alter_info, new_part->fieldnr);
-      old_field= table->field[key_part->fieldnr - 1];
-      /*
-        If there is a change in index length due to column expansion
-        like varchar(X) changed to varchar(X + N) and has a compatible
-        packed data representation, we mark it for fast/INPLACE change
-        in index definition. InnoDB supports INPLACE for this cases
-
-        Key definition has changed if we are using a different field or
-        if the user key part length is different.
-      */
-      old_field_len= old_field->pack_length();
-
-      if (old_field->type() == MYSQL_TYPE_VARCHAR)
-      {
-        old_field_len= (old_field->pack_length()
-                        - ((Field_varstring*) old_field)->length_bytes);
-      }
-
-      if (key_part->length == old_field_len &&
-          key_part->length < new_part->length &&
-	  (key_part->field->is_equal((Create_field*) new_field)
-           == IS_EQUAL_PACK_LENGTH))
-      {
-        ha_alter_info->handler_flags |= ALTER_COLUMN_INDEX_LENGTH;
-      }
-      else if (key_part->length != new_part->length)
-        goto index_changed;
-
-      /*
-        For prefix keys KEY_PART_INFO::field points to cloned Field
-        object with adjusted length. So below we have to check field
-        indexes instead of simply comparing pointers to Field objects.
-      */
-      if (! new_field->field ||
-          new_field->field->field_index != key_part->fieldnr - 1)
-        goto index_changed;
+    case Compare_keys::Equal:
+      continue;
+    case Compare_keys::EqualButKeyPartLength:
+      ha_alter_info->handler_flags|= ALTER_COLUMN_INDEX_LENGTH;
+      continue;
+    case Compare_keys::NotEqual:
+      break;
     }
 
-    /*
-      Rebuild the index if following condition get satisfied:
-
-      (i) Old table doesn't have primary key, new table has it and vice-versa
-      (ii) Primary key changed to another existing index
-    */
-    if ((new_key == new_pk) != (table_key == old_pk))
-      goto index_changed;
-
-    /* Check that key comment is not changed. */
-    if (table_key->comment.length != new_key->comment.length ||
-        (table_key->comment.length &&
-         memcmp(table_key->comment.str, new_key->comment.str,
-                table_key->comment.length) != 0))
-      goto index_changed;
-
-    continue;
-
-  index_changed:
     /* Key modified. Add the key / key offset to both buffers. */
     ha_alter_info->index_drop_buffer
       [ha_alter_info->index_drop_count++]=
@@ -7037,6 +7036,40 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
     else
       ha_alter_info->create_info->indexes_option_struct[table_key - table->key_info]=
         new_key->option_struct;
+  }
+
+  for (uint i= 0; i < ha_alter_info->index_add_count; i++)
+  {
+    uint *add_buffer= ha_alter_info->index_add_buffer;
+    const KEY *new_key= ha_alter_info->key_info_buffer + add_buffer[i];
+
+    for (uint j= 0; j < ha_alter_info->index_drop_count; j++)
+    {
+      KEY **drop_buffer= ha_alter_info->index_drop_buffer;
+      const KEY *old_key= drop_buffer[j];
+
+      if (compare_keys_but_name(old_key, new_key, alter_info, table, new_pk,
+                                old_pk) != Compare_keys::Equal)
+      {
+        continue;
+      }
+
+      DBUG_ASSERT(
+          lex_string_cmp(system_charset_info, &old_key->name, &new_key->name));
+
+      ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
+      ha_alter_info->rename_keys.push_back(
+          Alter_inplace_info::Rename_key_pair(old_key, new_key));
+
+      --ha_alter_info->index_add_count;
+      --ha_alter_info->index_drop_count;
+      memcpy(add_buffer + i, add_buffer + i + 1,
+             sizeof(add_buffer[0]) * (ha_alter_info->index_add_count - i));
+      memcpy(drop_buffer + j, drop_buffer + j + 1,
+             sizeof(drop_buffer[0]) * (ha_alter_info->index_drop_count - j));
+      --i; // this index once again
+      break;
+    }
   }
 
   /*

@@ -133,6 +133,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
 	| ALTER_COLUMN_UNVERSIONED
+	| ALTER_RENAME_INDEX
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 /** Acquire a page latch on the possible metadata record,
@@ -863,10 +864,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	dict_index_t**	drop_index;
 	/** number of InnoDB indexes being dropped */
 	const ulint	num_to_drop_index;
-	/** InnoDB indexes being renamed */
-	dict_index_t**	rename;
-	/** number of InnoDB indexes being renamed */
-	const ulint	num_to_rename;
 	/** InnoDB foreign key constraints being dropped */
 	dict_foreign_t** drop_fk;
 	/** number of InnoDB foreign key constraints being dropped */
@@ -948,8 +945,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
 				ulint num_to_drop_arg,
-				dict_index_t** rename_arg,
-				ulint num_to_rename_arg,
 				dict_foreign_t** drop_fk_arg,
 				ulint num_to_drop_fk_arg,
 				dict_foreign_t** add_fk_arg,
@@ -968,7 +963,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		prebuilt (prebuilt_arg),
 		add_index (0), add_key_numbers (0), num_to_add_index (0),
 		drop_index (drop_arg), num_to_drop_index (num_to_drop_arg),
-		rename (rename_arg), num_to_rename (num_to_rename_arg),
 		drop_fk (drop_fk_arg), num_to_drop_fk (num_to_drop_fk_arg),
 		add_fk (add_fk_arg), num_to_add_fk (num_to_add_fk_arg),
 		online (online_arg), heap (heap_arg), trx (0),
@@ -3257,7 +3251,6 @@ innobase_check_index_keys(
 					goto name_ok;
 				}
 			}
-
 
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
                                  key.name.str);
@@ -7067,6 +7060,120 @@ innobase_check_foreign_key_index(
 	return(false);
 }
 
+/**
+Rename a given index in the InnoDB data dictionary.
+
+@param index index to rename
+@param new_name new name of the index
+@param[in,out] trx dict transaction to use, not going to be committed here
+
+@retval true Failure
+@retval false Success */
+static MY_ATTRIBUTE((warn_unused_result))
+bool
+rename_index_try(
+	const dict_index_t*	index,
+	const char*		new_name,
+	trx_t*			trx)
+{
+	DBUG_ENTER("rename_index_try");
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+
+	pars_info_t*	pinfo;
+	dberr_t		err;
+
+	pinfo = pars_info_create();
+
+	pars_info_add_ull_literal(pinfo, "table_id", index->table->id);
+	pars_info_add_ull_literal(pinfo, "index_id", index->id);
+	pars_info_add_str_literal(pinfo, "new_name", new_name);
+
+	trx->op_info = "Renaming an index in SYS_INDEXES";
+
+	DBUG_EXECUTE_IF(
+		"ib_rename_index_fail1",
+		DBUG_SET("+d,innodb_report_deadlock");
+	);
+
+	err = que_eval_sql(
+		pinfo,
+		"PROCEDURE RENAME_INDEX_IN_SYS_INDEXES () IS\n"
+		"BEGIN\n"
+		"UPDATE SYS_INDEXES SET\n"
+		"NAME = :new_name\n"
+		"WHERE\n"
+		"ID = :index_id AND\n"
+		"TABLE_ID = :table_id;\n"
+		"END;\n",
+		FALSE, trx); /* pinfo is freed by que_eval_sql() */
+
+	DBUG_EXECUTE_IF(
+		"ib_rename_index_fail1",
+		DBUG_SET("-d,innodb_report_deadlock");
+	);
+
+	trx->op_info = "";
+
+	if (err != DB_SUCCESS) {
+		my_error_innodb(err, index->table->name.m_name, 0);
+		DBUG_RETURN(true);
+	}
+
+	DBUG_RETURN(false);
+}
+
+
+/**
+Rename a given index in the InnoDB data dictionary cache.
+
+@param[in,out] index index to rename
+@param new_name new index name
+*/
+static
+void
+innobase_rename_index_cache(dict_index_t* index, const char* new_name)
+{
+	DBUG_ENTER("innobase_rename_index_cache");
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+
+	size_t	old_name_len = strlen(index->name);
+	size_t	new_name_len = strlen(new_name);
+
+	if (old_name_len < new_name_len) {
+		index->name = static_cast<char*>(
+		    mem_heap_alloc(index->heap, new_name_len + 1));
+	}
+
+	memcpy(const_cast<char*>(index->name()), new_name, new_name_len + 1);
+
+	DBUG_VOID_RETURN;
+}
+
+
+/** Rename the index name in cache.
+@param[in]	ctx		alter context
+@param[in]	ha_alter_info	Data used during inplace alter. */
+static void innobase_rename_indexes_cache(
+	const ha_innobase_inplace_ctx*	ctx,
+	const Alter_inplace_info*	ha_alter_info)
+{
+	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
+
+	for (const Alter_inplace_info::Rename_key_pair& pair :
+	     ha_alter_info->rename_keys) {
+		dict_index_t* index = dict_table_get_index_on_name(
+		    ctx->old_table, pair.old_key->name.str);
+		ut_ad(index);
+
+		innobase_rename_index_cache(index, pair.new_key->name.str);
+	}
+}
+
 
 /** Fill the stored column information in s_cols list.
 @param[in]	altered_table	mysql table object
@@ -7144,8 +7251,6 @@ ha_innobase::prepare_inplace_alter_table(
 {
 	dict_index_t**	drop_index;	/*!< Index to be dropped */
 	ulint		n_drop_index;	/*!< Number of indexes to drop */
-	dict_index_t**	rename_index;	/*!< Indexes to be dropped */
-	ulint		n_rename_index;	/*!< Number of indexes to rename */
 	dict_foreign_t**drop_fk;	/*!< Foreign key constraints to drop */
 	ulint		n_drop_fk;	/*!< Number of foreign keys to drop */
 	dict_foreign_t**add_fk = NULL;	/*!< Foreign key constraints to drop */
@@ -7661,9 +7766,6 @@ check_if_can_drop_indexes:
 		}
 	}
 
-	n_rename_index = 0;
-	rename_index = NULL;
-
 	n_add_fk = 0;
 
 	if (ha_alter_info->handler_flags
@@ -7717,6 +7819,20 @@ err_exit:
 		}
 	}
 
+	if (ha_alter_info->handler_flags & ALTER_RENAME_INDEX) {
+		for (const Alter_inplace_info::Rename_key_pair& pair :
+		     ha_alter_info->rename_keys) {
+			dict_index_t* index = dict_table_get_index_on_name(
+			    indexed_table, pair.old_key->name.str);
+
+			if (!index || index->is_corrupted()) {
+				my_error(ER_INDEX_CORRUPT, MYF(0),
+					 index->name());
+				goto err_exit;
+			}
+		}
+	}
+
 	const ha_table_option_struct& alt_opt=
 		*ha_alter_info->create_info->option_struct;
 
@@ -7732,7 +7848,6 @@ err_exit:
 				= new ha_innobase_inplace_ctx(
 					m_prebuilt,
 					drop_index, n_drop_index,
-					rename_index, n_rename_index,
 					drop_fk, n_drop_fk,
 					add_fk, n_add_fk,
 					ha_alter_info->online,
@@ -7860,7 +7975,6 @@ found_col:
 	ha_alter_info->handler_ctx = new ha_innobase_inplace_ctx(
 		m_prebuilt,
 		drop_index, n_drop_index,
-		rename_index, n_rename_index,
 		drop_fk, n_drop_fk, add_fk, n_add_fk,
 		ha_alter_info->online,
 		heap, m_prebuilt->table, col_names,
@@ -9656,6 +9770,38 @@ commit_try_rebuild(
 	}
 }
 
+/** Rename indexes in dictionary.
+@param[in]	ctx		alter info context
+@param[in]	ha_alter_info	Operation used during inplace alter
+@param[out]	trx		transaction to change the index name
+				in dictionary
+@return true if it failed to rename
+@return false if it is success. */
+static
+bool
+rename_indexes_try(
+	const ha_innobase_inplace_ctx*	ctx,
+	const Alter_inplace_info*	ha_alter_info,
+	trx_t*				trx)
+{
+	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
+
+	for (const Alter_inplace_info::Rename_key_pair& pair :
+	     ha_alter_info->rename_keys) {
+		dict_index_t* index = dict_table_get_index_on_name(
+		    ctx->old_table, pair.old_key->name.str);
+		// This was checked previously in
+		// ha_innobase::prepare_inplace_alter_table()
+		ut_ad(index);
+
+		if (rename_index_try(index, pair.new_key->name.str, trx)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /** Apply the changes made during commit_try_rebuild(),
 to the data dictionary cache and the file system.
 @param ctx In-place ALTER TABLE context */
@@ -9913,6 +10059,11 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
+	if ((ha_alter_info->handler_flags & ALTER_RENAME_INDEX)
+	    && rename_indexes_try(ctx, ha_alter_info, trx)) {
+		DBUG_RETURN(true);
+	}
+
 	if (ctx->is_instant()) {
 		DBUG_RETURN(innobase_instant_try(ha_alter_info, ctx,
 						 altered_table, old_table,
@@ -10165,6 +10316,10 @@ commit_cache_norebuild(
 		vers_change_fields_cache(ha_alter_info, ctx, table);
 	}
 
+	if (ha_alter_info->handler_flags & ALTER_RENAME_INDEX) {
+		innobase_rename_indexes_cache(ctx, ha_alter_info);
+	}
+
 	ctx->new_table->fts_doc_id_index
 		= ctx->new_table->fts
 		? dict_table_get_index_on_name(
@@ -10234,6 +10389,27 @@ alter_stats_norebuild(
 		}
 	}
 
+	for (const Alter_inplace_info::Rename_key_pair& pair :
+	     ha_alter_info->rename_keys) {
+		dberr_t err = dict_stats_rename_index(ctx->new_table,
+						      pair.old_key->name.str,
+						      pair.new_key->name.str);
+
+		if (err != DB_SUCCESS) {
+			push_warning_printf(
+				thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ERROR_ON_RENAME,
+				"Error renaming an index of table '%s'"
+				" from '%s' to '%s' in InnoDB persistent"
+				" statistics storage: %s",
+				ctx->new_table->name.m_name,
+				pair.old_key->name.str,
+				pair.new_key->name.str,
+				ut_strerr(err));
+		}
+	}
+
 	for (i = 0; i < ctx->num_to_add_index; i++) {
 		dict_index_t*	index = ctx->add_index[i];
 		DBUG_ASSERT(index->table == ctx->new_table);
@@ -10269,22 +10445,7 @@ alter_stats_rebuild(
 		DBUG_VOID_RETURN;
 	}
 
-#ifndef DBUG_OFF
-	bool	file_unreadable_orig = false;
-#endif /* DBUG_OFF */
-
-	DBUG_EXECUTE_IF(
-		"ib_rename_index_fail2",
-		file_unreadable_orig = table->file_unreadable;
-		table->file_unreadable = true;
-	);
-
 	dberr_t	ret = dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
-
-	DBUG_EXECUTE_IF(
-		"ib_rename_index_fail2",
-		table->file_unreadable = file_unreadable_orig;
-	);
 
 	if (ret != DB_SUCCESS) {
 		push_warning_printf(
@@ -10943,11 +11104,6 @@ foreign_fail:
 			DBUG_ASSERT(0 == strcmp(ctx->old_table->name.m_name,
 						ctx->tmp_name));
 
-			DBUG_EXECUTE_IF(
-				"ib_rename_index_fail3",
-				DBUG_SET("+d,innodb_report_deadlock");
-			);
-
 			if (dict_stats_drop_table(
 				    ctx->new_table->name.m_name,
 				    errstr, sizeof(errstr))
@@ -10962,11 +11118,6 @@ foreign_fail:
 					table->s->table_name.str,
 					errstr);
 			}
-
-			DBUG_EXECUTE_IF(
-				"ib_rename_index_fail3",
-				DBUG_SET("-d,innodb_report_deadlock");
-			);
 
 			DBUG_EXECUTE_IF("ib_ddl_crash_before_commit",
 					DBUG_SUICIDE(););
