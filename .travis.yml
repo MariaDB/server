@@ -120,6 +120,8 @@ addons:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-xenial-6.0
       - llvm-toolchain-xenial-7
+      - sourceline: 'deb [arch=amd64,arm64,i386,ppc64el] http://ftp.osuosl.org/pub/mariadb/repo/10.4/ubuntu xenial main'
+        key_url: 'http://keyserver.ubuntu.com/pks/lookup?search=0xF1656F24C74CD1D8&op=get'
     packages: # make sure these include all compilers and all build dependencies (see list above)
       - gcc-6
       - g++-6
@@ -135,6 +137,7 @@ addons:
       - chrpath
       - cmake
       - gdb
+      - galera-4
       - libaio-dev
       - libboost-dev
       - libcurl3-dev
