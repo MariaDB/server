@@ -3420,5 +3420,21 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
 #
+# MDEV-14926 AddressSanitizer: heap-use-after-free in make_date_time on weird combination of functions
+#
+DO INET_ATON( FROM_UNIXTIME( @@timestamp, ( TRIM( UNHEX(HEX('%m.%d.%Y') ) ) ) ) );
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1989-03-10');
+SELECT TIME_FORMAT('23:59:43', BINARY d) AS f FROM t1 GROUP BY 'foo';
+f
+1989-03-10
+DROP TABLE t1;
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1900-01-01');
+SELECT LENGTH( DATE_FORMAT( d, BINARY DATABASE() ) ) AS f FROM t1 GROUP BY d;
+f
+4
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
