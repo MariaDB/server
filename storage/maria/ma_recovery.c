@@ -1420,7 +1420,6 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
            " LOGREC_FILE_ID's LSN " LSN_FMT ", ignoring open request",
            LSN_IN_PARTS(share->state.create_rename_lsn),
            LSN_IN_PARTS(lsn_of_file_id));
-    eprint(tracef, "\n***WARNING: '%s' may be crashed", name);
     recovery_warnings++;
     error= -1;
     goto end;
