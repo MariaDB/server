@@ -567,9 +567,14 @@ int mysql_update(THD *thd,
     goto err;
 
   if (table_list->has_period())
+  {
     table->use_all_columns();
+    table->rpl_write_set= table->write_set;
+  }
   else
+  {
     table->mark_columns_needed_for_update();
+  }
 
   table->update_const_key_parts(conds);
   order= simple_remove_const(order, conds);

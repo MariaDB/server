@@ -263,4 +263,9 @@ x	s	e	xs	xe	xs=s and xe=e
 1	1999-01-01	2000-01-01	1999-01-01	2000-01-01	1
 1	2018-01-01	2018-12-12	2018-01-01	2018-12-12	1
 6	2000-01-01	2018-01-01	2000-01-01	2018-01-01	1
+# MDEV-18921 Server crashes in bitmap_bits_set or bitmap_is_set upon
+# UPDATE IGNORE .. FOR PORTION with binary logging
+create or replace table t1 (f int, s date, e date, period for app(s,e));
+insert into t1 values (1,'2016-09-21','2019-06-14');
+update ignore t1 for portion of app from '2019-03-13' to '2019-03-14' set f = 1;
 create or replace database test;

@@ -1,4 +1,5 @@
 source suite/period/engines.inc;
+source include/have_log_bin.inc;
 
 create or replace table t (id int, s date, e date, period for apptime(s,e));
 
@@ -149,5 +150,11 @@ select * from t;
 update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
 --sorted_result
 select *, xs=s and xe=e from t;
+
+--echo # MDEV-18921 Server crashes in bitmap_bits_set or bitmap_is_set upon
+--echo # UPDATE IGNORE .. FOR PORTION with binary logging
+create or replace table t1 (f int, s date, e date, period for app(s,e));
+insert into t1 values (1,'2016-09-21','2019-06-14');
+update ignore t1 for portion of app from '2019-03-13' to '2019-03-14' set f = 1;
 
 create or replace database test;
