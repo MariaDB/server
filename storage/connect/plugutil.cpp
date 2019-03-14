@@ -526,7 +526,7 @@ BOOL PlugSubSet(void *memp, uint size)
 /***********************************************************************/
 /*  Use it to export a function that do throwing.                      */
 /***********************************************************************/
-void *DoThrow(int n)
+static void *DoThrow(int n)
 {
 	throw n;
 } /* end of DoThrow */
