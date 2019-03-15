@@ -38,7 +38,7 @@ GetOptions(\%opt,
     'v|verbose+',# verbose
     'help+',	# write usage info
     'd|debug+',	# debug
-    's=s',	# what to sort by (al, at, ar, ae, c, t, l, r, e)
+    's=s',	# what to sort by (aa, ae, al, ar, at, a, c, e, l, r, t)
     'r!',	# reverse the sort order (largest last instead of first)
     't=i',	# just show the top n queries
     'a!',	# don't abstract all numbers to N and strings to 'S'
@@ -202,12 +202,15 @@ Parse and summarize the MySQL slow query log. Options are
 
   -v           verbose
   -d           debug
-  -s ORDER     what to sort by (al, at, ar, ae, c, l, r, e, t), 'at' is default
+  -s ORDER     what to sort by (aa, ae, al, ar, at, a, c, e, l, r, t), 'at' is default
+                aa: average rows affected
+                ae: aggregated rows examined
                 al: average lock time
                 ar: average rows sent
                 at: average query time
-                aa: average rows affected
+                 a: rows affected
                  c: count
+                 e: rows examined 
                  l: lock time
                  r: rows sent
                  t: query time  
