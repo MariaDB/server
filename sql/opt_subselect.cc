@@ -675,7 +675,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         select_lex->outer_select()->join &&                           // 6
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
-        select_lex->outer_select()->leaf_tables.elements &&           // 9
+        select_lex->outer_select()->table_list.first &&               // 9
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN))                                    // 10
