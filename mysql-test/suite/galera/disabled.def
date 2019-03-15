@@ -51,6 +51,7 @@ galera_var_notify_cmd : MDEV-13549 Galera test failures
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
+mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 partition : MDEV-13549 regularly showing auto_increment mismatch
 pxc-421: Lock timeout exceeded
 query_cache : MDEV-18137: Galera test failure on query_cache
