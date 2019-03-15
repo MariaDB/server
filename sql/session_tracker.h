@@ -103,10 +103,8 @@ public:
 };
 
 bool sysvartrack_validate_value(THD *thd, const char *str, size_t len);
-bool sysvartrack_reprint_value(THD *thd, char *str, size_t len);
-bool sysvartrack_update(THD *thd, set_var *var);
-size_t sysvartrack_value_len(THD *thd);
-bool sysvartrack_value_construct(THD *thd, char *val, size_t len);
+bool sysvartrack_global_update(THD *thd, char *str, size_t len);
+uchar *sysvartrack_session_value_ptr(THD *thd, const LEX_CSTRING *base);
 
 
 /**
@@ -152,7 +150,6 @@ public:
   }
 
   void enable(THD *thd);
-  static bool server_boot_verify(CHARSET_INFO *char_set);
 
   /** Returns the pointer to the tracker object for the specified tracker. */
   inline State_tracker *get_tracker(enum_session_tracker tracker) const
@@ -296,6 +293,8 @@ private:
           ->X; } } while(0)
 #define SESSION_TRACKER_CHANGED(A,B,C) \
   thd->session_tracker.mark_as_changed(A,B,C)
+
+int session_tracker_init();
 #else
 
 #define TRANSACT_TRACKER(X) do{}while(0)

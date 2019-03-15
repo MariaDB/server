@@ -615,7 +615,7 @@ public:
     char *new_val= global_update_prepare(thd, var);
     if (new_val)
     {
-      if (sysvartrack_reprint_value(thd, new_val,
+      if (sysvartrack_global_update(thd, new_val,
                                     var->save_result.string_value.length))
         new_val= 0;
     }
@@ -624,7 +624,8 @@ public:
   }
   bool session_update(THD *thd, set_var *var)
   {
-    return sysvartrack_update(thd, var);
+    return thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+      update(thd, var);
   }
   void session_save_default(THD *thd, set_var *var)
   {
@@ -644,18 +645,7 @@ public:
      }
   }
   uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
-  {
-    DBUG_ASSERT(thd != NULL);
-    size_t len= sysvartrack_value_len(thd);
-    char *res= (char *)thd->alloc(len + sizeof(char *));
-    if (res)
-    {
-      char *buf= res + sizeof(char *);
-      *((char**) res)= buf;
-      sysvartrack_value_construct(thd, buf, len);
-    }
-    return (uchar *)res;
-  }
+  { return sysvartrack_session_value_ptr(thd, base); }
 };
 #endif //EMBEDDED_LIBRARY
 

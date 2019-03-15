@@ -190,28 +190,6 @@ public:
     return orig_list->construct_var_list(buf, buf_len);
   }
 
-  /**
-    Method used to check the validity of string provided
-    for session_track_system_variables during the server
-    startup.
-  */
-  static bool server_init_check(THD *thd, CHARSET_INFO *char_set,
-                                LEX_STRING var_list)
-  {
-    return check_var_list(thd, var_list, false, char_set, false);
-  }
-
-  static bool server_init_process(THD *thd, CHARSET_INFO *char_set,
-                                  LEX_STRING var_list)
-  {
-    vars_list dummy;
-    bool result;
-    result= dummy.parse_var_list(thd, var_list, false, char_set, false);
-    if (!result)
-      dummy.construct_var_list(var_list.str, var_list.length + 1);
-    return result;
-  }
-
   bool enable(THD *thd);
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
@@ -220,8 +198,7 @@ public:
   static uchar *sysvars_get_key(const char *entry, size_t *length,
                                 my_bool not_used __attribute__((unused)));
 
-  static bool check_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
-                             CHARSET_INFO *char_set, bool take_mutex);
+  friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 };
 
 
@@ -442,12 +419,9 @@ error:
 }
 
 
-bool Session_sysvars_tracker::check_var_list(THD *thd,
-                                             LEX_STRING var_list,
-                                             bool throw_error,
-                                             CHARSET_INFO *char_set,
-                                             bool take_mutex)
+bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
 {
+  LEX_STRING var_list= { (char *) str, len };
   const char separator= ',';
   char *token, *lasts= NULL;
   size_t rest= var_list.length;
@@ -466,7 +440,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
     token value. Hence the mutex is handled here to avoid a performance
     overhead.
   */
-  if (!thd || take_mutex)
+  if (!thd)
     mysql_mutex_lock(&LOCK_plugin);
   for (;;)
   {
@@ -484,24 +458,14 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
       var.length= rest;
 
     /* Remove leading/trailing whitespace. */
-    trim_whitespace(char_set, &var);
+    trim_whitespace(system_charset_info, &var);
 
     if(!strcmp(var.str, "*") &&
-       !find_sys_var_ex(thd, var.str, var.length, throw_error, true))
+       !find_sys_var_ex(thd, var.str, var.length, false, true))
     {
-      if (throw_error && take_mutex && thd)
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_WRONG_VALUE_FOR_VAR,
-                            "%.*s is not a valid system variable and will"
-                            "be ignored.", (int)var.length, token);
-      }
-      else
-      {
-        if (!thd || take_mutex)
-          mysql_mutex_unlock(&LOCK_plugin);
-        return true;
-      }
+      if (!thd)
+        mysql_mutex_unlock(&LOCK_plugin);
+      return true;
     }
 
     if (lasts)
@@ -509,7 +473,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
     else
       break;
   }
-  if (!thd || take_mutex)
+  if (!thd)
     mysql_mutex_unlock(&LOCK_plugin);
 
   return false;
@@ -804,37 +768,49 @@ void Session_sysvars_tracker::vars_list::reset()
     at(i)->m_changed= false;
 }
 
-static Session_sysvars_tracker* sysvar_tracker(THD *thd)
+
+bool sysvartrack_global_update(THD *thd, char *str, size_t len)
 {
-  return (Session_sysvars_tracker*)
-    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER);
+  LEX_STRING tmp= { str, len };
+  Session_sysvars_tracker::vars_list dummy;
+  if (!dummy.parse_var_list(thd, tmp, false, system_charset_info, false))
+  {
+    dummy.construct_var_list(str, len + 1);
+    return false;
+  }
+  return true;
 }
 
-bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
+
+uchar *sysvartrack_session_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
-  LEX_STRING tmp= {(char *)str, len};
-  return Session_sysvars_tracker::server_init_check(thd, system_charset_info,
-                                                    tmp);
+  Session_sysvars_tracker *tracker= static_cast<Session_sysvars_tracker*>
+    (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER));
+  size_t len= tracker->get_buffer_length();
+  char *res= (char*) thd->alloc(len + sizeof(char*));
+  if (res)
+  {
+    char *buf= res + sizeof(char*);
+    *((char**) res)= buf;
+    tracker->construct_var_list(buf, len);
+  }
+  return (uchar*) res;
 }
-bool sysvartrack_reprint_value(THD *thd, char *str, size_t len)
+
+
+int session_tracker_init()
 {
-  LEX_STRING tmp= {str, len};
-  return Session_sysvars_tracker::server_init_process(thd,
-                                                       system_charset_info,
-                                                       tmp);
+  if (sysvartrack_validate_value(0,
+        global_system_variables.session_track_system_variables,
+        safe_strlen(global_system_variables.session_track_system_variables)))
+  {
+    sql_print_error("The variable session_track_system_variables has "
+                    "invalid values.");
+    return 1;
+  }
+  return 0;
 }
-bool sysvartrack_update(THD *thd, set_var *var)
-{
-  return sysvar_tracker(thd)->update(thd, var);
-}
-size_t sysvartrack_value_len(THD *thd)
-{
-  return sysvar_tracker(thd)->get_buffer_length();
-}
-bool sysvartrack_value_construct(THD *thd, char *val, size_t len)
-{
-  return sysvar_tracker(thd)->construct_var_list(val, len);
-}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1474,26 +1450,6 @@ void Session_tracker::enable(THD *thd)
 
   for (int i= 0; i < SESSION_TRACKER_END; i++)
     m_trackers[i]->enable(thd);
-}
-
-
-/**
-  Method called during the server startup to verify the contents
-  of @@session_track_system_variables.
-
-  @retval false Success
-  @retval true  Failure
-*/
-
-bool Session_tracker::server_boot_verify(CHARSET_INFO *char_set)
-{
-  bool result;
-  LEX_STRING tmp;
-  tmp.str= global_system_variables.session_track_system_variables;
-  tmp.length= safe_strlen(tmp.str);
-  result=
-    Session_sysvars_tracker::server_init_check(NULL, char_set, tmp);
-  return result;
 }
 
 
