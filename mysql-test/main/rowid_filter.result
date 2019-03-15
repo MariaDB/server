@@ -1974,4 +1974,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select 1 AS `1` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t1_a` where 0
 drop table t1,t2;
+#
+# MDEV-18640: TABLE::prune_range_rowid_filters: Conditional jump or
+#             move depends on uninitialized value
+#
+CREATE TABLE t1 (
+pk INT, i INT, PRIMARY KEY (pk), KEY (pk,i)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,10), (7,70), (2,20);
+SELECT * FROM t1 WHERE pk < 5;
+pk	i
+1	10
+2	20
+DROP TABLE t1;
 set @@use_stat_tables=@save_use_stat_tables;

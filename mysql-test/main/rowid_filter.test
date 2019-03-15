@@ -261,4 +261,18 @@ eval explain extended $q;
 
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-18640: TABLE::prune_range_rowid_filters: Conditional jump or
+--echo #             move depends on uninitialized value
+--echo #
+
+CREATE TABLE t1 (
+  pk INT, i INT, PRIMARY KEY (pk), KEY (pk,i)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,10), (7,70), (2,20);
+
+SELECT * FROM t1 WHERE pk < 5;
+
+DROP TABLE t1;
+
 set @@use_stat_tables=@save_use_stat_tables;
