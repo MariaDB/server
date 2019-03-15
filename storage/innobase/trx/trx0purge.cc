@@ -1541,7 +1541,7 @@ trx_purge_attach_undo_recs(
 
 	i = 0;
 
-	for (;;) {
+	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
 		purge_node_t*		node;
 		trx_purge_rec_t*	purge_rec;
 

@@ -1957,9 +1957,20 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   DBUG_ENTER("mysql_test_show_grants");
   THD *thd= stmt->thd;
   List<Item> fields;
+  char buff[1024];
+  const char *username= NULL, *hostname= NULL, *rolename= NULL;
 
-  mysql_show_grants_get_fields(thd, &fields, "Grants for");
-    
+  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename))
+    DBUG_RETURN(1);
+
+  if (username)
+    strxmov(buff,"Grants for ",username,"@",hostname, NullS);
+  else if (rolename)
+    strxmov(buff,"Grants for ",rolename, NullS);
+  else
+    DBUG_RETURN(1);
+
+  mysql_show_grants_get_fields(thd, &fields, buff);
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
@@ -1983,7 +1994,7 @@ static int mysql_test_show_slave_status(Prepared_statement *stmt)
   THD *thd= stmt->thd;
   List<Item> fields;
 
-  show_master_info_get_fields(thd, &fields, 0, 0);
+  show_master_info_get_fields(thd, &fields, thd->lex->verbose, 0);
     
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
@@ -2499,6 +2510,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_INDEX:
   case SQLCOM_DROP_INDEX:
   case SQLCOM_ROLLBACK:
+  case SQLCOM_ROLLBACK_TO_SAVEPOINT:
   case SQLCOM_TRUNCATE:
   case SQLCOM_DROP_VIEW:
   case SQLCOM_REPAIR:
@@ -2527,6 +2539,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_GRANT:
   case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
+  case SQLCOM_REVOKE_ALL:
   case SQLCOM_REVOKE_ROLE:
   case SQLCOM_KILL:
   case SQLCOM_COMPOUND:
@@ -2550,8 +2563,26 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
   }
   if (res == 0)
-    DBUG_RETURN(stmt->is_sql_prepare() ?
-                FALSE : (send_prep_stmt(stmt, 0) || thd->protocol->flush()));
+  {
+    if (!stmt->is_sql_prepare())
+    {
+       if (lex->describe || lex->analyze_stmt)
+       {
+         select_send result(thd);
+         List<Item> field_list;
+         res= thd->prepare_explain_fields(&result, &field_list,
+                                          lex->describe, lex->analyze_stmt) ||
+              send_prep_stmt(stmt, result.field_count(field_list)) ||
+              result.send_result_set_metadata(field_list,
+                                                    Protocol::SEND_EOF);
+       }
+       else
+         res= send_prep_stmt(stmt, 0);
+       if (!res)
+         thd->protocol->flush();
+    }
+    DBUG_RETURN(FALSE);
+  }
 error:
   DBUG_RETURN(TRUE);
 }

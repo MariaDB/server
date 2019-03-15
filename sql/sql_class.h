@@ -3523,6 +3523,8 @@ public:
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
+  int prepare_explain_fields(select_result *result, List<Item> *field_list,
+                             uint8 explain_flags, bool is_analyze);
   int send_explain_fields(select_result *result, uint8 explain_flags,
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
@@ -4588,6 +4590,7 @@ public:
   virtual ~select_result_sink() {};
 };
 
+class select_result_interceptor;
 
 /*
   Interface for sending tabular data, together with some other stuff:
@@ -4680,11 +4683,10 @@ public:
 
   /*
     This returns
-    - FALSE if the class sends output row to the client
-    - TRUE if the output is set elsewhere (a file, @variable, or table).
-    Currently all intercepting classes derive from select_result_interceptor.
+    - NULL if the class sends output row to the client
+    - this if the output is set elsewhere (a file, @variable, or table).
   */
-  virtual bool is_result_interceptor()=0;
+  virtual select_result_interceptor *result_interceptor()=0;
 };
 
 
@@ -4752,7 +4754,7 @@ public:
   }              /* Remove gcc warning */
   uint field_count(List<Item> &fields) const { return 0; }
   bool send_result_set_metadata(List<Item> &fields, uint flag) { return FALSE; }
-  bool is_result_interceptor() { return true; }
+  select_result_interceptor *result_interceptor() { return this; }
 
   /*
     Instruct the object to not call my_ok(). Client output will be handled
@@ -4780,7 +4782,7 @@ public:
   virtual bool check_simple_select() const { return FALSE; }
   void abort_result_set();
   virtual void cleanup();
-  bool is_result_interceptor() { return false; }
+  select_result_interceptor *result_interceptor() { return NULL; }
 };
 
 
@@ -5735,13 +5737,18 @@ public:
 #define CF_UPDATES_DATA (1U << 18)
 
 /**
+  Not logged into slow log as "admin commands"
+*/
+#define CF_ADMIN_COMMAND (1U << 19)
+
+/**
   SP Bulk execution safe
 */
-#define CF_SP_BULK_SAFE (1U << 19)
+#define CF_SP_BULK_SAFE (1U << 20)
 /**
   SP Bulk execution optimized
 */
-#define CF_SP_BULK_OPTIMIZED (1U << 20)
+#define CF_SP_BULK_OPTIMIZED (1U << 21)
 
 /* Bits in server_command_flags */
 

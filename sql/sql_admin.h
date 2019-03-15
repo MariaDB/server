@@ -28,7 +28,7 @@ int reassign_keycache_tables(THD* thd, KEY_CACHE *src_cache,
 /**
   Sql_cmd_analyze_table represents the ANALYZE TABLE statement.
 */
-class Sql_cmd_analyze_table : public Sql_cmd_admin
+class Sql_cmd_analyze_table : public Sql_cmd
 {
 public:
   /**
@@ -53,7 +53,7 @@ public:
 /**
   Sql_cmd_check_table represents the CHECK TABLE statement.
 */
-class Sql_cmd_check_table : public Sql_cmd_admin
+class Sql_cmd_check_table : public Sql_cmd
 {
 public:
   /**
@@ -77,7 +77,7 @@ public:
 /**
   Sql_cmd_optimize_table represents the OPTIMIZE TABLE statement.
 */
-class Sql_cmd_optimize_table : public Sql_cmd_admin
+class Sql_cmd_optimize_table : public Sql_cmd
 {
 public:
   /**
@@ -102,7 +102,7 @@ public:
 /**
   Sql_cmd_repair_table represents the REPAIR TABLE statement.
 */
-class Sql_cmd_repair_table : public Sql_cmd_admin
+class Sql_cmd_repair_table : public Sql_cmd
 {
 public:
   /**

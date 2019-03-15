@@ -3929,7 +3929,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(1);
 
   /* The following should be optimized to only clear critical things */
-  bzero(stat, sizeof(JOIN_TAB)* table_count);
+  bzero((void*)stat, sizeof(JOIN_TAB)* table_count);
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
     (void) new ((char*) (join->positions + i)) POSITION;
@@ -9028,7 +9028,7 @@ bool JOIN::get_best_combination()
         1. Put into main join order a JOIN_TAB that represents a lookup or scan
            in the temptable.
       */
-      bzero(j, sizeof(JOIN_TAB));
+      bzero((void*)j, sizeof(JOIN_TAB));
       j->join= this;
       j->table= NULL; //temporary way to tell SJM tables from others.
       j->ref.key = -1;

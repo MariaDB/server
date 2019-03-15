@@ -362,9 +362,6 @@ struct ddl_tracker_t {
 
 static ddl_tracker_t ddl_tracker;
 
-/* Whether xtrabackup_binlog_info should be created on recovery */
-static bool recover_binlog_info;
-
 /* Simple datasink creation tracking...add datasinks in the reverse order you
 want them destroyed. */
 #define XTRABACKUP_MAX_DATASINKS	10
@@ -2048,9 +2045,6 @@ xtrabackup_read_metadata(char *filename)
 	}
 	/* Optional fields */
 
-	if (fscanf(fp, "recover_binlog_info = %d\n", &t) == 1) {
-		recover_binlog_info = (t == 1);
-	}
 end:
 	fclose(fp);
 
@@ -2069,13 +2063,11 @@ xtrabackup_print_metadata(char *buf, size_t buf_len)
 		 "backup_type = %s\n"
 		 "from_lsn = " UINT64PF "\n"
 		 "to_lsn = " UINT64PF "\n"
-		 "last_lsn = " UINT64PF "\n"
-		 "recover_binlog_info = %d\n",
+		 "last_lsn = " UINT64PF "\n",
 		 metadata_type,
 		 metadata_from_lsn,
 		 metadata_to_lsn,
-		 metadata_last_lsn,
-		 MY_TEST(opt_binlog_info == BINLOG_INFO_LOCKLESS));
+		 metadata_last_lsn);
 }
 
 /***********************************************************************
@@ -5627,18 +5619,6 @@ xtrabackup_prepare_func(char** argv)
 				TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
 				+ sys_header);
 			msg("Last binlog file %s, position %llu", name, pos);
-
-			/* output to xtrabackup_binlog_pos_innodb and
-			(if backup_safe_binlog_info was available on
-			the server) to xtrabackup_binlog_info. In the
-			latter case xtrabackup_binlog_pos_innodb
-			becomes redundant and is created only for
-			compatibility. */
-			ok = store_binlog_info(
-				"xtrabackup_binlog_pos_innodb", name, pos)
-				&& (!recover_binlog_info || store_binlog_info(
-					    XTRABACKUP_BINLOG_INFO,
-					    name, pos));
 		}
 
 		mtr.commit();

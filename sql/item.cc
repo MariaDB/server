@@ -10437,7 +10437,10 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     break;
   }
   default:
-    max_length= MY_MAX(max_length, display_length(item));
+    if (real_field_type() == MYSQL_TYPE_YEAR)
+      max_length= MY_MAX(max_length, item->max_length);
+    else
+      max_length= MY_MAX(max_length, display_length(item));
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);
