@@ -171,7 +171,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_handle_SR_rollback,
   wsrep_thd_skip_locking,
   wsrep_get_sr_table_name,
-  wsrep_get_debug
+  wsrep_get_debug,
+  wsrep_commit_ordered
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=

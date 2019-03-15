@@ -18,6 +18,7 @@
 #include "wsrep_binlog.h"
 #include "wsrep_priv.h"
 #include "log.h"
+#include "slave.h"
 #include "log_event.h"
 #include "wsrep_applier.h"
 
@@ -370,4 +371,67 @@ int wsrep_write_dummy_event_low(THD *thd, const char *msg)
 int wsrep_write_dummy_event(THD *orig_thd, const char *msg)
 {
   return 0;
+}
+
+bool wsrep_commit_will_write_binlog(THD *thd)
+{
+  return (!wsrep_emulate_bin_log && /* binlog enabled*/
+          (wsrep_thd_is_local(thd) || /* local thd*/
+           (thd->wsrep_applier_service && /* applier and log-slave-updates */
+            opt_log_slave_updates)));
+}
+
+/*
+  The last THD/commit_for_wait registered for group commit.
+*/
+static wait_for_commit *commit_order_tail= NULL;
+
+void wsrep_register_for_group_commit(THD *thd)
+{
+  DBUG_ENTER("wsrep_register_for_group_commit");
+  if (wsrep_emulate_bin_log)
+  {
+    /* Binlog is off, no need to maintain group commit queue */
+    DBUG_VOID_RETURN;
+  }
+
+  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_committing);
+
+  wait_for_commit *wfc= thd->wait_for_commit_ptr= &thd->wsrep_wfc;
+
+  mysql_mutex_lock(&LOCK_wsrep_group_commit);
+  if (commit_order_tail)
+  {
+    wfc->register_wait_for_prior_commit(commit_order_tail);
+  }
+  commit_order_tail= thd->wait_for_commit_ptr;
+  mysql_mutex_unlock(&LOCK_wsrep_group_commit);
+
+  /*
+    Now we have queued for group commit. If the commit will go
+    through TC log_and_order(), the commit ordering is done
+    by TC group commit. Otherwise the wait for prior
+    commits to complete is done in ha_commit_one_phase().
+  */
+  DBUG_VOID_RETURN;
+}
+
+void wsrep_unregister_from_group_commit(THD *thd)
+{
+  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_ordered_commit);
+  wait_for_commit *wfc= thd->wait_for_commit_ptr;
+
+  if (wfc)
+  {
+    mysql_mutex_lock(&LOCK_wsrep_group_commit);
+    wfc->unregister_wait_for_prior_commit();
+    thd->wakeup_subsequent_commits(0);
+
+    /* The last one queued for group commit has completed commit, it is
+       safe to set tail to NULL. */
+    if (wfc == commit_order_tail)
+      commit_order_tail= NULL;
+    mysql_mutex_unlock(&LOCK_wsrep_group_commit);
+    thd->wait_for_commit_ptr= NULL;
+  }
 }

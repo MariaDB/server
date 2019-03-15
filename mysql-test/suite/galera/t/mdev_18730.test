@@ -1,0 +1,71 @@
+#
+# Test scenario:
+#
+# Run an autocommit INSERT and stop the execution after the INSERT
+# has released commit order critical section. On another connection,
+# run SR transaction which will store one fragment into streaming log.
+# If the bug is present, the fragment streaming log commit may
+# out of order, and completing INSERT may cause assertion in debug build.
+#
+# Note that due to nature of this bug, it is may not be possible
+# to construct fully deterministic test case which will crash the
+# server each time if the bug is present, but will work with fix.
+#
+
+--source include/galera_cluster.inc
+--source include/have_log_bin.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY);
+
+# Control connection for controlling node_1 debug sync points
+--let $galera_connection_name = ctrl
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+# Another connection for SR transaction
+--let $galera_connection_name = node_1_sr
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+# Set up sync point and send INSERT
+--connection node_1
+SET DEBUG_SYNC = "wsrep_after_commit_order_leave SIGNAL acol_reached WAIT_FOR acol_continue";
+--send INSERT INTO t1 VALUES (1)
+
+# Wait until INSERT releases commit order
+--connection ctrl
+SET DEBUG_SYNC = "now WAIT_FOR acol_reached";
+
+# Streaming transaction, will replicate fragment for each row separately.
+--connection node_1_sr
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_trx_fragment_unit = 'rows';
+SET SESSION wsrep_trx_fragment_size = 1;
+
+START TRANSACTION;
+--send INSERT INTO t1 VALUES (2)
+
+--connection ctrl
+# Now let the thread node_1 continue after a one second sleep.
+# The sleep while not completely deterministic, will allow the SR
+# insert to complete the commit out of order in most of the cases if
+# the bug is present, leading to assertion in debug build.
+--sleep 1
+SET DEBUG_SYNC = "now SIGNAL acol_continue";
+
+--connection node_1
+--reap
+--connection node_1_sr
+--reap
+ROLLBACK;
+
+--connection ctrl
+SET DEBUG_SYNC = "RESET";
+--disconnect ctrl
+--disconnect node_1_sr
+
+--connection node_1
+DROP TABLE t1;
+
+--source include/galera_end.inc

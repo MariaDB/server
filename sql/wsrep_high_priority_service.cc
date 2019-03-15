@@ -448,6 +448,7 @@ Wsrep_applier_service::~Wsrep_applier_service()
   m_thd->wsrep_cs().after_command_after_result();
   m_thd->wsrep_cs().close();
   m_thd->wsrep_cs().cleanup();
+  m_thd->wsrep_applier_service= NULL;
 }
 
 int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,

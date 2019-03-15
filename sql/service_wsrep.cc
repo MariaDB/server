@@ -20,6 +20,7 @@
 #include "wsrep_trans_observer.h"
 #include "sql_class.h"
 #include "debug_sync.h"
+#include "log.h"
 
 extern "C" my_bool wsrep_on(const THD *thd)
 {
@@ -258,4 +259,14 @@ extern "C" int wsrep_thd_append_key(THD *thd,
     ret= client_state.append_key(wsrep_key);
   }
   return ret;
+}
+
+extern "C" void wsrep_commit_ordered(THD *thd)
+{
+  if (wsrep_is_active(thd) &&
+      thd->wsrep_trx().state() == wsrep::transaction::s_committing &&
+      !wsrep_commit_will_write_binlog(thd))
+  {
+    thd->wsrep_cs().ordered_commit();
+  }
 }

@@ -306,6 +306,7 @@ extern mysql_mutex_t LOCK_wsrep_desync;
 extern mysql_mutex_t LOCK_wsrep_SR_pool;
 extern mysql_mutex_t LOCK_wsrep_SR_store;
 extern mysql_mutex_t LOCK_wsrep_config_state;
+extern mysql_mutex_t LOCK_wsrep_group_commit;
 extern my_bool       wsrep_emulate_bin_log;
 extern int           wsrep_to_isolation;
 #ifdef GTID_SUPPORT
@@ -432,19 +433,6 @@ bool wsrep_node_is_synced();
  * @return true if SR capable
  */
 bool wsrep_provider_is_SR_capable();
-
-/**
- * Mark current commit ordered if binlogging is not enabled.
- *
- * The purpose of this function is to leave commit order critical
- * section if binlog is not enabled.
- *
- * The function can be called from inside storage engine during commit.
- * Binlog options are checked inside the function.
- *
- * @return Zero in case of success, non-zero in case of failure.
- */
-int wsrep_ordered_commit_if_no_binlog(THD*, bool);
 
 /**
  * Initialize WSREP server instance.

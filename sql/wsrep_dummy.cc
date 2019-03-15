@@ -132,3 +132,6 @@ const char* wsrep_get_sr_table_name()
 
 my_bool wsrep_get_debug()
 { return 0;}
+
+void wsrep_commit_ordered(THD* )
+{ }

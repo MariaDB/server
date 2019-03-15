@@ -148,6 +148,7 @@ mysql_cond_t  COND_wsrep_slave_threads;
 mysql_mutex_t LOCK_wsrep_cluster_config;
 mysql_mutex_t LOCK_wsrep_desync;
 mysql_mutex_t LOCK_wsrep_config_state;
+mysql_mutex_t LOCK_wsrep_group_commit;
 mysql_mutex_t LOCK_wsrep_SR_pool;
 mysql_mutex_t LOCK_wsrep_SR_store;
 
@@ -161,6 +162,7 @@ PSI_mutex_key
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
   key_LOCK_wsrep_config_state, key_LOCK_wsrep_cluster_config,
+  key_LOCK_wsrep_group_commit,
   key_LOCK_wsrep_SR_pool,
   key_LOCK_wsrep_SR_store,
   key_LOCK_wsrep_thd_queue;
@@ -185,6 +187,7 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_cluster_config, "LOCK_wsrep_cluster_config", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_config_state, "LOCK_wsrep_config_state", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_group_commit, "LOCK_wsrep_group_commit", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_SR_pool, "LOCK_wsrep_SR_pool", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_SR_store, "LOCK_wsrep_SR_store", PSI_FLAG_GLOBAL}
 };
@@ -766,6 +769,7 @@ void wsrep_thr_init()
   mysql_mutex_init(key_LOCK_wsrep_cluster_config, &LOCK_wsrep_cluster_config, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_group_commit, &LOCK_wsrep_group_commit, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_SR_pool,
                    &LOCK_wsrep_SR_pool, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_SR_store,
@@ -870,6 +874,7 @@ void wsrep_thr_deinit()
   mysql_mutex_destroy(&LOCK_wsrep_cluster_config);
   mysql_mutex_destroy(&LOCK_wsrep_desync);
   mysql_mutex_destroy(&LOCK_wsrep_config_state);
+  mysql_mutex_destroy(&LOCK_wsrep_group_commit);
   mysql_mutex_destroy(&LOCK_wsrep_SR_pool);
   mysql_mutex_destroy(&LOCK_wsrep_SR_store);
 
@@ -2454,20 +2459,6 @@ ignore_error:
 bool wsrep_provider_is_SR_capable()
 {
   return Wsrep_server_state::has_capability(wsrep::provider::capability::streaming);
-}
-
-
-int wsrep_ordered_commit_if_no_binlog(THD* thd, bool all)
-{
-  if (((wsrep_thd_is_local(thd) &&
-        (WSREP_EMULATE_BINLOG(thd) || !thd->variables.sql_log_bin)) ||
-       (wsrep_thd_is_applying(thd) && !opt_log_slave_updates))
-      && wsrep_thd_trx_seqno(thd) > 0)
-  {
-    wsrep_apply_error unused;
-    return wsrep_ordered_commit(thd, all, unused);
-  }
-  return 0;
 }
 
 int wsrep_thd_retry_counter(const THD *thd)

@@ -2202,7 +2202,19 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   {
     my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
   }
-
+#ifdef WITH_WSREP
+  /* If wsrep transaction is active and binlog emulation is on,
+     binlog write error may leave transaction without any registered
+     htons. This makes wsrep rollback hooks to be skipped and the
+     transaction will remain alive in wsrep world after rollback.
+     Register binlog hton here to ensure that rollback happens in full. */
+  if (WSREP_EMULATE_BINLOG(thd))
+  {
+    if (is_transactional)
+      trans_register_ha(thd, TRUE, binlog_hton);
+    trans_register_ha(thd, FALSE, binlog_hton);
+  }
+#endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
 }
 
@@ -5676,7 +5688,18 @@ THD::binlog_start_trans_and_stmt()
     this->binlog_set_stmt_begin();
     bool mstmt_mode= in_multi_stmt_transaction_mode();
 #ifdef WITH_WSREP
-      /* Write Gtid
+    /*
+      With wsrep binlog emulation we can skip the rest because the
+      binlog cache will not be written into binlog. Note however that
+      because of this the hton callbacks will not get called to clean
+      up the cache, so this must be done explicitly when the transaction
+      terminates.
+    */
+    if (WSREP_EMULATE_BINLOG_NNULL(this))
+    {
+      DBUG_VOID_RETURN;
+    }
+    /* Write Gtid
          Get domain id only when gtid mode is set
          If this event is replicate through a master then ,
          we will forward the same gtid another nodes
@@ -7686,9 +7709,24 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader= queue_for_group_commit(entry);
 #ifdef WITH_WSREP
-  if (wsrep_run_commit_hook(entry->thd, true) && is_leader >= 0 &&
-      wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
-    return true;
+  if (wsrep_is_active(entry->thd) &&
+      wsrep_run_commit_hook(entry->thd, entry->all))
+  {
+    /*
+      Release commit order and if leader, wait for prior commit to
+      complete. This establishes total order for group leaders.
+    */
+    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
+    {
+      entry->thd->wakeup_subsequent_commits(1);
+      return 1;
+    }
+    if (is_leader)
+    {
+      if (entry->thd->wait_for_prior_commit())
+        return 1;
+    }
+  }
 #endif /* WITH_WSREP */
   /*
     The first in the queue handles group commit for all; the others just wait

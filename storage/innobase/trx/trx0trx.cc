@@ -1568,6 +1568,16 @@ trx_commit(
 	}
 
 	trx_commit_low(trx, mtr);
+#ifdef WITH_WSREP
+	/* Serialization history has been written and the
+	   transaction is committed in memory, which makes
+	   this commit ordered. Release commit order critical
+	   section. */
+	if (wsrep_on(trx->mysql_thd))
+	{
+		wsrep_commit_ordered(trx->mysql_thd);
+	}
+#endif /* WITH_WSREP */
 }
 
 /****************************************************************//**
