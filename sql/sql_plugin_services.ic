@@ -178,6 +178,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_trx_seqno,
   wsrep_thd_ws_handle,
   wsrep_thd_auto_increment_variables,
+  wsrep_set_load_multi_commit,
+  wsrep_is_load_multi_commit,
   wsrep_trx_is_aborting,
   wsrep_trx_order_before,
   wsrep_unlock_rollback,
