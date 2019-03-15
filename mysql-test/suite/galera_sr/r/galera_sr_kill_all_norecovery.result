@@ -12,21 +12,22 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 connection node_2;
+connection node_2;
 Killing server ...
 connection node_1;
+SET SESSION wsrep_sync_wait = 0;
 Killing server ...
-connection node_1;
 connection node_2;
 connection node_1;
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-COUNT(*) = 0
-1
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
 connection node_2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT COUNT(*) = 0 FROM t1;
-COUNT(*) = 0
-1
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-COUNT(*) = 0
-1
+SELECT COUNT(*) `expect 0` FROM t1;
+expect 0
+0
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+expect 0
+0
 DROP TABLE t1;
