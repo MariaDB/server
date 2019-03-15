@@ -333,7 +333,6 @@ get_mysql_vars(MYSQL *connection)
 	char *version_comment_var = NULL;
 	char *innodb_version_var = NULL;
 	char *have_backup_locks_var = NULL;
-	char *have_backup_safe_binlog_info_var = NULL;
 	char *log_bin_var = NULL;
 	char *lock_wait_timeout_var= NULL;
 	char *wsrep_on_var = NULL;

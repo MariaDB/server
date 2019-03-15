@@ -1861,7 +1861,6 @@ xtrabackup_read_metadata(char *filename)
 {
 	FILE	*fp;
 	my_bool	 r = TRUE;
-	int	 t;
 
 	fp = fopen(filename,"r");
 	if(!fp) {
@@ -5790,35 +5789,6 @@ innodb_free_param()
 	free(internal_innobase_data_file_path);
 	internal_innobase_data_file_path = NULL;
 	free_tmpdir(&mysql_tmpdir_list);
-}
-
-
-/**************************************************************************
-Store the current binary log coordinates in a specified file.
-@return 'false' on error. */
-static bool
-store_binlog_info(
-/*==============*/
-	const char *filename)	/*!< in: output file name */
-{
-	FILE *fp;
-
-	if (trx_sys_mysql_bin_log_name[0] == '\0') {
-		return(true);
-	}
-
-	fp = fopen(filename, "w");
-
-	if (!fp) {
-		msg("mariabackup: failed to open '%s'\n", filename);
-		return(false);
-	}
-
-	fprintf(fp, "%s\t" UINT64PF "\n",
-		trx_sys_mysql_bin_log_name, trx_sys_mysql_bin_log_pos);
-	fclose(fp);
-
-	return(true);
 }
 
 static void
