@@ -689,6 +689,7 @@ void With_element::move_anchors_ahead()
     }
   }
   first_recursive= new_pos;
+  spec->first_select()->linkage= DERIVED_TABLE_TYPE;
 }
 
 

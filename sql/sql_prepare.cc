@@ -2530,6 +2530,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_ALTER_DB_UPGRADE:
   case SQLCOM_CHECKSUM:
   case SQLCOM_CREATE_USER:
+  case SQLCOM_ALTER_USER:
   case SQLCOM_RENAME_USER:
   case SQLCOM_DROP_USER:
   case SQLCOM_CREATE_ROLE:
