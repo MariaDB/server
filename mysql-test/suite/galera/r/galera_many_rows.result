@@ -3,8 +3,6 @@ connection node_1;
 connection node_1;
 connection node_2;
 connection node_1;
-connection node_2;
-connection node_1;
 SET SESSION innodb_lock_wait_timeout=600;
 SET SESSION lock_wait_timeout=600;
 CREATE TABLE ten (f1 INTEGER) engine=InnoDB;
