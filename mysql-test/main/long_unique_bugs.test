@@ -160,3 +160,21 @@ ALTER TABLE t1 ADD UNIQUE INDEX (a);
 SELECT * FROM t1;
 SELECT a FROM t1;
 drop table t1;
+
+#
+# MDEV-18809 Server crash in fields_in_hash_keyinfo or Assertion `key_info->key_part->field->flags
+# & (1<< 30)' failed in setup_keyinfo_hash
+#
+CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD KEY idx2(f);
+DROP TABLE t1;
+CREATE TABLE t1(a blob , b blob , unique(a,b));
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 drop column b;
+insert into t1 values(1,1);
+--error ER_DUP_ENTRY
+insert into t1 values(1,1);
+alter table t1 add column c int;
+drop table t1;

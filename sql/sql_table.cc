@@ -8303,11 +8303,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     bool long_hash_key= false;
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
-    if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-    {
-      setup_keyinfo_hash(key_info);
-      long_hash_key= true;
-    }
     const char *key_name= key_info->name.str;
     Alter_drop *drop;
     drop_it.rewind();
@@ -8338,6 +8333,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     }
 
+    if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+    {
+      setup_keyinfo_hash(key_info);
+      long_hash_key= true;
+    }
     const char *dropped_key_part= NULL;
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
@@ -8462,6 +8462,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (dropped_key_part)
         {
           my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), dropped_key_part);
+          if (long_hash_key)
+          {
+            key_info->algorithm= HA_KEY_ALG_LONG_HASH;
+            re_setup_keyinfo_hash(key_info);
+          }
           goto err;
         }
       }
