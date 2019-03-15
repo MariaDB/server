@@ -27,6 +27,7 @@
 #include "m_ctype.h"                            /* my_charset_bin */
 #include "my_sys.h"              /* alloc_root, my_free, my_realloc */
 #include "m_string.h"                           /* TRASH */
+#include "sql_list.h"
 
 class String;
 typedef struct st_io_cache IO_CACHE;
@@ -129,7 +130,7 @@ uint convert_to_printable(char *to, size_t to_len,
                           const char *from, size_t from_len,
                           CHARSET_INFO *from_cs, size_t nbytes= 0);
 
-class String
+class String : public Sql_alloc
 {
   char *Ptr;
   uint32 str_length,Alloced_length, extra_alloc;
@@ -179,16 +180,6 @@ public:
     alloced= thread_specific= 0;
     str_charset=str.str_charset;
   }
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
-  { return (void*) alloc_root(mem_root, (uint) size); }
-  static void operator delete(void *ptr_arg, size_t size)
-  {
-    (void) ptr_arg;
-    (void) size;
-    TRASH_FREE(ptr_arg, size);
-  }
-  static void operator delete(void *, MEM_ROOT *)
-  { /* never called */ }
   ~String() { free(); }
 
   /* Mark variable thread specific it it's not allocated already */

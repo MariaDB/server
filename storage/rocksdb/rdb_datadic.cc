@@ -127,9 +127,9 @@ Rdb_key_def::Rdb_key_def(const Rdb_key_def &k)
                   m_total_index_flags_length == 0);
   if (k.m_pack_info) {
     const size_t size = sizeof(Rdb_field_packing) * k.m_key_parts;
-    m_pack_info =
-        reinterpret_cast<Rdb_field_packing *>(my_malloc(size, MYF(0)));
-    memcpy(m_pack_info, k.m_pack_info, size);
+    void *pack_info= my_malloc(size, MYF(0));
+    memcpy(pack_info, k.m_pack_info, size);
+    m_pack_info = reinterpret_cast<Rdb_field_packing *>(pack_info);
   }
 
   if (k.m_pk_part_no) {
@@ -1090,7 +1090,7 @@ uint Rdb_key_def::pack_record(
       // Insert TTL timestamp
       if (has_ttl() && ttl_bytes) {
         write_index_flag_field(unpack_info,
-                               reinterpret_cast<const uchar *const>(ttl_bytes),
+                               reinterpret_cast<const uchar *>(ttl_bytes),
                                Rdb_key_def::TTL_FLAG);
       }
     }

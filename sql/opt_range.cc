@@ -1348,7 +1348,6 @@ QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param, TABLE *table)
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT");
   index= MAX_KEY;
   head= table;
-  bzero(&read_record, sizeof(read_record));
   init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
   DBUG_VOID_RETURN;

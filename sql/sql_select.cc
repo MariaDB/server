@@ -2447,7 +2447,7 @@ bool JOIN::make_aggr_tables_info()
 
         aggr_tables++;
         curr_tab= join_tab + exec_join_tab_cnt();
-        bzero(curr_tab, sizeof(JOIN_TAB));
+        bzero((void*)curr_tab, sizeof(JOIN_TAB));
         curr_tab->ref.key= -1;
         curr_tab->join= this;
 
@@ -2535,7 +2535,7 @@ bool JOIN::make_aggr_tables_info()
   {
     aggr_tables++;
     curr_tab= join_tab + exec_join_tab_cnt();
-    bzero(curr_tab, sizeof(JOIN_TAB));
+    bzero((void*)curr_tab, sizeof(JOIN_TAB));
     curr_tab->ref.key= -1;
     if (only_const_tables())
       first_select= sub_select_postjoin_aggr;
@@ -2663,7 +2663,7 @@ bool JOIN::make_aggr_tables_info()
       
       curr_tab++;
       aggr_tables++;
-      bzero(curr_tab, sizeof(JOIN_TAB));
+      bzero((void*)curr_tab, sizeof(JOIN_TAB));
       curr_tab->ref.key= -1;
 
       /* group data to new table */
@@ -17448,7 +17448,7 @@ bool Virtual_tmp_table::init(uint field_count)
                         &bitmaps, bitmap_buffer_size(field_count) * 6,
                         NullS))
     return true;
-  bzero(s, sizeof(*s));
+  s->reset();
   s->blob_field= blob_field;
   setup_tmp_table_column_bitmaps(this, bitmaps, field_count);
   m_alloced_field_count= field_count;

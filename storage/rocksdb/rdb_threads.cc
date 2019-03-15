@@ -28,7 +28,7 @@ namespace myrocks {
 
 void *Rdb_thread::thread_func(void *const thread_ptr) {
   DBUG_ASSERT(thread_ptr != nullptr);
-  Rdb_thread *const thread = static_cast<Rdb_thread *const>(thread_ptr);
+  Rdb_thread *const thread = static_cast<Rdb_thread *>(thread_ptr);
   if (!thread->m_run_once.exchange(true)) {
     thread->setname();
     thread->run();

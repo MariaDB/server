@@ -772,7 +772,7 @@ enum enum_acl_tables
   ROLES_MAPPING_TABLE,
   TABLES_MAX // <== always the last
 };
-// bits for open_grant_tables
+
 static const int Table_user= 1 << USER_TABLE;
 static const int Table_db= 1 << DB_TABLE;
 static const int Table_tables_priv= 1 << TABLES_PRIV_TABLE;
@@ -853,7 +853,7 @@ class Grant_table_base
 
   Grant_table_base() : start_privilege_column(0), num_privilege_cols(0)
   {
-    bzero(&tl, sizeof(tl));
+    tl.reset();
   };
 
   /* Initialization sequence common for all grant tables. This should be called

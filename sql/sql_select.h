@@ -2046,9 +2046,9 @@ public:
   static void *operator new(size_t size, THD *thd) throw();
   static void operator delete(void *ptr, size_t size) {TRASH_FREE(ptr, size);}
 
-  Virtual_tmp_table(THD *thd)
+  Virtual_tmp_table(THD *thd) : m_alloced_field_count(0)
   {
-    bzero(this, sizeof(*this));
+    reset();
     temp_pool_slot= MY_BIT_NONE;
     in_use= thd;
   }

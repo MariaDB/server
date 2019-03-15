@@ -2014,7 +2014,6 @@ xtrabackup_read_metadata(char *filename)
 {
 	FILE	*fp;
 	my_bool	 r = TRUE;
-	int	 t;
 
 	fp = fopen(filename,"r");
 	if(!fp) {
@@ -5318,27 +5317,6 @@ innodb_free_param()
 	free_tmpdir(&mysql_tmpdir_list);
 }
 
-
-/** Store the current binary log coordinates in a specified file.
-@param[in]	filename	file name
-@param[in]	name		binary log file name
-@param[in]	pos		binary log file position
-@return whether the operation succeeded */
-static bool
-store_binlog_info(const char* filename, const char* name, ulonglong pos)
-{
-	FILE *fp = fopen(filename, "w");
-
-	if (!fp) {
-		msg("mariabackup: failed to open '%s'", filename);
-		return(false);
-	}
-
-	fprintf(fp, "%s\t%llu\n", name, pos);
-	fclose(fp);
-
-	return(true);
-}
 
 /** Check if file exists*/
 static bool file_exists(std::string name)
