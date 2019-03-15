@@ -129,3 +129,17 @@ Comment
 Index_comment	
 ALTER TABLE t1 ADD INDEX (pk);
 DROP TABLE t1;
+CREATE TABLE t1 (b int, a  varchar(4000));
+INSERT INTO t1 VALUES (1, 2),(2,3),(3,4);
+ALTER TABLE t1 ADD UNIQUE INDEX (a);
+SELECT * FROM t1;
+b	a
+1	2
+2	3
+3	4
+SELECT a FROM t1;
+a
+2
+3
+4
+drop table t1;

@@ -150,3 +150,13 @@ CREATE TABLE t1 (pk INT, PRIMARY KEY USING HASH (pk)) ENGINE=InnoDB;
 --query_vertical show keys from t1;
 ALTER TABLE t1 ADD INDEX (pk);
 DROP TABLE t1;
+
+#
+# MDEV-18922 Alter on long unique varchar column makes result null
+#
+CREATE TABLE t1 (b int, a  varchar(4000));
+INSERT INTO t1 VALUES (1, 2),(2,3),(3,4);
+ALTER TABLE t1 ADD UNIQUE INDEX (a);
+SELECT * FROM t1;
+SELECT a FROM t1;
+drop table t1;

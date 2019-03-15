@@ -2684,7 +2684,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (i == 0)
           field->key_start.set_bit(key);
         if (field->key_length() == key_part->length &&
-            !(field->flags & BLOB_FLAG))
+            !(field->flags & BLOB_FLAG) &&
+            key_info->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
           {
