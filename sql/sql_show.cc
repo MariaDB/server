@@ -5518,7 +5518,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     if (file)
     {
       HA_CREATE_INFO create_info;
-      memset(&create_info, 0, sizeof(create_info));
+      create_info.init();
       file->update_create_info(&create_info);
       append_directory(thd, &str, "DATA", create_info.data_file_name);
       append_directory(thd, &str, "INDEX", create_info.index_file_name);

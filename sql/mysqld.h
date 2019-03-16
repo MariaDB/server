@@ -196,9 +196,6 @@ struct vers_asof_timestamp_t
 {
   ulong type;
   MYSQL_TIME ltime;
-  vers_asof_timestamp_t() :
-    type(SYSTEM_TIME_UNSPECIFIED)
-  {}
 };
 
 enum vers_alter_history_enum

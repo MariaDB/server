@@ -192,8 +192,8 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
   DBUG_ENTER("compare_table_with_partition");
 
   bool metadata_equal= false;
-  memset(&part_create_info, 0, sizeof(HA_CREATE_INFO));
-  memset(&table_create_info, 0, sizeof(HA_CREATE_INFO));
+  part_create_info.init();
+  table_create_info.init();
 
   update_create_info_from_table(&table_create_info, table);
   /* get the current auto_increment value */

@@ -11295,7 +11295,7 @@ int ha_spider::create(
     error_num = ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM;
     goto error_alter_before_unlock;
   }
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
+  memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   tmp_share.table_name = (char*) name;
   tmp_share.table_name_length = strlen(name);
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE

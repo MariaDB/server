@@ -196,7 +196,7 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name,
   char path_buf[FN_REFLEN + 1];
   DBUG_ENTER("dd_recreate_table");
 
-  memset(&create_info, 0, sizeof(create_info));
+  create_info.init();
 
   if (path)
     create_info.options|= HA_LEX_CREATE_TMP_TABLE;

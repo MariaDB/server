@@ -6281,7 +6281,7 @@ int spider_open_all_tables(
   }
 
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
+  memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   memset(&tmp_connect_info, 0,
     sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT);
   memset(tmp_connect_info_length, 0,
@@ -6415,7 +6415,7 @@ int spider_open_all_tables(
         free_root(&mem_root, MYF(0));
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
-      memcpy(share, &tmp_share, sizeof(*share));
+      memcpy((void*)share, &tmp_share, sizeof(*share));
       spider_set_tmp_share_pointer(share, connect_info,
         connect_info_length, long_info, longlong_info);
       memcpy(connect_info, &tmp_connect_info, sizeof(char *) *
