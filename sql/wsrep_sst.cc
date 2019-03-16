@@ -231,7 +231,7 @@ bool wsrep_sst_wait ()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 
@@ -294,9 +294,8 @@ void wsrep_sst_received (wsrep_t*            const wsrep,
     }
     else if (local_seqno > seqno)
     {
-        WSREP_WARN("SST postion is in the past: %lld, current: %lld. "
-                   "Can't continue.",
-                   (long long)seqno, (long long)local_seqno);
+        WSREP_WARN("SST postion is in the past: %" PRId64 ", current: %" PRId64
+                   ". Can't continue.", seqno, local_seqno);
         unireg_abort(1);
     }
 
@@ -1416,7 +1415,7 @@ void wsrep_SE_init_wait()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 

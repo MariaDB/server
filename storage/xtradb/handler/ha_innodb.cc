@@ -11088,7 +11088,7 @@ wsrep_append_foreign_key(
 		key_type,
                 copy);
 	if (rcode) {
-		DBUG_PRINT("wsrep", ("row key failed: %zu", rcode));
+		DBUG_PRINT("wsrep", ("row key failed: %lu", rcode));
 		WSREP_ERROR("Appending cascaded fk row key failed: %s, %lu",
 			    (wsrep_thd_query(thd)) ?
 			    wsrep_thd_query(thd) : "void", rcode);

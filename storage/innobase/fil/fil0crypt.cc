@@ -2453,9 +2453,9 @@ fil_space_crypt_close_tablespace(
 
 		if (now >= last + 30) {
 			ib_logf(IB_LOG_LEVEL_WARN,
-				"Waited " TIMETPF " seconds to drop space: %s (" ULINTPF
+				"Waited %ld seconds to drop space: %s (" ULINTPF
 				") active threads %u flushing=%d.",
-				now - start, space->name, space->id, cnt, flushing);
+				(long)(now - start), space->name, space->id, cnt, flushing);
 			last = now;
 		}
 	}

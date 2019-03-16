@@ -9593,9 +9593,9 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
   */
   if (!xid || !need_unlog)
     DBUG_RETURN(BINLOG_COOKIE_DUMMY(cache_mngr->delayed_error));
-  else
-    DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
-                                   cache_mngr->delayed_error));
+
+  DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
+                                 cache_mngr->delayed_error));
 }
 
 /*

@@ -77,7 +77,7 @@ namespace mrn {
     }
 
   private:
-    static const unsigned int CLEAR_THREATHOLD_IN_SECONDS = 60 * 5;
+    static const int CLEAR_THREATHOLD_IN_SECONDS = 60 * 5;
 
     mysql_mutex_t *mutex_;
     LIST *pool_;

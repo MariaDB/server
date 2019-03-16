@@ -356,7 +356,7 @@ void mdev17133()
       // random size 2nd read
       res= my_b_read(&info, buf_i + total + MY_MIN(19, curr_read_size),
                      19 >= curr_read_size ? 0 : curr_read_size - 19);
-      ok(res == 0, "rest of read %lu", curr_read_size - 19);
+      ok(res == 0, "rest of read %zu", curr_read_size - 19);
       // mark read bytes in the used part of the cache buffer
       memset(info.buffer, 0, info.read_pos - info.buffer);
 

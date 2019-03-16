@@ -5350,7 +5350,7 @@ lock_table(
 	lock_mutex_enter();
 
 	DBUG_EXECUTE_IF("fatal-semaphore-timeout",
-		{ os_thread_sleep(3600000000); });
+		{ os_thread_sleep(3600000000U); });
 
 	/* We have to check if the new lock is compatible with any locks
 	other transactions have in the table lock queue. */

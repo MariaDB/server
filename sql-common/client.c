@@ -1354,7 +1354,7 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     {
       uchar *pos;
       /* fields count may be wrong */
-      if (field - result >= fields)
+      if (field - result >= (my_ptrdiff_t)fields)
         goto err;
 
       cli_fetch_lengths(&lengths[0], row->data, default_value ? 8 : 7);
@@ -1401,7 +1401,7 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     /* old protocol, for backward compatibility */
     for (row=data->data; row ; row = row->next,field++)
     {
-      if (field - result >= fields)
+      if (field - result >= (my_ptrdiff_t)fields)
         goto err;
       cli_fetch_lengths(&lengths[0], row->data, default_value ? 6 : 5);
       field->org_table= field->table=  strdup_root(alloc,(char*) row->data[0]);
@@ -1439,7 +1439,7 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     }
   }
 #endif /* DELETE_SUPPORT_OF_4_0_PROTOCOL */
-  if (field - result < fields)
+  if (field - result < (my_ptrdiff_t)fields)
     goto err;
   free_rows(data);				/* Free old data */
   DBUG_RETURN(result);

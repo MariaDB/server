@@ -471,7 +471,6 @@ macro ULINTPF. */
 # define INT64PF	"%lld"
 # define UINT64PF	"%llu"
 # define UINT64PFx	"%016llx"
-# define TIMETPF	"%ld"
 typedef __int64 ib_int64_t;
 typedef unsigned __int64 ib_uint64_t;
 typedef unsigned __int32 ib_uint32_t;
@@ -481,7 +480,6 @@ typedef unsigned __int32 ib_uint32_t;
 # define INT64PF	"%" PRId64
 # define UINT64PF	"%" PRIu64
 # define UINT64PFx	"%016" PRIx64
-# define TIMETPF	"%" PRIdFAST32
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;
 typedef uint32_t ib_uint32_t;

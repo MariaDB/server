@@ -6183,7 +6183,7 @@ os_file_trim(
 
 	size_t len = slot->len;
 	size_t trim_len = slot->page_size - len;
-	os_offset_t off = slot->offset + len;
+	os_offset_t off __attribute__((unused)) = slot->offset + len;
 	size_t bsize = slot->file_block_size;
 
 #ifdef UNIV_TRIM_DEBUG
