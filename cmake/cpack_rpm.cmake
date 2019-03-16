@@ -67,6 +67,12 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _bindir     ${INSTALL_BINDIRABS}
 %define _sbindir    ${INSTALL_SBINDIRABS}
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
+
+%{?filter_setup:
+%filter_from_provides /perl(\\\\(mtr\\\\|My::\\\\)/d
+%filter_from_requires /\\\\(lib\\\\(ft\\\\|lzma\\\\|tokuportability\\\\)\\\\)\\\\|\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
+%filter_setup
+}
 ")
 
 # this creative hack is described here: http://www.cmake.org/pipermail/cmake/2012-January/048416.html
@@ -224,36 +230,6 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("test"   "mariadb-test")
   SET(CPACK_RPM_common_PACKAGE_CONFLICTS "mariadb-libs < 1:%{version}-%{release}") 
 ENDIF()
-
-# workaround for lots of perl dependencies added by rpmbuild
-SETA(CPACK_RPM_test_PACKAGE_PROVIDES
-  "perl(lib::mtr_gcov.pl)"
-  "perl(lib::mtr_gprof.pl)"
-  "perl(lib::mtr_io.pl)"
-  "perl(lib::mtr_misc.pl)"
-  "perl(lib::mtr_process.pl)"
-  "perl(lib::v1/mtr_cases.pl)"
-  "perl(lib::v1/mtr_gcov.pl)"
-  "perl(lib::v1/mtr_gprof.pl)"
-  "perl(lib::v1/mtr_im.pl)"
-  "perl(lib::v1/mtr_io.pl)"
-  "perl(lib::v1/mtr_match.pl)"
-  "perl(lib::v1/mtr_misc.pl)"
-  "perl(lib::v1/mtr_process.pl)"
-  "perl(lib::v1/mtr_report.pl)"
-  "perl(lib::v1/mtr_stress.pl)"
-  "perl(lib::v1/mtr_timer.pl)"
-  "perl(lib::v1/mtr_unique.pl)"
-  "perl(mtr_cases)"
-  "perl(mtr_io.pl)"
-  "perl(mtr_match)"
-  "perl(mtr_misc.pl)"
-  "perl(mtr_gcov.pl)"
-  "perl(mtr_gprof.pl)"
-  "perl(mtr_process.pl)"
-  "perl(mtr_report)"
-  "perl(mtr_results)"
-  "perl(mtr_unique)")
 
 # If we want to build build MariaDB-shared-compat,
 # extract compat libraries from MariaDB-shared-5.3 rpm
