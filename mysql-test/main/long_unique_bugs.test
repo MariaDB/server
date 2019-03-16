@@ -178,3 +178,21 @@ insert into t1 values(1,1);
 insert into t1 values(1,1);
 alter table t1 add column c int;
 drop table t1;
+
+#
+# MDEV-18889 Long unique on virtual fields crashes server
+#
+create table t1(a blob , b blob as (a) unique);
+insert into t1 values(1, default);
+--error ER_DUP_ENTRY
+insert into t1 values(1, default);
+drop table t1;
+
+create table t1(a blob, b blob, c blob as (left(a, 5000)) virtual, d blob as (left(b, 5000)) persistent, unique(a,b(4000)));
+insert into t1(a,b) values(10,11);
+--error ER_DUP_ENTRY
+insert into t1(a,b) values(10,11);
+insert into t1(a,b) values(2,2);
+insert into t1(a,b) values(2,3);
+insert into t1(a,b) values(3,2);
+drop table t1;
