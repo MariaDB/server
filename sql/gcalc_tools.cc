@@ -124,7 +124,7 @@ int Gcalc_function::alloc_states()
 }
 
 
-int Gcalc_function::count_internal(const char *cur_func, uint set_type,
+int Gcalc_function::count_internal(char *cur_func, uint set_type,
                                    const char **end)
 {
   uint c_op= uint4korr(cur_func);
@@ -134,7 +134,7 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
   uint n_shape= c_op & ~(op_any | op_not | v_mask); /* same as n_ops */
   value v_state= (value) (c_op & v_mask);
   int result= 0;
-  const char *sav_cur_func= cur_func;
+  char *sav_cur_func= cur_func;
 
   // GCALC_DBUG_ENTER("Gcalc_function::count_internal");
 
@@ -161,14 +161,14 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
 
   if (next_func == op_border || next_func == op_internals)
   {
-    result= count_internal(cur_func,
-        (set_type == 1) ? set_type : next_func, &cur_func);
+    result= count_internal(cur_func, (set_type == 1) ? set_type : next_func,
+                           const_cast<const char **>(&cur_func));
     goto exit;
   }
 
   if (next_func == op_repeat)
   {
-    result= count_internal(function_buffer.ptr() + n_ops, set_type, 0);
+    result= count_internal(&function_buffer[0] + n_ops, set_type, 0);
     goto exit;
   }
 
@@ -176,11 +176,13 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
     return mask;
     //GCALC_DBUG_RETURN(mask);
 
-  result= count_internal(cur_func, set_type, &cur_func);
+  result=
+      count_internal(cur_func, set_type, const_cast<const char **>(&cur_func));
 
   while (--n_ops)
   {
-    int next_res= count_internal(cur_func, set_type, &cur_func);
+    int next_res= count_internal(cur_func, set_type,
+                                 const_cast<const char **>(&cur_func));
     switch (next_func)
     {
       case op_union:

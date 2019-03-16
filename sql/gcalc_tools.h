@@ -49,8 +49,8 @@ private:
   int *b_states;
   uint32 cur_object_id;
   uint n_shapes;
-  int count_internal(const char *cur_func, uint set_type,
-                     const char **end);
+  int count_internal(char *cur_func, uint set_type, const char **end);
+
 public:
   enum value
   {
@@ -121,9 +121,9 @@ public:
   int get_i_state(gcalc_shape_info shape) { return i_states[shape]; }
   int get_b_state(gcalc_shape_info shape) { return b_states[shape]; }
   int count()
-    { return count_internal(function_buffer.ptr(), 0, 0); }
+    { return count_internal(&function_buffer[0], 0, 0); }
   int count_last()
-    { return count_internal(function_buffer.ptr(), 1, 0); }
+    { return count_internal(&function_buffer[0], 1, 0); }
   void clear_i_states();
   void clear_b_states();
   void reset();

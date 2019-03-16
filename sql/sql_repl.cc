@@ -411,7 +411,7 @@ inline void fix_checksum(String *packet, ulong ev_offset)
               BINLOG_CHECKSUM_ALG_DESC_LEN + BINLOG_CHECKSUM_LEN);
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
-  int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
+  int4store(&(*packet)[0] + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
 }
 
 

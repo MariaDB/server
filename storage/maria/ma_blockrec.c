@@ -5745,7 +5745,7 @@ static size_t fill_insert_undo_parts(MARIA_HA *info, const uchar *record,
     /* Store length of all not empty char, varchar and blob fields */
     log_parts->str= field_lengths - 2;
     log_parts->length=   info->cur_row.field_lengths_length+2;
-    int2store(log_parts->str, info->cur_row.field_lengths_length);
+    int2store((void *) log_parts->str, info->cur_row.field_lengths_length);
     row_length+= log_parts->length;
     log_parts++;
   }

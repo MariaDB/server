@@ -17,65 +17,88 @@
   Optimized function-like macros for the x86 architecture (_WIN32 included).
 */
 
-#define sint2korr(A)	(int16) (*((int16 *) (A)))
-#define sint3korr(A)	((int32) ((((uchar) (A)[2]) & 128) ? \
-				  (((uint32) 255L << 24) | \
-				   (((uint32) (uchar) (A)[2]) << 16) |\
-				   (((uint32) (uchar) (A)[1]) << 8) | \
-				   ((uint32) (uchar) (A)[0])) : \
-				  (((uint32) (uchar) (A)[2]) << 16) |\
-				  (((uint32) (uchar) (A)[1]) << 8) | \
-				  ((uint32) (uchar) (A)[0])))
-#define sint4korr(A)	(int32)  (*((int32 *) (A)))
-#define uint2korr(A)	(uint16) (*((uint16 *) (A)))
-#define uint3korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) +\
-				  (((uint32) ((uchar) (A)[1])) << 8) +\
-				  (((uint32) ((uchar) (A)[2])) << 16))
-#define uint4korr(A)	(uint32) (*((uint32 *) (A)))
+#include <string.h>
 
-
-static inline ulonglong uint5korr(const void *p)
+inline static int16 sint2korr(const void *p)
 {
-  ulonglong a= *(uint32 *) p;
-  ulonglong b= *(4 + (uchar *) p);
-  return a | (b << 32);
-}
-static inline ulonglong uint6korr(const void *p)
-{
-  ulonglong a= *(uint32 *) p;
-  ulonglong b= *(uint16 *) (4 + (char *) p);
-  return a | (b << 32);
+  int16 result= 0;
+  memcpy(&result, p, 2);
+  return result;
 }
 
-#define uint8korr(A)	(ulonglong) (*((ulonglong *) (A)))
-#define sint8korr(A)	(longlong) (*((longlong *) (A)))
+inline static int32 sint3korr(const void *p)
+{
+  int32 result= 0;
+  const char *ptr= (const char *) p;
+  result= ptr[2];
+  result<<= 16;
+  memcpy(&result, ptr, 2);
+  return result;
+}
 
-#define int2store(T,A)	do { uchar *pT= (uchar*)(T);\
-                             *((uint16*)(pT))= (uint16) (A);\
-                        } while (0)
-  
-#define int3store(T,A)  do { *(T)=  (uchar) ((A));\
-                            *(T+1)=(uchar) (((uint) (A) >> 8));\
-                            *(T+2)=(uchar) (((A) >> 16));\
-                        } while (0)
+inline static int32 sint4korr(const void *p)
+{
+  int32 result= 0;
+  memcpy(&result, p, 4);
+  return result;
+}
 
-#define int4store(T,A)	do { uchar *pT= (uchar*)(T);\
-                             *((uint32 *) (pT))= (uint32) (A); \
-                        } while (0)
+inline static uint16 uint2korr(const void *p)
+{
+  uint16 result= 0;
+  memcpy(&result, p, 2);
+  return result;
+}
 
-#define int5store(T,A)  do { uchar *pT= (uchar*)(T);\
-                             *((uint32 *) (pT))= (uint32) (A); \
-                             *((pT)+4)=(uchar) (((A) >> 32));\
-                        } while (0)
+inline static uint32 uint3korr(const void *p)
+{
+  uint32 result= 0;
+  memcpy(&result, p, 3);
+  return result;
+}
 
-#define int6store(T,A)  do { uchar *pT= (uchar*)(T);\
-                             *((uint32 *) (pT))= (uint32) (A); \
-                             *((uint16*)(pT+4))= (uint16) (A >> 32);\
-                        } while (0)
+inline static uint32 uint4korr(const void *p)
+{
+  uint32 result= 0;
+  memcpy(&result, p, 4);
+  return result;
+}
 
-#define int8store(T,A)	do { uchar *pT= (uchar*)(T);\
-                             *((ulonglong *) (pT))= (ulonglong) (A);\
-                        } while(0)
+inline static ulonglong uint5korr(const void *p)
+{
+  ulonglong result= 0;
+  memcpy(&result, p, 5);
+  return result;
+}
+
+inline static ulonglong uint6korr(const void *p)
+{
+  ulonglong result= 0;
+  memcpy(&result, p, 6);
+  return result;
+}
+
+inline static ulonglong uint8korr(const void *p)
+{
+  ulonglong result= 0;
+  memcpy(&result, p, 8);
+  return result;
+}
+
+inline static longlong sint8korr(const void *p)
+{
+  longlong result= 0;
+  memcpy(&result, p, 8);
+  return result;
+}
+
+inline static void int2store(void *p, const int16 n) { memcpy(p, &n, 2); }
+inline static void int3store(void *p, const int32 n) { memcpy(p, &n, 3); }
+inline static void int4store(void *p, const int32 n) { memcpy(p, &n, 4); }
+inline static void int5store(void *p, const longlong n) { memcpy(p, &n, 5); }
+inline static void int6store(void *p, const longlong n) { memcpy(p, &n, 6); }
+inline static void int8store(void *p, const longlong n) { memcpy(p, &n, 8); }
+
 
 #if defined(__GNUC__)
 
@@ -88,35 +111,31 @@ static inline ulonglong uint6korr(const void *p)
 
 static inline ulonglong mi_uint5korr(const void *p)
 {
-  ulonglong a= *(uint32 *) p;
-  ulonglong b= *(4 + (uchar *) p);
-  ulonglong v= (a | (b << 32)) << 24;
+  ulonglong v= 0;
+  memcpy((uchar *) &v + 3, p, 5);
   asm ("bswapq %0" : "=r" (v) : "0" (v));
   return v;
 }
 
 static inline ulonglong mi_uint6korr(const void *p)
 {
-  ulonglong a= *(uint32 *) p;
-  ulonglong b= *(uint16 *) (4 + (char *) p);
-  ulonglong v= (a | (b << 32)) << 16;
+  ulonglong v= 0;
+  memcpy((uchar *) &v + 2, p, 6);
   asm ("bswapq %0" : "=r" (v) : "0" (v));
   return v;
 }
 
 static inline ulonglong mi_uint7korr(const void *p)
 {
-  ulonglong a= *(uint32 *) p;
-  ulonglong b= *(uint16 *) (4 + (char *) p);
-  ulonglong c= *(6 + (uchar *) p);
-  ulonglong v= (a | (b << 32) | (c << 48)) << 8;
+  ulonglong v= 0;
+  memcpy((uchar *) &v + 1, p, 7);
   asm ("bswapq %0" : "=r" (v) : "0" (v));
   return v;
 }
 
 static inline ulonglong mi_uint8korr(const void *p)
 {
-  ulonglong v= *(ulonglong *) p;
+  ulonglong v= uint8korr(p);
   asm ("bswapq %0" : "=r" (v) : "0" (v));
   return v;
 }
