@@ -170,7 +170,8 @@ IF(CONNECT_WITH_ODBC)
     # the library 'libiodbc' gets compiled with 'sql'h.
     # This will also need changes in the sources (e.g. #include <isql.h>).
 
-    find_path(ODBC_INCLUDE_DIR sql.h
+    find_file(ODBC_INCLUDES sql.h
+    PATHS
     /usr/include
     /usr/include/odbc
     /usr/local/include
@@ -180,7 +181,7 @@ IF(CONNECT_WITH_ODBC)
     #"C:/Program Files/Microsoft SDKs/Windows/v7.0A/include"
     #"C:/Program Files/Microsoft SDKs/Windows/v6.0a/include"
     #"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/include"
-    DOC "Specify the directory containing sql.h."
+    DOC "Specify the path to sql.h."
     )
 
     find_library(ODBC_LIBRARY
@@ -199,9 +200,10 @@ IF(CONNECT_WITH_ODBC)
     DOC "Specify the ODBC driver manager library here."
     )
 
-    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDE_DIR)
+    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDES)
 
-    IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
+    IF(ODBC_INCLUDES AND ODBC_LIBRARY)
+      get_filename_component(ODBC_INCLUDE_DIR "${ODBC_INCLUDES}" PATH)
       set(CMAKE_REQUIRED_LIBRARIES ${ODBC_LIBRARY})
       set(CMAKE_REQUIRED_INCLUDES ${ODBC_INCLUDE_DIR})
       CHECK_CXX_SOURCE_COMPILES(

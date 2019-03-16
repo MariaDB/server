@@ -39,22 +39,14 @@ MACRO(CHECK_SYSTEMD)
         SET(LIBSYSTEMD systemd)
       ENDIF()
       SET(CMAKE_REQUIRED_LIBRARIES ${LIBSYSTEMD})
-      CHECK_C_SOURCE_COMPILES(
-      "
-      #include <systemd/sd-daemon.h>
-      int main()
-      {
-        sd_listen_fds(0);
-      }"
-      HAVE_SYSTEMD)
+      CHECK_LIBRARY_EXISTS(systemd sd_listen_fds "" HAVE_SYSTEMD_SD_LISTEN_FDS)
       CHECK_INCLUDE_FILES(systemd/sd-daemon.h HAVE_SYSTEMD_SD_DAEMON_H)
-      CHECK_FUNCTION_EXISTS(sd_listen_fds HAVE_SYSTEMD_SD_LISTEN_FDS)
       CHECK_FUNCTION_EXISTS(sd_notify HAVE_SYSTEMD_SD_NOTIFY)
       CHECK_FUNCTION_EXISTS(sd_notifyf HAVE_SYSTEMD_SD_NOTIFYF)
       SET(CMAKE_REQUIRED_LIBRARIES)
-      IF(HAVE_SYSTEMD AND HAVE_SYSTEMD_SD_DAEMON_H AND HAVE_SYSTEMD_SD_LISTEN_FDS
+      IF(HAVE_SYSTEMD_SD_DAEMON_H AND HAVE_SYSTEMD_SD_LISTEN_FDS
          AND HAVE_SYSTEMD_SD_NOTIFY AND HAVE_SYSTEMD_SD_NOTIFYF)
-        ADD_DEFINITIONS(-DHAVE_SYSTEMD)
+        SET(HAVE_SYSTEMD TRUE)
         SET(SYSTEMD_SCRIPTS mariadb-service-convert galera_new_cluster galera_recovery)
         SET(SYSTEMD_DEB_FILES "usr/bin/mariadb-service-convert
                                usr/bin/galera_new_cluster
