@@ -2833,7 +2833,7 @@ bool JOIN::make_aggr_tables_info()
 
         aggr_tables++;
         curr_tab= join_tab + exec_join_tab_cnt();
-        bzero(curr_tab, sizeof(JOIN_TAB));
+        bzero((void*)curr_tab, sizeof(JOIN_TAB));
         curr_tab->ref.key= -1;
         curr_tab->join= this;
 
@@ -2923,7 +2923,7 @@ bool JOIN::make_aggr_tables_info()
   {
     aggr_tables++;
     curr_tab= join_tab + exec_join_tab_cnt();
-    bzero(curr_tab, sizeof(JOIN_TAB));
+    bzero((void*)curr_tab, sizeof(JOIN_TAB));
     curr_tab->ref.key= -1;
     if (only_const_tables())
       first_select= sub_select_postjoin_aggr;
@@ -3051,7 +3051,7 @@ bool JOIN::make_aggr_tables_info()
 
       curr_tab++;
       aggr_tables++;
-      bzero(curr_tab, sizeof(JOIN_TAB));
+      bzero((void*)curr_tab, sizeof(JOIN_TAB));
       curr_tab->ref.key= -1;
 
       /* group data to new table */
@@ -4431,7 +4431,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(1);
 
   /* The following should be optimized to only clear critical things */
-  bzero(stat, sizeof(JOIN_TAB)* table_count);
+  bzero((void*)stat, sizeof(JOIN_TAB)* table_count);
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
     (void) new ((char*) (join->positions + i)) POSITION;
@@ -9585,7 +9585,7 @@ bool JOIN::get_best_combination()
         1. Put into main join order a JOIN_TAB that represents a lookup or scan
            in the temptable.
       */
-      bzero(j, sizeof(JOIN_TAB));
+      bzero((void*)j, sizeof(JOIN_TAB));
       j->join= this;
       j->table= NULL; //temporary way to tell SJM tables from others.
       j->ref.key = -1;
@@ -18003,7 +18003,7 @@ bool Virtual_tmp_table::init(uint field_count)
                         &bitmaps, bitmap_buffer_size(field_count) * 6,
                         NullS))
     DBUG_RETURN(true);
-  bzero(s, sizeof(*s));
+  s->reset();
   s->blob_field= blob_field;
   setup_tmp_table_column_bitmaps(this, bitmaps, field_count);
   m_alloced_field_count= field_count;

@@ -2586,17 +2586,15 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 }
 
 
-void THD::prepare_explain_fields(select_result *result,
-                                 List<Item> *field_list,
-                                 uint8 explain_flags,
-                                 bool is_analyze)
+int THD::prepare_explain_fields(select_result *result, List<Item> *field_list,
+                                 uint8 explain_flags, bool is_analyze)
 {
   if (lex->explain_json)
     make_explain_json_field_list(*field_list, is_analyze);
   else
     make_explain_field_list(*field_list, explain_flags, is_analyze);
 
-  result->prepare(*field_list, NULL);
+  return result->prepare(*field_list, NULL);
 }
 
 
@@ -2606,11 +2604,10 @@ int THD::send_explain_fields(select_result *result,
 {
   List<Item> field_list;
   int rc;
-  prepare_explain_fields(result, &field_list, explain_flags, is_analyze);
-  rc= result->send_result_set_metadata(field_list,
-                                       Protocol::SEND_NUM_ROWS |
-                                       Protocol::SEND_EOF);
-  return(rc);
+  rc= prepare_explain_fields(result, &field_list, explain_flags, is_analyze) ||
+      result->send_result_set_metadata(field_list, Protocol::SEND_NUM_ROWS |
+                                                   Protocol::SEND_EOF);
+  return rc;
 }
 
 
@@ -2685,7 +2682,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "r_rows", 0.1234, 10, 4),
+                         Item_float(this, "r_rows", 0.1234, 2, 4),
                          mem_root);
     item->maybe_null=1;
   }

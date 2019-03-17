@@ -1447,7 +1447,7 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 
 	const ulint batch_size = srv_purge_batch_size;
 
-	for (;;) {
+	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
 		purge_node_t*		node;
 		trx_purge_rec_t*	purge_rec;
 

@@ -34,6 +34,7 @@ alter table t1 add primary key (pk);
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
+--enable_prepare_warnings
 show create table t1;
 select * from t1;
 alter table t1 add j int;

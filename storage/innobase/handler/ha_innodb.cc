@@ -2914,7 +2914,6 @@ ha_innobase::ha_innobase(
 	TABLE_SHARE*	table_arg)
 	:handler(hton, table_arg),
 	m_prebuilt(),
-	m_prebuilt_ptr(&m_prebuilt),
 	m_user_thd(),
 	m_int_table_flags(HA_REC_NOT_IN_SEQ
 			  | HA_NULL_IN_KEY
@@ -13000,8 +12999,6 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 		}
 	}
 
-	/* TODO: remove this when the conversion tool from ha_partition to
-	native innodb partitioning is completed */
 	if (err == DB_TABLE_NOT_FOUND
 	    && innobase_get_lower_case_table_names() == 1) {
 		char*	is_part = is_partition(norm_name);
@@ -13349,12 +13346,26 @@ int ha_innobase::truncate()
 	if (!err) {
 		/* Reopen the newly created table, and drop the
 		original table that was renamed to temp_name. */
-		close();
+
+		row_prebuilt_t* prebuilt = m_prebuilt;
+		uchar* upd_buf = m_upd_buf;
+		ulint upd_buf_size = m_upd_buf_size;
+		/* Mimic ha_innobase::close(). */
+		m_prebuilt = NULL;
+		m_upd_buf = NULL;
+		m_upd_buf_size = 0;
 		err = open(name, 0, 0);
 		if (!err) {
 			m_prebuilt->stored_select_lock_type = stored_lock;
 			m_prebuilt->table->update_time = update_time;
+			row_prebuilt_free(prebuilt, FALSE);
 			delete_table(temp_name, SQLCOM_TRUNCATE);
+			my_free(upd_buf);
+		} else {
+			/* Revert to the old table before truncation. */
+			m_prebuilt = prebuilt;
+			m_upd_buf = upd_buf;
+			m_upd_buf_size = upd_buf_size;
 		}
 	}
 

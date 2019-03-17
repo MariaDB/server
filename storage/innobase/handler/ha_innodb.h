@@ -468,10 +468,6 @@ protected:
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
 
-	/** prebuilt pointer for the right prebuilt. For native
-	partitioning, points to the current partition prebuilt. */
-	row_prebuilt_t**	m_prebuilt_ptr;
-
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
@@ -563,15 +559,6 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  * current commit.
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
-
-/** Get the partition_info working copy.
-@param	thd	Thread object.
-@return	NULL or pointer to partition_info working copy. */
-/* JAN: TODO: MySQL 5.7 Partitioning
-partition_info*
-thd_get_work_part_info(
-	THD*	thd);
-*/
 
 struct trx_t;
 #ifdef WITH_WSREP

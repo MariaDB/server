@@ -5726,7 +5726,7 @@ AIO::AIO(
 	m_not_full = os_event_create("aio_not_full");
 	m_is_empty = os_event_create("aio_is_empty");
 
-	memset(&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
+	memset((void*)&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
 #ifdef LINUX_NATIVE_AIO
 	memset(&m_events[0], 0x0, sizeof(m_events[0]) * m_events.size());
 #endif /* LINUX_NATIVE_AIO */

@@ -149,7 +149,7 @@ ANALYZE number of fields: 13
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
@@ -178,7 +178,7 @@ ANALYZE INSERT number of fields: 13
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
@@ -207,7 +207,7 @@ ANALYZE UPDATE number of fields: 13
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
@@ -236,7 +236,7 @@ ANALYZE DELETE number of fields: 13
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
   - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39

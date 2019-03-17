@@ -1240,15 +1240,6 @@ cont:
           allocation in setup_ref_array().
         */
         fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
-
-	saved_error= fake_select_lex->join->
-	  prepare(fake_select_lex->table_list.first,
-		  0, 0,
-                  global_parameters()->order_list.elements, // og_num
-                  global_parameters()->order_list.first,    // order
-                  false, NULL, NULL, NULL,
-		  fake_select_lex, this);
-	fake_select_lex->table_list.empty();
       }
     }
     else
@@ -1258,6 +1249,24 @@ cont:
         reset field items to point at fields from the created temporary table.
       */
       table->reset_item_list(&item_list, intersect_mark ? 1 : 0);
+    }
+    if (fake_select_lex != NULL &&
+        (thd->stmt_arena->is_stmt_prepare() ||
+         (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
+    {
+      if (!fake_select_lex->join &&
+          !(fake_select_lex->join=
+            new JOIN(thd, item_list, thd->variables.option_bits, result)))
+      {
+         fake_select_lex->table_list.empty();
+         DBUG_RETURN(TRUE);
+      }
+      saved_error= fake_select_lex->join->
+        prepare(fake_select_lex->table_list.first, 0, 0,
+                global_parameters()->order_list.elements, // og_num
+                global_parameters()->order_list.first,    // order
+                false, NULL, NULL, NULL, fake_select_lex, this);
+      fake_select_lex->table_list.empty();
     }
   }
 

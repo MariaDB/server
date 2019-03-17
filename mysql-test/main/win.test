@@ -2242,6 +2242,20 @@ drop table t1;
 drop view v1;
 
 --echo #
+--echo # MDEV-18431: Select max + row_number giving incorrect result
+--echo #
+
+create table t1 (id int, v int);
+insert into t1 values (1, 1), (1,2), (1,3), (2, 1), (2, 2);
+
+select e.id,
+ (select max(t1.v) from t1 where t1.id=e.id) as a,
+ row_number() over (partition by e.id order by e.v) as b,
+ (select max(t1.v) from t1 where t1.id=e.id) + (row_number() over (partition by e.id order by e.v)) as sum_a_b
+from t1 e;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

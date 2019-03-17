@@ -2072,6 +2072,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   /* The following is used to remember the old state for CREATE OR REPLACE */
   TABLE *table;
   TABLE_LIST *pos_in_locked_tables;
+  TABLE_LIST *merge_list;
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
   sequence_definition *seq_create_info;
@@ -2099,14 +2100,11 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
 struct Table_scope_and_contents_source_st:
          public Table_scope_and_contents_source_pod_st
 {
-  SQL_I_List<TABLE_LIST> merge_list;
-
   Vers_parse_info vers_info;
 
   void init()
   {
     Table_scope_and_contents_source_pod_st::init();
-    merge_list.empty();
     vers_info.init();
   }
 

@@ -1676,14 +1676,15 @@ static int keys_compare(bulk_insert_param *param, uchar *key1, uchar *key2)
 }
 
 
-static int keys_free(uchar *key, TREE_FREE mode, bulk_insert_param *param)
+static int keys_free(void* key_arg, TREE_FREE mode, void *param_arg)
 {
   /*
     Probably I can use info->lastkey here, but I'm not sure,
     and to be safe I'd better use local lastkey.
   */
+  bulk_insert_param *param= (bulk_insert_param*)param_arg;
   MARIA_SHARE *share= param->info->s;
-  uchar lastkey[MARIA_MAX_KEY_BUFF];
+  uchar lastkey[MARIA_MAX_KEY_BUFF], *key= (uchar*)key_arg;
   uint keylen;
   MARIA_KEYDEF *keyinfo= share->keyinfo + param->keynr;
   MARIA_KEY tmp_key;
@@ -1710,13 +1711,14 @@ static int keys_free(uchar *key, TREE_FREE mode, bulk_insert_param *param)
       copying middle key up if tree is growing
     */
     memcpy(lastkey, key, tmp_key.data_length + tmp_key.ref_length);
-    return _ma_ck_write_btree(param->info, &tmp_key);
+    _ma_ck_write_btree(param->info, &tmp_key);
+    return 0;
   case free_end:
     if (share->lock_key_trees)
       mysql_rwlock_unlock(&keyinfo->root_lock);
     return 0;
   }
-  return 1;
+  return 0;
 }
 
 
@@ -1772,8 +1774,7 @@ int maria_init_bulk_insert(MARIA_HA *info, size_t cache_size, ha_rows rows)
       init_tree(&info->bulk_insert[i],
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
-		(qsort_cmp2)keys_compare,
-		(tree_element_free) keys_free, (void *)params++, MYF(0));
+                (qsort_cmp2) keys_compare, keys_free, (void *)params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;

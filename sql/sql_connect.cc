@@ -1189,7 +1189,6 @@ void end_connection(THD *thd)
   }
   thd->wsrep_client_thread= 0;
 #endif
-  plugin_thdvar_cleanup(thd);
 
   if (thd->user_connect)
   {
