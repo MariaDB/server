@@ -14512,8 +14512,11 @@ ha_innobase::check(
 	/* We must run the index record counts at an isolation level
 	>= READ COMMITTED, because a dirty read can see a wrong number
 	of records in some index; to play safe, we use always
-	REPEATABLE READ here */
-	m_prebuilt->trx->isolation_level = TRX_ISO_REPEATABLE_READ;
+	REPEATABLE READ here (except when undo logs are unavailable) */
+	m_prebuilt->trx->isolation_level = srv_force_recovery
+		>= SRV_FORCE_NO_UNDO_LOG_SCAN
+		? TRX_ISO_READ_UNCOMMITTED
+		: TRX_ISO_REPEATABLE_READ;
 
 	ut_ad(!m_prebuilt->table->corrupted);
 
