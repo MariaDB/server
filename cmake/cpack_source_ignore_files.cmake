@@ -15,18 +15,19 @@
 
 SET(CPACK_SOURCE_IGNORE_FILES
 \\\\.git/
-\\\\.gitignore
-CMakeCache\\\\.txt
-cmake_dist\\\\.cmake
-CPackSourceConfig\\\\.cmake
-CPackConfig.cmake
-/cmake_install\\\\.cmake
-/CTestTestfile\\\\.cmake
+\\\\.gitignore$
+\\\\.gitattributes$
+CMakeCache\\\\.txt$
+cmake_dist\\\\.cmake$
+CPackSourceConfig\\\\.cmake$
+CPackConfig.cmake$
+/cmake_install\\\\.cmake$
+/CTestTestfile\\\\.cmake$
 /CMakeFiles/
 /version_resources/
 /_CPack_Packages/
-$\\\\.gz
-$\\\\.zip
+\\\\.gz$
+\\\\.zip$
 /CMakeFiles/
 /version_resources/
 /_CPack_Packages/
@@ -50,5 +51,6 @@ include/config\\\\.h$
 include/my_config\\\\.h$
 /autom4te\\\\.cache/
 errmsg\\\\.sys$
+\\\\.rpm$
 #
 )
