@@ -6413,8 +6413,25 @@ err:
             update_binlog_end_pos(offset);
 
             signal_update();
+            /*
+              If a transaction with the LOAD DATA statement is divided
+              into logical mini-transactions (of the 10K rows) and binlog
+              is rotated, then the last portion of data may be lost due to
+              wsrep handler re-registration at the boundary of the split.
+              Since splitting of the LOAD DATA into mini-transactions is
+              logical, we should not allow these mini-transactions to fall
+              into separate binlogs. Therefore, it is necessary to prohibit
+              the rotation of binlog in the middle of processing LOAD DATA:
+            */
+#ifdef WITH_WSREP
+            if (!thd->wsrep_split_flag)
+            {
+#endif /* WITH_WSREP */
             if ((error= rotate(false, &check_purge)))
               check_purge= false;
+#ifdef WITH_WSREP
+            }
+#endif /* WITH_WSREP */
           }
         }
       }
@@ -7139,8 +7156,25 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
         !(error= flush_and_sync(0)))
     {
       signal_update();
+      /*
+        If a transaction with the LOAD DATA statement is divided
+        into logical mini-transactions (of the 10K rows) and binlog
+        is rotated, then the last portion of data may be lost due to
+        wsrep handler re-registration at the boundary of the split.
+        Since splitting of the LOAD DATA into mini-transactions is
+        logical, we should not allow these mini-transactions to fall
+        into separate binlogs. Therefore, it is necessary to prohibit
+        the rotation of binlog in the middle of processing LOAD DATA:
+      */
+#ifdef WITH_WSREP
+      if (!thd->wsrep_split_flag)
+      {
+#endif /* WITH_WSREP */
       if ((error= rotate(false, &check_purge)))
         check_purge= false;
+#ifdef WITH_WSREP
+      }
+#endif /* WITH_WSREP */
     }
 
     offset= my_b_tell(&log_file);
@@ -7906,6 +7940,20 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       mark_xids_active(binlog_id, xid_count);
     }
 
+    /*
+      If a transaction with the LOAD DATA statement is divided
+      into logical mini-transactions (of the 10K rows) and binlog
+      is rotated, then the last portion of data may be lost due to
+      wsrep handler re-registration at the boundary of the split.
+      Since splitting of the LOAD DATA into mini-transactions is
+      logical, we should not allow these mini-transactions to fall
+      into separate binlogs. Therefore, it is necessary to prohibit
+      the rotation of binlog in the middle of processing LOAD DATA:
+    */
+#ifdef WITH_WSREP
+    if (!leader->thd->wsrep_split_flag)
+    {
+#endif /* WITH_WSREP */
     if (rotate(false, &check_purge))
     {
       /*
@@ -7925,6 +7973,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, errno);
       check_purge= false;
     }
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
     /* In case of binlog rotate, update the correct current binlog offset. */
     commit_offset= my_b_write_tell(&log_file);
   }

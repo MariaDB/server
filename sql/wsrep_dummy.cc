@@ -133,6 +133,12 @@ void wsrep_thd_auto_increment_variables(THD *thd,
   *increment= thd->variables.auto_increment_increment;
 }
 
+void wsrep_set_load_multi_commit(THD *thd, bool split)
+{ }
+
+bool wsrep_is_load_multi_commit(THD *thd)
+{ return false; }
+
 int wsrep_trx_is_aborting(THD *)
 { return 0; }
 

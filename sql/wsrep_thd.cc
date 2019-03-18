@@ -708,3 +708,13 @@ my_bool wsrep_thd_is_applier(MYSQL_THD thd)
 
   return (is_applier);
 }
+
+void wsrep_set_load_multi_commit(THD *thd, bool split)
+{
+   thd->wsrep_split_flag= split;
+}
+
+bool wsrep_is_load_multi_commit(THD *thd)
+{
+   return thd->wsrep_split_flag;
+}

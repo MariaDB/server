@@ -8199,6 +8199,16 @@ ha_innobase::write_row(
 		++trx->will_lock;
 	}
 
+#ifdef WITH_WSREP
+	if (wsrep_is_load_multi_commit(m_user_thd))
+	{
+		/* Note that this transaction is still active. */
+		trx_register_for_2pc(m_prebuilt->trx);
+		/* We will need an IX lock on the destination table. */
+		m_prebuilt->sql_stat_start = TRUE;
+	}
+#endif /* WITH_WSREP */
+
 	/* Handling of Auto-Increment Columns. */
 	if (table->next_number_field && record == table->record[0]) {
 
