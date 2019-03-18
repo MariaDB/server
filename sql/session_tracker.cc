@@ -70,7 +70,6 @@ private:
 
   class vars_list
   {
-  private:
     /**
       Registered system variables. (@@session_track_system_variables)
       A hash to store the name of all the system variables specified by the
@@ -101,12 +100,20 @@ private:
       }
     }
 
-    uchar* search(const sys_var *svar)
+    sysvar_node_st *search(const sys_var *svar)
     {
-      return (my_hash_search(&m_registered_sysvars, (const uchar *)&svar,
-			     sizeof(sys_var *)));
+      return reinterpret_cast<sysvar_node_st*>(
+               my_hash_search(&m_registered_sysvars,
+                             reinterpret_cast<const uchar*>(&svar),
+                             sizeof(sys_var*)));
     }
 
+    sysvar_node_st *at(ulong i)
+    {
+      DBUG_ASSERT(i < m_registered_sysvars.records);
+      return reinterpret_cast<sysvar_node_st*>(
+               my_hash_element(&m_registered_sysvars, i));
+    }
   public:
     vars_list() :
       buffer_length(0)
@@ -129,22 +136,21 @@ private:
       }
     }
 
-    uchar* insert_or_search(sysvar_node_st *node, const sys_var *svar)
+    sysvar_node_st *insert_or_search(const sys_var *svar)
     {
-      uchar *res;
-      res= search(svar);
+      sysvar_node_st *res= search(svar);
       if (!res)
       {
 	if (track_all)
 	{
-	  insert(node, svar, m_mem_flag);
+	  insert(svar);
 	  return search(svar);
 	}
       }
       return res;
     }
 
-    bool insert(sysvar_node_st *node, const sys_var *svar, myf mem_flag);
+    bool insert(const sys_var *svar);
     void reinit();
     void reset();
     inline bool is_enabled()
@@ -217,11 +223,6 @@ public:
   /* callback */
   static uchar *sysvars_get_key(const char *entry, size_t *length,
                                 my_bool not_used __attribute__((unused)));
-
-  // hash iterators
-  static my_bool name_array_filler(void *ptr, void *data_ptr);
-  static my_bool store_variable(void *ptr, void *data_ptr);
-  static my_bool reset_variable(void *ptr, void *data_ptr);
 
   static bool check_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
                              CHARSET_INFO *char_set, bool take_mutex);
@@ -313,25 +314,20 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 /**
   Inserts the variable to be tracked into m_registered_sysvars hash.
 
-  @param   node   Node to be inserted.
   @param   svar   address of the system variable
 
   @retval false success
   @retval true  error
 */
 
-bool Session_sysvars_tracker::vars_list::insert(sysvar_node_st *node,
-                                                const sys_var *svar,
-                                                myf mem_flag)
+bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
 {
-  if (!node)
+  sysvar_node_st *node;
+  if (!(node= (sysvar_node_st *) my_malloc(sizeof(sysvar_node_st),
+                                           MYF(MY_WME | m_mem_flag))))
   {
-    if (!(node= (sysvar_node_st *) my_malloc(sizeof(sysvar_node_st),
-                                             MYF(MY_WME | mem_flag))))
-    {
-      reinit();
-      return true;
-    }
+    reinit();
+    return true;
   }
 
   node->m_svar= (sys_var *)svar;
@@ -433,7 +429,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     else if ((svar=
               find_sys_var_ex(thd, var.str, var.length, throw_error, true)))
     {
-      if (insert(NULL, svar, m_mem_flag) == TRUE)
+      if (insert(svar) == TRUE)
         goto error;
     }
     else if (throw_error && thd)
@@ -536,24 +532,6 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
   return false;
 }
 
-struct name_array_filler_data
-{
-  LEX_CSTRING **names;
-  uint idx;
-
-};
-
-/** Collects variable references into array */
-my_bool Session_sysvars_tracker::name_array_filler(void *ptr,
-                                                   void *data_ptr)
-{
-  Session_sysvars_tracker::sysvar_node_st *node=
-    (Session_sysvars_tracker::sysvar_node_st *)ptr;
-  name_array_filler_data *data= (struct name_array_filler_data *)data_ptr;
-  if (*node->test_load)
-    data->names[data->idx++]= &node->m_svar->name;
-  return FALSE;
-}
 
 /* Sorts variable references array */
 static int name_array_sorter(const void *a, const void *b)
@@ -573,7 +551,8 @@ static int name_array_sorter(const void *a, const void *b)
 bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
                                                             size_t buf_len)
 {
-  struct name_array_filler_data data;
+  LEX_CSTRING **names;
+  uint idx;
   size_t left= buf_len;
   size_t names_size= m_registered_sysvars.records * sizeof(LEX_CSTRING *);
   const char separator= ',';
@@ -596,16 +575,19 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
     return false;
   }
 
-  data.names= (LEX_CSTRING**)my_safe_alloca(names_size);
-
-  if (unlikely(!data.names))
+  if (unlikely(!(names= (LEX_CSTRING**) my_safe_alloca(names_size))))
     return true;
 
-  data.idx= 0;
+  idx= 0;
 
   mysql_mutex_lock(&LOCK_plugin);
-  my_hash_iterate(&m_registered_sysvars, &name_array_filler, &data);
-  DBUG_ASSERT(data.idx <= m_registered_sysvars.records);
+  for (ulong i= 0; i < m_registered_sysvars.records; i++)
+  {
+    sysvar_node_st *node= at(i);
+    if (*node->test_load)
+      names[idx++]= &node->m_svar->name;
+  }
+  DBUG_ASSERT(idx <= m_registered_sysvars.records);
 
   /*
     We check number of records again here because number of variables
@@ -618,17 +600,16 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
     return false;
   }
 
-  my_qsort(data.names, data.idx, sizeof(LEX_CSTRING *),
-           &name_array_sorter);
+  my_qsort(names, idx, sizeof(LEX_CSTRING*), &name_array_sorter);
 
-  for(uint i= 0; i < data.idx; i++)
+  for(uint i= 0; i < idx; i++)
   {
-    LEX_CSTRING *nm= data.names[i];
+    LEX_CSTRING *nm= names[i];
     size_t ln= nm->length + 1;
     if (ln > left)
     {
       mysql_mutex_unlock(&LOCK_plugin);
-      my_safe_afree(data.names, names_size);
+      my_safe_afree(names, names_size);
       return true;
     }
     memcpy(buf, nm->str, nm->length);
@@ -639,7 +620,7 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
   mysql_mutex_unlock(&LOCK_plugin);
 
   buf--; buf[0]= '\0';
-  my_safe_afree(data.names, names_size);
+  my_safe_afree(names, names_size);
 
   return false;
 }
@@ -724,24 +705,15 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 }
 
 
-/*
-  Function and structure to support storing variables from hash to the buffer.
-*/
-
-struct st_store_variable_param
+bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
 {
-  THD *thd;
-  String *buf;
-};
-
-my_bool Session_sysvars_tracker::store_variable(void *ptr, void *data_ptr)
-{
-  Session_sysvars_tracker::sysvar_node_st *node=
-    (Session_sysvars_tracker::sysvar_node_st *)ptr;
-  if (node->m_changed)
+  for (ulong i= 0; i < m_registered_sysvars.records; i++)
   {
-    THD *thd= ((st_store_variable_param *)data_ptr)->thd;
-    String *buf= ((st_store_variable_param *)data_ptr)->buf;
+    sysvar_node_st *node= at(i);
+
+    if (!node->m_changed)
+      continue;
+
     char val_buf[SHOW_VAR_FUNC_BUFF_SIZE];
     SHOW_VAR show;
     CHARSET_INFO *charset;
@@ -750,7 +722,7 @@ my_bool Session_sysvars_tracker::store_variable(void *ptr, void *data_ptr)
     if (!*node->test_load)
     {
       mysql_mutex_unlock(&LOCK_plugin);
-      return false;
+      continue;
     }
     sys_var *svar= node->m_svar;
     bool is_plugin= svar->cast_pluginvar();
@@ -795,11 +767,6 @@ my_bool Session_sysvars_tracker::store_variable(void *ptr, void *data_ptr)
   return false;
 }
 
-bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
-{
-  st_store_variable_param data= {thd, buf};
-  return my_hash_iterate(&m_registered_sysvars, &store_variable, &data);
-}
 
 /**
   Store the data for changed system variables in the specified buffer.
@@ -836,14 +803,13 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
 void Session_sysvars_tracker::mark_as_changed(THD *thd,
                                               LEX_CSTRING *var)
 {
-  sysvar_node_st *node= NULL;
+  sysvar_node_st *node;
   sys_var *svar= (sys_var *)var;
   /*
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if (orig_list->is_enabled() &&
-      (node= (sysvar_node_st *) (orig_list->insert_or_search(node, svar))))
+  if (orig_list->is_enabled() && (node= orig_list->insert_or_search(svar)))
   {
     node->m_changed= true;
     State_tracker::mark_as_changed(thd, var);
@@ -870,18 +836,10 @@ uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
 }
 
 
-/* Function to support resetting hash nodes for the variables */
-
-my_bool Session_sysvars_tracker::reset_variable(void *ptr,
-                                                   void *data_ptr)
-{
-  ((Session_sysvars_tracker::sysvar_node_st *)ptr)->m_changed= false;
-  return false;
-}
-
 void Session_sysvars_tracker::vars_list::reset()
 {
-  my_hash_iterate(&m_registered_sysvars, &reset_variable, NULL);
+  for (ulong i= 0; i < m_registered_sysvars.records; i++)
+    at(i)->m_changed= false;
 }
 
 static Session_sysvars_tracker* sysvar_tracker(THD *thd)
