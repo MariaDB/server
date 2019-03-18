@@ -16,8 +16,6 @@
 
 
 #include "sql_plugin.h"
-#include "session_tracker.h"
-
 #include "hash.h"
 #include "table.h"
 #include "rpl_gtid.h"
@@ -32,145 +30,6 @@ void State_tracker::mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name)
   thd->lex->safe_to_cache_query= 0;
   thd->server_status|= SERVER_SESSION_STATE_CHANGED;
 }
-
-
-/**
-  Session_sysvars_tracker
-
-  This is a tracker class that enables & manages the tracking of session
-  system variables. It internally maintains a hash of user supplied variable
-  references and a boolean field to store if the variable was changed by the
-  last statement.
-*/
-
-class Session_sysvars_tracker : public State_tracker
-{
-  struct sysvar_node_st {
-    sys_var *m_svar;
-    bool *test_load;
-    bool m_changed;
-  };
-
-  class vars_list
-  {
-    /**
-      Registered system variables. (@@session_track_system_variables)
-      A hash to store the name of all the system variables specified by the
-      user.
-    */
-    HASH m_registered_sysvars;
-    /** Size of buffer for string representation */
-    size_t buffer_length;
-    myf m_mem_flag;
-    /**
-      If TRUE then we want to check all session variable.
-    */
-    bool track_all;
-    void init()
-    {
-      my_hash_init(&m_registered_sysvars,
-                   &my_charset_bin,
-		   4, 0, 0, (my_hash_get_key) sysvars_get_key,
-		   my_free, MYF(HASH_UNIQUE |
-                                ((m_mem_flag & MY_THREAD_SPECIFIC) ?
-                                 HASH_THREAD_SPECIFIC : 0)));
-    }
-    void free_hash()
-    {
-      if (my_hash_inited(&m_registered_sysvars))
-      {
-	my_hash_free(&m_registered_sysvars);
-      }
-    }
-
-    sysvar_node_st *search(const sys_var *svar)
-    {
-      return reinterpret_cast<sysvar_node_st*>(
-               my_hash_search(&m_registered_sysvars,
-                             reinterpret_cast<const uchar*>(&svar),
-                             sizeof(sys_var*)));
-    }
-
-    sysvar_node_st *at(ulong i)
-    {
-      DBUG_ASSERT(i < m_registered_sysvars.records);
-      return reinterpret_cast<sysvar_node_st*>(
-               my_hash_element(&m_registered_sysvars, i));
-    }
-  public:
-    vars_list(): buffer_length(0), track_all(false)
-    {
-      m_mem_flag= current_thd ? MY_THREAD_SPECIFIC : 0;
-      init();
-    }
-
-    size_t get_buffer_length()
-    {
-      DBUG_ASSERT(buffer_length != 0); // asked earlier then should
-      return buffer_length;
-    }
-    ~vars_list()
-    {
-      /* free the allocated hash. */
-      if (my_hash_inited(&m_registered_sysvars))
-      {
-	my_hash_free(&m_registered_sysvars);
-      }
-    }
-
-    sysvar_node_st *insert_or_search(const sys_var *svar)
-    {
-      sysvar_node_st *res= search(svar);
-      if (!res)
-      {
-	if (track_all)
-	{
-	  insert(svar);
-	  return search(svar);
-	}
-      }
-      return res;
-    }
-
-    bool insert(const sys_var *svar);
-    void reinit();
-    void reset();
-    inline bool is_enabled()
-    {
-      return track_all || m_registered_sysvars.records;
-    }
-    void copy(vars_list* from, THD *thd);
-    bool parse_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
-                        CHARSET_INFO *char_set, bool take_mutex);
-    bool construct_var_list(char *buf, size_t buf_len);
-    bool store(THD *thd, String *buf);
-  };
-  /**
-    Two objects of vars_list type are maintained to manage
-    various operations.
-  */
-  vars_list orig_list;
-
-public:
-  size_t get_buffer_length()
-  {
-    return orig_list.get_buffer_length();
-  }
-  bool construct_var_list(char *buf, size_t buf_len)
-  {
-    return orig_list.construct_var_list(buf, buf_len);
-  }
-
-  bool enable(THD *thd);
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
-  void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
-  /* callback */
-  static uchar *sysvars_get_key(const char *entry, size_t *length,
-                                my_bool not_used __attribute__((unused)));
-
-  friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);
-};
 
 
 /* To be used in expanding the buffer. */
@@ -217,7 +76,9 @@ bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
 {
   sysvar_node_st *node;
   if (!(node= (sysvar_node_st *) my_malloc(sizeof(sysvar_node_st),
-                                           MYF(MY_WME | m_mem_flag))))
+                                           MYF(MY_WME |
+                                               (mysqld_server_initialized ?
+                                                MY_THREAD_SPECIFIC : 0)))))
     return true;
 
   node->m_svar= (sys_var *)svar;
@@ -511,6 +372,7 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
 
 bool Session_sysvars_tracker::enable(THD *thd)
 {
+  orig_list.reinit();
   mysql_mutex_lock(&LOCK_plugin);
   LEX_STRING tmp;
   tmp.str= global_system_variables.session_track_system_variables;
@@ -519,6 +381,7 @@ bool Session_sysvars_tracker::enable(THD *thd)
   {
     mysql_mutex_unlock(&LOCK_plugin);
     orig_list.reinit();
+    m_enabled= false;
     return true;
   }
   mysql_mutex_unlock(&LOCK_plugin);
@@ -1331,49 +1194,6 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
-  @brief Initialize session tracker objects.
-*/
-
-Session_tracker::Session_tracker()
-{
-  /* track data ID fit into one byte in net coding */
-  compile_time_assert(SESSION_TRACK_always_at_the_end < 251);
-  /* one tracker could serv several tracking data */
-  compile_time_assert((uint)SESSION_TRACK_always_at_the_end >=
-                      (uint)SESSION_TRACKER_END);
-
-  m_trackers[SESSION_SYSVARS_TRACKER]= 0;
-  m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
-  m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
-  m_trackers[TRANSACTION_INFO_TRACKER]= &transaction_info;
-}
-
-
-/**
-  @brief Enables the tracker objects.
-
-  @param thd [IN]    The thread handle.
-
-  @return            void
-*/
-
-void Session_tracker::enable(THD *thd)
-{
-  /*
-    Originally and correctly this allocation was in the constructor and
-    deallocation in the destructor, but in this case memory counting
-    system works incorrectly (for example in INSERT DELAYED thread)
-  */
-  deinit();
-  m_trackers[SESSION_SYSVARS_TRACKER]=
-    new (std::nothrow) Session_sysvars_tracker();
-
-  for (int i= 0; i < SESSION_TRACKER_END; i++)
-    m_trackers[i]->enable(thd);
-}
-
-
-/**
   @brief Store all change information in the specified buffer.
 
   @param thd [IN]           The thd handle.
@@ -1384,6 +1204,12 @@ void Session_tracker::enable(THD *thd)
 void Session_tracker::store(THD *thd, String *buf)
 {
   size_t start;
+
+  /* track data ID fit into one byte in net coding */
+  compile_time_assert(SESSION_TRACK_always_at_the_end < 251);
+  /* one tracker could serv several tracking data */
+  compile_time_assert((uint) SESSION_TRACK_always_at_the_end >=
+                      (uint) SESSION_TRACKER_END);
 
   /*
     Probably most track result will fit in 251 byte so lets made it at

@@ -623,10 +623,7 @@ public:
     return (new_val == 0 && var->save_result.string_value.str != 0);
   }
   bool session_update(THD *thd, set_var *var)
-  {
-    return thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-      update(thd, var);
-  }
+  { return thd->session_tracker.sysvars.update(thd, var); }
   void session_save_default(THD *thd, set_var *var)
   {
      var->save_result.string_value.str= global_var(char*);
