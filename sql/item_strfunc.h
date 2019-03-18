@@ -823,26 +823,33 @@ public:
 };
 
 
-class Item_func_rpad :public Item_str_func
+class Item_func_pad: public Item_str_func
 {
-  String tmp_value, rpad_str;
+protected:
+  String tmp_value, pad_str;
+public:
+  Item_func_pad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
+    Item_str_func(thd, arg1, arg2, arg3) {}
+  void fix_length_and_dec();
+};
+
+
+class Item_func_rpad :public Item_func_pad
+{
 public:
   Item_func_rpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
   String *val_str(String *);
-  void fix_length_and_dec();
   const char *func_name() const { return "rpad"; }
 };
 
 
-class Item_func_lpad :public Item_str_func
+class Item_func_lpad :public Item_func_pad
 {
-  String tmp_value, lpad_str;
 public:
   Item_func_lpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
   String *val_str(String *);
-  void fix_length_and_dec();
   const char *func_name() const { return "lpad"; }
 };
 
