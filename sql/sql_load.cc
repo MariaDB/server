@@ -1211,7 +1211,6 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   
   for ( ; ; it.rewind())
   {
-    bool err;
     if (thd->killed)
     {
       thd->send_kill_message();
