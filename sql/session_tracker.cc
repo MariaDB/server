@@ -1345,7 +1345,7 @@ Session_tracker::Session_tracker()
   m_trackers[SESSION_SYSVARS_TRACKER]= 0;
   m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
   m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
-  m_trackers[TRANSACTION_INFO_TRACKER]= 0;
+  m_trackers[TRANSACTION_INFO_TRACKER]= &transaction_info;
 }
 
 
@@ -1367,8 +1367,6 @@ void Session_tracker::enable(THD *thd)
   deinit();
   m_trackers[SESSION_SYSVARS_TRACKER]=
     new (std::nothrow) Session_sysvars_tracker();
-  m_trackers[TRANSACTION_INFO_TRACKER]=
-    new (std::nothrow) Transaction_state_tracker;
 
   for (int i= 0; i < SESSION_TRACKER_END; i++)
     m_trackers[i]->enable(thd);

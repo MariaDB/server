@@ -2219,14 +2219,6 @@ public:
       return TRUE;
     if (var->type == OPT_DEFAULT || !thd->in_active_multi_stmt_transaction())
     {
-#ifndef EMBEDDED_LIBRARY
-      Transaction_state_tracker *tst= NULL;
-
-      if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
-        tst= (Transaction_state_tracker *)
-          thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-#endif //EMBEDDED_LIBRARY
-
       thd->tx_isolation= (enum_tx_isolation) var->save_result.ulonglong_value;
 
 #ifndef EMBEDDED_LIBRARY
@@ -2250,13 +2242,11 @@ public:
           DBUG_ASSERT(0);
           return TRUE;
         }
-        if (tst)
-          tst->set_isol_level(thd, l);
+        if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+          thd->session_tracker.transaction_info.set_isol_level(thd, l);
       }
-      else if (tst)
-      {
-        tst->set_isol_level(thd, TX_ISOL_INHERIT);
-      }
+      else if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+        thd->session_tracker.transaction_info.set_isol_level(thd, TX_ISOL_INHERIT);
 #endif //EMBEDDED_LIBRARY
     }
     return FALSE;

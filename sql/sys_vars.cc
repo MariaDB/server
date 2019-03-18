@@ -3743,14 +3743,12 @@ bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
 #ifndef EMBEDDED_LIBRARY
     if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
     {
-      Transaction_state_tracker *tst= (Transaction_state_tracker *)
-             thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-
       if (var->type == OPT_DEFAULT)
-        tst->set_read_flags(thd,
+        thd->session_tracker.transaction_info.set_read_flags(thd,
                             thd->tx_read_only ? TX_READ_ONLY : TX_READ_WRITE);
       else
-        tst->set_read_flags(thd, TX_READ_INHERIT);
+        thd->session_tracker.transaction_info.set_read_flags(thd,
+                            TX_READ_INHERIT);
     }
 #endif //EMBEDDED_LIBRARY
   }
@@ -6145,8 +6143,7 @@ static bool update_session_track_tx_info(sys_var *self, THD *thd,
                                          enum_var_type type)
 {
   DBUG_ENTER("update_session_track_tx_info");
-  DBUG_RETURN(thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER)->
-              update(thd, NULL));
+  DBUG_RETURN(thd->session_tracker.transaction_info.update(thd, NULL));
 }
 
 static const char *session_track_transaction_info_names[]=
