@@ -30,3 +30,14 @@ subpartition by hash(v) subpartitions 3 (
 insert t1 set i= 0;
 set statement sql_mode= '' for update t1 set i= 1, v= 2;
 drop table t1;
+
+--echo #
+--echo # MDEV-18734 ASAN heap-use-after-free in my_strnxfrm_simple_internal upon update on versioned partitioned table
+--echo #
+create or replace table t1 (x int primary key, b tinytext, v text as (b) virtual)
+partition by range columns (x) (
+  partition p1 values less than (4),
+  partition pn values less than (maxvalue));
+insert into t1 (x, b) values (1, ''), (2, ''), (3, 'a'), (4, 'b');
+update t1 set b= 'bar' where x > 0 order by v limit 2;
+drop table t1;
