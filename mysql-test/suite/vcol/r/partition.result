@@ -28,3 +28,13 @@ set statement sql_mode= '' for update t1 set i= 1, v= 2;
 Warnings:
 Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
 drop table t1;
+#
+# MDEV-18734 ASAN heap-use-after-free in my_strnxfrm_simple_internal upon update on versioned partitioned table
+#
+create or replace table t1 (x int primary key, b tinytext, v text as (b) virtual)
+partition by range columns (x) (
+partition p1 values less than (4),
+partition pn values less than (maxvalue));
+insert into t1 (x, b) values (1, ''), (2, ''), (3, 'a'), (4, 'b');
+update t1 set b= 'bar' where x > 0 order by v limit 2;
+drop table t1;
