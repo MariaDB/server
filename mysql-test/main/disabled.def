@@ -22,3 +22,5 @@ partition_open_files_limit : open_files_limit check broken by MDEV-18360
 mysqlcheck               : special tables like proxy , host specific to a system are shown
 flush_read_lock          : special tables like proxy , host specific to a system are shown
 join_cache               : enable after MDEV-17752 is fixed
+ctype_utf8mb4_myisam     : enable after MDEV-18953 is fixed
+ctype_utf8mb4_innodb     : enable after MDEV-18953 is fixed
