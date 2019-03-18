@@ -6128,8 +6128,7 @@ static bool update_session_track_schema(sys_var *self, THD *thd,
                                         enum_var_type type)
 {
   DBUG_ENTER("update_session_track_schema");
-  DBUG_RETURN(thd->session_tracker.get_tracker(CURRENT_SCHEMA_TRACKER)->
-              update(thd, NULL));
+  DBUG_RETURN(thd->session_tracker.current_schema.update(thd, NULL));
 }
 
 static Sys_var_mybool Sys_session_track_schema(
@@ -6172,8 +6171,7 @@ static bool update_session_track_state_change(sys_var *self, THD *thd,
                                               enum_var_type type)
 {
   DBUG_ENTER("update_session_track_state_change");
-  DBUG_RETURN(thd->session_tracker.get_tracker(SESSION_STATE_CHANGE_TRACKER)->
-              update(thd, NULL));
+  DBUG_RETURN(thd->session_tracker.state_change.update(thd, NULL));
 }
 
 static Sys_var_mybool Sys_session_track_state_change(

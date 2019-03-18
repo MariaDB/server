@@ -88,8 +88,18 @@ public:
 
   void reset_changed() { m_changed= false; }
 
-  /** Called in the constructor of THD*/
-  virtual bool enable(THD *thd) { return update(thd, 0); }
+  /**
+    Called by THD::init() when new connection is being created
+
+    We may inherit m_changed from previous connection served by this THD if
+    connection was broken or client didn't have session tracking capability.
+    Thus we have to reset it here.
+  */
+  virtual bool enable(THD *thd)
+  {
+    reset_changed();
+    return update(thd, 0);
+  }
 
   /** To be invoked when the tracker's system variable is updated (ON_UPDATE).*/
   virtual bool update(THD *thd, set_var *var)= 0;
@@ -101,9 +111,47 @@ public:
   virtual void mark_as_changed(THD *thd, LEX_CSTRING *name);
 };
 
+
 bool sysvartrack_validate_value(THD *thd, const char *str, size_t len);
 bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 uchar *sysvartrack_session_value_ptr(THD *thd, const LEX_CSTRING *base);
+
+
+/**
+  Current_schema_tracker,
+
+  This is a tracker class that enables & manages the tracking of current
+  schema for a particular connection.
+*/
+
+class Current_schema_tracker: public State_tracker
+{
+public:
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+};
+
+
+/*
+  Session_state_change_tracker
+
+  This is a boolean tracker class that will monitor any change that contributes
+  to a session state change.
+  Attributes that contribute to session state change include:
+     - Successful change to System variables
+     - User defined variables assignments
+     - temporary tables created, altered or deleted
+     - prepared statements added or removed
+     - change in current database
+     - change of current role
+*/
+
+class Session_state_change_tracker: public State_tracker
+{
+public:
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+};
 
 
 /**
@@ -130,22 +178,19 @@ class Session_tracker
   }
 
 public:
+  Current_schema_tracker current_schema;
+  Session_state_change_tracker state_change;
 
   Session_tracker();
-  ~Session_tracker()
-  {
-    deinit();
-  }
+  ~Session_tracker() { deinit(); }
 
   /* trick to make happy memory accounting system */
   void deinit()
   {
-    for (int i= 0; i < SESSION_TRACKER_END; i++)
-    {
-      if (m_trackers[i])
-        delete m_trackers[i];
-      m_trackers[i]= NULL;
-    }
+    delete m_trackers[SESSION_SYSVARS_TRACKER];
+    m_trackers[SESSION_SYSVARS_TRACKER]= 0;
+    delete m_trackers[TRANSACTION_INFO_TRACKER];
+    m_trackers[TRANSACTION_INFO_TRACKER]= 0;
   }
 
   void enable(THD *thd);

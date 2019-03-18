@@ -173,43 +173,6 @@ public:
 };
 
 
-
-/**
-  Current_schema_tracker,
-
-  This is a tracker class that enables & manages the tracking of current
-  schema for a particular connection.
-*/
-
-class Current_schema_tracker : public State_tracker
-{
-public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
-};
-
-/*
-  Session_state_change_tracker
-
-  This is a boolean tracker class that will monitor any change that contributes
-  to a session state change.
-  Attributes that contribute to session state change include:
-     - Successful change to System variables
-     - User defined variables assignments
-     - temporary tables created, altered or deleted
-     - prepared statements added or removed
-     - change in current database
-     - change of current role
-*/
-
-class Session_state_change_tracker : public State_tracker
-{
-public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
-};
-
-
 /* To be used in expanding the buffer. */
 static const unsigned int EXTRA_ALLOC= 1024;
 
@@ -1379,8 +1342,10 @@ Session_tracker::Session_tracker()
   compile_time_assert((uint)SESSION_TRACK_always_at_the_end >=
                       (uint)SESSION_TRACKER_END);
 
-  for (int i= 0; i < SESSION_TRACKER_END; i++)
-    m_trackers[i]= NULL;
+  m_trackers[SESSION_SYSVARS_TRACKER]= 0;
+  m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
+  m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
+  m_trackers[TRANSACTION_INFO_TRACKER]= 0;
 }
 
 
@@ -1402,10 +1367,6 @@ void Session_tracker::enable(THD *thd)
   deinit();
   m_trackers[SESSION_SYSVARS_TRACKER]=
     new (std::nothrow) Session_sysvars_tracker();
-  m_trackers[CURRENT_SCHEMA_TRACKER]=
-    new (std::nothrow) Current_schema_tracker;
-  m_trackers[SESSION_STATE_CHANGE_TRACKER]=
-    new (std::nothrow) Session_state_change_tracker;
   m_trackers[TRANSACTION_INFO_TRACKER]=
     new (std::nothrow) Transaction_state_tracker;
 
