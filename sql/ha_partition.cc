@@ -6251,6 +6251,8 @@ void ha_partition::return_top_record(uchar *buf)
 
   part_id= uint2korr(key_buffer);
   memcpy(buf, rec_buffer, m_rec_length);
+  if (table->vfield && buf == table->record[0])
+    table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   m_last_part= part_id;
   m_top_entry= part_id;
 }
