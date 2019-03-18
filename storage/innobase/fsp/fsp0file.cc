@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -409,7 +409,8 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	If the datafile is a file-per-table tablespace then also match
 	the row format and zip page size. */
 	if (m_space_id == space_id
-	    && fil_space_t::is_flags_equal(m_flags, flags)) {
+	    && (fil_space_t::is_flags_equal(flags, m_flags)
+		|| fil_space_t::is_flags_equal(m_flags, flags))) {
 		/* Datafile matches the tablespace expected. */
 		return(DB_SUCCESS);
 	}

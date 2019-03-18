@@ -392,9 +392,21 @@ btr_root_adjust_on_import(
 		} else {
 			/* Check that the table flags and the tablespace
 			flags match. */
-			err = (dict_tf_to_fsp_flags(table->flags)
-			       == table->space->flags)
-				? DB_SUCCESS : DB_CORRUPTION;
+			ulint tf = dict_tf_to_fsp_flags(table->flags);
+			ulint sf = table->space->flags;
+			sf &= ~FSP_FLAGS_MEM_MASK;
+			tf &= ~FSP_FLAGS_MEM_MASK;
+			if (fil_space_t::is_flags_equal(tf, sf)
+			    || fil_space_t::is_flags_equal(sf, tf)) {
+				mutex_enter(&fil_system.mutex);
+				table->space->flags = (table->space->flags
+						       & ~FSP_FLAGS_MEM_MASK)
+					| (tf & FSP_FLAGS_MEM_MASK);
+				mutex_exit(&fil_system.mutex);
+				err = DB_SUCCESS;
+			} else {
+				err = DB_CORRUPTION;
+			}
 		}
 	} else {
 		err = DB_SUCCESS;
