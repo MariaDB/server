@@ -386,10 +386,6 @@ in full crc32 format. */
 #define FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags)			\
 		((flags & FSP_FLAGS_FCRC32_MASK_PAGE_SSIZE)	\
 		>> FSP_FLAGS_FCRC32_POS_PAGE_SSIZE)
-/** @return the MARKER flag in full crc32 format */
-#define FSP_FLAGS_FCRC32_HAS_MARKER(flags)			\
-		((flags & FSP_FLAGS_FCRC32_MASK_MARKER)	\
-		>> FSP_FLAGS_FCRC32_POS_MARKER)
 /** @return the COMPRESSED_ALGO flags in full crc32 format */
 #define FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags)			\
 		((flags & FSP_FLAGS_FCRC32_MASK_COMPRESSED_ALGO)	\

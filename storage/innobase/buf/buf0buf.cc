@@ -35,6 +35,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "mach0data.h"
 #include "buf0buf.h"
 #include "buf0checksum.h"
+#include "ut0crc32.h"
 #include <string.h>
 
 #ifndef UNIV_INNOCHECKSUM
@@ -478,7 +479,8 @@ static bool buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 
 	byte* dst_frame = bpage->zip.data ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	bool page_compressed = fil_page_is_compressed(dst_frame);
+	bool page_compressed = space->is_compressed()
+		&& buf_page_is_compressed(dst_frame, space->flags);
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
 
 	if (bpage->id.page_no() == 0) {
@@ -493,22 +495,31 @@ static bool buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 	buf_tmp_buffer_t* slot;
 	uint key_version = buf_page_get_key_version(dst_frame, space->flags);
 
-	if (page_compressed) {
+	if (page_compressed && !key_version) {
 		/* the page we read is unencrypted */
 		/* Find free slot from temporary memory array */
 decompress:
+		if (space->full_crc32()
+		    && buf_page_is_corrupted(true, dst_frame, space->flags)) {
+			return false;
+		}
+
 		slot = buf_pool_reserve_tmp_slot(buf_pool);
 		/* For decompression, use crypt_buf. */
 		buf_tmp_reserve_crypt_buf(slot);
+
 decompress_with_slot:
 		ut_d(fil_page_type_validate(space, dst_frame));
 
-		bpage->write_size = fil_page_decompress(slot->crypt_buf,
-							dst_frame);
+		bpage->write_size = fil_page_decompress(
+			slot->crypt_buf, dst_frame, space->flags);
 		slot->release();
 
-		ut_ad(!bpage->write_size || fil_page_type_validate(space, dst_frame));
+		ut_ad(!bpage->write_size
+		      || fil_page_type_validate(space, dst_frame));
+
 		ut_ad(space->pending_io());
+
 		return bpage->write_size != 0;
 	}
 
@@ -545,7 +556,8 @@ decrypt_failed:
 
 		ut_d(fil_page_type_validate(space, dst_frame));
 
-		if (fil_page_is_compressed_encrypted(dst_frame)) {
+		if ((space->full_crc32() && page_compressed)
+		    || fil_page_is_compressed_encrypted(dst_frame)) {
 			goto decompress_with_slot;
 		}
 
@@ -882,19 +894,6 @@ buf_page_is_checksum_valid_none(
 	       && checksum_field1 == BUF_NO_CHECKSUM_MAGIC);
 }
 
-/** Checks if the page is in full crc32 checksum format.
-@param[in]	read_buf	database page
-@param[in]	checksum_field	checksum field
-@return true if the page is in full crc32 checksum format. */
-bool buf_page_is_checksum_valid_full_crc32(
-	const byte*	read_buf,
-	size_t		checksum_field)
-{
-	const uint32_t  full_crc32 = buf_calc_page_full_crc32(read_buf);
-
-	return checksum_field == full_crc32;
-}
-
 /** Checks whether the lsn present in the page is lesser than the
 peek current lsn.
 @param[in]	check_lsn	lsn to check
@@ -934,6 +933,22 @@ static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
 #endif /* !UNIV_INNOCHECKSUM */
 }
 
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	page_size	page frame size
+@return whether the page is all zeroes */
+bool buf_page_is_zeroes(const void* read_buf, size_t page_size)
+{
+	const ulint* b = reinterpret_cast<const ulint*>(read_buf);
+	const ulint* const e = b + page_size / sizeof *b;
+	do {
+		if (*b++) {
+			return false;
+		}
+	} while (b != e);
+	return true;
+}
+
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
@@ -949,14 +964,18 @@ buf_page_is_corrupted(
 #ifndef UNIV_INNOCHECKSUM
 	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(true); );
 #endif
-	if (FSP_FLAGS_FCRC32_HAS_MARKER(fsp_flags)) {
-		const byte* end = read_buf + srv_page_size;
-		uint crc32 = mach_read_from_4(end - FIL_PAGE_FCRC32_CHECKSUM);
+	if (fil_space_t::full_crc32(fsp_flags)) {
+		bool compressed = false, corrupted = false;
+		const uint size = buf_page_full_crc32_size(
+			read_buf, &compressed, &corrupted);
+		if (corrupted) {
+			return true;
+		}
+		const byte* end = read_buf + (size - FIL_PAGE_FCRC32_CHECKSUM);
+		uint crc32 = mach_read_from_4(end);
 
-		if (!crc32) {
-			const byte* b = read_buf;
-			while (b != end) if (*b++) goto nonzero;
-			/* An all-zero page is not corrupted. */
+		if (!crc32 && size == srv_page_size
+		    && buf_page_is_zeroes(read_buf, size)) {
 			return false;
 		}
 
@@ -967,14 +986,17 @@ buf_page_is_corrupted(
 				crc32++;
 			}
 		});
-nonzero:
-		if (!buf_page_is_checksum_valid_full_crc32(read_buf, crc32)) {
+
+		if (crc32 != ut_crc32(read_buf,
+				      size - FIL_PAGE_FCRC32_CHECKSUM)) {
 			return true;
 		}
-
-		if (!mach_read_from_4(read_buf + FIL_PAGE_FCRC32_KEY_VERSION)
+		if (!compressed
+		    && !mach_read_from_4(FIL_PAGE_FCRC32_KEY_VERSION
+					 + read_buf)
 		    && memcmp(read_buf + (FIL_PAGE_LSN + 4),
-			      end - FIL_PAGE_FCRC32_END_LSN, 4)) {
+			      end - (FIL_PAGE_FCRC32_END_LSN
+				     - FIL_PAGE_FCRC32_CHECKSUM), 4)) {
 			return true;
 		}
 
@@ -3962,7 +3984,6 @@ buf_zip_decompress(
 			<< ", none: "
 			<< page_zip_calc_checksum(
 				frame, size, SRV_CHECKSUM_ALGORITHM_NONE);
-
 		goto err_exit;
 	}
 
@@ -5846,13 +5867,16 @@ buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
 /** Check if the encrypted page is corrupted for the full crc32 format.
 @param[in]	space_id	page belongs to space id
 @param[in]	dst_frame	page
+@param[in]	is_compressed	compressed page
 @return true if page is corrupted or false if it isn't */
-static bool buf_encrypted_full_crc32_page_is_corrupted(
+static bool buf_page_full_crc32_is_corrupted(
 	ulint		space_id,
-	const byte*	dst_frame)
+	const byte*	dst_frame,
+	bool		is_compressed)
 {
-	if (memcmp(dst_frame + FIL_PAGE_LSN + 4,
-	           dst_frame + srv_page_size - FIL_PAGE_FCRC32_END_LSN, 4)) {
+	if (!is_compressed
+	    && memcmp(dst_frame + FIL_PAGE_LSN + 4,
+		      dst_frame + srv_page_size - FIL_PAGE_FCRC32_END_LSN, 4)) {
 		return true;
 	}
 
@@ -5900,9 +5924,12 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	if (!still_encrypted) {
 		/* If traditional checksums match, we assume that page is
 		not anymore encrypted. */
-		if (key_version && space->full_crc32()) {
-			corrupted = buf_encrypted_full_crc32_page_is_corrupted(
-					space->id, dst_frame);
+		if (space->full_crc32()
+		    && !buf_page_is_zeroes(dst_frame, space->physical_size())
+		    && (key_version || space->is_compressed())) {
+			corrupted = buf_page_full_crc32_is_corrupted(
+					space->id, dst_frame,
+					space->is_compressed());
 		} else {
 			corrupted = buf_page_is_corrupted(
 				true, dst_frame, space->flags);
@@ -7374,7 +7401,7 @@ buf_page_encrypt(
 		&& (!crypt_data->is_default_encryption()
 		    || srv_encrypt_tables);
 
-	bool page_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
+	bool page_compressed = space->is_compressed();
 
 	if (!encrypted && !page_compressed) {
 		/* No need to encrypt or page compress the page.
@@ -7398,6 +7425,19 @@ buf_page_encrypt(
 
 	buf_tmp_reserve_crypt_buf(slot);
 	byte *dst_frame = slot->crypt_buf;
+	const bool full_crc32 = space->full_crc32();
+
+	if (full_crc32) {
+		/* Write LSN for the full crc32 checksum before
+		encryption. Because lsn is one of the input for encryption. */
+		mach_write_to_8(src_frame + FIL_PAGE_LSN,
+				bpage->newest_modification);
+		if (!page_compressed) {
+			mach_write_to_4(
+				src_frame + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
+				(ulint) bpage->newest_modification);
+		}
+	}
 
 	if (!page_compressed) {
 not_compressed:
@@ -7427,6 +7467,18 @@ not_compressed:
 
 		bpage->real_size = out_len;
 
+		if (full_crc32) {
+			ut_d(bool compressed = false);
+			out_len = buf_page_full_crc32_size(tmp,
+#ifdef UNIV_DEBUG
+							   &compressed,
+#else
+							   NULL,
+#endif
+							   NULL);
+			ut_ad(compressed);
+		}
+
 		/* Workaround for MDEV-15527. */
 		memset(tmp + out_len, 0 , srv_page_size - out_len);
 		ut_d(fil_page_type_validate(space, tmp));
@@ -7438,6 +7490,13 @@ not_compressed:
 						bpage->newest_modification,
 						tmp,
 						dst_frame);
+		}
+
+		if (full_crc32) {
+			compile_time_assert(FIL_PAGE_FCRC32_CHECKSUM == 4);
+			mach_write_to_4(tmp + out_len - 4,
+					ut_crc32(tmp, out_len - 4));
+			ut_ad(!buf_page_is_corrupted(true, tmp, space->flags));
 		}
 
 		slot->out_buf = dst_frame = tmp;

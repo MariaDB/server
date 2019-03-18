@@ -1785,16 +1785,6 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 
-	/* MDEV-12026 FIXME: Implement and allow
-	innodb_checksum_algorithm=full_crc32 for page_compressed! */
-	if (m_prebuilt->table->space
-	    && m_prebuilt->table->space->full_crc32()
-	    && altered_table->s->option_struct
-	    && altered_table->s->option_struct->page_compressed) {
-		ut_ad(!table->s->option_struct->page_compressed);
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
 		| INNOBASE_ALTER_INSTANT
@@ -10261,11 +10251,17 @@ commit_cache_norebuild(
 			bool update = !(space->flags
 					& FSP_FLAGS_MASK_PAGE_COMPRESSION);
 			mutex_enter(&fil_system.mutex);
-			space->flags = (~FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL
-					& (space->flags
-					   | FSP_FLAGS_MASK_PAGE_COMPRESSION))
-				| ctx->page_compression_level
+			space->flags &= ~FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL;
+			space->flags |= ctx->page_compression_level
 				<< FSP_FLAGS_MEM_COMPRESSION_LEVEL;
+			if (!space->full_crc32()) {
+				space->flags
+					|= FSP_FLAGS_MASK_PAGE_COMPRESSION;
+			} else if (!space->is_compressed()) {
+				space->flags
+					|= innodb_compression_algorithm
+					<< FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
+			}
 			mutex_exit(&fil_system.mutex);
 
 			if (update) {

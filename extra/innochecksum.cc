@@ -281,7 +281,7 @@ static void init_page_size(const byte* buf)
 	const unsigned	flags = mach_read_from_4(buf + FIL_PAGE_DATA
 						 + FSP_SPACE_FLAGS);
 
-	if (FSP_FLAGS_FCRC32_HAS_MARKER(flags)) {
+	if (fil_space_t::full_crc32(flags)) {
 		srv_page_size = fil_space_t::logical_size(flags);
 		physical_page_size = srv_page_size;
 		return;
@@ -461,7 +461,7 @@ is_page_corrupted(
 		return (false);
 	}
 
-	if (!zip_size) {
+	if (!zip_size && (!is_compressed || !use_full_crc32)) {
 		/* check the stored log sequence numbers
 		for uncompressed tablespace. */
 		logseq = mach_read_from_4(buf + FIL_PAGE_LSN + 4);
@@ -613,8 +613,10 @@ static bool update_checksum(byte* page, ulint flags)
 		}
 
 	} else if (use_full_crc32) {
-		checksum = buf_calc_page_full_crc32(page);
-		byte* c = page + physical_page_size - FIL_PAGE_FCRC32_CHECKSUM;
+		ulint payload = buf_page_full_crc32_size(page, NULL, NULL)
+			- FIL_PAGE_FCRC32_CHECKSUM;
+		checksum = ut_crc32(page, payload);
+		byte* c = page + payload;
 		if (mach_read_from_4(c) == checksum) return false;
 		mach_write_to_4(c, checksum);
 		if (is_log_enabled) {

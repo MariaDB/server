@@ -418,6 +418,42 @@ fil_space_is_flushed(
 	return(true);
 }
 
+/** Validate the compression algorithm for full crc32 format.
+@param[in]	space	tablespace object
+@return whether the compression algorithm support */
+static bool fil_comp_algo_validate(const fil_space_t* space)
+{
+	if (!space->full_crc32()) {
+		return true;
+	}
+
+	DBUG_EXECUTE_IF("fil_comp_algo_validate_fail",
+			return false;);
+
+	ulint	comp_algo = space->get_compression_algo();
+	switch (comp_algo) {
+	case PAGE_UNCOMPRESSED:
+	case PAGE_ZLIB_ALGORITHM:
+#ifdef HAVE_LZ4
+	case PAGE_LZ4_ALGORITHM:
+#endif /* HAVE_LZ4 */
+#ifdef HAVE_LZO
+	case PAGE_LZO_ALGORITHM:
+#endif /* HAVE_LZO */
+#ifdef HAVE_LZMA
+	case PAGE_LZMA_ALGORITHM:
+#endif /* HAVE_LZMA */
+#ifdef HAVE_BZIP2
+	case PAGE_BZIP2_ALGORITHM:
+#endif /* HAVE_BZIP2 */
+#ifdef HAVE_SNAPPY
+	case PAGE_SNAPPY_ALGORITHM:
+#endif /* HAVE_SNAPPY */
+		return true;
+	}
+
+	return false;
+}
 
 /** Append a file to the chain of files of a space.
 @param[in]	name		file name of a file that is not open
@@ -623,10 +659,16 @@ retry:
 		}
 
 		if (!node->read_page0(first_time_open)) {
+fail:
 			os_file_close(node->handle);
 			node->handle = OS_FILE_CLOSED;
 			return false;
 		}
+
+		if (first_time_open && !fil_comp_algo_validate(space)) {
+			goto fail;
+		}
+
 	} else if (space->purpose == FIL_TYPE_LOG) {
 		node->handle = os_file_create(
 			innodb_log_file_key, node->name, OS_FILE_OPEN,

@@ -678,6 +678,12 @@ buf_block_buf_fix_inc_func(
 # endif /* UNIV_DEBUG */
 #endif /* !UNIV_INNOCHECKSUM */
 
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	page_size	page frame size
+@return whether the page is all zeroes */
+bool buf_page_is_zeroes(const void* read_buf, size_t page_size);
+
 /** Checks if the page is in crc32 checksum format.
 @param[in]	read_buf		database page
 @param[in]	checksum_field1		new checksum field
@@ -714,14 +720,6 @@ buf_page_is_checksum_valid_none(
 	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-/** Checks if the page is in full crc32 checksum format.
-@param[in]	read_buf	database page
-@param[in]	checksum_field	checksum field
-@return true if the page is in full crc32 checksum format */
-bool buf_page_is_checksum_valid_full_crc32(
-	const byte*	read_buf,
-	size_t		checksum_field);
-
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
@@ -742,10 +740,53 @@ stored in 26th position.
 @return key version of the page. */
 inline uint32_t buf_page_get_key_version(const byte* read_buf, ulint fsp_flags)
 {
-	return FSP_FLAGS_FCRC32_HAS_MARKER(fsp_flags)
+	return fil_space_t::full_crc32(fsp_flags)
 		? mach_read_from_4(read_buf + FIL_PAGE_FCRC32_KEY_VERSION)
 		: mach_read_from_4(read_buf
 				   + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+}
+
+/** Read the compression info from the page. In full crc32 format,
+compression info is at MSB of page type. In other format, it is
+stored in page type.
+@param[in]	read_buf	database page
+@param[in]	fsp_flags	tablespace flags
+@return true if page is compressed. */
+inline bool buf_page_is_compressed(const byte* read_buf, ulint fsp_flags)
+{
+	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
+	return fil_space_t::full_crc32(fsp_flags)
+		? !!(page_type & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)
+		: page_type == FIL_PAGE_PAGE_COMPRESSED;
+}
+
+/** Get the compressed or uncompressed size of a full_crc32 page.
+@param[in]	buf	page_compressed or uncompressed page
+@param[out]	comp	whether the page could be compressed
+@param[out]	cr	whether the page could be corrupted
+@return the payload size in the file page */
+inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
+{
+	uint t = mach_read_from_2(buf + FIL_PAGE_TYPE);
+	uint page_size = uint(srv_page_size);
+
+	if (!(t & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)) {
+		return page_size;
+	}
+
+	t &= ~(1U << FIL_PAGE_COMPRESS_FCRC32_MARKER);
+	t <<= 8;
+
+	if (t < page_size) {
+		page_size = t;
+		if (comp) {
+			*comp = true;
+		}
+	} else if (cr) {
+		*cr = true;
+	}
+
+	return page_size;
 }
 
 #ifndef UNIV_INNOCHECKSUM

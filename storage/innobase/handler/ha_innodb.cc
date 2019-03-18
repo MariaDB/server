@@ -11646,9 +11646,8 @@ create_table_info_t::check_table_options()
 		except if innodb_checksum_algorithm=full_crc32.
 		Do not allow ENCRYPTED=YES if any SPATIAL INDEX exists. */
 		if (options->encryption != FIL_ENCRYPTION_ON
-		    || (!options->page_compressed
-			&& srv_checksum_algorithm
-			>= SRV_CHECKSUM_ALGORITHM_FULL_CRC32)) {
+		    || srv_checksum_algorithm
+		    >= SRV_CHECKSUM_ALGORITHM_FULL_CRC32) {
 			break;
 		}
 		for (ulint i = 0; i < m_form->s->keys; i++) {

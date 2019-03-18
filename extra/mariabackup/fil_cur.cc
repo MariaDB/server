@@ -361,7 +361,8 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 
 	if (page_type == FIL_PAGE_PAGE_COMPRESSED
 	    || page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		ulint decomp = fil_page_decompress(tmp_frame, tmp_page);
+		ulint decomp = fil_page_decompress(tmp_frame, tmp_page,
+						   space->flags);
 		page_type = mach_read_from_2(tmp_page + FIL_PAGE_TYPE);
 
 		return (!decomp

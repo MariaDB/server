@@ -45,7 +45,8 @@ DROP TABLE t1;
 # Index creation
 #
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
-c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;
+c VARCHAR(256), coordinate POINT NOT NULL)
+PAGE_COMPRESSED=YES, ENCRYPTED=YES ENGINE=INNODB;
 # FIXME: MDEV-13851 Encrypted table refuses some form of ALGORITHM=COPY,
 # but allows rebuild by FORCE
 --error $error_code

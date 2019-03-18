@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,14 +100,6 @@ buf_calc_page_old_checksum(const byte* page)
 {
 	return(static_cast<uint32_t>
 	       (ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)));
-}
-
-/** Calculate the CRC32 checksum for the whole page.
-@param[in]	page	buffer page (srv_page_size bytes)
-@return CRC32 value */
-uint32_t buf_calc_page_full_crc32(const byte* page)
-{
-	return ut_crc32(page, srv_page_size - FIL_PAGE_FCRC32_CHECKSUM);
 }
 
 /** Return a printable string describing the checksum algorithm.

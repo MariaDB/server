@@ -1,6 +1,6 @@
 --- innodb-spatial-index.result
 +++ innodb-spatial-index.result
-@@ -1,22 +1,25 @@
+@@ -1,23 +1,26 @@
  CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
  c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
  ENCRYPTED=YES;
@@ -14,7 +14,8 @@
 -Got one of the listed errors
  DROP TABLE t1;
  CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
- c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;
+ c VARCHAR(256), coordinate POINT NOT NULL)
+ PAGE_COMPRESSED=YES, ENCRYPTED=YES ENGINE=INNODB;
  ALTER TABLE t1 ADD SPATIAL INDEX b1(coordinate), ALGORITHM=COPY;
 -Got one of the listed errors
  ALTER TABLE t1 ADD SPATIAL INDEX b2(coordinate), FORCE, ALGORITHM=INPLACE;

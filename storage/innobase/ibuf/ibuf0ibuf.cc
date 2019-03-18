@@ -4876,20 +4876,6 @@ ibuf_print(
 	mutex_exit(&ibuf_mutex);
 }
 
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	size		page size
-@return	whether the page is all zeroes */
-static bool buf_page_is_zeroes(const byte* read_buf, ulint size)
-{
-	for (ulint i = 0; i < size; i++) {
-		if (read_buf[i] != 0) {
-			return false;
-		}
-	}
-	return true;
-}
-
 /** Check the insert buffer bitmaps on IMPORT TABLESPACE.
 @param[in]	trx	transaction
 @param[in,out]	space	tablespace being imported
