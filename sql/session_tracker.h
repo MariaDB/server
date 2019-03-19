@@ -131,8 +131,6 @@ class Session_sysvars_tracker: public State_tracker
       user.
     */
     HASH m_registered_sysvars;
-    /** Size of buffer for string representation */
-    size_t buffer_length;
     /**
       If TRUE then we want to check all session variable.
     */
@@ -165,14 +163,8 @@ class Session_sysvars_tracker: public State_tracker
                my_hash_element(&m_registered_sysvars, i));
     }
   public:
-    vars_list(): buffer_length(0), track_all(false) { init(); }
+    vars_list(): track_all(false) { init(); }
     void deinit() { free_hash(); }
-
-    size_t get_buffer_length()
-    {
-      DBUG_ASSERT(buffer_length != 0); // asked earlier then should
-      return buffer_length;
-    }
 
     sysvar_node_st *insert_or_search(const sys_var *svar)
     {
@@ -197,7 +189,7 @@ class Session_sysvars_tracker: public State_tracker
     }
     void copy(vars_list* from, THD *thd);
     bool parse_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
-                        CHARSET_INFO *char_set, bool take_mutex);
+                        CHARSET_INFO *char_set);
     bool construct_var_list(char *buf, size_t buf_len);
     bool store(THD *thd, String *buf);
   };
@@ -208,15 +200,8 @@ class Session_sysvars_tracker: public State_tracker
   vars_list orig_list;
 
 public:
-  size_t get_buffer_length()
-  {
-    return orig_list.get_buffer_length();
-  }
-  bool construct_var_list(char *buf, size_t buf_len)
-  {
-    return orig_list.construct_var_list(buf, buf_len);
-  }
-
+  void init(THD *thd);
+  void deinit(THD *thd);
   bool enable(THD *thd);
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
@@ -232,7 +217,6 @@ public:
 
 bool sysvartrack_validate_value(THD *thd, const char *str, size_t len);
 bool sysvartrack_global_update(THD *thd, char *str, size_t len);
-uchar *sysvartrack_session_value_ptr(THD *thd, const LEX_CSTRING *base);
 
 
 /**
@@ -442,12 +426,6 @@ public:
   {
     for (int i= 0; i < SESSION_TRACKER_END; i++)
       m_trackers[i]->enable(thd);
-  }
-
-  /** Returns the pointer to the tracker object for the specified tracker. */
-  inline State_tracker *get_tracker(enum_session_tracker tracker) const
-  {
-    return m_trackers[tracker];
   }
 
   inline void mark_as_changed(THD *thd, enum enum_session_tracker tracker,

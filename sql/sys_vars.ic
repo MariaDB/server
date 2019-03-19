@@ -641,8 +641,6 @@ public:
        DBUG_ASSERT(res == 0);
      }
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
-  { return sysvartrack_session_value_ptr(thd, base); }
 };
 #endif //EMBEDDED_LIBRARY
 

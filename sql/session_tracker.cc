@@ -38,7 +38,6 @@ static const unsigned int EXTRA_ALLOC= 1024;
 
 void Session_sysvars_tracker::vars_list::reinit()
 {
-  buffer_length= 0;
   track_all= 0;
   if (m_registered_sysvars.records)
     my_hash_reset(&m_registered_sysvars);
@@ -58,7 +57,6 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 {
   track_all= from->track_all;
   free_hash();
-  buffer_length= from->buffer_length;
   m_registered_sysvars= from->m_registered_sysvars;
   from->init();
 }
@@ -111,7 +109,6 @@ bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
                                  in case of invalid/duplicate values.
   @param char_set	 [IN]	 charecter set information used for string
 				 manipulations.
-  @param take_mutex      [IN]    take LOCK_plugin
 
   @return
     true                    Error
@@ -120,27 +117,21 @@ bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
 bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
                                                         LEX_STRING var_list,
                                                         bool throw_error,
-							CHARSET_INFO *char_set,
-							bool take_mutex)
+							CHARSET_INFO *char_set)
 {
   const char separator= ',';
   char *token, *lasts= NULL;
   size_t rest= var_list.length;
 
   if (!var_list.str || var_list.length == 0)
-  {
-    buffer_length= 1;
     return false;
-  }
 
   if(!strcmp(var_list.str, "*"))
   {
     track_all= true;
-    buffer_length= 2;
     return false;
   }
 
-  buffer_length= var_list.length + 1;
   token= var_list.str;
 
   track_all= false;
@@ -150,8 +141,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     token value. Hence the mutex is handled here to avoid a performance
     overhead.
   */
-  if (!thd || take_mutex)
-    mysql_mutex_lock(&LOCK_plugin);
+  mysql_mutex_lock(&LOCK_plugin);
   for (;;)
   {
     sys_var *svar;
@@ -196,14 +186,12 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     else
       break;
   }
-  if (!thd || take_mutex)
-    mysql_mutex_unlock(&LOCK_plugin);
+  mysql_mutex_unlock(&LOCK_plugin);
 
   return false;
 
 error:
-  if (!thd || take_mutex)
-    mysql_mutex_unlock(&LOCK_plugin);
+  mysql_mutex_unlock(&LOCK_plugin);
   return true;
 }
 
@@ -361,6 +349,25 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
   return false;
 }
 
+
+void Session_sysvars_tracker::init(THD *thd)
+{
+  DBUG_ASSERT(thd->variables.session_track_system_variables ==
+              global_system_variables.session_track_system_variables);
+  DBUG_ASSERT(global_system_variables.session_track_system_variables);
+  thd->variables.session_track_system_variables=
+    my_strdup(global_system_variables.session_track_system_variables,
+              MYF(MY_WME | MY_THREAD_SPECIFIC));
+}
+
+
+void Session_sysvars_tracker::deinit(THD *thd)
+{
+  my_free(thd->variables.session_track_system_variables);
+  thd->variables.session_track_system_variables= 0;
+}
+
+
 /**
   Enable session tracker by parsing global value of tracked variables.
 
@@ -372,21 +379,16 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
 
 bool Session_sysvars_tracker::enable(THD *thd)
 {
+  LEX_STRING tmp= { thd->variables.session_track_system_variables,
+                    safe_strlen(thd->variables.session_track_system_variables) };
   orig_list.reinit();
-  mysql_mutex_lock(&LOCK_plugin);
-  LEX_STRING tmp;
-  tmp.str= global_system_variables.session_track_system_variables;
-  tmp.length= safe_strlen(tmp.str);
-  if (orig_list.parse_var_list(thd, tmp, true, thd->charset(), false) == true)
+  if (orig_list.parse_var_list(thd, tmp, true, thd->charset()) == true)
   {
-    mysql_mutex_unlock(&LOCK_plugin);
     orig_list.reinit();
     m_enabled= false;
     return true;
   }
-  mysql_mutex_unlock(&LOCK_plugin);
   m_enabled= true;
-
   return false;
 }
 
@@ -412,10 +414,28 @@ bool Session_sysvars_tracker::enable(THD *thd)
 bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 {
   vars_list tool_list;
-  if (tool_list.parse_var_list(thd, var->save_result.string_value, true,
-                               thd->charset(), true))
+  void *copy= var->save_result.string_value.str ?
+              my_memdup(var->save_result.string_value.str,
+                        var->save_result.string_value.length + 1,
+                        MYF(MY_WME | MY_THREAD_SPECIFIC)) :
+              my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
+
+  if (!copy)
     return true;
+
+  if (tool_list.parse_var_list(thd, var->save_result.string_value, true,
+                               thd->charset()))
+  {
+    my_free(copy);
+    return true;
+  }
+
+  my_free(thd->variables.session_track_system_variables);
+  thd->variables.session_track_system_variables= static_cast<char*>(copy);
+
   orig_list.copy(&tool_list, thd);
+  orig_list.construct_var_list(thd->variables.session_track_system_variables,
+                               var->save_result.string_value.length + 1);
   return false;
 }
 
@@ -562,7 +582,7 @@ bool sysvartrack_global_update(THD *thd, char *str, size_t len)
 {
   LEX_STRING tmp= { str, len };
   Session_sysvars_tracker::vars_list dummy;
-  if (!dummy.parse_var_list(thd, tmp, false, system_charset_info, false))
+  if (!dummy.parse_var_list(thd, tmp, false, system_charset_info))
   {
     dummy.construct_var_list(str, len + 1);
     return false;
@@ -571,27 +591,12 @@ bool sysvartrack_global_update(THD *thd, char *str, size_t len)
 }
 
 
-uchar *sysvartrack_session_value_ptr(THD *thd, const LEX_CSTRING *base)
-{
-  Session_sysvars_tracker *tracker= static_cast<Session_sysvars_tracker*>
-    (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER));
-  size_t len= tracker->get_buffer_length();
-  char *res= (char*) thd->alloc(len + sizeof(char*));
-  if (res)
-  {
-    char *buf= res + sizeof(char*);
-    *((char**) res)= buf;
-    tracker->construct_var_list(buf, len);
-  }
-  return (uchar*) res;
-}
-
-
 int session_tracker_init()
 {
+  DBUG_ASSERT(global_system_variables.session_track_system_variables);
   if (sysvartrack_validate_value(0,
         global_system_variables.session_track_system_variables,
-        safe_strlen(global_system_variables.session_track_system_variables)))
+        strlen(global_system_variables.session_track_system_variables)))
   {
     sql_print_error("The variable session_track_system_variables has "
                     "invalid values.");
