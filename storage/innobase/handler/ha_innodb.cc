@@ -5986,7 +5986,7 @@ innobase_build_v_templ(
 		Field*  field = table->field[i];
 
 		/* Build template for virtual columns */
-		if (innobase_is_v_fld(field)) {
+		if (!field->stored_in_db()) {
 #ifdef UNIV_DEBUG
 			const char*	name;
 
@@ -7475,7 +7475,7 @@ build_template_needs_field(
 {
 	const Field*	field	= table->field[i];
 
-	if (innobase_is_v_fld(field) && omits_virtual_cols(*table->s)) {
+	if (!field->stored_in_db() && omits_virtual_cols(*table->s)) {
 		return NULL;
 	}
 
@@ -7555,7 +7555,7 @@ build_template_field(
 
 	templ = prebuilt->mysql_template + prebuilt->n_template++;
 	UNIV_MEM_INVALID(templ, sizeof *templ);
-	templ->is_virtual = innobase_is_v_fld(field);
+	templ->is_virtual = !field->stored_in_db();
 
 	if (!templ->is_virtual) {
 		templ->col_no = i;
@@ -7799,7 +7799,7 @@ ha_innobase::build_template(
 		/* Push down an index condition or an end_range check. */
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field* field = table->field[i];
-			const bool is_v = innobase_is_v_fld(field);
+			const bool is_v = !field->stored_in_db();
 			if (is_v && skip_virtual) {
 				num_v++;
 				continue;
@@ -7939,7 +7939,7 @@ ha_innobase::build_template(
 		for (ulint i = 0; i < n_fields; i++) {
 			mysql_row_templ_t*	templ;
 			const Field*		field = table->field[i];
-			const bool is_v = innobase_is_v_fld(field);
+			const bool is_v = !field->stored_in_db();
 			if (is_v && skip_virtual) {
 				num_v++;
 				continue;
@@ -7989,7 +7989,7 @@ no_icp:
 
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field*	field = table->field[i];
-			const bool is_v = innobase_is_v_fld(field);
+			const bool is_v = !field->stored_in_db();
 
 			if (whole_row) {
 				if (is_v && skip_virtual) {
@@ -8533,7 +8533,7 @@ calc_row_difference(
 
 	for (uint i = 0; i < table->s->fields; i++) {
 		field = table->field[i];
-		const bool is_virtual = innobase_is_v_fld(field);
+		const bool is_virtual = !field->stored_in_db();
 		if (is_virtual && skip_virtual) {
 			continue;
 		}
@@ -8907,7 +8907,7 @@ wsrep_calc_row_hash(
 		byte true_byte=1;
 
 		const Field* field = table->field[i];
-		if (innobase_is_v_fld(field)) {
+		if (!field->stored_in_db()) {
 			continue;
 		}
 
@@ -10986,10 +10986,8 @@ innodb_base_col_setup_for_stored(
 	for (uint i= 0; i < field->table->s->fields; ++i) {
 		const Field* base_field = field->table->field[i];
 
-		if (!innobase_is_s_fld(base_field)
-		    && !innobase_is_v_fld(base_field)
-		    && bitmap_is_set(&field->table->tmp_set,
-				     i)) {
+		if (!base_field->vcol_info
+		    && bitmap_is_set(&field->table->tmp_set, i)) {
 			ulint	z;
 			for (z = 0; z < table->n_cols; z++) {
 				const char* name = dict_table_get_col_name(
@@ -11367,17 +11365,16 @@ create_index(
 					      key->user_defined_key_parts);
 
 		for (ulint i = 0; i < key->user_defined_key_parts; i++) {
-			KEY_PART_INFO*	key_part = key->key_part + i;
+			const Field* field = key->key_part[i].field;
 
 			/* We do not support special (Fulltext or Spatial)
 			index on virtual columns */
-			if (innobase_is_v_fld(key_part->field)) {
+			if (!field->stored_in_db()) {
 				ut_ad(0);
 				DBUG_RETURN(HA_ERR_UNSUPPORTED);
 			}
 
-			dict_mem_index_add_field(
-				index, key_part->field->field_name, 0);
+			dict_mem_index_add_field(index, field->field_name, 0);
 		}
 
 		DBUG_RETURN(convert_error_code_to_mysql(
@@ -11465,7 +11462,7 @@ create_index(
 
 		field_lengths[i] = key_part->length;
 
-		if (innobase_is_v_fld(key_part->field)) {
+		if (!key_part->field->stored_in_db()) {
 			index->type |= DICT_VIRTUAL;
 		}
 
@@ -12502,19 +12499,17 @@ create_table_info_t::gcols_in_fulltext_or_spatial()
 {
 	for (ulint i = 0; i < m_form->s->keys; i++) {
 		const KEY*	key = m_form->key_info + i;
-		if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
-			for (ulint j = 0; j < key->user_defined_key_parts; j++) {
-				const KEY_PART_INFO*	key_part = key->key_part + j;
-
-				/* We do not support special (Fulltext or
-				Spatial) index on virtual columns */
-				if (innobase_is_v_fld(key_part->field)) {
-					my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
-					return true;
-				}
+		if (!(key->flags & (HA_SPATIAL | HA_FULLTEXT))) {
+			continue;
+		}
+		for (ulint j = 0; j < key->user_defined_key_parts; j++) {
+			/* We do not support special (Fulltext or
+			Spatial) index on virtual columns */
+			if (!key->key_part[j].field->stored_in_db()) {
+				my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
+				return true;
 			}
 		}
-
 	}
 	return false;
 }
@@ -12820,7 +12815,7 @@ create_table_info_t::create_table_update_dict()
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {
-		ut_ad(!innobase_is_v_fld(ai));
+		ut_ad(ai->stored_in_db());
 
 		ib_uint64_t	autoinc = m_create_info->auto_increment_value;
 
