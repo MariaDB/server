@@ -186,3 +186,12 @@ c varchar(5000),
 UNIQUE(c,b(64))
 ) ENGINE=InnoDB;
 drop table t1;
+CREATE TABLE t1 (data VARCHAR(4), unique(data) using hash) with system versioning;
+INSERT INTO t1 VALUES ('A');
+SELECT * INTO OUTFILE 'load.data' from t1;
+LOAD DATA INFILE 'load.data'  INTO TABLE t1;
+ERROR 23000: Duplicate entry 'A' for key 'data'
+select * from t1;
+data
+A
+DROP TABLE t1;
