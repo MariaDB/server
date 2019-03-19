@@ -8535,6 +8535,7 @@ calc_row_difference(
 		field = table->field[i];
 		const bool is_virtual = !field->stored_in_db();
 		if (is_virtual && skip_virtual) {
+			num_v++;
 			continue;
 		}
 		dict_col_t* col = is_virtual
