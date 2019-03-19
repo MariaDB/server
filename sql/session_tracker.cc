@@ -379,16 +379,10 @@ void Session_sysvars_tracker::deinit(THD *thd)
 
 bool Session_sysvars_tracker::enable(THD *thd)
 {
-  LEX_STRING tmp= { thd->variables.session_track_system_variables,
-                    safe_strlen(thd->variables.session_track_system_variables) };
   orig_list.reinit();
-  if (orig_list.parse_var_list(thd, tmp, true, thd->charset()) == true)
-  {
-    orig_list.reinit();
-    m_enabled= false;
-    return true;
-  }
-  m_enabled= true;
+  m_parsed= false;
+  m_enabled= thd->variables.session_track_system_variables &&
+             *thd->variables.session_track_system_variables;
   return false;
 }
 
@@ -433,6 +427,7 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
   my_free(thd->variables.session_track_system_variables);
   thd->variables.session_track_system_variables= static_cast<char*>(copy);
 
+  m_parsed= true;
   orig_list.copy(&tool_list, thd);
   orig_list.construct_var_list(thd->variables.session_track_system_variables,
                                var->save_result.string_value.length + 1);
@@ -540,6 +535,20 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd,
 {
   sysvar_node_st *node;
   sys_var *svar= (sys_var *)var;
+
+  if (!m_parsed)
+  {
+    DBUG_ASSERT(thd->variables.session_track_system_variables);
+    LEX_STRING tmp= { thd->variables.session_track_system_variables,
+                      strlen(thd->variables.session_track_system_variables) };
+    if (orig_list.parse_var_list(thd, tmp, true, thd->charset()))
+    {
+      orig_list.reinit();
+      return;
+    }
+    m_parsed= true;
+  }
+
   /*
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.

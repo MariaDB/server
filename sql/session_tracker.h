@@ -198,6 +198,7 @@ class Session_sysvars_tracker: public State_tracker
     various operations.
   */
   vars_list orig_list;
+  bool m_parsed;
 
 public:
   void init(THD *thd);

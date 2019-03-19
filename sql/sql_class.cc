@@ -7304,6 +7304,7 @@ void THD::set_last_commit_gtid(rpl_gtid &gtid)
 #ifndef EMBEDDED_LIBRARY
   if (changed_gtid && session_tracker.sysvars.is_enabled())
   {
+    DBUG_ASSERT(current_thd == this);
     session_tracker.sysvars.
       mark_as_changed(this, (LEX_CSTRING*)Sys_last_gtid_ptr);
   }
