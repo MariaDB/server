@@ -1824,8 +1824,9 @@ static void variance_fp_recurrence_next(double *m, double *s, ulonglong *count, 
   else
   {
     double m_kminusone= *m;
-    *m= m_kminusone + (nr - m_kminusone) / (double) *count;
-    *s= *s + (nr - m_kminusone) * (nr - *m);
+    volatile double diff= nr - m_kminusone;
+    *m= m_kminusone + diff / (double) *count;
+    *s= *s + diff * (nr - *m);
   }
 }
 
