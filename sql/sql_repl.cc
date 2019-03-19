@@ -4218,10 +4218,10 @@ bool show_binlogs(THD* thd)
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
   
-  mysql_mutex_lock(mysql_bin_log.get_log_lock());
   mysql_bin_log.lock_index();
   index_file=mysql_bin_log.get_index_file();
-  
+
+  mysql_mutex_lock(mysql_bin_log.get_log_lock());
   mysql_bin_log.raw_get_current_log(&cur); // dont take mutex
   mysql_mutex_unlock(mysql_bin_log.get_log_lock()); // lockdep, OK
   
