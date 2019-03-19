@@ -231,22 +231,18 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	}
 
 	if (undo->state != TRX_UNDO_CACHED) {
-		ulint		hist_size;
-#ifdef UNIV_DEBUG
-		trx_usegf_t*	seg_header = undo_page + TRX_UNDO_SEG_HDR;
-#endif /* UNIV_DEBUG */
-
 		/* The undo log segment will not be reused */
 		ut_a(undo->id < TRX_RSEG_N_SLOTS);
 		trx_rsegf_set_nth_undo(rseg_header, undo->id, FIL_NULL, mtr);
 
 		MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
 
-		hist_size = mtr_read_ulint(
-			rseg_header + TRX_RSEG_HISTORY_SIZE, MLOG_4BYTES, mtr);
+		uint32_t hist_size = mach_read_from_4(TRX_RSEG_HISTORY_SIZE
+						      + rseg_header);
 
-		ut_ad(undo->size == flst_get_len(
-			      seg_header + TRX_UNDO_PAGE_LIST));
+		ut_ad(undo->size == flst_get_len(TRX_UNDO_SEG_HDR
+						 + TRX_UNDO_PAGE_LIST
+						 + undo_page));
 
 		mlog_write_ulint(
 			rseg_header + TRX_RSEG_HISTORY_SIZE,
