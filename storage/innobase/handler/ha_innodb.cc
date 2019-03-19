@@ -10847,8 +10847,6 @@ create_table_check_doc_id_col(
 					ULINT_UNDEFINED if column is of the
 					wrong type/name/size */
 {
-	ut_ad(!omits_virtual_cols(*form->s));
-
 	for (ulint i = 0; i < form->s->fields; i++) {
 		const Field*	field;
 		ulint		col_type;
@@ -11022,7 +11020,6 @@ int
 create_table_info_t::create_table_def()
 {
 	dict_table_t*	table;
-	ulint		n_cols;
 	ulint		col_type;
 	ulint		col_len;
 	ulint		nulls_allowed;
@@ -11030,14 +11027,11 @@ create_table_info_t::create_table_def()
 	ulint		binary_type;
 	ulint		long_true_varchar;
 	ulint		charset_no;
-	ulint		i;
 	ulint		j = 0;
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
-	ulint		num_v = 0;
 	ulint		space_id = 0;
-	ulint		actual_n_cols;
 	ha_table_option_struct *options= m_form->s->option_struct;
 	dberr_t		err = DB_SUCCESS;
 
@@ -11068,14 +11062,15 @@ create_table_info_t::create_table_def()
 		DBUG_RETURN(ER_WRONG_TABLE_NAME);
 	}
 
-	n_cols = m_form->s->fields;
+	/* Find out the number of virtual columns. */
+	ulint num_v = 0;
+	const bool omit_virtual = omits_virtual_cols(*m_form->s);
+	const ulint n_cols = omit_virtual
+		? m_form->s->stored_fields : m_form->s->fields;
 
-	/* Find out any virtual column */
-	for (i = 0; i < n_cols; i++) {
-		Field*	field = m_form->field[i];
-
-		if (innobase_is_v_fld(field)) {
-			num_v++;
+	if (!omit_virtual) {
+		for (ulint i = 0; i < n_cols; i++) {
+			num_v += !m_form->field[i]->stored_in_db();
 		}
 	}
 
@@ -11086,7 +11081,9 @@ create_table_info_t::create_table_def()
 		if (doc_id_col == ULINT_UNDEFINED) {
 
 			err = DB_ERROR;
-			goto error_ret;
+error_ret:
+			DBUG_RETURN(convert_error_code_to_mysql(err, m_flags,
+								m_thd));
 		} else {
 			has_doc_id_col = TRUE;
 		}
@@ -11096,10 +11093,8 @@ create_table_info_t::create_table_def()
 	determine the actual space id when the tablespace is created. */
 
 	/* Adjust the number of columns for the FTS hidden field */
-	actual_n_cols = n_cols;
-	if (m_flags2 & DICT_TF2_FTS && !has_doc_id_col) {
-		actual_n_cols += 1;
-	}
+	const ulint actual_n_cols = n_cols
+		+ (m_flags2 & DICT_TF2_FTS && !has_doc_id_col);
 
 	table = dict_mem_table_create(m_table_name, space_id,
 				      actual_n_cols, num_v, m_flags, m_flags2);
@@ -11122,10 +11117,7 @@ create_table_info_t::create_table_def()
 
 	heap = mem_heap_create(1000);
 
-	for (i = 0; i < n_cols; i++) {
-		ulint	is_virtual;
-		bool	is_stored = false;
-
+	for (ulint i = 0; i < n_cols; i++) {
 		Field*	field = m_form->field[i];
 
 		col_type = get_innobase_type_from_mysql_type(
@@ -11191,9 +11183,6 @@ create_table_info_t::create_table_def()
 			}
 		}
 
-		is_virtual = (innobase_is_v_fld(field)) ? DATA_VIRTUAL : 0;
-		is_stored = innobase_is_s_fld(field);
-
 		/* First check whether the column to be added has a
 		system reserved name. */
 		if (dict_col_name_is_reserved(field->field_name)){
@@ -11207,6 +11196,8 @@ err_col:
 			goto error_ret;
 		}
 
+		ulint is_virtual = !field->stored_in_db() ? DATA_VIRTUAL : 0;
+
 		if (!is_virtual) {
 			dict_mem_table_add_col(table, heap,
 				field->field_name, col_type,
@@ -11216,7 +11207,7 @@ err_col:
 					| binary_type | long_true_varchar,
 					charset_no),
 				col_len);
-		} else {
+		} else if (!omit_virtual) {
 			dict_mem_table_add_v_col(table, heap,
 				field->field_name, col_type,
 				dtype_form_prtype(
@@ -11228,7 +11219,7 @@ err_col:
 				col_len, i, 0);
 		}
 
-		if (is_stored) {
+		if (innobase_is_s_fld(field)) {
 			ut_ad(!is_virtual);
 			/* Added stored column in m_s_cols list. */
 			dict_mem_table_add_s_col(
@@ -11237,12 +11228,12 @@ err_col:
 	}
 
 	if (num_v) {
-		for (i = 0; i < n_cols; i++) {
+		for (ulint i = 0; i < n_cols; i++) {
 			dict_v_col_t*	v_col;
 
-			Field*	field = m_form->field[i];
+			const Field* field = m_form->field[i];
 
-			if (!innobase_is_v_fld(field)) {
+			if (field->stored_in_db()) {
 				continue;
 			}
 
@@ -11256,8 +11247,7 @@ err_col:
 
 	/** Fill base columns for the stored column present in the list. */
 	if (table->s_cols && table->s_cols->size()) {
-
-		for (i = 0; i < n_cols; i++) {
+		for (ulint i = 0; i < n_cols; i++) {
 			Field*  field = m_form->field[i];
 
 			if (!innobase_is_s_fld(field)) {
@@ -11334,8 +11324,7 @@ err_col:
 			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
 	}
 
-error_ret:
-	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));
+	goto error_ret;
 }
 
 /*****************************************************************//**
