@@ -228,3 +228,25 @@ select * from t1;
 DROP TABLE t1;
 --let $datadir= `select @@datadir`
 --remove_file $datadir/test/load.data
+
+#
+# MDEV-18901 Wrong results after ADD UNIQUE INDEX(blob_column)
+#
+--source include/have_innodb.inc
+CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES ('f'), ('o'), ('o');
+SELECT * INTO OUTFILE 'load.data' from t1;
+
+ALTER IGNORE TABLE t1 ADD UNIQUE INDEX (data);
+SELECT * FROM t1;
+ALTER TABLE t1 ADD SYSTEM VERSIONING ;
+SELECT * FROM t1;
+REPLACE INTO t1 VALUES ('f'), ('o'), ('o');
+SELECT * FROM t1;
+# This should be equivalent to the REPLACE above
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load.data

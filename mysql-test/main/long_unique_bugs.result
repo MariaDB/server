@@ -195,3 +195,27 @@ select * from t1;
 data
 A
 DROP TABLE t1;
+CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('f'), ('o'), ('o');
+SELECT * INTO OUTFILE 'load.data' from t1;
+ALTER IGNORE TABLE t1 ADD UNIQUE INDEX (data);
+SELECT * FROM t1;
+data
+f
+o
+ALTER TABLE t1 ADD SYSTEM VERSIONING ;
+SELECT * FROM t1;
+data
+f
+o
+REPLACE INTO t1 VALUES ('f'), ('o'), ('o');
+SELECT * FROM t1;
+data
+f
+o
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1;
+SELECT * FROM t1;
+data
+f
+o
+DROP TABLE t1;
