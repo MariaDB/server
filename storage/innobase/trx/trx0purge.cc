@@ -1110,11 +1110,7 @@ static void trx_purge_truncate_history()
 /***********************************************************************//**
 Updates the last not yet purged history log info in rseg when we have purged
 a whole undo log. Advances also purge_sys.purge_trx_no past the purged log. */
-static
-void
-trx_purge_rseg_get_next_history_log(
-/*================================*/
-	trx_rseg_t*	rseg,		/*!< in: rollback segment */
+static void trx_purge_rseg_get_next_history_log(
 	ulint*		n_pages_handled)/*!< in/out: number of UNDO pages
 					handled */
 {
@@ -1124,20 +1120,21 @@ trx_purge_rseg_get_next_history_log(
 	trx_id_t	trx_no;
 	mtr_t		mtr;
 
-	mutex_enter(&(rseg->mutex));
+	mutex_enter(&purge_sys.rseg->mutex);
 
-	ut_a(rseg->last_page_no != FIL_NULL);
+	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 
-	purge_sys.tail.commit = rseg->last_commit + 1;
+	purge_sys.tail.commit = purge_sys.rseg->last_commit + 1;
 	purge_sys.tail.undo_no = 0;
 	purge_sys.next_stored = false;
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space->id, rseg->last_page_no), &mtr);
+		page_id_t(purge_sys.rseg->space->id,
+			  purge_sys.rseg->last_page_no), &mtr);
 
-	log_hdr = undo_page + rseg->last_offset;
+	log_hdr = undo_page + purge_sys.rseg->last_offset;
 
 	/* Increase the purge page count by one for every handled log */
 
@@ -1146,26 +1143,26 @@ trx_purge_rseg_get_next_history_log(
 	prev_log_addr = trx_purge_get_log_from_hist(
 		flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE, &mtr));
 
-	if (prev_log_addr.page == FIL_NULL) {
+	const bool empty = prev_log_addr.page == FIL_NULL;
+
+	if (empty) {
 		/* No logs left in the history list */
+		purge_sys.rseg->last_page_no = FIL_NULL;
+	}
 
-		rseg->last_page_no = FIL_NULL;
+	mutex_exit(&purge_sys.rseg->mutex);
+	mtr.commit();
 
-		mutex_exit(&(rseg->mutex));
-		mtr_commit(&mtr);
+	if (empty) {
 		return;
 	}
 
-	mutex_exit(&rseg->mutex);
-
-	mtr_commit(&mtr);
-
 	/* Read the previous log header. */
-	mtr_start(&mtr);
+	mtr.start();
 
-	log_hdr = trx_undo_page_get_s_latched(page_id_t(rseg->space->id,
-							prev_log_addr.page),
-					      &mtr)
+	log_hdr = trx_undo_page_get_s_latched(
+		page_id_t(purge_sys.rseg->space->id, prev_log_addr.page),
+		&mtr)
 		+ prev_log_addr.boffset;
 
 	trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
@@ -1174,12 +1171,12 @@ trx_purge_rseg_get_next_history_log(
 
 	mtr_commit(&mtr);
 
-	mutex_enter(&(rseg->mutex));
+	mutex_enter(&purge_sys.rseg->mutex);
 
-	rseg->last_page_no = prev_log_addr.page;
-	rseg->last_offset = prev_log_addr.boffset;
-	rseg->set_last_trx_no(trx_no, purge != 0);
-	rseg->needs_purge = purge != 0;
+	purge_sys.rseg->last_page_no = prev_log_addr.page;
+	purge_sys.rseg->last_offset = prev_log_addr.boffset;
+	purge_sys.rseg->set_last_trx_no(trx_no, purge != 0);
+	purge_sys.rseg->needs_purge = purge != 0;
 
 	/* Purge can also produce events, however these are already ordered
 	in the rollback segment and any user generated event will be greater
@@ -1188,11 +1185,11 @@ trx_purge_rseg_get_next_history_log(
 
 	mutex_enter(&purge_sys.pq_mutex);
 
-	purge_sys.purge_queue.push(*rseg);
+	purge_sys.purge_queue.push(*purge_sys.rseg);
 
 	mutex_exit(&purge_sys.pq_mutex);
 
-	mutex_exit(&rseg->mutex);
+	mutex_exit(&purge_sys.rseg->mutex);
 }
 
 /** Position the purge sys "iterator" on the undo record to use for purging. */
@@ -1287,8 +1284,7 @@ trx_purge_get_next_rec(
 		/* It is the dummy undo log record, which means that there is
 		no need to purge this undo log */
 
-		trx_purge_rseg_get_next_history_log(
-			purge_sys.rseg, n_pages_handled);
+		trx_purge_rseg_get_next_history_log(n_pages_handled);
 
 		/* Look for the next undo log and record to purge */
 
@@ -1315,8 +1311,7 @@ trx_purge_get_next_rec(
 	if (rec2 == NULL) {
 		mtr_commit(&mtr);
 
-		trx_purge_rseg_get_next_history_log(
-			purge_sys.rseg, n_pages_handled);
+		trx_purge_rseg_get_next_history_log(n_pages_handled);
 
 		/* Look for the next undo log and record to purge */
 
