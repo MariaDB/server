@@ -5864,7 +5864,7 @@ innobase_build_v_templ(
 		Field*  field = table->field[i];
 
 		/* Build template for virtual columns */
-		if (innobase_is_v_fld(field)) {
+		if (!field->stored_in_db()) {
 #ifdef UNIV_DEBUG
 			const char*	name;
 
@@ -7305,7 +7305,7 @@ build_template_needs_field(
 {
 	const Field*	field	= table->field[i];
 
-	if (innobase_is_v_fld(field) && omits_virtual_cols(*table->s)) {
+	if (!field->stored_in_db() && omits_virtual_cols(*table->s)) {
 		return NULL;
 	}
 
@@ -7385,7 +7385,7 @@ build_template_field(
 
 	templ = prebuilt->mysql_template + prebuilt->n_template++;
 	UNIV_MEM_INVALID(templ, sizeof *templ);
-	templ->is_virtual = innobase_is_v_fld(field);
+	templ->is_virtual = !field->stored_in_db();
 
 	if (!templ->is_virtual) {
 		templ->col_no = i;
@@ -7631,7 +7631,7 @@ ha_innobase::build_template(
 		/* Push down an index condition or an end_range check. */
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field* field = table->field[i];
-			const bool is_v = innobase_is_v_fld(field);
+			const bool is_v = !field->stored_in_db();
 			if (is_v && skip_virtual) {
 				num_v++;
 				continue;
@@ -7771,7 +7771,7 @@ ha_innobase::build_template(
 		for (ulint i = 0; i < n_fields; i++) {
 			mysql_row_templ_t*	templ;
 			const Field*		field = table->field[i];
-			const bool is_v = innobase_is_v_fld(field);
+			const bool is_v = !field->stored_in_db();
 			if (is_v && skip_virtual) {
 				num_v++;
 				continue;
@@ -7821,7 +7821,7 @@ no_icp:
 
 		for (ulint i = 0; i < n_fields; i++) {
 			const Field*	field = table->field[i];
-			const bool is_v = innobase_is_v_fld(field);
+			const bool is_v = !field->stored_in_db();
 
 			if (whole_row) {
 				if (is_v && skip_virtual) {
@@ -8021,6 +8021,16 @@ ha_innobase::write_row(
 	if (!trx_is_started(trx)) {
 		++trx->will_lock;
 	}
+
+#ifdef WITH_WSREP
+	if (wsrep_is_load_multi_commit(m_user_thd))
+	{
+		/* Note that this transaction is still active. */
+		trx_register_for_2pc(m_prebuilt->trx);
+		/* We will need an IX lock on the destination table. */
+		m_prebuilt->sql_stat_start = TRUE;
+	}
+#endif /* WITH_WSREP */
 
 	ins_mode_t	vers_set_fields;
 	/* Handling of Auto-Increment Columns. */
@@ -8350,8 +8360,9 @@ calc_row_difference(
 
 	for (uint i = 0; i < table->s->fields; i++) {
 		field = table->field[i];
-		const bool is_virtual = innobase_is_v_fld(field);
+		const bool is_virtual = !field->stored_in_db();
 		if (is_virtual && skip_virtual) {
+			num_v++;
 			continue;
 		}
 		dict_col_t* col = is_virtual
@@ -8723,7 +8734,7 @@ wsrep_calc_row_hash(
 		byte true_byte=1;
 
 		const Field* field = table->field[i];
-		if (innobase_is_v_fld(field)) {
+		if (!field->stored_in_db()) {
 			continue;
 		}
 
@@ -10677,8 +10688,6 @@ create_table_check_doc_id_col(
 					ULINT_UNDEFINED if column is of the
 					wrong type/name/size */
 {
-	ut_ad(!omits_virtual_cols(*form->s));
-
 	for (ulint i = 0; i < form->s->fields; i++) {
 		const Field*	field;
 		ulint		col_type;
@@ -10818,10 +10827,8 @@ innodb_base_col_setup_for_stored(
 	for (uint i= 0; i < field->table->s->fields; ++i) {
 		const Field* base_field = field->table->field[i];
 
-		if (!innobase_is_s_fld(base_field)
-		    && !innobase_is_v_fld(base_field)
-		    && bitmap_is_set(&field->table->tmp_set,
-				     i)) {
+		if (!base_field->vcol_info
+		    && bitmap_is_set(&field->table->tmp_set, i)) {
 			ulint	z;
 			for (z = 0; z < table->n_cols; z++) {
 				const char* name = dict_table_get_col_name(
@@ -10852,7 +10859,6 @@ int
 create_table_info_t::create_table_def()
 {
 	dict_table_t*	table;
-	ulint		n_cols;
 	ulint		col_type;
 	ulint		col_len;
 	ulint		nulls_allowed;
@@ -10860,13 +10866,10 @@ create_table_info_t::create_table_def()
 	ulint		binary_type;
 	ulint		long_true_varchar;
 	ulint		charset_no;
-	ulint		i;
 	ulint		j = 0;
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
-	ulint		num_v = 0;
-	ulint		actual_n_cols;
 	ha_table_option_struct *options= m_form->s->option_struct;
 	dberr_t		err = DB_SUCCESS;
 
@@ -10897,14 +10900,15 @@ create_table_info_t::create_table_def()
 		DBUG_RETURN(ER_WRONG_TABLE_NAME);
 	}
 
-	n_cols = m_form->s->fields;
+	/* Find out the number of virtual columns. */
+	ulint num_v = 0;
+	const bool omit_virtual = omits_virtual_cols(*m_form->s);
+	const ulint n_cols = omit_virtual
+		? m_form->s->stored_fields : m_form->s->fields;
 
-	/* Find out any virtual column */
-	for (i = 0; i < n_cols; i++) {
-		Field*	field = m_form->field[i];
-
-		if (innobase_is_v_fld(field)) {
-			num_v++;
+	if (!omit_virtual) {
+		for (ulint i = 0; i < n_cols; i++) {
+			num_v += !m_form->field[i]->stored_in_db();
 		}
 	}
 
@@ -10920,10 +10924,8 @@ create_table_info_t::create_table_def()
 	}
 
 	/* Adjust the number of columns for the FTS hidden field */
-	actual_n_cols = n_cols;
-	if (m_flags2 & DICT_TF2_FTS && !has_doc_id_col) {
-		actual_n_cols += 1;
-	}
+	const ulint actual_n_cols = n_cols
+		+ (m_flags2 & DICT_TF2_FTS && !has_doc_id_col);
 
 	table = dict_mem_table_create(m_table_name, NULL,
 				      actual_n_cols, num_v, m_flags, m_flags2);
@@ -10946,10 +10948,7 @@ create_table_info_t::create_table_def()
 
 	heap = mem_heap_create(1000);
 
-	for (i = 0; i < n_cols; i++) {
-		ulint	is_virtual;
-		bool	is_stored = false;
-
+	for (ulint i = 0; i < n_cols; i++) {
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
 
@@ -11027,9 +11026,6 @@ create_table_info_t::create_table_def()
 			}
 		}
 
-		is_virtual = (innobase_is_v_fld(field)) ? DATA_VIRTUAL : 0;
-		is_stored = innobase_is_s_fld(field);
-
 		/* First check whether the column to be added has a
 		system reserved name. */
 		if (dict_col_name_is_reserved(field->field_name.str)){
@@ -11042,6 +11038,8 @@ err_col:
 			DBUG_RETURN(HA_ERR_GENERIC);
 		}
 
+		ulint is_virtual = !field->stored_in_db() ? DATA_VIRTUAL : 0;
+
 		if (!is_virtual) {
 			dict_mem_table_add_col(table, heap,
 				field->field_name.str, col_type,
@@ -11052,7 +11050,7 @@ err_col:
 					| vers_row,
 					charset_no),
 				col_len);
-		} else {
+		} else if (!omit_virtual) {
 			dict_mem_table_add_v_col(table, heap,
 				field->field_name.str, col_type,
 				dtype_form_prtype(
@@ -11065,7 +11063,7 @@ err_col:
 				col_len, i, 0);
 		}
 
-		if (is_stored) {
+		if (innobase_is_s_fld(field)) {
 			ut_ad(!is_virtual);
 			/* Added stored column in m_s_cols list. */
 			dict_mem_table_add_s_col(
@@ -11074,12 +11072,12 @@ err_col:
 	}
 
 	if (num_v) {
-		for (i = 0; i < n_cols; i++) {
+		for (ulint i = 0; i < n_cols; i++) {
 			dict_v_col_t*	v_col;
 
-			Field*	field = m_form->field[i];
+			const Field* field = m_form->field[i];
 
-			if (!innobase_is_v_fld(field)) {
+			if (field->stored_in_db()) {
 				continue;
 			}
 
@@ -11093,8 +11091,7 @@ err_col:
 
 	/** Fill base columns for the stored column present in the list. */
 	if (table->s_cols && table->s_cols->size()) {
-
-		for (i = 0; i < n_cols; i++) {
+		for (ulint i = 0; i < n_cols; i++) {
 			Field*  field = m_form->field[i];
 
 			if (!innobase_is_s_fld(field)) {
@@ -11208,17 +11205,17 @@ create_index(
 					      key->user_defined_key_parts);
 
 		for (ulint i = 0; i < key->user_defined_key_parts; i++) {
-			KEY_PART_INFO*	key_part = key->key_part + i;
+			const Field* field = key->key_part[i].field;
 
 			/* We do not support special (Fulltext or Spatial)
 			index on virtual columns */
-			if (innobase_is_v_fld(key_part->field)) {
+			if (!field->stored_in_db()) {
 				ut_ad(0);
 				DBUG_RETURN(HA_ERR_UNSUPPORTED);
 			}
 
-			dict_mem_index_add_field(
-				index, key_part->field->field_name.str, 0);
+			dict_mem_index_add_field(index, field->field_name.str,
+						 0);
 		}
 
 		DBUG_RETURN(convert_error_code_to_mysql(
@@ -11305,7 +11302,7 @@ create_index(
 
 		field_lengths[i] = key_part->length;
 
-		if (innobase_is_v_fld(key_part->field)) {
+		if (!key_part->field->stored_in_db()) {
 			index->type |= DICT_VIRTUAL;
 		}
 
@@ -12268,19 +12265,17 @@ create_table_info_t::gcols_in_fulltext_or_spatial()
 {
 	for (ulint i = 0; i < m_form->s->keys; i++) {
 		const KEY*	key = m_form->key_info + i;
-		if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
-			for (ulint j = 0; j < key->user_defined_key_parts; j++) {
-				const KEY_PART_INFO*	key_part = key->key_part + j;
-
-				/* We do not support special (Fulltext or
-				Spatial) index on virtual columns */
-				if (innobase_is_v_fld(key_part->field)) {
-					my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
-					return true;
-				}
+		if (!(key->flags & (HA_SPATIAL | HA_FULLTEXT))) {
+			continue;
+		}
+		for (ulint j = 0; j < key->user_defined_key_parts; j++) {
+			/* We do not support special (Fulltext or
+			Spatial) index on virtual columns */
+			if (!key->key_part[j].field->stored_in_db()) {
+				my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
+				return true;
 			}
 		}
-
 	}
 	return false;
 }
@@ -12561,7 +12556,7 @@ create_table_info_t::create_table_update_dict()
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {
-		ut_ad(!innobase_is_v_fld(ai));
+		ut_ad(ai->stored_in_db());
 
 		ib_uint64_t	autoinc = m_create_info->auto_increment_value;
 

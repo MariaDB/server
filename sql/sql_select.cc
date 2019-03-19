@@ -21264,7 +21264,8 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
           the new parent Item. This should not be expensive because all
 	  children of Item_cond_and should be fixed by now.
 	*/
-	new_cond->fix_fields(thd, 0);
+	if (new_cond->fix_fields(thd, 0))
+          return (COND*) 0;
 	new_cond->used_tables_cache=
 	  ((Item_cond_and*) cond)->used_tables_cache &
 	  tables;

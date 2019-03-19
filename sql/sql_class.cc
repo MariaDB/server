@@ -787,6 +787,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
+  wsrep_split_flag        = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1239,6 +1240,7 @@ void THD::init(bool skip_lock)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
+  wsrep_split_flag        = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)

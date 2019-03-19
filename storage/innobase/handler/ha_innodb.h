@@ -858,10 +858,8 @@ innodb_base_col_setup_for_stored(
 	const Field*		field,
 	dict_s_col_t*		s_col);
 
-/** whether this is a stored column */
+/** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
-/** whether this is a computed virtual column */
-#define innobase_is_v_fld(field) ((field)->vcol_info && !(field)->stored_in_db())
 
 /** Always normalize table name to lower case on Windows */
 #ifdef _WIN32

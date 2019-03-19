@@ -2491,18 +2491,10 @@ os_file_fsync_posix(
 			ut_a(failures < 2000);
 			break;
 
-		case EIO:
-			ib::error() << "fsync() returned EIO, aborting";
-			/* fall through */
 		default:
-			ut_error;
-			break;
+			ib::fatal() << "fsync() returned " << errno;
 		}
 	}
-
-	ut_error;
-
-	return(-1);
 }
 
 /** Check the existence and type of the given file.
