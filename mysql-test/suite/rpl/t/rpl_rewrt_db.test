@@ -2,20 +2,37 @@
 -- source include/have_binlog_format_mixed_or_statement.inc
 -- source include/master-slave.inc
 
+--connection slave
+set sql_log_bin=0;
+create database y;
+set sql_log_bin=1;
+
+--connection master
 --disable_warnings
 drop database if exists mysqltest1;
+drop database if exists x;
 --enable_warnings
 create database mysqltest1;
+set sql_log_bin=0;
+create database x;
+set sql_log_bin=1;
 
 use mysqltest1;
 create table t1 (a int);
 insert into t1 values(9);
+use x;
+create table t1 (a int);
+insert into t1 values(9);
 select * from mysqltest1.t1;
+select * from x.t1;
 sync_slave_with_master;
+#TODO no it is no empty
 show databases like 'mysqltest1'; # should be empty
 select * from test.t1;
+select * from y.t1;
 # cleanup
 connection master;
+use mysqltest1;
 drop table t1;
 drop database mysqltest1;
 sync_slave_with_master;
@@ -224,6 +241,7 @@ SET sql_log_bin= 0;
 DROP DATABASE database_master_temp_01;
 DROP DATABASE database_master_temp_02;
 DROP DATABASE database_master_temp_03;
+DROP DATABASE x;
 SET sql_log_bin= 1;
 
 connection slave;
@@ -231,6 +249,7 @@ SET sql_log_bin= 0;
 DROP DATABASE database_slave_temp_01;
 DROP DATABASE database_slave_temp_02;
 DROP DATABASE database_slave_temp_03;
+DROP DATABASE y;
 SET sql_log_bin= 1;
 
 connection master;

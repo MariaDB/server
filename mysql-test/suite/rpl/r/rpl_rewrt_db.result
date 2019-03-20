@@ -1,11 +1,24 @@
 include/master-slave.inc
 [connection master]
+set sql_log_bin=0;
+create database y;
+set sql_log_bin=1;
 drop database if exists mysqltest1;
+drop database if exists x;
 create database mysqltest1;
+set sql_log_bin=0;
+create database x;
+set sql_log_bin=1;
 use mysqltest1;
 create table t1 (a int);
 insert into t1 values(9);
+use x;
+create table t1 (a int);
+insert into t1 values(9);
 select * from mysqltest1.t1;
+a
+9
+select * from x.t1;
 a
 9
 show databases like 'mysqltest1';
@@ -14,6 +27,10 @@ mysqltest1
 select * from test.t1;
 a
 9
+select * from y.t1;
+a
+9
+use mysqltest1;
 drop table t1;
 drop database mysqltest1;
 drop database if exists rewrite;
@@ -209,10 +226,12 @@ SET sql_log_bin= 0;
 DROP DATABASE database_master_temp_01;
 DROP DATABASE database_master_temp_02;
 DROP DATABASE database_master_temp_03;
+DROP DATABASE x;
 SET sql_log_bin= 1;
 SET sql_log_bin= 0;
 DROP DATABASE database_slave_temp_01;
 DROP DATABASE database_slave_temp_02;
 DROP DATABASE database_slave_temp_03;
+DROP DATABASE y;
 SET sql_log_bin= 1;
 include/rpl_end.inc
