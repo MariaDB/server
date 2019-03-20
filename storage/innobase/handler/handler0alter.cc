@@ -8588,7 +8588,7 @@ vers_change_fields_cache(
 	    ha_alter_info->alter_info->create_list);
 
 	while (const Create_field* create_field = it++) {
-		if (!create_field->field) {
+		if (!create_field->field || create_field->field->vcol_info) {
 			continue;
 		}
 		dict_col_t* col = dict_table_get_nth_col(
