@@ -469,5 +469,29 @@ alter table t add check (a > 0);
 insert into t values (0);
 insert into t values (2);
 
+--echo #
+--echo # MDEV-18869 Assertion `!((field)->vcol_info && (field)->stored_in_db())' failed in innodb_col_no upon altering table with system versioning
+--echo #
+set system_versioning_alter_history= keep;
+create or replace table t1 (a int, b int generated always as (0) stored) engine=innodb with system versioning;
+insert into t1 (a) values (1);
+--enable_info
+alter table t1 modify a int with system versioning;
+alter table t1 modify a int without system versioning;
+alter table t1 modify a int with system versioning, algorithm=copy;
+alter table t1 modify a int without system versioning, algorithm=copy;
+--disable_info
+select * from t1;
+
+create or replace table t1 (a int, b int generated always as (0) virtual) engine=innodb with system versioning;
+insert into t1 (a) values (1);
+--enable_info
+alter table t1 modify a int with system versioning;
+alter table t1 modify a int without system versioning;
+alter table t1 modify a int with system versioning, algorithm=copy;
+alter table t1 modify a int without system versioning, algorithm=copy;
+select * from t1;
+--disable_info
+
 drop database test;
 create database test;
