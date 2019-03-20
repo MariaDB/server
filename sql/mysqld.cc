@@ -941,6 +941,7 @@ PSI_mutex_key key_LOCK_relaylog_end_pos;
 PSI_mutex_key key_LOCK_thread_id;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
+PSI_mutex_key key_LOCK_rpl_semi_sync_master_enabled;
 PSI_mutex_key key_LOCK_binlog;
 
 PSI_mutex_key key_LOCK_stats,
@@ -1038,6 +1039,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
   { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0},
   { &key_LOCK_ack_receiver, "Ack_receiver::mutex", 0},
+  { &key_LOCK_rpl_semi_sync_master_enabled, "LOCK_rpl_semi_sync_master_enabled", 0},
   { &key_LOCK_binlog, "LOCK_binlog", 0}
 };
 

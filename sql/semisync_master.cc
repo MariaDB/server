@@ -352,7 +352,7 @@ Repl_semi_sync_master::Repl_semi_sync_master()
 
 int Repl_semi_sync_master::init_object()
 {
-  int result;
+  int result= 0;
 
   m_init_done = true;
 
@@ -362,6 +362,8 @@ int Repl_semi_sync_master::init_object()
   set_wait_point(rpl_semi_sync_master_wait_point);
 
   /* Mutex initialization can only be done after MY_INIT(). */
+  mysql_mutex_init(key_LOCK_rpl_semi_sync_master_enabled,
+                   &LOCK_rpl_semi_sync_master_enabled, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_binlog,
                    &LOCK_binlog, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_binlog_send,
@@ -383,7 +385,7 @@ int Repl_semi_sync_master::init_object()
   }
   else
   {
-    result = disable_master();
+    disable_master();
   }
 
   return result;
@@ -421,7 +423,7 @@ int Repl_semi_sync_master::enable_master()
   return result;
 }
 
-int Repl_semi_sync_master::disable_master()
+void Repl_semi_sync_master::disable_master()
 {
   /* Must have the lock when we do enable of disable. */
   lock();
@@ -446,14 +448,13 @@ int Repl_semi_sync_master::disable_master()
   }
 
   unlock();
-
-  return 0;
 }
 
 void Repl_semi_sync_master::cleanup()
 {
   if (m_init_done)
   {
+    mysql_mutex_destroy(&LOCK_rpl_semi_sync_master_enabled);
     mysql_mutex_destroy(&LOCK_binlog);
     mysql_cond_destroy(&COND_binlog_send);
     m_init_done= 0;

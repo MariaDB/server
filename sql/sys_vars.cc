@@ -3144,6 +3144,8 @@ static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
 static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&repl_semisync_master.LOCK_rpl_semi_sync_master_enabled);
   if (rpl_semi_sync_master_enabled)
   {
     if (repl_semisync_master.enable_master() != 0)
@@ -3156,11 +3158,11 @@ static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
   }
   else
   {
-    if (repl_semisync_master.disable_master() != 0)
-      rpl_semi_sync_master_enabled= true;
-    if (!rpl_semi_sync_master_enabled)
-      ack_receiver.stop();
+    repl_semisync_master.disable_master();
+    ack_receiver.stop();
   }
+  mysql_mutex_unlock(&repl_semisync_master.LOCK_rpl_semi_sync_master_enabled);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
 

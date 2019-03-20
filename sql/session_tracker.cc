@@ -322,6 +322,7 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
 
 void Session_sysvars_tracker::init(THD *thd)
 {
+  mysql_mutex_assert_owner(&LOCK_global_system_variables);
   DBUG_ASSERT(thd->variables.session_track_system_variables ==
               global_system_variables.session_track_system_variables);
   DBUG_ASSERT(global_system_variables.session_track_system_variables);
