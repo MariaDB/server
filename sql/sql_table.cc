@@ -7921,6 +7921,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   KEY *key_info=table->key_info;
   bool rc= TRUE;
   bool modified_primary_key= FALSE;
+  bool vers_system_invisible= false;
   Create_field *def;
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
@@ -8031,7 +8032,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
-
+    if (field->invisible == INVISIBLE_SYSTEM &&
+        field->flags & VERS_SYSTEM_FIELD)
+    {
+      vers_system_invisible= true;
+    }
     /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
     if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
         field->flags & VERS_SYSTEM_FIELD &&
@@ -8149,7 +8154,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
   if ((dropped_sys_vers_fields ||
        alter_info->flags & ALTER_DROP_PERIOD) &&
-      dropped_sys_vers_fields != VERS_SYSTEM_FIELD)
+      dropped_sys_vers_fields != VERS_SYSTEM_FIELD &&
+      !vers_system_invisible)
   {
     StringBuffer<NAME_LEN*3> tmp;
     append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_START_FLAG,
@@ -8157,6 +8163,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_END_FLAG,
                        &tmp, table->vers_end_field());
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
+    goto err;
+  }
+  else if (alter_info->flags & ALTER_DROP_PERIOD && vers_system_invisible)
+  {
+    my_error(ER_VERS_NO_PERIOD, MYF(0), table->s->table_name.str);
     goto err;
   }
   alter_info->flags &= ~(ALTER_DROP_PERIOD | ALTER_ADD_PERIOD);

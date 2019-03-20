@@ -605,5 +605,18 @@ select * from t1;
 a	b
 1	0
 affected rows: 1
+#
+# MDEV-18862 Unfortunate error message upon attempt to drop system versioning
+#
+set system_versioning_alter_history= keep;
+create or replace table t1 (x int) with system versioning;
+alter table t1 drop column `row_start`, drop column `row_end`, drop period for system_time, drop system versioning;
+ERROR HY000: No 'PERIOD FOR SYSTEM_TIME' in system-versioned `t1`
+alter table t1 drop period for system_time;
+ERROR HY000: No 'PERIOD FOR SYSTEM_TIME' in system-versioned `t1`
+alter table t1 drop column `row_start`, drop column `row_end`, drop system versioning;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t1 drop column `row_end`;
+ERROR 42000: Can't DROP COLUMN `row_end`; check that it exists
 drop database test;
 create database test;

@@ -7935,3 +7935,5 @@ ER_WARN_HISTORY_ROW_START_TIME
         eng "Table `%s.%s` history row start '%s' is later than row end '%s'"
 ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is too late, first history partition may exceed INTERVAL value"
+ER_VERS_NO_PERIOD
+        eng "No 'PERIOD FOR SYSTEM_TIME' in system-versioned %`s"
