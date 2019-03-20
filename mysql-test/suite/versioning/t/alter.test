@@ -469,5 +469,19 @@ alter table t add check (a > 0);
 insert into t values (0);
 insert into t values (2);
 
+--echo #
+--echo # MDEV-18862 Unfortunate error message upon attempt to drop system versioning
+--echo #
+set system_versioning_alter_history= keep;
+create or replace table t1 (x int) with system versioning;
+--error ER_VERS_NO_PERIOD
+alter table t1 drop column `row_start`, drop column `row_end`, drop period for system_time, drop system versioning;
+--error ER_VERS_NO_PERIOD
+alter table t1 drop period for system_time;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_start`, drop column `row_end`, drop system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_end`;
+
 drop database test;
 create database test;
