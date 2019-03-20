@@ -135,13 +135,6 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
   token= var_list.str;
 
   track_all= false;
-  /*
-    If Lock to the plugin mutex is not acquired here itself, it results
-    in having to acquire it multiple times in find_sys_var_ex for each
-    token value. Hence the mutex is handled here to avoid a performance
-    overhead.
-  */
-  mysql_mutex_lock(&LOCK_plugin);
   for (;;)
   {
     sys_var *svar;
@@ -165,11 +158,10 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     {
       track_all= true;
     }
-    else if ((svar=
-              find_sys_var_ex(thd, var.str, var.length, throw_error, true)))
+    else if ((svar= find_sys_var(thd, var.str, var.length, throw_error)))
     {
       if (insert(svar) == TRUE)
-        goto error;
+        return true;
     }
     else if (throw_error && thd)
     {
@@ -179,20 +171,14 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
                           "be ignored.", (int)var.length, token);
     }
     else
-      goto error;
+      return true;
 
     if (lasts)
       token= lasts + 1;
     else
       break;
   }
-  mysql_mutex_unlock(&LOCK_plugin);
-
   return false;
-
-error:
-  mysql_mutex_unlock(&LOCK_plugin);
-  return true;
 }
 
 
@@ -211,14 +197,6 @@ bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
 
   token= var_list.str;
 
-  /*
-    If Lock to the plugin mutex is not acquired here itself, it results
-    in having to acquire it multiple times in find_sys_var_ex for each
-    token value. Hence the mutex is handled here to avoid a performance
-    overhead.
-  */
-  if (!thd)
-    mysql_mutex_lock(&LOCK_plugin);
   for (;;)
   {
     LEX_CSTRING var;
@@ -237,22 +215,14 @@ bool sysvartrack_validate_value(THD *thd, const char *str, size_t len)
     /* Remove leading/trailing whitespace. */
     trim_whitespace(system_charset_info, &var);
 
-    if(!strcmp(var.str, "*") &&
-       !find_sys_var_ex(thd, var.str, var.length, false, true))
-    {
-      if (!thd)
-        mysql_mutex_unlock(&LOCK_plugin);
+    if (!strcmp(var.str, "*") && !find_sys_var(thd, var.str, var.length))
       return true;
-    }
 
     if (lasts)
       token= lasts + 1;
     else
       break;
   }
-  if (!thd)
-    mysql_mutex_unlock(&LOCK_plugin);
-
   return false;
 }
 
