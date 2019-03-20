@@ -957,7 +957,7 @@ row_ins_foreign_fill_virtual(
 	upd_field_t*	upd_field;
 	dict_vcol_set*	v_cols = foreign->v_cols;
 	update->old_vrow = row_build(
-		ROW_COPY_POINTERS, index, rec,
+		ROW_COPY_DATA, index, rec,
 		offsets, index->table, NULL, NULL,
 		&ext, cascade->heap);
 	n_diff = update->n_fields;
