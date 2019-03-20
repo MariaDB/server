@@ -1166,7 +1166,9 @@ DROP TABLE t;
 CREATE TABLE t (a INT) ENGINE=INNODB;
 -- remove_file $MYSQL_DATA_DIR/test/t.frm
 -- move_file $MYSQL_DATA_DIR/test/t.fr_ $MYSQL_DATA_DIR/test/t.frm
+--enable_prepare_warnings
 SHOW CREATE TABLE t;
+--disable_prepare_warnings
 DROP TABLE t;
 
 --disable_query_log

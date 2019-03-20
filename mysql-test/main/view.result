@@ -6706,6 +6706,20 @@ testcase
 drop view v1;
 drop table t1;
 #
+# MDEV-18502: Server crash in find_field_in_tables upon 2nd execution of SP which causes ER_WRONG_GROUP_FIELD
+#
+CREATE TABLE t1 (id INT, f VARCHAR(1));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+CREATE PROCEDURE sp() SELECT f AS f1, MAX(id) AS f2 FROM v1 GROUP BY f1, f2 ORDER BY f1;
+CALL sp;
+ERROR 42000: Can't group on 'f2'
+CALL sp;
+ERROR 42000: Can't group on 'f2'
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #

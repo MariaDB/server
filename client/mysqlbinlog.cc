@@ -3215,17 +3215,24 @@ err:
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
 }
 
+uint e_key_get_latest_version_func(uint) { return 1; }
+uint e_key_get_func(uint, uint, uchar*, uint*) { return 1; }
+uint e_ctx_size_func(uint, uint) { return 1; }
+int e_ctx_init_func(void *, const uchar*, uint, const uchar*, uint,
+                    int, uint, uint) { return 1; }
+int e_ctx_update_func(void *, const uchar*, uint, uchar*, uint*) { return 1; }
+int e_ctx_finish_func(void *, uchar*, uint*) { return 1; }
+uint e_encrypted_length_func(uint, uint, uint) { return 1; }
 
-uint dummy1() { return 1; }
 struct encryption_service_st encryption_handler=
 {
-  (uint(*)(uint))dummy1,
-  (uint(*)(uint, uint, uchar*, uint*))dummy1,
-  (uint(*)(uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, const uchar*, uint, int, uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, uchar*, uint*))dummy1,
-  (int (*)(void*, uchar*, uint*))dummy1,
-  (uint (*)(uint, uint, uint))dummy1
+  e_key_get_latest_version_func,
+  e_key_get_func,
+  e_ctx_size_func,
+  e_ctx_init_func,
+  e_ctx_update_func,
+  e_ctx_finish_func,
+  e_encrypted_length_func
 };
 
 /*

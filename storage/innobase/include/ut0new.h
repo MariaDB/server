@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -174,7 +174,6 @@ extern PSI_memory_key	mem_key_other;
 extern PSI_memory_key	mem_key_row_log_buf;
 extern PSI_memory_key	mem_key_row_merge_sort;
 extern PSI_memory_key	mem_key_std;
-extern PSI_memory_key	mem_key_partitioning;
 
 /** Setup the internal objects needed for UT_NEW() to operate.
 This must be called before the first call to UT_NEW(). */
@@ -654,13 +653,18 @@ public:
 		return(ptr);
 	}
 
+	pointer
+	allocate_large_dontdump(
+		size_type	n_elements,
+		ut_new_pfx_t*	pfx)
+	{
+		return allocate_large(n_elements, pfx, true);
+	}
 	/** Free a memory allocated by allocate_large() and trace the
 	deallocation.
 	@param[in,out]	ptr	pointer to memory to free
 	@param[in]	pfx	descriptor of the memory, as returned by
-	allocate_large().
-	@param[in]      dodump  if true, advise the OS to include this
-	memory again if a core dump occurs. */
+	allocate_large(). */
 	void
 	deallocate_large(
 		pointer			ptr,
@@ -669,12 +673,8 @@ public:
 		pfx
 #endif
 		,
-		size_t			size,
-		bool			dodump = false)
+		size_t			size)
 	{
-		if (dodump) {
-			ut_dodump(ptr, size);
-		}
 #ifdef UNIV_PFS_MEMORY
 		if (pfx) {
 			deallocate_trace(pfx);
@@ -684,8 +684,27 @@ public:
 		os_mem_free_large(ptr, size);
 	}
 
+	void
+	deallocate_large_dodump(
+		pointer			ptr,
+		const ut_new_pfx_t*
 #ifdef UNIV_PFS_MEMORY
+		pfx
+#endif
+		,
+		size_t			size)
+	{
+		ut_dodump(ptr, size);
+		deallocate_large(ptr,
+#ifdef UNIV_PFS_MEMORY
+		pfx,
+#else
+		NULL,
+#endif
+		size);
+	}
 
+#ifdef UNIV_PFS_MEMORY
 	/** Get the performance schema key to use for tracing allocations.
 	@param[in]	file	file name of the caller or NULL if unknown
 	@return performance schema key */

@@ -516,9 +516,9 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 	if (error_txt != NULL) {
 err_exit:
-		ib::error() << error_txt << " in datafile: " << m_filepath
+		ib::info() << error_txt << " in datafile: " << m_filepath
 			<< ", Space ID:" << m_space_id  << ", Flags: "
-			<< m_flags << ". " << TROUBLESHOOT_DATADICT_MSG;
+			<< m_flags;
 		m_is_valid = false;
 		free_first_page();
 		return(DB_CORRUPTION);
@@ -565,8 +565,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (m_space_id == ULINT_UNDEFINED) {
-		/* The space_id can be most anything, except -1. */
+	if (m_space_id >= SRV_LOG_SPACE_FIRST_ID) {
 		error_txt = "A bad Space ID was found";
 		goto err_exit;
 	}

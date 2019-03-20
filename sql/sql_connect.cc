@@ -1182,7 +1182,6 @@ exit:
 void end_connection(THD *thd)
 {
   NET *net= &thd->net;
-  plugin_thdvar_cleanup(thd);
 
   if (thd->user_connect)
   {

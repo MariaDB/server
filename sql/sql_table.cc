@@ -10813,8 +10813,6 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   if (table_copy)
     alter_info.requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;
 
-  thd->prepare_logs_for_admin_command();
-
   bool res= mysql_alter_table(thd, &null_clex_str, &null_clex_str, &create_info,
                                 table_list, &alter_info, 0,
                                 (ORDER *) 0, 0);

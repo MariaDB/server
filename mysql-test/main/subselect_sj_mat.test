@@ -1579,7 +1579,9 @@ INSERT INTO t2 values(1),(2);
 EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
 flush status;
 CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+--disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
 DROP TABLE t1,t2,t3;
 
 --echo # 

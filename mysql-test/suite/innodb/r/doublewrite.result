@@ -239,7 +239,7 @@ set global innodb_buf_flush_list_now = 1;
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-FOUND 1 /\[ERROR\] InnoDB: .*test.t1\.ibd.*/ in mysqld.1.err
+FOUND 1 /InnoDB: .*test.t1\.ibd/ in mysqld.1.err
 select f1, f2 from t1;
 f1	f2
 1	############

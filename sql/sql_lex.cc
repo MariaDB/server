@@ -5217,20 +5217,6 @@ bool LEX::is_partition_management() const
 }
 
 
-bool Sql_cmd::log_slow_enabled_statement(const THD *thd) const
-{
-  return global_system_variables.sql_log_slow && thd->variables.sql_log_slow;
-}
-
-
-bool Sql_cmd_admin::log_slow_enabled_statement(const THD *thd) const
-{
-  return !MY_TEST(thd->variables.log_slow_disabled_statements &
-                  LOG_SLOW_DISABLE_ADMIN) &&
-         Sql_cmd::log_slow_enabled_statement(thd);
-}
-
-
 /**
   Exclude last added SELECT_LEX (current) in the UNIT and return pointer in it
   (previous become currect)

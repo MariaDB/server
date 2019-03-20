@@ -50,6 +50,12 @@ uint encryption_key_get_func(uint, uint, uchar* key, uint* size)
   return 0;
 }
 
+uint encryption_ctx_size_func(unsigned int, unsigned int)
+{
+  return MY_AES_CTX_SIZE;
+}
+
+
 #ifdef HAVE_EncryptAes128Gcm
 enum my_aes_mode aes_mode= MY_AES_GCM;
 #else
@@ -73,7 +79,7 @@ struct encryption_service_st encryption_handler=
 {
   encryption_key_get_latest_version_func,
   encryption_key_get_func,
-  (uint (*)(unsigned int, unsigned int))my_aes_ctx_size,
+  encryption_ctx_size_func,
   encryption_ctx_init_func,
   my_aes_crypt_update,
   my_aes_crypt_finish,

@@ -1416,6 +1416,11 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (cmp_translog_addr(lsn_of_file_id, share->state.create_rename_lsn) <= 0)
   {
+    /*
+      This can happen if the table was dropped and re-created since this
+      redo entry or if the table had a bulk insert directly after create,
+      in which case the create_rename_lsn changed.
+    */
     tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
            " LOGREC_FILE_ID's LSN " LSN_FMT ", ignoring open request",
            LSN_IN_PARTS(share->state.create_rename_lsn),
@@ -3636,8 +3641,16 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     {
       /* Ensure that recover is not executing any redo before this */
       if (!maria_in_recovery)
+      {
+        if (share->id != 0)
+        {
+          mysql_mutex_lock(&share->intern_lock);
+          translog_deassign_id_from_share(share);
+          mysql_mutex_unlock(&share->intern_lock);
+        }
         share->state.is_of_horizon= share->state.create_rename_lsn=
           share->state.skip_redo_lsn= translog_get_horizon();
+      }
       /*
         We are going to change callbacks; if a page is flushed at this moment
         this can cause race conditions, that's one reason to flush pages

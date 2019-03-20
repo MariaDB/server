@@ -254,6 +254,8 @@ ulong get_table_grant(THD *thd, TABLE_LIST *table);
 ulong get_column_grant(THD *thd, GRANT_INFO *grant,
                        const char *db_name, const char *table_name,
                        const char *field_name);
+bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
+                   const char **hostname, const char **rolename);
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name, size_t length);
 bool mysql_show_grants(THD *thd, LEX_USER *user);

@@ -1198,7 +1198,7 @@ end//
 
 call p()//
 drop procedure p//
-drop table t1;
+drop table t1//
 
 create procedure p ()
 begin

@@ -94,8 +94,6 @@ void mysql_audit_release(THD *thd);
 bool thd_is_connection_alive(THD *thd);
 /* Close connection with possible error code */
 void close_connection(THD *thd, uint errcode);
-/* End the connection before closing it */
-void end_connection(THD *thd);
 /* Decrement connection counter */
 void dec_connection_count();
 /* Destroy THD object */

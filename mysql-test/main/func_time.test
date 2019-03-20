@@ -1910,6 +1910,36 @@ SELECT * FROM t2;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
 
+
+--echo #
+--echo # MDEV-14926 AddressSanitizer: heap-use-after-free in make_date_time on weird combination of functions
+--echo #
+
+DO INET_ATON( FROM_UNIXTIME( @@timestamp, ( TRIM( UNHEX(HEX('%m.%d.%Y') ) ) ) ) );
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1989-03-10');
+SELECT TIME_FORMAT('23:59:43', BINARY d) AS f FROM t1 GROUP BY 'foo';
+DROP TABLE t1;
+
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1900-01-01');
+SELECT LENGTH( DATE_FORMAT( d, BINARY DATABASE() ) ) AS f FROM t1 GROUP BY d;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18667 ASAN heap-use-after-free in make_date_time / Arg_comparator::compare_string / Item_func_nullif::compare
+--echo #
+
+SELECT NULLIF('foo', FROM_UNIXTIME('2012-12-12 12:12:12', TRIM(0)));
+
+--echo #
+--echo # MDEV-18626 ASAN stack-buffer-overflow in int10_to_str / make_date_time upon DATE_FORMAT
+--echo #
+
+SELECT DATE_FORMAT(100000000000, '%j');
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

@@ -118,7 +118,7 @@ end|
 # a procedure which use tables and recursion
 create table t3 (a int)|
 insert into t3 values (0)|
-create view v1 as select a from t3;
+create view v1 as select a from t3|
 create procedure bug10100pt(level int, lim int)
 begin
   if level < lim then

@@ -7344,7 +7344,6 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   if (!f)
     return NULL;
 
-  memset(f, 0, sizeof(*f));
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;

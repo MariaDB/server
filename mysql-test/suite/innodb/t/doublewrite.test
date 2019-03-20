@@ -11,8 +11,6 @@
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;
 --disable_query_log
-call mtr.add_suppression("InnoDB: Header page consists of zero bytes");
-call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: .*, Space ID:0, Flags: 0");
 call mtr.add_suppression("InnoDB: Data file .* uses page size .* but the innodb_page_size start-up parameter is");
 call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS");
 call mtr.add_suppression("InnoDB: New log files created");
@@ -425,7 +423,7 @@ EOF
 --source include/start_mysqld.inc
 
 check table t1;
---let SEARCH_PATTERN= \[ERROR\] InnoDB: .*test.t1\\.ibd.*
+--let SEARCH_PATTERN= InnoDB: .*test.t1\\.ibd
 --source include/search_pattern_in_file.inc
 
 select f1, f2 from t1;

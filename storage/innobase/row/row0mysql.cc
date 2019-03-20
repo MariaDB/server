@@ -2687,10 +2687,15 @@ next:
 		goto next;
 	}
 
+	char* name = mem_strdup(table->name.m_name);
+
 	dict_table_close(table, FALSE, FALSE);
 
-	if (DB_SUCCESS != row_drop_table_for_mysql_in_background(
-		    table->name.m_name)) {
+	dberr_t err = row_drop_table_for_mysql_in_background(name);
+
+	ut_free(name);
+
+	if (err != DB_SUCCESS) {
 		/* If the DROP fails for some table, we return, and let the
 		main thread retry later */
 		return(n_tables + n_tables_dropped);

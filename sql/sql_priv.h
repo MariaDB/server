@@ -175,12 +175,6 @@
 */
 #define OPTION_MASTER_SQL_ERROR         (1ULL << 35)
 
-/*
-  Dont report errors for individual rows,
-  But just report error on commit (or read ofcourse)
-  Note! Reserved for use in MySQL Cluster
-*/
-#define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
 #define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
 #define OPTION_NO_QUERY_CACHE           (1ULL << 39) // SELECT, user

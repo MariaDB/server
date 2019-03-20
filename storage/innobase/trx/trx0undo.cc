@@ -1353,6 +1353,15 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	*pundo = undo;
 
 	ulint offset = trx_undo_header_create(block->frame, trx->id, mtr);
+	/* Reset the TRX_UNDO_PAGE_TYPE in case this page is being
+	repurposed after upgrading to MariaDB 10.3. */
+	if (ut_d(ulint type =) UNIV_UNLIKELY(
+		    mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+				     + block->frame))) {
+		ut_ad(type == TRX_UNDO_INSERT || type == TRX_UNDO_UPDATE);
+		mlog_write_ulint(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+				 + block->frame, 0, MLOG_2BYTES, mtr);
+	}
 
 	trx_undo_header_add_space_for_xid(block->frame, block->frame + offset,
 					  mtr);

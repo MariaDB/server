@@ -1239,13 +1239,56 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
                               List<Item> *field_list, String *buffer)
 {
   bool error= TRUE;
+  LEX *lex= thd->lex;
   MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_create_get_fields");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db.str,
                       table_list->table_name.str));
 
+  if (lex->table_type == TABLE_TYPE_VIEW)
+  {
+    if (check_table_access(thd, SELECT_ACL, table_list, FALSE, 1, FALSE))
+    {
+      DBUG_PRINT("debug", ("check_table_access failed"));
+      my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
+              "SHOW", thd->security_ctx->priv_user,
+              thd->security_ctx->host_or_ip, table_list->alias.str);
+      goto exit;
+    }
+    DBUG_PRINT("debug", ("check_table_access succeeded"));
+
+    /* Ignore temporary tables if this is "SHOW CREATE VIEW" */
+    table_list->open_type= OT_BASE_ONLY;
+  }
+  else
+  {
+    /*
+      Temporary tables should be opened for SHOW CREATE TABLE, but not
+      for SHOW CREATE VIEW.
+    */
+    if (thd->open_temporary_tables(table_list))
+      goto exit;
+
+    /*
+      The fact that check_some_access() returned FALSE does not mean that
+      access is granted. We need to check if table_list->grant.privilege
+      contains any table-specific privilege.
+    */
+    DBUG_PRINT("debug", ("table_list->grant.privilege: %lx",
+                         table_list->grant.privilege));
+    if (check_some_access(thd, SHOW_CREATE_TABLE_ACLS, table_list) ||
+        (table_list->grant.privilege & SHOW_CREATE_TABLE_ACLS) == 0)
+    {
+      my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
+              "SHOW", thd->security_ctx->priv_user,
+              thd->security_ctx->host_or_ip, table_list->alias.str);
+      goto exit;
+    }
+  }
+  /* Access is granted. Execute the command.  */
+
   /* We want to preserve the tree for views. */
-  thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
 
   {
     /*
@@ -1260,20 +1303,20 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     bool open_error=
       open_tables(thd, &table_list, &counter,
                   MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL) ||
-      mysql_handle_derived(thd->lex, DT_INIT | DT_PREPARE);
+                  mysql_handle_derived(lex, DT_INIT | DT_PREPARE);
     thd->pop_internal_handler();
     if (unlikely(open_error && (thd->killed || thd->is_error())))
       goto exit;
   }
 
   /* TODO: add environment variables show when it become possible */
-  if (thd->lex->table_type == TABLE_TYPE_VIEW && !table_list->view)
+  if (lex->table_type == TABLE_TYPE_VIEW && !table_list->view)
   {
     my_error(ER_WRONG_OBJECT, MYF(0),
              table_list->db.str, table_list->table_name.str, "VIEW");
     goto exit;
   }
-  else if (thd->lex->table_type == TABLE_TYPE_SEQUENCE &&
+  else if (lex->table_type == TABLE_TYPE_SEQUENCE &&
            table_list->table->s->table_type != TABLE_TYPE_SEQUENCE)
   {
     my_error(ER_NOT_SEQUENCE, MYF(0),
@@ -1288,7 +1331,7 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
 
   if ((table_list->view ?
        show_create_view(thd, table_list, buffer) :
-       thd->lex->table_type == TABLE_TYPE_SEQUENCE ?
+       lex->table_type == TABLE_TYPE_SEQUENCE ?
        show_create_sequence(thd, table_list, buffer) :
        show_create_table(thd, table_list, buffer, NULL, WITHOUT_DB_NAME)))
     goto exit;
@@ -5509,7 +5552,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     if (file)
     {
       HA_CREATE_INFO create_info;
-      memset(&create_info, 0, sizeof(create_info));
+      create_info.init();
       file->update_create_info(&create_info);
       append_directory(thd, &str, "DATA", create_info.data_file_name);
       append_directory(thd, &str, "INDEX", create_info.index_file_name);
@@ -6690,7 +6733,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         {
           TABLE_LIST table_list;
           uint view_access;
-          memset(&table_list, 0, sizeof(table_list));
+          table_list.reset();
           table_list.db= tables->db;
           table_list.table_name= tables->table_name;
           table_list.grant.privilege= thd->col_access;

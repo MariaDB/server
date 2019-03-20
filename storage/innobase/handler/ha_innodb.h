@@ -476,10 +476,6 @@ protected:
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
 
-	/** prebuilt pointer for the right prebuilt. For native
-	partitioning, points to the current partition prebuilt. */
-	row_prebuilt_t**	m_prebuilt_ptr;
-
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
@@ -571,15 +567,6 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  * current commit.
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
-
-/** Get the partition_info working copy.
-@param	thd	Thread object.
-@return	NULL or pointer to partition_info working copy. */
-/* JAN: TODO: MySQL 5.7 Partitioning
-partition_info*
-thd_get_work_part_info(
-	THD*	thd);
-*/
 
 struct trx_t;
 #ifdef WITH_WSREP
@@ -864,10 +851,8 @@ innodb_base_col_setup_for_stored(
 	const Field*		field,
 	dict_s_col_t*		s_col);
 
-/** whether this is a stored column */
+/** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
-/** whether this is a computed virtual column */
-#define innobase_is_v_fld(field) ((field)->vcol_info && !(field)->stored_in_db())
 
 /** Always normalize table name to lower case on Windows */
 #ifdef _WIN32

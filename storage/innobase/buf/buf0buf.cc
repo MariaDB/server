@@ -1590,8 +1590,7 @@ buf_chunk_init(
 
 	DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return(NULL););
 
-	chunk->mem = buf_pool->allocator.allocate_large(mem_size,
-							&chunk->mem_pfx, true);
+	chunk->mem = buf_pool->allocator.allocate_large_dontdump(mem_size, &chunk->mem_pfx);
 
 	if (UNIV_UNLIKELY(chunk->mem == NULL)) {
 
@@ -1890,9 +1889,8 @@ buf_pool_init_instance(
 						buf_block_free_mutexes(block);
 					}
 
-					buf_pool->allocator.deallocate_large(
-						chunk->mem, &chunk->mem_pfx, chunk->mem_size(),
-						true);
+					buf_pool->allocator.deallocate_large_dodump(
+						chunk->mem, &chunk->mem_pfx, chunk->mem_size());
 				}
 				ut_free(buf_pool->chunks);
 				buf_pool_mutex_exit(buf_pool);
@@ -2035,8 +2033,8 @@ buf_pool_free_instance(
 			buf_block_free_mutexes(block);
 		}
 
-		buf_pool->allocator.deallocate_large(
-			chunk->mem, &chunk->mem_pfx, true);
+		buf_pool->allocator.deallocate_large_dodump(
+			chunk->mem, &chunk->mem_pfx, chunk->mem_size());
 	}
 
 	for (ulint i = BUF_FLUSH_LRU; i < BUF_FLUSH_N_TYPES; ++i) {
@@ -2909,8 +2907,8 @@ withdraw_retry:
 					buf_block_free_mutexes(block);
 				}
 
-				buf_pool->allocator.deallocate_large(
-					chunk->mem, &chunk->mem_pfx, true);
+				buf_pool->allocator.deallocate_large_dodump(
+					chunk->mem, &chunk->mem_pfx, chunk->mem_size());
 
 				sum_freed += chunk->size;
 

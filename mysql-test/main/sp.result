@@ -6777,7 +6777,7 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 create table t1 (a integer)$
 call p1$
 a
-alter table t1 add b integer;
+alter table t1 add b integer$
 call p1$
 a
 drop table t1;

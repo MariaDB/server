@@ -2484,18 +2484,10 @@ os_file_fsync_posix(
 			ut_a(failures < 2000);
 			break;
 
-		case EIO:
-			ib::error() << "fsync() returned EIO, aborting";
-			/* fall through */
 		default:
-			ut_error;
-			break;
+			ib::fatal() << "fsync() returned " << errno;
 		}
 	}
-
-	ut_error;
-
-	return(-1);
 }
 
 /** Check the existence and type of the given file.
@@ -5717,7 +5709,7 @@ AIO::AIO(
 	m_not_full = os_event_create("aio_not_full");
 	m_is_empty = os_event_create("aio_is_empty");
 
-	memset(&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
+	memset((void*)&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
 #ifdef LINUX_NATIVE_AIO
 	memset(&m_events[0], 0x0, sizeof(m_events[0]) * m_events.size());
 #endif /* LINUX_NATIVE_AIO */

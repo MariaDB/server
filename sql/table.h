@@ -830,6 +830,8 @@ struct TABLE_SHARE
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
 
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
+
   /*
     Set share's table cache key and update its db and table name appropriately.
 
@@ -1401,6 +1403,8 @@ public:
   SplM_opt_info *spl_opt_info;
   key_map keys_usable_for_splitting;
 
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
@@ -2004,6 +2008,7 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   inline void init_one_table(const LEX_CSTRING *db_arg,
                              const LEX_CSTRING *table_name_arg,
                              const LEX_CSTRING *alias_arg,
@@ -2017,7 +2022,7 @@ struct TABLE_LIST
     else
       mdl_type= MDL_SHARED_READ;
 
-    bzero((char*) this, sizeof(*this));
+    reset();
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
     DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
@@ -2549,8 +2554,7 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  bool is_table_ref_id_equal(TABLE_SHARE *s) const
+  inline bool is_table_ref_id_equal(TABLE_SHARE *s) const
   {
     return (m_table_ref_type == s->get_table_ref_type() &&
             m_table_ref_version == s->get_table_ref_version());
@@ -2562,12 +2566,10 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  void set_table_ref_id(TABLE_SHARE *s)
+  inline void set_table_ref_id(TABLE_SHARE *s)
   { set_table_ref_id(s->get_table_ref_type(), s->get_table_ref_version()); }
 
-  inline
-  void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
+  inline void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
                         ulong table_ref_version_arg)
   {
     m_table_ref_type= table_ref_type_arg;

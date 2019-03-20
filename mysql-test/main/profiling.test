@@ -60,6 +60,7 @@ select '012345678900123456789001234567890012345678900123456789001234567890012345
 --replace_column 2 #
 show profiles;
 
+--disable_ps_protocol
 --disable_result_log
 ###--replace_column 2 # 3 # 4 #
 show profile for query 15;
@@ -90,6 +91,7 @@ show profile all for query 0 limit 0;
 ###--replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 11 # 12 # 13 # 16 #
 show profile all for query 15;
 ###--replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 11 # 12 # 13 # 16 #
+--enable_ps_protocol
 
 select * from information_schema.profiling;
 select query_id, state, duration from information_schema.profiling;

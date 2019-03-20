@@ -477,7 +477,7 @@ err:
   Create a formated date/time value in a string.
 */
 
-static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
+static bool make_date_time(const LEX_CSTRING &format, MYSQL_TIME *l_time,
                            timestamp_type type, const MY_LOCALE *locale,
                            String *str)
 {
@@ -492,7 +492,7 @@ static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
   if (l_time->neg)
     str->append('-');
   
-  end= (ptr= format->format.str) + format->format.length;
+  end= (ptr= format.str) + format.length;
   for (; ptr != end ; ptr++)
   {
     if (*ptr != '%' || ptr+1 == end)
@@ -612,7 +612,7 @@ static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
 	str->append_with_prefill(intbuff, length, 2, '0');
 	break;
       case 'j':
-	if (type == MYSQL_TIMESTAMP_TIME)
+	if (type == MYSQL_TIMESTAMP_TIME || !l_time->month || !l_time->year)
 	  return 1;
 	length= (uint) (int10_to_str(calc_daynr(l_time->year,l_time->month,
 					l_time->day) - 
@@ -1871,6 +1871,7 @@ uint Item_func_date_format::format_length(const String *format)
 
 String *Item_func_date_format::val_str(String *str)
 {
+  StringBuffer<64> format_buffer;
   String *format;
   MYSQL_TIME l_time;
   uint size;
@@ -1882,7 +1883,7 @@ String *Item_func_date_format::val_str(String *str)
                                      Temporal::Options(mode, thd))))
     return 0;
   
-  if (!(format = args[1]->val_str(str)) || !format->length())
+  if (!(format= args[1]->val_str(&format_buffer)) || !format->length())
     goto null_date;
 
   if (!is_time_format && !(lc= locale) && !(lc= args[2]->locale_from_val_str()))
@@ -1896,18 +1897,13 @@ String *Item_func_date_format::val_str(String *str)
   if (size < MAX_DATE_STRING_REP_LENGTH)
     size= MAX_DATE_STRING_REP_LENGTH;
 
-  if (format == str)
-    str= &value;				// Save result here
+  DBUG_ASSERT(format != str);
   if (str->alloc(size))
     goto null_date;
 
-  DATE_TIME_FORMAT date_time_format;
-  date_time_format.format.str=    (char*) format->ptr();
-  date_time_format.format.length= format->length(); 
-
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(&date_time_format, &l_time,
+  if (!make_date_time(format->lex_cstring(), &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))

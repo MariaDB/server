@@ -674,11 +674,11 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
 
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
-      *tmp_paths= (String *) alloc_root(root, sizeof(String) * n_paths);
+
+      *tmp_paths= new (root) String[n_paths];
       if (*paths == 0 || *tmp_paths == 0)
         return 1;
 
-      bzero(*tmp_paths, sizeof(String) * n_paths);
       for (uint c_path=0; c_path < n_paths; c_path++)
         (*tmp_paths)[c_path].set_charset(&my_charset_utf8_general_ci);
     }

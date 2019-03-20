@@ -255,60 +255,29 @@ class Protocol_discard : public Protocol_text
 {
 public:
   Protocol_discard(THD *thd_arg) : Protocol_text(thd_arg) {}
-  /* The real writing is done only in write() */
-  virtual bool write() { return 0; }
-  virtual bool send_result_set_metadata(List<Item> *list, uint flags)
-  {
-    // Don't pas Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF flags 
-    return Protocol_text::send_result_set_metadata(list, 0);
-  }
-
-  // send_error is intentionally not overloaded.
-  virtual bool send_eof(uint server_status, uint statement_warn_count)
-  {
-    return 0;
-  }
-
-  void prepare_for_resend()
-  {
-#ifndef DBUG_OFF
-    field_pos= 0;
-#endif
-  }
+  bool write() { return 0; }
+  bool send_result_set_metadata(List<Item> *, uint) { return 0; }
+  bool send_eof(uint, uint) { return 0; }
+  void prepare_for_resend() { IF_DBUG(field_pos= 0,); }
   
   /* 
     Provide dummy overrides for any storage methods so that we
     avoid allocating and copying of data
   */
-  virtual bool store_null() 
-  { return false; }
-  virtual bool store_tiny(longlong from)
-  { return false; }
-  virtual bool store_short(longlong from)
-  { return false; }
-  virtual bool store_long(longlong from)
-  { return false; }
-  virtual bool store_longlong(longlong from, bool unsigned_flag)
-  { return false; }
-  virtual bool store_decimal(const my_decimal *)
-  { return false; }
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)
-  { return false; }
-  virtual bool store(const char *from, size_t length,
-  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
-  { return false; }
-  virtual bool store(MYSQL_TIME *time, int decimals)
-  { return false; }
-  virtual bool store_date(MYSQL_TIME *time)
-  { return false; }
-  virtual bool store_time(MYSQL_TIME *time, int decimals)
-  { return false; }
-  virtual bool store(float nr, uint32 decimals, String *buffer)
-  { return false; }
-  virtual bool store(double from, uint32 decimals, String *buffer)
-  { return false; }
-  virtual bool store(Field *field)
-  { return false; }
+  bool store_null() { return false; }
+  bool store_tiny(longlong) { return false; }
+  bool store_short(longlong) { return false; }
+  bool store_long(longlong) { return false; }
+  bool store_longlong(longlong, bool) { return false; }
+  bool store_decimal(const my_decimal *) { return false; }
+  bool store(const char *, size_t, CHARSET_INFO *) { return false; }
+  bool store(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *) { return false; }
+  bool store(MYSQL_TIME *, int) { return false; }
+  bool store_date(MYSQL_TIME *) { return false; }
+  bool store_time(MYSQL_TIME *, int) { return false; }
+  bool store(float, uint32, String *) { return false; }
+  bool store(double, uint32, String *) { return false; }
+  bool store(Field *) { return false; }
 
 };
 

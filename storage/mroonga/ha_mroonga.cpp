@@ -2600,7 +2600,7 @@ ha_mroonga::~ha_mroonga()
   }
   if (blob_buffers)
   {
-    ::delete [] blob_buffers;
+    delete [] blob_buffers;
   }
   grn_obj_unlink(ctx, &top_left_point);
   grn_obj_unlink(ctx, &bottom_right_point);
@@ -3003,9 +3003,9 @@ int ha_mroonga::create_share_for_create() const
   TABLE_LIST *table_list = MRN_LEX_GET_TABLE_LIST(lex);
   MRN_DBUG_ENTER_METHOD();
   wrap_handler_for_create = NULL;
-  memset(&table_for_create, 0, sizeof(TABLE));
+  table_for_create.reset();
+  table_share_for_create.reset();
   memset(&share_for_create, 0, sizeof(MRN_SHARE));
-  memset(&table_share_for_create, 0, sizeof(TABLE_SHARE));
   if (table_share) {
     table_share_for_create.comment = table_share->comment;
     table_share_for_create.connect_string = table_share->connect_string;
@@ -4735,11 +4735,8 @@ int ha_mroonga::storage_open_columns(void)
 
   if (table_share->blob_fields)
   {
-    if (blob_buffers)
-    {
-      ::delete [] blob_buffers;
-    }
-    if (!(blob_buffers = ::new String[n_columns]))
+    DBUG_ASSERT(!blob_buffers);
+    if (!(blob_buffers = new (&table->mem_root) String[n_columns]))
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -14571,8 +14568,8 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
   ) {
     DBUG_RETURN(HA_ALTER_ERROR);
   }
-  memcpy(wrap_altered_table, altered_table, sizeof(TABLE));
-  memcpy(wrap_altered_table_share, altered_table->s, sizeof(TABLE_SHARE));
+  *wrap_altered_table= *altered_table;
+  *wrap_altered_table_share= *altered_table->s;
   mrn_init_sql_alloc(ha_thd(), &(wrap_altered_table_share->mem_root));
 
   n_keys = ha_alter_info->index_drop_count;

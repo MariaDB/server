@@ -1,0 +1,126 @@
+-- source include/have_debug.inc
+
+SET @org_slow_query_log= @@global.slow_query_log;
+SET @org_log_output= @@global.log_output;
+SET @org_log_slow_admin_statements= @@global.log_slow_admin_statements;
+
+SET @@GLOBAL.slow_query_log=OFF;
+SET @@GLOBAL.log_output='TABLE';
+FLUSH SLOW LOGS;
+SET @@GLOBAL.slow_query_log=ON;
+SET @@GLOBAL.log_slow_admin_statements=ON;
+SET SESSION debug_dbug="+d,simulate_slow_query";
+
+DELIMITER $$;
+CREATE PROCEDURE show_slow_log()
+BEGIN
+  SELECT CONCAT('[slow] ', sql_text) AS sql_text
+    FROM mysql.slow_log
+     WHERE sql_text NOT LIKE '%debug_dbug%';
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Expect all admin statements in the slow log (ON,DEFAULT)
+--echo #
+
+SET @@GLOBAL.log_slow_admin_statements=ON;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CALL show_slow_log();
+
+
+--echo #
+--echo # Expect all admin statements in the slow log (ON,admin)
+--echo #
+
+SET @@GLOBAL.log_slow_admin_statements=ON;
+SET log_slow_filter=admin;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CALL show_slow_log();
+
+
+--echo #
+--echo # Expect none of admin DDL statements in the slow log (ON,filesort)
+--echo #
+
+SET @@GLOBAL.log_slow_admin_statements=ON;
+SET log_slow_filter=filesort;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CALL show_slow_log();
+
+
+--echo #
+--echo # Expect none of admin statements in the slow log (OFF,DEFAULT)
+--echo #
+
+SET @@GLOBAL.log_slow_admin_statements=OFF;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CALL show_slow_log();
+
+
+--echo #
+--echo # Clean up
+--echo #
+
+SET SESSION debug_dbug="-d,simulate_slow_query";
+TRUNCATE mysql.slow_log;
+SET @@global.slow_query_log= @org_slow_query_log;
+SET @@global.log_output= @org_log_output;
+SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
+DROP PROCEDURE show_slow_log;

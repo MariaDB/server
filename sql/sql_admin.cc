@@ -452,8 +452,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
-  thd->prepare_logs_for_admin_command();
-
   field_list.push_back(item= new (thd->mem_root)
                        Item_empty_string(thd, "Table",
                                          NAME_CHAR_LEN * 2), thd->mem_root);

@@ -20,6 +20,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION wsrep_sync_wait = 0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
 --source include/wait_condition.inc
+
 SET SESSION wsrep_sync_wait = DEFAULT;
 
 --connection node_2
@@ -30,8 +31,8 @@ SET SESSION wsrep_sync_wait = DEFAULT;
 --source include/galera_connect.inc
 --connection node_2a
 
-SELECT COUNT(*) = 1 FROM t1;
-SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 --let $node_2=node_2a
 --source include/auto_increment_offset_restore.inc
