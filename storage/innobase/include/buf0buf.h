@@ -2072,17 +2072,6 @@ struct buf_buddy_stat_t {
 	ib_uint64_t	relocated_usec;
 };
 
-/** @brief The temporary memory array structure.
-
-NOTE! The definition appears here only for other modules of this
-directory (buf) to see it. Do not use from outside! */
-
-typedef struct {
-	ulint		n_slots;	/*!< Total number of slots */
-	buf_tmp_buffer_t *slots;	/*!< Pointer to the slots in the
-					array */
-} buf_tmp_array_t;
-
 /** @brief The buffer pool structure.
 
 NOTE! The definition appears here only for other modules of this
@@ -2284,20 +2273,47 @@ struct buf_pool_t{
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 	UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
 					/*!< buddy free lists */
+#if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
+# error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"
+#endif
+	/* @} */
 
 	buf_page_t*			watch;
 					/*!< Sentinel records for buffer
 					pool watches. Protected by
 					buf_pool->mutex. */
 
-	buf_tmp_array_t*		tmp_arr;
-					/*!< Array for temporal memory
-					used in compression and encryption */
+	/** Temporary memory for page_compressed and encrypted I/O */
+	struct io_buf_t {
+		/** number of elements in slots[] */
+		const ulint n_slots;
+		/** array of slots */
+		buf_tmp_buffer_t* const slots;
 
-#if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
-# error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"
-#endif
-	/* @} */
+		io_buf_t() = delete;
+
+		/** Constructor */
+		explicit io_buf_t(ulint n_slots) :
+			n_slots(n_slots),
+			slots(static_cast<buf_tmp_buffer_t*>(
+				      ut_malloc_nokey(n_slots
+						      * sizeof *slots)))
+		{
+			memset((void*) slots, 0, n_slots * sizeof *slots);
+		}
+
+		~io_buf_t();
+
+		/** Reserve a buffer */
+		buf_tmp_buffer_t* reserve()
+		{
+			for (buf_tmp_buffer_t* s = slots, *e = slots + n_slots;
+			     s != e; s++) {
+				if (s->acquire()) return s;
+			}
+			return NULL;
+		}
+	} io_buf;
 };
 
 /** Print the given buf_pool_t object.

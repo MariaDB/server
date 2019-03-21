@@ -121,6 +121,7 @@ struct set_numa_interleave_t
 #include "snappy-c.h"
 #endif
 
+#ifndef UNIV_INNOCHECKSUM
 inline void* aligned_malloc(size_t size, size_t align) {
     void *result;
 #ifdef _MSC_VER
@@ -143,6 +144,16 @@ inline void aligned_free(void *ptr) {
       free(ptr);
 #endif
 }
+
+buf_pool_t::io_buf_t::~io_buf_t()
+{
+	for (buf_tmp_buffer_t* s = slots, *e = slots + n_slots; s != e; s++) {
+		aligned_free(s->crypt_buf);
+		aligned_free(s->comp_buf);
+	}
+	ut_free(slots);
+}
+#endif /* !UNIV_INNOCHECKSUM */
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -416,16 +427,9 @@ on the io_type */
 @return reserved buffer slot */
 static buf_tmp_buffer_t* buf_pool_reserve_tmp_slot(buf_pool_t* buf_pool)
 {
-	for (ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
-		buf_tmp_buffer_t* slot = &buf_pool->tmp_arr->slots[i];
-		if (slot->acquire()) {
-			return slot;
-		}
-	}
-
-	/* We assume that free slot is found */
-	ut_error;
-	return NULL;
+	buf_tmp_buffer_t* slot = buf_pool->io_buf.reserve();
+	ut_a(slot);
+	return slot;
 }
 
 /** Reserve a buffer for encryption, decryption or decompression.
@@ -1963,12 +1967,9 @@ buf_pool_init_instance(
 	new(&buf_pool->single_scan_itr) LRUItr(buf_pool, &buf_pool->mutex);
 
 	/* Initialize the temporal memory array and slots */
-	buf_pool->tmp_arr = (buf_tmp_array_t *)ut_malloc_nokey(sizeof(buf_tmp_array_t));
-	memset(buf_pool->tmp_arr, 0, sizeof(buf_tmp_array_t));
-	ulint n_slots = (srv_n_read_io_threads + srv_n_write_io_threads) * (8 * OS_AIO_N_PENDING_IOS_PER_THREAD);
-	buf_pool->tmp_arr->n_slots = n_slots;
-	buf_pool->tmp_arr->slots = (buf_tmp_buffer_t*)ut_malloc_nokey(sizeof(buf_tmp_buffer_t) * n_slots);
-	memset(buf_pool->tmp_arr->slots, 0, (sizeof(buf_tmp_buffer_t) * n_slots));
+	new(&buf_pool->io_buf) buf_pool_t::io_buf_t(
+		(srv_n_read_io_threads + srv_n_write_io_threads)
+		* (8 * OS_AIO_N_PENDING_IOS_PER_THREAD));
 
 	buf_pool_mutex_exit(buf_pool);
 
@@ -2046,26 +2047,7 @@ buf_pool_free_instance(
 	hash_table_free(buf_pool->page_hash);
 	hash_table_free(buf_pool->zip_hash);
 
-	/* Free all used temporary slots */
-	if (buf_pool->tmp_arr) {
-		for(ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
-			buf_tmp_buffer_t* slot = &(buf_pool->tmp_arr->slots[i]);
-			if (slot && slot->crypt_buf) {
-				aligned_free(slot->crypt_buf);
-				slot->crypt_buf = NULL;
-			}
-
-			if (slot && slot->comp_buf) {
-				aligned_free(slot->comp_buf);
-				slot->comp_buf = NULL;
-			}
-		}
-
-		ut_free(buf_pool->tmp_arr->slots);
-		ut_free(buf_pool->tmp_arr);
-		buf_pool->tmp_arr = NULL;
-	}
-
+	buf_pool->io_buf.~io_buf_t();
 	buf_pool->allocator.~ut_allocator();
 }
 
