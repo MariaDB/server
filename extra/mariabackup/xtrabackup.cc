@@ -2552,8 +2552,9 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 		goto error;
 	}
 
-	strncpy(dst_name, (dest_name)?dest_name : cursor.rel_path, sizeof(dst_name));
-
+	strncpy(dst_name, dest_name ? dest_name : cursor.rel_path,
+		sizeof dst_name - 1);
+	dst_name[sizeof dst_name - 1] = '\0';
 
 	/* Setup the page write filter */
 	if (xtrabackup_incremental) {
@@ -2871,7 +2872,8 @@ static void dbug_mariabackup_event(const char *event,const char *key)
 		if (slash)
 			*slash = '_';
 	} else {
-		strncpy(envvar, event, sizeof(envvar));
+		strncpy(envvar, event, sizeof envvar - 1);
+		envvar[sizeof envvar - 1] = '\0';
 	}
 	char *sql = getenv(envvar);
 	if (sql) {
@@ -3282,7 +3284,7 @@ static dberr_t xb_assign_undo_space_start()
 	byte*		page;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
-	ulint		space, page_no __attribute__((unused));
+	ulint		space;
 	int		n_retries = 5;
 	ulint		fsp_flags;
 
@@ -3334,10 +3336,10 @@ retry:
 	/* 0th slot always points to system tablespace.
 	1st slot should point to first undotablespace which is minimum. */
 
-	page_no = mach_read_ulint(TRX_SYS + TRX_SYS_RSEGS
-				  + TRX_SYS_RSEG_SLOT_SIZE
-				  + TRX_SYS_RSEG_PAGE_NO + page, MLOG_4BYTES);
-	ut_ad(page_no != FIL_NULL);
+	ut_ad(mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS
+			       + TRX_SYS_RSEG_SLOT_SIZE
+			       + TRX_SYS_RSEG_PAGE_NO + page)
+	      != FIL_NULL);
 
 	space = mach_read_ulint(TRX_SYS + TRX_SYS_RSEGS
 				+ TRX_SYS_RSEG_SLOT_SIZE
@@ -4498,7 +4500,8 @@ void backup_fix_ddl(void)
 		const char *extension = is_remote ? ".isl" : ".ibd";
 		name.append(extension);
 		char buf[FN_REFLEN];
-		strncpy(buf, name.c_str(), sizeof(buf));
+		strncpy(buf, name.c_str(), sizeof buf - 1);
+		buf[sizeof buf - 1] = '\0';
 		const char *dbname = buf;
 		char *p = strchr(buf, '/');
 		if (p == 0) {

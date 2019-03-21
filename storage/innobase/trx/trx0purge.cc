@@ -718,13 +718,13 @@ not_free:
 			ut_ad(rseg->is_persistent());
 			ut_d(const ulint old_page = rseg->page_no);
 
-			rseg->page_no = trx_rseg_header_create(
+			buf_block_t* rblock = trx_rseg_header_create(
 				purge_sys.truncate.current,
 				rseg->id, sys_header, &mtr);
+			ut_ad(rblock);
+			rseg->page_no = rblock
+				? rblock->page.id.page_no() : FIL_NULL;
 			ut_ad(old_page == rseg->page_no);
-
-			trx_rsegf_t* rseg_header = trx_rsegf_get_new(
-				space.id, rseg->page_no, &mtr);
 
 			/* Before re-initialization ensure that we
 			free the existing structure. There can't be
@@ -752,10 +752,10 @@ not_free:
 				     &trx_undo_t::undo_list);
 
 			/* These were written by trx_rseg_header_create(). */
-			ut_ad(!mach_read_from_4(rseg_header
-						+ TRX_RSEG_FORMAT));
-			ut_ad(!mach_read_from_4(rseg_header
-						+ TRX_RSEG_HISTORY_SIZE));
+			ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
+						+ rblock->frame));
+			ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
+						+ rblock->frame));
 
 			/* Initialize the undo log lists according to
 			the rseg header */

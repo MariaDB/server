@@ -4624,6 +4624,7 @@ row_merge_build_indexes(
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
 	}
 
+	crypt_pfx.m_size = 0; /* silence bogus -Wmaybe-uninitialized */
 	TRASH_ALLOC(&crypt_pfx, sizeof crypt_pfx);
 
 	if (log_tmp_is_encrypted()) {
