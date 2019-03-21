@@ -710,6 +710,12 @@ bool Item_subselect::exec()
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed);
 
+  DBUG_EXECUTE_IF("Item_subselect",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                  ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %s",
+                  Item::Print(this,
+                              enum_query_type(QT_TO_SYSTEM_CHARSET |
+                                              QT_WITHOUT_INTRODUCERS)).ptr()););
   /*
     Do not execute subselect in case of a fatal error
     or if the query has been killed.
