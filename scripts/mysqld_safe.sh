@@ -938,7 +938,7 @@ do
   cmd="$cmd "`shell_quote_string "$i"`
 done
 cmd="$cmd $args"
-[ $dry_run -eq 1 ] && return
+[ $dry_run -eq 1 ] && exit
 
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
