@@ -1056,7 +1056,7 @@ static int start_logging()
     }
     error_header();
     fprintf(stderr, "logging started to the file %s.\n", alt_fname);
-    strncpy(current_log_buf, alt_fname, sizeof(current_log_buf));
+    strncpy(current_log_buf, alt_fname, sizeof(current_log_buf)-1);
     current_log_buf[sizeof(current_log_buf)-1]= 0;
   }
   else if (output_type == OUTPUT_SYSLOG)
@@ -1064,7 +1064,8 @@ static int start_logging()
     openlog(syslog_ident, LOG_NOWAIT, syslog_facility_codes[syslog_facility]);
     error_header();
     fprintf(stderr, "logging started to the syslog.\n");
-    strncpy(current_log_buf, "[SYSLOG]", sizeof(current_log_buf));
+    strncpy(current_log_buf, "[SYSLOG]", sizeof(current_log_buf)-1);
+    compile_time_assert(sizeof current_log_buf > sizeof "[SYSLOG]");
   }
   is_active= 1;
   return 0;
@@ -2600,7 +2601,7 @@ static void update_file_path(MYSQL_THD thd,
     internal_stop_logging= 0;
   }
 
-  strncpy(path_buffer, new_name, sizeof(path_buffer));
+  strncpy(path_buffer, new_name, sizeof(path_buffer)-1);
   path_buffer[sizeof(path_buffer)-1]= 0;
   file_path= path_buffer;
 exit_func:
@@ -2653,7 +2654,7 @@ static void update_incl_users(MYSQL_THD thd,
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_lock(&lock_operations);
   mark_always_logged(thd);
-  strncpy(incl_user_buffer, new_users, sizeof(incl_user_buffer));
+  strncpy(incl_user_buffer, new_users, sizeof(incl_user_buffer)-1);
   incl_user_buffer[sizeof(incl_user_buffer)-1]= 0;
   incl_users= incl_user_buffer;
   user_coll_fill(&incl_user_coll, incl_users, &excl_user_coll, 1);
@@ -2672,7 +2673,7 @@ static void update_excl_users(MYSQL_THD thd  __attribute__((unused)),
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_lock(&lock_operations);
   mark_always_logged(thd);
-  strncpy(excl_user_buffer, new_users, sizeof(excl_user_buffer));
+  strncpy(excl_user_buffer, new_users, sizeof(excl_user_buffer)-1);
   excl_user_buffer[sizeof(excl_user_buffer)-1]= 0;
   excl_users= excl_user_buffer;
   user_coll_fill(&excl_user_coll, excl_users, &incl_user_coll, 0);
@@ -2804,7 +2805,7 @@ static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
   char *new_ident= (*(char **) save) ? *(char **) save : empty_str;
-  strncpy(syslog_ident_buffer, new_ident, sizeof(syslog_ident_buffer));
+  strncpy(syslog_ident_buffer, new_ident, sizeof(syslog_ident_buffer)-1);
   syslog_ident_buffer[sizeof(syslog_ident_buffer)-1]= 0;
   syslog_ident= syslog_ident_buffer;
   error_header();
