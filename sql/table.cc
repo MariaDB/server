@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3429,6 +3429,7 @@ static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol,
   return res;
 }
 
+#ifndef DBUG_OFF
 static void print_long_unique_table(TABLE *table)
 {
   char buff[256];
@@ -3506,6 +3507,7 @@ static void print_long_unique_table(TABLE *table)
   }
   (*error_handler_hook)(1, str.ptr(), ME_NOTE);
 }
+#endif
 
 /*
   Open a table based on a TABLE_SHARE
