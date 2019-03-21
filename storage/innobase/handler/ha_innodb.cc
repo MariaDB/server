@@ -7937,7 +7937,6 @@ ha_innobase::build_template(
 		/* Include the fields that are not needed in index condition
 		pushdown. */
 		for (ulint i = 0; i < n_fields; i++) {
-			mysql_row_templ_t*	templ;
 			const Field*		field = table->field[i];
 			const bool is_v = !field->stored_in_db();
 			if (is_v && skip_virtual) {
@@ -7968,7 +7967,8 @@ ha_innobase::build_template(
 					}
 				}
 
-				templ = build_template_field(
+				ut_d(mysql_row_templ_t*	templ =)
+				build_template_field(
 					m_prebuilt, clust_index, index,
 					table, field, i - num_v, num_v);
 				ut_ad(templ->is_virtual == (ulint)is_v);
@@ -7982,7 +7982,6 @@ ha_innobase::build_template(
 		m_prebuilt->idx_cond = this;
 	} else {
 no_icp:
-		mysql_row_templ_t*	templ;
 		/* No index condition pushdown */
 		m_prebuilt->idx_cond = NULL;
 		ut_ad(num_v == 0);
@@ -8042,7 +8041,8 @@ no_icp:
 				}
 			}
 
-			templ = build_template_field(
+			ut_d(mysql_row_templ_t* templ =)
+			build_template_field(
 				m_prebuilt, clust_index, index,
 				table, field, i - num_v, num_v);
 			ut_ad(templ->is_virtual == (ulint)is_v);

@@ -3285,7 +3285,7 @@ static dberr_t xb_assign_undo_space_start()
 	byte*		page;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
-	ulint		space, page_no;
+	ulint		space;
 	int n_retries = 5;
 
 	if (srv_undo_tablespaces == 0) {
@@ -3326,10 +3326,10 @@ retry:
 	/* 0th slot always points to system tablespace.
 	1st slot should point to first undotablespace which is minimum. */
 
-	page_no = mach_read_ulint(TRX_SYS + TRX_SYS_RSEGS
-				  + TRX_SYS_RSEG_SLOT_SIZE
-				  + TRX_SYS_RSEG_PAGE_NO + page, MLOG_4BYTES);
-	ut_ad(page_no != FIL_NULL);
+	ut_ad(mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS
+			       + TRX_SYS_RSEG_SLOT_SIZE
+			       + TRX_SYS_RSEG_PAGE_NO + page)
+	      != FIL_NULL);
 
 	space = mach_read_ulint(TRX_SYS + TRX_SYS_RSEGS
 				+ TRX_SYS_RSEG_SLOT_SIZE
