@@ -3186,5 +3186,12 @@ EXECUTE stmt;
 a
 drop view v3;
 drop table t1,t2,t3;
+#
+# MDEV-18896: IN subquery in WHERE of a table-less query used for INSERT
+#
+create table t1 (a1 varchar(25));
+create table t2 (a2 varchar(25)) ;
+insert into t1 select 'xxx' from dual where 'xxx' in (select a2 from t2);
+drop table t1,t2;
 # End of 5.5 test
 set optimizer_switch=@subselect_sj_tmp;
