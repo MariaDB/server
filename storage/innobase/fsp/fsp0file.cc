@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -660,6 +660,18 @@ Datafile::find_space_id()
 			ut_align(buf, UNIV_SECTOR_SIZE));
 
 		ulint fsp_flags;
+		/* provide dummy value if the first os_file_read() fails */
+		switch (srv_checksum_algorithm) {
+		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+			fsp_flags = 1U << FSP_FLAGS_FCRC32_POS_MARKER
+				| FSP_FLAGS_FCRC32_PAGE_SSIZE()
+				| innodb_compression_algorithm
+				       << FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
+			break;
+		default:
+			fsp_flags = 0;
+		}
 
 		for (ulint j = 0; j < page_count; ++j) {
 
