@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -411,7 +411,6 @@ trx_sysf_create(
 	ulint		slot_no;
 	buf_block_t*	block;
 	page_t*		page;
-	ulint		page_no;
 	byte*		ptr;
 
 	ut_ad(mtr);
@@ -463,11 +462,11 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sysf_rseg_find_free(mtr);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
-					 ULINT_MAX, slot_no, mtr);
+	buf_block_t* rblock = trx_rseg_header_create(TRX_SYS_SPACE, ULINT_MAX,
+						     slot_no, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Initialize the transaction system main-memory data structures. */

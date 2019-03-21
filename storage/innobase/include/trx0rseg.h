@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -93,8 +93,9 @@ the database.
 @param[in]	max_size	max size in pages
 @param[in]	rseg_slot_no	rseg id == slot number in trx sys
 @param[in,out]	mtr		mini-transaction
-@return page number of the created segment, FIL_NULL if fail */
-ulint
+@return the created rollback segment
+@retval	NULL	on failure */
+buf_block_t*
 trx_rseg_header_create(
 	ulint			space,
 	ulint			max_size,

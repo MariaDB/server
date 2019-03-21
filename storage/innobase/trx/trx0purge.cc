@@ -1007,14 +1007,12 @@ trx_purge_initiate_truncate(
 	mutex_exit(&fil_system->mutex);
 
 	for (ulint i = 0; i < undo_trunc->rsegs_size(); ++i) {
-		trx_rsegf_t*	rseg_header;
-
 		trx_rseg_t*	rseg = undo_trunc->get_ith_rseg(i);
 
-		rseg->page_no = trx_rseg_header_create(
+		buf_block_t* rblock = trx_rseg_header_create(
 			space_id, ULINT_MAX, rseg->id, &mtr);
-
-		rseg_header = trx_rsegf_get_new(space_id, rseg->page_no, &mtr);
+		ut_ad(rblock);
+		rseg->page_no = rblock ? rblock->page.id.page_no() : FIL_NULL;
 
 		/* Before re-initialization ensure that we free the existing
 		structure. There can't be any active transactions. */
@@ -1051,9 +1049,11 @@ trx_purge_initiate_truncate(
 		UT_LIST_INIT(rseg->insert_undo_cached, &trx_undo_t::undo_list);
 
 		/* These were written by trx_rseg_header_create(). */
-		ut_ad(mach_read_from_4(rseg_header + TRX_RSEG_MAX_SIZE)
+		ut_ad(mach_read_from_4(TRX_RSEG + TRX_RSEG_MAX_SIZE
+				       + rblock->frame)
 		      == uint32_t(rseg->max_size));
-		ut_ad(!mach_read_from_4(rseg_header + TRX_RSEG_HISTORY_SIZE));
+		ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
+					+ rblock->frame));
 
 		rseg->max_size = ULINT_MAX;
 
