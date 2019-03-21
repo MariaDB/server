@@ -2550,8 +2550,9 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 		goto error;
 	}
 
-	strncpy(dst_name, (dest_name)?dest_name : cursor.rel_path, sizeof(dst_name));
-
+	strncpy(dst_name, dest_name ? dest_name : cursor.rel_path,
+		sizeof dst_name - 1);
+	dst_name[sizeof dst_name - 1] = '\0';
 
 	/* Setup the page write filter */
 	if (xtrabackup_incremental) {
@@ -2871,7 +2872,8 @@ static void dbug_mariabackup_event(const char *event,const char *key)
 		if (slash)
 			*slash = '_';
 	} else {
-		strncpy(envvar, event, sizeof(envvar));
+		strncpy(envvar, event, sizeof envvar - 1);
+		envvar[sizeof envvar - 1] = '\0';
 	}
 	char *sql = getenv(envvar);
 	if (sql) {
@@ -4536,7 +4538,8 @@ void backup_fix_ddl(void)
 		const char *extension = is_remote ? ".isl" : ".ibd";
 		name.append(extension);
 		char buf[FN_REFLEN];
-		strncpy(buf, name.c_str(), sizeof(buf));
+		strncpy(buf, name.c_str(), sizeof buf - 1);
+		buf[sizeof buf - 1] = '\0';
 		const char *dbname = buf;
 		char *p = strchr(buf, '/');
 		if (p == 0) {
