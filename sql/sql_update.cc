@@ -290,14 +290,17 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 
 int mysql_update(THD *thd,
                  TABLE_LIST *table_list,
-                 List<Item> &fields,
-		 List<Item> &values,
-                 COND *conds,
-                 uint order_num, ORDER *order,
+                 SELECT_LEX *select_lex,
+                 List<Item> &values,
 		 ha_rows limit,
 		 enum enum_duplicates handle_duplicates, bool ignore,
                  ha_rows *found_return, ha_rows *updated_return)
 {
+  List<Item> &fields= select_lex->item_list;
+  uint order_num= select_lex->order_list.elements;
+  ORDER *order= select_lex->order_list.first;
+  COND *conds= select_lex->where;
+
   bool		using_limit= limit != HA_POS_ERROR;
   bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
   bool          used_key_is_modified= FALSE, transactional_table;
@@ -318,7 +321,6 @@ int mysql_update(THD *thd,
   SQL_SELECT	*select= NULL;
   SORT_INFO     *file_sort= 0;
   READ_RECORD	info;
-  SELECT_LEX    *select_lex= &thd->lex->select_lex;
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
