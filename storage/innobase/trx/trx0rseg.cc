@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -265,16 +265,15 @@ void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr)
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
-@return page number of the created segment, FIL_NULL if fail */
-ulint
+@return the created rollback segment
+@retval	NULL	on failure */
+buf_block_t*
 trx_rseg_header_create(
 	fil_space_t*	space,
 	ulint		rseg_id,
 	buf_block_t*	sys_header,
 	mtr_t*		mtr)
 {
-	ulint		page_no;
-	trx_rsegf_t*	rsegf;
 	buf_block_t*	block;
 
 	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
@@ -285,29 +284,25 @@ trx_rseg_header_create(
 
 	if (block == NULL) {
 		/* No space left */
-
-		return(FIL_NULL);
+		return block;
 	}
 
 	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
 
-	page_no = block->page.id.page_no();
-
-	/* Get the rollback segment file page */
-	rsegf = trx_rsegf_get_new(space->id, page_no, mtr);
-
-	mlog_write_ulint(rsegf + TRX_RSEG_FORMAT, 0, MLOG_4BYTES, mtr);
+	mlog_write_ulint(TRX_RSEG + TRX_RSEG_FORMAT + block->frame, 0,
+			 MLOG_4BYTES, mtr);
 
 	/* Initialize the history list */
 
-	mlog_write_ulint(rsegf + TRX_RSEG_HISTORY_SIZE, 0, MLOG_4BYTES, mtr);
-	flst_init(rsegf + TRX_RSEG_HISTORY, mtr);
+	mlog_write_ulint(TRX_RSEG + TRX_RSEG_HISTORY_SIZE + block->frame, 0,
+			 MLOG_4BYTES, mtr);
+	flst_init(TRX_RSEG + TRX_RSEG_HISTORY + block->frame, mtr);
+	trx_rsegf_t* rsegf = TRX_RSEG + block->frame;
 
 	/* Reset the undo log slots */
 	for (ulint i = 0; i < TRX_RSEG_N_SLOTS; i++) {
-		/* FIXME: This is generating a lot of redo log.
-		Why not just let it remain zero-initialized,
-		and adjust trx_rsegf_undo_find_free() and friends? */
+		/* This is generating a lot of redo log. MariaDB 10.4
+		introduced MLOG_MEMSET to reduce the redo log volume. */
 		trx_rsegf_set_nth_undo(rsegf, i, FIL_NULL, mtr);
 	}
 
@@ -324,10 +319,10 @@ trx_rseg_header_create(
 				 + TRX_SYS_RSEG_PAGE_NO
 				 + rseg_id * TRX_SYS_RSEG_SLOT_SIZE
 				 + sys_header->frame,
-				 page_no, MLOG_4BYTES, mtr);
+				 block->page.id.page_no(), MLOG_4BYTES, mtr);
 	}
 
-	return(page_no);
+	return block;
 }
 
 /** Free a rollback segment in memory. */
@@ -604,14 +599,14 @@ trx_rseg_create(ulint space_id)
 
 	if (buf_block_t* sys_header = trx_sysf_get(&mtr)) {
 		ulint	rseg_id = trx_sys_rseg_find_free(sys_header);
-		ulint	page_no = rseg_id == ULINT_UNDEFINED
-			? FIL_NULL
-			: trx_rseg_header_create(space, rseg_id, sys_header,
-						 &mtr);
-		if (page_no != FIL_NULL) {
+		if (buf_block_t* rblock = rseg_id == ULINT_UNDEFINED
+		    ? NULL
+		    : trx_rseg_header_create(space, rseg_id, sys_header,
+					     &mtr)) {
 			ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id)
 			      == space_id);
-			rseg = trx_rseg_mem_create(rseg_id, space, page_no);
+			rseg = trx_rseg_mem_create(rseg_id, space,
+						   rblock->page.id.page_no());
 			ut_ad(rseg->id == rseg_id);
 			ut_ad(rseg->is_persistent());
 			ut_ad(!trx_sys.rseg_array[rseg->id]);
@@ -635,10 +630,10 @@ trx_temp_rseg_create()
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		mtr_x_lock(&fil_system.temp_space->latch, &mtr);
 
-		ulint page_no = trx_rseg_header_create(
+		buf_block_t* rblock = trx_rseg_header_create(
 			fil_system.temp_space, i, NULL, &mtr);
 		trx_rseg_t* rseg = trx_rseg_mem_create(
-			i, fil_system.temp_space, page_no);
+			i, fil_system.temp_space, rblock->page.id.page_no());
 		ut_ad(!rseg->is_persistent());
 		ut_ad(!trx_sys.temp_rsegs[i]);
 		trx_sys.temp_rsegs[i] = rseg;

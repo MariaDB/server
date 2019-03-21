@@ -1059,11 +1059,10 @@ try_again:
 	node->table = dict_table_open_on_id(
 		table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
-	trx_id_t trx_id;
+	trx_id_t trx_id = TRX_ID_MAX;
 
 	if (node->table == NULL) {
 		/* The table has been dropped: no need to do purge */
-		trx_id = TRX_ID_MAX;
 		goto err_exit;
 	}
 

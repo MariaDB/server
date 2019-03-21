@@ -2349,7 +2349,8 @@ static void rocksdb_copy_back() {
 		return;
 	char rocksdb_home_dir[FN_REFLEN];
         if (xb_rocksdb_datadir && is_abs_path(xb_rocksdb_datadir)) {
-		strncpy(rocksdb_home_dir, xb_rocksdb_datadir, sizeof(rocksdb_home_dir));
+		strncpy(rocksdb_home_dir, xb_rocksdb_datadir, sizeof rocksdb_home_dir - 1);
+		rocksdb_home_dir[sizeof rocksdb_home_dir - 1] = '\0';
 	} else {
 	   snprintf(rocksdb_home_dir, sizeof(rocksdb_home_dir), "%s/%s", mysql_data_home, 
 		xb_rocksdb_datadir?trim_dotslash(xb_rocksdb_datadir): ROCKSDB_BACKUP_DIR);
