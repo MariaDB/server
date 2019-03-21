@@ -9041,7 +9041,6 @@ innobase_rename_or_enlarge_column_try(
 	bool			is_v)
 {
 	dict_col_t*	col;
-	dict_v_col_t*	v_col;
 
 	DBUG_ENTER("innobase_rename_or_enlarge_column_try");
 
@@ -9050,12 +9049,16 @@ innobase_rename_or_enlarge_column_try(
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 
+	ulint n_base;
+
 	if (is_v) {
-		v_col = dict_table_get_nth_v_col(user_table, pos);
+		dict_v_col_t* v_col= dict_table_get_nth_v_col(user_table, pos);
 		pos = dict_create_v_col_pos(v_col->v_pos, v_col->m_col.ind);
 		col = &v_col->m_col;
+		n_base = v_col->num_base;
 	} else {
 		col = dict_table_get_nth_col(user_table, pos);
+		n_base = 0;
 	}
 
 	ulint prtype, mtype, len;
@@ -9107,8 +9110,7 @@ innobase_rename_or_enlarge_column_try(
 	DBUG_RETURN(innodb_insert_sys_columns(user_table->id, pos,
 					      f.field_name.str,
 					      mtype, prtype, len,
-					      is_v ? v_col->num_base : 0,
-					      trx, true));
+					      n_base, trx, true));
 }
 
 /** Rename or enlarge columns in the data dictionary cache
