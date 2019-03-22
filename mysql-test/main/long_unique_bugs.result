@@ -219,3 +219,19 @@ data
 f
 o
 DROP TABLE t1;
+create table t1 (
+c char(10) character set utf8mb4,
+unique key a using hash (c(1))
+) engine=myisam;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(10) CHARACTER SET utf8mb4 DEFAULT NULL,
+  UNIQUE KEY `a` (`c`(1)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values ('б');
+insert into t1 values ('бб');
+ERROR 23000: Duplicate entry '�' for key 'a'
+insert into t1 values ('ббб');
+ERROR 23000: Duplicate entry '�' for key 'a'
+drop table t1;

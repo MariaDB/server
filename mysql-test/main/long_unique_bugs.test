@@ -250,3 +250,18 @@ SELECT * FROM t1;
 DROP TABLE t1;
 --let $datadir= `select @@datadir`
 --remove_file $datadir/test/load.data
+
+#
+# MDEV-18953 Hash index on partial char field not working
+#
+create table t1 (
+ c char(10) character set utf8mb4,
+ unique key a using hash (c(1))
+) engine=myisam;
+show create table t1;
+insert into t1 values ('б');
+--error ER_DUP_ENTRY
+insert into t1 values ('бб');
+--error ER_DUP_ENTRY
+insert into t1 values ('ббб');
+drop table t1;
