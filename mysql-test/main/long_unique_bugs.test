@@ -265,3 +265,12 @@ insert into t1 values ('бб');
 --error ER_DUP_ENTRY
 insert into t1 values ('ббб');
 drop table t1;
+
+#
+# MDEV-18904 Assertion `m_part_spec.start_part >= m_part_spec.end_part' failed in ha_partition::index_read_idx_map
+#
+--source include/have_partition.inc
+CREATE TABLE t1 (a INT, UNIQUE USING HASH (a)) PARTITION BY HASH (a) PARTITIONS 2;
+INSERT INTO t1 VALUES (2);
+REPLACE INTO t1 VALUES (2);
+DROP TABLE t1;

@@ -5759,12 +5759,6 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
 
     get_partition_set(table, buf, index, &m_start_key, &m_part_spec);
 
-    /*
-      We have either found exactly 1 partition
-      (in which case start_part == end_part)
-      or no matching partitions (start_part > end_part)
-    */
-    DBUG_ASSERT(m_part_spec.start_part >= m_part_spec.end_part);
     /* The start part is must be marked as used. */
     DBUG_ASSERT(m_part_spec.start_part > m_part_spec.end_part ||
                 bitmap_is_set(&(m_part_info->read_partitions),

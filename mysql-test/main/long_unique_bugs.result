@@ -235,3 +235,7 @@ ERROR 23000: Duplicate entry 'Ð' for key 'a'
 insert into t1 values ('Ð±Ð±Ð±');
 ERROR 23000: Duplicate entry 'Ð' for key 'a'
 drop table t1;
+CREATE TABLE t1 (a INT, UNIQUE USING HASH (a)) PARTITION BY HASH (a) PARTITIONS 2;
+INSERT INTO t1 VALUES (2);
+REPLACE INTO t1 VALUES (2);
+DROP TABLE t1;
