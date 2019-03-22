@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2018, MariaDB Corporation.
+(c) 2017, 2019, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -5419,8 +5419,7 @@ static ibool prepare_handle_del_files(const char *datadir, const char *db, const
 
 /** Implement --prepare
 @return	whether the operation succeeded */
-static bool
-xtrabackup_prepare_func(char** argv)
+static bool xtrabackup_prepare_func(char** argv)
 {
 	char			 metadata_path[FN_REFLEN];
 

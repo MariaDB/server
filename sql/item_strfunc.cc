@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3086,8 +3086,12 @@ err:
 }
 
 
-bool Item_func_rpad::fix_length_and_dec()
+bool Item_func_pad::fix_length_and_dec()
 {
+  String *str;
+  if (!args[2]->basic_const_item() || !(str= args[2]->val_str(&pad_str)) || !str->length())
+    maybe_null= true;
+
   // Handle character set for args[0] and args[2].
   if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
     return TRUE;
@@ -3122,7 +3126,7 @@ String *Item_func_rpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(str);
-  String *rpad= args[2]->val_str(&rpad_str);
+  String *rpad= args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !rpad || 
       ((count < 0) && !args[1]->unsigned_flag))
@@ -3195,33 +3199,6 @@ String *Item_func_rpad::val_str(String *str)
 }
 
 
-bool Item_func_lpad::fix_length_and_dec()
-{
-  // Handle character set for args[0] and args[2].
-  if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
-    return TRUE;
-
-  if (args[1]->const_item())
-  {
-    ulonglong char_length= (ulonglong) args[1]->val_int();
-    DBUG_ASSERT(collation.collation->mbmaxlen > 0);
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      char_length= 0;
-    else if (char_length > INT_MAX32)
-      char_length= INT_MAX32;
-    fix_char_length_ulonglong(char_length);
-  }
-  else
-  {
-    max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
-  }
-  return FALSE;
-}
-
-
 String *Item_func_lpad::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -3230,7 +3207,7 @@ String *Item_func_lpad::val_str(String *str)
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(&tmp_value);
-  String *pad= args[2]->val_str(&lpad_str);
+  String *pad= args[2]->val_str(&pad_str);
 
   if (!res || args[1]->null_value || !pad ||  
       ((count < 0) && !args[1]->unsigned_flag))

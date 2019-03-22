@@ -2987,6 +2987,77 @@ select md5(_filename "a"), sha(_filename "a");
 md5(_filename "a")	sha(_filename "a")
 0cc175b9c0f1b6a831c399e269772661	86f7e437faa5a7fce15d1ddcb9eaeaea377667b8
 #
+# MDEV-18881 Assertion `0' failed in make_sortkey upon SELECT with GROUP BY after LOAD DATA
+#
+CREATE TABLE t1 (a BIT(22), b CHAR(8) NOT NULL, c CHAR(8));
+INSERT INTO t1 VALUES (0xA4B,'foo','qux');
+INSERT INTO t1 VALUES (0x8F5,'bar','foobar');
+INSERT INTO t1 VALUES (0x0, '', NULL);
+INSERT INTO t1 VALUES (0x4B, 'foo','qux');
+INSERT INTO t1 VALUES (0x8F5, 'bar', 'foobar');
+SET SESSION SQL_MODE= '';
+SELECT GROUP_CONCAT(c) AS f FROM t1 GROUP BY LPAD('foo', 20, b);
+f
+NULL
+foobar,foobar
+qux,qux
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
+CREATE TABLE t1 AS SELECT
+LPAD('a',10,' '),
+RPAD('a',10,' '),
+LPAD('a',10,'  '),
+RPAD('a',10,'  '),
+LPAD('a',10,NULL),
+RPAD('a',10,NULL),
+LPAD('a',10,''),
+RPAD('a',10,''),
+LPAD('a',10,RAND()),
+RPAD('a',10,RAND());
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `LPAD('a',10,' ')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,' ')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,'  ')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,'  ')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,RAND())` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,RAND())` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET SESSION SQL_MODE= '';
+CREATE TABLE t1 AS SELECT
+LPAD('a',10,' '),
+RPAD('a',10,' '),
+LPAD('a',10,'  '),
+RPAD('a',10,'  '),
+LPAD('a',10,NULL),
+RPAD('a',10,NULL),
+LPAD('a',10,''),
+RPAD('a',10,''),
+LPAD('a',10,RAND()),
+RPAD('a',10,RAND());
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `LPAD('a',10,' ')` varchar(10) NOT NULL,
+  `RPAD('a',10,' ')` varchar(10) NOT NULL,
+  `LPAD('a',10,'  ')` varchar(10) NOT NULL,
+  `RPAD('a',10,'  ')` varchar(10) NOT NULL,
+  `LPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,RAND())` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,RAND())` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
+#
 # End of 5.5 tests
 #
 #
