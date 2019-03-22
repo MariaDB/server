@@ -584,7 +584,7 @@ static void debug_sync_remove_action(st_debug_sync_control *ds_control,
     memmove(save_action, action, sizeof(st_debug_sync_action));
 
     /* Move actions down. */
-    memmove(ds_control->ds_action + dsp_idx,
+    memmove((void*)(ds_control->ds_action + dsp_idx),
             ds_control->ds_action + dsp_idx + 1,
             (ds_control->ds_active - dsp_idx) *
             sizeof(st_debug_sync_action));
@@ -595,8 +595,8 @@ static void debug_sync_remove_action(st_debug_sync_control *ds_control,
       produced by the shift. Again do not use an assignment operator to
       avoid string allocation/copy.
     */
-    memmove(ds_control->ds_action + ds_control->ds_active, save_action,
-            sizeof(st_debug_sync_action));
+    memmove((void*)(ds_control->ds_action + ds_control->ds_active),
+            save_action, sizeof(st_debug_sync_action));
   }
 
   DBUG_VOID_RETURN;

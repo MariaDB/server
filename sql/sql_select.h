@@ -225,6 +225,11 @@ Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
 int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
+Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
+                                           COND_EQUAL **cond_eq,
+                                           List<Item> &new_conds,
+                                           Item::cond_result *cond_value,
+                                           bool build_cond_equal);
 
 #include "sql_explain.h"
 
@@ -241,7 +246,6 @@ struct SplM_plan_info;
 class SplM_opt_info;
 
 typedef struct st_join_table {
-  st_join_table() {}
   TABLE		*table;
   TABLE_LIST    *tab_list;
   KEYUSE	*keyuse;			/**< pointer to first used key */
@@ -511,6 +515,18 @@ typedef struct st_join_table {
 
   bool preread_init_done;
 
+  /*
+    Cost info to the range filter used when joining this join table
+    (Defined when the best join order has been already chosen)
+  */
+  Range_rowid_filter_cost_info *range_rowid_filter_info;
+  /* Rowid filter to be used when joining this join table */
+  Rowid_filter *rowid_filter;
+  /* Becomes true just after the used range filter has been built / filled */
+  bool is_rowid_filter_built;
+
+  void build_range_rowid_filter_if_needed();
+
   void cleanup();
   inline bool is_using_loose_index_scan()
   {
@@ -659,7 +675,8 @@ typedef struct st_join_table {
   void add_keyuses_for_splitting();
   SplM_plan_info *choose_best_splitting(double record_count,
                                         table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+                     bool is_const_table);
 } JOIN_TAB;
 
 
@@ -885,6 +902,10 @@ public:
 };
 
 
+class Range_rowid_filter_cost_info;
+class Rowid_filter;
+
+
 /**
   Information about a position of table within a join order. Used in join
   optimization.
@@ -967,6 +988,10 @@ typedef struct st_position
 
   /* Info on splitting plan used at this position */  
   SplM_plan_info *spl_plan;
+
+  /* Cost info for the range filter used at this position */
+  Range_rowid_filter_cost_info *range_rowid_filter_info;
+
 } POSITION;
 
 typedef Bounds_checked_array<Item_null_result*> Item_null_array;
@@ -1616,6 +1641,8 @@ public:
   bool optimize_unflattened_subqueries();
   bool optimize_constant_subqueries();
   int init_join_caches();
+  bool make_range_rowid_filters();
+  bool init_range_rowid_filters();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
 			  bool before_group_by, bool recompute= FALSE);
 
@@ -1757,7 +1784,6 @@ public:
   bool fix_all_splittings_in_plan();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
-  bool add_equalities_to_where_condition(THD *thd, List<Item> &eq_list);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
@@ -2130,9 +2156,9 @@ public:
   static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *, THD *) throw(){}
 
-  Virtual_tmp_table(THD *thd)
+  Virtual_tmp_table(THD *thd) : m_alloced_field_count(0)
   {
-    bzero(this, sizeof(*this));
+    reset();
     temp_pool_slot= MY_BIT_NONE;
     in_use= thd;
     copy_blobs= true;
@@ -2446,8 +2472,52 @@ public:
   ~Pushdown_query() { delete handler; }
 
   /* Function that calls the above scan functions */
-  int execute(JOIN *join);
+  int execute(JOIN *);
 };
+
+class derived_handler;
+
+class Pushdown_derived: public Sql_alloc
+{
+private:
+  bool is_analyze;
+public:
+  TABLE_LIST *derived;
+  derived_handler *handler;
+
+  Pushdown_derived(TABLE_LIST *tbl, derived_handler *h);
+
+  ~Pushdown_derived();
+
+  int execute(); 
+};
+
+
+class select_handler;
+
+
+class Pushdown_select: public Sql_alloc
+{
+private:
+  bool is_analyze;
+  List<Item> result_columns;
+  bool send_result_set_metadata();
+  bool send_data();
+  bool send_eof();
+
+public:
+  SELECT_LEX *select;
+  select_handler *handler;
+
+  Pushdown_select(SELECT_LEX *sel, select_handler *h);
+
+  ~Pushdown_select();
+
+  bool init();
+
+  int execute(); 
+};
+
 
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
 int test_if_group_changed(List<Cached_item> &list);

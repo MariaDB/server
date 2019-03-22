@@ -16,21 +16,27 @@
 
 
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
-  SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
   SET(WSREP_SOURCES
+    wsrep_client_service.cc
+    wsrep_high_priority_service.cc
+    wsrep_server_service.cc
+    wsrep_storage_service.cc
+    wsrep_server_state.cc
+    wsrep_utils.cc
+    wsrep_xid.cc
     wsrep_check_opts.cc
-    wsrep_hton.cc
-    wsrep_mysqld.cc 
+    wsrep_mysqld.cc
     wsrep_notify.cc
     wsrep_sst.cc
-    wsrep_utils.cc
     wsrep_var.cc
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
-    wsrep_xid.cc
+    wsrep_schema.cc
+    wsrep_plugin.cc
+    service_wsrep.cc
   )
-  SET(WSREP_LIB wsrep)
+  SET(WSREP_LIB wsrep-lib wsrep_api_v26)
 ELSE()
   SET(WSREP_SOURCES wsrep_dummy.cc)
 ENDIF()
@@ -42,7 +48,6 @@ ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${WSREP_INCLUDES}
 )
 
 
@@ -96,7 +101,7 @@ SET (SQL_SOURCE
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
                debug_sync.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
-               group_by_handler.cc
+               group_by_handler.cc derived_handler.cc select_handler.cc
                sql_statistics.cc sql_string.cc lex_string.h
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
@@ -127,16 +132,18 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
-               sql_type.cc
+               sql_type.cc sql_type_json.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h
                sql_tvc.cc sql_tvc.h
                opt_split.cc
+               rowid_filter.cc rowid_filter.h
+               opt_trace.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
-               proxy_protocol.cc
+               proxy_protocol.cc backup.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
@@ -441,12 +448,6 @@ IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
     ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
   )
-  INSTALL(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data DESTINATION . 
-  COMPONENT DataFiles 
-  PATTERN "initdb.dep" EXCLUDE  
-  PATTERN "bootstrap.sql" EXCLUDE
-  PATTERN "aria*" EXCLUDE
-  )
 ELSE()
   # Not windows or cross compiling, just install an empty directory
   INSTALL(FILES ${DUMMY_FILE} DESTINATION data/mysql COMPONENT DataFiles)
@@ -490,9 +491,11 @@ IF(WIN32)
 
   ADD_LIBRARY(winservice STATIC winservice.c)
   TARGET_LINK_LIBRARIES(winservice shell32)
+
   MYSQL_ADD_EXECUTABLE(mysql_upgrade_service
     mysql_upgrade_service.cc
-    COMPONENT Server)	
+    upgrade_conf_file.cc
+    COMPONENT Server)
   TARGET_LINK_LIBRARIES(mysql_upgrade_service mysys winservice)
 ENDIF(WIN32)
 

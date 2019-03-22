@@ -291,6 +291,7 @@ sub combinations_from_file($$)
     @combs = ({ skip => $skip_combinations{$filename} });
   } else {
     return () if @::opt_combinations or not -f $filename;
+    return () if ::using_extern();
     # Read combinations file in my.cnf format
     mtr_verbose("Read combinations file $filename");
     my $config= My::Config->new($filename);

@@ -22,7 +22,8 @@ drop table t1,t2;
 
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
 # Embedded server is hardcoded to show "Writing to net" as STATE.
---replace_result "Writing to net" "NULL"
+# ps-protocol will have Execute not Query
+--replace_result "Writing to net" "NULL" "Execute" "Query"
 --replace_regex /localhost[:0-9]*/localhost/
 SHOW PROCESSLIST;
 
@@ -119,3 +120,32 @@ insert t2 select a from t1;
 select a, unix_timestamp(a) from t2;
 drop table t1, t2;
 set time_zone=DEFAULT;
+
+
+--echo #
+--echo # MDEV-13995 MAX(timestamp) returns a wrong result near DST change
+--echo #
+
+# This tests:
+#   Field_timestamp::val_native()
+#   Field_timestamp_hires::val_native()
+#   Type_handler_timestamp_common::type_handler_for_native_format()
+
+SET global mysql56_temporal_format=false;
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(0));
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526)      /*summer time in Moscow*/);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526+3599) /*winter time in Moscow*/);
+SET time_zone='Europe/Moscow';
+SELECT a, COALESCE(a), UNIX_TIMESTAMP(a) FROM t1;
+SELECT MIN(a), UNIX_TIMESTAMP(MIN(a)) AS a FROM t1;
+SELECT MAX(a), UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+SELECT t1.a, UNIX_TIMESTAMP(t1.a), t2.a, UNIX_TIMESTAMP(t2.a) FROM t1 t1, t1 t2 WHERE t1.a=t2.a;
+ALTER TABLE t1 MODIFY a TIMESTAMP(1);
+SELECT a, COALESCE(a), UNIX_TIMESTAMP(a) FROM t1;
+SELECT MIN(a), UNIX_TIMESTAMP(MIN(a)) AS a FROM t1;
+SELECT MAX(a), UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+SELECT t1.a, UNIX_TIMESTAMP(t1.a), t2.a, UNIX_TIMESTAMP(t2.a) FROM t1 t1, t1 t2 WHERE t1.a=t2.a;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET global mysql56_temporal_format=true;

@@ -13,7 +13,7 @@ EXECUTE stmtCreateRole;
 #
 SELECT user, host,is_role FROM mysql.user
 WHERE user = 'developers';
-user	host	is_role
+User	Host	is_role
 developers		Y
 SHOW GRANTS;
 Grants for root@localhost
@@ -73,7 +73,7 @@ EXECUTE stmtDropRole;
 #
 SELECT user, host,is_role FROM mysql.user
 WHERE user = 'developers';
-user	host	is_role
+User	Host	is_role
 SELECT * FROM mysql.roles_mapping;
 Host	User	Role	Admin_option
 SHOW GRANTS;
@@ -89,7 +89,7 @@ GRANT USAGE ON *.* TO 'test_user'@'%'
 EXECUTE stmtCreateRole;
 SELECT user, host,is_role FROM mysql.user
 WHERE user = 'developers';
-user	host	is_role
+User	Host	is_role
 developers		Y
 SELECT * FROM mysql.roles_mapping;
 Host	User	Role	Admin_option

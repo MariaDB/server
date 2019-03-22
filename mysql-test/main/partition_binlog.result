@@ -27,6 +27,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	repair	error	Error in list of partitions to test.t1
 ALTER TABLE t1 ANALYZE PARTITION p0;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 ALTER TABLE t1 CHECK PARTITION p0;
 Table	Op	Msg_type	Msg_text

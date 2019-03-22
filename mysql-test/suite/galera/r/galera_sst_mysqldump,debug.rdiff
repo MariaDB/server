@@ -1,6 +1,22 @@
---- galera_sst_mysqldump.result
-+++ galera_sst_mysqldump,debug.reject
-@@ -388,6 +388,114 @@
+--- galera_sst_mysqldump.result	2018-11-29 23:54:03.663607613 +0100
++++ galera_sst_mysqldump,debug.reject	2018-11-29 23:55:42.377562815 +0100
+@@ -1,3 +1,5 @@
++connection node_2;
++connection node_1;
+ Setting SST method to mysqldump ...
+ call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to '127.0.0.1'");
+ call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+@@ -56,6 +58,9 @@
+ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+ connection node_2;
+ Loading wsrep provider ...
++disconnect node_2;
++connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2;
++connection node_2;
+ SET AUTOCOMMIT=OFF;
+ START TRANSACTION;
+ INSERT INTO t1 VALUES ('node2_committed_after');
+@@ -390,6 +395,114 @@
  DROP TABLE t1;
  COMMIT;
  SET AUTOCOMMIT=ON;

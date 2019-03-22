@@ -52,9 +52,12 @@ PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=9;
 --source include/shutdown_mysqld.inc
 --perl
 use strict;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 my $ps= $ENV{INNODB_PAGE_SIZE};
 my $file= "$ENV{bugdir}/ibdata1";
 open(FILE, "+<", $file) || die "Unable to open $file\n";
+die "Unable to read $file" unless sysread(FILE, $_, 58) == 58;
+my $full_crc32 = unpack("N",substr($_,54,4)) & 0x10; # FIL_SPACE_FLAGS
 # Read DICT_HDR_TABLES, the root page number of CLUST_IND (SYS_TABLES.NAME).
 sysseek(FILE, 7*$ps+38+32, 0) || die "Unable to seek $file";
 die "Unable to read $file" unless sysread(FILE, $_, 4) == 4;
@@ -127,8 +130,19 @@ for (my $offset= 0x65; $offset;
     }
     print ")\n";
 }
-substr($page,0,4)=pack("N",0xdeadbeef);
-substr($page,$ps-8,4)=pack("N",0xdeadbeef);
+my $polynomial = 0x82f63b78; # CRC-32C
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
+    substr($page, $ps-4, 4) = pack("N", $ck);
+}
+else
+{
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$ps-8,4)=$ck;
+}
 sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file\n";
@@ -216,3 +230,9 @@ DROP TABLE tr,tc,td,tz,tp;
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir
+
+call mtr.add_suppression("ERROR HY000: Can't create table `test`.`t1`");
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1(f1 INT, f2 VARCHAR(1), KEY k1(f2),
+		FULLTEXT KEY(f2),
+		FOREIGN KEY (f2) REFERENCES t1(f3))ENGINE=InnoDB;

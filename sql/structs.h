@@ -1,8 +1,8 @@
 #ifndef STRUCTS_INCLUDED
 #define STRUCTS_INCLUDED
 
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,6 +27,15 @@
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "my_base.h"                   /* ha_rows, ha_key_alg */
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
+#include "sql_bitmap.h"
+
+#if MAX_INDEXES <= 64
+typedef Bitmap<64>  key_map;          /* Used for finding keys */
+#elif MAX_INDEXES > 128
+#error "MAX_INDEXES values greater than 128 is not supported."
+#else
+typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
+#endif
 
 struct TABLE;
 class Type_handler;
@@ -109,8 +118,15 @@ typedef struct st_key {
       pk2 is explicitly present in idx1, it is not in the extension, so
       ext_key_part_map.is_set(1) == false
   */
-  LEX_CSTRING name;
   key_part_map ext_key_part_map;
+  /*
+    Bitmap of indexes having common parts with this index
+    (only key parts from key definitions are taken into account)
+  */
+  key_map overlapped;
+  /* Set of keys constraint correlated with this key */
+  key_map constraint_correlated;
+  LEX_CSTRING name;
   uint  block_size;
   enum  ha_key_alg algorithm;
   /* 
@@ -203,6 +219,17 @@ extern const char *show_comp_option_name[];
 
 typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
+struct USER_AUTH : public Sql_alloc
+{
+  LEX_CSTRING plugin, auth_str, pwtext;
+  USER_AUTH *next;
+  USER_AUTH() : next(NULL)
+  {
+    plugin.str= auth_str.str= "";
+    pwtext.str= NULL;
+    plugin.length= auth_str.length= pwtext.length= 0;
+  }
+};
 
 struct AUTHID
 {
@@ -227,12 +254,10 @@ struct AUTHID
 
 struct LEX_USER: public AUTHID
 {
-  LEX_CSTRING plugin, auth, pwtext;
-  void reset_auth()
+  USER_AUTH *auth;
+  bool has_auth()
   {
-    pwtext.length= plugin.length= auth.length= 0;
-    pwtext.str= 0;
-    plugin.str= auth.str= "";
+    return auth && (auth->plugin.length || auth->auth_str.length || auth->pwtext.length);
   }
 };
 
@@ -691,26 +716,41 @@ public:
 struct Lex_for_loop_bounds_st
 {
 public:
-  class sp_assignment_lex *m_index;
-  class sp_assignment_lex *m_upper_bound;
+  class sp_assignment_lex *m_index;  // The first iteration value (or cursor)
+  class sp_assignment_lex *m_target_bound; // The last iteration value
   int8 m_direction;
   bool m_implicit_cursor;
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+};
+
+
+class Lex_for_loop_bounds_intrange: public Lex_for_loop_bounds_st
+{
+public:
+  Lex_for_loop_bounds_intrange(int8 direction,
+                               class sp_assignment_lex *left_expr,
+                               class sp_assignment_lex *right_expr)
+  {
+    m_direction= direction;
+    m_index=        direction > 0 ? left_expr  : right_expr;
+    m_target_bound= direction > 0 ? right_expr : left_expr;
+    m_implicit_cursor= false;
+  }
 };
 
 
 struct Lex_for_loop_st
 {
 public:
-  class sp_variable *m_index;
-  class sp_variable *m_upper_bound;
+  class sp_variable *m_index;  // The first iteration value (or cursor)
+  class sp_variable *m_target_bound; // The last iteration value
   int m_cursor_offset;
   int8 m_direction;
   bool m_implicit_cursor;
   void init()
   {
     m_index= 0;
-    m_upper_bound= 0;
+    m_target_bound= 0;
     m_direction= 0;
     m_implicit_cursor= false;
   }
@@ -718,7 +758,7 @@ public:
   {
     *this= other;
   }
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
   bool is_for_loop_explicit_cursor() const
   {
     return is_for_loop_cursor() && !m_implicit_cursor;
@@ -832,17 +872,17 @@ public:
 
 class Timeval: public timeval
 {
+protected:
+  Timeval() { }
 public:
   Timeval(my_time_t sec, ulong usec)
   {
     tv_sec= sec;
     tv_usec= usec;
   }
-  Timeval &trunc(uint dec)
-  {
-    my_timeval_trunc(this, dec);
-    return *this;
-  }
+  explicit Timeval(const timeval &tv)
+   :timeval(tv)
+  { }
 };
 
 

@@ -57,12 +57,12 @@ update t0 set key2=key1,key3=key1,key4=key1,key5=key1,key6=key1,key7=key1,key8=1
 analyze table t0;
 
 # 1. One index
-explain select * from t0 where key1 < 3 or key1 > 1020;
+explain select * from t0 where key1 < 3 or key1 > 920 and key1 < 924;
 
 # 2. Simple cases
 explain
-select * from t0 where key1 < 3 or key2 > 1020;
-select * from t0 where key1 < 3 or key2 > 1020;
+select * from t0 where key1 < 3 or key2 > 920 and key2 < 924;
+select * from t0 where key1 < 3 or key2 > 920 and key2 < 924;
 
 select * from t0 where key1=1022; # MDEV-13535 no-key-read select after keyread
 
@@ -115,7 +115,6 @@ select * from t0 where (key1 < 3 or key2 < 6) and (key1 < 7 or key3 < 4);
 
 select * from t0 where (key1 < 3 or key2 < 6) and (key1 < 7 or key3 < 4);
 
-
 explain select * from t0 where
   (key1 < 3 or key2 < 3) and (key3 < 4 or key4 < 4) and (key5 < 2 or key6 < 2);
 
@@ -146,6 +145,10 @@ select * from t0 where
     key1 < 7;
 
 #   tree_or(List<SEL_IMERGE>, List<SEL_IMERGE>).
+select count(*) from t0 where
+    ((key1 < 4 or key2 < 4) and (key3 <5 or key5 < 4))
+  or
+    ((key5 < 5 or key6 < 6) and (key7 <7 or key8 < 4));
 explain select * from t0 where
     ((key1 < 4 or key2 < 4) and (key3 <5 or key5 < 4))
   or
@@ -476,6 +479,7 @@ create table t2(
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1;
 insert into t2 select * from t1;
 
+
 --echo must use sort-union rather than union:
 --replace_column 9 #
 explain select * from t1 where a=4 or b=4;
@@ -486,9 +490,9 @@ select * from t1 ignore index(a,b) where a=4 or b=4;
 
 --echo must use union, not sort-union:
 --replace_column 9 #
-explain select * from t2 where a=4 or b=4;
+explain select * from t2 where a=2 or b=2;
 --sorted_result
-select * from t2 where a=4 or b=4;
+select * from t2 where a=2 or b=2;
 
 drop table t1, t2;
 

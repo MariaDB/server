@@ -1,0 +1,28 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size=1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection node_1;
+DROP TABLE t1;
+connection node_2;
+SHOW CREATE TABLE t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE DATABASE mdev_18587;
+connection node_2;
+SHOW DATABASES LIKE 'mdev_18587';
+Database (mdev_18587)
+mdev_18587
+connection node_1;
+DROP DATABASE mdev_18587;
+connection node_2;
+SHOW DATABASES LIKE 'mdev_18587';
+Database (mdev_18587)
+connection node_1;
+SET SESSION wsrep_trx_fragment_size=DEFAULT;

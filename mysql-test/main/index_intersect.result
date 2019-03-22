@@ -38,6 +38,7 @@ SELECT COUNT(*) FROM CountryLanguage;
 COUNT(*)
 984
 CREATE INDEX Name ON City(Name);
+SET SESSION optimizer_switch='rowid_filter=off';
 SET SESSION optimizer_switch='index_merge_sort_intersection=on';
 SELECT COUNT(*) FROM City;
 COUNT(*)
@@ -357,6 +358,9 @@ COUNT(*)
 SELECT COUNT(*) FROM City WHERE Country LIKE 'B%';
 COUNT(*)
 339
+SELECT COUNT(*) FROM City WHERE Country LIKE 'J%';
+COUNT(*)
+256
 EXPLAIN
 SELECT * FROM City
 WHERE Name BETWEEN 'M' AND 'N' AND Population > 1000000 AND Country LIKE 'C%';
@@ -364,7 +368,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	index_merge	Population,Country,Name	Name,Population	35,4	NULL	#	Using sort_intersect(Name,Population); Using where
 EXPLAIN
 SELECT * FROM City 
-WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	index_merge	Population,Country,Name	Population,Country	4,3	NULL	#	Using sort_intersect(Population,Country); Using where
 EXPLAIN
@@ -383,15 +387,13 @@ ID	Name	Country	Population
 1810	Montréal	CAN	1016376
 2259	Medellín	COL	1861265
 SELECT * FROM City USE INDEX ()
-WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 ID	Name	Country	Population
-217	Guarulhos	BRA	1095874
-218	Goiânia	BRA	1056330
+1541	Hiroshima	JPN	1119117
 SELECT * FROM City 
-WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 ID	Name	Country	Population
-217	Guarulhos	BRA	1095874
-218	Goiânia	BRA	1056330
+1541	Hiroshima	JPN	1119117
 SELECT * FROM City USE INDEX ()
 WHERE Name BETWEEN 'G' AND 'K' AND Population > 500000 AND Country LIKE 'C%';
 ID	Name	Country	Population
@@ -465,9 +467,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	range	PRIMARY,Population,Country	Population	4	NULL	#	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City
-WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country	Country,Population	3,4	NULL	#	Using sort_intersect(Country,Population); Using where
+1	SIMPLE	City	range	PRIMARY,Population,Country	Population	4	NULL	#	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City 
 WHERE ID BETWEEN 2001 AND 2500 AND Population > 300000 AND Country LIKE 'H%';
@@ -494,33 +496,11 @@ WHERE ID BETWEEN 501 AND 1000 AND Population > 700000 AND Country LIKE 'C%';
 ID	Name	Country	Population
 554	Santiago de Chile	CHL	4703954
 SELECT * FROM City USE INDEX ()
-WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 ID	Name	Country	Population
-1	Kabul	AFG	1780000
-126	Yerevan	ARM	1248700
-130	Sydney	AUS	3276207
-131	Melbourne	AUS	2865329
-132	Brisbane	AUS	1291117
-133	Perth	AUS	1096829
-144	Baku	AZE	1787800
-56	Luanda	AGO	2022000
-69	Buenos Aires	ARG	2982146
-70	La Matanza	ARG	1266461
-71	Córdoba	ARG	1157507
 SELECT * FROM City
-WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 ID	Name	Country	Population
-1	Kabul	AFG	1780000
-126	Yerevan	ARM	1248700
-130	Sydney	AUS	3276207
-131	Melbourne	AUS	2865329
-132	Brisbane	AUS	1291117
-133	Perth	AUS	1096829
-144	Baku	AZE	1787800
-56	Luanda	AGO	2022000
-69	Buenos Aires	ARG	2982146
-70	La Matanza	ARG	1266461
-71	Córdoba	ARG	1157507
 SELECT * FROM City USE INDEX ()
 WHERE ID BETWEEN 2001 AND 2500 AND Population > 300000 AND Country LIKE 'H%';
 ID	Name	Country	Population
@@ -726,7 +706,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	index_merge	Population,Name	Population,Name	4,35	NULL	#	Using sort_intersect(Population,Name); Using where
 EXPLAIN
 SELECT * FROM City 
-WHERE  Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'B%';
+WHERE  Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	index_merge	Population,Country,Name	Population,Country	4,3	NULL	#	Using sort_intersect(Population,Country); Using where
 EXPLAIN
@@ -736,9 +716,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	range	Population,Country,Name	Name	35	NULL	#	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City
-WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	PRIMARY,Population,Country	Country,Population	3,4	NULL	#	Using sort_intersect(Country,Population); Using where
+1	SIMPLE	City	range	PRIMARY,Population,Country	Population	4	NULL	#	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City 
 WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
@@ -778,10 +758,9 @@ ID	Name	Country	Population
 766	Manila	PHL	1581082
 942	Medan	IDN	1843919
 SELECT * FROM City 
-WHERE  Name BETWEEN 'G' AND 'J' AND Population > 700000 AND Country LIKE 'B%';
+WHERE  Name BETWEEN 'G' AND 'J' AND Population > 700000 AND Country LIKE 'J%';
 ID	Name	Country	Population
-217	Guarulhos	BRA	1095874
-218	Goiânia	BRA	1056330
+1541	Hiroshima	JPN	1119117
 SELECT * FROM City 
 WHERE  Name BETWEEN 'G' AND 'J' AND Population > 500000 AND Country LIKE 'C%';
 ID	Name	Country	Population
@@ -794,19 +773,8 @@ ID	Name	Country	Population
 1937	Huainan	CHN	700000
 1950	Hegang	CHN	520000
 SELECT * FROM City
-WHERE ID BETWEEN 1 AND 500 AND Population > 1000000 AND Country LIKE 'A%';
+WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 ID	Name	Country	Population
-1	Kabul	AFG	1780000
-56	Luanda	AGO	2022000
-69	Buenos Aires	ARG	2982146
-70	La Matanza	ARG	1266461
-71	Córdoba	ARG	1157507
-126	Yerevan	ARM	1248700
-130	Sydney	AUS	3276207
-131	Melbourne	AUS	2865329
-132	Brisbane	AUS	1291117
-133	Perth	AUS	1096829
-144	Baku	AZE	1787800
 SELECT * FROM City 
 WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
 AND Country BETWEEN 'S' AND 'Z';
@@ -888,12 +856,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	index_merge	Population,CountryID,CountryName	Population,CountryID	4,3	NULL	#	Using sort_intersect(Population,CountryID); Using where
 EXPLAIN
 SELECT * FROM City 
-WHERE Country='CHN' AND Population > 1500000;
+WHERE Country='USA' AND Population > 1000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	index_merge	Population,CountryID,CountryName	Population,CountryID	4,3	NULL	#	Using sort_intersect(Population,CountryID); Using where
 EXPLAIN
 SELECT * FROM City 
-WHERE Country='CHN' AND Population > 1500000 AND Name LIKE 'C%';
+WHERE Country='USA' AND Population > 1500000 AND Name LIKE 'C%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	index_merge	Population,Name,CountryID,CountryName	CountryName,Population	38,4	NULL	#	Using sort_intersect(CountryName,Population); Using where
 SELECT * FROM City USE INDEX ()
@@ -931,73 +899,37 @@ ID	Name	Country	Population
 2698	Maputo	MOZ	1018938
 2710	Rangoon (Yangon)	MMR	3361700
 SELECT * FROM City USE INDEX ()
-WHERE Country='CHN' AND Population > 1500000;
+WHERE Country='USA' AND Population > 1000000;
 ID	Name	Country	Population
-1890	Shanghai	CHN	9696300
-1891	Peking	CHN	7472000
-1892	Chongqing	CHN	6351600
-1893	Tianjin	CHN	5286800
-1894	Wuhan	CHN	4344600
-1895	Harbin	CHN	4289800
-1896	Shenyang	CHN	4265200
-1897	Kanton [Guangzhou]	CHN	4256300
-1898	Chengdu	CHN	3361500
-1899	Nanking [Nanjing]	CHN	2870300
-1900	Changchun	CHN	2812000
-1901	Xi´an	CHN	2761400
-1902	Dalian	CHN	2697000
-1903	Qingdao	CHN	2596000
-1904	Jinan	CHN	2278100
-1905	Hangzhou	CHN	2190500
-1906	Zhengzhou	CHN	2107200
-1907	Shijiazhuang	CHN	2041500
-1908	Taiyuan	CHN	1968400
-1909	Kunming	CHN	1829500
-1910	Changsha	CHN	1809800
-1911	Nanchang	CHN	1691600
-1912	Fuzhou	CHN	1593800
-1913	Lanzhou	CHN	1565800
+3793	New York	USA	8008278
+3794	Los Angeles	USA	3694820
+3795	Chicago	USA	2896016
+3796	Houston	USA	1953631
+3797	Philadelphia	USA	1517550
+3798	Phoenix	USA	1321045
+3799	San Diego	USA	1223400
+3800	Dallas	USA	1188580
+3801	San Antonio	USA	1144646
 SELECT * FROM City 
-WHERE Country='CHN' AND Population > 1500000;
+WHERE Country='USA' AND Population > 1000000;
 ID	Name	Country	Population
-1890	Shanghai	CHN	9696300
-1891	Peking	CHN	7472000
-1892	Chongqing	CHN	6351600
-1893	Tianjin	CHN	5286800
-1894	Wuhan	CHN	4344600
-1895	Harbin	CHN	4289800
-1896	Shenyang	CHN	4265200
-1897	Kanton [Guangzhou]	CHN	4256300
-1898	Chengdu	CHN	3361500
-1899	Nanking [Nanjing]	CHN	2870300
-1900	Changchun	CHN	2812000
-1901	Xi´an	CHN	2761400
-1902	Dalian	CHN	2697000
-1903	Qingdao	CHN	2596000
-1904	Jinan	CHN	2278100
-1905	Hangzhou	CHN	2190500
-1906	Zhengzhou	CHN	2107200
-1907	Shijiazhuang	CHN	2041500
-1908	Taiyuan	CHN	1968400
-1909	Kunming	CHN	1829500
-1910	Changsha	CHN	1809800
-1911	Nanchang	CHN	1691600
-1912	Fuzhou	CHN	1593800
-1913	Lanzhou	CHN	1565800
+3793	New York	USA	8008278
+3794	Los Angeles	USA	3694820
+3795	Chicago	USA	2896016
+3796	Houston	USA	1953631
+3797	Philadelphia	USA	1517550
+3798	Phoenix	USA	1321045
+3799	San Diego	USA	1223400
+3800	Dallas	USA	1188580
+3801	San Antonio	USA	1144646
 SELECT * FROM City USE INDEX ()
-WHERE Country='CHN' AND Population > 1500000 AND Name LIKE 'C%';
+WHERE Country='USA' AND Population > 1500000 AND Name LIKE 'C%';
 ID	Name	Country	Population
-1892	Chongqing	CHN	6351600
-1898	Chengdu	CHN	3361500
-1900	Changchun	CHN	2812000
-1910	Changsha	CHN	1809800
+3795	Chicago	USA	2896016
 SELECT * FROM City 
-WHERE Country='CHN' AND Population > 1500000 AND Name LIKE 'C%';
+WHERE Country='USA' AND Population > 1500000 AND Name LIKE 'C%';
 ID	Name	Country	Population
-1892	Chongqing	CHN	6351600
-1898	Chengdu	CHN	3361500
-1900	Changchun	CHN	2812000
-1910	Changsha	CHN	1809800
+3795	Chicago	USA	2896016
 EXPLAIN 
 SELECT * FROM City, Country 
 WHERE City.Name LIKE 'C%' AND City.Population > 1000000 AND
@@ -1041,3 +973,4 @@ f1	f4	f5
 998	a	0
 DROP TABLE t1;
 SET SESSION optimizer_switch='index_merge_sort_intersection=on';
+SET SESSION optimizer_switch='rowid_filter=default';

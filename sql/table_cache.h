@@ -88,7 +88,6 @@ extern bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                              const char *db, const char *table_name,
                              bool kill_delayed_threads);
 
-
 extern int tdc_wait_for_old_version(THD *thd, const char *db,
                                     const char *table_name,
                                     ulong wait_timeout, uint deadlock_weight,
@@ -102,6 +101,7 @@ extern uint tc_records(void);
 extern void tc_purge(bool mark_flushed= false);
 extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);
+extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);
 
 /**
   Create a table cache key for non-temporary table.

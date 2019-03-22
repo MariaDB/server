@@ -13,6 +13,8 @@
 let MYSQLD_BASEDIR= `SELECT @@basedir`;
 let MYSQLD_DATADIR= `SELECT @@datadir`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
+let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
+
 call mtr.add_suppression("InnoDB: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
 call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
 
@@ -79,18 +81,34 @@ let SEARCH_PATTERN= Error: --strict-check option cannot be used together with --
 
 --echo [9]: check the innochecksum with full form --strict-check=innodb
 # Server Default checksum = crc32
+let $error_code = 0;
+
+if ($checksum_algorithm == "crc32")
+{
+  let $error_code = 1;
+}
+
+if ($checksum_algorithm == "strict_crc32")
+{
+  let $error_code = 1;
+}
+
+--error $error_code
 --exec $INNOCHECKSUM  --strict-check=innodb $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 
 --echo [10]: check the innochecksum with full form --strict-check=none
 --echo # when server Default checksum=crc32
+--error $error_code
 --exec $INNOCHECKSUM  --strict-check=none $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 
 --echo [11]: check the innochecksum with short form -C innodb
 --echo # when server Default checksum=crc32
+--error $error_code
 --exec $INNOCHECKSUM  -C innodb $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 
 --echo [12]: check the innochecksum with short form -C none
 --echo # when server Default checksum=crc32
+--error $error_code
 --exec $INNOCHECKSUM  -C none $MYSQLD_DATADIR/test/tab1.ibd 2> $SEARCH_FILE
 
 --echo [13]: check strict-check with invalid values

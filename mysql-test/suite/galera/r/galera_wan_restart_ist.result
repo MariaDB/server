@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
 connection node_1;

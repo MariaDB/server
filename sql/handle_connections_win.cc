@@ -353,7 +353,7 @@ struct Pipe_Listener : public Listener
     if (pipe_handle == INVALID_HANDLE_VALUE)
     {
       sql_perror("Create named pipe failed");
-      sql_print_error("Aborting\n");
+      sql_print_error("Aborting");
       exit(1);
     }
     first_instance= false;

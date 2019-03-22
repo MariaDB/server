@@ -39,7 +39,8 @@ struct IUnknown;
 
 extern "C" const char* mysql_bootstrap_sql[];
 
-char default_os_user[]= "NT AUTHORITY\\NetworkService";
+static char default_os_user[]= "NT AUTHORITY\\NetworkService";
+static char default_datadir[MAX_PATH];
 static int create_db_instance();
 static uint opt_silent;
 static char datadir_buffer[FN_REFLEN];
@@ -169,8 +170,27 @@ int main(int argc, char **argv)
     exit(error);
   if (!opt_datadir)
   {
-    my_print_help(my_long_options);
-    die("parameter --datadir=# is mandatory");
+    /*
+      Figure out default data directory. It "data" directory, next to "bin" directory, where
+      mysql_install_db.exe resides.
+    */
+    strcpy(default_datadir, self_name);
+    p = strrchr(default_datadir, FN_LIBCHAR);
+    if (p)
+    {
+      *p= 0;
+      p= strrchr(default_datadir, FN_LIBCHAR);
+      if (p)
+        *p= 0;
+    }
+    if (!p)
+    {
+      die("--datadir option not provided, and default datadir not found");
+      my_print_help(my_long_options);
+    }
+    strncat(default_datadir, "\\data", sizeof(default_datadir));
+    opt_datadir= default_datadir;
+    printf("Default data directory is %s\n",opt_datadir);
   }
 
   /* Print some help on errors */
@@ -198,7 +218,7 @@ int main(int argc, char **argv)
     die("database creation failed");
   }
 
-  printf("Creation of the database was successful");
+  printf("Creation of the database was successful\n");
   return 0;
 }
 
@@ -343,17 +363,19 @@ static int create_myini()
 
 
 static const char update_root_passwd_part1[]=
-  "UPDATE mysql.user SET Password = PASSWORD(";
+  "UPDATE mysql.global_priv SET priv=json_set(priv,"
+  "'$.plugin','mysql_native_password',"
+  "'$.authentication_string',PASSWORD(";
 static const char update_root_passwd_part2[]=
-  ") where User='root';\n";
+  ")) where User='root';\n";
 static const char remove_default_user_cmd[]= 
   "DELETE FROM mysql.user where User='';\n";
 static const char allow_remote_root_access_cmd[]=
-  "CREATE TEMPORARY TABLE tmp_user LIKE user;\n"
-  "INSERT INTO tmp_user SELECT * from user where user='root' "
+  "CREATE TEMPORARY TABLE tmp_user LIKE global_priv;\n"
+  "INSERT INTO tmp_user SELECT * from global_priv where user='root' "
     " AND host='localhost';\n"
   "UPDATE tmp_user SET host='%';\n"
-  "INSERT INTO user SELECT * FROM tmp_user;\n"
+  "INSERT INTO global_priv SELECT * FROM tmp_user;\n"
   "DROP TABLE tmp_user;\n";
 static const char end_of_script[]="-- end.";
 

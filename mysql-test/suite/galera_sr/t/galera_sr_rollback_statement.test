@@ -1,0 +1,59 @@
+#
+# Test the case where a statement is rolled back due to an error while
+# Streaming Replication is in effect. We construct an INSERT ... SELECT
+# statement that will fail with a duplicate key error towards the end of
+# the statement, after a portion has already been replicated via SR.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 CHAR) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a');
+
+# This poison value is used to cause the INSERT ... SELECT below to fail
+INSERT INTO t2 VALUES (3, 'b');
+
+SET SESSION wsrep_trx_fragment_size = 1;
+
+--disable_query_log
+--let $last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--enable_query_log
+
+--error ER_DUP_ENTRY
+INSERT INTO t2 SELECT * FROM t1;
+
+#
+# We should see three fragments replicated: Rows 1, 2 and rollback fragment.
+#
+--disable_query_log
+--let $last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--eval SELECT $last_committed_after - $last_committed_before AS last_committed_diff
+--enable_query_log
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t2;
+--source include/wait_condition.inc
+
+# Cluster continues to operate after the implicit ROLLBACK;
+--connection node_1
+INSERT INTO t2 VALUES (1, 'c');
+
+--connection node_2
+INSERT INTO t2 VALUES (2, 'c');
+
+--connection node_1
+SELECT * FROM t2;
+
+--connection node_2
+SELECT * FROM t2;
+
+--connection node_1
+
+SET SESSION wsrep_trx_fragment_size = DEFAULT;
+
+DROP TABLE t1;
+DROP TABLE t2;

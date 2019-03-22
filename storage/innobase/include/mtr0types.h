@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,7 +118,7 @@ enum mlog_id_t {
 	/** mark an index record as the predefined minimum record */
 	MLOG_REC_MIN_MARK = 26,
 
-	/** initialize an ibuf bitmap page */
+	/** initialize an ibuf bitmap page (used in MariaDB 10.2 and 10.3) */
 	MLOG_IBUF_BITMAP_INIT = 27,
 
 #ifdef UNIV_LOG_LSN_DEBUG
@@ -231,8 +231,11 @@ enum mlog_id_t {
 	/** initialize a page with a string of identical bytes */
 	MLOG_MEMSET = 63,
 
+	/** Zero-fill a page that is not allocated. */
+	MLOG_INIT_FREE_PAGE = 64,
+
 	/** biggest value (used in assertions) */
-	MLOG_BIGGEST_TYPE = MLOG_MEMSET,
+	MLOG_BIGGEST_TYPE = MLOG_INIT_FREE_PAGE,
 
 	/** log record for writing/updating crypt data of
 	a tablespace */

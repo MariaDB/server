@@ -255,7 +255,7 @@ EXPLAIN
                 "filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "119",
               "join_type": "BNL"
             }
           }
@@ -278,7 +278,7 @@ EXPLAIN
                 "filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "119",
               "join_type": "BNL"
             }
           }
@@ -324,7 +324,7 @@ ANALYZE
                 "r_filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "119",
               "join_type": "BNL",
               "r_filtered": 100
             }
@@ -358,7 +358,7 @@ ANALYZE
                 "r_filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "256Kb",
+              "buffer_size": "119",
               "join_type": "BNL",
               "r_filtered": 100
             }
@@ -420,7 +420,7 @@ ANALYZE
                       "r_filtered": 100
                     },
                     "buffer_type": "flat",
-                    "buffer_size": "256Kb",
+                    "buffer_size": "119",
                     "join_type": "BNL",
                     "r_filtered": 100
                   }
@@ -454,7 +454,7 @@ ANALYZE
                       "r_filtered": 100
                     },
                     "buffer_type": "flat",
-                    "buffer_size": "256Kb",
+                    "buffer_size": "119",
                     "join_type": "BNL",
                     "r_filtered": 100
                   }

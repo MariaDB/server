@@ -1,22 +1,23 @@
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
 ENCRYPTED=YES;
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Got one of the listed errors
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB;
 ALTER TABLE t1 ENCRYPTED=YES;
-ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
+Got one of the listed errors
 DROP TABLE t1;
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
-c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;
-ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate), ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
-ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate), FORCE, ALGORITHM=INPLACE;
-ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
+c VARCHAR(256), coordinate POINT NOT NULL)
+PAGE_COMPRESSED=YES, ENCRYPTED=YES ENGINE=INNODB;
+ALTER TABLE t1 ADD SPATIAL INDEX b1(coordinate), ALGORITHM=COPY;
+Got one of the listed errors
+ALTER TABLE t1 ADD SPATIAL INDEX b2(coordinate), FORCE, ALGORITHM=INPLACE;
+Got one of the listed errors
 ALTER TABLE t1 ADD SPATIAL INDEX(coordinate);
-ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
-CREATE SPATIAL INDEX b on t1(coordinate);
-ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTED'
+Got one of the listed errors
+CREATE SPATIAL INDEX b3 on t1(coordinate);
+Got one of the listed errors
 DROP TABLE t1;
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=DEFAULT ENGINE=INNODB;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -73,8 +73,9 @@ trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
-@return page number of the created segment, FIL_NULL if fail */
-ulint
+@return the created rollback segment
+@retval	NULL	on failure */
+buf_block_t*
 trx_rseg_header_create(
 	fil_space_t*	space,
 	ulint		rseg_id,
@@ -194,7 +195,7 @@ struct trx_rseg_t {
 		      || (srv_undo_space_id_start > 0
 			  && space->id >= srv_undo_space_id_start
 			  && space->id <= srv_undo_space_id_start
-			  + srv_undo_tablespaces_active)
+			  + srv_undo_tablespaces_open)
 		      || !srv_was_started);
 		return(space->id != SRV_TMP_SPACE_ID);
 	}

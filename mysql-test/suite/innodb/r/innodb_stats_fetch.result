@@ -5,6 +5,10 @@ ANALYZE TABLE test_ps_fetch;
 Table	test.test_ps_fetch
 Op	analyze
 Msg_type	status
+Msg_text	Engine-independent statistics collected
+Table	test.test_ps_fetch
+Op	analyze
+Msg_type	status
 Msg_text	OK
 SELECT n_rows, clustered_index_size, sum_of_other_index_sizes
 FROM mysql.innodb_table_stats WHERE table_name = 'test_ps_fetch';

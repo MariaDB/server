@@ -147,42 +147,36 @@ void print_time(char* buffer, std::size_t buffer_size, const char* format,
 
 class time_collector
 {
+  utility *m_utility;
+  Atomic_counter<uint32_t> m_count[OVERALL_POWER_COUNT + 1];
+  Atomic_counter<uint64_t> m_total[OVERALL_POWER_COUNT + 1];
+
 public:
-  time_collector(utility& u) : m_utility(&u)
-  { }
-  ~time_collector()
-  { }
-  uint32 count(uint index)
-  {
-    return my_atomic_load32((int32*)&m_count[index]);
-  }
-  uint64 total(uint index)
-  {
-    return my_atomic_load64((int64*)&m_total[index]);
-  }
-public:
+  time_collector(utility& u): m_utility(&u) { flush(); }
+  ~time_collector() { }
+  uint32_t count(uint index) { return m_count[index]; }
+  uint64_t total(uint index) { return m_total[index]; }
   void flush()
   {
-    memset((void*)&m_count,0,sizeof(m_count));
-    memset((void*)&m_total,0,sizeof(m_total));
+    for (auto i= 0; i < OVERALL_POWER_COUNT + 1; i++)
+    {
+      m_count[i]= 0;
+      m_total[i]= 0;
+    }
   }
-  void collect(uint64 time)
+  void collect(uint64_t time)
   {
     int i= 0;
     for(int count= m_utility->bound_count(); count > i; ++i)
     {
       if(m_utility->bound(i) > time)
       {
-        my_atomic_add32((int32*)(&m_count[i]), 1);
-        my_atomic_add64((int64*)(&m_total[i]), time);
+        m_count[i]++;
+        m_total[i]+= time;
         break;
       }
     }
   }
-private:
-  utility* m_utility;
-  uint32   m_count[OVERALL_POWER_COUNT + 1];
-  uint64   m_total[OVERALL_POWER_COUNT + 1];
 };
 
 class collector
@@ -191,7 +185,6 @@ public:
   collector() : m_time(m_utility)
   {
     m_utility.setup(DEFAULT_BASE);
-    m_time.flush();
   }
 public:
   void flush()

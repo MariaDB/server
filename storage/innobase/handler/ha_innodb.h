@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -16,6 +16,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+#ifdef WITH_WSREP
+#include "wsrep_api.h"
+#include <mysql/service_wsrep.h>
+#endif /* WITH_WSREP */
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -417,6 +421,12 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
+	/** Push a primary key filter.
+	@param[in]	pk_filter	filter against which primary keys
+					are to be checked
+	@retval	false if pushed (always) */
+	bool rowid_filter_push(Rowid_filter *rowid_filter);
+
 protected:
 
 	/**
@@ -444,8 +454,11 @@ protected:
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
-			      const uchar* record0, const uchar* record1);
+	int wsrep_append_keys(
+		THD *thd,
+		Wsrep_service_key_type key_type,
+		const uchar* record0,
+		const uchar* record1);
 #endif
 	/** Builds a 'template' to the prebuilt struct.
 
@@ -462,10 +475,6 @@ protected:
 
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
-
-	/** prebuilt pointer for the right prebuilt. For native
-	partitioning, points to the current partition prebuilt. */
-	row_prebuilt_t**	m_prebuilt_ptr;
 
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
@@ -559,35 +568,10 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
-/** Get the partition_info working copy.
-@param	thd	Thread object.
-@return	NULL or pointer to partition_info working copy. */
-/* JAN: TODO: MySQL 5.7 Partitioning
-partition_info*
-thd_get_work_part_info(
-	THD*	thd);
-*/
-
 struct trx_t;
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
-//extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
-
-extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
-
-
-extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
-extern "C" void wsrep_thd_set_query_state(
-	THD *thd, enum wsrep_query_state state);
-
-extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
-
-extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
-extern "C" time_t wsrep_thd_query_start(THD *thd);
-extern "C" query_id_t wsrep_thd_query_id(THD *thd);
-extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
-extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-#endif
+#endif /* WITH_WSREP */
 
 extern const struct _ft_vft ft_vft_result;
 
@@ -621,10 +605,6 @@ innobase_index_name_is_reserved(
 					be created. */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-#ifdef WITH_WSREP
-//extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
-
 /** Parse hint for table and its indexes, and update the information
 in dictionary.
 @param[in]	thd		Connection thread
@@ -651,15 +631,7 @@ public:
 		char*		table_name,
 		char*		remote_path,
 		bool		file_per_table,
-		trx_t*		trx = NULL)
-	:m_thd(thd),
-	m_trx(trx),
-	m_form(form),
-	m_create_info(create_info),
-	m_table_name(table_name), m_table(NULL),
-	m_remote_path(remote_path),
-	m_innodb_file_per_table(file_per_table)
-	{}
+		trx_t*		trx = NULL);
 
 	/** Initialize the object. */
 	int initialize();
@@ -729,6 +701,9 @@ public:
 	const char* table_name() const
 	{ return(m_table_name); }
 
+	/** @return whether the table needs to be dropped on rollback */
+	bool drop_before_rollback() const { return m_drop_before_rollback; }
+
 	THD* thd() const
 	{ return(m_thd); }
 
@@ -765,6 +740,9 @@ private:
 	/** Information on table columns and indexes. */
 	const TABLE*	m_form;
 
+	/** Value of innodb_default_row_format */
+	const ulong	m_default_row_format;
+
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
@@ -772,6 +750,8 @@ private:
 	char*		m_table_name;
 	/** Table */
 	dict_table_t*	m_table;
+	/** Whether the table needs to be dropped before rollback */
+	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
@@ -871,10 +851,8 @@ innodb_base_col_setup_for_stored(
 	const Field*		field,
 	dict_s_col_t*		s_col);
 
-/** whether this is a stored column */
+/** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
-/** whether this is a computed virtual column */
-#define innobase_is_v_fld(field) ((field)->vcol_info && !(field)->stored_in_db())
 
 /** Always normalize table name to lower case on Windows */
 #ifdef _WIN32

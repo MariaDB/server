@@ -24,8 +24,6 @@ General row routines
 Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0row.h"
 #include "data0type.h"
 #include "dict0dict.h"
@@ -153,7 +151,7 @@ static bool row_build_spatial_index_key(
 	temp_heap = mem_heap_create(1000);
 
 	dptr = btr_copy_externally_stored_field(
-		&dlen, dptr, ext ? ext->page_size : page_size_t(space->flags),
+		&dlen, dptr, ext ? ext->zip_size : space->zip_size(),
 		flen, temp_heap);
 
 write_mbr:
@@ -595,7 +593,7 @@ row_build_low(
 		row_log_table_delete(). */
 
 	} else if (j) {
-		*ext = row_ext_create(j, ext_cols, index->table->flags, row,
+		*ext = row_ext_create(j, ext_cols, *index->table, row,
 				      heap);
 	} else {
 		*ext = NULL;
@@ -727,6 +725,7 @@ row_rec_to_index_entry_impl(
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
 	ut_ad(!mblob || index->is_primary());
+	ut_ad(!mblob || !index->table->is_temporary());
 	ut_ad(!mblob || !dict_index_is_spatial(index));
 	compile_time_assert(!mblob || metadata);
 	compile_time_assert(mblob <= 2);
@@ -761,7 +760,8 @@ row_rec_to_index_entry_impl(
 	      || rec_len == dict_index_get_n_fields(index) + uint(mblob == 1)
 	      /* a record for older SYS_INDEXES table
 	      (missing merge_threshold column) is acceptable. */
-	      || (index->table->id == DICT_INDEXES_ID
+	      || (!index->table->is_temporary()
+		  && index->table->id == DICT_INDEXES_ID
 		  && rec_len == dict_index_get_n_fields(index) - 1));
 
 	ulint i;

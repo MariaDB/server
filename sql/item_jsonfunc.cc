@@ -374,17 +374,11 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 longlong Item_func_json_valid::val_int()
 {
   String *js= args[0]->val_json(&tmp_value);
-  json_engine_t je;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
-  json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
-                  (const uchar *) js->ptr()+js->length());
-
-  while (json_scan_next(&je) == 0) {}
-
-  return je.s.error == 0;
+  return json_valid(js->ptr(), js->length(), js->charset());
 }
 
 
@@ -680,11 +674,11 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
 
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
-      *tmp_paths= (String *) alloc_root(root, sizeof(String) * n_paths);
+
+      *tmp_paths= new (root) String[n_paths];
       if (*paths == 0 || *tmp_paths == 0)
         return 1;
 
-      bzero(*tmp_paths, sizeof(String) * n_paths);
       for (uint c_path=0; c_path < n_paths; c_path++)
         (*tmp_paths)[c_path].set_charset(&my_charset_utf8_general_ci);
     }
@@ -1489,9 +1483,10 @@ bool Item_func_json_array::fix_length_and_dec()
 
   if (arg_count == 0)
   {
-    collation.set(&my_charset_utf8_general_ci,
+    THD* thd= current_thd;
+    collation.set(thd->variables.collation_connection,
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-    tmp_val.set_charset(&my_charset_utf8_general_ci);
+    tmp_val.set_charset(thd->variables.collation_connection);
     max_length= 2;
     return FALSE;
   }
@@ -1563,6 +1558,7 @@ bool Item_func_json_array_append::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
+  maybe_null= 1;
   return FALSE;
 }
 

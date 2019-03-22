@@ -13,6 +13,7 @@ db
 event
 func
 general_log
+global_priv
 gtid_slave_pos
 help_category
 help_keyword

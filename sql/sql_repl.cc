@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -506,6 +506,22 @@ static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * 
   DBUG_RETURN(ret);
 }
 
+
+/**
+  Set current_linfo
+
+  Setting current_linfo needs to be done with LOCK_thd_data to ensure that
+  adjust_linfo_offsets doesn't use a structure that may be deleted.
+*/
+
+void THD::set_current_linfo(LOG_INFO *linfo)
+{
+  mysql_mutex_lock(&LOCK_thd_data);
+  current_linfo= linfo;
+  mysql_mutex_unlock(&LOCK_thd_data);
+}
+
+
 /*
   Adjust the position pointer in the binary log file for all running slaves
 
@@ -527,59 +543,46 @@ static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * 
       Now they sync is done for next read.
 */
 
+static my_bool adjust_callback(THD *thd, my_off_t *purge_offset)
+{
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (auto linfo= thd->current_linfo)
+  {
+    /*
+      Index file offset can be less that purge offset only if
+      we just started reading the index file. In that case
+      we have nothing to adjust
+    */
+    if (linfo->index_file_offset < *purge_offset)
+      linfo->fatal= (linfo->index_file_offset != 0);
+    else
+      linfo->index_file_offset-= *purge_offset;
+  }
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return 0;
+}
+
+
 void adjust_linfo_offsets(my_off_t purge_offset)
 {
-  THD *tmp;
+  server_threads.iterate(adjust_callback, &purge_offset);
+}
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
 
-  while ((tmp=it++))
-  {
-    LOG_INFO* linfo;
-    if ((linfo = tmp->current_linfo))
-    {
-      mysql_mutex_lock(&linfo->lock);
-      /*
-	Index file offset can be less that purge offset only if
-	we just started reading the index file. In that case
-	we have nothing to adjust
-      */
-      if (linfo->index_file_offset < purge_offset)
-	linfo->fatal = (linfo->index_file_offset != 0);
-      else
-	linfo->index_file_offset -= purge_offset;
-      mysql_mutex_unlock(&linfo->lock);
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
+static my_bool log_in_use_callback(THD *thd, const char *log_name)
+{
+  my_bool result= 0;
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (auto linfo= thd->current_linfo)
+    result= !strcmp(log_name, linfo->log_file_name);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return result;
 }
 
 
 bool log_in_use(const char* log_name)
 {
-  size_t log_name_len = strlen(log_name) + 1;
-  THD *tmp;
-  bool result = 0;
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
-
-  while ((tmp=it++))
-  {
-    LOG_INFO* linfo;
-    if ((linfo = tmp->current_linfo))
-    {
-      mysql_mutex_lock(&linfo->lock);
-      result = !memcmp(log_name, linfo->log_file_name, log_name_len);
-      mysql_mutex_unlock(&linfo->lock);
-      if (result)
-	break;
-    }
-  }
-
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return result;
+  return server_threads.iterate(log_in_use_callback, log_name);
 }
 
 bool purge_error_message(THD* thd, int res)
@@ -2138,9 +2141,8 @@ static int init_binlog_sender(binlog_send_info *info,
 
   // set current pos too
   linfo->pos= *pos;
-
   // note: publish that we use file, before we open it
-  thd->current_linfo= linfo;
+  thd->set_current_linfo(linfo);
 
   if (check_start_offset(info, linfo->log_file_name, *pos))
     return 1;
@@ -2378,14 +2380,15 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   DBUG_RETURN(0);
 }
 
-static bool should_stop(binlog_send_info *info)
+static bool should_stop(binlog_send_info *info, bool kill_server_check= false)
 {
   return
-      info->net->error ||
-      info->net->vio == NULL ||
-      info->thd->killed ||
-      info->error != 0 ||
-      info->should_stop;
+    info->net->error ||
+    info->net->vio == NULL ||
+    (info->thd->killed &&
+     (info->thd->killed != KILL_SERVER || kill_server_check)) ||
+    info->error != 0 ||
+    info->should_stop;
 }
 
 /**
@@ -2406,7 +2409,7 @@ static int wait_new_events(binlog_send_info *info,         /* in */
                         &stage_master_has_sent_all_binlog_to_slave,
                         &old_stage);
 
-  while (!should_stop(info))
+  while (!should_stop(info, true))
   {
     *end_pos_ptr= mysql_bin_log.get_binlog_end_pos(binlog_end_pos_filename);
     if (strcmp(linfo->log_file_name, binlog_end_pos_filename) != 0)
@@ -2758,6 +2761,14 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     info->error= ER_UNKNOWN_ERROR;
     goto err;
   }
+  DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
+                 {
+                   const char act[]=
+                     "now "
+                     "WAIT_FOR greetings_from_kill_mysql";
+                   DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
 
   /*
     heartbeat_period from @master_heartbeat_period user variable
@@ -3369,31 +3380,42 @@ err:
     slave_server_id     the slave's server id
 */
 
+struct kill_callback_arg
+{
+  kill_callback_arg(uint32 id): slave_server_id(id), thd(0) {}
+  uint32 slave_server_id;
+  THD *thd;
+};
+
+static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
+{
+  if (thd->get_command() == COM_BINLOG_DUMP &&
+      thd->variables.server_id == arg->slave_server_id)
+  {
+    arg->thd= thd;
+    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    return 1;
+  }
+  return 0;
+}
+
+
 void kill_zombie_dump_threads(uint32 slave_server_id)
 {
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
-  THD *tmp;
+  kill_callback_arg arg(slave_server_id);
+  server_threads.iterate(kill_callback, &arg);
 
-  while ((tmp=it++))
-  {
-    if (tmp->get_command() == COM_BINLOG_DUMP &&
-       tmp->variables.server_id == slave_server_id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_kill);    // Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (tmp)
+  if (arg.thd)
   {
     /*
       Here we do not call kill_one_thread() as
       it will be slow because it will iterate through the list
       again. We just to do kill the thread ourselves.
     */
-    tmp->awake_no_mutex(KILL_SLAVE_SAME_ID);
-    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
+    mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
+    if (WSREP(arg.thd)) mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
   }
 }
 
@@ -3845,6 +3867,17 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
     return 1;
   }
 
+#ifdef WITH_WSREP
+  if (WSREP_ON)
+  {
+    /* RESET MASTER will initialize GTID sequence, and that would happen locally
+       in this node, so better reject it
+    */
+    my_message(ER_NOT_ALLOWED_COMMAND,
+               "RESET MASTER not allowed when node is in cluster", MYF(0));
+    return 1;
+  }
+#endif /* WITH_WSREP */
   bool ret= 0;
   /* Temporarily disable master semisync before reseting master. */
   repl_semisync_master.before_reset_master();
@@ -3943,7 +3976,7 @@ bool mysql_show_binlog_events(THD* thd)
       goto err;
     }
 
-    thd->current_linfo= &linfo;
+    thd->set_current_linfo(&linfo);
 
     if ((file=open_binlog(&log, linfo.log_file_name, &errmsg)) < 0)
       goto err;

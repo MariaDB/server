@@ -1,0 +1,59 @@
+#
+# This test kills the slave before a Streaming Replication transaction has started
+# and restarts it when the transaction is already in progress. IST should
+# bring the slave up to date so that it can receive the complete transaction.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_1
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+--source include/start_mysqld.inc
+
+--connection node_1
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
+INSERT INTO t1 VALUES (10);
+COMMIT;
+SELECT COUNT(*) = 10 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 10 FROM t1;
+
+--connection node_3
+SELECT COUNT(*) = 10 FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -27,18 +27,16 @@ Created 2011-05-26 Marko Makela
 #ifndef row0log_h
 #define row0log_h
 
-#include "univ.i"
+#include "que0types.h"
 #include "mtr0types.h"
 #include "row0types.h"
 #include "rem0types.h"
 #include "data0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
-#include "que0types.h"
 
 class ut_stage_alter_t;
 
-extern ulint onlineddl_rowlog_rows;
+extern Atomic_counter<ulint> onlineddl_rowlog_rows;
 extern ulint onlineddl_rowlog_pct_used;
 extern ulint onlineddl_pct_progress;
 

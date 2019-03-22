@@ -613,7 +613,9 @@ static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
   return (size_t) (info->read_end - info->read_pos);
 }
 
-int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
+int my_b_copy_to_file    (IO_CACHE *cache, FILE *file, size_t count);
+int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file);
+
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
@@ -627,6 +629,7 @@ extern int (*mysys_test_invalid_symlink)(const char *filename);
 
 extern int my_copy(const char *from,const char *to,myf MyFlags);
 extern int my_delete(const char *name,myf MyFlags);
+extern int my_rmtree(const char *name, myf Myflags);
 extern int my_getwd(char * buf,size_t size,myf MyFlags);
 extern int my_setwd(const char *dir,myf MyFlags);
 extern int my_lock(File fd,int op,my_off_t start, my_off_t length,myf MyFlags);

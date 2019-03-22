@@ -124,7 +124,7 @@ select * from t;
 a	b	c	d	e
 10	5	5	5	5
 replace delayed t (a,b,d) values (10,6,6);
-flush tables;
+flush tables t;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -132,7 +132,7 @@ select * from t;
 a	b	c	d	e
 10	6	6	6	6
 insert delayed t(a,b,d) values (10,6,6) on duplicate key update b=7, d=7;
-flush tables;
+flush tables t;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -304,7 +304,7 @@ select * from t;
 a	b	c	d	e
 10	5	5	5	5
 replace delayed t (a,b,d) values (10,6,6);
-flush tables;
+flush tables t;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -312,7 +312,7 @@ select * from t;
 a	b	c	d	e
 10	6	6	6	6
 insert delayed t(a,b,d) values (10,6,6) on duplicate key update b=7, d=7;
-flush tables;
+flush tables t;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK

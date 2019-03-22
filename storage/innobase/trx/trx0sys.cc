@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,10 +24,8 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "mysqld.h"
 #include "trx0sys.h"
+#include "mysqld.h"
 #include "sql_error.h"
 
 #include "fsp0fsp.h"
@@ -42,9 +40,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "log0recv.h"
 #include "os0file.h"
-#include "fsp0sysspace.h"
-
-#include <mysql/service_wsrep.h>
 
 /** The transaction system */
 trx_sys_t		trx_sys;
@@ -153,7 +148,6 @@ trx_sysf_create(
 	ulint		slot_no;
 	buf_block_t*	block;
 	page_t*		page;
-	ulint		page_no;
 	byte*		ptr;
 
 	ut_ad(mtr);
@@ -201,11 +195,11 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
-	page_no = trx_rseg_header_create(fil_system.sys_space, slot_no, block,
-					 mtr);
+	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
+						     slot_no, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Create the instance */
@@ -217,7 +211,7 @@ trx_sys_t::create()
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
 	UT_LIST_INIT(trx_list, &trx_t::trx_list);
-	my_atomic_store32(&rseg_history_len, 0);
+	rseg_history_len= 0;
 
 	rw_trx_hash.init();
 }

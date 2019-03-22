@@ -70,5 +70,6 @@ int ma_control_file_write_and_force(LSN last_checkpoint_lsn_arg,
                                     uint8 recovery_failures_arg);
 int ma_control_file_end(void);
 my_bool ma_control_file_inited(void);
+my_bool print_aria_log_control(void);
 C_MODE_END
 #endif

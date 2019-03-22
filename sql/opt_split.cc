@@ -1078,6 +1078,7 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   @param
     spl_plan   info on the splitting plan chosen for the splittable table T
     remaining_tables  the table T is joined just before these tables
+    is_const_table    the table T is a constant table
 
   @details
     If in the final query plan the optimizer has chosen a splitting plan
@@ -1091,12 +1092,13 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
 */
 
 bool JOIN_TAB::fix_splitting(SplM_plan_info *spl_plan,
-                             table_map remaining_tables)
+                             table_map remaining_tables,
+                             bool is_const_table)
 {
   SplM_opt_info *spl_opt_info= table->spl_opt_info;
   DBUG_ASSERT(table->spl_opt_info != 0);
   JOIN *md_join= spl_opt_info->join;
-  if (spl_plan)
+  if (spl_plan && !is_const_table)
   {
     memcpy((char *) md_join->best_positions,
            (char *) spl_plan->best_positions,
@@ -1113,7 +1115,7 @@ bool JOIN_TAB::fix_splitting(SplM_plan_info *spl_plan,
                                     remaining_tables,
                                     true);
   }
-  else
+  else if (md_join->save_qep)
   {
     md_join->restore_query_plan(md_join->save_qep);
   }
@@ -1143,10 +1145,11 @@ bool JOIN::fix_all_splittings_in_plan()
   {
     POSITION *cur_pos= &best_positions[tablenr];
     JOIN_TAB *tab= cur_pos->table;
-    if (tablenr >= const_tables && tab->table->is_splittable())
+    if (tab->table->is_splittable())
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
-      if (tab->fix_splitting(spl_plan, all_tables & ~prev_tables))
+      if (tab->fix_splitting(spl_plan, all_tables & ~prev_tables,
+                             tablenr < const_tables ))
           return true;
     }
     prev_tables|= tab->table->map;

@@ -44,20 +44,20 @@ bool str_to_datetime_with_warn(THD *thd,
                                date_mode_t flags);
 bool double_to_datetime_with_warn(THD *thd, double value, MYSQL_TIME *ltime,
                                   date_mode_t fuzzydate,
-                                  const char *name);
+                                  const TABLE_SHARE *s, const char *name);
 bool decimal_to_datetime_with_warn(THD *thd,
                                    const my_decimal *value, MYSQL_TIME *ltime,
                                    date_mode_t fuzzydate,
-                                   const char *name);
+                                   const TABLE_SHARE *s, const char *name);
 bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
                                MYSQL_TIME *ltime,
                                date_mode_t fuzzydate,
-                               const char *name);
+                               const TABLE_SHARE *s, const char *name);
 
 bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
                                 const MYSQL_TIME *tm, MYSQL_TIME *dt,
-                                date_mode_t fuzzydate);
+                                date_conv_mode_t fuzzydate);
 
 inline void datetime_to_date(MYSQL_TIME *ltime)
 {
@@ -78,6 +78,7 @@ void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *str_val,
                                   timestamp_type time_type,
+                                  const TABLE_SHARE *s,
                                   const char *field_name);
 
 extern DATE_TIME_FORMAT *date_time_format_make(timestamp_type format_type,
@@ -166,13 +167,20 @@ non_zero_date(const MYSQL_TIME *ltime)
           non_zero_hhmmssuu(ltime));
 }
 static inline bool
-check_date(const MYSQL_TIME *ltime, date_mode_t flags, int *was_cut)
+check_date(const MYSQL_TIME *ltime, date_conv_mode_t flags, int *was_cut)
 {
  return check_date(ltime, non_zero_date(ltime),
                    ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE), was_cut);
 }
-bool check_date_with_warn(THD *thd, const MYSQL_TIME *ltime, date_mode_t fuzzy_date,
-                          timestamp_type ts_type);
+bool check_date_with_warn(THD *thd, const MYSQL_TIME *ltime,
+                          date_conv_mode_t fuzzy_date, timestamp_type ts_type);
+static inline bool
+check_date_with_warn(THD *thd, const MYSQL_TIME *ltime,
+                          date_mode_t fuzzydate, timestamp_type ts_type)
+{
+  return check_date_with_warn(thd, ltime, date_conv_mode_t(fuzzydate), ts_type);
+}
+
 bool adjust_time_range_with_warn(THD *thd, MYSQL_TIME *ltime, uint dec);
 
 longlong pack_time(const MYSQL_TIME *my_time);

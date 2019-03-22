@@ -20,6 +20,18 @@
 #include "key.h"
 #include "sql_statistics.h"
 
+static ulonglong key_block_no(TABLE *table, uint keyno, ha_rows keyentry_pos)
+{
+  size_t len= table->key_info[keyno].key_length + table->file->ref_length;
+  if (keyno == table->s->primary_key &&
+      table->file->primary_key_is_clustered())
+    len= table->s->stored_rec_length;
+  uint keys_per_block= (uint) (table->file->stats.block_size/2.0/len+1);
+  ulonglong block_no= !keyentry_pos ? 0 :
+                      (keyentry_pos - 1) / keys_per_block + 1;
+  return block_no;
+}
+
 /****************************************************************************
  * Default MRR implementation (MRR to non-MRR converter)
  ***************************************************************************/
@@ -47,6 +59,24 @@
     for a user to be able to interrupt the calculation by killing the
     connection/query.
 
+  @note
+    Starting from 10.4 the implementation of this method tries to take into
+    account gaps between range intervals. Before this we had such paradoxical
+    cases when, for example, the cost of the index scan by range [1..3] was
+    almost twice as less than the cost of of the index scan by two intervals
+    [1..1] and [3..3].
+
+  @note
+    The current implementation of the method is not efficient for it
+    requires extra dives for gaps. Although these dives are not expensive
+    as they touch the index nodes that with very high probability are in
+    cache this is still not good. We could avoid it if records in range
+    also returned positions of the ends of range intervals. It's not
+    hard to implement it now for MyISAM as this engine provides a function
+    returning an approximation of the relative position of a key tuple
+    among other index key tuples. Unfortunately InnoDB now does not provide
+    anything like this function.
+
   @retval
     HA_POS_ERROR  Error or the engine is unable to perform the requested
                   scan. Values of OUT parameters are undefined.
@@ -61,12 +91,21 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                      uint *bufsz, uint *flags, Cost_estimate *cost)
 {
   KEY_MULTI_RANGE range;
+  key_range prev_start_key;
   range_seq_t seq_it;
-  ha_rows rows, total_rows= 0;
+  ha_rows min_pos= 0;
+  ha_rows total_rows= 0;
   uint n_ranges=0;
+  uint n_eq_ranges= 0;
+  ulonglong total_touched_blocks= 0;
+  key_range *prev_min_endp= 0;
+  ulonglong prev_max_block_no=0;
+  ha_rows max_rows= stats.records;
   THD *thd= table->in_use;
-  uint limit= thd->variables.eq_range_index_dive_limit;
+  StringBuffer<64> key_value;
   
+  uint limit= thd->variables.eq_range_index_dive_limit;
+
   bool use_statistics_for_eq_range= eq_ranges_exceeds_limit(seq,
                                                             seq_init_param,
                                                             limit);
@@ -77,10 +116,15 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   seq_it= seq->init(seq_init_param, n_ranges, *flags);
   while (!seq->next(seq_it, &range))
   {
+    ha_rows rows;
+    ulonglong new_touched_blocks= 0;
+
     if (unlikely(thd->killed != 0))
       return HA_POS_ERROR;
     
     n_ranges++;
+    if (range.range_flag & EQ_RANGE)
+      n_eq_ranges++;
     key_range *min_endp, *max_endp;
     if (range.range_flag & GEOM_FLAG)
     {
@@ -95,38 +139,96 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       max_endp= range.end_key.length? &range.end_key : NULL;
     }
     int keyparts_used= my_count_bits(range.start_key.keypart_map);
-    if ((range.range_flag & UNIQUE_RANGE) && !(range.range_flag & NULL_RANGE))
-      rows= 1; /* there can be at most one row */
-    else if (use_statistics_for_eq_range &&
-             !(range.range_flag & NULL_RANGE) &&
-             (range.range_flag & EQ_RANGE) &&
-             table->key_info[keyno].actual_rec_per_key(keyparts_used - 1) > 0.5)
-      rows=
-        (ha_rows) table->key_info[keyno].actual_rec_per_key(keyparts_used - 1);
+    if (use_statistics_for_eq_range &&
+        !(range.range_flag & NULL_RANGE) &&
+        (range.range_flag & EQ_RANGE) &&
+        table->key_info[keyno].actual_rec_per_key(keyparts_used - 1) > 0.5)
+    {
+      if ((range.range_flag & UNIQUE_RANGE) && !(range.range_flag & NULL_RANGE))
+        rows= 1; /* there can be at most one row */
+      else
+        rows=
+          (ha_rows) table->key_info[keyno].actual_rec_per_key(keyparts_used-1);
+    }
     else
     {
-      if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp, 
+      ulonglong min_block_no;
+      ulonglong max_block_no;
+      if ((range.range_flag & UNIQUE_RANGE) && !(range.range_flag & NULL_RANGE))
+        rows= 1; /* there can be at most one row */
+      else if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp,
                                                         max_endp)))
       {
         /* Can't scan one range => can't do MRR scan at all */
         total_rows= HA_POS_ERROR;
         break;
       }
+      if (!max_endp && !(prev_min_endp && prev_min_endp->length))
+        min_pos+= max_rows - rows;
+      else
+      {
+        key_range *start_endp= prev_min_endp;
+        if (start_endp && !start_endp->keypart_map)
+          start_endp= 0;
+        /*
+           Get the estimate of rows in the previous gap
+           and two ranges surrounding this gap
+        */
+        ha_rows r= this->records_in_range(keyno,start_endp,max_endp);
+        if (r == HA_POS_ERROR)
+	{
+          /* Some engine cannot estimate such ranges */
+          total_rows += rows;
+          continue;
+        }
+        min_pos+= r - rows;
+      }
+      min_block_no= key_block_no(this->table, keyno, min_pos);
+      max_block_no= key_block_no(this->table, keyno, min_pos + rows);
+      new_touched_blocks= max_block_no - min_block_no +
+	                  MY_TEST(min_block_no != prev_max_block_no);
+      prev_max_block_no= max_block_no;
+      if (!prev_min_endp)
+        prev_min_endp= &prev_start_key;
+      /* Save range.start_key for the next iteration step */
+      prev_start_key= range.start_key;
+      key_value.copy((const char *) prev_start_key.key, prev_start_key.length,
+                     key_value.charset());
+      prev_start_key.key= (const uchar *) key_value.ptr();
     }
     total_rows += rows;
+    total_touched_blocks+= new_touched_blocks;
   }
   
   if (total_rows != HA_POS_ERROR)
   {
+    set_if_smaller(total_rows, max_rows);
     /* The following calculation is the same as in multi_range_read_info(): */
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
     cost->reset();
     cost->avg_io_cost= 1; /* assume random seeks */
-    if ((*flags & HA_MRR_INDEX_ONLY) && total_rows > 2)
-      cost->io_count= keyread_time(keyno, n_ranges, (uint)total_rows);
+    cost->idx_avg_io_cost= 1;
+    if (!((keyno == table->s->primary_key && primary_key_is_clustered()) ||
+	   is_clustering_key(keyno)))
+    {
+      cost->idx_io_count= total_touched_blocks +
+	                  keyread_time(keyno, 0, total_rows);
+      cost->cpu_cost= cost->idx_cpu_cost=
+        (double) total_rows / TIME_FOR_COMPARE_IDX +
+        (2 * n_ranges - n_eq_ranges) * IDX_LOOKUP_COST;
+      if (!(*flags & HA_MRR_INDEX_ONLY))
+      {
+        cost->io_count= read_time(keyno, 0, total_rows);
+        cost->cpu_cost+= (double) total_rows / TIME_FOR_COMPARE;
+      }
+    }
     else
-      cost->io_count= read_time(keyno, n_ranges, total_rows);
-    cost->cpu_cost= (double) total_rows / TIME_FOR_COMPARE + 0.01;
+    {
+      cost->io_count= read_time(keyno,
+                                (uint)total_touched_blocks,
+                                (uint) total_rows);
+      cost->cpu_cost= (double) total_rows / TIME_FOR_COMPARE + 0.01;
+    }
   }
   return total_rows;
 }
@@ -183,10 +285,22 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
   cost->avg_io_cost= 1; /* assume random seeks */
 
   /* Produce the same cost as non-MRR code does */
-  if (*flags & HA_MRR_INDEX_ONLY)
-    cost->io_count= keyread_time(keyno, n_ranges, n_rows);
+  if (!(keyno == table->s->primary_key && primary_key_is_clustered()))
+  {
+    cost->idx_io_count=  n_ranges + keyread_time(keyno, 0, n_rows);
+    cost->cpu_cost= cost->idx_cpu_cost=
+      (double) n_rows / TIME_FOR_COMPARE_IDX + n_ranges * IDX_LOOKUP_COST;
+    if (!(*flags & HA_MRR_INDEX_ONLY))
+    {
+      cost->io_count= read_time(keyno, 0, n_rows);
+      cost->cpu_cost+= (double) n_rows / TIME_FOR_COMPARE;
+    }
+  }
   else
-    cost->io_count= read_time(keyno, n_ranges, n_rows);
+  {
+    cost->io_count= read_time(keyno, n_ranges, (uint)n_rows);
+    cost->cpu_cost= (double) n_rows / TIME_FOR_COMPARE + 0.01;
+  }
   return 0;
 }
 

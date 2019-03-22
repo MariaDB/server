@@ -31,7 +31,7 @@ Database log
 Created 12/9/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <debug_sync.h>
 #include <my_service_manager.h>
 
@@ -670,16 +670,6 @@ void log_t::files::create(ulint n_files)
   file_size= srv_log_file_size;
   lsn= LOG_START_LSN;
   lsn_offset= LOG_FILE_HDR_SIZE;
-
-  byte* ptr= static_cast<byte*>(ut_zalloc_nokey(LOG_FILE_HDR_SIZE * n_files
-						+ OS_FILE_LOG_BLOCK_SIZE));
-  file_header_bufs_ptr= ptr;
-  ptr= static_cast<byte*>(ut_align(ptr, OS_FILE_LOG_BLOCK_SIZE));
-
-  memset(file_header_bufs, 0, sizeof file_header_bufs);
-
-  for (ulint i = 0; i < n_files; i++, ptr += LOG_FILE_HDR_SIZE)
-    file_header_bufs[i] = ptr;
 }
 
 /******************************************************//**
@@ -692,7 +682,6 @@ log_file_header_flush(
 	lsn_t		start_lsn)	/*!< in: log file data starts at this
 					lsn */
 {
-	byte*	buf;
 	lsn_t	dest_offset;
 
 	ut_ad(log_write_mutex_own());
@@ -701,9 +690,10 @@ log_file_header_flush(
 	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_4
 	      || log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4);
 
-	buf = log_sys.log.file_header_bufs[nth_file];
+	// man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
+	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
+	byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
 
-	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 	mach_write_to_4(buf + LOG_HEADER_FORMAT, log_sys.log.format);
 	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, log_sys.log.subformat);
 	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
@@ -729,7 +719,7 @@ log_file_header_flush(
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(dest_offset & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
@@ -848,7 +838,7 @@ loop:
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(next_offset & (srv_page_size - 1)), write_len, buf, NULL);
 
 	srv_stats.os_log_pending_writes.dec();
@@ -1351,7 +1341,7 @@ log_group_checkpoint(lsn_t end_lsn)
 
 	fil_io(IORequestLogWrite, false,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, 0),
-	       univ_page_size,
+	       0,
 	       (log_sys.next_checkpoint_no & 1)
 	       ? LOG_CHECKPOINT_2 : LOG_CHECKPOINT_1,
 	       OS_FILE_LOG_BLOCK_SIZE,
@@ -1371,7 +1361,7 @@ void log_header_read(ulint header)
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID,
 			 header >> srv_page_size_shift),
-	       univ_page_size, header & (srv_page_size - 1),
+	       0, header & (srv_page_size - 1),
 	       OS_FILE_LOG_BLOCK_SIZE, log_sys.checkpoint_buf, NULL);
 }
 

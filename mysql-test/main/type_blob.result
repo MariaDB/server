@@ -369,8 +369,6 @@ HELLO MY	1
 a	1
 hello	1
 drop table t1;
-create table t1 (a text, unique (a(2100)));
-ERROR 42000: Specified key was too long; max key length is 1000 bytes
 create table t1 (a text, key (a(2100)));
 Warnings:
 Note	1071	Specified key was too long; max key length is 1000 bytes
@@ -618,7 +616,8 @@ id	txt
 3	Ford
 drop table t1;
 create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20)));
-insert into t1 (txt) values ('Chevy'), ('Chevy '), (NULL);
+insert into t1 (txt) values
+('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
 id	txt
 1	Chevy
@@ -626,7 +625,7 @@ id	txt
 3	NULL
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	2	Using where
+1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	3	Using where
 select * from t1 where txt='Chevy ';
 id	txt
 1	Chevy
@@ -648,7 +647,7 @@ select * from t1 where txt='Chevy' or txt='Chevy ' or txt='Ford';
 id	txt
 1	Chevy
 2	Chevy 
-4	Ford
+7	Ford
 select * from t1 where txt='Chevy' or txt='Chevy ';
 id	txt
 1	Chevy
@@ -688,12 +687,18 @@ id	txt
 2	Chevy 
 select * from t1 where txt > 'Chevy';
 id	txt
-4	Ford
+4	Honda
+5	Subaru
+6	Honda
+7	Ford
 select * from t1 where txt >= 'Chevy';
 id	txt
 1	Chevy
 2	Chevy 
-4	Ford
+4	Honda
+5	Subaru
+6	Honda
+7	Ford
 alter table t1 modify column txt blob;
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

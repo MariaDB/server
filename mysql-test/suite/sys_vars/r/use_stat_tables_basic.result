@@ -1,16 +1,16 @@
 SET @start_global_value = @@global.use_stat_tables;
 SELECT @start_global_value;
 @start_global_value
-NEVER
+PREFERABLY
 SET @start_session_value = @@session.use_stat_tables;
 SELECT @start_session_value;
 @start_session_value
-NEVER
+PREFERABLY
 SET @@global.use_stat_tables = 2;
 SET @@global.use_stat_tables = DEFAULT;
 SELECT @@global.use_stat_tables;
 @@global.use_stat_tables
-NEVER
+PREFERABLY_FOR_QUERIES
 SET @@global.use_stat_tables = 0;
 SELECT @@global.use_stat_tables;
 @@global.use_stat_tables
@@ -87,9 +87,9 @@ USE_STAT_TABLES	COMPLEMENTARY
 SET @@global.use_stat_tables = @start_global_value;
 SELECT @@global.use_stat_tables;
 @@global.use_stat_tables
-NEVER
+PREFERABLY
 SET @@session.use_stat_tables = @start_session_value;
 SELECT @@session.use_stat_tables;
 @@session.use_stat_tables
-NEVER
+PREFERABLY
 set sql_mode='';

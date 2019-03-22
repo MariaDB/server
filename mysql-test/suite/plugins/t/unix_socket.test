@@ -1,13 +1,5 @@
 --source include/have_unix_socket.inc
 
-if (!$USER) {
-  skip USER variable is undefined;
-}
-
-let $plugindir=`SELECT @@global.plugin_dir`;
-
-eval install plugin unix_socket soname '$AUTH_SOCKET_SO';
-
 --echo #
 --echo # with named user
 --echo #
@@ -26,13 +18,13 @@ EOF
 --echo #
 --echo # name match = ok
 --echo #
---exec $MYSQL_TEST -u $USER --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--exec $MYSQL_TEST -u $USER < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
 
 --echo #
 --echo # name does not match = failure
 --echo #
 --error 1
---exec $MYSQL_TEST -u foobar --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--exec $MYSQL_TEST -u foobar < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
 
 --let $replace=drop user $USER
 --replace_result $replace "drop user USER"
@@ -45,16 +37,15 @@ grant SELECT ON test.* TO '' identified via unix_socket;
 --echo #
 --echo # name match = ok
 --echo #
---exec $MYSQL_TEST -u $USER --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--exec $MYSQL_TEST -u $USER < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
 
 --echo #
 --echo # name does not match = failure
 --echo #
 --error 1
---exec $MYSQL_TEST -u foobar --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--exec $MYSQL_TEST -u foobar < $MYSQLTEST_VARDIR/tmp/peercred_test.txt
 
 # restoring mysql.user to the original state.
 delete from mysql.user where user='';
 FLUSH PRIVILEGES;
-uninstall plugin unix_socket;
 --remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt

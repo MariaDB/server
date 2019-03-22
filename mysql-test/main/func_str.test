@@ -1664,6 +1664,51 @@ drop table t1,t2;
 select md5(_filename "a"), sha(_filename "a");
 
 --echo #
+--echo # MDEV-18881 Assertion `0' failed in make_sortkey upon SELECT with GROUP BY after LOAD DATA
+--echo #
+
+CREATE TABLE t1 (a BIT(22), b CHAR(8) NOT NULL, c CHAR(8));
+INSERT INTO t1 VALUES (0xA4B,'foo','qux');
+INSERT INTO t1 VALUES (0x8F5,'bar','foobar');
+INSERT INTO t1 VALUES (0x0, '', NULL);
+INSERT INTO t1 VALUES (0x4B, 'foo','qux');
+INSERT INTO t1 VALUES (0x8F5, 'bar', 'foobar');
+SET SESSION SQL_MODE= '';
+SELECT GROUP_CONCAT(c) AS f FROM t1 GROUP BY LPAD('foo', 20, b);
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
+
+CREATE TABLE t1 AS SELECT
+  LPAD('a',10,' '),
+  RPAD('a',10,' '),
+  LPAD('a',10,'  '),
+  RPAD('a',10,'  '),
+  LPAD('a',10,NULL),
+  RPAD('a',10,NULL),
+  LPAD('a',10,''),
+  RPAD('a',10,''),
+  LPAD('a',10,RAND()),
+  RPAD('a',10,RAND());
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET SESSION SQL_MODE= '';
+CREATE TABLE t1 AS SELECT
+  LPAD('a',10,' '),
+  RPAD('a',10,' '),
+  LPAD('a',10,'  '),
+  RPAD('a',10,'  '),
+  LPAD('a',10,NULL),
+  RPAD('a',10,NULL),
+  LPAD('a',10,''),
+  RPAD('a',10,''),
+  LPAD('a',10,RAND()),
+  RPAD('a',10,RAND());
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1950,4 +1995,20 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-18205 Assertion `str_length < len' failed in Binary_string::realloc_raw
+--echo #
+
+SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' ), ENCODE('text','pass') ) AS f;
+
+
+--echo #
+--echo # End of 10.4 tests
 --echo #

@@ -1,0 +1,103 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET SESSION default_storage_engine=InnoDB;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 AS SELECT * FROM t2;
+ERROR 42S01: Table 't1' already exists
+DROP TABLE t1,t2;
+CREATE TABLE t1 AS SELECT * FROM t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+CREATE TABLE t1 AS SELECT 1 FROM DUAL;
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection node_1;
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 AS SELECT * FROM t2;
+connection node_2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_1;
+DROP TABLE t1,t2;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
+CREATE TABLE t1 AS SELECT * FROM t2;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+connection node_2;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+connection node_1;
+DROP TABLE t1,t2;
+connection node_1;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
+CREATE TABLE t1 AS SELECT MAX(f1) AS f1 FROM t2;
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+SELECT f1 = 5 FROM t1;
+f1 = 5
+1
+connection node_1;
+DROP TABLE t1,t2;
+connection node_1;
+CREATE PROCEDURE sp1 ()
+BEGIN
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
+CREATE TABLE t1 AS SELECT * FROM t2;
+END|
+CALL sp1();
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+connection node_2;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+connection node_1;
+DROP TABLE t1, t2;
+DROP PROCEDURE sp1;
+connection node_1;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT * FROM t2';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+connection node_1;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+LOCK TABLE t2 WRITE;
+connection node_1;
+CREATE TABLE t1 AS SELECT * FROM t2;;
+connection node_2;
+SELECT COUNT(*) = 5 FROM t2;
+COUNT(*) = 5
+1
+CREATE TABLE t1 AS SELECT * FROM t2;
+connection node_1a;
+UNLOCK TABLES;
+connection node_1;
+Got one of the listed errors
+DROP TABLE t1, t2;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
+CREATE TEMPORARY TABLE t1 AS SELECT * FROM t2;
+connection node_2;
+SELECT * FROM t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table 'test.t1'' on query");
+connection node_1;
+DROP TABLE t1, t2;

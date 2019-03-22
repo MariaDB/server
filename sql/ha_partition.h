@@ -912,6 +912,10 @@ public:
   */
   virtual double scan_time();
 
+  virtual double key_scan_time(uint inx);
+
+  virtual double keyread_time(uint inx, uint ranges, ha_rows rows);
+
   /*
     The next method will never be called if you do not implement indexes.
   */
@@ -1039,10 +1043,6 @@ public:
     Can't define a table without primary key (and cannot handle a table
     with hidden primary key)
     (No handler has this limitation currently)
-
-    HA_WANTS_PRIMARY_KEY:
-    Can't define a table without primary key except sequences
-    (Only InnoDB has this when using innodb_force_primary_key == ON)
 
     HA_STATS_RECORDS_IS_EXACT:
     Does the counter of records after the info call specify an exact

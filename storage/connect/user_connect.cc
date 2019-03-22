@@ -107,7 +107,7 @@ bool user_connect::user_init()
   g= PlugInit(NULL, worksize);
 
   // Check whether the initialization is complete
-  if (!g || !g->Sarea || PlugSubSet(g, g->Sarea, g->Sarea_Size)
+  if (!g || !g->Sarea || PlugSubSet(g->Sarea, g->Sarea_Size)
          || !(dup= PlgMakeUser(g))) {
     if (g)
       printf("%s\n", g->Message);
@@ -172,7 +172,7 @@ bool user_connect::CheckCleanup(bool force)
 
     } // endif worksize
 
-    PlugSubSet(g, g->Sarea, g->Sarea_Size);
+    PlugSubSet(g->Sarea, g->Sarea_Size);
     g->Xchk = NULL;
     g->Createas = 0;
     g->Alchecked = 0;

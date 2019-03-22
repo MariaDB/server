@@ -432,11 +432,9 @@ int emb_unbuffered_fetch(MYSQL *mysql, char **row)
 static void emb_free_embedded_thd(MYSQL *mysql)
 {
   THD *thd= (THD*)mysql->thd;
-  mysql_mutex_lock(&LOCK_thread_count);
+  server_threads.erase(thd);
   thd->clear_data_list();
   thd->store_globals();
-  thd->unlink();
-  mysql_mutex_unlock(&LOCK_thread_count);
   delete thd;
   my_pthread_setspecific_ptr(THR_THD,  0);
   mysql->thd=0;
@@ -711,10 +709,7 @@ void *create_embedded_thd(int client_flag)
   thd->first_data= 0;
   thd->data_tail= &thd->first_data;
   bzero((char*) &thd->net, sizeof(thd->net));
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  threads.append(thd);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  server_threads.insert(thd);
   thd->mysys_var= 0;
   thd->reset_globals();
   return thd;
@@ -896,6 +891,20 @@ static char *dup_str_aux(MEM_ROOT *root, const char *from, uint length,
 }
 
 
+static char *dup_str_aux(MEM_ROOT *root, const char *from,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+{
+  return dup_str_aux(root, from, (uint) strlen(from), fromcs, tocs);
+}
+
+
+static char *dup_str_aux(MEM_ROOT *root, const LEX_CSTRING &from,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+{
+  return dup_str_aux(root, from.str, (uint) from.length, fromcs, tocs);
+}
+
+
 /*
   creates new result and hooks it to the list
 
@@ -974,7 +983,7 @@ write_eof_packet(THD *thd, uint server_status, uint statement_warn_count)
     1 if memory allocation failed
 */
 
-int Protocol::begin_dataset()
+bool Protocol::begin_dataset()
 {
   MYSQL_DATA *data= thd->alloc_new_dataset();
   if (!data)
@@ -984,6 +993,19 @@ int Protocol::begin_dataset()
   init_alloc_root(alloc, "protocol", 8192, 0, MYF(0));
   alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
+}
+
+
+bool Protocol::begin_dataset(THD *thd, uint numfields)
+{
+  if (begin_dataset())
+    return true;
+  MYSQL_DATA *data= thd->cur_data;
+  data->fields= field_count= numfields;
+  if (!(data->embedded_info->fields_list=
+      (MYSQL_FIELD*)alloc_root(&data->alloc, sizeof(MYSQL_FIELD)*field_count)))
+    return true;
+  return false;
 }
 
 
@@ -1016,110 +1038,80 @@ void Protocol_text::remove_last_row()
 }
 
 
+bool Protocol_text::store_field_metadata(const THD * thd,
+                                         const Send_field &server_field,
+                                         CHARSET_INFO *charset_for_protocol,
+                                         uint pos)
+{
+  CHARSET_INFO *cs= system_charset_info;
+  CHARSET_INFO *thd_cs= thd->variables.character_set_results;
+  MYSQL_DATA *data= thd->cur_data;
+  MEM_ROOT *field_alloc= &data->alloc;
+  MYSQL_FIELD *client_field= &thd->cur_data->embedded_info->fields_list[pos];
+  DBUG_ASSERT(server_field.is_sane());
+
+  client_field->db= dup_str_aux(field_alloc, server_field.db_name,
+                                cs, thd_cs);
+  client_field->table= dup_str_aux(field_alloc, server_field.table_name,
+                                   cs, thd_cs);
+  client_field->name= dup_str_aux(field_alloc, server_field.col_name,
+                                  cs, thd_cs);
+  client_field->org_table= dup_str_aux(field_alloc, server_field.org_table_name,
+                                       cs, thd_cs);
+  client_field->org_name= dup_str_aux(field_alloc, server_field.org_col_name,
+                                      cs, thd_cs);
+  if (charset_for_protocol == &my_charset_bin || thd_cs == NULL)
+  {
+    /* No conversion */
+    client_field->charsetnr= charset_for_protocol->number;
+    client_field->length= server_field.length;
+  }
+  else
+  {
+    /* With conversion */
+    client_field->charsetnr= thd_cs->number;
+    client_field->length= server_field.max_octet_length(charset_for_protocol,
+                                                        thd_cs);
+  }
+  client_field->type= server_field.type;
+  client_field->flags= (uint16) server_field.flags;
+  client_field->decimals= server_field.decimals;
+
+  client_field->db_length=		strlen(client_field->db);
+  client_field->table_length=		strlen(client_field->table);
+  client_field->name_length=		strlen(client_field->name);
+  client_field->org_name_length=	strlen(client_field->org_name);
+  client_field->org_table_length=	strlen(client_field->org_table);
+
+  client_field->catalog= dup_str_aux(field_alloc, "def", 3, cs, thd_cs);
+  client_field->catalog_length= 3;
+
+  if (IS_NUM(client_field->type))
+    client_field->flags|= NUM_FLAG;
+
+  client_field->max_length= 0;
+  client_field->def= 0;
+  return false;
+}
+
+
 bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 {
   List_iterator_fast<Item> it(*list);
   Item                     *item;
-  MYSQL_FIELD              *client_field;
-  MEM_ROOT                 *field_alloc;
-  CHARSET_INFO             *thd_cs= thd->variables.character_set_results;
-  CHARSET_INFO             *cs= system_charset_info;
-  MYSQL_DATA               *data;
+  Protocol_text prot(thd);
   DBUG_ENTER("send_result_set_metadata");
 
   if (!thd->mysql)            // bootstrap file handling
     DBUG_RETURN(0);
 
-  if (begin_dataset())
+  if (begin_dataset(thd, list->elements))
     goto err;
 
-  data= thd->cur_data;
-  data->fields= field_count= list->elements;
-  field_alloc= &data->alloc;
-
-  if (!(client_field= data->embedded_info->fields_list= 
-	(MYSQL_FIELD*)alloc_root(field_alloc, sizeof(MYSQL_FIELD)*field_count)))
-    goto err;
-
-  while ((item= it++))
+  for (uint pos= 0 ; (item= it++); pos++)
   {
-    Send_field server_field;
-    item->make_send_field(thd, &server_field);
-
-    /* Keep things compatible for old clients */
-    if (server_field.type == MYSQL_TYPE_VARCHAR)
-      server_field.type= MYSQL_TYPE_VAR_STRING;
-
-    client_field->db= dup_str_aux(field_alloc, server_field.db_name,
-                                  strlen(server_field.db_name), cs, thd_cs);
-    client_field->table= dup_str_aux(field_alloc, server_field.table_name,
-                                     strlen(server_field.table_name), cs, thd_cs);
-    client_field->name= dup_str_aux(field_alloc, server_field.col_name.str,
-                                    server_field.col_name.length, cs, thd_cs);
-    client_field->org_table= dup_str_aux(field_alloc, server_field.org_table_name,
-                                         strlen(server_field.org_table_name), cs, thd_cs);
-    client_field->org_name= dup_str_aux(field_alloc,
-                                        server_field.org_col_name.str,
-                                        server_field.org_col_name.length,
-                                        cs, thd_cs);
-    if (item->charset_for_protocol() == &my_charset_bin || thd_cs == NULL)
-    {
-      /* No conversion */
-      client_field->charsetnr= item->charset_for_protocol()->number;
-      client_field->length= server_field.length;
-    }
-    else
-    {
-      uint max_char_len;
-      /* With conversion */
-      client_field->charsetnr= thd_cs->number;
-      max_char_len= (server_field.type >= (int) MYSQL_TYPE_TINY_BLOB &&
-                     server_field.type <= (int) MYSQL_TYPE_BLOB) ?
-                     server_field.length / item->collation.collation->mbminlen :
-                     server_field.length / item->collation.collation->mbmaxlen;
-      client_field->length= char_to_byte_length_safe(max_char_len,
-                                                     thd_cs->mbmaxlen);
-    }
-    client_field->type=   server_field.type;
-    client_field->flags= (uint16) server_field.flags;
-    client_field->decimals= server_field.decimals;
-    if (server_field.type == MYSQL_TYPE_FLOAT ||
-        server_field.type == MYSQL_TYPE_DOUBLE)
-      set_if_smaller(client_field->decimals, FLOATING_POINT_DECIMALS);
-
-    client_field->db_length=		strlen(client_field->db);
-    client_field->table_length=		strlen(client_field->table);
-    client_field->name_length=		strlen(client_field->name);
-    client_field->org_name_length=	strlen(client_field->org_name);
-    client_field->org_table_length=	strlen(client_field->org_table);
-
-    client_field->catalog= dup_str_aux(field_alloc, "def", 3, cs, thd_cs);
-    client_field->catalog_length= 3;
-
-    if (IS_NUM(client_field->type))
-      client_field->flags|= NUM_FLAG;
-
-    if (flags & (int) Protocol::SEND_DEFAULTS)
-    {
-      char buff[80];
-      String tmp(buff, sizeof(buff), default_charset_info), *res;
-
-      if (!(res=item->val_str(&tmp)))
-      {
-	client_field->def_length= 0;
-	client_field->def= strmake_root(field_alloc, "",0);
-      }
-      else
-      {
-	client_field->def_length= res->length();
-	client_field->def= strmake_root(field_alloc, res->ptr(),
-					client_field->def_length);
-      }
-    }
-    else
-      client_field->def=0;
-    client_field->max_length= 0;
-    ++client_field;
+    if (prot.store_field_metadata(thd, item, pos))
+      goto err;
   }
 
   if (flags & SEND_EOF)
@@ -1131,6 +1123,55 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   my_error(ER_OUT_OF_RESOURCES, MYF(0));        /* purecov: inspected */
   DBUG_RETURN(1);				/* purecov: inspected */
 }
+
+
+static void
+list_fields_send_default(THD *thd, Protocol *p, Field *fld, uint pos)
+{
+  char buff[80];
+  String tmp(buff, sizeof(buff), default_charset_info), *res;
+  MYSQL_FIELD *client_field= &thd->cur_data->embedded_info->fields_list[pos];
+
+  if (fld->is_null() || !(res= fld->val_str(&tmp)))
+  {
+    client_field->def_length= 0;
+    client_field->def= strmake_root(&thd->cur_data->alloc, "", 0);
+  }
+  else
+  {
+    client_field->def_length= res->length();
+    client_field->def= strmake_root(&thd->cur_data->alloc, res->ptr(),
+                                    client_field->def_length);
+  }
+}
+
+
+bool Protocol::send_list_fields(List<Field> *list, const TABLE_LIST *table_list)
+{
+  DBUG_ENTER("send_result_set_metadata");
+  Protocol_text prot(thd);
+  List_iterator_fast<Field> it(*list);
+  Field *fld;
+
+  if (!thd->mysql)            // bootstrap file handling
+    DBUG_RETURN(0);
+
+  if (begin_dataset(thd, list->elements))
+    goto err;
+
+  for (uint pos= 0 ; (fld= it++); pos++)
+  {
+    if (prot.store_field_metadata_for_list_fields(thd, fld, table_list, pos))
+      goto err;
+    list_fields_send_default(thd, this, fld, pos);
+  }
+
+  DBUG_RETURN(prepare_for_send(list->elements));
+err:
+  my_error(ER_OUT_OF_RESOURCES, MYF(0));
+  DBUG_RETURN(1);
+}
+
 
 bool Protocol::write()
 {

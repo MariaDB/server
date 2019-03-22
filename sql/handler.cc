@@ -43,6 +43,7 @@
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
 #include "ha_sequence.h"
+#include "rowid_filter.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -54,8 +55,12 @@
 #include "semisync_master.h"
 
 #include "wsrep_mysqld.h"
-#include "wsrep.h"
+#ifdef WITH_WSREP
+#include "wsrep_binlog.h"
 #include "wsrep_xid.h"
+#include "wsrep_thd.h"
+#include "wsrep_trans_observer.h" /* wsrep transaction hooks */
+#endif /* WITH_WSREP */
 
 /*
   While we have legacy_db_type, we have this array to
@@ -251,6 +256,9 @@ handlerton *ha_checktype(THD *thd, handlerton *hton, bool no_substitute)
 
   if (no_substitute)
     return NULL;
+#ifdef WITH_WSREP
+  (void)wsrep_after_rollback(thd, false);
+#endif /* WITH_WSREP */
 
   return ha_default_handlerton(thd);
 } /* ha_checktype */
@@ -683,7 +691,7 @@ int ha_init()
     binary log (which is considered a transaction-capable storage engine in
     counting total_ha)
   */
-  opt_using_transactions= total_ha>(ulong)opt_bin_log;
+  opt_using_transactions= total_ha > (ulong) opt_bin_log;
   savepoint_alloc_size+= sizeof(SAVEPOINT);
   DBUG_RETURN(error);
 }
@@ -692,7 +700,6 @@ int ha_end()
 {
   int error= 0;
   DBUG_ENTER("ha_end");
-
 
   /* 
     This should be eventualy based  on the graceful shutdown flag.
@@ -820,6 +827,43 @@ void ha_kill_query(THD* thd, enum thd_kill_levels level)
   DBUG_ENTER("ha_kill_query");
   plugin_foreach(thd, kill_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &level);
   DBUG_VOID_RETURN;
+}
+
+
+/*****************************************************************************
+  Backup functions
+******************************************************************************/
+
+static my_bool plugin_prepare_for_backup(THD *unused1, plugin_ref plugin,
+                                         void *not_used)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->state == SHOW_OPTION_YES && hton->prepare_for_backup)
+    hton->prepare_for_backup();
+  return FALSE;
+}
+
+void ha_prepare_for_backup()
+{
+  plugin_foreach_with_mask(0, plugin_prepare_for_backup,
+                           MYSQL_STORAGE_ENGINE_PLUGIN,
+                           PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
+}
+
+static my_bool plugin_end_backup(THD *unused1, plugin_ref plugin,
+                                 void *not_used)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->state == SHOW_OPTION_YES && hton->end_backup)
+    hton->end_backup();
+  return FALSE;
+}
+
+void ha_end_backup()
+{
+  plugin_foreach_with_mask(0, plugin_end_backup,
+                           MYSQL_STORAGE_ENGINE_PLUGIN,
+                           PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
 }
 
 
@@ -1163,17 +1207,29 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
 
 static int prepare_or_error(handlerton *ht, THD *thd, bool all)
 {
+#ifdef WITH_WSREP
+  const bool run_wsrep_hooks= wsrep_run_commit_hook(thd, all);
+  if (run_wsrep_hooks && ht->flags & HTON_WSREP_REPLICATION &&
+      wsrep_before_prepare(thd, all))
+  {
+    return(1);
+  }
+#endif /* WITH_WSREP */
+
   int err= ht->prepare(ht, thd, all);
   status_var_increment(thd->status_var.ha_prepare_count);
   if (err)
   {
-    /* avoid sending error, if we're going to replay the transaction */
-#ifdef WITH_WSREP
-    if (ht != wsrep_hton ||
-        err == EMSGSIZE || thd->wsrep_conflict_state != MUST_REPLAY)
-#endif
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
   }
+#ifdef WITH_WSREP
+  if (run_wsrep_hooks && !err && ht->flags & HTON_WSREP_REPLICATION &&
+      wsrep_after_prepare(thd, all))
+  {
+    err= 1;
+  }
+#endif /* WITH_WSREP */
+
   return err;
 }
 
@@ -1314,6 +1370,9 @@ int ha_commit_trans(THD *thd, bool all)
   Ha_trx_info *ha_info= trans->ha_list;
   bool need_prepare_ordered, need_commit_ordered;
   my_xid xid;
+#ifdef WITH_WSREP
+  const bool run_wsrep_hooks= wsrep_run_commit_hook(thd, all);
+#endif /* WITH_WSREP */
   DBUG_ENTER("ha_commit_trans");
   DBUG_PRINT("info",("thd: %p  option_bits: %lu  all: %d",
                      thd, (ulong) thd->variables.option_bits, all));
@@ -1358,7 +1417,7 @@ int ha_commit_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, TRUE);
+  ha_maria::implicit_commit(thd, TRUE);
 #endif
 
   if (!ha_info)
@@ -1368,6 +1427,12 @@ int ha_commit_trans(THD *thd, bool all)
     */
     if (is_real_trans)
       thd->transaction.cleanup();
+#ifdef WITH_WSREP
+    if (wsrep_is_active(thd) && is_real_trans && !error)
+    {
+      wsrep_commit_empty(thd, all);
+    }
+#endif /* WITH_WSREP */
     DBUG_RETURN(0);
   }
 
@@ -1395,8 +1460,7 @@ int ha_commit_trans(THD *thd, bool all)
       We allow the owner of FTWRL to COMMIT; we assume that it knows
       what it does.
     */
-    mdl_request.init(MDL_key::COMMIT, "", "", MDL_INTENTION_EXCLUSIVE,
-                     MDL_EXPLICIT);
+    mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
 
     if (!WSREP(thd) &&
       thd->mdl_context.acquire_lock(&mdl_request,
@@ -1454,7 +1518,24 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
+#ifdef WITH_WSREP
+    /*
+      This commit will not go through log_and_order() where wsrep commit
+      ordering is normally done. Commit ordering must be done here.
+    */
+    if (run_wsrep_hooks)
+      error= wsrep_before_commit(thd, all);
+    if (error)
+    {
+      ha_rollback_trans(thd, FALSE);
+      goto wsrep_err;
+    }
+#endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
+#ifdef WITH_WSREP
+    if (run_wsrep_hooks)
+      error= error || wsrep_after_commit(thd, all);
+#endif /* WITH_WSREP */
     goto done;
   }
 
@@ -1486,10 +1567,14 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
 
 #ifdef WITH_WSREP
-  if (!error && WSREP_ON && wsrep_is_wsrep_xid(&thd->transaction.xid_state.xid))
+  if (run_wsrep_hooks && !error)
   {
-    // xid was rewritten by wsrep
-    xid= wsrep_xid_seqno(thd->transaction.xid_state.xid);
+    wsrep::seqno const s= wsrep_xid_seqno(thd->wsrep_xid);
+    if (!s.is_undefined())
+    {
+      // xid was rewritten by wsrep
+      xid= s.get();
+    }
   }
 #endif /* WITH_WSREP */
 
@@ -1498,18 +1583,35 @@ int ha_commit_trans(THD *thd, bool all)
     error= commit_one_phase_2(thd, all, trans, is_real_trans);
     goto done;
   }
-
+#ifdef WITH_WSREP
+  if (run_wsrep_hooks && (error = wsrep_before_commit(thd, all)))
+    goto wsrep_err;
+#endif /* WITH_WSREP */
   DEBUG_SYNC(thd, "ha_commit_trans_before_log_and_order");
   cookie= tc_log->log_and_order(thd, xid, all, need_prepare_ordered,
                                 need_commit_ordered);
   if (!cookie)
+  {
+    WSREP_DEBUG("log_and_order has failed %llu %d", thd->thread_id, cookie);
     goto err;
-
+  }
   DEBUG_SYNC(thd, "ha_commit_trans_after_log_and_order");
   DBUG_EXECUTE_IF("crash_commit_after_log", DBUG_SUICIDE(););
 
   error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;
-
+#ifdef WITH_WSREP
+  if (run_wsrep_hooks && (error || (error = wsrep_after_commit(thd, all))))
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    if (wsrep_must_abort(thd))
+    {
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      (void)tc_log->unlog(cookie, xid);
+      goto wsrep_err;
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
+#endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
   if (tc_log->unlog(cookie, xid))
   {
@@ -1531,6 +1633,19 @@ done:
   goto end;
 
   /* Come here if error and we need to rollback. */
+#ifdef WITH_WSREP
+wsrep_err:
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (run_wsrep_hooks && wsrep_must_abort(thd))
+  {
+    WSREP_DEBUG("BF abort has happened after prepare & certify");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    ha_rollback_trans(thd, TRUE);
+  }
+  else
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+#endif /* WITH_WSREP */
 err:
   error= 1;                                  /* Transaction was rolled back */
   /*
@@ -1540,7 +1655,11 @@ err:
   */
   if (!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec))
     ha_rollback_trans(thd, all);
-
+  else
+  {
+    WSREP_DEBUG("rollback skipped %p %d",thd->rgi_slave,
+                thd->rgi_slave->is_parallel_exec);
+  }
 end:
   if (rw_trans && mdl_request.ticket)
   {
@@ -1552,6 +1671,14 @@ end:
     */
     thd->mdl_context.release_lock(mdl_request.ticket);
   }
+#ifdef WITH_WSREP
+  if (wsrep_is_active(thd) && is_real_trans && !error && (rw_ha_count == 0) &&
+      wsrep_not_committed(thd))
+  {
+    wsrep_commit_empty(thd, all);
+  }
+#endif /* WITH_WSREP */
+
   DBUG_RETURN(error);
 }
 
@@ -1709,6 +1836,9 @@ int ha_rollback_trans(THD *thd, bool all)
     DBUG_RETURN(1);
   }
 
+#ifdef WITH_WSREP
+  (void) wsrep_before_rollback(thd, all);
+#endif /* WITH_WSREP */
   if (ha_info)
   {
     /* Close all cursors that can not survive ROLLBACK */
@@ -1724,9 +1854,9 @@ int ha_rollback_trans(THD *thd, bool all)
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
-         WSREP_WARN("handlerton rollback failed, thd %llu %lld conf %d SQL %s",
-                    thd->thread_id, thd->query_id, thd->wsrep_conflict_state,
-                    thd->query());
+        WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
+                   thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
+                   thd->query());
 #endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
@@ -1745,6 +1875,15 @@ int ha_rollback_trans(THD *thd, bool all)
       thd->transaction.xid_state.xa_state != XA_NOTR)
     thd->transaction.xid_state.rm_error= thd->get_stmt_da()->sql_errno();
 
+#ifdef WITH_WSREP
+  if (thd->is_error())
+  {
+    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
+                thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
+                thd->get_stmt_da()->message(), is_real_trans);
+  }
+  (void) wsrep_after_rollback(thd, all);
+#endif /* WITH_WSREP */
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
   {
@@ -1878,6 +2017,28 @@ static char* xid_to_str(char *buf, XID *xid)
 }
 #endif
 
+#ifdef WITH_WSREP
+static my_xid wsrep_order_and_check_continuity(XID *list, int len)
+{
+  wsrep_sort_xid_array(list, len);
+  wsrep::gtid cur_position= wsrep_get_SE_checkpoint();
+  long long cur_seqno= cur_position.seqno().get();
+  for (int i= 0; i < len; ++i)
+  {
+    if (!wsrep_is_wsrep_xid(list + i) ||
+        wsrep_xid_seqno(list + i) != cur_seqno + 1)
+    {
+      WSREP_WARN("Discovered discontinuity in recovered wsrep "
+                 "transaction XIDs. Truncating the recovery list to "
+                 "%d entries", i);
+      break;
+    }
+    ++cur_seqno;
+  }
+  WSREP_INFO("Last wsrep seqno to be recovered %lld", cur_seqno);
+  return (cur_seqno < 0 ? 0 : cur_seqno);
+}
+#endif /* WITH_WSREP */
 /**
   recover() step of xa.
 
@@ -1915,10 +2076,32 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
     {
       sql_print_information("Found %d prepared transaction(s) in %s",
                             got, hton_name(hton)->str);
+#ifdef WITH_WSREP
+      /* If wsrep_on=ON, XIDs are first ordered and then the range of
+         recovered XIDs is checked for continuity. All the XIDs which
+         are in continuous range can be safely committed if binlog
+         is off since they have already ordered and certified in the
+         cluster.
+
+         The discontinuity of wsrep XIDs may happen because the GTID
+         is assigned for transaction in wsrep_before_prepare(), but the
+         commit order is entered in wsrep_before_commit(). This means that
+         transactions may run prepare step out of order and may
+         result in gap in wsrep XIDs. This can be the case for example
+         if we have T1 with seqno 1 and T2 with seqno 2 and the server
+         crashes after T2 finishes prepare step but before T1 starts
+         the prepare.
+      */
+      my_xid wsrep_limit= 0;
+      if (WSREP_ON)
+      {
+        wsrep_limit= wsrep_order_and_check_continuity(info->list, got);
+      }
+#endif /* WITH_WSREP */
       for (int i=0; i < got; i ++)
       {
         my_xid x= IF_WSREP(WSREP_ON && wsrep_is_wsrep_xid(&info->list[i]) ?
-                           wsrep_xid_seqno(info->list[i]) :
+                           wsrep_xid_seqno(&info->list[i]) :
                            info->list[i].get_my_xid(),
                            info->list[i].get_my_xid());
         if (!x) // not "mine" - that is generated by external TM
@@ -1931,15 +2114,21 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           info->found_foreign_xids++;
           continue;
         }
-        if (info->dry_run)
+        if (IF_WSREP(!(wsrep_emulate_bin_log &&
+                       wsrep_is_wsrep_xid(info->list + i) &&
+                       x <= wsrep_limit) && info->dry_run,
+                     info->dry_run))
         {
           info->found_my_xids++;
           continue;
         }
         // recovery mode
-        if (info->commit_list ?
-            my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
-            tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
+        if (IF_WSREP((wsrep_emulate_bin_log &&
+                      wsrep_is_wsrep_xid(info->list + i) &&
+                      x <= wsrep_limit), false) ||
+            (info->commit_list ?
+             my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
+             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT))
         {
 #ifndef DBUG_OFF
           int rc=
@@ -2297,11 +2486,26 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
   {
     int err;
     handlerton *ht= ha_info->ht();
+#ifdef WITH_WSREP
+    if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION)
+    {
+      WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollbackha_rollback_trans hook");
+      (void) wsrep_before_rollback(thd, !thd->in_sub_stmt);
+
+    }
+#endif // WITH_WSREP
     if ((err= ht->rollback(ht, thd, !thd->in_sub_stmt)))
     { // cannot happen
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
       error=1;
     }
+#ifdef WITH_WSREP
+    if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION)
+    {
+      WSREP_DEBUG("ha_rollback_to_savepoint: run after_rollback hook");
+      (void) wsrep_after_rollback(thd, !thd->in_sub_stmt);
+    }
+#endif // WITH_WSREP
     status_var_increment(thd->status_var.ha_rollback_count);
     ha_info_next= ha_info->next();
     ha_info->reset(); /* keep it conveniently zero-filled */
@@ -2318,6 +2522,16 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 */
 int ha_savepoint(THD *thd, SAVEPOINT *sv)
 {
+#ifdef WITH_WSREP
+  /*
+    Register binlog hton for savepoint processing if wsrep binlog
+    emulation is on.
+   */
+  if (WSREP_EMULATE_BINLOG(thd) && wsrep_thd_is_local(thd))
+  {
+    wsrep_register_binlog_handler(thd, thd->in_multi_stmt_transaction_mode());
+  }
+#endif /* WITH_WSREP */
   int error=0;
   THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
                                         &thd->transaction.all);
@@ -2602,23 +2816,26 @@ LEX_CSTRING *handler::engine_name()
 }
 
 
+/*
+  It is assumed that the value of the parameter 'ranges' can be only 0 or 1.
+  If ranges == 1 then the function returns the cost of index only scan
+  by index 'keyno' of one range containing 'rows' key entries.
+  If ranges == 0 then the function returns only the cost of copying
+  those key entries into the engine buffers.
+*/
+
 double handler::keyread_time(uint index, uint ranges, ha_rows rows)
 {
-  /*
-    It is assumed that we will read trough the whole key range and that all
-    key blocks are half full (normally things are much better). It is also
-    assumed that each time we read the next key from the index, the handler
-    performs a random seek, thus the cost is proportional to the number of
-    blocks read. This model does not take into account clustered indexes -
-    engines that support that (e.g. InnoDB) may want to overwrite this method.
-    The model counts in the time to read index entries from cache.
-  */
+  DBUG_ASSERT(ranges == 0 || ranges == 1);
   size_t len= table->key_info[index].key_length + ref_length;
   if (index == table->s->primary_key && table->file->primary_key_is_clustered())
     len= table->s->stored_rec_length;
-  double keys_per_block= (stats.block_size/2.0/len+1);
-  return (rows + keys_per_block-1)/ keys_per_block +
-         len*rows/(stats.block_size+1)/TIME_FOR_COMPARE ;
+  uint keys_per_block= (uint) (stats.block_size/2.0/len+1);
+  ulonglong blocks= !rows ? 0 : (rows-1) / keys_per_block + 1;
+  double cost= (double)rows*len/(stats.block_size+1)*IDX_BLOCK_COPY_COST;
+  if (ranges)
+    cost+= blocks;
+  return cost;
 }
 
 void **handler::ha_data(THD *thd) const
@@ -3048,11 +3265,17 @@ compute_next_insert_id(ulonglong nr,struct system_variables *variables)
     nr= nr + 1; // optimization of the formula below
   else
   {
-    nr= (((nr+ variables->auto_increment_increment -
-           variables->auto_increment_offset)) /
-         (ulonglong) variables->auto_increment_increment);
-    nr= (nr* (ulonglong) variables->auto_increment_increment +
-         variables->auto_increment_offset);
+    /*
+       Calculating the number of complete auto_increment_increment extents:
+    */
+    nr= (nr + variables->auto_increment_increment -
+         variables->auto_increment_offset) /
+        (ulonglong) variables->auto_increment_increment;
+    /*
+       Adding an offset to the auto_increment_increment extent boundary:
+    */
+    nr= nr * (ulonglong) variables->auto_increment_increment +
+        variables->auto_increment_offset;
   }
 
   if (unlikely(nr <= save_nr))
@@ -3106,8 +3329,14 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
   }
   if (variables->auto_increment_increment == 1)
     return nr; // optimization of the formula below
-  nr= (((nr - variables->auto_increment_offset)) /
-       (ulonglong) variables->auto_increment_increment);
+  /*
+     Calculating the number of complete auto_increment_increment extents:
+  */
+  nr= (nr - variables->auto_increment_offset) /
+      (ulonglong) variables->auto_increment_increment;
+  /*
+     Adding an offset to the auto_increment_increment extent boundary:
+  */
   return (nr * (ulonglong) variables->auto_increment_increment +
           variables->auto_increment_offset);
 }
@@ -3349,10 +3578,32 @@ int handler::update_auto_increment()
   if (unlikely(tmp))                            // Out of range value in store
   {
     /*
-      It's better to return an error here than getting a confusing
-      'duplicate key error' later.
+      First, test if the query was aborted due to strict mode constraints
+      or new field value greater than maximum integer value:
     */
-    result= HA_ERR_AUTOINC_ERANGE;
+    if (thd->killed == KILL_BAD_DATA ||
+        nr > table->next_number_field->get_max_int_value())
+    {
+      /*
+        It's better to return an error here than getting a confusing
+        'duplicate key error' later.
+      */
+      result= HA_ERR_AUTOINC_ERANGE;
+    }
+    else
+    {
+      /*
+        Field refused this value (overflow) and truncated it, use the result
+        of the truncation (which is going to be inserted); however we try to
+        decrease it to honour auto_increment_* variables.
+        That will shift the left bound of the reserved interval, we don't
+        bother shifting the right bound (anyway any other value from this
+        interval will cause a duplicate key).
+      */
+      nr= prev_insert_id(table->next_number_field->val_int(), variables);
+      if (unlikely(table->next_number_field->store((longlong)nr, TRUE)))
+        nr= table->next_number_field->val_int();
+    }
   }
   if (append)
   {
@@ -3552,6 +3803,8 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
   }
   else
   {
+    if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+      setup_keyinfo_hash(key);
     /* Table is opened and defined at this point */
     key_unpack(&str,table, key);
     uint max_length=MYSQL_ERRMSG_SIZE-(uint) strlen(msg);
@@ -3562,6 +3815,8 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
     }
     my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr_safe(),
                     key->name.str);
+    if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+      re_setup_keyinfo_hash(key);
   }
 }
 
@@ -3578,7 +3833,6 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag)
                      ER_THD(table->in_use, ER_DUP_ENTRY_WITH_KEY_NAME),
                      errflag);
 }
-
 
 /**
   Print error that we got from handler function.
@@ -4069,9 +4323,10 @@ err:
 */
 uint handler::get_dup_key(int error)
 {
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
+  if (table->s->long_unique_table && table->file->errkey < table->s->keys)
+    DBUG_RETURN(table->file->errkey);
   table->file->errkey  = (uint) -1;
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
@@ -5753,6 +6008,35 @@ extern "C" enum icp_result handler_index_cond_check(void* h_arg)
   return res;
 }
 
+
+/**
+  Rowid filter callback - to be called by an engine to check rowid / primary
+  keys of the rows whose data is to be fetched against the used rowid filter
+*/
+
+extern "C" int handler_rowid_filter_check(void *h_arg)
+{
+  handler *h= (handler*) h_arg;
+  TABLE *tab= h->get_table();
+  h->position(tab->record[0]);
+  return h->pushed_rowid_filter->check((char *) h->ref);
+}
+
+
+/**
+  Callback function for an engine to check whether the used rowid filter
+  has been already built
+*/
+
+extern "C" int handler_rowid_filter_is_active(void *h_arg)
+{
+  if (!h_arg)
+    return false;
+  handler *h= (handler*) h_arg;
+  return h->rowid_filter_is_active;
+}
+
+
 int handler::index_read_idx_map(uchar * buf, uint index, const uchar * key,
                                 key_part_map keypart_map,
                                 enum ha_rkey_function find_flag)
@@ -5933,6 +6217,12 @@ bool handler::check_table_binlog_row_based(bool binlog_row)
     return false;
   if (unlikely((table->in_use->variables.sql_log_bin_off)))
     return 0;                            /* Called by partitioning engine */
+#ifdef WITH_WSREP
+  if (!table->in_use->variables.sql_log_bin &&
+      wsrep_thd_is_applying(table->in_use))
+    return 0;      /* wsrep patch sets sql_log_bin to silence binlogging
+                      from high priority threads */
+#endif /* WITH_WSREP */
   if (unlikely((!check_table_binlog_row_based_done)))
   {
     check_table_binlog_row_based_done= 1;
@@ -5963,12 +6253,12 @@ bool handler::check_table_binlog_row_based_internal(bool binlog_row)
             Otherwise, return 'true' if binary logging is on.
           */
           IF_WSREP(((WSREP_EMULATE_BINLOG(thd) &&
-                     (thd->wsrep_exec_mode != REPL_RECV)) ||
+                     wsrep_thd_is_local(thd)) ||
                     ((WSREP(thd) ||
                       (thd->variables.option_bits & OPTION_BIN_LOG)) &&
                      mysql_bin_log.is_open())),
-                   (thd->variables.option_bits & OPTION_BIN_LOG) &&
-                   mysql_bin_log.is_open()));
+                    (thd->variables.option_bits & OPTION_BIN_LOG) &&
+                    mysql_bin_log.is_open()));
 }
 
 
@@ -6005,7 +6295,9 @@ static int write_locked_table_maps(THD *thd)
   MYSQL_LOCK *locks[2];
   locks[0]= thd->extra_lock;
   locks[1]= thd->lock;
-  my_bool with_annotate= thd->variables.binlog_annotate_row_events &&
+  my_bool with_annotate= IF_WSREP(!wsrep_fragments_certified_for_stmt(thd),
+                                  true) &&
+    thd->variables.binlog_annotate_row_events &&
     thd->query() && thd->query_length();
 
   for (uint i= 0 ; i < sizeof(locks)/sizeof(*locks) ; ++i )
@@ -6093,23 +6385,9 @@ int binlog_log_row(TABLE* table, const uchar *before_record,
 
   /* only InnoDB tables will be replicated through binlog emulation */
   if ((WSREP_EMULATE_BINLOG(thd) &&
-       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
-       (thd->wsrep_ignore_table == true))
+       !(table->file->partition_ht()->flags & HTON_WSREP_REPLICATION)) ||
+      thd->wsrep_ignore_table == true)
     return 0;
-
-  /* enforce wsrep_max_ws_rows */
-  if (WSREP(thd) && table->s->tmp_table == NO_TMP_TABLE)
-  {
-    thd->wsrep_affected_rows++;
-    if (wsrep_max_ws_rows &&
-        thd->wsrep_exec_mode != REPL_RECV &&
-        thd->wsrep_affected_rows > wsrep_max_ws_rows)
-    {
-      trans_rollback_stmt(thd) || trans_rollback(thd);
-      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
-      return ER_ERROR_DURING_COMMIT;
-    }
-  }
 #endif
 
   if (!table->file->check_table_binlog_row_based(1))
@@ -6217,10 +6495,192 @@ int handler::ha_reset()
   /* Reset information about pushed engine conditions */
   cancel_pushed_idx_cond();
   /* Reset information about pushed index conditions */
+  cancel_pushed_rowid_filter();
   clear_top_table_fields();
   DBUG_RETURN(reset());
 }
 
+#ifdef WITH_WSREP
+static int wsrep_after_row(THD *thd)
+{
+  DBUG_ENTER("wsrep_after_row");
+  /* enforce wsrep_max_ws_rows */
+  thd->wsrep_affected_rows++;
+  if (wsrep_max_ws_rows &&
+      wsrep_thd_is_local(thd) &&
+      thd->wsrep_affected_rows > wsrep_max_ws_rows)
+  {
+    trans_rollback_stmt(thd) || trans_rollback(thd);
+    my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+    DBUG_RETURN(ER_ERROR_DURING_COMMIT);
+  }
+  else if (wsrep_after_row(thd, false))
+  {
+    DBUG_RETURN(ER_LOCK_DEADLOCK);
+  }
+  DBUG_RETURN(0);
+}
+#endif /* WITH_WSREP */
+
+static int check_duplicate_long_entry_key(TABLE *table, handler *h,
+                                          uchar *new_rec, uint key_no)
+{
+  Field *hash_field;
+  int result, error= 0;
+  KEY *key_info= table->key_info + key_no;
+  hash_field= key_info->key_part->field;
+  uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
+
+  DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
+               key_info->key_length == HA_HASH_KEY_LENGTH_WITH_NULL)
+              || key_info->key_length == HA_HASH_KEY_LENGTH_WITHOUT_NULL);
+
+  if (hash_field->is_real_null())
+    return 0;
+
+  key_copy(ptr, new_rec, key_info, key_info->key_length, false);
+
+  if (!table->check_unique_buf)
+    table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
+                                                 table->s->reclength);
+
+  result= h->ha_index_init(key_no, 0);
+  if (result)
+    return result;
+  store_record(table, check_unique_buf);
+  result= h->ha_index_read_map(table->record[0],
+                               ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+  if (!result)
+  {
+    bool is_same;
+    Field * t_field;
+    Item_func_hash * temp= (Item_func_hash *)hash_field->vcol_info->expr;
+    Item ** arguments= temp->arguments();
+    uint arg_count= temp->argument_count();
+    do
+    {
+      my_ptrdiff_t diff= table->check_unique_buf - new_rec;
+      is_same= true;
+      for (uint j=0; is_same && j < arg_count; j++)
+      {
+        DBUG_ASSERT(arguments[j]->type() == Item::FIELD_ITEM ||
+                    // this one for left(fld_name,length)
+                    arguments[j]->type() == Item::FUNC_ITEM);
+        if (arguments[j]->type() == Item::FIELD_ITEM)
+        {
+          t_field= static_cast<Item_field *>(arguments[j])->field;
+          if (t_field->cmp_offset(diff))
+            is_same= false;
+        }
+        else
+        {
+          Item_func_left *fnc= static_cast<Item_func_left *>(arguments[j]);
+          DBUG_ASSERT(!my_strcasecmp(system_charset_info, "left", fnc->func_name()));
+          DBUG_ASSERT(fnc->arguments()[0]->type() == Item::FIELD_ITEM);
+          t_field= static_cast<Item_field *>(fnc->arguments()[0])->field;
+          uint length= (uint)fnc->arguments()[1]->val_int();
+          if (t_field->cmp_max(t_field->ptr, t_field->ptr + diff, length))
+            is_same= false;
+        }
+      }
+    }
+    while (!is_same && !(result= h->ha_index_next_same(table->record[0],
+                         ptr, key_info->key_length)));
+    if (is_same)
+      error= HA_ERR_FOUND_DUPP_KEY;
+    goto exit;
+  }
+  if (result == HA_ERR_LOCK_WAIT_TIMEOUT)
+    error= HA_ERR_LOCK_WAIT_TIMEOUT;
+exit:
+  if (error)
+  {
+    table->file->errkey= key_no;
+    if (h->ha_table_flags() & HA_DUPLICATE_POS)
+    {
+      h->position(table->record[0]);
+      memcpy(table->file->dup_ref, h->ref, h->ref_length);
+    }
+  }
+  restore_record(table, check_unique_buf);
+  h->ha_index_end();
+  return error;
+}
+
+/** @brief
+    check whether inserted records breaks the
+    unique constraint on long columns.
+    @returns 0 if no duplicate else returns error
+  */
+static int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
+{
+  table->file->errkey= -1;
+  int result;
+  for (uint i= 0; i < table->s->keys; i++)
+  {
+    if (table->key_info[i].algorithm == HA_KEY_ALG_LONG_HASH &&
+            (result= check_duplicate_long_entry_key(table, h, new_rec, i)))
+      return result;
+  }
+  return 0;
+}
+
+/** @brief
+    check whether updated records breaks the
+    unique constraint on long columns.
+    In the case of update we just need to check the specic key
+    reason for that is consider case
+    create table t1(a blob , b blob , x blob , y blob ,unique(a,b)
+                                                    ,unique(x,y))
+    and update statement like this
+    update t1 set a=23+a; in this case if we try to scan for
+    whole keys in table then index scan on x_y will return 0
+    because data is same so in the case of update we take
+    key as a parameter in normal insert key should be -1
+    @returns 0 if no duplicate else returns error
+  */
+static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec)
+{
+  Field *field;
+  uint key_parts;
+  int error= 0;
+  KEY *keyinfo;
+  KEY_PART_INFO *keypart;
+  /*
+     Here we are comparing whether new record and old record are same
+     with respect to fields in hash_str
+   */
+  uint reclength= (uint) (table->record[1] - table->record[0]);
+  if (!table->update_handler)
+    table->clone_handler_for_update();
+  for (uint i= 0; i < table->s->keys; i++)
+  {
+    keyinfo= table->key_info + i;
+    if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
+    {
+      key_parts= fields_in_hash_keyinfo(keyinfo);
+      keypart= keyinfo->key_part - key_parts;
+      for (uint j= 0; j < key_parts; j++, keypart++)
+      {
+        field= keypart->field;
+        /* Compare fields if they are different then check for duplicates*/
+        if(field->cmp_binary_offset(reclength))
+        {
+          if((error= check_duplicate_long_entry_key(table, table->update_handler,
+                                                 new_rec, i)))
+            goto exit;
+          /*
+            break because check_duplicate_long_entries_key will
+            take care of remaining fields
+           */
+          break;
+        }
+      }
+    }
+  }
+  exit:
+  return error;
+}
 
 int handler::ha_write_row(uchar *buf)
 {
@@ -6235,6 +6695,12 @@ int handler::ha_write_row(uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
+  if (table->s->long_unique_table)
+  {
+    handler *h= table->update_handler ? table->update_handler : table->file;
+    if ((error= check_duplicate_long_entries(table, h, buf)))
+      DBUG_RETURN(error);
+  }
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
                       { error= write_row(buf); })
 
@@ -6243,7 +6709,15 @@ int handler::ha_write_row(uchar *buf)
   {
     rows_changed++;
     error= binlog_log_row(table, 0, buf, log_func);
+#ifdef WITH_WSREP
+    if (table_share->tmp_table == NO_TMP_TABLE &&
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+    {
+      DBUG_RETURN(error);
+    }
+#endif /* WITH_WSREP */
   }
+
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
@@ -6266,6 +6740,11 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
+  if (table->s->long_unique_table &&
+          (error= check_duplicate_long_entries_update(table, table->file, (uchar *)new_data)))
+  {
+    return error;
+  }
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
@@ -6275,6 +6754,13 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   {
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
+#ifdef WITH_WSREP
+    if (table_share->tmp_table == NO_TMP_TABLE &&
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+    {
+      return error;
+    }
+#endif /* WITH_WSREP */
   }
   return error;
 }
@@ -6330,6 +6816,13 @@ int handler::ha_delete_row(const uchar *buf)
   {
     rows_changed++;
     error= binlog_log_row(table, buf, 0, log_func);
+#ifdef WITH_WSREP
+    if (table_share->tmp_table == NO_TMP_TABLE &&
+        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+    {
+      return error;
+    }
+#endif /* WITH_WSREP */
   }
   return error;
 }
@@ -6519,7 +7012,7 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   DBUG_ENTER("ha_abort_transaction");
   if (!WSREP(bf_thd) &&
       !(bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
-        bf_thd->wsrep_exec_mode == TOTAL_ORDER)) {
+        wsrep_thd_is_toi(bf_thd))) {
     DBUG_RETURN(0);
   }
 
@@ -6534,54 +7027,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   }
 
   DBUG_RETURN(0);
-}
-
-void ha_fake_trx_id(THD *thd)
-{
-  DBUG_ENTER("ha_fake_trx_id");
-
-  bool no_fake_trx_id= true;
-
-  if (!WSREP(thd))
-  {
-    DBUG_VOID_RETURN;
-  }
-
-  if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
-  {
-    WSREP_DEBUG("fake trx id skipped: %" PRIu64, thd->wsrep_ws_handle.trx_id);
-    DBUG_VOID_RETURN;
-  }
-
-  /* Try statement transaction if standard one is not set. */
-  THD_TRANS *trans= (thd->transaction.all.ha_list) ?  &thd->transaction.all :
-    &thd->transaction.stmt;
-
-  Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
-
-  for (; ha_info; ha_info= ha_info_next)
-  {
-    handlerton *hton= ha_info->ht();
-    if (hton->fake_trx_id)
-    {
-      hton->fake_trx_id(hton, thd);
-
-      /* Got a fake trx id. */
-      no_fake_trx_id= false;
-
-      /*
-        We need transaction ID from just one storage engine providing
-        fake_trx_id (which will most likely be the case).
-      */
-      break;
-    }
-    ha_info_next= ha_info->next();
-  }
-
-  if (unlikely(no_fake_trx_id))
-    WSREP_WARN("Cannot get fake transaction ID from storage engine.");
-
-  DBUG_VOID_RETURN;
 }
 #endif /* WITH_WSREP */
 
@@ -6870,6 +7315,10 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   DBUG_RETURN(res);
 }
 
+/*****************************************************************************
+  VERSIONING functions
+******************************************************************************/
+
 bool Vers_parse_info::is_start(const char *name) const
 {
   DBUG_ASSERT(name);
@@ -6895,7 +7344,6 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   if (!f)
     return NULL;
 
-  memset(f, 0, sizeof(*f));
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
@@ -6944,8 +7392,8 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 
   alter_info->flags|= ALTER_PARSER_ADD_COLUMN;
 
-  system_time= start_end_t(default_start, default_end);
-  as_row= system_time;
+  period= start_end_t(default_start, default_end);
+  as_row= period;
 
   if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG) ||
       vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG))
@@ -7136,7 +7584,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     DBUG_ASSERT(end.str);
 
     as_row= start_end_t(start, end);
-    system_time= as_row;
+    period= as_row;
 
     if (alter_info->create_list.elements)
     {
@@ -7222,7 +7670,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
   }
 
   as_row= start_end_t(f_start->field_name, f_end->field_name);
-  system_time= as_row;
+  period= as_row;
 
   create_info.options|= HA_VERSIONED_TABLE;
   return false;
@@ -7247,14 +7695,14 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
     return true;
   }
 
-  if (!system_time.start || !system_time.end)
+  if (!period.start || !period.end)
   {
     my_error(ER_MISSING, MYF(0), table_name.str, "PERIOD FOR SYSTEM_TIME");
     return true;
   }
 
-  if (!as_row.start.streq(system_time.start) ||
-      !as_row.end.streq(system_time.end))
+  if (!as_row.start.streq(period.start) ||
+      !as_row.end.streq(period.end))
   {
     my_error(ER_VERS_PERIOD_COLUMNS, MYF(0), as_row.start.str, as_row.end.str);
     return true;
@@ -7343,4 +7791,108 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
   my_error(ER_MISSING, MYF(0), table_name.str, found_flag & VERS_SYS_START_FLAG ?
            "ROW END" : found_flag ? "ROW START" : "ROW START/END");
   return true;
+}
+
+bool Table_period_info::check_field(const Create_field* f,
+                                    const Lex_ident& f_name) const
+{
+  bool res= false;
+  if (!f)
+  {
+    my_error(ER_BAD_FIELD_ERROR, MYF(0), f_name.str, name.str);
+    res= true;
+  }
+  else if (f->type_handler()->mysql_timestamp_type() != MYSQL_TIMESTAMP_DATE &&
+           f->type_handler()->mysql_timestamp_type() != MYSQL_TIMESTAMP_DATETIME)
+  {
+    my_error(ER_WRONG_FIELD_SPEC, MYF(0), f->field_name.str);
+    res= true;
+  }
+  else if (f->vcol_info || f->flags & VERS_SYSTEM_FIELD)
+  {
+    my_error(ER_PERIOD_FIELD_WRONG_ATTRIBUTES, MYF(0),
+             f->field_name.str, "GENERATED ALWAYS AS");
+  }
+
+  return res;
+}
+
+bool Table_scope_and_contents_source_st::check_fields(
+  THD *thd, Alter_info *alter_info, TABLE_LIST &create_table)
+{
+  return vers_check_system_fields(thd, alter_info, create_table)
+         || check_period_fields(thd, alter_info);
+}
+
+bool Table_scope_and_contents_source_st::check_period_fields(
+                THD *thd, Alter_info *alter_info)
+{
+  if (!period_info.name)
+    return false;
+
+  if (tmp_table())
+  {
+    my_error(ER_PERIOD_TEMPORARY_NOT_ALLOWED, MYF(0));
+    return true;
+  }
+
+  Table_period_info::start_end_t &period= period_info.period;
+  const Create_field *row_start= NULL;
+  const Create_field *row_end= NULL;
+  List_iterator<Create_field> it(alter_info->create_list);
+  while (const Create_field *f= it++)
+  {
+    if (period.start.streq(f->field_name)) row_start= f;
+    else if (period.end.streq(f->field_name)) row_end= f;
+
+    if (period_info.name.streq(f->field_name))
+    {
+      my_error(ER_DUP_FIELDNAME, MYF(0), f->field_name.str);
+      return true;
+    }
+  }
+
+  bool res= period_info.check_field(row_start, period.start.str)
+            || period_info.check_field(row_end, period.end.str);
+  if (res)
+    return true;
+
+  if (row_start->type_handler() != row_end->type_handler()
+      || row_start->length != row_end->length)
+  {
+    my_error(ER_PERIOD_TYPES_MISMATCH, MYF(0), period_info.name.str);
+    res= true;
+  }
+
+  return res;
+}
+
+bool
+Table_scope_and_contents_source_st::fix_create_fields(THD *thd,
+                                                      Alter_info *alter_info,
+                                                      const TABLE_LIST &create_table,
+                                                      bool create_select)
+{
+  return vers_fix_system_fields(thd, alter_info, create_table, create_select)
+         || fix_period_fields(thd, alter_info);
+}
+
+bool
+Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
+                                                      Alter_info *alter_info)
+{
+  if (!period_info.name)
+    return false;
+
+  Table_period_info::start_end_t &period= period_info.period;
+  List_iterator<Create_field> it(alter_info->create_list);
+  while (Create_field *f= it++)
+  {
+    if (period.start.streq(f->field_name) || period.end.streq(f->field_name))
+    {
+      f->period= &period_info;
+      f->flags|= NOT_NULL_FLAG;
+    }
+  }
+  return false;
 }

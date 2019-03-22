@@ -64,7 +64,7 @@ partition_info *partition_info::get_clone(THD *thd)
     if (!part_clone)
       DBUG_RETURN(NULL);
 
-    memcpy(part_clone, part, sizeof(partition_element));
+    *part_clone= *part;
     part_clone->subpartitions.empty();
     while ((subpart= (subpart_it++)))
     {
@@ -72,7 +72,7 @@ partition_info *partition_info::get_clone(THD *thd)
       if (!subpart_clone)
         DBUG_RETURN(NULL);
 
-      memcpy(subpart_clone, subpart, sizeof(partition_element));
+      *subpart_clone= *subpart;
       part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
     clone->partitions.push_back(part_clone, mem_root);
@@ -878,7 +878,7 @@ void partition_info::vers_set_hist_part(THD *thd)
   return;
 warn:
   my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-           table->s->db.str, table->s->error_table_name(),
+           table->s->db.str, table->s->table_name.str,
            vers_info->hist_part->partition_name);
 }
 
@@ -1432,12 +1432,11 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
   TABLE_LIST table_list;
   THD *thd= current_thd;
 
-  bzero(&table_list, sizeof(table_list));
+  table_list.reset();
   table_list.db= table_arg->s->db;
   table_list.table_name= table_arg->s->table_name;
 
-  if (check_single_table_access(thd,
-                                SELECT_ACL, &table_list, TRUE))
+  if (check_single_table_access(thd, SELECT_ACL, &table_list, TRUE))
   {
     my_message(ER_NO_PARTITION_FOR_GIVEN_VALUE,
                ER_THD(thd, ER_NO_PARTITION_FOR_GIVEN_VALUE_SILENT), errflag);
@@ -1516,12 +1515,12 @@ bool partition_info::check_partition_field_length()
 
   for (i= 0; i < num_part_fields; i++)
     store_length+= get_partition_field_store_length(part_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   store_length= 0;
   for (i= 0; i < num_subpart_fields; i++)
     store_length+= get_partition_field_store_length(subpart_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
 }
@@ -2626,6 +2625,23 @@ void partition_info::print_debug(const char *str, uint *value)
     DBUG_PRINT("info", ("parser: %s", str));
   DBUG_VOID_RETURN;
 }
+
+bool partition_info::field_in_partition_expr(Field *field) const
+{
+  uint i;
+  for (i= 0; i < num_part_fields; i++)
+  {
+    if (field->eq(part_field_array[i]))
+      return TRUE;
+  }
+  for (i= 0; i < num_subpart_fields; i++)
+  {
+    if (field->eq(subpart_field_array[i]))
+      return TRUE;
+  }
+  return FALSE;
+}
+
 #else /* WITH_PARTITION_STORAGE_ENGINE */
  /*
    For builds without partitioning we need to define these functions

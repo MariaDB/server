@@ -35,7 +35,6 @@ Created 2011-05-26 Marko Makela
 #include "que0que.h"
 #include "srv0mon.h"
 #include "handler0alter.h"
-#include "ut0new.h"
 #include "ut0stage.h"
 #include "trx0rec.h"
 
@@ -43,7 +42,7 @@ Created 2011-05-26 Marko Makela
 #include <algorithm>
 #include <map>
 
-ulint onlineddl_rowlog_rows;
+Atomic_counter<ulint> onlineddl_rowlog_rows;
 ulint onlineddl_rowlog_pct_used;
 ulint onlineddl_pct_progress;
 
@@ -436,7 +435,7 @@ row_log_online_op(
 			if (!log_tmp_block_encrypt(
 				    buf, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space->id)) {
+				    index->table->space_id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto write_failed;
 			}
@@ -574,7 +573,7 @@ row_log_table_close_func(
 			if (!log_tmp_block_encrypt(
 				    log->tail.block, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space->id)) {
+				    index->table->space_id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto err_exit;
 			}
@@ -606,7 +605,7 @@ write_failed:
 err_exit:
 	mutex_exit(&log->mutex);
 
-	my_atomic_addlint(&onlineddl_rowlog_rows, 1);
+	onlineddl_rowlog_rows++;
 	/* 10000 means 100.00%, 4525 means 45.25% */
 	onlineddl_rowlog_pct_used = static_cast<ulint>((log->tail.total * 10000) / srv_online_max_size);
 }
@@ -1140,7 +1139,7 @@ ALTER TABLE)
 table
 @param[in]	offsets		rec_get_offsets(rec)
 @param[in]	i		rec field corresponding to col
-@param[in]	page_size	page size of the old table
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED size of the old table
 @param[in]	max_len		maximum length of dfield
 @param[in]	log		row log for the table
 @retval DB_INVALID_NULL		if a NULL value is encountered
@@ -1154,7 +1153,7 @@ row_log_table_get_pk_col(
 	const rec_t*		rec,
 	const ulint*		offsets,
 	ulint			i,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			max_len,
 	const row_log_t*	log)
 {
@@ -1193,7 +1192,7 @@ row_log_table_get_pk_col(
 			mem_heap_alloc(heap, field_len));
 
 		len = btr_copy_externally_stored_field_prefix(
-			blob_field, field_len, page_size, field, len);
+			blob_field, field_len, zip_size, field, len);
 		if (len >= max_len + 1) {
 			return(DB_TOO_BIG_INDEX_COL);
 		}
@@ -1244,19 +1243,16 @@ row_log_table_get_pk(
 			ulint	trx_id_offs = index->trx_id_offset;
 
 			if (!trx_id_offs) {
-				ulint	pos = dict_index_get_sys_col_pos(
-					index, DATA_TRX_ID);
 				ulint	len;
-				ut_ad(pos > 0);
 
 				if (!offsets) {
 					offsets = rec_get_offsets(
 						rec, index, NULL, true,
-						pos + 1, heap);
+						index->db_trx_id() + 1, heap);
 				}
 
 				trx_id_offs = rec_get_nth_field_offs(
-					offsets, pos, &len);
+					offsets, index->db_trx_id(), &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
 			}
 
@@ -1311,8 +1307,7 @@ row_log_table_get_pk(
 
 		const ulint max_len = DICT_MAX_FIELD_LEN_BY_FORMAT(new_table);
 
-		const page_size_t&	page_size
-			= dict_table_page_size(index->table);
+		const ulint zip_size = index->table->space->zip_size();
 
 		for (ulint new_i = 0; new_i < new_n_uniq; new_i++) {
 			dict_field_t*	ifield;
@@ -1339,7 +1334,8 @@ row_log_table_get_pk(
 
 				log->error = row_log_table_get_pk_col(
 					ifield, dfield, *heap,
-					rec, offsets, i, page_size, max_len, log);
+					rec, offsets, i, zip_size, max_len,
+					log);
 
 				if (log->error != DB_SUCCESS) {
 err_exit:
@@ -1606,7 +1602,7 @@ row_log_table_apply_convert_mrec(
 
 			data = btr_rec_copy_externally_stored_field(
 				mrec, offsets,
-				dict_table_page_size(index->table),
+				index->table->space->zip_size(),
 				i, &len, heap);
 			ut_a(data);
 			dfield_set_data(dfield, data, len);
@@ -2238,7 +2234,10 @@ func_exit_committed:
 		row, NULL, index, heap, ROW_BUILD_NORMAL);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
-		false, NULL, heap, dup->table);
+		false, NULL, heap, dup->table, &error);
+	if (error != DB_SUCCESS) {
+		goto func_exit;
+	}
 
 	if (!update->n_fields) {
 		/* Nothing to do. */
@@ -2677,8 +2676,8 @@ ulint
 row_log_progress_inc_per_block()
 {
 	/* We must increment the progress once per page (as in
-	univ_page_size, usually 16KiB). One block here is srv_sort_buf_size
-	(usually 1MiB). */
+	srv_page_size, default = innodb_page_size=16KiB).
+	One block here is srv_sort_buf_size (usually 1MiB). */
 	const ulint	pages_per_block = std::max<ulint>(
 		ulint(srv_sort_buf_size >> srv_page_size_shift), 1);
 
@@ -2875,7 +2874,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space->id)) {
+				    ofs, index->table->space_id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}
@@ -3779,7 +3778,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space->id)) {
+				    ofs, index->table->space_id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}

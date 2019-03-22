@@ -191,8 +191,8 @@ min(7)
 7
 explain select min(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select min(7) from t2i join t1i;
 min(7)
 NULL
@@ -207,8 +207,8 @@ max(7)
 7
 explain select max(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select max(7) from t2i join t1i;
 max(7)
 NULL
@@ -239,7 +239,7 @@ select 1, max(1) from t1i where 1=99;
 explain select count(*), min(7), max(7) from t1m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1m	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
 select count(*), min(7), max(7) from t1m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -253,7 +253,7 @@ count(*)	min(7)	max(7)
 explain select count(*), min(7), max(7) from t2m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2m	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
 select count(*), min(7), max(7) from t2m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -303,6 +303,7 @@ create index idx12672_1 on t4 (a1,a2,b,c);
 create index idx12672_2 on t4 (a1,a2,b);
 analyze table t4;
 Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 select distinct a1 from t4 where pk_col not in (1,2,3,4);
 a1
@@ -384,7 +385,7 @@ INSERT INTO t1(id, dept, age, name) VALUES
 (4020, 'cs10', 20, 'rs5'),(4027, 'cs11', 10, 'rs6'),(4028, 'cs12', 20, 'rs6');
 EXPLAIN SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	name	name	44	NULL	2	Using where; Using index for group-by
+1	SIMPLE	t1	ref	name	name	22	const	2	Using where; Using index
 SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 name	dept
 rs5	cs10
@@ -2352,12 +2353,12 @@ EXPLAIN SELECT c FROM foo2 WHERE b>2;;
 id	1
 select_type	SIMPLE
 table	foo2
-type	range
+type	index
 possible_keys	b
 key	b
 key_len	5
 ref	NULL
-rows	5
+rows	6
 Extra	Using where; Using index
 EXPLAIN SELECT c FROM bar WHERE c>2;;
 id	1
@@ -2699,6 +2700,7 @@ INSERT INTO t1 SELECT c1+100000,c2+100000,c3+100000 from t1;
 INSERT INTO t1 SELECT c1+1000000,c2+1000000,c3+1000000 from t1;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM t1 WHERE c1 = 99999999 AND c3 > 1 ORDER BY c3;
 c1	c2	c3
@@ -2851,6 +2853,7 @@ INSERT INTO t1 VALUES (1,1,1,1,1,1), (2,2,2,2,2,2), (3,3,3,3,3,3),
 (11,11,11,11,11,11);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT COUNT(*) FROM t1;
 id	1
@@ -3017,7 +3020,7 @@ EXPLAIN SELECT * FROM t1 WHERE f1 IN
 3784744,4180925,4559596,3963734,3856391,4494153)
 AND f5 = 'abcdefghijklmnopwrst' AND f2 = 1221457 AND f4 = 0 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,idx1,idx2	idx2,idx1,PRIMARY	7,60,4	NULL	1	Using intersect(idx2,idx1,PRIMARY); Using where
+1	SIMPLE	t1	range	PRIMARY,idx1,idx2	PRIMARY	4	NULL	18	Using where
 set optimizer_switch=@tmp_innodb_mysql;
 DROP TABLE t1;
 #
@@ -3050,7 +3053,7 @@ f1	f2	f3	f4
 EXPLAIN SELECT * FROM t1 WHERE f2 = 1 AND f4 = TRUE
 ORDER BY f1 DESC LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	f2,f4	f4	1	NULL	22	Using where
+1	SIMPLE	t1	index	f2,f4	PRIMARY	4	NULL	5	Using where
 DROP TABLE t1;
 #
 # Bug#54117 crash in thr_multi_unlock, temporary table

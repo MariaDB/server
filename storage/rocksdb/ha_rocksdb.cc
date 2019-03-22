@@ -676,7 +676,7 @@ static void rocksdb_set_rocksdb_info_log_level(
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
   rocksdb_info_log_level = *static_cast<const uint64_t *>(save);
   rocksdb_db_options->info_log->SetInfoLogLevel(
-      static_cast<const rocksdb::InfoLogLevel>(rocksdb_info_log_level));
+      static_cast<rocksdb::InfoLogLevel>(rocksdb_info_log_level));
   RDB_MUTEX_UNLOCK_CHECK(rdb_sysvars_mutex);
 }
 
@@ -3769,7 +3769,6 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
       /*
         We get here when committing a statement within a transaction.
       */
-      tx->make_stmt_savepoint_permanent();
       tx->make_stmt_savepoint_permanent();
     }
 
@@ -10754,6 +10753,11 @@ int ha_rocksdb::info(uint flag) {
         // Cached data is still valid, so use it instead
         stats.records += m_table_handler->m_mtcache_count;
         stats.data_file_length += m_table_handler->m_mtcache_size;
+      }
+
+      // Do like InnoDB does. stats.records=0 confuses the optimizer
+      if (stats.records == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
+        stats.records++;
       }
 
       if (rocksdb_debug_optimizer_n_rows > 0)

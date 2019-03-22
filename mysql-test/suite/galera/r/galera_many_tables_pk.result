@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 connection node_2;
 SELECT COUNT(*) = 100 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't%';
@@ -23,7 +25,7 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 include/diff_servers.inc [servers=1 2]
 DROP SCHEMA test;
 CREATE SCHEMA test;

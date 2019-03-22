@@ -219,6 +219,7 @@
 #cmakedefine HAVE_SIGACTION 1
 #cmakedefine HAVE_SIGTHREADMASK 1
 #cmakedefine HAVE_SIGWAIT 1
+#cmakedefine HAVE_SIGWAITINFO 1
 #cmakedefine HAVE_SLEEP 1
 #cmakedefine HAVE_SNPRINTF 1
 #cmakedefine HAVE_STPCPY 1
@@ -444,7 +445,11 @@
 /*
   MySQL features
 */
-#cmakedefine ENABLED_LOCAL_INFILE 1
+#define LOCAL_INFILE_MODE_OFF  0
+#define LOCAL_INFILE_MODE_ON   1
+#define LOCAL_INFILE_MODE_AUTO 2
+#define ENABLED_LOCAL_INFILE LOCAL_INFILE_MODE_@ENABLED_LOCAL_INFILE@
+
 #cmakedefine ENABLED_PROFILING 1
 #cmakedefine EXTRA_DEBUG 1
 #cmakedefine USE_SYMDIR 1

@@ -1,0 +1,19 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t(i INT PRIMARY KEY) ENGINE ROCKSDB;
+INSERT INTO t VALUES(1);
+# Create full backup , modify table, then create incremental/differential backup
+DROP TABLE t;
+CREATE TABLE t2(i INT PRIMARY KEY) ENGINE ROCKSDB;
+INSERT INTO t2 VALUES(2);
+# Prepare full backup, apply incremental one
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT * FROM t2;
+i
+2
+DROP TABLE t2;
+DROP TABLE t;
+ERROR 42S02: Unknown table 'test.t'

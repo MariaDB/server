@@ -1,0 +1,278 @@
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+CREATE INDEX i_l_quantity ON lineitem(l_quantity);
+
+CREATE INDEX i_o_totalprice ON orders(o_totalprice);
+
+set @save_use_stat_tables= @@use_stat_tables;
+
+set @@use_stat_tables=preferably;
+
+--disable_result_log
+--disable_warnings
+ANALYZE TABLE lineitem, orders;
+--enable_warnings
+--enable_result_log
+
+show create table lineitem;
+show create table orders;
+
+set optimizer_use_condition_selectivity=2;
+
+let $with_filter=
+set statement optimizer_switch='rowid_filter=on' for;
+
+let $without_filter=
+set statement optimizer_switch='rowid_filter=off' for;
+
+let $q1=
+SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
+  WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
+         l_quantity > 45;
+
+eval $with_filter EXPLAIN $q1;
+eval $with_filter EXPLAIN FORMAT=JSON $q1;
+eval $with_filter ANALYZE $q1;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q1;
+--sorted_result
+eval $with_filter $q1;
+
+eval $without_filter EXPLAIN $q1;
+eval $without_filter EXPLAIN FORMAT=JSON $q1;
+eval $without_filter ANALYZE $q1;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q1;
+--sorted_result
+eval $without_filter $q1;
+
+let $q2=
+SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
+  FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+  WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-01-31' AND
+         o_totalprice between 200000 and 230000;
+
+eval $with_filter EXPLAIN $q2;
+eval $with_filter EXPLAIN FORMAT=JSON $q2;
+eval $with_filter ANALYZE $q2;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q2;
+--sorted_result
+eval $with_filter $q2;
+
+eval $without_filter EXPLAIN $q2;
+eval $without_filter EXPLAIN FORMAT=JSON $q2;
+eval $without_filter ANALYZE $q2;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q2;
+--sorted_result
+eval $without_filter $q2;
+
+let $q3=
+SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
+  FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+  WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
+         l_quantity > 45 AND
+         o_totalprice between 180000 and 230000;
+
+eval $with_filter EXPLAIN $q3;
+eval $with_filter EXPLAIN FORMAT=JSON $q3;
+eval $with_filter ANALYZE $q3;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q3;
+--sorted_result
+eval $with_filter $q3;
+
+eval $without_filter EXPLAIN $q3;
+eval $without_filter EXPLAIN FORMAT=JSON $q3;
+eval $without_filter ANALYZE $q3;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q3;
+--sorted_result
+eval $without_filter $q3;
+
+let $q4=
+SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
+  FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+  WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
+        o_totalprice between 200000 and 230000;
+
+eval $with_filter EXPLAIN $q4;
+eval $with_filter EXPLAIN FORMAT=JSON $q4;
+eval $with_filter ANALYZE $q4;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q4;
+--sorted_result
+eval $with_filter $q4;
+
+eval $without_filter EXPLAIN $q4;
+eval $without_filter EXPLAIN FORMAT=JSON $q4;
+eval $without_filter ANALYZE $q4;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q4;
+--sorted_result
+eval $without_filter $q4;
+
+--echo #
+--echo # MDEV-18413: find constraint correlated indexes
+--echo #
+
+ALTER TABLE lineitem ADD CONSTRAINT l_date CHECK(l_shipdate < l_receiptdate);
+
+--echo # Filter on l_shipdate is not used because it participates in
+--echo # the same constraint as l_receiptdate.
+--echo # Access is made on l_receiptdate.
+let $q5=
+SELECT l_shipdate, l_receiptdate, o_totalprice
+FROM orders, lineitem
+WHERE o_orderkey=l_orderkey AND
+      l_shipdate BETWEEN '1996-10-01' AND '1996-10-10' AND
+      l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
+      o_totalprice BETWEEN 200000 AND 250000;
+
+eval $with_filter EXPLAIN $q5;
+eval $with_filter EXPLAIN FORMAT=JSON $q5;
+eval $with_filter ANALYZE $q5;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q5;
+--sorted_result
+eval $with_filter $q5;
+
+eval $without_filter EXPLAIN $q5;
+eval $without_filter EXPLAIN FORMAT=JSON $q5;
+eval $without_filter ANALYZE $q5;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q5;
+--sorted_result
+eval $without_filter $q5;
+
+ALTER TABLE orders ADD COLUMN o_totaldiscount double;
+UPDATE orders SET o_totaldiscount = o_totalprice*(o_custkey/1000);
+CREATE INDEX i_o_totaldiscount on orders(o_totaldiscount);
+
+ALTER TABLE orders ADD CONSTRAINT o_price CHECK(o_totalprice > o_totaldiscount);
+
+--echo # Filter on o_totalprice is not used because it participates in
+--echo # the same constraint as o_discount.
+--echo # Access is made on o_discount.
+let $q6=
+SELECT o_totaldiscount, o_totalprice, l_shipdate
+FROM orders, lineitem
+WHERE o_orderkey=l_orderkey AND
+      o_totaldiscount BETWEEN 18000 AND 20000 AND
+      o_totalprice BETWEEN 200000 AND 220000 AND
+      l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
+
+eval $with_filter EXPLAIN $q6;
+eval $with_filter EXPLAIN FORMAT=JSON $q6;
+eval $with_filter ANALYZE $q6;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q6;
+--sorted_result
+eval $with_filter $q6;
+
+eval $without_filter EXPLAIN $q6;
+eval $without_filter EXPLAIN FORMAT=JSON $q6;
+eval $without_filter ANALYZE $q6;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q6;
+--sorted_result
+eval $without_filter $q6;
+
+CREATE VIEW v1 AS
+SELECT * FROM orders
+WHERE o_orderdate BETWEEN '1992-12-01' AND '1997-01-01';
+
+let $q7=
+SELECT o_totaldiscount, o_totalprice, l_shipdate
+FROM v1, lineitem
+WHERE o_orderkey=l_orderkey AND
+      o_totaldiscount BETWEEN 18000 AND 20000 AND
+      o_totalprice BETWEEN 200000 AND 220000 AND
+      l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
+
+eval $with_filter EXPLAIN $q7;
+eval $with_filter EXPLAIN FORMAT=JSON $q7;
+eval $with_filter ANALYZE $q7;
+--source include/analyze-format.inc
+eval $with_filter ANALYZE FORMAT=JSON $q7;
+--sorted_result
+eval $with_filter $q7;
+
+eval $without_filter EXPLAIN $q7;
+eval $without_filter EXPLAIN FORMAT=JSON $q7;
+eval $without_filter ANALYZE $q7;
+--source include/analyze-format.inc
+eval $without_filter ANALYZE FORMAT=JSON $q7;
+--sorted_result
+eval $without_filter $q7;
+
+ALTER TABLE lineitem DROP CONSTRAINT l_date;
+ALTER TABLE orders DROP CONSTRAINT o_price;
+ALTER TABLE orders DROP COLUMN o_totaldiscount;
+DROP VIEW v1;
+
+DROP DATABASE dbt3_s001;
+
+use test;
+
+--echo #
+--echo # MDEV-18816: potential range filter for one join table with
+--echo #             impossible WHERE for another
+--echo #
+
+create table t1 (
+  pk int not null primary key, c2 varchar(10) , i1 int,key (c2)
+) engine=myisam;
+insert into t1 values  (1,'a',-5),(2,'a',null);
+
+create table t2 (
+ pk int, i1 int, c1 varchar(30) , key c1 (c1(30)), key i1 (i1)
+) engine=myisam;
+insert into t2 values
+  (1,-5,'a'),(2,null,'a'),(3,null,'a'),(4,null,'a'),(5,5,'a'),(6,null,'a'),
+  (7,4,'a'),(8,55,'a'),(9,null,'a'),(10,null,'a'),(11,null,'a'),(12,-5,'a'),
+  (13,-5,'a'),(14,null,'a'),(15,null,'a'),(16,-5,'a'),(17,-5,'a');
+
+let $q=
+select 1
+  from t1
+       left join
+       t2 join t1 as t1_a on t2.i1 = t1_a.pk
+       on t1.c2 = t2.c1
+where t1_a.pk is null and t1_a.i1 != 3;
+
+eval $q;
+eval explain extended $q;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-18640: TABLE::prune_range_rowid_filters: Conditional jump or
+--echo #             move depends on uninitialized value
+--echo #
+
+CREATE TABLE t1 (
+  pk INT, i INT, PRIMARY KEY (pk), KEY (pk,i)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,10), (7,70), (2,20);
+
+SELECT * FROM t1 WHERE pk < 5;
+
+DROP TABLE t1;
+
+set @@use_stat_tables=@save_use_stat_tables;

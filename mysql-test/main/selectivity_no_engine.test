@@ -181,6 +181,7 @@ CREATE TABLE t2 (
 );
 
 INSERT INTO t2 VALUES ('foo','baz','qux'),('bar','baz','qux');
+INSERT INTO t2 VALUES ('foo','bazz','qux'),('bar','bazz','qux');
 
 set optimizer_use_condition_selectivity=2;
 explain

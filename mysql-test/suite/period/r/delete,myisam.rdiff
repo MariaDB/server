@@ -1,0 +1,18 @@
+--- suite/period/r/delete.result	2019-02-16 11:14:23.511258191 +0100
++++ suite/period/r/delete.reject	2019-02-16 11:14:32.869258690 +0100
+@@ -250,7 +250,6 @@
+ ERROR 22003: Out of range value for column 'id' at row 1
+ select * from t;
+ id	s	e
+-127	1999-01-01	2018-12-12
+ # same for trigger case
+ create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+ create or replace procedure log(s text)
+@@ -277,7 +276,6 @@
+ ERROR 22003: Out of range value for column 'id' at row 1
+ select * from t;
+ id	s	e
+-127	1999-01-01	2018-12-12
+ select * from log_tbl order by id;
+ id	log
+ 1	>DEL: 1999-01-01, 2018-12-12

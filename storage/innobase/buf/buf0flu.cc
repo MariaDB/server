@@ -25,9 +25,8 @@ The database buffer buf_pool flush algorithm
 Created 11/11/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql/service_thd_wait.h>
-#include <my_dbug.h>
 #include <sql_class.h>
 
 #include "buf0flu.h"
@@ -46,7 +45,6 @@ Created 11/11/1995 Heikki Tuuri
 #include "os0file.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 #include "ut0stage.h"
 #include "fil0pagecompress.h"
 #ifdef UNIV_LINUX
@@ -213,7 +211,7 @@ incr_flush_list_size_in_bytes(
 {
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
 
-	buf_pool->stat.flush_list_bytes += block->page.size.physical();
+	buf_pool->stat.flush_list_bytes += block->physical_size();
 
 	ut_ad(buf_pool->stat.flush_list_bytes <= buf_pool->curr_pool_size);
 }
@@ -429,137 +427,44 @@ buf_flush_insert_into_flush_list(
 	ut_ad(buf_page_mutex_own(block));
 
 	buf_flush_list_mutex_enter(buf_pool);
-
-	ut_ad((UT_LIST_GET_FIRST(buf_pool->flush_list) == NULL)
-	      || (UT_LIST_GET_FIRST(buf_pool->flush_list)->oldest_modification
-		  <= lsn));
-
-	/* If we are in the recovery then we need to update the flush
-	red-black tree as well. */
-	if (buf_pool->flush_rbt != NULL) {
-		buf_flush_list_mutex_exit(buf_pool);
-		buf_flush_insert_sorted_into_flush_list(buf_pool, block, lsn);
-		return;
-	}
-
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 	ut_ad(!block->page.in_flush_list);
-
 	ut_d(block->page.in_flush_list = TRUE);
+	ut_ad(!block->page.oldest_modification);
 	block->page.oldest_modification = lsn;
-
-	UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
-
+	UNIV_MEM_ASSERT_RW(block->page.zip.data
+			   ? block->page.zip.data : block->frame,
+			   block->physical_size());
 	incr_flush_list_size_in_bytes(block, buf_pool);
 
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
+		ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
+		/* The field in_LRU_list is protected by buf_pool->mutex, which
+		we are not holding.  However, while a block is in the flush
+		list, it is dirty and cannot be discarded, not from the
+		page_hash or from the LRU list.  At most, the uncompressed
+		page frame of a compressed block may be discarded or created
+		(copying the block->page to or from a buf_page_t that is
+		dynamically allocated from buf_buddy_alloc()).  Because those
+		transitions hold block->mutex and the flush list mutex (via
+		buf_flush_relocate_on_flush_list()), there is no possibility
+		of a race condition in the assertions below. */
+		ut_ad(block->page.in_LRU_list);
+		ut_ad(block->page.in_page_hash);
+		/* buf_buddy_block_register() will take a block in the
+		BUF_BLOCK_MEMORY state, not a file page. */
+		ut_ad(!block->page.in_zip_hash);
 
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
-
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(buf_flush_validate_skip(buf_pool));
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-
-	buf_flush_list_mutex_exit(buf_pool);
-}
-
-/********************************************************************//**
-Inserts a modified block into the flush list in the right sorted position.
-This function is used by recovery, because there the modifications do not
-necessarily come in the order of lsn's. */
-void
-buf_flush_insert_sorted_into_flush_list(
-/*====================================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_block_t*	block,		/*!< in/out: block which is modified */
-	lsn_t		lsn)		/*!< in: oldest modification */
-{
-	buf_page_t*	prev_b;
-	buf_page_t*	b;
-
-	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
-	ut_ad(!buf_pool_mutex_own(buf_pool));
-	ut_ad(log_flush_order_mutex_own());
-	ut_ad(buf_page_mutex_own(block));
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-
-	buf_flush_list_mutex_enter(buf_pool);
-
-	/* The field in_LRU_list is protected by buf_pool->mutex, which
-	we are not holding.  However, while a block is in the flush
-	list, it is dirty and cannot be discarded, not from the
-	page_hash or from the LRU list.  At most, the uncompressed
-	page frame of a compressed block may be discarded or created
-	(copying the block->page to or from a buf_page_t that is
-	dynamically allocated from buf_buddy_alloc()).  Because those
-	transitions hold block->mutex and the flush list mutex (via
-	buf_flush_relocate_on_flush_list()), there is no possibility
-	of a race condition in the assertions below. */
-	ut_ad(block->page.in_LRU_list);
-	ut_ad(block->page.in_page_hash);
-	/* buf_buddy_block_register() will take a block in the
-	BUF_BLOCK_MEMORY state, not a file page. */
-	ut_ad(!block->page.in_zip_hash);
-
-	ut_ad(!block->page.in_flush_list);
-	ut_d(block->page.in_flush_list = TRUE);
-	block->page.oldest_modification = lsn;
-
-#ifdef UNIV_DEBUG_VALGRIND
-	void*	p;
-
-	if (block->page.size.is_compressed()) {
-		p = block->page.zip.data;
-	} else {
-		p = block->frame;
-	}
-
-	UNIV_MEM_ASSERT_RW(p, block->page.size.physical());
-#endif /* UNIV_DEBUG_VALGRIND */
-
-	prev_b = NULL;
-
-	/* For the most part when this function is called the flush_rbt
-	should not be NULL. In a very rare boundary case it is possible
-	that the flush_rbt has already been freed by the recovery thread
-	before the last page was hooked up in the flush_list by the
-	io-handler thread. In that case we'll just do a simple
-	linear search in the else block. */
-	if (buf_pool->flush_rbt != NULL) {
-
-		prev_b = buf_flush_insert_in_flush_rbt(&block->page);
-
-	} else {
-
-		b = UT_LIST_GET_FIRST(buf_pool->flush_list);
-
-		while (b != NULL && b->oldest_modification
-		       > block->page.oldest_modification) {
-
-			ut_ad(b->in_flush_list);
-			prev_b = b;
-			b = UT_LIST_GET_NEXT(list, b);
+		if (buf_page_t* prev_b =
+		    buf_flush_insert_in_flush_rbt(&block->page)) {
+			UT_LIST_INSERT_AFTER(buf_pool->flush_list, prev_b, &block->page);
+			goto func_exit;
 		}
 	}
 
-	if (prev_b == NULL) {
-		UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
-	} else {
-		UT_LIST_INSERT_AFTER(buf_pool->flush_list, prev_b, &block->page);
-	}
-
-	incr_flush_list_size_in_bytes(block, buf_pool);
-
+	UT_LIST_ADD_FIRST(buf_pool->flush_list, &block->page);
+func_exit:
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(buf_flush_validate_low(buf_pool));
+	ut_a(buf_flush_validate_skip(buf_pool));
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
 	buf_flush_list_mutex_exit(buf_pool);
@@ -688,7 +593,7 @@ buf_flush_remove(
 	}
 
 	/* If the flush_rbt is active then delete from there as well. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 		buf_flush_delete_from_flush_rbt(bpage);
 	}
 
@@ -696,7 +601,7 @@ buf_flush_remove(
 	because we assert on in_flush_list in comparison function. */
 	ut_d(bpage->in_flush_list = FALSE);
 
-	buf_pool->stat.flush_list_bytes -= bpage->size.physical();
+	buf_pool->stat.flush_list_bytes -= bpage->physical_size();
 
 	bpage->oldest_modification = 0;
 
@@ -756,7 +661,7 @@ buf_flush_relocate_on_flush_list(
 
 	/* If recovery is active we must swap the control blocks in
 	the flush_rbt as well. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 		buf_flush_delete_from_flush_rbt(bpage);
 		prev_b = buf_flush_insert_in_flush_rbt(dpage);
 	}
@@ -823,9 +728,9 @@ void buf_flush_write_complete(buf_page_t* bpage, bool dblwr)
 
 /** Calculate the checksum of a page from compressed table and update
 the page.
-@param[in,out]	page	page to update
-@param[in]	size	compressed page size
-@param[in]	lsn	LSN to stamp on the page */
+@param[in,out]	page		page to update
+@param[in]	size		compressed page size
+@param[in]	lsn		LSN to stamp on the page */
 void
 buf_flush_update_zip_checksum(
 	buf_frame_t*	page,
@@ -842,18 +747,44 @@ buf_flush_update_zip_checksum(
 	mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 }
 
+/** Assign the full crc32 checksum for non-compressed page.
+@param[in,out]	page	page to be updated */
+void buf_flush_assign_full_crc32_checksum(byte* page)
+{
+	ut_d(bool compressed = false);
+	ut_d(bool corrupted = false);
+	ut_d(const uint size = buf_page_full_crc32_size(page, &compressed,
+							&corrupted));
+	ut_ad(!compressed);
+	ut_ad(!corrupted);
+	ut_ad(size == uint(srv_page_size));
+	const ulint payload = srv_page_size - FIL_PAGE_FCRC32_CHECKSUM;
+	mach_write_to_4(page + payload, ut_crc32(page, payload));
+}
+
 /** Initialize a page for writing to the tablespace.
-@param[in]	block		buffer block; NULL if bypassing the buffer pool
-@param[in,out]	page		page frame
-@param[in,out]	page_zip_	compressed page, or NULL if uncompressed
-@param[in]	newest_lsn	newest modification LSN to the page */
+@param[in]	block			buffer block; NULL if bypassing
+					the buffer pool
+@param[in,out]	page			page frame
+@param[in,out]	page_zip_		compressed page, or NULL if
+					uncompressed
+@param[in]	newest_lsn		newest modification LSN to the page
+@param[in]	use_full_checksum	whether tablespace uses full checksum */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn)
+	lsn_t			newest_lsn,
+	bool			use_full_checksum)
 {
+	if (block != NULL && block->frame != page) {
+		/* If page is encrypted in full crc32 format then
+		checksum stored already as a part of fil_encrypt_buf() */
+		ut_ad(use_full_checksum);
+		return;
+	}
+
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
@@ -902,8 +833,13 @@ buf_flush_init_for_writing(
 	/* Write the newest modification lsn to the page header and trailer */
 	mach_write_to_8(page + FIL_PAGE_LSN, newest_lsn);
 
-	mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
-			newest_lsn);
+	if (use_full_checksum) {
+		mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
+				(ulint) newest_lsn);
+	} else {
+		mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
+				newest_lsn);
+	}
 
 	if (block && srv_page_size == 16384) {
 		/* The page type could be garbage in old files
@@ -969,6 +905,10 @@ buf_flush_init_for_writing(
 
 	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
 
+	if (use_full_checksum) {
+		return buf_flush_assign_full_crc32_checksum(page);
+	}
+
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
@@ -981,6 +921,8 @@ buf_flush_init_for_writing(
 		be calculated after storing the new formula checksum. */
 		checksum = buf_calc_page_old_checksum(page);
 		break;
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		/* In other cases we write the same checksum to both fields. */
@@ -1023,7 +965,10 @@ buf_flush_write_block_low(
 	      || space->purpose == FIL_TYPE_TABLESPACE);
 	ut_ad((space->purpose == FIL_TYPE_TEMPORARY)
 	      == (space == fil_system.temp_space));
+
 	page_t*	frame = NULL;
+	const bool full_crc32 = space->full_crc32();
+
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	ut_ad(!buf_pool_mutex_own(buf_pool));
@@ -1072,7 +1017,7 @@ buf_flush_write_block_low(
 		mach_write_to_8(frame + FIL_PAGE_LSN,
 				bpage->newest_modification);
 
-		ut_a(page_zip_verify_checksum(frame, bpage->size.physical()));
+		ut_a(page_zip_verify_checksum(frame, bpage->zip_size()));
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;
@@ -1080,15 +1025,23 @@ buf_flush_write_block_low(
 			frame = ((buf_block_t*) bpage)->frame;
 		}
 
+		byte* page = reinterpret_cast<const buf_block_t*>(bpage)->frame;
+
+		if (full_crc32) {
+			page = buf_page_encrypt(space, bpage, page);
+			frame = page;
+		}
+
 		buf_flush_init_for_writing(
-			reinterpret_cast<const buf_block_t*>(bpage),
-			reinterpret_cast<const buf_block_t*>(bpage)->frame,
+			reinterpret_cast<const buf_block_t*>(bpage), page,
 			bpage->zip.data ? &bpage->zip : NULL,
-			bpage->newest_modification);
+			bpage->newest_modification, full_crc32);
 		break;
 	}
 
-	frame = buf_page_encrypt_before_write(space, bpage, frame);
+	if (!full_crc32) {
+		frame = buf_page_encrypt(space, bpage, frame);
+	}
 
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 	      || space->atomic_write_supported);
@@ -1099,7 +1052,8 @@ buf_flush_write_block_low(
 
 		/* TODO: pass the tablespace to fil_io() */
 		fil_io(request,
-		       sync, bpage->id, bpage->size, 0, bpage->size.physical(),
+		       sync, bpage->id, bpage->zip_size(), 0,
+		       bpage->physical_size(),
 		       frame, bpage);
 	} else {
 		ut_ad(!srv_read_only_mode);
@@ -3602,7 +3556,7 @@ buf_flush_validate_low(
 	/* If we are in recovery mode i.e.: flush_rbt != NULL
 	then each block in the flush_list must also be present
 	in the flush_rbt. */
-	if (buf_pool->flush_rbt != NULL) {
+	if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 		rnode = rbt_first(buf_pool->flush_rbt);
 	}
 
@@ -3623,7 +3577,7 @@ buf_flush_validate_low(
 		     || buf_page_get_state(bpage) == BUF_BLOCK_REMOVE_HASH);
 		ut_a(om > 0);
 
-		if (buf_pool->flush_rbt != NULL) {
+		if (UNIV_LIKELY_NULL(buf_pool->flush_rbt)) {
 			buf_page_t**	prpage;
 
 			ut_a(rnode != NULL);

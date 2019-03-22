@@ -12,6 +12,7 @@ set @mrr_buffer_size_save= @@mrr_buffer_size;
 set mrr_buffer_size=79;
 
 -- source include/mrr_tests.inc
+-- source include/word_size.inc
 
 set @@mrr_buffer_size= @mrr_buffer_size_save;
 

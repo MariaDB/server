@@ -20,6 +20,7 @@ let $merge_table_support= 0;
 
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';
+set optimizer_switch='rowid_filter=off';
 
 # The first two tests are disabled because of non deterministic explain output.
 # If include/index_merge1.inc can be enabled for InnoDB and all other
@@ -72,6 +73,7 @@ set optimizer_switch='derived_merge=off,derived_with_keys=off';
 
 # We have to use FORCE INDEX here as Innodb gives inconsistent estimates
 # which causes different query plans.
+--replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM 
   (SELECT * FROM t1 FORCE INDEX(primary,idx)

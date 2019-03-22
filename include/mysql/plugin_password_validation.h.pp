@@ -374,6 +374,51 @@ extern struct thd_wait_service_st {
 } *thd_wait_service;
 void thd_wait_begin(void* thd, int wait_type);
 void thd_wait_end(void* thd);
+enum json_types
+{
+  JSV_BAD_JSON=-1,
+  JSV_NOTHING=0,
+  JSV_OBJECT=1,
+  JSV_ARRAY=2,
+  JSV_STRING=3,
+  JSV_NUMBER=4,
+  JSV_TRUE=5,
+  JSV_FALSE=6,
+  JSV_NULL=7
+};
+extern struct json_service_st {
+  enum json_types (*json_type)(const char *js, const char *js_end,
+                               const char **value, int *value_len);
+  enum json_types (*json_get_array_item)(const char *js, const char *js_end,
+                                         int n_item,
+                                         const char **value, int *value_len);
+  enum json_types (*json_get_object_key)(const char *js, const char *js_end,
+                                         const char *key,
+                                         const char **value, int *value_len);
+  enum json_types (*json_get_object_nkey)(const char *js,const char *js_end,
+                             int nkey,
+                             const char **keyname, const char **keyname_end,
+                             const char **value, int *value_len);
+  int (*json_escape_string)(const char *str,const char *str_end,
+                          char *json, char *json_end);
+  int (*json_unescape_json)(const char *json_str, const char *json_end,
+                          char *res, char *res_end);
+} *json_service;
+enum json_types json_type(const char *js, const char *js_end,
+                          const char **value, int *value_len);
+enum json_types json_get_array_item(const char *js, const char *js_end,
+                                    int n_item,
+                                    const char **value, int *value_len);
+enum json_types json_get_object_key(const char *js, const char *js_end,
+                                    const char *key,
+                                    const char **value, int *value_len);
+enum json_types json_get_object_nkey(const char *js,const char *js_end, int nkey,
+                       const char **keyname, const char **keyname_end,
+                       const char **value, int *value_len);
+int json_escape_string(const char *str,const char *str_end,
+                       char *json, char *json_end);
+int json_unescape_json(const char *json_str, const char *json_end,
+                       char *res, char *res_end);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

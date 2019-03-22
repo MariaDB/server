@@ -358,7 +358,7 @@ buf_buddy_alloc_zip(
 
 	if (buf) {
 		/* Trash the page other than the BUF_BUDDY_STAMP_NONFREE. */
-		UNIV_MEM_TRASH(buf, ~i, BUF_BUDDY_STAMP_OFFSET);
+		UNIV_MEM_TRASH((void*) buf, ~i, BUF_BUDDY_STAMP_OFFSET);
 		UNIV_MEM_TRASH(BUF_BUDDY_STAMP_OFFSET + 4
 			       + buf->stamp.bytes, ~i,
 			       (BUF_BUDDY_LOW << i)

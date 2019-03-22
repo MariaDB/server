@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,33 +25,31 @@ Compressed page interface
 Created June 2005 by Marko Makela
 *******************************************************/
 
-#include "page0size.h"
 #include "page0zip.h"
+#include "fsp0types.h"
+#include "page0page.h"
+#include "buf0checksum.h"
+#include "ut0crc32.h"
+#include "zlib.h"
+
+#ifndef UNIV_INNOCHECKSUM
 
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
 const byte field_ref_zero[UNIV_PAGE_SIZE_MAX] = { 0, };
 
-#ifndef UNIV_INNOCHECKSUM
-#include "page0page.h"
 #include "mtr0log.h"
 #include "dict0dict.h"
 #include "btr0cur.h"
-#include "page0types.h"
 #include "log0recv.h"
 #include "row0row.h"
-#include "zlib.h"
-#include "buf0buf.h"
-#include "buf0types.h"
-#include "buf0checksum.h"
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "lock0lock.h"
 #include "srv0srv.h"
 #include "buf0lru.h"
 #include "srv0mon.h"
-#include "ut0crc32.h"
 
 #include <map>
 #include <algorithm>
@@ -172,18 +170,17 @@ page_zip_is_too_big(
 	const dict_index_t*	index,
 	const dtuple_t*		entry)
 {
-	const page_size_t&	page_size =
-		dict_table_page_size(index->table);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/* Estimate the free space of an empty compressed page.
 	Subtract one byte for the encoded heap_no in the
 	modification log. */
 	ulint	free_space_zip = page_zip_empty_size(
-		index->n_fields, page_size.physical());
+		index->n_fields, zip_size);
 	ulint	n_uniq = dict_index_get_n_unique_in_tree(index);
 
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(page_size.is_compressed());
+	ut_ad(zip_size);
 
 	if (free_space_zip == 0) {
 		return(true);
@@ -1411,10 +1408,7 @@ page_zip_compress(
 	/* Dense page directory and uncompressed columns, if any */
 	if (page_is_leaf(page)) {
 		if (dict_index_is_clust(index)) {
-			trx_id_col = dict_index_get_sys_col_pos(
-				index, DATA_TRX_ID);
-			ut_ad(trx_id_col > 0);
-			ut_ad(trx_id_col != ULINT_UNDEFINED);
+			trx_id_col = index->db_trx_id();
 
 			slot_size = PAGE_ZIP_DIR_SLOT_SIZE
 				+ DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
@@ -1422,8 +1416,6 @@ page_zip_compress(
 		} else {
 			/* Signal the absence of trx_id
 			in page_zip_fields_encode() */
-			ut_ad(dict_index_get_sys_col_pos(
-				      index, DATA_TRX_ID) == ULINT_UNDEFINED);
 			trx_id_col = 0;
 			slot_size = PAGE_ZIP_DIR_SLOT_SIZE;
 		}
@@ -3730,29 +3722,25 @@ page_zip_write_rec(
 		ulint		len;
 
 		if (dict_index_is_clust(index)) {
-			ulint		trx_id_col;
-
-			trx_id_col = dict_index_get_sys_col_pos(index,
-								DATA_TRX_ID);
-			ut_ad(trx_id_col != ULINT_UNDEFINED);
-
 			/* Store separately trx_id, roll_ptr and
 			the BTR_EXTERN_FIELD_REF of each BLOB column. */
 			if (rec_offs_any_extern(offsets)) {
 				data = page_zip_write_rec_ext(
 					page_zip, page,
 					rec, index, offsets, create,
-					trx_id_col, heap_no, storage, data);
+					index->db_trx_id(), heap_no,
+					storage, data);
 			} else {
 				/* Locate trx_id and roll_ptr. */
 				const byte*	src
 					= rec_get_nth_field(rec, offsets,
-							    trx_id_col, &len);
+							    index->db_trx_id(),
+							    &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
 				ut_ad(src + DATA_TRX_ID_LEN
 				      == rec_get_nth_field(
 					      rec, offsets,
-					      trx_id_col + 1, &len));
+					      index->db_roll_ptr(), &len));
 				ut_ad(len == DATA_ROLL_PTR_LEN);
 
 				/* Log the preceding fields. */
@@ -3780,8 +3768,6 @@ page_zip_write_rec(
 		} else {
 			/* Leaf page of a secondary index:
 			no externally stored columns */
-			ut_ad(dict_index_get_sys_col_pos(index, DATA_TRX_ID)
-			      == ULINT_UNDEFINED);
 			ut_ad(!rec_offs_any_extern(offsets));
 
 			/* Log the entire record. */
@@ -4938,18 +4924,12 @@ corrupt:
 @param[in]	data			compressed page
 @param[in]	size			size of compressed page
 @param[in]	algo			algorithm to use
-@param[in]	use_legacy_big_endian	only used if algo is
-SRV_CHECKSUM_ALGORITHM_CRC32 or SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 - if true
-then use big endian byteorder when converting byte strings to integers.
-SRV_CHECKSUM_ALGORITHM_CRC32 or SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 - if true
-then use big endian byteorder when converting byte strings to integers.
 @return page checksum */
 uint32_t
 page_zip_calc_checksum(
 	const void*			data,
 	ulint				size,
-	srv_checksum_algorithm_t	algo,
-	bool				use_legacy_big_endian /* = false */)
+	srv_checksum_algorithm_t	algo)
 {
 	uLong		adler;
 	const Bytef*	s = static_cast<const byte*>(data);
@@ -4958,27 +4938,16 @@ page_zip_calc_checksum(
 	and FIL_PAGE_FILE_FLUSH_LSN from the checksum. */
 
 	switch (algo) {
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		{
-			ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-
-			ut_crc32_func_t	crc32_func = use_legacy_big_endian
-				? ut_crc32_legacy_big_endian
-				: ut_crc32;
-
-			const uint32_t	crc32
-				= crc32_func(
-					s + FIL_PAGE_OFFSET,
-					FIL_PAGE_LSN - FIL_PAGE_OFFSET)
-				^ crc32_func(
-					s + FIL_PAGE_TYPE, 2)
-				^ crc32_func(
-					s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-					size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-
-			return(crc32);
-		}
+		ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+		return ut_crc32(s + FIL_PAGE_OFFSET,
+				FIL_PAGE_LSN - FIL_PAGE_OFFSET)
+			^ ut_crc32(s + FIL_PAGE_TYPE, 2)
+			^ ut_crc32(s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+				   size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 		ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -5003,29 +4972,15 @@ page_zip_calc_checksum(
 	return(0);
 }
 
-/**********************************************************************//**
-Verify a compressed page's checksum.
-@return TRUE if the stored checksum is valid according to the value of
+/** Verify a compressed page's checksum.
+@param[in]	data		compressed page
+@param[in]	size		size of compressed page
+@return whether the stored checksum is valid according to the value of
 innodb_checksum_algorithm */
-ibool
-page_zip_verify_checksum(
-/*=====================*/
-	const void*	data,		/*!< in: compressed page */
-	ulint		size)		/*!< in: size of compressed page */
+bool page_zip_verify_checksum(const void* data, ulint size)
 {
-	ib_uint32_t	stored;
-	ib_uint32_t	calc;
-
-	stored = static_cast<ib_uint32_t>(mach_read_from_4(
-		static_cast<const unsigned char*>(data) + FIL_PAGE_SPACE_OR_CHKSUM));
-
-	ulint	page_no MY_ATTRIBUTE((unused)) =
-                mach_read_from_4(static_cast<const unsigned char*>
-                                 (data) + FIL_PAGE_OFFSET);
-	ulint	space_id MY_ATTRIBUTE((unused)) =
-                mach_read_from_4(static_cast<const unsigned char*>
-                                 (data) + FIL_PAGE_SPACE_ID);
-	const page_id_t	page_id(space_id, page_no);
+	const uint32_t stored = mach_read_from_4(
+		static_cast<const byte*>(data) + FIL_PAGE_SPACE_OR_CHKSUM);
 
 	compile_time_assert(!(FIL_PAGE_LSN % 8));
 
@@ -5067,8 +5022,7 @@ page_zip_verify_checksum(
 		return(TRUE);
 	}
 
-	calc = static_cast<ib_uint32_t>(page_zip_calc_checksum(
-		data, size, curr_algo));
+	uint32_t calc = page_zip_calc_checksum(data, size, curr_algo);
 
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file) {
@@ -5101,149 +5055,30 @@ page_zip_verify_checksum(
 		return(TRUE);
 	}
 
-	bool	legacy_checksum_checked = false;
-
 	switch (curr_algo) {
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_CRC32: {
-
-		if (stored == BUF_NO_CHECKSUM_MAGIC) {
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_NONE,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-
-			return(TRUE);
-		}
-
-		/* We need to check whether the stored checksum matches legacy
-		big endian checksum or Innodb checksum. We optimize the order
-		based on earlier results. if earlier we have found pages
-		matching legacy big endian checksum, we try to match it first.
-		Otherwise we check innodb checksum first. */
-		if (legacy_big_endian_checksum) {
-			const uint32_t calculated =
-				page_zip_calc_checksum(data, size, curr_algo, true);
-			if (stored == calculated) {
-
-				return(TRUE);
-			}
-			legacy_checksum_checked = true;
-		}
-
-		uint32_t calculated =
-				page_zip_calc_checksum(data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
-
-		if (stored == calculated) {
-
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_INNODB,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-
-			return(TRUE);
-		}
-
-		calculated = page_zip_calc_checksum(
-			data, size, curr_algo, true);
-
-		/* If legacy checksum is not checked, do it now. */
-		if ((legacy_checksum_checked
-		     && stored == calculated)) {
-			legacy_big_endian_checksum = true;
-			return(TRUE);
-		}
-
-		break;
-	}
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-	case SRV_CHECKSUM_ALGORITHM_INNODB: {
-
+	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		return FALSE;
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_CRC32:
 		if (stored == BUF_NO_CHECKSUM_MAGIC) {
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_NONE,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-
 			return(TRUE);
 		}
 
-		const uint32_t calculated = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
-		uint32_t calculated1;
-
-		if (stored == calculated
-		    || stored == (calculated1 =
-					page_zip_calc_checksum(data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true))
-		) {
-#ifndef	UNIV_INNOCHECKSUM
-			if (curr_algo
-			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-				page_warn_strict_checksum(
-					curr_algo,
-					SRV_CHECKSUM_ALGORITHM_CRC32,
-					page_id);
-			}
-#endif	/* UNIV_INNOCHECKSUM */
-			return(TRUE);
-		}
-
-		break;
-	}
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE: {
-
-		uint32_t calculated = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
-		const uint32_t calculated1 = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true);
-
-		if (stored == calculated
-		    || stored == calculated1) {
-#ifndef	UNIV_INNOCHECKSUM
-			page_warn_strict_checksum(
-				curr_algo,
-				SRV_CHECKSUM_ALGORITHM_CRC32,
-				page_id);
-#endif	/* UNIV_INNOCHECKSUM */
-			return(TRUE);
-		}
-
-		calculated = page_zip_calc_checksum(
+		return stored == page_zip_calc_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_INNODB);
-
-		if (stored == calculated) {
-
-#ifndef	UNIV_INNOCHECKSUM
-			page_warn_strict_checksum(
-				curr_algo,
-				SRV_CHECKSUM_ALGORITHM_INNODB,
-				page_id);
-#endif	/* UNIV_INNOCHECKSUM */
-			return(TRUE);
+	case SRV_CHECKSUM_ALGORITHM_INNODB:
+		if (stored == BUF_NO_CHECKSUM_MAGIC) {
+			return TRUE;
 		}
 
-		break;
-	}
+		return stored == page_zip_calc_checksum(
+			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
 	case SRV_CHECKSUM_ALGORITHM_NONE:
-		ut_error;
-	/* no default so the compiler will emit a warning if new enum
-	is added and not handled here */
+		return TRUE;
 	}
 
-	return(FALSE);
+	return FALSE;
 }

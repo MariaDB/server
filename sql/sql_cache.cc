@@ -276,8 +276,8 @@ functions:
        - Called before parsing and used to match a statement with the stored
          queries hash.
          If a match is found the cached result set is sent through repeated
-         calls to net_real_write. (note: calling thread doesn't have a regis-
-         tered result set writer: thd->net.query_cache_query=0)
+         calls to net_real_write. (note: calling thread does not have a
+         registered result set writer: thd->net.query_cache_query=0)
  2. Query_cache::store_query
        - Called just before handle_select() and is used to register a result
          set writer to the statement currently being processed

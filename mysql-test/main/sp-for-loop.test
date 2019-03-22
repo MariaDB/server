@@ -86,7 +86,7 @@ CREATE FUNCTION f1 (a INT, b INT) RETURNS INT
 BEGIN
   DECLARE total INT DEFAULT 0;
   fori:
-  FOR i IN REVERSE a..1
+  FOR i IN REVERSE 1..a
   DO
     SET total= total + i;
     IF i = b THEN

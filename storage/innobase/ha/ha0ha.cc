@@ -245,11 +245,8 @@ ha_insert_for_fold_func(
 				buf_block_t* prev_block = prev_node->block;
 				ut_a(prev_block->frame
 				     == page_align(prev_node->data));
-				ut_a(my_atomic_addlint(&prev_block->n_pointers,
-						       ulint(-1))
-				     < MAX_N_POINTERS);
-				ut_a(my_atomic_addlint(&block->n_pointers, 1)
-				     < MAX_N_POINTERS);
+				ut_a(prev_block->n_pointers-- < MAX_N_POINTERS);
+				ut_a(block->n_pointers++ < MAX_N_POINTERS);
 			}
 
 			prev_node->block = block;
@@ -280,8 +277,7 @@ ha_insert_for_fold_func(
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {
-		ut_a(my_atomic_addlint(&block->n_pointers, 1)
-		     < MAX_N_POINTERS);
+		ut_a(block->n_pointers++ < MAX_N_POINTERS);
 	}
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
@@ -342,8 +338,7 @@ ha_delete_hash_node(
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {
 		ut_a(del_node->block->frame = page_align(del_node->data));
-		ut_a(my_atomic_addlint(&del_node->block->n_pointers, ulint(-1))
-		     < MAX_N_POINTERS);
+		ut_a(del_node->block->n_pointers-- < MAX_N_POINTERS);
 	}
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
@@ -385,11 +380,8 @@ ha_search_and_update_if_found_func(
 	if (node) {
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 		if (table->adaptive) {
-			ut_a(my_atomic_addlint(&node->block->n_pointers,
-					       ulint(-1))
-			     < MAX_N_POINTERS);
-			ut_a(my_atomic_addlint(&new_block->n_pointers, 1)
-			     < MAX_N_POINTERS);
+			ut_a(node->block->n_pointers-- < MAX_N_POINTERS);
+			ut_a(new_block->n_pointers++ < MAX_N_POINTERS);
 		}
 
 		node->block = new_block;

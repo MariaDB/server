@@ -2918,7 +2918,7 @@ create procedure bug4904()
 begin
   declare continue handler for sqlstate 'HY000' begin end;
 
-  create table t2 as select * from t3;
+  create table not_existing_table as select * from t3;
 end|
 
 -- error 1146
@@ -8041,7 +8041,7 @@ create procedure p1() begin select * from t1; end$
 call p1$
 create table t1 (a integer)$
 call p1$
-alter table t1 add b integer;
+alter table t1 add b integer$
 call p1$
 delimiter ;$
 
@@ -9352,6 +9352,47 @@ CALL sp;
 DROP PROCEDURE sp;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17055: Server crashes in find_order_in_list upon
+--echo # 2nd (3rd) execution of SP with UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (c INT);
+
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 ORDER BY a, b LIMIT 1;
+LOCK TABLE t2 READ;
+--error ER_TABLE_NOT_LOCKED
+CALL sp;
+UNLOCK TABLES;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+
+# Cleanup
+DROP PROCEDURE sp;
+
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
+LOCK TABLE t2 READ;
+--error ER_TABLE_NOT_LOCKED
+CALL sp;
+UNLOCK TABLES;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+
+# Cleanup
+DROP PROCEDURE sp;
+
+DROP VIEW v1;
+DROP TABLE t1, t2;
 
 --echo # End of 5.5 test
 
@@ -10239,3 +10280,37 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-16036: Debug assertion failed in resignal on create
+--echo # temporary table 
+--echo #
+
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ORACLE';
+delimiter /;
+CREATE or replace procedure p4()
+AS
+  CONTINUE HANDLER FOR SQLWARNING
+  BEGIN
+    NULL;
+  END;
+  EXIT HANDLER FOR OTHERS -- SQLEXCEPTION
+  BEGIN
+      GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT;
+      SELECT @sqlstate, @errno, @text;
+      SHOW WARNINGS;
+      RESIGNAL;  -- cause DBG_ASSERT failed
+  END;
+BEGIN
+  CREATE TEMPORARY TABLE IF NOT EXISTS t1(origine VARCHAR2(10) NOT NULL);
+END
+/
+delimiter ;/
+call p4();
+call p4();
+drop procedure p4;
+drop table t1;
+set @@sql_mode=@save_sql_mode;
+
+--echo # End of 10.3 tests

@@ -540,7 +540,8 @@ public:
   bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
   Item *expr;
-  LEX_CSTRING name;                             /* Name of constraint */
+  Lex_ident name;                               /* Name of constraint */
+  /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
 
   Virtual_column_info()
@@ -552,7 +553,7 @@ public:
     name.str= NULL;
     name.length= 0;
   };
-  ~Virtual_column_info() {}
+  ~Virtual_column_info() {};
   enum_vcol_info_type get_vcol_type() const
   {
     return vcol_type;
@@ -609,7 +610,9 @@ protected:
   static void do_field_int(Copy_field *copy);
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
-  static void do_field_temporal(Copy_field *copy);
+  static void do_field_date(Copy_field *copy);
+  static void do_field_temporal(Copy_field *copy, date_mode_t fuzzydate);
+  static void do_field_datetime(Copy_field *copy);
   static void do_field_timestamp(Copy_field *copy);
   static void do_field_decimal(Copy_field *copy);
 public:
@@ -781,7 +784,21 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
-  virtual int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  virtual int  store_timestamp_dec(const timeval &ts, uint dec);
+  int store_timestamp(my_time_t timestamp, ulong sec_part)
+  {
+    return store_timestamp_dec(Timeval(timestamp, sec_part),
+                               TIME_SECOND_PART_DIGITS);
+  }
+  /**
+    Store a value represented in native format
+  */
+  virtual int store_native(const Native &value)
+  {
+    DBUG_ASSERT(0);
+    reset();
+    return 0;
+  }
   int store_time(const MYSQL_TIME *ltime)
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, size_t length, CHARSET_INFO *cs,
@@ -828,6 +845,11 @@ public:
      This trickery is used to decrease a number of malloc calls.
   */
   virtual String *val_str(String*,String *)=0;
+  virtual bool val_native(Native *to)
+  {
+    DBUG_ASSERT(!is_null());
+    return to->copy((const char *) ptr, pack_length());
+  }
   String *val_int_as_str(String *val_buffer, bool unsigned_flag);
   /*
     Return the field value as a LEX_CSTRING, without padding to full length
@@ -1061,7 +1083,7 @@ public:
   virtual int cmp(const uchar *,const uchar *)=0;
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U)
   { return memcmp(a,b,pack_length()); }
-  virtual int cmp_offset(uint row_offset)
+  virtual int cmp_offset(my_ptrdiff_t row_offset)
   { return cmp(ptr,ptr+row_offset); }
   virtual int cmp_binary_offset(uint row_offset)
   { return cmp_binary(ptr, ptr+row_offset); };
@@ -1343,7 +1365,6 @@ public:
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  bool get_time(MYSQL_TIME *ltime) { return get_date(ltime, TIME_TIME_ONLY); }
   virtual TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
   virtual CHARSET_INFO *charset_for_protocol(void) const
@@ -1366,13 +1387,13 @@ protected:
     return set_warning(Sql_condition::WARN_LEVEL_NOTE, code, cuted_increment);
   }
   void set_datetime_warning(Sql_condition::enum_warning_level, uint code,
-                            const ErrConv *str, timestamp_type ts_type,
+                            const ErrConv *str, const char *typestr,
                             int cuted_increment) const;
   void set_datetime_warning(uint code,
-                            const ErrConv *str, timestamp_type ts_type,
+                            const ErrConv *str, const char *typestr,
                             int cuted_increment) const
   {
-    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, ts_type,
+    set_datetime_warning(Sql_condition::WARN_LEVEL_WARN, code, str, typestr,
                          cuted_increment);
   }
   void set_warning_truncated_wrong_value(const char *type, const char *value);
@@ -1555,6 +1576,17 @@ public:
 
   /* Hash value */
   virtual void hash(ulong *nr, ulong *nr2);
+
+  /**
+    Get the upper limit of the MySQL integral and floating-point type.
+
+    @return maximum allowed value for the field
+  */
+  virtual ulonglong get_max_int_value() const
+  {
+    DBUG_ASSERT(false);
+    return 0ULL;
+  }
 
 /**
   Checks whether a string field is part of write_set.
@@ -2079,7 +2111,7 @@ public:
   {
     my_decimal nr(ptr, precision, dec);
     return decimal_to_datetime_with_warn(get_thd(), &nr, ltime,
-                                         fuzzydate, field_name.str);
+                                         fuzzydate, table->s, field_name.str);
   }
   bool val_bool()
   {
@@ -2211,6 +2243,10 @@ public:
     *to= *from;
     return from + 1;
   }
+  virtual ulonglong get_max_int_value() const
+  {
+    return unsigned_flag ? 0xFFULL : 0x7FULL;
+  }
 };
 
 
@@ -2255,6 +2291,10 @@ public:
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end, uint param_data)
   { return unpack_int16(to, from, from_end); }
+  virtual ulonglong get_max_int_value() const
+  {
+    return unsigned_flag ? 0xFFFFULL : 0x7FFFULL;
+  }
 };
 
 class Field_medium :public Field_int
@@ -2289,6 +2329,10 @@ public:
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   {
     return Field::pack(to, from, max_length);
+  }
+  virtual ulonglong get_max_int_value() const
+  {
+    return unsigned_flag ? 0xFFFFFFULL : 0x7FFFFFULL;
   }
 };
 
@@ -2338,6 +2382,10 @@ public:
                               uint param_data __attribute__((unused)))
   {
     return unpack_int32(to, from, from_end);
+  }
+  virtual ulonglong get_max_int_value() const
+  {
+    return unsigned_flag ? 0xFFFFFFFFULL : 0x7FFFFFFFULL;
   }
 };
 
@@ -2393,6 +2441,10 @@ public:
   }
   void set_max();
   bool is_max();
+  virtual ulonglong get_max_int_value() const
+  {
+    return unsigned_flag ? 0xFFFFFFFFFFFFFFFFULL : 0x7FFFFFFFFFFFFFFFULL;
+  }
 };
 
 
@@ -2475,6 +2527,13 @@ public:
   uint32 pack_length() const { return sizeof(float); }
   uint row_pack_length() const { return pack_length(); }
   void sql_type(String &str) const;
+  virtual ulonglong get_max_int_value() const
+  {
+    /*
+      We use the maximum as per IEEE754-2008 standard, 2^24
+    */
+    return 0x1000000ULL;
+  }
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -2533,6 +2592,13 @@ public:
   uint32 pack_length() const { return sizeof(double); }
   uint row_pack_length() const { return pack_length(); }
   void sql_type(String &str) const;
+  virtual ulonglong get_max_int_value() const
+  {
+    /*
+      We use the maximum as per IEEE754-2008 standard, 2^53
+    */
+    return 0x20000000000000ULL;
+  }
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -2596,33 +2662,32 @@ protected:
   Item *get_equal_const_item_datetime(THD *thd, const Context &ctx,
                                       Item *const_item);
   void set_warnings(Sql_condition::enum_warning_level trunc_level,
-                    const ErrConv *str, int was_cut, timestamp_type ts_type);
+                    const ErrConv *str, int was_cut, const char *typestr);
   int store_TIME_return_code_with_warnings(int warn, const ErrConv *str,
-                                           timestamp_type ts_type)
+                                           const char *typestr)
   {
     if (!MYSQL_TIME_WARN_HAVE_WARNINGS(warn) &&
         MYSQL_TIME_WARN_HAVE_NOTES(warn))
     {
       set_warnings(Sql_condition::WARN_LEVEL_NOTE, str,
-                   warn | MYSQL_TIME_WARN_TRUNCATED, ts_type);
+                   warn | MYSQL_TIME_WARN_TRUNCATED, typestr);
       return 3;
     }
-    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, ts_type);
+    set_warnings(Sql_condition::WARN_LEVEL_WARN, str, warn, typestr);
     return warn ? 2 : 0;
   }
   int store_invalid_with_warning(const ErrConv *str, int was_cut,
-                                 timestamp_type ts_type)
+                                 const char *typestr)
   {
     DBUG_ASSERT(was_cut);
     reset();
     Sql_condition::enum_warning_level level= Sql_condition::WARN_LEVEL_WARN;
     if (was_cut & MYSQL_TIME_WARN_ZERO_DATE)
     {
-      DBUG_ASSERT(ts_type != MYSQL_TIMESTAMP_TIME);
-      set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, ts_type);
+      set_warnings(level, str, MYSQL_TIME_WARN_OUT_OF_RANGE, typestr);
       return 2;
     }
-    set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, ts_type);
+    set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, typestr);
     return 1;
   }
 public:
@@ -2640,7 +2705,8 @@ public:
   int save_in_field(Field *to)
   {
     MYSQL_TIME ltime;
-    if (get_date(&ltime, date_mode_t(0)))
+    // For temporal types no truncation needed. Rounding mode is not important.
+    if (get_date(&ltime, TIME_CONV_NONE | TIME_FRAC_NONE))
       return to->reset();
     return to->store_time_dec(&ltime, decimals());
   }
@@ -2689,6 +2755,10 @@ public:
 class Field_temporal_with_date: public Field_temporal {
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime) = 0;
+  void store_datetime(const Datetime &dt)
+  {
+    return store_TIME(dt.get_mysql_time());
+  }
   virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
                         date_mode_t fuzzydate) const = 0;
   bool validate_MMDD(bool not_zero_date, uint month, uint day,
@@ -2714,13 +2784,17 @@ public:
 
 class Field_timestamp :public Field_temporal {
 protected:
-  date_mode_t sql_mode_for_timestamp(THD *thd) const;
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
   virtual void store_TIMEVAL(const timeval &tv)
   {
     int4store(ptr, tv.tv_sec);
   }
+  void store_TIMESTAMP(const Timestamp &ts)
+  {
+    store_TIMEVAL(ts.tv());
+  }
+  int zero_time_stored_return_code_with_warning();
 public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2735,7 +2809,7 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
-  int  store_timestamp(my_time_t timestamp, ulong sec_part);
+  int  store_timestamp_dec(const timeval &ts, uint dec);
   int  save_in_field(Field *to);
   double val_real(void);
   longlong val_int(void);
@@ -2760,11 +2834,19 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
-  void store_TIME(my_time_t timestamp, ulong sec_part)
+  /*
+    This method is used by storage/perfschema and
+    Item_func_now_local::save_in_field().
+  */
+  void store_TIME(my_time_t ts, ulong sec_part)
   {
-    store_TIMEVAL(Timeval(timestamp, sec_part).trunc(decimals()));
+    int warn;
+    time_round_mode_t mode= Datetime::default_round_mode(get_thd());
+    store_TIMESTAMP(Timestamp(ts, sec_part).round(decimals(), mode, &warn));
   }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  int store_native(const Native &value);
+  bool val_native(Native *to);
   uchar *pack(uchar *to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
@@ -2844,6 +2926,7 @@ public:
   {
     DBUG_ASSERT(dec);
   }
+  bool val_native(Native *to);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const { return 4 + sec_part_bytes(dec); }
@@ -2894,6 +2977,7 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
+  bool val_native(Native *to);
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -2923,7 +3007,7 @@ public:
       return do_field_string;
     }
     case TIME_RESULT:
-      return do_field_temporal;
+      return do_field_date;
     case DECIMAL_RESULT:
       return do_field_decimal;
     case REAL_RESULT:
@@ -2969,6 +3053,7 @@ public:
                               null_ptr_arg, null_bit_arg,
                               unireg_check_arg, field_name_arg)
   {}
+  Copy_func *get_copy_func(const Field *from) const;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value);
@@ -3053,6 +3138,10 @@ class Field_time :public Field_temporal {
   long curdays;
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
+  void store_TIME(const Time &t)
+  {
+    return store_TIME(t.get_mysql_time());
+  }
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
   bool check_zero_in_date_with_warn(date_mode_t fuzzydate);
   static void do_field_time(Copy_field *copy);
@@ -4267,7 +4356,7 @@ public:
   int key_cmp(const uchar *a, const uchar *b)
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);
-  int cmp_offset(uint row_offset);
+  int cmp_offset(my_ptrdiff_t row_offset);
   bool update_min(Field *min_val, bool force_update)
   { 
     longlong val= val_int();
@@ -4516,15 +4605,17 @@ public:
 
   enum_column_versioning versioning;
 
+  Table_period_info *period;
+
   Column_definition()
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
     comment(null_clex_str),
-    on_update(NULL), invisible(VISIBLE), decimals(0),
+    on_update(NULL), invisible(VISIBLE), char_length(0), decimals(0),
     flags(0), pack_length(0), key_length(0),
     option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0),
-    versioning(VERSIONING_NOT_SET)
+    versioning(VERSIONING_NOT_SET), period(NULL)
   {
     interval_list.empty();
   }
@@ -4631,6 +4722,7 @@ public:
   bool fix_attributes_bit();
 
   bool check(THD *thd);
+  bool validate_check_constraint(THD *thd);
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
 
@@ -4911,6 +5003,83 @@ class Send_field :public Sql_alloc {
   uint flags, decimals;
   enum_field_types type;
   Send_field() {}
+  Send_field(Field *field)
+  {
+    field->make_send_field(this);
+    DBUG_ASSERT(table_name != 0);
+    normalize();
+  }
+
+  Send_field(Field *field,
+             const char *db_name_arg,
+             const char *table_name_arg)
+   :db_name(db_name_arg),
+    table_name(table_name_arg),
+    org_table_name(table_name_arg),
+    col_name(field->field_name),
+    org_col_name(field->field_name),
+    length(field->field_length),
+    flags(field->table->maybe_null ?
+          (field->flags & ~NOT_NULL_FLAG) : field->flags),
+    decimals(field->decimals()),
+    type(field->type())
+  {
+    normalize();
+  }
+
+  // This should move to Type_handler eventually
+  static enum_field_types protocol_type_code(enum_field_types type)
+  {
+    /* Keep things compatible for old clients */
+    if (type == MYSQL_TYPE_VARCHAR)
+      return MYSQL_TYPE_VAR_STRING;
+    return type;
+  }
+  void normalize()
+  {
+    /* limit number of decimals for float and double */
+    if (type == MYSQL_TYPE_FLOAT || type == MYSQL_TYPE_DOUBLE)
+      set_if_smaller(decimals, FLOATING_POINT_DECIMALS);
+    /* Keep things compatible for old clients */
+    type= protocol_type_code(type);
+  }
+
+  // This should move to Type_handler eventually
+  uint32 max_char_length(CHARSET_INFO *cs) const
+  {
+    return type >= MYSQL_TYPE_TINY_BLOB && type <= MYSQL_TYPE_BLOB ?
+                   length / cs->mbminlen :
+                   length / cs->mbmaxlen;
+  }
+  uint32 max_octet_length(CHARSET_INFO *from, CHARSET_INFO *to) const
+  {
+    /*
+      For TEXT/BLOB columns, field_length describes the maximum data
+      length in bytes. There is no limit to the number of characters
+      that a TEXT column can store, as long as the data fits into
+      the designated space.
+      For the rest of textual columns, field_length is evaluated as
+      char_count * mbmaxlen, where character count is taken from the
+      definition of the column. In other words, the maximum number
+      of characters here is limited by the column definition.
+
+      When one has a LONG TEXT column with a single-byte
+      character set, and the connection character set is multi-byte, the
+      client may get fields longer than UINT_MAX32, due to
+      <character set column> -> <character set connection> conversion.
+      In that case column max length would not fit into the 4 bytes
+      reserved for it in the protocol. So we cut it here to UINT_MAX32.
+    */
+    return char_to_byte_length_safe(max_char_length(from), to->mbmaxlen);
+  }
+
+  // This should move to Type_handler eventually
+  bool is_sane() const
+  {
+    return (decimals <= FLOATING_POINT_DECIMALS ||
+            (type != MYSQL_TYPE_FLOAT && type != MYSQL_TYPE_DOUBLE)) &&
+           type != MYSQL_TYPE_VARCHAR;
+  }
 };
 
 

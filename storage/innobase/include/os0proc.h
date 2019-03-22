@@ -40,7 +40,7 @@ typedef unsigned long int	os_process_id_t;
 
 /** The total amount of memory currently allocated from the operating
 system with os_mem_alloc_large(). */
-extern ulint	os_total_large_mem_allocated;
+extern Atomic_counter<ulint>	os_total_large_mem_allocated;
 
 /** Whether to use large pages in the buffer pool */
 extern my_bool	os_use_large_pages;

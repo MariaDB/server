@@ -2042,6 +2042,18 @@ double Item_sum_std::val_real()
 {
   DBUG_ASSERT(fixed == 1);
   double nr= Item_sum_variance::val_real();
+  if (isnan(nr))
+  {
+    /*
+      variance_fp_recurrence_next() can overflow in some cases and return "nan":
+
+      CREATE OR REPLACE TABLE t1 (a DOUBLE);
+      INSERT INTO t1 VALUES (1.7e+308), (-1.7e+308), (0);
+      SELECT STDDEV_SAMP(a) FROM t1;
+    */
+    null_value= true; // Convert "nan" to NULL
+    return 0;
+  }
   if (std::isinf(nr))
     return DBL_MAX;
   DBUG_ASSERT(nr >= 0.0);
@@ -2089,8 +2101,9 @@ static void variance_fp_recurrence_next(double *m, double *s, ulonglong *count, 
   else
   {
     double m_kminusone= *m;
-    *m= m_kminusone + (nr - m_kminusone) / (double) *count;
-    *s= *s + (nr - m_kminusone) * (nr - *m);
+    volatile double diff= nr - m_kminusone;
+    *m= m_kminusone + diff / (double) *count;
+    *s= *s + diff * (nr - *m);
   }
 }
 
@@ -2378,6 +2391,15 @@ Item_sum_hybrid::val_str(String *str)
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == NULL);
   DBUG_RETURN(retval);
+}
+
+
+bool Item_sum_hybrid::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return true;
+  return val_native_from_item(thd, value, to);
 }
 
 
@@ -3234,6 +3256,25 @@ bool Item_udf_sum::add()
   null_value= tmp_null_value;
   DBUG_RETURN(0);
 }
+
+
+bool Item_udf_sum::supports_removal() const
+{
+  DBUG_ENTER("Item_udf_sum::supports_remove");
+  DBUG_PRINT("info", ("support: %d", udf.supports_removal()));
+  DBUG_RETURN(udf.supports_removal());
+}
+
+
+void Item_udf_sum::remove()
+{
+  my_bool tmp_null_value;
+  DBUG_ENTER("Item_udf_sum::remove");
+  udf.remove(&tmp_null_value);
+  null_value= tmp_null_value;
+  DBUG_VOID_RETURN;
+}
+
 
 void Item_udf_sum::cleanup()
 {

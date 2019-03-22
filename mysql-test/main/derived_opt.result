@@ -534,7 +534,7 @@ LEFT JOIN
 ON t2.id=t.id
 WHERE t2.id < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	range	PRIMARY	PRIMARY	4	NULL	3	Using index condition
+1	PRIMARY	t2	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.id	2	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
 set join_cache_level=default;

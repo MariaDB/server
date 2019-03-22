@@ -131,7 +131,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
                               timestamp_type cached_timestamp_type,
                               const char **sub_pattern_end,
                               const char *date_time_type,
-                              date_mode_t fuzzydate)
+                              date_conv_mode_t fuzzydate)
 {
   int weekday= 0, yearday= 0, daypart= 0;
   int week_number= -1;
@@ -453,7 +453,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       {
         ErrConvString err(val_begin, length, &my_charset_bin);
         make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                     &err, cached_timestamp_type, NullS);
+                                     &err, cached_timestamp_type, 0, NullS);
 	break;
       }
     } while (++val != val_end);
@@ -477,7 +477,7 @@ err:
   Create a formated date/time value in a string.
 */
 
-static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
+static bool make_date_time(const LEX_CSTRING &format, MYSQL_TIME *l_time,
                            timestamp_type type, const MY_LOCALE *locale,
                            String *str)
 {
@@ -492,7 +492,7 @@ static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
   if (l_time->neg)
     str->append('-');
   
-  end= (ptr= format->format.str) + format->format.length;
+  end= (ptr= format.str) + format.length;
   for (; ptr != end ; ptr++)
   {
     if (*ptr != '%' || ptr+1 == end)
@@ -612,7 +612,7 @@ static bool make_date_time(DATE_TIME_FORMAT *format, MYSQL_TIME *l_time,
 	str->append_with_prefill(intbuff, length, 2, '0');
 	break;
       case 'j':
-	if (type == MYSQL_TIMESTAMP_TIME)
+	if (type == MYSQL_TIMESTAMP_TIME || !l_time->month || !l_time->year)
 	  return 1;
 	length= (uint) (int10_to_str(calc_daynr(l_time->year,l_time->month,
 					l_time->day) - 
@@ -808,8 +808,9 @@ longlong Item_func_period_diff::val_int()
 longlong Item_func_to_days::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
-  return (null_value= !d.is_valid_date()) ? 0 : d.daynr();
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  return (null_value= !d.is_valid_datetime()) ? 0 : d.daynr();
 }
 
 
@@ -817,14 +818,15 @@ longlong Item_func_to_seconds::val_int_endpoint(bool left_endp,
                                                 bool *incl_endp)
 {
   DBUG_ASSERT(fixed == 1);
-  Datetime dt(current_thd, args[0], TIME_FUZZY_DATES);
+  // val_int_endpoint() is called only if args[0] is a temporal Item_field
+  Datetime_from_temporal dt(current_thd, args[0], TIME_FUZZY_DATES);
   if ((null_value= !dt.is_valid_datetime()))
   {
     /* got NULL, leave the incl_endp intact */
     return LONGLONG_MIN;
   }
   /* Set to NULL if invalid date, but keep the value */
-  null_value= dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
+  null_value= dt.check_date(TIME_NO_ZEROS);
   /*
     Even if the evaluation return NULL, seconds is useful for pruning
   */
@@ -835,7 +837,11 @@ longlong Item_func_to_seconds::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   THD *thd= current_thd;
-  Datetime dt(thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  /*
+    Unlike val_int_endpoint(), we cannot use Datetime_from_temporal here.
+    The argument can be of a non-temporal data type.
+  */
+  Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
   return (null_value= !dt.is_valid_datetime()) ? 0 : dt.to_seconds();
 }
 
@@ -880,7 +886,8 @@ enum_monotonicity_info Item_func_to_seconds::get_monotonicity_info() const
 longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
   DBUG_ASSERT(fixed == 1);
-  Datetime dt(current_thd, args[0], date_mode_t(0));
+  // val_int_endpoint() is only called if args[0] is a temporal Item_field
+  Datetime_from_temporal dt(current_thd, args[0], TIME_CONV_NONE);
   longlong res;
   if ((null_value= !dt.is_valid_datetime()))
   {
@@ -889,7 +896,7 @@ longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
   }
   res= (longlong) dt.daynr();
   /* Set to NULL if invalid date, but keep the value */
-  null_value= dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
+  null_value= dt.check_date(TIME_NO_ZEROS);
   if (null_value)
   {
     /*
@@ -933,22 +940,25 @@ longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
 longlong Item_func_dayofyear::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
-  return (null_value= !d.is_valid_date()) ? 0 : d.dayofyear();
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  return (null_value= !d.is_valid_datetime()) ? 0 : d.dayofyear();
 }
 
 longlong Item_func_dayofmonth::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], date_mode_t(0));
-  return (null_value= !d.is_valid_date()) ? 0 : d.get_mysql_time()->day;
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
+  return (null_value= !d.is_valid_datetime()) ? 0 : d.get_mysql_time()->day;
 }
 
 longlong Item_func_month::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], date_mode_t(0));
-  return (null_value= !d.is_valid_date()) ? 0 : d.get_mysql_time()->month;
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
+  return (null_value= !d.is_valid_datetime()) ? 0 : d.get_mysql_time()->month;
 }
 
 
@@ -970,9 +980,9 @@ String* Item_func_monthname::val_str(String* str)
   DBUG_ASSERT(fixed == 1);
   const char *month_name;
   uint err;
-  Date d(current_thd, args[0], date_mode_t(0));
-
-  if ((null_value= (!d.is_valid_date() || !d.get_mysql_time()->month)))
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
+  if ((null_value= (!d.is_valid_datetime() || !d.get_mysql_time()->month)))
     return (String *) 0;
 
   month_name= locale->month_names->type_names[d.get_mysql_time()->month - 1];
@@ -989,21 +999,24 @@ String* Item_func_monthname::val_str(String* str)
 longlong Item_func_quarter::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], date_mode_t(0));
-  return (null_value= !d.is_valid_date()) ? 0 : d.quarter();
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
+  return (null_value= !d.is_valid_datetime()) ? 0 : d.quarter();
 }
 
 longlong Item_func_hour::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Time tm(current_thd, args[0], Time::Options_for_cast());
+  THD *thd= current_thd;
+  Time tm(thd, args[0], Time::Options_for_cast(thd));
   return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->hour;
 }
 
 longlong Item_func_minute::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Time tm(current_thd, args[0], Time::Options_for_cast());
+  THD *thd= current_thd;
+  Time tm(thd, args[0], Time::Options_for_cast(thd));
   return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->minute;
 }
 
@@ -1013,7 +1026,8 @@ longlong Item_func_minute::val_int()
 longlong Item_func_second::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Time tm(current_thd, args[0], Time::Options_for_cast());
+  THD *thd= current_thd;
+  Time tm(thd, args[0], Time::Options_for_cast(thd));
   return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->second;
 }
 
@@ -1062,8 +1076,8 @@ longlong Item_func_week::val_int()
   DBUG_ASSERT(fixed == 1);
   uint week_format;
   THD *thd= current_thd;
-  Date d(thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
-  if ((null_value= !d.is_valid_date()))
+  Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  if ((null_value= !d.is_valid_datetime()))
     return 0;
   if (arg_count > 1)
     week_format= (uint)args[1]->val_int();
@@ -1076,8 +1090,9 @@ longlong Item_func_week::val_int()
 longlong Item_func_yearweek::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
-  return (null_value= !d.is_valid_date()) ? 0 :
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  return (null_value= !d.is_valid_datetime()) ? 0 :
          d.yearweek((week_mode((uint) args[1]->val_int()) | WEEK_YEAR));
 }
 
@@ -1085,8 +1100,9 @@ longlong Item_func_yearweek::val_int()
 longlong Item_func_weekday::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
-  return ((null_value= !d.is_valid_date())) ? 0 :
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  return ((null_value= !d.is_valid_datetime())) ? 0 :
          calc_weekday(d.daynr(), odbc_type) + MY_TEST(odbc_type);
 }
 
@@ -1123,8 +1139,9 @@ String* Item_func_dayname::val_str(String* str)
 longlong Item_func_year::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Date d(current_thd, args[0], date_mode_t(0));
-  return (null_value= !d.is_valid_date()) ? 0 : d.get_mysql_time()->year;
+  THD *thd= current_thd;
+  Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
+  return (null_value= !d.is_valid_datetime()) ? 0 : d.get_mysql_time()->year;
 }
 
 
@@ -1155,7 +1172,8 @@ enum_monotonicity_info Item_func_year::get_monotonicity_info() const
 longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
   DBUG_ASSERT(fixed == 1);
-  Datetime dt(current_thd, args[0], date_mode_t(0));
+  // val_int_endpoint() is cally only if args[0] is a temporal Item_field
+  Datetime_from_temporal dt(current_thd, args[0], TIME_CONV_NONE);
   if ((null_value= !dt.is_valid_datetime()))
   {
     /* got NULL, leave the incl_endp intact */
@@ -1199,15 +1217,13 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
     }
   }
 
-  THD *thd= current_thd;
-  Datetime dt(thd, args[0], TIME_NO_ZERO_IN_DATE);
-  if ((null_value= !dt.is_valid_datetime()))
+  Timestamp_or_zero_datetime_native_null native(current_thd, args[0], true);
+  if ((null_value= native.is_null() || native.is_zero_datetime()))
     return true;
-
-  uint error_code;
-  *seconds= TIME_to_timestamp(thd, dt.get_mysql_time(), &error_code);
-  *second_part= dt.get_mysql_time()->second_part;
-  return (null_value= (error_code == ER_WARN_DATA_OUT_OF_RANGE));
+  Timestamp_or_zero_datetime tm(native);
+  *seconds= tm.tv().tv_sec;
+  *second_part= tm.tv().tv_usec;
+  return false;
 }
 
 
@@ -1264,7 +1280,8 @@ longlong Item_func_unix_timestamp::val_int_endpoint(bool left_endp, bool *incl_e
 longlong Item_func_time_to_sec::int_op()
 {
   DBUG_ASSERT(fixed == 1);
-  Time tm(current_thd, args[0], Time::Options_for_cast());
+  THD *thd= current_thd;
+  Time tm(thd, args[0], Time::Options_for_cast(thd));
   return ((null_value= !tm.is_valid_time())) ? 0 : tm.to_seconds();
 }
 
@@ -1272,7 +1289,8 @@ longlong Item_func_time_to_sec::int_op()
 my_decimal *Item_func_time_to_sec::decimal_op(my_decimal* buf)
 {
   DBUG_ASSERT(fixed == 1);
-  Time tm(current_thd, args[0], Time::Options_for_cast());
+  THD *thd= current_thd;
+  Time tm(thd, args[0], Time::Options_for_cast(thd));
   if ((null_value= !tm.is_valid_time()))
     return 0;
   const MYSQL_TIME *ltime= tm.get_mysql_time();
@@ -1621,9 +1639,8 @@ int Item_func_now_local::save_in_field(Field *field, bool no_conversions)
   {
     THD *thd= field->get_thd();
     my_time_t ts= thd->query_start();
-    uint dec= MY_MIN(decimals, field->decimals());
-    ulong sec_part= dec ? thd->query_start_sec_part() : 0;
-    sec_part-= my_time_fraction_remainder(sec_part, dec);
+    ulong sec_part= decimals ? thd->query_start_sec_part() : 0;
+    sec_part-= my_time_fraction_remainder(sec_part, decimals);
     field->set_notnull();
     ((Field_timestamp*)field)->store_TIME(ts, sec_part);
     return 0;
@@ -1698,9 +1715,10 @@ bool Item_func_sysdate_local::get_date(THD *thd, MYSQL_TIME *res,
 bool Item_func_sec_to_time::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  VSec6 sec(thd, args[0], "seconds", LONGLONG_MAX);
+  VSec9 sec(thd, args[0], "seconds", LONGLONG_MAX);
   if ((null_value= sec.is_null()))
     return true;
+  sec.round(decimals, thd->temporal_round_mode());
   if (sec.sec_to_time(ltime, decimals) && !sec.truncated())
     sec.make_truncated_warning(thd, "seconds");
   return false;
@@ -1853,18 +1871,19 @@ uint Item_func_date_format::format_length(const String *format)
 
 String *Item_func_date_format::val_str(String *str)
 {
+  StringBuffer<64> format_buffer;
   String *format;
   MYSQL_TIME l_time;
   uint size;
   const MY_LOCALE *lc= 0;
   DBUG_ASSERT(fixed == 1);
-  
-  if ((null_value= args[0]->get_date(current_thd, &l_time,
-                                     is_time_format ? TIME_TIME_ONLY :
-                                                      date_mode_t(0))))
+  date_conv_mode_t mode= is_time_format ? TIME_TIME_ONLY : TIME_CONV_NONE;
+  THD *thd= current_thd;
+  if ((null_value= args[0]->get_date(thd, &l_time,
+                                     Temporal::Options(mode, thd))))
     return 0;
   
-  if (!(format = args[1]->val_str(str)) || !format->length())
+  if (!(format= args[1]->val_str(&format_buffer)) || !format->length())
     goto null_date;
 
   if (!is_time_format && !(lc= locale) && !(lc= args[2]->locale_from_val_str()))
@@ -1878,18 +1897,13 @@ String *Item_func_date_format::val_str(String *str)
   if (size < MAX_DATE_STRING_REP_LENGTH)
     size= MAX_DATE_STRING_REP_LENGTH;
 
-  if (format == str)
-    str= &value;				// Save result here
+  DBUG_ASSERT(format != str);
   if (str->alloc(size))
     goto null_date;
 
-  DATE_TIME_FORMAT date_time_format;
-  date_time_format.format.str=    (char*) format->ptr();
-  date_time_format.format.length= format->length(); 
-
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(&date_time_format, &l_time,
+  if (!make_date_time(format->lex_cstring(), &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))
@@ -1918,11 +1932,15 @@ bool Item_func_from_unixtime::get_date(THD *thd, MYSQL_TIME *ltime,
   bzero((char *)ltime, sizeof(*ltime));
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 
-  VSec6 sec(thd, args[0], "unixtime", TIMESTAMP_MAX_VALUE);
+  VSec9 sec(thd, args[0], "unixtime", TIMESTAMP_MAX_VALUE);
   DBUG_ASSERT(sec.sec() <= TIMESTAMP_MAX_VALUE);
 
   if (sec.is_null() || sec.truncated() || sec.neg())
     return (null_value= 1);
+
+  sec.round(MY_MIN(decimals, TIME_SECOND_PART_DIGITS), thd->temporal_round_mode());
+  if (sec.sec() > TIMESTAMP_MAX_VALUE)
+    return (null_value= true); // Went out of range after rounding
 
   tz->gmt_sec_to_TIME(ltime, (my_time_t) sec.sec());
   ltime->second_part= sec.usec();
@@ -1952,7 +1970,8 @@ bool Item_func_convert_tz::get_date(THD *thd, MYSQL_TIME *ltime,
   if ((null_value= (from_tz == 0 || to_tz == 0)))
     return true;
 
-  Datetime *dt= new(ltime) Datetime(thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  Datetime::Options opt(TIME_NO_ZEROS, thd);
+  Datetime *dt= new(ltime) Datetime(thd, args[0], opt);
   if ((null_value= !dt->is_valid_datetime()))
     return true;
 
@@ -2092,16 +2111,18 @@ void Item_extract::print(String *str, enum_query_type query_type)
 bool Item_extract::fix_length_and_dec()
 {
   maybe_null=1;					// If wrong date
+  uint32 daylen= args[0]->cmp_type() == TIME_RESULT ? 2 :
+                 TIME_MAX_INTERVAL_DAY_CHAR_LENGTH;
   switch (int_type) {
   case INTERVAL_YEAR:             set_date_length(4); break; // YYYY
   case INTERVAL_YEAR_MONTH:       set_date_length(6); break; // YYYYMM
   case INTERVAL_QUARTER:          set_date_length(2); break; // 1..4
   case INTERVAL_MONTH:            set_date_length(2); break; // MM
   case INTERVAL_WEEK:             set_date_length(2); break; // 0..52
-  case INTERVAL_DAY:              set_day_length(2); break; // DD
-  case INTERVAL_DAY_HOUR:         set_time_length(4); break; // DDhh
-  case INTERVAL_DAY_MINUTE:       set_time_length(6); break; // DDhhmm
-  case INTERVAL_DAY_SECOND:       set_time_length(8); break; // DDhhmmss
+  case INTERVAL_DAY:              set_day_length(daylen); break; // DD
+  case INTERVAL_DAY_HOUR:         set_day_length(daylen+2); break; // DDhh
+  case INTERVAL_DAY_MINUTE:       set_day_length(daylen+4); break; // DDhhmm
+  case INTERVAL_DAY_SECOND:       set_day_length(daylen+6); break; // DDhhmmss
   case INTERVAL_HOUR:             set_time_length(2); break; // hh
   case INTERVAL_HOUR_MINUTE:      set_time_length(4); break; // hhmm
   case INTERVAL_HOUR_SECOND:      set_time_length(6); break; // hhmmss
@@ -2109,7 +2130,7 @@ bool Item_extract::fix_length_and_dec()
   case INTERVAL_MINUTE_SECOND:    set_time_length(4); break; // mmss
   case INTERVAL_SECOND:           set_time_length(2); break; // ss
   case INTERVAL_MICROSECOND:      set_time_length(6); break; // ffffff
-  case INTERVAL_DAY_MICROSECOND:  set_time_length(14); break; // DDhhmmssffffff
+  case INTERVAL_DAY_MICROSECOND:  set_time_length(daylen+12); break; // DDhhmmssffffff
   case INTERVAL_HOUR_MICROSECOND: set_time_length(12); break; // hhmmssffffff
   case INTERVAL_MINUTE_MICROSECOND: set_time_length(10); break; // mmssffffff
   case INTERVAL_SECOND_MICROSECOND: set_time_length(8); break; // ssffffff
@@ -2131,7 +2152,8 @@ uint Extract_source::week(THD *thd) const
 longlong Item_extract::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Extract_source dt(current_thd, args[0], m_date_mode);
+  THD *thd= current_thd;
+  Extract_source dt(thd, args[0], m_date_mode);
   if ((null_value= !dt.is_valid_extract_source()))
     return 0;
   switch (int_type) {
@@ -2139,7 +2161,7 @@ longlong Item_extract::val_int()
   case INTERVAL_YEAR_MONTH:          return dt.year_month();
   case INTERVAL_QUARTER:             return dt.quarter();
   case INTERVAL_MONTH:               return dt.month();
-  case INTERVAL_WEEK:                return dt.week(current_thd);
+  case INTERVAL_WEEK:                return dt.week(thd);
   case INTERVAL_DAY:                 return dt.day();
   case INTERVAL_DAY_HOUR:            return dt.day_hour();
   case INTERVAL_DAY_MINUTE:          return dt.day_minute();
@@ -2418,7 +2440,7 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 
 bool Item_time_typecast::get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  Time *tm= new(to) Time(thd, args[0], Time::Options_for_cast(mode),
+  Time *tm= new(to) Time(thd, args[0], Time::Options_for_cast(mode, thd),
                          MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
   return (null_value= !tm->is_valid_time());
 }
@@ -2427,7 +2449,8 @@ bool Item_time_typecast::get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd)) & ~TIME_TIME_ONLY;
-  Date *d= new(ltime) Date(thd, args[0], tmp);
+  // Force truncation
+  Date *d= new(ltime) Date(thd, args[0], Date::Options(date_conv_mode_t(tmp)));
   return (null_value= !d->is_valid_date());
 }
 
@@ -2435,7 +2458,9 @@ bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 bool Item_datetime_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd)) & ~TIME_TIME_ONLY;
-  Datetime *dt= new(ltime) Datetime(thd, args[0], tmp,
+  // Force rounding if the current sql_mode says so
+  Datetime::Options opt(date_conv_mode_t(tmp), thd);
+  Datetime *dt= new(ltime) Datetime(thd, args[0], opt,
                                     MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
   return (null_value= !dt->is_valid_datetime());
 }
@@ -2556,6 +2581,7 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   return (null_value= adjust_time_range_with_warn(thd, ltime, decimals));
 }
 
+
 /**
   MAKETIME(h,m,s) is a time function that calculates a time value 
   from the total number of hours, minutes, and seconds.
@@ -2567,25 +2593,17 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   DBUG_ASSERT(fixed == 1);
   Longlong_hybrid hour(args[0]->val_int(), args[0]->unsigned_flag);
   longlong minute= args[1]->val_int();
-  VSec6 sec(thd, args[2], "seconds", 59);
+  VSec9 sec(thd, args[2], "seconds", 59);
 
   DBUG_ASSERT(sec.sec() <= 59);
   if (args[0]->null_value || args[1]->null_value || sec.is_null() ||
        minute < 0 || minute > 59 || sec.neg() || sec.truncated())
     return (null_value= 1);
 
-  bzero(ltime, sizeof(*ltime));
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  ltime->neg= hour.neg();
-
-  if (hour.abs() <= TIME_MAX_HOUR)
-  {
-    ltime->hour=   (uint) hour.abs();
-    ltime->minute= (uint) minute;
-    ltime->second= (uint) sec.sec();
-    ltime->second_part= sec.usec();
-  }
-  else
+  int warn;
+  new(ltime) Time(&warn, hour.neg(), hour.abs(), (uint) minute, sec,
+                  thd->temporal_round_mode(), decimals);
+  if (warn)
   {
     // use check_time_range() to set ltime to the max value depending on dec
     int unused;
@@ -2614,7 +2632,8 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 longlong Item_func_microsecond::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  Time tm(current_thd, args[0], Time::Options_for_cast());
+  THD *thd= current_thd;
+  Time tm(thd, args[0], Time::Options_for_cast(thd));
   return ((null_value= !tm.is_valid_time())) ?
          0 : tm.get_mysql_time()->second_part;
 }
@@ -2628,12 +2647,12 @@ longlong Item_func_timestamp_diff::val_int()
   long months= 0;
   int neg= 1;
   THD *thd= current_thd;
-  date_mode_t fuzzydate= TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE;
+  Datetime::Options opt(TIME_NO_ZEROS, thd);
 
   null_value= 0;
 
-  if (Datetime(thd, args[0], fuzzydate).copy_to_mysql_time(&ltime1) ||
-      Datetime(thd, args[1], fuzzydate).copy_to_mysql_time(&ltime2))
+  if (Datetime(thd, args[0], opt).copy_to_mysql_time(&ltime1) ||
+      Datetime(thd, args[1], opt).copy_to_mysql_time(&ltime2))
     goto null_date;
 
   if (calc_time_diff(&ltime2,&ltime1, 1,
@@ -2942,7 +2961,8 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   date_time_format.format.length= format->length();
   if (extract_date_time(thd, &date_time_format, val->ptr(), val->length(),
 			ltime, tstype, 0, "datetime",
-                        fuzzydate | sql_mode_for_dates(thd)))
+                        date_conv_mode_t(fuzzydate) |
+                        sql_mode_for_dates(thd)))
     return (null_value=1);
   return (null_value= 0);
 }
@@ -2950,8 +2970,10 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
 
 bool Item_func_last_day::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  Date *d= new(ltime) Date(thd, args[0], fuzzydate & ~TIME_TIME_ONLY);
-  if ((null_value= (!d->is_valid_date() || ltime->month == 0)))
+  Datetime::Options opt(date_conv_mode_t(fuzzydate & ~TIME_TIME_ONLY),
+                        time_round_mode_t(fuzzydate));
+  Datetime *d= new(ltime) Datetime(thd, args[0], opt);
+  if ((null_value= (!d->is_valid_datetime() || ltime->month == 0)))
     return true;
   uint month_idx= ltime->month-1;
   ltime->day= days_in_month[month_idx];

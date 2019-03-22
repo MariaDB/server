@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,7 +25,7 @@ Recovery
 Created 9/20/1997 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 
 #include <vector>
 #include <map>
@@ -52,8 +52,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
-#include "fsp0sysspace.h"
-#include "ut0new.h"
 #include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -153,9 +151,13 @@ struct file_name_t {
 	/** Status of the tablespace */
 	fil_status	status;
 
+	/** FSP_SIZE of tablespace */
+	ulint		size;
+
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted) :
-		name(name_), space(NULL), status(deleted ? DELETED: NORMAL) {}
+		name(name_), space(NULL), status(deleted ? DELETED: NORMAL),
+		size(0) {}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -229,9 +231,8 @@ static void recv_addr_trim(ulint space_id, unsigned pages, lsn_t lsn)
 		hash_cell_t* const cell = hash_get_nth_cell(
 			recv_sys->addr_hash, i);
 		for (recv_addr_t* addr = static_cast<recv_addr_t*>(cell->node),
-			     *prev = NULL, *next;
-		     addr;
-		     prev = addr, addr = next) {
+			     *next;
+		     addr; addr = next) {
 			next = static_cast<recv_addr_t*>(addr->addr_hash);
 
 			if (addr->space != space_id || addr->page_no < pages) {
@@ -252,22 +253,6 @@ static void recv_addr_trim(ulint space_id, unsigned pages, lsn_t lsn)
 					UT_LIST_REMOVE(addr->rec_list, recv);
 				}
 				recv = n;
-			}
-
-			if (UT_LIST_GET_LEN(addr->rec_list)) {
-				DBUG_PRINT("ib_log",
-					   ("preserving " ULINTPF
-					    " records for page %u:%u",
-					    UT_LIST_GET_LEN(addr->rec_list),
-					    addr->space, addr->page_no));
-			} else {
-				ut_ad(recv_sys->n_addrs);
-				--recv_sys->n_addrs;
-				if (addr == cell->node) {
-					cell->node = next;
-				} else {
-					prev->addr_hash = next;
-				}
 			}
 		}
 	}
@@ -340,6 +325,11 @@ fil_name_process(
 			ut_ad(space != NULL);
 
 			if (f.space == NULL || f.space == space) {
+
+				if (f.size && f.space == NULL) {
+					fil_space_set_recv_size(space->id, f.size);
+				}
+
 				f.name = fname.name;
 				f.space = space;
 				f.status = file_name_t::NORMAL;
@@ -790,7 +780,7 @@ loop:
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint(source_offset & (srv_page_size - 1)),
 	       len, buf, NULL);
 
@@ -805,7 +795,9 @@ loop:
 			happen when InnoDB was killed while it was
 			writing redo log. We simply treat this as an
 			abrupt end of the redo log. */
+fail:
 			end_lsn = *start_lsn;
+			success = false;
 			break;
 		}
 
@@ -827,10 +819,7 @@ loop:
 					    << log_block_get_checkpoint_no(buf)
 					    << " expected: " << crc
 					    << " found: " << cksum;
-fail:
-				end_lsn = *start_lsn;
-				success = false;
-				break;
+				goto fail;
 			}
 
 			if (is_encrypted()
@@ -846,8 +835,7 @@ fail:
 		    || (dl != OS_FILE_LOG_BLOCK_SIZE
 			&& dl > log_sys.trailer_offset())) {
 			recv_sys->found_corrupt_log = true;
-			end_lsn = *start_lsn;
-			break;
+			goto fail;
 		}
 	}
 
@@ -1007,7 +995,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       univ_page_size,
+	       0,
 	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
 		     & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
@@ -1526,11 +1514,16 @@ parse_log:
 		break;
 	case MLOG_IBUF_BITMAP_INIT:
 		/* Allow anything in page_type when creating a page. */
-		ptr = ibuf_parse_bitmap_init(ptr, end_ptr, block, mtr);
+		if (block) ibuf_bitmap_init_apply(block);
 		break;
 	case MLOG_INIT_FILE_PAGE2:
 		/* Allow anything in page_type when creating a page. */
 		ptr = fsp_parse_init_file_page(ptr, end_ptr, block);
+		break;
+	case MLOG_INIT_FREE_PAGE:
+		/* The page can be zero-filled and its previous
+		contents can be ignored. We do not write or apply
+		this record yet. */
 		break;
 	case MLOG_WRITE_STRING:
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
@@ -1944,7 +1937,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	if (start_lsn) {
 		log_flush_order_mutex_enter();
-		buf_flush_recv_note_modification(block, start_lsn, end_lsn);
+		buf_flush_note_modification(block, start_lsn, end_lsn, NULL);
 		log_flush_order_mutex_exit();
 	}
 
@@ -2024,8 +2017,7 @@ static ulint recv_read_in_area(const page_id_t page_id)
 /** Apply the hash table of stored log records to persistent data pages.
 @param[in]	last_batch	whether the change buffer merge will be
 				performed as part of the operation */
-void
-recv_apply_hashed_log_recs(bool last_batch)
+void recv_apply_hashed_log_recs(bool last_batch)
 {
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -2090,20 +2082,23 @@ recv_apply_hashed_log_recs(bool last_batch)
 		     recv_addr = static_cast<recv_addr_t*>(
 				HASH_GET_NEXT(addr_hash, recv_addr))) {
 
-			if (recv_addr->state == RECV_DISCARDED) {
+			if (recv_addr->state == RECV_DISCARDED
+			    || !UT_LIST_GET_LEN(recv_addr->rec_list)) {
+not_found:
 				ut_a(recv_sys->n_addrs);
 				recv_sys->n_addrs--;
 				continue;
 			}
 
+			fil_space_t* space = fil_space_acquire_for_io(
+				recv_addr->space);
+			if (!space) {
+				goto not_found;
+			}
+
 			const page_id_t		page_id(recv_addr->space,
 							recv_addr->page_no);
-			bool			found;
-			const page_size_t&	page_size
-				= fil_space_get_page_size(recv_addr->space,
-							  &found);
-
-			ut_ad(found);
+			const ulint zip_size = space->zip_size();
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
 				mutex_exit(&recv_sys->mutex);
@@ -2113,7 +2108,7 @@ recv_apply_hashed_log_recs(bool last_batch)
 					mtr.start();
 
 					buf_block_t* block = buf_page_get(
-						page_id, page_size,
+						page_id, zip_size,
 						RW_X_LATCH, &mtr);
 
 					buf_block_dbg_add_level(
@@ -2127,6 +2122,8 @@ recv_apply_hashed_log_recs(bool last_batch)
 
 				mutex_enter(&recv_sys->mutex);
 			}
+
+			space->release_for_io();
 		}
 	}
 
@@ -2268,11 +2265,24 @@ recv_parse_log_rec(
 	}
 
 	if (*page_no == 0 && *type == MLOG_4BYTES
+	    && apply
 	    && mach_read_from_2(old_ptr) == FSP_HEADER_OFFSET + FSP_SIZE) {
 		old_ptr += 2;
-		fil_space_set_recv_size(*space,
-					mach_parse_compressed(&old_ptr,
-							      end_ptr));
+
+		ulint size = mach_parse_compressed(&old_ptr, end_ptr);
+
+		recv_spaces_t::iterator it = recv_spaces.find(*space);
+
+		ut_ad(!recv_sys->mlog_checkpoint_lsn
+		      || *space == TRX_SYS_SPACE
+		      || srv_is_undo_tablespace(*space)
+		      || it != recv_spaces.end());
+
+		if (it != recv_spaces.end() && !it->second.space) {
+			it->second.size = size;
+		}
+
+		fil_space_set_recv_size(*space, size);
 	}
 
 	return ulint(new_ptr - ptr);
@@ -2543,14 +2553,18 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
-			if (recv_sys->found_corrupt_log
-			    || type == MLOG_CHECKPOINT
-			    || (ptr != end_ptr
-				&& (*ptr & MLOG_SINGLE_REC_FLAG))) {
-				recv_sys->found_corrupt_log = true;
+			if (recv_sys->found_corrupt_log) {
+corrupted_log:
 				recv_report_corrupt_log(
 					ptr, type, space, page_no);
 				return(true);
+			}
+
+			if (ptr == end_ptr) {
+			} else if (type == MLOG_CHECKPOINT
+				   || (*ptr & MLOG_SINGLE_REC_FLAG)) {
+				recv_sys->found_corrupt_log = true;
+				goto corrupted_log;
 			}
 
 			if (recv_sys->found_corrupt_fs) {
@@ -3059,10 +3073,12 @@ recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 {
 	if (srv_operation == SRV_OPERATION_RESTORE
 	    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
-		ib::warn() << "Tablespace " << i->first << " was not"
-			" found at " << i->second.name << " when"
-			" restoring a (partial?) backup. All redo log"
-			" for this file will be ignored!";
+		if (i->second.name.find(TEMP_TABLE_PATH_PREFIX) != std::string::npos) {
+			ib::warn() << "Tablespace " << i->first << " was not"
+				" found at " << i->second.name << " when"
+				" restoring a (partial?) backup. All redo log"
+				" for this file will be ignored!";
+		}
 		return(err);
 	}
 
@@ -3853,6 +3869,9 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_MEMSET:
 		return("MLOG_MEMSET");
+
+	case MLOG_INIT_FREE_PAGE:
+		return("MLOG_INIT_FREE_PAGE");
 
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		return("MLOG_FILE_WRITE_CRYPT_DATA");

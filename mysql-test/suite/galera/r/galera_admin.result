@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 DROP TABLE IF EXISTS t1, t2;
 DROP TABLE IF EXISTS x1, x2;
 connection node_1;
@@ -16,7 +18,9 @@ connection node_2;
 connection node_1;
 ANALYZE TABLE t1, t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 connection node_2;
 # OPTIMIZE test

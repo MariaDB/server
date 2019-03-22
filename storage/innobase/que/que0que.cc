@@ -24,8 +24,6 @@ Query graph
 Created 5/27/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "que0que.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
@@ -37,9 +35,6 @@ Created 5/27/1996 Heikki Tuuri
 #include "dict0crea.h"
 #include "log0log.h"
 #include "eval0proc.h"
-#include "lock0lock.h"
-#include "eval0eval.h"
-#include "pars0types.h"
 
 #define QUE_MAX_LOOPS_WITHOUT_CHECK	16
 

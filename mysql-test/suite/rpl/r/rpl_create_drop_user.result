@@ -18,13 +18,13 @@ u2@localhost
 disconnect user_a;
 connection master;
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
-user	password	plugin	authentication_string
-u1		mysql_native_password	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4
+User	Password	plugin	authentication_string
+u1	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4	mysql_native_password	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4
 u2		mysql_native_password	
 connection slave;
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
-user	password	plugin	authentication_string
-u1		mysql_native_password	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4
+User	Password	plugin	authentication_string
+u1	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4	mysql_native_password	*D9553C4CE316A9845CE49E30A2D7E3857AF966C4
 u2		mysql_native_password	
 connection master;
 CREATE OR REPLACE USER u1@localhost IDENTIFIED BY 'abcdefghijk2';
@@ -36,13 +36,13 @@ u1@localhost
 disconnect user_a;
 connection master;
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
-user	password	plugin	authentication_string
-u1		mysql_native_password	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
+User	Password	plugin	authentication_string
+u1	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E	mysql_native_password	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
 u2		mysql_native_password	
 connection slave;
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
-user	password	plugin	authentication_string
-u1		mysql_native_password	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
+User	Password	plugin	authentication_string
+u1	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E	mysql_native_password	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
 u2		mysql_native_password	
 connection master;
 CREATE USER u1@localhost;
@@ -51,8 +51,8 @@ DROP USER u3@localhost;
 ERROR HY000: Operation DROP USER failed for 'u3'@'localhost'
 connection slave;
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
-user	password	plugin	authentication_string
-u1		mysql_native_password	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
+User	Password	plugin	authentication_string
+u1	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E	mysql_native_password	*A9A5EF53CE2EFAA6F4A746D63A917B2370971A7E
 u2		mysql_native_password	
 connection master;
 DROP USER IF EXISTS u1@localhost;
@@ -62,5 +62,5 @@ Warnings:
 Note	1974	Can't drop user 'u3'@'localhost'; it doesn't exist
 connection slave;
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
-user	password	plugin	authentication_string
+User	Password	plugin	authentication_string
 include/rpl_end.inc

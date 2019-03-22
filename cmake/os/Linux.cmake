@@ -34,8 +34,8 @@ ENDFOREACH()
 
 # Ensure we have clean build for shared libraries
 # without unresolved symbols
-# Not supported with AddressSanitizer and ThreadSanitizer
-IF(NOT WITH_ASAN AND NOT WITH_TSAN)
+# Not supported with the clang sanitizers
+IF(NOT WITH_ASAN AND NOT WITH_TSAN AND NOT WITH_UBSAN)
   SET(LINK_FLAG_NO_UNDEFINED "-Wl,--no-undefined")
 ENDIF()
 

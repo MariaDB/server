@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 USE information_schema;
 SELECT * FROM SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep_dirty_reads";
 VARIABLE_NAME	VARIABLE_VALUE

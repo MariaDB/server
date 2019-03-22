@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2018, MariaDB
+   Copyright (c) 2011, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -452,8 +452,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
-  thd->prepare_logs_for_admin_command();
-
   field_list.push_back(item= new (thd->mem_root)
                        Item_empty_string(thd, "Table",
                                          NAME_CHAR_LEN * 2), thd->mem_root);
@@ -767,7 +765,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       }
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
-         (get_use_stat_tables_mode(thd) > NEVER ||
+         (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
 
 
@@ -1402,8 +1400,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log&= !MY_TEST(thd->variables.log_slow_disabled_statements &
-                                  LOG_SLOW_DISABLE_ADMIN);
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,

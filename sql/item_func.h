@@ -327,6 +327,11 @@ public:
     return this;
   }
 
+  bool has_rand_bit()
+  {
+    return used_tables() & RAND_TABLE_BIT;
+  }
+
   bool excl_dep_on_table(table_map tab_map)
   {
     if (used_tables() & OUTER_REF_TABLE_BIT)
@@ -343,6 +348,13 @@ public:
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
   {
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
+  }
+
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  {
+    if (has_rand_bit())
+      return false;
+    return Item_args::excl_dep_on_group_fields_for_having_pushdown(sel);
   }
 
   /*
@@ -768,6 +780,12 @@ public:
            Item_func_hybrid_field_type_get_date_with_warn(thd, this, to, mode);
   }
 
+  bool val_native(THD *thd, Native *to)
+  {
+    DBUG_ASSERT(fixed);
+    return native_op(thd, to);
+  }
+
   /**
      @brief Performs the operation that this functions implements when the
      result type is INT.
@@ -838,6 +856,7 @@ public:
   */
   virtual bool time_op(THD *thd, MYSQL_TIME *res)= 0;
 
+  virtual bool native_op(THD *thd, Native *native)= 0;
 };
 
 
@@ -901,6 +920,11 @@ public:
     return true;
   }
   bool time_op(THD *thd, MYSQL_TIME *ltime)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool native_op(THD *thd, Native *to)
   {
     DBUG_ASSERT(0);
     return true;
@@ -1006,6 +1030,19 @@ public:
   bool fix_length_and_dec() { max_length= 11; return FALSE; }
 };
 
+
+class Item_func_hash: public Item_int_func
+{
+public:
+  Item_func_hash(THD *thd, List<Item> &item): Item_int_func(thd, item)
+  {}
+  longlong val_int();
+  bool fix_length_and_dec();
+  const Type_handler *type_handler() const { return &type_handler_long; }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_hash>(thd, this); }
+  const char *func_name() const { return "<hash>"; }
+};
 
 class Item_longlong_func: public Item_int_func
 {
@@ -1183,7 +1220,8 @@ public:
   my_decimal *val_decimal(my_decimal*);
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
   {
-    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode, NULL);
+    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode,
+                                         NULL, NULL);
   }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec_generic() {}
@@ -1771,6 +1809,7 @@ public:
     return Item_func_min_max::type_handler()->
              Item_func_min_max_get_date(thd, this, res, fuzzydate);
   }
+  bool val_native(THD *thd, Native *to);
   void aggregate_attributes_real(Item **items, uint nitems)
   {
     /*
@@ -1834,6 +1873,8 @@ public:
   double val_real() { return val_real_from_item(args[0]); }
   longlong val_int() { return val_int_from_item(args[0]); }
   String *val_str(String *str) { return val_str_from_item(args[0], str); }
+  bool val_native(THD *thd, Native *to)
+    { return val_native_from_item(thd, args[0], to); }
   my_decimal *val_decimal(my_decimal *dec)
     { return val_decimal_from_item(args[0], dec); }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
@@ -2297,6 +2338,10 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  { return false; }
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  { return false;}
 };
 
 
@@ -3153,6 +3198,13 @@ public:
     return str;
   }
 
+  bool val_native(THD *thd, Native *to)
+  {
+    if (execute())
+      return true;
+    return null_value= sp_result_field->val_native(to);
+  }
+
   void update_null_value()
   { 
     execute();
@@ -3187,6 +3239,8 @@ public:
     not_null_tables_cache= 0;
     return 0;
   }
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  { return false; }
 };
 
 
@@ -3282,6 +3336,7 @@ public:
   String *val_str(String *);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *);
   bool fix_length_and_dec();
   const char *func_name() const { return "last_value"; }
   const Type_handler *type_handler() const { return last_value->type_handler(); }
@@ -3393,5 +3448,9 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
 bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
+
+bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
+                 Item_result type, CHARSET_INFO *cs,
+                 bool unsigned_arg);
 
 #endif /* ITEM_FUNC_INCLUDED */

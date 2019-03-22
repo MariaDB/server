@@ -1,0 +1,50 @@
+########################################################################
+# Tests BACKUP STAGE locking
+########################################################################
+
+--source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test lock taken
+--echo #
+
+BACKUP LOCK test.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP LOCK t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+BACKUP LOCK non_existing.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+BACKUP UNLOCK;
+
+--echo #
+--echo # Test that backup lock protects against ddl
+--echo #
+
+connect (con1,localhost,root,,);
+
+connection default;
+create table t1 (a int) engine=innodb;
+insert into t1 values (1);
+backup lock t1;
+select * from t1;
+connection con1;
+--send drop table t1
+connection default;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for table metadata lock";
+--source include/wait_condition.inc
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+--error ER_LOCK_DEADLOCK
+select * from t1;
+backup unlock;
+connection con1;
+--reap
+connection default;
+disconnect con1;
+show tables;

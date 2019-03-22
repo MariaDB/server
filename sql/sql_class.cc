@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -66,9 +66,12 @@
 #include "sql_callback.h"
 #include "lock.h"
 #include "wsrep_mysqld.h"
-#include "wsrep_thd.h"
 #include "sql_connect.h"
-#include "my_atomic.h"
+#ifdef WITH_WSREP
+#include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
+#include "opt_trace.h"
 
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
@@ -639,17 +642,50 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    tdc_hash_pins(0),
    xid_hash_pins(0),
    m_tmp_tables_locked(false)
+#ifdef HAVE_REPLICATION
+   ,
+   current_linfo(0),
+   slave_info(0)
+#endif
 #ifdef WITH_WSREP
-  ,
+   ,
    wsrep_applier(is_wsrep_applier),
    wsrep_applier_closing(false),
    wsrep_client_thread(false),
-   wsrep_apply_toi(false),
+   wsrep_retry_counter(0),
+   wsrep_PA_safe(true),
+   wsrep_retry_query(NULL),
+   wsrep_retry_query_len(0),
+   wsrep_retry_command(COM_CONNECT),
+   wsrep_consistency_check(NO_CONSISTENCY_CHECK),
+   wsrep_mysql_replicated(0),
+   wsrep_TOI_pre_query(NULL),
+   wsrep_TOI_pre_query_len(0),
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_ignore_table(false)
-#endif
+   wsrep_apply_toi(false),
+   wsrep_rbr_buf(NULL),
+   wsrep_sync_wait_gtid(WSREP_GTID_UNDEFINED),
+   wsrep_affected_rows(0),
+   wsrep_has_ignored_error(false),
+   wsrep_replicate_GTID(false),
+   wsrep_ignore_table(false),
+
+/* wsrep-lib */
+   m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
+   m_wsrep_mutex(LOCK_thd_data),
+   m_wsrep_cond(COND_wsrep_thd),
+   m_wsrep_client_service(this, m_wsrep_client_state),
+   m_wsrep_client_state(this,
+                        m_wsrep_mutex,
+                        m_wsrep_cond,
+                        Wsrep_server_state::instance(),
+                        m_wsrep_client_service,
+                        wsrep::client_id(thread_id)),
+   wsrep_applier_service(NULL),
+   wsrep_wfc()
+#endif /*WITH_WSREP */
 {
   ulong tmp;
   bzero(&variables, sizeof(variables));
@@ -668,6 +704,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   main_da.init();
 
   mdl_context.init(this);
+  mdl_backup_lock= 0;
 
   /*
     Pass nominal parameters to init_alloc_root only to ensure that
@@ -717,7 +754,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   progress.arena= 0;
   progress.report_to_client= 0;
   progress.max_counter= 0;
-  current_linfo =  0;
   slave_thread = 0;
   connection_name.str= 0;
   connection_name.length= 0;
@@ -757,11 +793,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wakeup_ready, &COND_wakeup_ready, 0);
-  /*
-    LOCK_thread_count goes before LOCK_thd_data - the former is called around
-    'delete thd', the latter - in THD::~THD
-  */
-  mysql_mutex_record_order(&LOCK_thread_count, &LOCK_thd_data);
 
   /* Variables with default values */
   proc_info="login";
@@ -771,22 +802,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   *scramble= '\0';
 
 #ifdef WITH_WSREP
-  wsrep_ws_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
-  wsrep_ws_handle.opaque = NULL;
-  wsrep_retry_counter     = 0;
-  wsrep_PA_safe           = true;
-  wsrep_retry_query       = NULL;
-  wsrep_retry_query_len   = 0;
-  wsrep_retry_command     = COM_CONNECT;
-  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
-  wsrep_mysql_replicated  = 0;
-  wsrep_TOI_pre_query     = NULL;
-  wsrep_TOI_pre_query_len = 0;
+  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
-  wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
-  wsrep_affected_rows     = 0;
-  wsrep_replicate_GTID    = false;
-  wsrep_skip_wsrep_GTID   = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -847,9 +864,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
+  org_charset= 0;
+  having_pushdown= FALSE;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
-  inc_thread_count();
 }
 
 
@@ -1028,7 +1046,8 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     level= Sql_condition::WARN_LEVEL_ERROR;
   }
 
-  if (handle_condition(sql_errno, sqlstate, &level, msg, &cond))
+  if (!is_fatal_error &&
+      handle_condition(sql_errno, sqlstate, &level, msg, &cond))
     DBUG_RETURN(cond);
 
   switch (level) {
@@ -1049,10 +1068,25 @@ Sql_condition* THD::raise_condition(uint sql_errno,
 
     is_slave_error=  1; // needed to catch query errors during replication
 
-    if (!da->is_error())
+#ifdef WITH_WSREP
+    /*
+      With wsrep we allow converting BF abort error to warning if
+      errors are ignored.
+     */
+    if (!is_fatal_error &&
+        no_errors       &&
+        (wsrep_trx().bf_aborted() || wsrep_retry_counter))
     {
-      set_row_count_func(-1);
-      da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
+      WSREP_DEBUG("BF abort error converted to warning");
+    }
+    else
+#endif /* WITH_WSREP */
+    {
+      if (!da->is_error())
+      {
+	set_row_count_func(-1);
+	da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
+      }
     }
   }
 
@@ -1113,6 +1147,13 @@ void *thd_memdup(MYSQL_THD thd, const void* str, size_t size)
 extern "C"
 void thd_get_xid(const MYSQL_THD thd, MYSQL_XID *xid)
 {
+#ifdef WITH_WSREP
+  if (!thd->wsrep_xid.is_null())
+  {
+    *xid = *(MYSQL_XID *) &thd->wsrep_xid;
+  }
+  else
+#endif /* WITH_WSREP */
   *xid = *(MYSQL_XID *) &thd->transaction.xid_state.xid;
 }
 
@@ -1219,13 +1260,11 @@ void THD::init(bool skip_lock)
   first_successful_insert_id_in_prev_stmt= 0;
   first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   first_successful_insert_id_in_cur_stmt= 0;
+  current_backup_stage= BACKUP_FINISHED;
 #ifdef WITH_WSREP
-  wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
-  wsrep_conflict_state= NO_CONFLICT;
-  wsrep_query_state= QUERY_IDLE;
   wsrep_last_query_id= 0;
-  wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
-  wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
+  wsrep_xid.null();
+  wsrep_skip_locking= FALSE;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
   wsrep_rgi= NULL;
@@ -1234,10 +1273,10 @@ void THD::init(bool skip_lock)
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
-  wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
+  wsrep_rbr_buf           = NULL;
   wsrep_affected_rows     = 0;
+  m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
-  wsrep_skip_wsrep_GTID   = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1380,6 +1419,7 @@ void THD::change_user(void)
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
   sp_cache_clear(&sp_package_body_cache);
+  opt_trace.delete_traces();
 }
 
 /**
@@ -1466,6 +1506,13 @@ void THD::cleanup(void)
 #error xid_state in the cache should be replaced by the allocated value
   }
 #endif
+#ifdef WITH_WSREP
+  if (wsrep_cs().state() != wsrep::client_state::s_none)
+  {
+    wsrep_cs().cleanup();
+  }
+  wsrep_client_thread= false;
+#endif /* WITH_WSREP */
 
   mysql_ha_cleanup(this);
   locked_tables_list.unlock_locked_tables(this);
@@ -1486,6 +1533,9 @@ void THD::cleanup(void)
     metadata locks. Release them.
   */
   mdl_context.release_transactional_locks();
+
+  backup_end(this);
+  backup_unlock(this);
 
   /* Release the global read lock, if acquired. */
   if (global_read_lock.is_acquired())
@@ -1513,10 +1563,14 @@ void THD::cleanup(void)
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
   mysql_ull_cleanup(this);
+  stmt_map.reset();
   /* All metadata locks must have been released by now. */
   DBUG_ASSERT(!mdl_context.has_locks());
 
   apc_target.destroy();
+#ifdef HAVE_REPLICATION
+  unregister_slave();
+#endif
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -1582,6 +1636,9 @@ void THD::reset_for_reuse()
 #ifdef SIGNAL_WITH_VIO_CLOSE
   active_vio = 0;
 #endif
+#ifdef WITH_WSREP
+  wsrep_free_status(this);
+#endif /* WITH_WSREP */
 }
 
 
@@ -1590,10 +1647,8 @@ THD::~THD()
   THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
-  /* Check that we have already called thd->unlink() */
-  DBUG_ASSERT(prev == 0 && next == 0);
-  /* This takes a long time so we should not do this under LOCK_thread_count */
-  mysql_mutex_assert_not_owner(&LOCK_thread_count);
+  /* Make sure threads are not available via server_threads.  */
+  assert_not_linked();
 
   /*
     In error cases, thd may not be current thd. We have to fix this so
@@ -1608,15 +1663,21 @@ THD::~THD()
     THD is not deleted while they access it. The following mutex_lock
     ensures that no one else is using this THD and it's now safe to delete
   */
+  if (WSREP(this)) mysql_mutex_lock(&LOCK_thd_data);
   mysql_mutex_lock(&LOCK_thd_kill);
   mysql_mutex_unlock(&LOCK_thd_kill);
+  if (WSREP(this)) mysql_mutex_unlock(&LOCK_thd_data);
 
-#ifdef WITH_WSREP
-  delete wsrep_rgi;
-#endif
   if (!free_connection_done)
     free_connection();
 
+#ifdef WITH_WSREP
+  if (wsrep_rgi != NULL) {
+    delete wsrep_rgi;
+    wsrep_rgi = NULL;
+  }
+  mysql_cond_destroy(&COND_wsrep_thd);
+#endif
   mdl_context.destroy();
 
   free_root(&transaction.mem_root,MYF(0));
@@ -1668,7 +1729,6 @@ THD::~THD()
   }
   update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);
-  dec_thread_count();
   DBUG_VOID_RETURN;
 }
 
@@ -1798,6 +1858,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
+  if (WSREP(this)) mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
@@ -1830,7 +1891,8 @@ void THD::awake_no_mutex(killed_state state_to_set)
   }
 
   /* Interrupt target waiting inside a storage engine. */
-  if (state_to_set != NOT_KILLED)
+  if (IF_WSREP(state_to_set != NOT_KILLED  && !wsrep_is_bf_aborted(this),
+               state_to_set != NOT_KILLED))
     ha_kill_query(this, thd_kill_level(this));
 
   /* Broadcast a condition to kick the target if it is waiting on it. */
@@ -1983,12 +2045,6 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         if (!thd_table->needs_reopen())
         {
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP(this) && wsrep_thd_is_BF(this, FALSE))
-          {
-            WSREP_DEBUG("remove_table_from_cache: %llu",
-                        (unsigned long long) this->real_id);
-            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
-          }
         }
       }
     }
@@ -2144,6 +2200,11 @@ void THD::reset_globals()
   net.thd= 0;
 }
 
+bool THD::trace_started()
+{
+  return opt_trace.is_started();
+}
+
 /*
   Cleanup after query.
 
@@ -2220,12 +2281,6 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;
-#ifdef WITH_WSREP
-  if (TOTAL_ORDER == wsrep_exec_mode)
-  {
-    wsrep_exec_mode = LOCAL_STATE;
-  }
-#endif  /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
@@ -2233,7 +2288,6 @@ void THD::cleanup_after_query()
 #endif
 
 #ifdef WITH_WSREP
-  wsrep_sync_wait_gtid= WSREP_GTID_UNDEFINED;
   if (!in_active_multi_stmt_transaction())
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
@@ -2494,6 +2548,16 @@ void THD::update_charset()
                               &not_used);
 }
 
+void THD::give_protection_error()
+{
+  if (current_backup_stage != BACKUP_FINISHED)
+    my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
+  else
+  {
+    DBUG_ASSERT(global_read_lock.is_acquired());
+    my_error(ER_CANT_UPDATE_WITH_READLOCK, MYF(0));
+  }
+}
 
 /* routings to adding tables to list of changed in transaction tables */
 
@@ -2584,17 +2648,15 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 }
 
 
-void THD::prepare_explain_fields(select_result *result,
-                                 List<Item> *field_list,
-                                 uint8 explain_flags,
-                                 bool is_analyze)
+int THD::prepare_explain_fields(select_result *result, List<Item> *field_list,
+                                 uint8 explain_flags, bool is_analyze)
 {
   if (lex->explain_json)
     make_explain_json_field_list(*field_list, is_analyze);
   else
     make_explain_field_list(*field_list, explain_flags, is_analyze);
 
-  result->prepare(*field_list, NULL);
+  return result->prepare(*field_list, NULL);
 }
 
 
@@ -2604,11 +2666,10 @@ int THD::send_explain_fields(select_result *result,
 {
   List<Item> field_list;
   int rc;
-  prepare_explain_fields(result, &field_list, explain_flags, is_analyze);
-  rc= result->send_result_set_metadata(field_list,
-                                       Protocol::SEND_NUM_ROWS |
-                                       Protocol::SEND_EOF);
-  return(rc);
+  rc= prepare_explain_fields(result, &field_list, explain_flags, is_analyze) ||
+      result->send_result_set_metadata(field_list, Protocol::SEND_NUM_ROWS |
+                                                   Protocol::SEND_EOF);
+  return rc;
 }
 
 
@@ -2677,13 +2738,13 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                                          NAME_CHAR_LEN*MAX_REF_PARTS, cs),
                        mem_root);
   item->maybe_null=1;
-  field_list.push_back(item= new (mem_root)
-                       Item_return_int(this, "rows", 10, MYSQL_TYPE_LONGLONG),
+  field_list.push_back(item=new (mem_root)
+                       Item_empty_string(this, "rows", NAME_CHAR_LEN, cs),
                        mem_root);
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "r_rows", 0.1234, 10, 4),
+                         Item_empty_string(this, "r_rows", NAME_CHAR_LEN, cs),
                          mem_root);
     item->maybe_null=1;
   }
@@ -3238,6 +3299,10 @@ int select_export::send_data(List<Item> &items)
       error_pos= copier.most_important_error_pos();
       if (unlikely(error_pos))
       {
+        /*
+          TODO: 
+             add new error message that will show user this printable_buff
+
         char printable_buff[32];
         convert_to_printable(printable_buff, sizeof(printable_buff),
                              error_pos, res->ptr() + res->length() - error_pos,
@@ -3246,6 +3311,11 @@ int select_export::send_data(List<Item> &items)
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                             ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
+                            item->name.str, static_cast<long>(row_count));
+        */
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
+                            ER_THD(thd, WARN_DATA_TRUNCATED),
                             item->name.str, static_cast<long>(row_count));
       }
       else if (copier.source_end_pos() < res->ptr() + res->length())
@@ -3971,11 +4041,13 @@ void Statement_map::erase(Statement *statement)
 void Statement_map::reset()
 {
   /* Must be first, hash_free will reset st_hash.records */
-  mysql_mutex_lock(&LOCK_prepared_stmt_count);
-  DBUG_ASSERT(prepared_stmt_count >= st_hash.records);
-  prepared_stmt_count-= st_hash.records;
-  mysql_mutex_unlock(&LOCK_prepared_stmt_count);
-
+  if (st_hash.records)
+  {
+    mysql_mutex_lock(&LOCK_prepared_stmt_count);
+    DBUG_ASSERT(prepared_stmt_count >= st_hash.records);
+    prepared_stmt_count-= st_hash.records;
+    mysql_mutex_unlock(&LOCK_prepared_stmt_count);
+  }
   my_hash_reset(&names_hash);
   my_hash_reset(&st_hash);
   last_found_statement= 0;
@@ -3984,12 +4056,8 @@ void Statement_map::reset()
 
 Statement_map::~Statement_map()
 {
-  /* Must go first, hash_free will reset st_hash.records */
-  mysql_mutex_lock(&LOCK_prepared_stmt_count);
-  DBUG_ASSERT(prepared_stmt_count >= st_hash.records);
-  prepared_stmt_count-= st_hash.records;
-  mysql_mutex_unlock(&LOCK_prepared_stmt_count);
-
+  /* Statement_map::reset() should be called prior to destructor. */
+  DBUG_ASSERT(!st_hash.records);
   my_hash_free(&names_hash);
   my_hash_free(&st_hash);
 }
@@ -4236,6 +4304,7 @@ void Security_context::init()
   host_or_ip= "connecting host";
   priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
   master_access= 0;
+  password_expired= false;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   db_access= NO_ACCESS;
 #endif
@@ -4274,6 +4343,7 @@ void Security_context::skip_grants()
   host_or_ip= (char *)"";
   master_access= ~NO_ACCESS;
   *priv_user= *priv_host= '\0';
+  password_expired= false;
 }
 
 
@@ -4282,6 +4352,13 @@ bool Security_context::set_user(char *user_arg)
   my_free((char*) user);
   user= my_strdup(user_arg, MYF(0));
   return user == 0;
+}
+
+bool Security_context::check_access(ulong want_access, bool match_any)
+{
+  DBUG_ENTER("Security_context::check_access");
+  DBUG_RETURN((match_any ? (master_access & want_access)
+                         : ((master_access & want_access) == want_access)));
 }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -4383,6 +4460,13 @@ bool Security_context::user_matches(Security_context *them)
 {
   return ((user != NULL) && (them->user != NULL) &&
           !strcmp(user, them->user));
+}
+
+bool Security_context::is_priv_user(const char *user, const char *host)
+{
+  return ((user != NULL) && (host != NULL) &&
+          !strcmp(user, priv_user) &&
+          !my_strcasecmp(system_charset_info, host,priv_host));
 }
 
 
@@ -4711,14 +4795,14 @@ MYSQL_THD create_thd()
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
   thd->security_ctx->host_or_ip="";
-  add_to_active_threads(thd);
+  server_threads.insert(thd);
   return thd;
 }
 
 void destroy_thd(MYSQL_THD thd)
 {
   thd->add_status_to_global();
-  unlink_not_visible_thd(thd);
+  server_threads.erase(thd);
   delete thd;
 }
 
@@ -4789,7 +4873,8 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
 
 extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
 {
-  return !thd->is_current_stmt_binlog_format_row() &&
+  return thd &&
+    !thd->is_current_stmt_binlog_format_row() &&
     !thd->is_current_stmt_binlog_disabled();
 }
 
@@ -4984,8 +5069,9 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
   if (WSREP(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
-    return (int) thd->wsrep_binlog_format();
+    return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
   }
+
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
     return (int) thd->variables.binlog_format;
   return BINLOG_FORMAT_UNSPEC;
@@ -5468,6 +5554,10 @@ void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,
   set_query_inner(query_arg, query_length_arg, cs);
   mysql_mutex_unlock(&LOCK_thd_data);
   query_id= new_query_id;
+#ifdef WITH_WSREP
+  set_wsrep_next_trx_id(query_id);
+  WSREP_DEBUG("assigned new next query and  trx id: %lu", wsrep_next_trx_id());
+#endif /* WITH_WSREP */
 }
 
 /** Assign a new value to thd->mysys_var.  */
@@ -5519,7 +5609,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
   {
     definer->user= invoker.user;
     definer->host= invoker.host;
-    definer->reset_auth();
+    definer->auth= NULL;
   }
   else
 #endif
@@ -5578,34 +5668,34 @@ class XID_cache_element
     ACQUIRED and RECOVERED flags are cleared before element is deleted from
     hash in a spin loop, after last reference is released.
   */
-  int32 m_state;
+  std::atomic<int32_t> m_state;
 public:
   static const int32 ACQUIRED= 1 << 30;
   static const int32 RECOVERED= 1 << 29;
   XID_STATE *m_xid_state;
-  bool is_set(int32 flag)
-  { return my_atomic_load32_explicit(&m_state, MY_MEMORY_ORDER_RELAXED) & flag; }
-  void set(int32 flag)
+  bool is_set(int32_t flag)
+  { return m_state.load(std::memory_order_relaxed) & flag; }
+  void set(int32_t flag)
   {
     DBUG_ASSERT(!is_set(ACQUIRED | RECOVERED));
-    my_atomic_add32_explicit(&m_state, flag, MY_MEMORY_ORDER_RELAXED);
+    m_state.fetch_add(flag, std::memory_order_relaxed);
   }
   bool lock()
   {
-    int32 old= my_atomic_add32_explicit(&m_state, 1, MY_MEMORY_ORDER_ACQUIRE);
+    int32_t old= m_state.fetch_add(1, std::memory_order_acquire);
     if (old & (ACQUIRED | RECOVERED))
       return true;
     unlock();
     return false;
   }
   void unlock()
-  { my_atomic_add32_explicit(&m_state, -1, MY_MEMORY_ORDER_RELEASE); }
+  { m_state.fetch_sub(1, std::memory_order_release); }
   void mark_uninitialized()
   {
-    int32 old= ACQUIRED;
-    while (!my_atomic_cas32_weak_explicit(&m_state, &old, 0,
-                                          MY_MEMORY_ORDER_RELAXED,
-                                          MY_MEMORY_ORDER_RELAXED))
+    int32_t old= ACQUIRED;
+    while (!m_state.compare_exchange_weak(old, 0,
+                                          std::memory_order_relaxed,
+                                          std::memory_order_relaxed))
     {
       old&= ACQUIRED | RECOVERED;
       (void) LF_BACKOFF();
@@ -5613,10 +5703,10 @@ public:
   }
   bool acquire_recovered()
   {
-    int32 old= RECOVERED;
-    while (!my_atomic_cas32_weak_explicit(&m_state, &old, ACQUIRED | RECOVERED,
-                                          MY_MEMORY_ORDER_RELAXED,
-                                          MY_MEMORY_ORDER_RELAXED))
+    int32_t old= RECOVERED;
+    while (!m_state.compare_exchange_weak(old, ACQUIRED | RECOVERED,
+                                          std::memory_order_relaxed,
+                                          std::memory_order_relaxed))
     {
       if (!(old & RECOVERED) || (old & ACQUIRED))
         return false;
@@ -5913,9 +6003,28 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlogging is off, or if the statement is filtered out from the
     binlog by filtering rules.
   */
+#ifdef WITH_WSREP
+  if (WSREP_CLIENT_NNULL(this) && wsrep_thd_is_local(this) &&
+      variables.wsrep_trx_fragment_size > 0)
+  {
+    if (!is_current_stmt_binlog_format_row())
+    {
+      my_message(ER_NOT_SUPPORTED_YET,
+                 "Streaming replication not supported with "
+                 "binlog_format=STATEMENT", MYF(0));
+      DBUG_RETURN(-1);
+    }
+  }
+
+  if ((WSREP_EMULATE_BINLOG_NNULL(this) ||
+       (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG))) &&
+      !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+        !binlog_filter->db_ok(db.str)))
+#else
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
       !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db.str)))
+#endif /* WITH_WSREP */
   {
 
     if (is_bulk_op())
@@ -6237,7 +6346,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             5. Error: Cannot modify table that uses a storage engine
                limited to row-logging when binlog_format = STATEMENT
           */
-	  if (IF_WSREP((!WSREP(this) || wsrep_exec_mode == LOCAL_STATE),1))
+	  if (IF_WSREP((!WSREP(this) ||
+			wsrep_cs().mode() == wsrep::client_state::m_local),1))
 	  {
             my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
 	  }
@@ -6632,6 +6742,22 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
+  /**
+    Save a reference to the original read bitmaps
+    We will need this to restore the bitmaps at the end as
+    binlog_prepare_row_images() may change table->read_set.
+    table->read_set is used by pack_row and deep in
+    binlog_prepare_pending_events().
+  */
+  MY_BITMAP *old_read_set= table->read_set;
+
+  /**
+     This will remove spurious fields required during execution but
+     not needed for binlogging. This is done according to the:
+     binlog-row-image option.
+   */
+  binlog_prepare_row_images(table);
+
   size_t const before_maxlen= max_row_length(table, table->read_set,
                                              before_record);
   size_t const after_maxlen=  max_row_length(table, table->rpl_write_set,
@@ -6645,9 +6771,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   uchar *after_row= row_data.slot(1);
 
   size_t const before_size= pack_row(table, table->read_set, before_row,
-                                        before_record);
+                                     before_record);
   size_t const after_size= pack_row(table, table->rpl_write_set, after_row,
-                                       after_record);
+                                    after_record);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (variables.option_bits & OPTION_GTID_BEGIN)
@@ -6682,6 +6808,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   int error=  ev->add_row_data(before_row, before_size) ||
               ev->add_row_data(after_row, after_size);
 
+  /* restore read set for the rest of execution */
+  table->column_bitmaps_set_no_signal(old_read_set,
+                                      table->write_set);
   return error;
 
 }

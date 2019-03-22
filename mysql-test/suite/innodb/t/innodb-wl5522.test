@@ -2,6 +2,7 @@
 --source include/not_embedded.inc
 
 -- source include/have_innodb.inc
+-- source include/innodb_checksum_algorithm.inc
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
@@ -9,6 +10,7 @@ FLUSH TABLES;
 
 let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
 let $MYSQLD_DATADIR = `SELECT @@datadir`;
+let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
 
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,
@@ -80,8 +82,19 @@ ALTER TABLE t2 DISCARD TABLESPACE;
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t2 IMPORT TABLESPACE;
 --remove_file $MYSQLD_DATADIR/test/t2.cfg
+
+let $error_code = ER_TABLE_SCHEMA_MISMATCH;
+
+if ($checksum_algorithm == "full_crc32") {
+ let $error_code = 0;
+}
+
+if ($checksum_algorithm == "strict_full_crc32") {
+ let $error_code = 0;
+}
+
 --replace_regex /(FSP_SPACE_FLAGS=0x)[0-9a-f]+(,.*0x)[0-9a-f]+(.*)/\1*\2*\3/
---error ER_TABLE_SCHEMA_MISMATCH
+--error $error_code
 ALTER TABLE t2 IMPORT TABLESPACE;
 DROP TABLE t2;
 

@@ -24,8 +24,6 @@ The transaction
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "trx0trx.h"
 
 #ifdef WITH_WSREP
@@ -41,7 +39,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "que0que.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
-#include "fsp0sysspace.h"
 #include "srv0start.h"
 #include "trx0purge.h"
 #include "trx0rec.h"
@@ -49,7 +46,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "trx0undo.h"
 #include "trx0xa.h"
-#include "ut0new.h"
 #include "ut0pool.h"
 #include "ut0vec.h"
 
@@ -788,9 +784,7 @@ trx_lists_init_at_db_start()
 evenly distributed between 0 and innodb_undo_logs-1
 @return	persistent rollback segment
 @retval	NULL	if innodb_read_only */
-static
-trx_rseg_t*
-trx_assign_rseg_low()
+static trx_rseg_t* trx_assign_rseg_low()
 {
 	if (srv_read_only_mode) {
 		ut_ad(srv_undo_logs == ULONG_UNDEFINED);
@@ -841,8 +835,8 @@ trx_assign_rseg_low()
 			ut_ad(rseg->is_persistent());
 
 			if (rseg->space != fil_system.sys_space) {
-				ut_ad(srv_undo_tablespaces > 1);
-				if (rseg->skip_allocation) {
+				if (rseg->skip_allocation
+				    || !srv_undo_tablespaces) {
 					continue;
 				}
 			} else if (trx_rseg_t* next
@@ -1447,11 +1441,8 @@ trx_commit_in_memory(
 
 	trx_mutex_enter(trx);
 	trx->dict_operation = TRX_DICT_OP_NONE;
-
 #ifdef WITH_WSREP
-	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
-	}
+	trx->lock.was_chosen_as_wsrep_victim = FALSE;
 #endif
 
 	DBUG_LOG("trx", "Commit in memory: " << trx);
@@ -1464,7 +1455,9 @@ trx_commit_in_memory(
 	trx_mutex_exit(trx);
 
 	ut_a(trx->error_state == DB_SUCCESS);
-	srv_wake_purge_thread_if_not_active();
+	if (!srv_read_only_mode) {
+		srv_wake_purge_thread_if_not_active();
+	}
 }
 
 /** Commit a transaction and a mini-transaction.
@@ -1575,6 +1568,16 @@ trx_commit(
 	}
 
 	trx_commit_low(trx, mtr);
+#ifdef WITH_WSREP
+	/* Serialization history has been written and the
+	   transaction is committed in memory, which makes
+	   this commit ordered. Release commit order critical
+	   section. */
+	if (wsrep_on(trx->mysql_thd))
+	{
+		wsrep_commit_ordered(trx->mysql_thd);
+	}
+#endif /* WITH_WSREP */
 }
 
 /****************************************************************//**
@@ -2154,6 +2157,12 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_PREPARED) &&
         arg->xid->eq(reinterpret_cast<XID*>(trx->xid)))
     {
+#ifdef WITH_WSREP
+      /* The commit of a prepared recovered Galera
+      transaction needs a valid trx->xid for
+      invoking trx_sys_update_wsrep_checkpoint(). */
+      if (!wsrep_is_wsrep_xid(trx->xid))
+#endif /* WITH_WSREP */
       /* Invalidate the XID, so that subsequent calls will not find it. */
       trx->xid->null();
       arg->trx= trx;

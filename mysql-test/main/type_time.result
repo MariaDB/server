@@ -188,7 +188,7 @@ create table t1(f1 time);
 insert into t1 values ('23:38:57');
 select f1, f1 = '2010-10-11 23:38:57' from t1;
 f1	f1 = '2010-10-11 23:38:57'
-23:38:57	0
+23:38:57	1
 drop table t1;
 #
 # MDEV-4634 Crash in CONVERT_TZ
@@ -320,7 +320,7 @@ DROP TABLE t2,t1;
 SET sql_mode=traditional;
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
-ERROR 22007: Incorrect time value: '18446744069414584320' for column 'a' at row 1
+ERROR 22007: Incorrect time value: '18446744069414584320' for column `test`.`t1`.`a` at row 1
 SET sql_mode=DEFAULT;
 INSERT IGNORE INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
 Warnings:
@@ -1179,7 +1179,7 @@ SELECT CAST(a AS TIME), CAST(-9223372036854775808 AS TIME) FROM t1;
 CAST(a AS TIME)	CAST(-9223372036854775808 AS TIME)
 -838:59:59	-838:59:59
 Warnings:
-Warning	1292	Incorrect time value: '-9223372036854775808' for column 'a' at row 1
+Warning	1292	Incorrect time value: '-9223372036854775808' for column `test`.`t1`.`a` at row 1
 Warning	1292	Truncated incorrect time value: '-9223372036854775808'
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
@@ -1196,12 +1196,12 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '-9000000' for column 'a' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'b' at row 1
-Warning	1292	Incorrect time value: '-9000000' for column 'c' at row 1
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 6
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 6
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect time value: '-9000000' for column `test`.`t1`.`c` at row 1
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 6
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 6
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
 INSERT INTO t1 VALUES (0,0,0),(1,1,1),(9,9,9);
@@ -1213,9 +1213,9 @@ a	TIME(a)	TIME(b)	TIME(c)
 9	00:00:09	00:00:09	00:00:09.000000
 9000000	838:59:59	838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Incorrect time value: '9000000' for column 'a' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'b' at row 4
-Warning	1292	Incorrect time value: '9000000' for column 'c' at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`b` at row 4
+Warning	1292	Incorrect time value: '9000000' for column `test`.`t1`.`c` at row 4
 DROP TABLE t1;
 #
 # MDEV-8862 Wrong field type for MAX(COALESCE(datetime_column))
@@ -1608,7 +1608,7 @@ INSERT INTO t1 VALUES ('23:00:03', 'yes');
 INSERT INTO t1 VALUES ('23:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
 a	filler
 23:00:03	yes
@@ -1686,7 +1686,7 @@ INSERT INTO t1 VALUES ('24:00:03', 'yes');
 INSERT INTO t1 VALUES ('24:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
 a	filler
 24:00:03	yes
@@ -1764,7 +1764,7 @@ INSERT INTO t1 VALUES ('838:00:03', 'yes');
 INSERT INTO t1 VALUES ('838:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
 a	filler
 838:00:03	yes
@@ -1842,7 +1842,7 @@ INSERT INTO t1 VALUES ('23:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('23:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
 a	filler
 23:00:03.1	yes
@@ -1920,7 +1920,7 @@ INSERT INTO t1 VALUES ('838:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('838:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	5	Using index condition
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
 a	filler
 838:00:03.1	yes
@@ -2167,6 +2167,46 @@ Warnings:
 Warning	1292	Truncated incorrect datetime value: 'z'
 Warning	1292	Truncated incorrect datetime value: 'z'
 Warning	1292	Truncated incorrect time value: 'z'
+#
+# MDEV-17319 Assertion `ts_type != MYSQL_TIMESTAMP_TIME' failed upon inserting into TIME field
+#
+CREATE TABLE t1 (t TIME);
+SET SESSION SQL_MODE='TRADITIONAL';
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+ERROR 22007: Incorrect time value: '0000-00-00 00:00:00' for column `test`.`t1`.`t` at row 1
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+#
+# MDEV-18070 Assertion `nanoseconds <= 1000000000' failed in Temporal::add_nanoseconds_ssff with TIME_ROUND_FRACTIONAL
+#
+CREATE TABLE t1 (t TIME);
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+INSERT INTO t1 VALUES (3e19);
+Warnings:
+Warning	1264	Out of range value for column 't' at row 1
+DROP TABLE t1;
+#
+# MDEV-18876 Assertion `is_valid_time_slow()' failed in Time::valid_MYSQL_TIME_to_valid_value
+#
+CREATE TABLE t1 (f INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT f FROM t1 ORDER BY 1 && ( '1972-11-06 16:58:58' BETWEEN CONVERT( 0, TIME ) AND '20:31:05' );
+f
+1
+2
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(32));
+INSERT INTO t1 VALUES ('1972-11-06 16:58:58');
+SELECT * FROM t1 WHERE a < TIME'20:31:05';
+a
+1972-11-06 16:58:58
+SELECT a < TIME'20:31:05' FROM t1;
+a < TIME'20:31:05'
+1
+DROP TABLE t1;
+SELECT '1972-11-06 16:58:58' < TIME'20:31:05';
+'1972-11-06 16:58:58' < TIME'20:31:05'
+1
 #
 # End of 10.4 tests
 #

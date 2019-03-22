@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,28 +28,11 @@ Created June 2005 by Marko Makela
 #ifndef page0zip_h
 #define page0zip_h
 
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE
-#endif
-
-#ifdef UNIV_INNOCHECKSUM
-#include "univ.i"
-#include "buf0buf.h"
-#include "ut0crc32.h"
-#include "buf0checksum.h"
-#include "mach0data.h"
-#include "zlib.h"
-#endif /* UNIV_INNOCHECKSUM */
+#include "buf0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 #include "mtr0types.h"
 #include "page0types.h"
-#endif /* !UNIV_INNOCHECKSUM */
-
-#include "buf0types.h"
-
-#ifndef UNIV_INNOCHECKSUM
 #include "dict0types.h"
 #include "srv0srv.h"
 #include "trx0types.h"
@@ -103,15 +86,10 @@ page_zip_set_size(
 @param[in]	comp		nonzero=compact format
 @param[in]	n_fields	number of fields in the record; ignored if
 tablespace is not compressed
-@param[in]	page_size	page size
-@return FALSE if the entire record can be stored locally on the page */
-UNIV_INLINE
-ibool
-page_zip_rec_needs_ext(
-	ulint			rec_size,
-	ulint			comp,
-	ulint			n_fields,
-	const page_size_t&	page_size)
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@return false if the entire record can be stored locally on the page */
+inline bool page_zip_rec_needs_ext(ulint rec_size, ulint comp, ulint n_fields,
+				   ulint zip_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
@@ -510,26 +488,19 @@ page_zip_parse_compress(
 @param[in]	data			compressed page
 @param[in]	size			size of compressed page
 @param[in]	algo			algorithm to use
-@param[in]	use_legacy_big_endian	only used if algo is
-SRV_CHECKSUM_ALGORITHM_CRC32 or SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 - if true
-then use big endian byteorder when converting byte strings to integers.
 @return page checksum */
 uint32_t
 page_zip_calc_checksum(
 	const void*			data,
 	ulint				size,
-	srv_checksum_algorithm_t	algo,
-	bool				use_legacy_big_endian = false);
+	srv_checksum_algorithm_t	algo);
 
-/**********************************************************************//**
-Verify a compressed page's checksum.
-@return TRUE if the stored checksum is valid according to the value of
+/** Verify a compressed page's checksum.
+@param[in]	data		compressed page
+@param[in]	size		size of compressed page
+@return whether the stored checksum is valid according to the value of
 innodb_checksum_algorithm */
-ibool
-page_zip_verify_checksum(
-/*=====================*/
-	const void*	data,	/*!< in: compressed page */
-	ulint		size);	/*!< in: size of compressed page */
+bool page_zip_verify_checksum(const void* data, ulint size);
 
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
@@ -563,11 +534,6 @@ UNIV_INLINE
 void
 page_zip_reset_stat_per_index();
 /*===========================*/
-
-#ifdef UNIV_MATERIALIZE
-# undef UNIV_INLINE
-# define UNIV_INLINE	UNIV_INLINE_ORIGINAL
-#endif
 
 #include "page0zip.ic"
 #endif /* !UNIV_INNOCHECKSUM */

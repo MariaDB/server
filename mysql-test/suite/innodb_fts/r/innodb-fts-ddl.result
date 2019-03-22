@@ -79,7 +79,7 @@ CREATE FULLTEXT INDEX idx on fts_test (title, body) LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
 ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE fts_test ROW_FORMAT=REDUNDANT;
 SELECT * FROM fts_test WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
@@ -227,4 +227,13 @@ id	title	body
 DROP TABLE articles;
 CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b);
+DROP TABLE t1;
+#
+# MDEV-18152 Assertion 'num_fts_index <= 1' failed
+# in prepare_inplace_alter_table_dict
+#
+CREATE TABLE t1
+(a VARCHAR(128), b VARCHAR(128), FULLTEXT INDEX(a), FULLTEXT INDEX(b))
+ENGINE=InnoDB;
+ALTER TABLE t1 ADD c SERIAL;
 DROP TABLE t1;

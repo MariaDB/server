@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -112,6 +112,7 @@ When one supplies long data for a placeholder:
 #include "sp_cache.h"
 #include "sql_handler.h"  // mysql_ha_rm_tables
 #include "probes_mysql.h"
+#include "opt_trace.h"
 #ifdef EMBEDDED_LIBRARY
 /* include MYSQL_BIND headers */
 #include <mysql.h>
@@ -189,7 +190,7 @@ public:
   void setup_set_params();
   virtual Query_arena::Type type() const;
   virtual void cleanup_stmt();
-  bool set_name(LEX_CSTRING *name);
+  bool set_name(const LEX_CSTRING *name);
   inline void close_cursor() { delete cursor; cursor= 0; }
   inline bool is_in_use() { return flags & (uint) IS_IN_USE; }
   inline bool is_sql_prepare() const { return flags & (uint) IS_SQL_PREPARE; }
@@ -1901,8 +1902,20 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   DBUG_ENTER("mysql_test_show_grants");
   THD *thd= stmt->thd;
   List<Item> fields;
+  char buff[1024];
+  const char *username= NULL, *hostname= NULL, *rolename= NULL, *end;
 
-  mysql_show_grants_get_fields(thd, &fields, STRING_WITH_LEN("Grants for"));
+  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename))
+    DBUG_RETURN(1);
+
+  if (username)
+    end= strxmov(buff,"Grants for ",username,"@",hostname, NullS);
+  else if (rolename)
+    end= strxmov(buff,"Grants for ",rolename, NullS);
+  else
+    DBUG_RETURN(1);
+
+  mysql_show_grants_get_fields(thd, &fields, buff, (uint)(end - buff));
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
@@ -1926,7 +1939,7 @@ static int mysql_test_show_slave_status(Prepared_statement *stmt)
   THD *thd= stmt->thd;
   List<Item> fields;
 
-  show_master_info_get_fields(thd, &fields, 0, 0);
+  show_master_info_get_fields(thd, &fields, thd->lex->verbose, 0);
     
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
@@ -2273,6 +2286,17 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   lex->first_select_lex()->context.resolve_in_table_list_only(select_lex->
                                                      get_table_list());
 
+  /*
+    For the optimizer trace, this is the symmetric, for statement preparation,
+    of what is done at statement execution (in mysql_execute_command()).
+  */
+  Opt_trace_start ots(thd, tables, lex->sql_command, &lex->var_list,
+                      thd->query(), thd->query_length(),
+                      thd->variables.character_set_client);
+
+  Json_writer_object trace_command(thd);
+  Json_writer_array trace_command_steps(thd, "steps");
+
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
@@ -2466,6 +2490,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_INDEX:
   case SQLCOM_DROP_INDEX:
   case SQLCOM_ROLLBACK:
+  case SQLCOM_ROLLBACK_TO_SAVEPOINT:
   case SQLCOM_TRUNCATE:
   case SQLCOM_DROP_VIEW:
   case SQLCOM_REPAIR:
@@ -2485,6 +2510,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_ALTER_DB_UPGRADE:
   case SQLCOM_CHECKSUM:
   case SQLCOM_CREATE_USER:
+  case SQLCOM_ALTER_USER:
   case SQLCOM_RENAME_USER:
   case SQLCOM_DROP_USER:
   case SQLCOM_CREATE_ROLE:
@@ -2494,6 +2520,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_GRANT:
   case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
+  case SQLCOM_REVOKE_ALL:
   case SQLCOM_REVOKE_ROLE:
   case SQLCOM_KILL:
   case SQLCOM_COMPOUND:
@@ -2522,14 +2549,12 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     {
        if (lex->describe || lex->analyze_stmt)
        {
-         if (!lex->result &&
-             !(lex->result= new (stmt->mem_root) select_send(thd)))
-              DBUG_RETURN(TRUE);
+         select_send result(thd);
          List<Item> field_list;
-         thd->prepare_explain_fields(lex->result, &field_list,
-                                     lex->describe, lex->analyze_stmt);
-         res= send_prep_stmt(stmt, lex->result->field_count(field_list)) ||
-              lex->result->send_result_set_metadata(field_list,
+         res= thd->prepare_explain_fields(&result, &field_list,
+                                          lex->describe, lex->analyze_stmt) ||
+              send_prep_stmt(stmt, result.field_count(field_list)) ||
+              result.send_result_set_metadata(field_list,
                                                     Protocol::SEND_EOF);
        }
        else
@@ -2652,7 +2677,7 @@ end:
 }
 
 /**
-  Get an SQL statement from an item in lex->prepared_stmt_code.
+  Get an SQL statement from an item in m_code.
 
   This function can return pointers to very different memory classes:
   - a static string "NULL", if the item returned NULL
@@ -2677,13 +2702,15 @@ end:
   @retval       true on error (out of memory)
 */
 
-bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
+bool Lex_prepared_stmt::get_dynamic_sql_string(THD *thd,
+                                               LEX_CSTRING *dst,
+                                               String *buffer)
 {
-  if (prepared_stmt_code->fix_fields_if_needed_for_scalar(thd, NULL))
+  if (m_code->fix_fields_if_needed_for_scalar(thd, NULL))
     return true;
 
-  const String *str= prepared_stmt_code->val_str(buffer);
-  if (prepared_stmt_code->null_value)
+  const String *str= m_code->val_str(buffer);
+  if (m_code->null_value)
   {
     /*
       Prepare source was NULL, so we need to set "str" to
@@ -2764,7 +2791,7 @@ bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
 void mysql_sql_stmt_prepare(THD *thd)
 {
   LEX *lex= thd->lex;
-  LEX_CSTRING *name= &lex->prepared_stmt_name;
+  const LEX_CSTRING *name= &lex->prepared_stmt.name();
   Prepared_statement *stmt;
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_prepare");
@@ -2789,7 +2816,7 @@ void mysql_sql_stmt_prepare(THD *thd)
     See comments in get_dynamic_sql_string().
   */
   StringBuffer<256> buffer;
-  if (lex->get_dynamic_sql_string(&query, &buffer) ||
+  if (lex->prepared_stmt.get_dynamic_sql_string(thd, &query, &buffer) ||
       ! (stmt= new Prepared_statement(thd)))
   {
     DBUG_VOID_RETURN;                           /* out of memory */
@@ -2852,7 +2879,7 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_execute_immediate");
 
-  if (lex->prepared_stmt_params_fix_fields(thd))
+  if (lex->prepared_stmt.params_fix_fields(thd))
     DBUG_VOID_RETURN;
 
   /*
@@ -2864,7 +2891,7 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     See comments in get_dynamic_sql_string().
   */
   StringBuffer<256> buffer;
-  if (lex->get_dynamic_sql_string(&query, &buffer) ||
+  if (lex->prepared_stmt.get_dynamic_sql_string(thd, &query, &buffer) ||
       !(stmt= new Prepared_statement(thd)))
     DBUG_VOID_RETURN;                           // out of memory
 
@@ -2915,6 +2942,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 {
   SELECT_LEX *sl= lex->all_selects_list;
   DBUG_ENTER("reinit_stmt_before_use");
+  Window_spec *win_spec;
 
   /*
     We have to update "thd" pointer in LEX, all its units and in LEX::result,
@@ -2931,7 +2959,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
   }
   for (; sl; sl= sl->next_select_in_list())
   {
-    if (!sl->first_execution)
+    if (sl->changed_elements & TOUCHED_SEL_COND)
     {
       /* remove option which was put by mysql_explain_union() */
       sl->options&= ~SELECT_DESCRIBE;
@@ -2978,19 +3006,36 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
           order->next= sl->group_list_ptrs->at(ix+1);
         }
       }
+    }
+    { // no harm to do it (item_ptr set on parsing)
+      ORDER *order;
       for (order= sl->group_list.first; order; order= order->next)
+      {
         order->item= &order->item_ptr;
+      }
       /* Fix ORDER list */
       for (order= sl->order_list.first; order; order= order->next)
         order->item= &order->item_ptr;
+      /* Fix window functions too */
+      List_iterator<Window_spec> it(sl->window_specs);
+
+      while ((win_spec= it++))
       {
-#ifdef DBUG_ASSERT_EXISTS
-        bool res=
-#endif
-          sl->handle_derived(lex, DT_REINIT);
-        DBUG_ASSERT(res == 0);
+        for (order= win_spec->partition_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
+        for (order= win_spec->order_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
       }
     }
+    if (sl->changed_elements & TOUCHED_SEL_DERIVED)
+    {
+#ifdef DBUG_ASSERT_EXISTS
+      bool res=
+#endif
+        sl->handle_derived(lex, DT_REINIT);
+      DBUG_ASSERT(res == 0);
+    }
+
     {
       SELECT_LEX_UNIT *unit= sl->master_unit();
       unit->unclean();
@@ -3241,7 +3286,7 @@ void mysql_sql_stmt_execute(THD *thd)
 {
   LEX *lex= thd->lex;
   Prepared_statement *stmt;
-  LEX_CSTRING *name= &lex->prepared_stmt_name;
+  const LEX_CSTRING *name= &lex->prepared_stmt.name();
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
   DBUG_ENTER("mysql_sql_stmt_execute");
@@ -3254,7 +3299,7 @@ void mysql_sql_stmt_execute(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  if (stmt->param_count != lex->prepared_stmt_params.elements)
+  if (stmt->param_count != lex->prepared_stmt.param_count())
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), "EXECUTE");
     DBUG_VOID_RETURN;
@@ -3262,7 +3307,7 @@ void mysql_sql_stmt_execute(THD *thd)
 
   DBUG_PRINT("info",("stmt: %p", stmt));
 
-  if (lex->prepared_stmt_params_fix_fields(thd))
+  if (lex->prepared_stmt.params_fix_fields(thd))
     DBUG_VOID_RETURN;
 
   /*
@@ -3482,7 +3527,7 @@ void mysqld_stmt_close(THD *thd, char *packet)
 void mysql_sql_stmt_close(THD *thd)
 {
   Prepared_statement* stmt;
-  LEX_CSTRING *name= &thd->lex->prepared_stmt_name;
+  const LEX_CSTRING *name= &thd->lex->prepared_stmt.name();
   DBUG_PRINT("info", ("DEALLOCATE PREPARE: %.*s\n", (int) name->length,
                       name->str));
 
@@ -3847,7 +3892,7 @@ void Prepared_statement::cleanup_stmt()
 }
 
 
-bool Prepared_statement::set_name(LEX_CSTRING *name_arg)
+bool Prepared_statement::set_name(const LEX_CSTRING *name_arg)
 {
   name.length= name_arg->length;
   name.str= (char*) memdup_root(mem_root, name_arg->str, name_arg->length);
@@ -4096,7 +4141,7 @@ Prepared_statement::set_parameters(String *expanded_query,
   if (is_sql_ps)
   {
     /* SQL prepared statement */
-    res= set_params_from_actual_params(this, thd->lex->prepared_stmt_params,
+    res= set_params_from_actual_params(this, thd->lex->prepared_stmt.params(),
                                        expanded_query);
   }
   else if (param_count)
@@ -4176,15 +4221,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   if (set_parameters(expanded_query, packet, packet_end))
     return TRUE;
 
-#ifdef NOT_YET_FROM_MYSQL_5_6
-  if (unlikely(thd->security_ctx->password_expired && 
-               !lex->is_change_password))
-  {
-    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
-    return true;
-  }
-#endif
-
 reexecute:
   // Make sure that reprepare() did not create any new Items.
   DBUG_ASSERT(thd->free_list == NULL);
@@ -4206,30 +4242,6 @@ reexecute:
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-  if (WSREP_ON)
-  {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    switch (thd->wsrep_conflict_state)
-    {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-    }
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
-  }
-#endif /* WITH_WSREP */
 
   if (unlikely(error) &&
       (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
@@ -4349,16 +4361,6 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   }
   read_types= FALSE;
 
-#ifdef NOT_YET_FROM_MYSQL_5_6
-  if (unlikely(thd->security_ctx->password_expired &&
-               !lex->is_change_password))
-  {
-    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
-    thd->set_bulk_execution(0);
-    return true;
-  }
-#endif
-
   // iterations changed by set_bulk_parameters
   while ((iterations || start_param) && !error && !thd->is_error())
   {
@@ -4402,30 +4404,6 @@ reexecute:
     error= execute(expanded_query, open_cursor) || thd->is_error();
 
     thd->m_reprepare_observer= NULL;
-#ifdef WITH_WSREP
-
-    if (WSREP_ON)
-    {
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      switch (thd->wsrep_conflict_state)
-      {
-      case CERT_FAILURE:
-        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
-	            (longlong) thd->thread_id,
-                    thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
-        break;
-
-      case MUST_REPLAY:
-        (void) wsrep_replay_transaction(thd);
-        break;
-
-      default:
-        break;
-      }
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
-    }
-#endif /* WITH_WSREP */
 
     if (unlikely(error) &&
         (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
@@ -4892,7 +4870,7 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
   if (unlikely(prepare(query, query_len)))
     DBUG_RETURN(true);
 
-  if (param_count != thd->lex->prepared_stmt_params.elements)
+  if (param_count != thd->lex->prepared_stmt.param_count())
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), "EXECUTE");
     deallocate_immediate();

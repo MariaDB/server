@@ -33,6 +33,7 @@
 #include "opt_subselect.h"
 #include "sql_test.h"
 #include <my_bit.h>
+#include "opt_trace.h"
 
 /*
   This file contains optimizations for semi-join subqueries.
@@ -437,7 +438,7 @@ Currently, solution #2 is implemented.
 LEX_CSTRING weedout_key= {STRING_WITH_LEN("weedout_key")};
 
 static
-bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
+bool subquery_types_allow_materialization(THD *thd, Item_in_subselect *in_subs);
 static bool replace_where_subcondition(JOIN *, Item **, Item *, Item *, bool);
 static int subq_sj_candidate_cmp(Item_in_subselect* el1, Item_in_subselect* el2,
                                  void *arg);
@@ -455,6 +456,7 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
                              table_map remaining_tables, uint idx, 
                              bool disable_jbuf, double record_count,
                              POSITION *pos, POSITION *loose_scan_pos);
+void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
 
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
                                 Item_in_subselect *subq_pred);
@@ -521,7 +523,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
         parent_unit->first_select()->leaf_tables.elements &&          // 2
         child_select->outer_select() &&
         child_select->outer_select()->leaf_tables.elements &&         // 2A
-        subquery_types_allow_materialization(in_subs) &&
+        subquery_types_allow_materialization(thd, in_subs) &&
         (in_subs->is_top_level_item() ||                               //3
          optimizer_flag(thd,
                         OPTIMIZER_SWITCH_PARTIAL_MATCH_ROWID_MERGE) || //3
@@ -674,7 +676,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         select_lex->outer_select()->join &&                           // 6
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
-        select_lex->outer_select()->leaf_tables.elements &&           // 9
+        select_lex->outer_select()->table_list.first &&               // 9
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
@@ -682,7 +684,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
-      (void)subquery_types_allow_materialization(in_subs);
+      (void)subquery_types_allow_materialization(thd, in_subs);
 
       in_subs->is_flattenable_semijoin= TRUE;
 
@@ -696,6 +698,10 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         if (arena)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
+        OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                            select_lex->select_number,
+                            "IN (SELECT)", "semijoin");
+        trace_transform.add("chosen", true);
       }
     }
     else
@@ -823,7 +829,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
 */
 
 static 
-bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
+bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
 {
   DBUG_ENTER("subquery_types_allow_materialization");
 
@@ -831,9 +837,14 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
 
   List_iterator<Item> it(in_subs->unit->first_select()->item_list);
   uint elements= in_subs->unit->first_select()->item_list.elements;
+  const char* cause= NULL;
 
   in_subs->types_allow_materialization= FALSE;  // Assign default values
   in_subs->sjm_scan_allowed= FALSE;
+
+  OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                     in_subs->get_select_lex()->select_number,
+                      "IN (SELECT)", "materialization");
   
   bool all_are_fields= TRUE;
   uint32 total_key_length = 0;
@@ -846,7 +857,11 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
     total_key_length += inner->max_length;
     if (!inner->type_handler()->subquery_type_allows_materialization(inner,
                                                                      outer))
+    {
+      trace_transform.add("possible", false);
+      trace_transform.add("cause", "types mismatch");
       DBUG_RETURN(FALSE);
+    }
   }
 
   /*
@@ -856,14 +871,23 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
      Make sure that the length of the key for the temp_table is atleast
      greater than 0.
   */
-  if (!total_key_length || total_key_length > tmp_table_max_key_length() ||
-      elements > tmp_table_max_key_parts())
-    DBUG_RETURN(FALSE);
-
-  in_subs->types_allow_materialization= TRUE;
-  in_subs->sjm_scan_allowed= all_are_fields;
-  DBUG_PRINT("info",("subquery_types_allow_materialization: ok, allowed"));
-  DBUG_RETURN(TRUE);
+  if (!total_key_length)
+    cause= "zero length key for materialized table";
+  else if (total_key_length > tmp_table_max_key_length())
+    cause= "length of key greater than allowed key length for materialized tables";
+  else if (elements > tmp_table_max_key_parts())
+    cause= "#keyparts greater than allowed key parts for materialized tables";
+  else
+  {
+    in_subs->types_allow_materialization= TRUE;
+    in_subs->sjm_scan_allowed= all_are_fields;
+    trace_transform.add("sjm_scan_allowed", all_are_fields)
+                   .add("possible", true);
+    DBUG_PRINT("info",("subquery_types_allow_materialization: ok, allowed"));
+    DBUG_RETURN(TRUE);
+  }
+  trace_transform.add("possible", false).add("cause", cause);
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1213,15 +1237,31 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
 
     /* Stop processing if we've reached a subquery that's attached to the ON clause */
     if (in_subq->do_not_convert_to_sj)
+    {
+      OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                          in_subq->get_select_lex()->select_number,
+                          "IN (SELECT)", "semijoin");
+      trace_transform.add("converted_to_semi_join", false)
+                     .add("cause", "subquery attached to the ON clause");
       break;
+    }
 
     if (in_subq->is_flattenable_semijoin) 
     {
+      OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+                          in_subq->get_select_lex()->select_number,
+                          "IN (SELECT)", "semijoin");
       if (join->table_count + 
           in_subq->unit->first_select()->join->table_count >= MAX_TABLES)
+      {
+        trace_transform.add("converted_to_semi_join", false);
+        trace_transform.add("cause",
+                            "table in parent join now exceeds MAX_TABLES");
         break;
+      }
       if (convert_subq_to_sj(join, in_subq))
         goto restore_arena_and_fail;
+      trace_transform.add("converted_to_semi_join", true);
     }
     else
     {
@@ -2340,8 +2380,15 @@ int pull_out_semijoin_tables(JOIN *join)
 bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
 {
   DBUG_ENTER("optimize_semijoin_nests");
+  THD *thd= join->thd;
   List_iterator<TABLE_LIST> sj_list_it(join->select_lex->sj_nests);
   TABLE_LIST *sj_nest;
+  if (!join->select_lex->sj_nests.elements)
+    DBUG_RETURN(FALSE);
+  Json_writer_object wrapper(thd);
+  Json_writer_object trace_semijoin_nest(thd,
+                              "execution_plan_for_potential_materialization");
+  Json_writer_array trace_steps_array(thd, "steps");
   while ((sj_nest= sj_list_it++))
   {
     /* semi-join nests with only constant tables are not valid */
@@ -2897,6 +2944,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 {
   bool sjm_scan;
   SJ_MATERIALIZATION_INFO *mat_info;
+  THD *thd= join->thd;
   if ((mat_info= at_sjmat_pos(join, remaining_tables,
                               new_join_tab, idx, &sjm_scan)))
   {
@@ -2998,6 +3046,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     POSITION curpos, dummy;
     /* Need to re-run best-access-path as we prefix_rec_count has changed */
     bool disable_jbuf= (join->thd->variables.join_cache_level == 0);
+    Json_writer_temp_disable trace_semijoin_mat_scan(thd);
     for (i= first_tab + mat_info->tables; i <= idx; i++)
     {
       best_access_path(join, join->positions[i].table, rem_tables, i,
@@ -3548,6 +3597,12 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   table_map handled_tabs= 0;
   join->sjm_lookup_tables= 0;
   join->sjm_scan_tables= 0;
+  THD *thd= join->thd;
+  if (!join->select_lex->sj_nests.elements)
+    return;
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array trace_semijoin_strategies(thd,
+                                   "fix_semijoin_strategies_for_picked_join_order");
   for (tablenr= table_count - 1 ; tablenr != join->const_tables - 1; tablenr--)
   {
     POSITION *pos= join->best_positions + tablenr;
@@ -3572,8 +3627,18 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","sj_materialize");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (uint i= first; i < first+ sjm->tables; i++)
+      {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[i].table);
+        }
         join->sjm_lookup_tables |= join->best_positions[i].table->table->map;
+      }
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
@@ -3611,8 +3676,16 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
 
       POSITION dummy;
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","sj_materialize_scan");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[i].table);
+        }
         best_access_path(join, join->best_positions[i].table, rem_tables, i, 
                          FALSE, prefix_rec_count,
                          join->best_positions + i, &dummy);
@@ -3641,8 +3714,16 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         join buffering
       */ 
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","firstmatch");
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[idx].table);
+        }
         if (join->best_positions[idx].use_join_buffer)
         {
            best_access_path(join, join->best_positions[idx].table, 
@@ -3671,8 +3752,16 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         join buffering
       */ 
       join->cur_sj_inner_tables= 0;
+      Json_writer_object semijoin_strategy(thd);
+      semijoin_strategy.add("semi_join_strategy","sj_materialize");
+      Json_writer_array semijoin_plan(thd, "join_order");      
       for (idx= first; idx <= tablenr; idx++)
       {
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object trace_one_table(thd);
+          trace_one_table.add_table_name(join->best_positions[idx].table);
+        }
         if (join->best_positions[idx].use_join_buffer || (idx == first))
         {
            best_access_path(join, join->best_positions[idx].table,
@@ -5512,13 +5601,15 @@ int select_value_catcher::send_data(List<Item> &items)
 
 /**
   @brief
-    Add new conditions after optimize_cond() call
+    Conjunct conditions after optimize_cond() call
 
-  @param thd         the thread handle
-  @param cond        the condition where to attach new conditions
-  @param cond_eq     IN/OUT the multiple equalities of cond
-  @param new_conds   IN/OUT the list of conditions needed to add
-  @param cond_value  the returned value of the condition
+  @param thd               the thread handle
+  @param cond              the condition where to attach new conditions
+  @param cond_eq           IN/OUT the multiple equalities of cond
+  @param new_conds         IN/OUT the list of conditions needed to add
+  @param cond_value        the returned value of the condition
+  @param build_cond_equal  flag to control if COND_EQUAL elements for
+                           AND-conditions should be built
 
   @details
     The method creates new condition through conjunction of cond and
@@ -5534,7 +5625,8 @@ int select_value_catcher::send_data(List<Item> &items)
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            COND_EQUAL **cond_eq,
                                            List<Item> &new_conds,
-                                           Item::cond_result *cond_value)
+                                           Item::cond_result *cond_value,
+                                           bool build_cond_equal)
 {
   COND_EQUAL new_cond_equal;
   Item *item;
@@ -5650,21 +5742,12 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       li.rewind();
       while ((item=li++))
       {
-        if (item->fix_fields_if_needed(thd, NULL))
+        if (!item->is_fixed() && item->fix_fields(thd, NULL))
           return NULL;
         if (item->const_item() && !item->val_int())
           is_simplified_cond= true;
       }
-
-      if (new_conds.elements > 1)
-        new_conds_list.append(&new_conds);
-      else
-      {
-        li.rewind();
-        item= li++;
-        if (new_conds_list.push_back(item, thd->mem_root))
-          return NULL;
-      }
+      new_conds_list.append(&new_conds);
     }
 
     if (is_mult_eq)
@@ -5674,16 +5757,12 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       eq_cond->merge_into_list(thd, &new_cond_equal.current_level,
                                false, false);
 
-       while ((equality= it++))
-       {
-         if (equality->const_item() && !equality->val_int())
-           is_simplified_cond= true;
-       }
-       (*cond_eq)->copy(new_cond_equal);
-    }
+      while ((equality= it++))
+      {
+        if (equality->const_item() && !equality->val_int())
+          is_simplified_cond= true;
+      }
 
-    if (new_cond_equal.current_level.elements > 0)
-    {
       if (new_cond_equal.current_level.elements +
           new_conds_list.elements == 1)
       {
@@ -5693,8 +5772,9 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
         if (equality->fix_fields(thd, NULL))
           return NULL;
       }
-      new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
+      (*cond_eq)->copy(new_cond_equal);
     }
+    new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
 
     if (new_conds_list.elements > 1)
     {
@@ -5711,7 +5791,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       cond= iter++;
     }
 
-    if (cond->fix_fields_if_needed(thd, NULL))
+    if (!cond->is_fixed() && cond->fix_fields(thd, NULL))
       return NULL;
 
     if (new_cond_equal.current_level.elements > 0)
@@ -5727,6 +5807,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
   */
   if (is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
+
   return cond;
 }
 
@@ -6398,33 +6479,27 @@ bool JOIN::choose_tableless_subquery_plan()
 }
 
 
-/*
-  Check if the item exists in the fields list of the left part of
-  the IN subquery predicate subq_pred and returns its corresponding
-  item from the select of the right part of subq_pred.
-*/
-Item *Item::get_corresponding_field_in_insubq(Item_in_subselect *subq_pred)
+bool Item::pushable_equality_checker_for_subquery(uchar *arg)
 {
-  DBUG_ASSERT(type() == Item::FIELD_ITEM ||
-              (type() == Item::REF_ITEM &&
-               ((Item_ref *) this)->ref_type() == Item_ref::VIEW_REF));
-
-  List_iterator<Field_pair> it(subq_pred->corresponding_fields);
-  Field_pair *ret;
-  Item_field *field_item= (Item_field *) (real_item());
-  while ((ret= it++))
-  {
-    if (field_item->field == ret->field)
-      return ret->corresponding_item;
-  }
-  return NULL;
+  return
+  get_corresponding_field_pair(this,
+                            ((Item_in_subselect *)arg)->corresponding_fields);
 }
 
 
-bool Item_field::excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
+/*
+  Checks if 'item' or some item equal to it is equal to the field from
+  some Field_pair of 'pair_list' and returns matching Field_pair or
+  NULL if the matching Field_pair wasn't found.
+*/
+
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list)
 {
-  if (((Item *)this)->get_corresponding_field_in_insubq(subq_pred))
-    return true;
+  Field_pair *field_pair= get_corresponding_field_pair(item, pair_list);
+  if (field_pair)
+    return field_pair;
+
+  Item_equal *item_equal= item->get_item_equal();
   if (item_equal)
   {
     Item_equal_fields_iterator it(*item_equal);
@@ -6433,10 +6508,19 @@ bool Item_field::excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
     {
       if (equal_item->const_item())
         continue;
-      if (equal_item->get_corresponding_field_in_insubq(subq_pred))
-        return true;
+      field_pair= get_corresponding_field_pair(equal_item, pair_list);
+      if (field_pair)
+        return field_pair;
     }
   }
+  return NULL;
+}
+
+
+bool Item_field::excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
+{
+  if (find_matching_field_pair(((Item *) this), subq_pred->corresponding_fields))
+    return true;
   return false;
 }
 
@@ -6446,7 +6530,7 @@ bool Item_direct_view_ref::excl_dep_on_in_subq_left_part(Item_in_subselect *subq
   if (item_equal)
   {
     DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
-    if (((Item *)this)->get_corresponding_field_in_insubq(subq_pred))
+    if (get_corresponding_field_pair(((Item *)this), subq_pred->corresponding_fields))
       return true;
   }
   return (*ref)->excl_dep_on_in_subq_left_part(subq_pred);
@@ -6510,7 +6594,7 @@ Item *get_corresponding_item(THD *thd, Item *item,
               (item->type() == Item::REF_ITEM &&
               ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF));
 
-  Item *corresonding_item;
+  Field_pair *field_pair;
   Item_equal *item_equal= item->get_item_equal();
 
   if (item_equal)
@@ -6519,15 +6603,20 @@ Item *get_corresponding_item(THD *thd, Item *item,
     Item *equal_item;
     while ((equal_item= it++))
     {
-      corresonding_item=
-        equal_item->get_corresponding_field_in_insubq(subq_pred);
-      if (corresonding_item)
-        return corresonding_item;
+      field_pair=
+        get_corresponding_field_pair(equal_item, subq_pred->corresponding_fields);
+      if (field_pair)
+        return field_pair->corresponding_item;
     }
-    return NULL;
   }
   else
-    return item->get_corresponding_field_in_insubq(subq_pred);
+  {
+    field_pair=
+        get_corresponding_field_pair(item, subq_pred->corresponding_fields);
+    if (field_pair)
+        return field_pair->corresponding_item;
+  }
+  return NULL;
 }
 
 
@@ -6803,9 +6892,7 @@ bool Item_in_subselect::pushdown_cond_for_in_subquery(THD *thd, Item *cond)
   if (!remaining_cond)
     goto exit;
 
-  remaining_cond->walk(&Item::cleanup_excluding_const_fields_processor,
-                       0, 0);
-  sel->cond_pushed_into_having= remaining_cond;
+  sel->mark_or_conds_to_avoid_pushdown(remaining_cond);
 
 exit:
   thd->lex->current_select= save_curr_select;

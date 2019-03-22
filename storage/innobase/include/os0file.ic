@@ -24,8 +24,6 @@ The interface to the operating system file io
 Created 2/20/2010 Jimmy Yang
 *******************************************************/
 
-#include "univ.i"
-
 #ifdef UNIV_PFS_IO
 /** NOTE! Please use the corresponding macro os_file_create_simple(),
 not directly this function!

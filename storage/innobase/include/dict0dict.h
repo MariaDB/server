@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,30 +28,17 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0dict_h
 #define dict0dict_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "data0type.h"
 #include "dict0mem.h"
-#include "dict0types.h"
 #include "fsp0fsp.h"
-#include "fsp0sysspace.h"
-#include "hash0hash.h"
-#include "mem0mem.h"
-#include "rem0types.h"
-#include "row0types.h"
-#include "trx0types.h"
-#include "ut0byte.h"
-#include "ut0mem.h"
-#include "ut0new.h"
-#include "ut0rnd.h"
 #include <deque>
-#include "fsp0fsp.h"
-#include "dict0pagecompress.h"
 
 extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
 
-#include "sync0rw.h"
+/** the first table or index ID for other than hard-coded system tables */
+#define	DICT_HDR_FIRST_ID	10
+
 /********************************************************************//**
 Get the database name length in a table name.
 @return database name length */
@@ -689,64 +676,13 @@ do {								\
 	dict_table_skip_corrupt_index(index);			\
 } while (0)
 
-/********************************************************************//**
-Check whether the index is the clustered index.
-@return nonzero for clustered index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_clust(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check if index is auto-generated clustered index.
-@param[in]	index	index
-
-@return true if index is auto-generated clustered index. */
-UNIV_INLINE
-bool
-dict_index_is_auto_gen_clust(
-	const dict_index_t*	index);
-
-/********************************************************************//**
-Check whether the index is unique.
-@return nonzero for unique index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_unique(
-/*=================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Check whether the index is a Spatial Index.
-@return	nonzero for Spatial Index, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_spatial(
-/*==================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-
+#define dict_index_is_clust(index) (index)->is_clust()
+#define dict_index_is_auto_gen_clust(index) (index)->is_gen_clust()
+#define dict_index_is_unique(index) (index)->is_unique()
+#define dict_index_is_spatial(index) (index)->is_spatial()
+#define dict_index_is_ibuf(index) (index)->is_ibuf()
+#define dict_index_is_sec_or_ibuf(index) !(index)->is_primary()
 #define dict_index_has_virtual(index) (index)->has_virtual()
-
-/********************************************************************//**
-Check whether the index is the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_ibuf(
-/*===============*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Check whether the index is a secondary index or the insert buffer tree.
-@return nonzero for insert buffer, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_sec_or_ibuf(
-/*======================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Get all the FTS indexes on a table.
 @param[in]	table	table
@@ -951,25 +887,33 @@ ulint
 dict_tf_to_fsp_flags(ulint table_flags)
 	MY_ATTRIBUTE((const));
 
-/** Extract the page size from table flags.
+
+/** Extract the ROW_FORMAT=COMPRESSED page size from table flags.
 @param[in]	flags	flags
-@return compressed page size, or 0 if not compressed */
-UNIV_INLINE
-const page_size_t
-dict_tf_get_page_size(
-	ulint	flags)
-MY_ATTRIBUTE((const));
+@return ROW_FORMAT=COMPRESSED page size
+@retval	0 if not compressed */
+inline ulint dict_tf_get_zip_size(ulint flags)
+{
+	flags &= DICT_TF_MASK_ZIP_SSIZE;
+	return flags
+		? (UNIV_ZIP_SIZE_MIN >> 1)
+		<< (FSP_FLAGS_GET_ZIP_SSIZE(flags >> DICT_TF_POS_ZIP_SSIZE
+					    << FSP_FLAGS_POS_ZIP_SSIZE))
+		: 0;
+}
 
 /** Determine the extent size (in pages) for the given table
 @param[in]	table	the table whose extent size is being
 			calculated.
 @return extent size in pages (256, 128 or 64) */
-ulint
-dict_table_extent_size(
-	const dict_table_t*	table);
+inline ulint dict_table_extent_size(const dict_table_t* table)
+{
+	if (ulint zip_size = table->space->zip_size()) {
+		return (1ULL << 20) / zip_size;
+	}
 
-/** Get the table page size. */
-#define dict_table_page_size(table) page_size_t(table->space->flags)
+	return FSP_EXTENT_SIZE;
+}
 
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
@@ -1219,21 +1163,6 @@ dict_index_get_nth_col_or_prefix_pos(
 	ulint*			prefix_col_pos) /*!< out: col num if prefix
 						*/
 	__attribute__((warn_unused_result));
-
-/********************************************************************//**
-Returns TRUE if the index contains a column or a prefix of that column.
-@param[in]	index		index
-@param[in]	n		column number
-@param[in]	is_virtual	whether it is a virtual col
-@return TRUE if contains the column or its prefix */
-bool
-dict_index_contains_col_or_prefix(
-/*==============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			n,	/*!< in: column number */
-	bool			is_virtual)
-					/*!< in: whether it is a virtual col */
-	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Looks for a matching field in an index. The column has to be the same. The
 column in index must be complete, or must contain a prefix longer than the
@@ -1258,16 +1187,6 @@ dict_table_get_nth_col_pos(
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/********************************************************************//**
-Returns the position of a system column in an index.
-@return position, ULINT_UNDEFINED if not contained */
-UNIV_INLINE
-ulint
-dict_index_get_sys_col_pos(
-/*=======================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			type)	/*!< in: DATA_ROW_ID, ... */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*******************************************************************//**
 Adds a column to index. */
 void
@@ -1364,21 +1283,6 @@ dict_index_build_node_ptr(
 					created */
 	ulint			level)	/*!< in: level of rec in tree:
 					0 means leaf level */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************************//**
-Copies an initial segment of a physical record, long enough to specify an
-index entry uniquely.
-@return pointer to the prefix record */
-rec_t*
-dict_index_copy_rec_order_prefix(
-/*=============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	const rec_t*		rec,	/*!< in: record for which to
-					copy prefix */
-	ulint*			n_fields,/*!< out: number of fields copied */
-	byte**			buf,	/*!< in/out: memory buffer for the
-					copied prefix, or NULL */
-	ulint*			buf_size)/*!< in/out: buffer size */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Convert a physical record into a search tuple.
 @param[in]	rec		index record (not necessarily in an index page)
@@ -1527,31 +1431,21 @@ dict_tables_have_same_db(
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed=true)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 		MY_ATTRIBUTE((warn_unused_result));
 
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 inline
 const dict_index_t*
-dict_table_get_index_on_name(
-	const dict_table_t*	table,
-	const char*		name,
-	bool			committed=true)
+dict_table_get_index_on_name(const dict_table_t* table, const char* name)
 {
-	return(dict_table_get_index_on_name(
-		       const_cast<dict_table_t*>(table), name, committed));
+	return dict_table_get_index_on_name(const_cast<dict_table_t*>(table),
+					    name);
 }
 
 /***************************************************************
@@ -1635,8 +1529,10 @@ struct dict_sys_t{
 					the log records */
 	hash_table_t*	table_hash;	/*!< hash table of the tables, based
 					on name */
-	hash_table_t*	table_id_hash;	/*!< hash table of the tables, based
-					on id */
+	/** hash table of persistent table IDs */
+	hash_table_t*	table_id_hash;
+	/** hash table of temporary table IDs */
+	hash_table_t*	temp_id_hash;
 	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
@@ -1650,6 +1546,52 @@ struct dict_sys_t{
 	UT_LIST_BASE_NODE_T(dict_table_t)
 			table_non_LRU;	/*!< List of tables that can't be
 					evicted from the cache */
+
+	/** @return a new temporary table ID */
+	table_id_t get_temporary_table_id() {
+		return temp_table_id.fetch_add(1, std::memory_order_relaxed);
+	}
+
+	/** Look up a temporary table.
+	@param id	temporary table ID
+	@return	temporary table
+	@retval	NULL	if the table does not exist
+	(should only happen during the rollback of CREATE...SELECT) */
+	dict_table_t* get_temporary_table(table_id_t id)
+	{
+		ut_ad(mutex_own(&mutex));
+		dict_table_t* table;
+		ulint fold = ut_fold_ull(id);
+		HASH_SEARCH(id_hash, temp_id_hash, fold, dict_table_t*, table,
+			    ut_ad(table->cached), table->id == id);
+		if (UNIV_LIKELY(table != NULL)) {
+			DBUG_ASSERT(table->is_temporary());
+			DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
+			table->acquire();
+		}
+		return table;
+	}
+
+	/** Look up a persistent table.
+	@param id	table ID
+	@return	table
+	@retval	NULL	if not cached */
+	dict_table_t* get_table(table_id_t id)
+	{
+		ut_ad(mutex_own(&mutex));
+		dict_table_t* table;
+		ulint fold = ut_fold_ull(id);
+		HASH_SEARCH(id_hash, table_id_hash, fold, dict_table_t*, table,
+			    ut_ad(table->cached), table->id == id);
+		DBUG_ASSERT(!table || !table->is_temporary());
+		return table;
+	}
+
+	dict_sys_t() : temp_table_id(DICT_HDR_FIRST_ID) {}
+
+private:
+	/** the sequence of temporary table IDs */
+	std::atomic<table_id_t> temp_table_id;
 };
 
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */

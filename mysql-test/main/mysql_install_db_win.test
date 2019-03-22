@@ -1,0 +1,24 @@
+--source include/windows.inc
+
+# Create database  in tmp directory using mysql_install_db.exe, 
+# and start server from this directory.
+let $ddir= $MYSQLTEST_VARDIR/tmp/ddir;
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R;
+
+--source include/kill_mysqld.inc
+let $restart_parameters=--datadir=$ddir --loose-innodb;
+--source include/start_mysqld.inc
+
+connect root,localhost,root,foo;
+# Smoke test - check that we're actually using datadir
+# we've created (i.e restart_parameters worked)
+--replace_result  $ddir DATADIR
+SELECT @@datadir;
+
+# restart in the original datadir again
+--source include/kill_mysqld.inc
+rmdir $ddir;
+let $restart_parameters=;
+connection default;
+--source include/start_mysqld.inc
+

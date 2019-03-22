@@ -29,17 +29,8 @@ Created 9/7/2013 Jimmy Yang
 #include "lock0lock.h"
 #include "lock0priv.h"
 #include "lock0prdt.h"
-#include "ha_prototypes.h"
-#include "trx0purge.h"
 #include "dict0mem.h"
-#include "dict0boot.h"
-#include "trx0sys.h"
-#include "srv0mon.h"
-#include "ut0vec.h"
-#include "btr0btr.h"
-#include "dict0boot.h"
 #include "que0que.h"
-#include <set>
 
 /*********************************************************************//**
 Get a minimum bounding box from a Predicate

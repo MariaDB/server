@@ -59,7 +59,9 @@ int mi_rprev(MI_INFO *info, uchar *buf, int inx)
     while ((share->concurrent_insert && 
             info->lastpos >= info->state->data_file_length) ||
            (info->index_cond_func &&
-            (icp_res= mi_check_index_cond(info, inx, buf)) == ICP_NO_MATCH))
+            (icp_res= mi_check_index_cond(info, inx, buf)) == ICP_NO_MATCH) ||
+	   (mi_check_rowid_filter_is_active(info) &&
+	    !mi_check_rowid_filter(info)))
     {
       /*
         If we are at the last (i.e. first?) key on the key page, 

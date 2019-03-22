@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,6 +55,9 @@ class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
 class SEQUENCE;
+class Range_rowid_filter_cost_info;
+class derived_handler;
+class Pushdown_derived;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -346,8 +349,17 @@ enum field_visibility_t {
   INVISIBLE_FULL
 };
 
-#define INVISIBLE_MAX_BITS 3
+#define INVISIBLE_MAX_BITS              3
+#define HA_HASH_FIELD_LENGTH            8
+#define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
+#define HA_HASH_KEY_LENGTH_WITH_NULL    9
 
+
+int fields_in_hash_keyinfo(KEY *keyinfo);
+
+void setup_keyinfo_hash(KEY *key_info);
+
+void re_setup_keyinfo_hash(KEY *key_info);
 
 /**
   Category of table found in the table share.
@@ -395,28 +407,6 @@ enum enum_table_category
   TABLE_CATEGORY_SYSTEM=3,
 
   /**
-    Information schema tables.
-    These tables are an interface provided by the system
-    to inspect the system metadata.
-    These tables do *not* honor:
-    - LOCK TABLE t FOR READ/WRITE
-    - FLUSH TABLES WITH READ LOCK
-    - SET GLOBAL READ_ONLY = ON
-    as there is no point in locking explicitly
-    an INFORMATION_SCHEMA table.
-    Nothing is directly written to information schema tables.
-    Note that this value is not used currently,
-    since information schema tables are not shared,
-    but implemented as session specific temporary tables.
-  */
-  /*
-    TODO: Fixing the performance issues of I_S will lead
-    to I_S tables in the table cache, which should use
-    this table type.
-  */
-  TABLE_CATEGORY_INFORMATION=4,
-
-  /**
     Log tables.
     These tables are an interface provided by the system
     to inspect the system logs.
@@ -436,7 +426,33 @@ enum enum_table_category
     The server implementation perform writes.
     Log tables are cached in the table cache.
   */
-  TABLE_CATEGORY_LOG=5,
+  TABLE_CATEGORY_LOG=4,
+
+  /*
+    Types below are read only tables, not affected by FLUSH TABLES or
+    MDL locks.
+  */
+  /**
+    Information schema tables.
+    These tables are an interface provided by the system
+    to inspect the system metadata.
+    These tables do *not* honor:
+    - LOCK TABLE t FOR READ/WRITE
+    - FLUSH TABLES WITH READ LOCK
+    - SET GLOBAL READ_ONLY = ON
+    as there is no point in locking explicitly
+    an INFORMATION_SCHEMA table.
+    Nothing is directly written to information schema tables.
+    Note that this value is not used currently,
+    since information schema tables are not shared,
+    but implemented as session specific temporary tables.
+  */
+  /*
+    TODO: Fixing the performance issues of I_S will lead
+    to I_S tables in the table cache, which should use
+    this table type.
+  */
+  TABLE_CATEGORY_INFORMATION=5,
 
   /**
     Performance schema tables.
@@ -460,6 +476,7 @@ enum enum_table_category
   */
   TABLE_CATEGORY_PERFORMANCE=6
 };
+
 typedef enum enum_table_category TABLE_CATEGORY;
 
 TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
@@ -638,16 +655,6 @@ struct TABLE_SHARE
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
 
-  const char* orig_table_name;          /* Original table name for this tmp table */
-  const char* error_table_name() const  /* Get table name for error messages */
-  {
-    return tmp_table ? (
-      orig_table_name ?
-        orig_table_name :
-        "(temporary)") :
-      table_name.str;
-  }
-
   /* 
      Set of keys in use, implemented as a Bitmap.
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.
@@ -727,6 +734,7 @@ struct TABLE_SHARE
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
   bool not_usable_by_query_cache;
+  bool online_backup;                   /* Set if on-line backup supported */
   bool no_replicate;
   bool crashed;
   bool is_view;
@@ -736,6 +744,7 @@ struct TABLE_SHARE
   bool vcols_need_refixing;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
+  bool long_unique_table;
 
   ulong table_map_id;                   /* for row-based replication */
 
@@ -769,20 +778,38 @@ struct TABLE_SHARE
 
   /**
     System versioning support.
-   */
+  */
+  struct period_info_t
+  {
+    uint16 start_fieldno;
+    uint16 end_fieldno;
+    Lex_ident name;
+    Lex_ident constr_name;
+    Field *start_field(TABLE_SHARE *s) const
+    {
+      return s->field[start_fieldno];
+    }
+    Field *end_field(TABLE_SHARE *s) const
+    {
+      return s->field[end_fieldno];
+    }
+  };
 
   vers_sys_type_t versioned;
-  uint16 row_start_field;
-  uint16 row_end_field;
+  period_info_t vers;
+  period_info_t period;
+
+  bool init_period_from_extra2(period_info_t *period, const uchar *data,
+                               const uchar *end);
 
   Field *vers_start_field()
   {
-    return field[row_start_field];
+    return field[vers.start_fieldno];
   }
 
   Field *vers_end_field()
   {
-    return field[row_end_field];
+    return field[vers.end_fieldno];
   }
 
   /**
@@ -802,6 +829,8 @@ struct TABLE_SHARE
 
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
 
   /*
     Set share's table cache key and update its db and table name appropriately.
@@ -1001,6 +1030,8 @@ struct TABLE_SHARE
 
   /* frees the memory allocated in read_frm_image */
   void free_frm_image(const uchar *frm);
+
+  void set_overlapped_keys();
 };
 
 
@@ -1074,6 +1105,8 @@ typedef Bitmap<MAX_FIELDS> Field_map;
 
 class SplM_opt_info;
 
+struct vers_select_conds_t;
+
 struct TABLE
 {
   TABLE() {}                               /* Remove gcc warning */
@@ -1099,6 +1132,9 @@ public:
   THD	*in_use;                        /* Which thread uses this */
 
   uchar *record[3];			/* Pointer to records */
+  /* record buf to resolve hash collisions for long UNIQUE constraints */
+  uchar *check_unique_buf;
+  handler *update_handler;  /* Handler used in case of update */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
@@ -1124,6 +1160,8 @@ public:
   key_map keys_in_use_for_group_by;
   /* Map of keys that can be used to calculate ORDER BY without sorting */
   key_map keys_in_use_for_order_by;
+  /* Map of keys dependent on some constraint */
+  key_map constraint_dependent_keys;
   KEY  *key_info;			/* data of keys in database */
 
   Field **field;                        /* Pointer to fields */
@@ -1192,7 +1230,14 @@ public:
     and max #key parts that range access would use.
   */
   ha_rows	quick_rows[MAX_KEY];
+  uint          quick_key_parts[MAX_KEY];
+
   double 	quick_costs[MAX_KEY];
+  /*
+    If there is a range access by i-th index then the cost of
+    index only access for it is stored in quick_index_only_costs[i]
+  */
+  double 	quick_index_only_costs[MAX_KEY];
 
   /* 
     Bitmaps of key parts that =const for the duration of join execution. If
@@ -1201,8 +1246,7 @@ public:
   */
   key_part_map  const_key_parts[MAX_KEY];
 
-  uint		quick_key_parts[MAX_KEY];
-  uint		quick_n_ranges[MAX_KEY];
+  uint    quick_n_ranges[MAX_KEY];
 
   /* 
     Estimate of number of records that satisfy SARGable part of the table
@@ -1359,6 +1403,8 @@ public:
   SplM_opt_info *spl_opt_info;
   key_map keys_usable_for_splitting;
 
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
@@ -1494,6 +1540,22 @@ public:
   double get_materialization_cost(); // Now used only if is_splittable()==true
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
+  key_map with_impossible_ranges;
+
+  /* Number of cost info elements for possible range filters */
+  uint range_rowid_filter_cost_info_elems;
+  /* Pointer to the array of cost info elements for range filters */
+  Range_rowid_filter_cost_info *range_rowid_filter_cost_info;
+  /* The array of pointers to cost info elements for range filters */
+  Range_rowid_filter_cost_info **range_rowid_filter_cost_info_ptr;
+
+  void init_cost_info_for_usable_range_rowid_filters(THD *thd);
+  void prune_range_rowid_filters();
+  Range_rowid_filter_cost_info *
+  best_range_rowid_filter_for_partial_join(uint access_key_no,
+                                           double records,
+                                           double access_cost_factor);
+
   /**
     System Versioning support
    */
@@ -1521,21 +1583,28 @@ public:
   Field *vers_start_field() const
   {
     DBUG_ASSERT(s && s->versioned);
-    return field[s->row_start_field];
+    return field[s->vers.start_fieldno];
   }
 
   Field *vers_end_field() const
   {
     DBUG_ASSERT(s && s->versioned);
-    return field[s->row_end_field];
+    return field[s->vers.end_fieldno];
   }
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
 
+  int update_generated_fields();
+  int period_make_insert(Item *src, Field *dst);
+  int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
+                             ha_rows *rows_inserted);
   int delete_row();
   void vers_update_fields();
   void vers_update_end();
+  void find_constraint_correlated_indexes();
+  void clone_handler_for_update();
+  void delete_update_handler();
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
@@ -1732,6 +1801,13 @@ class IS_table_read_plan;
 /** The threshold size a blob field buffer before it is freed */
 #define MAX_TDC_BLOB_SIZE 65536
 
+/** number of bytes used by field positional indexes in frm */
+constexpr uint frm_fieldno_size= 2;
+static inline uint16 read_frm_fieldno(const uchar *data)
+{ return uint2korr(data); }
+static inline void store_frm_fieldno(const uchar *data, uint16 fieldno)
+{ int2store(data, fieldno); }
+
 class select_unit;
 class TMP_TABLE_PARAM;
 
@@ -1841,6 +1917,12 @@ struct vers_select_conds_t
   bool used:1;
   Vers_history_point start;
   Vers_history_point end;
+  Lex_ident name;
+
+  Item_field *field_start;
+  Item_field *field_end;
+
+  const TABLE_SHARE::period_info_t *period;
 
   void empty()
   {
@@ -1852,12 +1934,14 @@ struct vers_select_conds_t
 
   void init(vers_system_time_t _type,
             Vers_history_point _start= Vers_history_point(),
-            Vers_history_point _end= Vers_history_point())
+            Vers_history_point _end= Vers_history_point(),
+            Lex_ident          _name= "SYSTEM_TIME")
   {
     type= _type;
     used= false;
     start= _start;
     end= _end;
+    name= _name;
   }
 
   void print(String *str, enum_query_type query_type) const;
@@ -1924,6 +2008,7 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   inline void init_one_table(const LEX_CSTRING *db_arg,
                              const LEX_CSTRING *table_name_arg,
                              const LEX_CSTRING *alias_arg,
@@ -1937,7 +2022,7 @@ struct TABLE_LIST
     else
       mdl_type= MDL_SHARED_READ;
 
-    bzero((char*) this, sizeof(*this));
+    reset();
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
     DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
@@ -1955,6 +2040,7 @@ struct TABLE_LIST
     init_one_table(&table_arg->s->db, &table_arg->s->table_name,
                    NULL, lock_type);
     table= table_arg;
+    vers_conditions.name= table->s->vers.name;
   }
 
   inline void init_one_table_for_prelocking(const LEX_CSTRING *db_arg,
@@ -2064,7 +2150,7 @@ struct TABLE_LIST
   /* Index names in a "... JOIN ... USE/IGNORE INDEX ..." clause. */
   List<Index_hint> *index_hints;
   TABLE        *table;                          /* opened table */
-  uint          table_id; /* table id (from binlog) for opened table */
+  ulonglong         table_id; /* table id (from binlog) for opened table */
   /*
     select_result for derived table to pass it from table creation to table
     filling procedure
@@ -2128,6 +2214,15 @@ struct TABLE_LIST
   TABLE_LIST * next_with_rec_ref;
   bool is_derived_with_recursive_reference;
   bool block_handle_derived;
+  /* The interface employed to materialize the table by a foreign engine */
+  derived_handler *dt_handler;
+  /* The text of the query specifying the derived table */
+  LEX_CSTRING derived_spec;
+  /*
+    The object used to organize execution of the query that specifies
+    the derived table by a foreign engine
+  */
+  Pushdown_derived *pushdown_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
   /*
@@ -2388,6 +2483,12 @@ struct TABLE_LIST
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
+  vers_select_conds_t period_conditions;
+
+  bool has_period() const
+  {
+    return period_conditions.is_set();
+  }
 
   /**
      @brief
@@ -2453,8 +2554,7 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  bool is_table_ref_id_equal(TABLE_SHARE *s) const
+  inline bool is_table_ref_id_equal(TABLE_SHARE *s) const
   {
     return (m_table_ref_type == s->get_table_ref_type() &&
             m_table_ref_version == s->get_table_ref_version());
@@ -2466,12 +2566,10 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  void set_table_ref_id(TABLE_SHARE *s)
+  inline void set_table_ref_id(TABLE_SHARE *s)
   { set_table_ref_id(s->get_table_ref_type(), s->get_table_ref_version()); }
 
-  inline
-  void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
+  inline void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
                         ulong table_ref_version_arg)
   {
     m_table_ref_type= table_ref_type_arg;
@@ -2593,6 +2691,9 @@ struct TABLE_LIST
     return false;
   } 
   void set_lock_type(THD* thd, enum thr_lock_type lock);
+
+  derived_handler *find_derived_handler(THD *thd);
+  TABLE_LIST *get_first_table();
 
   void remove_join_columns()
   {
@@ -2946,7 +3047,7 @@ extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
 extern LEX_CSTRING MYSQL_SCHEMA_NAME;
 
 /* table names */
-extern LEX_CSTRING MYSQL_USER_NAME, MYSQL_DB_NAME, MYSQL_PROC_NAME;
+extern LEX_CSTRING MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {

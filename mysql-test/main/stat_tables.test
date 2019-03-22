@@ -6,6 +6,8 @@ select @@session.use_stat_tables;
 set @save_use_stat_tables=@@use_stat_tables;
 
 set use_stat_tables='preferably';
+set @tmp_stt_hs=@@histogram_size, @tmp_stt_ht=@@histogram_type;
+set histogram_size=0, histogram_type='single_prec_hb';
 
 --disable_warnings
 DROP DATABASE IF EXISTS dbt3_s001;
@@ -370,6 +372,23 @@ set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectiv
 set use_stat_tables=@save_use_stat_tables;
 
 --echo #
+--echo # MDEV-17734: AddressSanitizer: use-after-poison in create_key_parts_for_pseudo_indexes
+--echo #
+
+set @@use_stat_tables= PREFERABLY;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @save_use_stat_tables= @@use_stat_tables;
+create table t1 (a int, b int);
+insert into t1(a,b) values (1,2),(1,3),(1,4),(1,5),(2,6),(2,7),(3,8),(3,9),(3,9),(4,10);
+
+analyze table t1 persistent for columns (a) indexes ();
+select * from t1 where a=1 and b=3;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+drop table t1;
+
+--echo #
 --echo # MDEV-16711:CREATE OR REPLACE TABLE introducing BLOB column
 --echo #
 
@@ -383,5 +402,48 @@ CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
 SELECT MAX(pk) FROM t1;
 
 DROP TABLE t1;
+set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # MDEV-17255: New optimizer defaults and ANALYZE TABLE
+--echo #
+
+create table t1 (a int, b int);
+insert into t1(a,b) values (1,2),(1,3),(1,4),(1,5),(2,6),(2,7),(3,8),(3,9),(3,9),(4,10);
+set use_stat_tables= preferably_for_queries;
+--echo #
+--echo # with use_stat_tables= PREFERABLY_FOR_QUERIES
+--echo # analyze table t1 will not collect statistics
+--echo #
+
+analyze table t1;
+select * from mysql.column_stats;
+analyze
+select * from t1 where a = 1 and b=3;
+
+--echo #
+--echo # with use_stat_tables= PREFERABLY_FOR_QUERIES
+--echo # analyze table t1 will  collect statistics if we use PERSISTENT
+--echo # for columns, indexes or everything
+--echo #
+
+analyze table t1 persistent for columns (a) indexes ();
+select * from mysql.column_stats;
+--echo # filtered shows that we used the data from stat tables
+analyze
+select * from t1 where a = 1 and b=3;
+
+--echo #
+--echo # with use_stat_tables= PREFERABLY
+--echo # analyze table t1 will collect statistics
+--echo #
+
+set use_stat_tables=PREFERABLY;
+analyze table t1;
+select * from mysql.column_stats;
+--echo # filtered shows that we used the data from stat tables
+analyze
+select * from t1 where a=1 and b=3;
+drop table t1;
+set histogram_size=@tmp_stt_hs, histogram_type=@tmp_stt_ht;
 set use_stat_tables=@save_use_stat_tables;

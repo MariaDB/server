@@ -384,7 +384,9 @@ protected:
   Item **orig_args, *tmp_orig_args[2];
   
   static size_t ram_limitation(THD *thd);
-
+public:
+  // Methods used by ColumnStore
+  Item **get_orig_args() const { return orig_args; }
 public:  
 
   void mark_as_sum_func();
@@ -1070,6 +1072,7 @@ protected:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   void reset_field();
   String *val_str(String *);
+  bool val_native(THD *thd, Native *);
   const Type_handler *real_type_handler() const
   {
     return get_arg(0)->real_type_handler();
@@ -1561,6 +1564,8 @@ public:
 
   void clear();
   bool add();
+  bool supports_removal() const;
+  void remove();
   void reset_field() {};
   void update_field() {};
   void cleanup();
@@ -1825,6 +1830,14 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+public:
+  // Methods used by ColumnStore
+  bool get_distinct() const { return distinct; }
+  uint get_count_field() const { return arg_count_field; }
+  uint get_order_field() const { return arg_count_order; }
+  const String* get_separator() const { return separator; }
+  ORDER** get_order() const { return order; }
+
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,

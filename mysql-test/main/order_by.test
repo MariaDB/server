@@ -246,6 +246,7 @@ drop table t1;
 
 create table t1 (a int not null, b int, c varchar(10), key (a, b, c));
 insert into t1 values (1, NULL, NULL), (1, NULL, 'b'), (1, 1, NULL), (1, 1, 'b'), (1, 1, 'b'), (2, 1, 'a'), (2, 1, 'b'), (2, 2, 'a'), (2, 2, 'b'), (2, 3, 'c'),(1,3,'b');
+insert into t1 select * from t1;
 
 explain select * from t1 where (a = 1 and b is null and c = 'b') or (a > 2) order by a desc;
 select * from t1 where (a = 1 and b is null and c = 'b') or (a > 2) order by a desc;
@@ -551,8 +552,6 @@ create table t1 (
 
 insert into t1 (`sid`, `wnid`) values
 ('10100','01019000000'),('37986','01019000000'),('37987','01019010000'),
-('39560','01019090000'),('37989','01019000000'),('37990','01019011000'),
-('37991','01019011000'),('37992','01019019000'),('37993','01019030000'),
 ('37994','01019090000'),('475','02070000000'),('25253','02071100000'),
 ('25255','02071100000'),('25256','02071110000'),('25258','02071130000'),
 ('25259','02071190000'),('25260','02071200000'),('25261','02071210000'),
@@ -2039,6 +2038,8 @@ CREATE TABLE t2 (
 --echo # t2 has a "good" index declaration order
 
 INSERT INTO t1 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
+INSERT INTO t1 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
+INSERT INTO t2 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
 INSERT INTO t2 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
 
 --echo # The following two must both use id_23_date and no "using filesort":
@@ -2187,3 +2188,40 @@ eval explain extended $q;
 set optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE books, wings;
+
+--echo #
+--echo # MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+create table t3(a int);
+insert into t3 select A.a + 1000 *B.a from t2 A, t1 B;
+ 
+create table t4 (
+  a int,
+  b int,
+  c int,
+  filler1 char(255),
+  filler2 char(255),
+  key(a)
+);
+insert into t4 select a,a,a, a,a from t3;
+
+set @tmp_h=@@histogram_size, @tmp_ht=@@histogram_type, @tmp_u=@@use_stat_tables, 
+    @tmp_o=@@optimizer_use_condition_selectivity; 
+set histogram_size=100, histogram_type='single_prec_hb';
+set use_stat_tables=preferably;
+set optimizer_use_condition_selectivity=4;
+analyze table t4 persistent for columns(b) indexes ();
+
+--echo # rows must be around 1200, not 600:
+explain extended 
+select * from t4 where b < 5000 order by a limit 600;
+
+set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
+    optimizer_use_condition_selectivity=@tmp_o; 
+
+drop table t1,t2,t3,t4;
+

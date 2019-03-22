@@ -6,6 +6,8 @@ select @@session.use_stat_tables;
 COMPLEMENTARY
 set @save_use_stat_tables=@@use_stat_tables;
 set use_stat_tables='preferably';
+set @tmp_stt_hs=@@histogram_size, @tmp_stt_ht=@@histogram_type;
+set histogram_size=0, histogram_type='single_prec_hb';
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
@@ -64,12 +66,12 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	179	Using where; Using temporary; Using filesort
-1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
-1	SIMPLE	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
+1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
+1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
+1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
-1	SIMPLE	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -80,7 +82,7 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 n_name	revenue
-PERU	321915.8715
+PERU	321915.87150000007
 ARGENTINA	69817.1451
 set optimizer_switch=@save_optimizer_switch;
 delete from mysql.index_stats;
@@ -171,12 +173,12 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	179	Using where; Using temporary; Using filesort
-1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
-1	SIMPLE	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
+1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
+1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
+1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
-1	SIMPLE	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -187,7 +189,7 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 n_name	revenue
-PERU	321915.8715
+PERU	321915.87150000007
 ARGENTINA	69817.1451
 set optimizer_switch=@save_optimizer_switch;
 EXPLAIN select o_year,
@@ -207,14 +209,14 @@ and o_orderdate between date '1995-01-01' and date '1996-12-31'
 group by o_year
 order by o_year;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	ALL	PRIMARY,i_o_orderdate,i_o_custkey	NULL	NULL	NULL	1500	Using where; Using temporary; Using filesort
-1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
-1	SIMPLE	n1	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
-1	SIMPLE	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_partkey	1	Using where
+1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	part	ALL	PRIMARY	NULL	NULL	NULL	200	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	5	dbt3_s001.part.p_partkey	30	Using index condition
 1	SIMPLE	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 1	SIMPLE	n2	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	
+1	SIMPLE	orders	eq_ref	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
+1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	
+1	SIMPLE	n1	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	Using where
 select o_year,
 sum(case when nation = 'UNITED STATES' then volume else 0 end) /
 sum(volume) as mkt_share
@@ -332,7 +334,7 @@ and o_orderkey=l_orderkey and p_partkey=l_partkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	ref	PRIMARY,i_o_orderdate	i_o_orderdate	4	const	1	
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
-1	SIMPLE	part	eq_ref	PRIMARY,i_p_retailprice	PRIMARY	4	dbt3_s001.lineitem.l_partkey	1	Using where
+1	SIMPLE	part	eq_ref|filter	PRIMARY,i_p_retailprice	PRIMARY|i_p_retailprice	4|9	dbt3_s001.lineitem.l_partkey	1 (1%)	Using where; Using rowid filter
 select o_orderkey, p_partkey
 from part, lineitem, orders
 where p_retailprice > 1100 and o_orderdate='1997-01-01' 
@@ -587,9 +589,28 @@ explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	
-1	SIMPLE	user	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	SIMPLE	global_priv	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-17734: AddressSanitizer: use-after-poison in create_key_parts_for_pseudo_indexes
+#
+set @@use_stat_tables= PREFERABLY;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @save_use_stat_tables= @@use_stat_tables;
+create table t1 (a int, b int);
+insert into t1(a,b) values (1,2),(1,3),(1,4),(1,5),(2,6),(2,7),(3,8),(3,9),(3,9),(4,10);
+analyze table t1 persistent for columns (a) indexes ();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select * from t1 where a=1 and b=3;
+a	b
+1	3
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+drop table t1;
 #
 # MDEV-16711:CREATE OR REPLACE TABLE introducing BLOB column
 #
@@ -605,4 +626,61 @@ SELECT MAX(pk) FROM t1;
 MAX(pk)
 NULL
 DROP TABLE t1;
+set use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-17255: New optimizer defaults and ANALYZE TABLE
+#
+create table t1 (a int, b int);
+insert into t1(a,b) values (1,2),(1,3),(1,4),(1,5),(2,6),(2,7),(3,8),(3,9),(3,9),(4,10);
+set use_stat_tables= preferably_for_queries;
+#
+# with use_stat_tables= PREFERABLY_FOR_QUERIES
+# analyze table t1 will not collect statistics
+#
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+select * from mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+analyze
+select * from t1 where a = 1 and b=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	10.00	Using where
+#
+# with use_stat_tables= PREFERABLY_FOR_QUERIES
+# analyze table t1 will  collect statistics if we use PERSISTENT
+# for columns, indexes or everything
+#
+analyze table t1 persistent for columns (a) indexes ();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select * from mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	1	4	0.0000	4.0000	2.5000	0	NULL	NULL
+# filtered shows that we used the data from stat tables
+analyze
+select * from t1 where a = 1 and b=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	25.00	10.00	Using where
+#
+# with use_stat_tables= PREFERABLY
+# analyze table t1 will collect statistics
+#
+set use_stat_tables=PREFERABLY;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select * from mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	1	4	0.0000	4.0000	2.5000	0	NULL	NULL
+test	t1	b	2	10	0.0000	4.0000	1.1111	0	NULL	NULL
+# filtered shows that we used the data from stat tables
+analyze
+select * from t1 where a=1 and b=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
+drop table t1;
+set histogram_size=@tmp_stt_hs, histogram_type=@tmp_stt_ht;
 set use_stat_tables=@save_use_stat_tables;

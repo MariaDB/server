@@ -27,12 +27,10 @@ Created 5/7/1996 Heikki Tuuri
 #ifndef lock0lock_h
 #define lock0lock_h
 
-#include "univ.i"
 #include "buf0types.h"
 #include "trx0types.h"
 #include "mtr0types.h"
 #include "rem0types.h"
-#include "dict0types.h"
 #include "que0types.h"
 #include "lock0types.h"
 #include "hash0hash.h"

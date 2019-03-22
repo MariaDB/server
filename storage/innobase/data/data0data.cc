@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,8 +23,6 @@ SQL data field and tuple
 
 Created 5/30/1994 Heikki Tuuri
 *************************************************************************/
-
-#include "ha_prototypes.h"
 
 #include "data0data.h"
 #include "rem0rec.h"
@@ -612,6 +610,12 @@ dtuple_convert_big_rec(
 		return(NULL);
 	}
 
+	if (!index->table->space) {
+		return NULL;
+	}
+
+	const auto zip_size = index->table->space->zip_size();
+
 	ut_ad(index->n_uniq > 0);
 
 	ut_a(dtuple_check_typed_no_assert(entry));
@@ -645,6 +649,7 @@ dtuple_convert_big_rec(
 		longest_i = index->first_user_field();
 		dfield = dtuple_get_nth_field(entry, longest_i);
 		local_len = BTR_EXTERN_FIELD_REF_SIZE;
+		ut_ad(!dfield_is_ext(dfield));
 		goto ext_write;
 	}
 
@@ -659,9 +664,9 @@ dtuple_convert_big_rec(
 
 	while (page_zip_rec_needs_ext(rec_get_converted_size(index, entry,
 							     *n_ext),
-				      dict_table_is_comp(index->table),
+				      index->table->not_redundant(),
 				      dict_index_get_n_fields(index),
-				      dict_table_page_size(index->table))) {
+				      zip_size)) {
 		longest_i = 0;
 		for (ulint i = index->first_user_field(), longest = 0;
 		     i + mblob < entry->n_fields; i++) {

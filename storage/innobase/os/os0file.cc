@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -34,11 +34,8 @@ Created 10/21/1995 Heikki Tuuri
 *******************************************************/
 
 #ifndef UNIV_INNOCHECKSUM
-
-#include "ha_prototypes.h"
-#include "sql_const.h"
-
 #include "os0file.h"
+#include "sql_const.h"
 
 #ifdef UNIV_LINUX
 #include <sys/types.h>
@@ -48,9 +45,6 @@ Created 10/21/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0fil.h"
-#include "fil0crypt.h"
-#include "fsp0fsp.h"
-#include "fil0pagecompress.h"
 #include "srv0srv.h"
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
@@ -1090,22 +1084,8 @@ os_aio_validate_skip()
 /** Try os_aio_validate() every this many times */
 # define OS_AIO_VALIDATE_SKIP	13
 
-	/** The os_aio_validate() call skip counter.
-	Use a signed type because of the race condition below. */
-	static int os_aio_validate_count = OS_AIO_VALIDATE_SKIP;
-
-	/* There is a race condition below, but it does not matter,
-	because this call is only for heuristic purposes. We want to
-	reduce the call frequency of the costly os_aio_validate()
-	check in debug builds. */
-	--os_aio_validate_count;
-
-	if (os_aio_validate_count > 0) {
-		return(true);
-	}
-
-	os_aio_validate_count = OS_AIO_VALIDATE_SKIP;
-	return(os_aio_validate());
+	static Atomic_counter<uint32_t> os_aio_validate_count;
+	return (os_aio_validate_count++ % OS_AIO_VALIDATE_SKIP) || os_aio_validate();
 }
 #endif /* UNIV_DEBUG */
 
@@ -1775,6 +1755,8 @@ LinuxAIOHandler::resubmit(Slot* slot)
 	slot->n_bytes = 0;
 	slot->io_already_done = false;
 
+	compile_time_assert(sizeof(off_t) >= sizeof(os_offset_t));
+
 	struct iocb*	iocb = &slot->control;
 
 	if (slot->type.is_read()) {
@@ -1784,7 +1766,7 @@ LinuxAIOHandler::resubmit(Slot* slot)
 			slot->file,
 			slot->ptr,
 			slot->len,
-			static_cast<off_t>(slot->offset));
+			slot->offset);
 	} else {
 
 		ut_a(slot->type.is_write());
@@ -1794,7 +1776,7 @@ LinuxAIOHandler::resubmit(Slot* slot)
 			slot->file,
 			slot->ptr,
 			slot->len,
-			static_cast<off_t>(slot->offset));
+			slot->offset);
 	}
 
 	iocb->data = slot;
@@ -2502,18 +2484,10 @@ os_file_fsync_posix(
 			ut_a(failures < 2000);
 			break;
 
-		case EIO:
-			ib::error() << "fsync() returned EIO, aborting";
-			/* fall through */
 		default:
-			ut_error;
-			break;
+			ib::fatal() << "fsync() returned " << errno;
 		}
 	}
-
-	ut_error;
-
-	return(-1);
 }
 
 /** Check the existence and type of the given file.
@@ -3529,8 +3503,6 @@ static WinIoInit win_io_init;
 
 /** Free storage space associated with a section of the file.
 @param[in]	fh		Open file handle
-@param[in]	page_size	Tablespace page size
-@param[in]	block_size	File system block size
 @param[in]	off		Starting offset (SEEK_SET)
 @param[in]	len		Size of the hole
 @return 0 on success or errno */
@@ -5737,7 +5709,7 @@ AIO::AIO(
 	m_not_full = os_event_create("aio_not_full");
 	m_is_empty = os_event_create("aio_is_empty");
 
-	memset(&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
+	memset((void*)&m_slots[0], 0x0, sizeof(m_slots[0]) * m_slots.size());
 #ifdef LINUX_NATIVE_AIO
 	memset(&m_events[0], 0x0, sizeof(m_events[0]) * m_events.size());
 #endif /* LINUX_NATIVE_AIO */
@@ -6273,7 +6245,7 @@ AIO::reserve_slot(
 #ifdef _WIN32
 	slot->len      = static_cast<DWORD>(len);
 #else
-	slot->len      = static_cast<ulint>(len);
+	slot->len      = len;
 #endif /* _WIN32 */
 	slot->type     = type;
 	slot->buf      = static_cast<byte*>(buf);

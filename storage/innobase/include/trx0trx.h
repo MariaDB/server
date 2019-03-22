@@ -27,21 +27,17 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0trx_h
 #define trx0trx_h
 
-#include <set>
-
-#include "ha_prototypes.h"
-
-#include "dict0types.h"
 #include "trx0types.h"
-
 #include "lock0types.h"
-#include "log0log.h"
 #include "que0types.h"
 #include "mem0mem.h"
 #include "trx0xa.h"
 #include "ut0vec.h"
 #include "fts0fts.h"
 #include "read0types.h"
+
+#include <vector>
+#include <set>
 
 // Forward declaration
 struct mtr_t;
@@ -581,6 +577,11 @@ struct trx_lock_t {
 					lock_sys.mutex. Otherwise, this may
 					only be modified by the thread that is
 					serving the running transaction. */
+#ifdef WITH_WSREP
+	bool		was_chosen_as_wsrep_victim;
+					/*!< high priority wsrep thread has
+					marked this trx to abort */
+#endif /* WITH_WSREP */
 
 	/** Pre-allocated record locks */
 	struct {
@@ -777,7 +778,7 @@ private:
     that it is no longer "active".
   */
 
-  int32_t n_ref;
+  Atomic_counter<int32_t> n_ref;
 
 
 public:
@@ -1123,16 +1124,16 @@ public:
 
   bool is_referenced()
   {
-    return my_atomic_load32_explicit(&n_ref, MY_MEMORY_ORDER_RELAXED) > 0;
+    return n_ref > 0;
   }
 
 
   void reference()
   {
 #ifdef UNIV_DEBUG
-  int32_t old_n_ref=
+    auto old_n_ref=
 #endif
-    my_atomic_add32_explicit(&n_ref, 1, MY_MEMORY_ORDER_RELAXED);
+    n_ref++;
     ut_ad(old_n_ref >= 0);
   }
 
@@ -1140,9 +1141,9 @@ public:
   void release_reference()
   {
 #ifdef UNIV_DEBUG
-  int32_t old_n_ref=
+    auto old_n_ref=
 #endif
-    my_atomic_add32_explicit(&n_ref, -1, MY_MEMORY_ORDER_RELAXED);
+    n_ref--;
     ut_ad(old_n_ref > 0);
   }
 
