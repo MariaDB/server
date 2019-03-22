@@ -118,6 +118,8 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   a= avg_access_and_eval_gain_per_row(container_type);
   if (a > 0)
     cross_x= b/a;
+  else
+    cross_x= b+1;
   abs_independent.clear_all();
 }
 
@@ -262,7 +264,7 @@ void TABLE::prune_range_rowid_filters()
             i.e. the range filters f1, f2 of both e1 and e2 always promise
             better gains then the range filter of e.
             As e1 and e2 are absolutely independent one of the range filters
-            f1, f2 will be always a better choice than f no matter what index
+            f1, f2 will be always a better choice than f1 no matter what index
             is chosen to access the table. Because of this the element e
             can be safely removed from the array.
 	  */
