@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -526,6 +526,8 @@ page_create_empty(
 	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
 	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!index->is_dummy);
+	ut_ad(block->page.id.space() == index->space);
 
 	/* Multiple transactions cannot simultaneously operate on the
 	same temp-table in parallel.
@@ -536,7 +538,7 @@ page_create_empty(
 	    && page_is_leaf(page)) {
 		max_trx_id = page_get_max_trx_id(page);
 		ut_ad(max_trx_id);
-	} else if (page_is_root(page)) {
+	} else if (block->page.id.page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
 		max_trx_id = page_get_max_trx_id(page);
 	} else {

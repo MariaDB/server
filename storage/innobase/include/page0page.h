@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -684,14 +684,19 @@ ulint
 page_rec_get_heap_no(
 /*=================*/
 	const rec_t*	rec);	/*!< in: the physical record */
-/** Determine whether a page is an index root page.
+
+/** Determine whether a page has any siblings.
 @param[in]	page	page frame
-@return true if the page is a root page of an index */
-UNIV_INLINE
-bool
-page_is_root(
-	const page_t*	page)
-	MY_ATTRIBUTE((warn_unused_result));
+@return true if the page has any siblings */
+inline bool page_has_siblings(const page_t* page)
+{
+	compile_time_assert(!(FIL_PAGE_PREV % 8));
+	compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
+	compile_time_assert(FIL_NULL == 0xffffffff);
+	return *reinterpret_cast<const uint64_t*>(page + FIL_PAGE_PREV)
+		!= ~uint64_t(0);
+}
+
 /************************************************************//**
 Gets the pointer to the next record on the page.
 @return pointer to next record */

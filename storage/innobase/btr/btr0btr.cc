@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -378,8 +378,7 @@ btr_root_adjust_on_import(
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
 
-	if (!page_is_root(page)) {
-
+	if (!fil_page_index_page_check(page) || page_has_siblings(page)) {
 		err = DB_CORRUPTION;
 
 	} else if (dict_index_is_clust(index)) {
@@ -1161,11 +1160,11 @@ btr_free_root_check(
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE);
 
 		if (fil_page_index_page_check(block->frame)
-			&& index_id == btr_page_get_index_id(block->frame)) {
+		    && index_id == btr_page_get_index_id(block->frame)) {
 			/* This should be a root page.
 			It should not be possible to reassign the same
 			index_id for some other index in the tablespace. */
-			ut_ad(page_is_root(block->frame));
+			ut_ad(!page_has_siblings(block->frame));
 		} else {
 			block = NULL;
 		}
@@ -1358,7 +1357,8 @@ btr_free_but_not_root(
 	ibool	finished;
 	mtr_t	mtr;
 
-	ut_ad(page_is_root(block->frame));
+	ut_ad(fil_page_index_page_check(block->frame));
+	ut_ad(!page_has_siblings(block->frame));
 leaf_loop:
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, log_mode);
@@ -1430,7 +1430,6 @@ btr_free_if_exists(
 		return;
 	}
 
-	ut_ad(page_is_root(root->frame));
 	btr_free_but_not_root(root, mtr->get_log_mode());
 	mtr->set_named_space(page_id.space());
 	btr_free_root(root, mtr);
@@ -1453,8 +1452,6 @@ btr_free(
 		page_id, page_size, RW_X_LATCH, &mtr);
 
 	if (block) {
-		ut_ad(page_is_root(block->frame));
-
 		btr_free_but_not_root(block, MTR_LOG_NO_REDO);
 		btr_free_root(block, &mtr);
 	}
@@ -1614,12 +1611,17 @@ btr_page_reorganize_low(
 
 	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 	btr_assert_not_corrupted(block, index);
+	ut_ad(fil_page_index_page_check(block->frame));
+	ut_ad(index->is_dummy
+	      || block->page.id.space() == index->space);
+	ut_ad(index->is_dummy
+	      || block->page.id.page_no() != index->page
+	      || !page_has_siblings(page));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 	data_size1 = page_get_data_size(page);
 	max_ins_size1 = page_get_max_insert_size_after_reorganize(page, 1);
-
 	/* Turn logging off */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
@@ -1677,7 +1679,7 @@ btr_page_reorganize_low(
 	      || page_get_max_trx_id(page) == 0
 	      || (dict_index_is_sec_or_ibuf(index)
 		  ? page_is_leaf(temp_page)
-		  : page_is_root(temp_page)));
+		  : block->page.id.page_no() == index->page));
 
 	/* If innodb_log_compressed_pages is ON, page reorganize should log the
 	compressed page image.*/
@@ -1894,6 +1896,8 @@ btr_page_empty(
 
 	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 	ut_ad(page_zip == buf_block_get_page_zip(block));
+	ut_ad(!index->is_dummy);
+	ut_ad(index->space == block->page.id.space());
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
@@ -1906,7 +1910,8 @@ btr_page_empty(
 	/* Preserve PAGE_ROOT_AUTO_INC when creating a clustered index
 	root page. */
 	const ib_uint64_t	autoinc
-		= dict_index_is_clust(index) && page_is_root(page)
+		= dict_index_is_clust(index)
+		&& index->page == block->page.id.page_no()
 		? page_get_autoinc(page)
 		: 0;
 
@@ -4225,6 +4230,8 @@ btr_discard_only_page_on_level(
 	ulint		page_level = 0;
 	trx_id_t	max_trx_id;
 
+	ut_ad(!index->is_dummy);
+
 	/* Save the PAGE_MAX_TRX_ID from the leaf page. */
 	max_trx_id = page_get_max_trx_id(buf_block_get_frame(block));
 
@@ -4235,11 +4242,10 @@ btr_discard_only_page_on_level(
 
 		ut_a(page_get_n_recs(page) == 1);
 		ut_a(page_level == btr_page_get_level(page, mtr));
-		ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
-		ut_a(btr_page_get_next(page, mtr) == FIL_NULL);
-
-		ut_ad(mtr_is_block_fix(
-			mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
+		ut_a(!page_has_siblings(page));
+		ut_ad(fil_page_index_page_check(page));
+		ut_ad(block->page.id.space() == index->space);
+		ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 		btr_search_drop_page_hash_index(block);
 
 		if (dict_index_is_spatial(index)) {
@@ -4265,6 +4271,7 @@ btr_discard_only_page_on_level(
 
 	/* block is the root page, which must be empty, except
 	for the node pointer to the (now discarded) block(s). */
+	ut_ad(!page_has_siblings(block->frame));
 
 #ifdef UNIV_BTR_DEBUG
 	if (!dict_index_is_ibuf(index)) {

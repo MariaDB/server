@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4727,7 +4727,7 @@ page_zip_reorganize(
 	clustered index root pages. */
 	ut_ad(page_get_max_trx_id(page) == 0
 	      || (dict_index_is_clust(index)
-		  ? page_is_root(temp_page)
+		  ? !page_has_siblings(temp_page)
 		  : page_is_leaf(temp_page)));
 
 	/* Restore logging. */
