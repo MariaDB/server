@@ -6,30 +6,11 @@ use My::Find;
 
 return "Not run for embedded server" if $::opt_embedded_server;
 
-return "WSREP is not compiled in" unless defined $::mysqld_variables{'wsrep-on'};
+return "WSREP is not compiled in" if not ::have_wsrep();
 
-my ($provider) = grep { -f $_ } $ENV{WSREP_PROVIDER},
-                                "/usr/lib64/galera-3/libgalera_smm.so",
-                                "/usr/lib64/galera/libgalera_smm.so",
-                                "/usr/lib/galera-3/libgalera_smm.so",
-                                "/usr/lib/galera/libgalera_smm.so";
+return "No wsrep provider library" unless ::have_wsrep_provider();
 
-return "No wsrep provider library" unless -f $provider;
-
-$ENV{WSREP_PROVIDER} = $provider;
-
-my ($spath) = grep { -f "$_/wsrep_sst_rsync"; } "$::bindir/scripts", $::path_client_bindir;
-return "No SST scripts" unless $spath;
-
-my ($cpath) = grep { -f "$_/mysql"; } "$::bindir/scripts", $::path_client_bindir;
-return "No scritps" unless $cpath;
-
-my ($epath) = grep { -f "$_/my_print_defaults"; } "$::bindir/extra", $::path_client_bindir;
-return "No my_print_defaults" unless $epath;
-
-my ($bpath) = grep { -f "$_/mariabackup"; } "$::bindir/extra/mariabackup", $::path_client_bindir;
-
-sub which($) { return `sh -c "command -v $_[0]"` }
+return ::wsrep_version_message() unless ::check_wsrep_version();
 
 push @::global_suppressions,
   (
@@ -85,29 +66,5 @@ push @::global_suppressions,
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
    );
-
-$ENV{PATH}="$epath:$ENV{PATH}";
-$ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
-$ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
-$ENV{PATH}="$bpath:$ENV{PATH}" unless $bpath eq $spath;
-
-if (which(socat)) {
-  $ENV{MTR_GALERA_TFMT}='socat';
-} elsif (which(nc)) {
-  $ENV{MTR_GALERA_TFMT}='nc';
-}
-
-sub skip_combinations {
-  my %skip = ();
-  $skip{'include/have_filekeymanagement.inc'} = 'needs file_key_management plugin'
-             unless $ENV{FILE_KEY_MANAGEMENT_SO};
-  $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
-             unless which(mariabackup);
-  $skip{'include/have_mariabackup.inc'} = 'Need ss'
-             unless which(ss);
-  $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
-             unless $ENV{MTR_GALERA_TFMT};
-  %skip;
-}
 
 bless { };
