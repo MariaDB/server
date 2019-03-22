@@ -93,4 +93,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert t values (2, '2001-01-01', '2001-01-01');
 ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
+show status like "Feature_application_time_periods";
+Variable_name	Value
+Feature_application_time_periods	6
 create or replace database test;

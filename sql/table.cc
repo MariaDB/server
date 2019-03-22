@@ -2108,6 +2108,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (init_period_from_extra2(&period, pos, end))
       goto err;
+    status_var_increment(thd->status_var.feature_application_time_periods);
   }
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
