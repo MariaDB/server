@@ -5542,6 +5542,9 @@ int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
     Call this function only when you have established the list of all tables
     which you'll want to update (including stored functions, triggers, views
     inside your statement).
+
+    Ignore tables prelocked for foreign key cascading actions, as these
+    actions cannot generate new auto_increment values.
 */
 
 static bool
@@ -5551,6 +5554,7 @@ has_write_table_with_auto_increment(TABLE_LIST *tables)
   {
     /* we must do preliminary checks as table->table may be NULL */
     if (!table->placeholder() &&
+        table->prelocking_placeholder != TABLE_LIST::FK &&
         table->table->found_next_number_field &&
         (table->lock_type >= TL_WRITE_ALLOW_WRITE))
       return 1;
