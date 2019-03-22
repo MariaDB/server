@@ -1645,6 +1645,16 @@ public:
                      LOWEST_PRECEDENCE);
   }
   virtual void print(String *str, enum_query_type query_type);
+
+  class Print: public String
+  {
+  public:
+    Print(Item *item, enum_query_type type)
+    {
+      item->print(this, type);
+    }
+  };
+
   void print_item_w_name(String *str, enum_query_type query_type);
   void print_value(String *str);
 

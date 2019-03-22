@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3162,6 +3162,9 @@ bool Item_func_pad::fix_length_and_dec()
 {
   if (arg_count == 3)
   {
+    String *str;
+    if (!args[2]->basic_const_item() || !(str= args[2]->val_str(&pad_str)) || !str->length())
+      maybe_null= true;
     // Handle character set for args[0] and args[2].
     if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
       return TRUE;
