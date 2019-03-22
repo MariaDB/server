@@ -2140,6 +2140,8 @@ page_copy_rec_list_end_to_created_page(
 		rec = page_rec_get_next(rec);
 	} while (!page_rec_is_supremum(rec));
 
+	ut_ad(n_recs);
+
 	if ((slot_index > 0) && (count + 1
 				 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
 				 <= PAGE_DIR_SLOT_MAX_N_OWNED)) {

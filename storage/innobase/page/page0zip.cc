@@ -4448,10 +4448,12 @@ page_zip_dir_delete(
 	slot_rec = page_zip_dir_find(page_zip, page_offset(rec));
 
 	ut_a(slot_rec);
-
+	uint16_t n_recs = page_get_n_recs(page);
+	ut_ad(n_recs);
+	ut_ad(n_recs > 1 || page_get_page_no(page) == index->page);
 	/* This could not be done before page_zip_dir_find(). */
 	page_header_set_field(page, page_zip, PAGE_N_RECS,
-			      (ulint)(page_get_n_recs(page) - 1));
+			      n_recs - 1);
 
 	if (UNIV_UNLIKELY(!free)) {
 		/* Make the last slot the start of the free list. */
