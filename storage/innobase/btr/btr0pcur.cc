@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,7 +100,6 @@ btr_pcur_store_position(
 	buf_block_t*	block;
 	rec_t*		rec;
 	dict_index_t*	index;
-	page_t*		page;
 	ulint		offs;
 
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
@@ -112,9 +111,8 @@ btr_pcur_store_position(
 	page_cursor = btr_pcur_get_page_cur(cursor);
 
 	rec = page_cur_get_rec(page_cursor);
-	page = page_align(rec);
-	offs = page_offset(rec);
-
+	offs = rec - block->frame;
+	ut_ad(block->page.id.page_no() == page_get_page_no(block->frame));
 	ut_ad(block->page.buf_fix_count);
 	/* For spatial index, when we do positioning on parent
 	buffer if necessary, it might not hold latches, but the
@@ -127,17 +125,16 @@ btr_pcur_store_position(
 			  mtr, dict_index_get_lock(index),
 			  MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)));
 
-	if (page_is_empty(page)) {
+	cursor->old_stored = true;
+
+	if (page_is_empty(block->frame)) {
 		/* It must be an empty index tree; NOTE that in this case
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
-		ut_a(btr_page_get_next(page, mtr) == FIL_NULL);
-		ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
-		ut_ad(page_is_leaf(page));
-		ut_ad(page_get_page_no(page) == index->page);
-
-		cursor->old_stored = true;
+		ut_a(!page_has_siblings(block->frame));
+		ut_ad(page_is_leaf(block->frame));
+		ut_ad(block->page.id.page_no() == index->page);
 
 		if (page_rec_is_supremum_low(offs)) {
 
@@ -164,7 +161,6 @@ btr_pcur_store_position(
 		cursor->rel_pos = BTR_PCUR_ON;
 	}
 
-	cursor->old_stored = true;
 	cursor->old_rec = dict_index_copy_rec_order_prefix(
 		index, rec, &cursor->old_n_fields,
 		&cursor->old_rec_buf, &cursor->buf_size);
