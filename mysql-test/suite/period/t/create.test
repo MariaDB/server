@@ -77,4 +77,6 @@ show create table t;
 --error ER_CONSTRAINT_FAILED
 insert t values (2, '2001-01-01', '2001-01-01');
 
+show status like "Feature_application_time_periods";
+
 create or replace database test;
