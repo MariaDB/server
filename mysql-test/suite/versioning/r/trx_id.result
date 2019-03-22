@@ -476,3 +476,16 @@ SET @@SYSTEM_VERSIONING_ALTER_HISTORY=ERROR;
 SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
 count(*)
 0
+# MDEV-18875 Assertion `thd->transaction.stmt.ha_list == __null ||
+# trans == &thd->transaction.stmt' failed or bogus ER_DUP_ENTRY upon
+# ALTER TABLE with versioning
+create or replace table t (x int) engine=innodb;
+set autocommit= 0;
+alter table t
+algorithm=copy,
+add column row_start bigint unsigned as row start,
+add column row_end bigint unsigned as row end,
+add period for system_time(row_start,row_end),
+with system versioning;
+set autocommit= 1;
+create or replace database test;
