@@ -1779,3 +1779,23 @@
    fun:CRYPTO_malloc
    fun:ENGINE_new
 }
+
+#
+# OpenSSL 1.0.1l problems
+#
+
+{
+   OpenSSL 1.0.1l wrong jump
+   Memcheck:Cond
+   fun:bcmp
+   obj:/usr/lib64/libcrypto.so*
+   fun:FIPS_selftest
+}
+
+{
+   OpenSSL 1.0.1l wrong jump 2
+   Memcheck:Cond
+   obj:/usr/lib64/libcrypto.so*
+   fun:FIPS_mode_set
+   obj:/usr/lib64/libcrypto.so*
+}
