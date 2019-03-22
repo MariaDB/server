@@ -519,3 +519,7 @@ compile_commands.json
 
 # Visual Studio Code workspace
 .vscode/
+
+# Clion && other JetBrains ides
+.idea
+
