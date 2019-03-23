@@ -2042,7 +2042,7 @@ double Item_sum_std::val_real()
 {
   DBUG_ASSERT(fixed == 1);
   double nr= Item_sum_variance::val_real();
-  if (isnan(nr))
+  if (std::isnan(nr))
   {
     /*
       variance_fp_recurrence_next() can overflow in some cases and return "nan":
