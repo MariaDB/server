@@ -50,7 +50,11 @@ endif()
 # load the original CPackRPM.cmake
 set(orig_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
 unset(CMAKE_MODULE_PATH)
-include(CPackRPM)
+if (CMAKE_VERSION VERSION_GREATER "3.12.99")
+  include(Internal/CPack/CPackRPM)
+else()
+  include(CPackRPM)
+endif()
 set(CMAKE_MODULE_PATH ${orig_CMAKE_MODULE_PATH})
 
 restore(LICENSE)
