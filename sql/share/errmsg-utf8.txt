@@ -6511,7 +6511,7 @@ ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN
   eng "Cannot define foreign key with %s clause on a computed column"
 ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
-  eng "The value specified for computed column '%s' in table '%s' ignored"
+  eng "The value specified for computed column '%s' in table '%s' has been ignored"
 ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
   eng "This is not yet supported for computed columns"
 ER_CONST_EXPR_IN_VCOL
