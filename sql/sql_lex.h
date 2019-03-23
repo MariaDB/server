@@ -1479,8 +1479,7 @@ public:
   void collect_grouping_fields_for_derived(THD *thd, ORDER *grouping_list);
   bool collect_grouping_fields(THD *thd);
   bool collect_fields_equal_to_grouping(THD *thd);
-  void check_cond_extraction_for_grouping_fields(THD *thd, Item *cond,
-                                                 Pushdown_checker excl_dep);
+  void check_cond_extraction_for_grouping_fields(THD *thd, Item *cond);
   Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
                                        bool no_to_clones);
   
@@ -1506,13 +1505,11 @@ public:
   bool cond_pushdown_is_allowed() const
   { return !olap && !explicit_limit && !tvc; }
   
-  bool build_pushable_cond_for_having_pushdown(THD *thd,
-                                               Item *cond);
+  bool build_pushable_cond_for_having_pushdown(THD *thd, Item *cond);
   void pushdown_cond_into_where_clause(THD *thd, Item *extracted_cond,
                                        Item **remaining_cond,
                                        Item_transformer transformer,
                                        uchar *arg);
-  void mark_or_conds_to_avoid_pushdown(Item *cond);
   Item *pushdown_from_having_into_where(THD *thd, Item *having);
 
   select_handler *find_select_handler(THD *thd);
@@ -4789,6 +4786,8 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
 
 void sp_create_assignment_lex(THD *thd, bool no_lookahead);
 bool sp_create_assignment_instr(THD *thd, bool no_lookahead);
+
+void mark_or_conds_to_avoid_pushdown(Item *cond);
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

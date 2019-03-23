@@ -5601,44 +5601,44 @@ int select_value_catcher::send_data(List<Item> &items)
 
 /**
   @brief
-    Conjunct conditions after optimize_cond() call
+    Attach conditions to already optimized condition
 
-  @param thd               the thread handle
-  @param cond              the condition where to attach new conditions
-  @param cond_eq           IN/OUT the multiple equalities of cond
-  @param new_conds         IN/OUT the list of conditions needed to add
-  @param cond_value        the returned value of the condition
-  @param build_cond_equal  flag to control if COND_EQUAL elements for
-                           AND-conditions should be built
+  @param thd              the thread handle
+  @param cond             the condition to which add new conditions
+  @param cond_eq          IN/OUT the multiple equalities of cond
+  @param new_conds        the list of conditions to be added
+  @param cond_value       the returned value of the condition
+                          if it can be evaluated
 
   @details
-    The method creates new condition through conjunction of cond and
+    The method creates new condition through union of cond and
     the conditions from new_conds list.
     The method is called after optimize_cond() for cond. The result
-    of the conjunction should be the same as if it was done before the
+    of the union should be the same as if it was done before the
     the optimize_cond() call.
 
-  @retval NULL       if an error occurs
   @retval otherwise  the created condition
+  @retval NULL       if an error occurs
 */
 
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            COND_EQUAL **cond_eq,
                                            List<Item> &new_conds,
-                                           Item::cond_result *cond_value,
-                                           bool build_cond_equal)
+                                           Item::cond_result *cond_value)
 {
   COND_EQUAL new_cond_equal;
   Item *item;
-  Item_equal *equality;
+  Item_equal *mult_eq;
   bool is_simplified_cond= false;
+  /* The list where parts of the new condition are stored. */
   List_iterator<Item> li(new_conds);
   List_iterator_fast<Item_equal> it(new_cond_equal.current_level);
 
   /*
-    Creates multiple equalities new_cond_equal from new_conds list
-    equalities. If multiple equality can't be created or the condition
-    from new_conds list isn't an equality the method leaves it in new_conds
+    Create multiple equalities from the equalities of the list new_conds.
+    Save the created multiple equalities in new_cond_equal.
+    If multiple equality can't be created or the condition
+    from new_conds list isn't an equality leave it in new_conds
     list.
 
     The equality can't be converted into the multiple equality if it
@@ -5664,149 +5664,223 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
   {
     /*
-      cond is an AND-condition.
-      The method conjugates the AND-condition cond, created multiple
-      equalities new_cond_equal and remain conditions from new_conds.
-
-      First, the method disjoins multiple equalities of cond and
-      merges new_cond_equal multiple equalities with these equalities.
-      It checks if after the merge the multiple equalities are knowingly
-      true or false equalities.
-      It attaches to cond the conditions from new_conds list and the result
-      of the merge of multiple equalities. The multiple equalities are
-      attached only to the upper level of AND-condition cond. So they
-      should be pushed down to the inner levels of cond AND-condition
-      if needed. It is done by propagate_new_equalities().
+      Case when cond is an AND-condition.
+      Union AND-condition cond, created multiple equalities from
+      new_cond_equal and remaining conditions from new_conds.
     */
     COND_EQUAL *cond_equal= &((Item_cond_and *) cond)->m_cond_equal;
     List<Item_equal> *cond_equalities= &cond_equal->current_level;
     List<Item> *and_args= ((Item_cond_and *)cond)->argument_list();
-    and_args->disjoin((List<Item> *) cond_equalities);
-    and_args->append(&new_conds);
 
-    while ((equality= it++))
+    /*
+      Disjoin multiple equalities of cond.
+      Merge these multiple equalities with the multiple equalities of
+      new_cond_equal. Save the result in new_cond_equal.
+      Check if after the merge some multiple equalities are knowingly
+      true or false.
+    */
+    and_args->disjoin((List<Item> *) cond_equalities);
+    while ((mult_eq= it++))
     {
-      equality->upper_levels= 0;
-      equality->merge_into_list(thd, cond_equalities, false, false);
+      mult_eq->upper_levels= 0;
+      mult_eq->merge_into_list(thd, cond_equalities, false, false);
     }
     List_iterator_fast<Item_equal> ei(*cond_equalities);
-    while ((equality= ei++))
+    while ((mult_eq= ei++))
     {
-      if (equality->const_item() && !equality->val_int())
+      if (mult_eq->const_item() && !mult_eq->val_int())
         is_simplified_cond= true;
-      equality->fixed= 0;
-      if (equality->fix_fields(thd, NULL))
-        return NULL;
+      else
+      {
+        mult_eq->unfix_fields();
+        if (mult_eq->fix_fields(thd, NULL))
+          return NULL;
+      }
     }
 
+    li.rewind();
+    while ((item=li++))
+    {
+      /*
+        There still can be some equalities at not top level of new_conds
+        conditions that are not transformed into multiple equalities.
+        To transform them build_item_equal() is called.
+
+        Examples of not top level equalities:
+
+        1. (t1.a = 3) OR (t1.b > 5)
+            (t1.a = 3) - not top level equality.
+            It is inside OR condition
+
+        2. ((t3.d = t3.c) AND (t3.c < 15)) OR (t3.d > 1)
+           (t1.d = t3.c) - not top level equality.
+           It is inside AND condition which is a part of OR condition
+      */
+      if (item->type() == Item::COND_ITEM &&
+          ((Item_cond *)item)->functype() == Item_func::COND_OR_FUNC)
+      {
+        item= item->build_equal_items(thd,
+                                      &((Item_cond_and *) cond)->m_cond_equal,
+                                      false, NULL);
+      }
+      /*
+        Check if equalities that can't be transformed into multiple
+        equalities are knowingly true or false.
+      */
+      if (item->const_item() && !item->val_int())
+        is_simplified_cond= true;
+      and_args->push_back(item, thd->mem_root);
+    }
     and_args->append((List<Item> *) cond_equalities);
     *cond_eq= &((Item_cond_and *) cond)->m_cond_equal;
-
-    propagate_new_equalities(thd, cond, cond_equalities,
-                             cond_equal->upper_levels,
-                             &is_simplified_cond);
-    cond= cond->propagate_equal_fields(thd,
-                                       Item::Context_boolean(),
-                                       cond_equal);
   }
   else
   {
     /*
-      cond isn't AND-condition or is NULL.
+      Case when cond isn't an AND-condition or is NULL.
       There can be several cases:
 
       1. cond is a multiple equality.
-         In this case cond is merged with the multiple equalities of
+         In this case merge cond with the multiple equalities of
          new_cond_equal.
-         The new condition is created with the conjunction of new_conds
-         list conditions and the result of merge of multiple equalities.
+         Create new condition from the created multiple equalities
+         and new_conds list conditions.
       2. cond is NULL
-         The new condition is created from the conditions of new_conds
-         list and multiple equalities from new_cond_equal.
+         Create new condition from new_conds list conditions
+         and multiple equalities from new_cond_equal.
       3. Otherwise
-         In this case the new condition is created from cond, remain conditions
-         from new_conds list and created multiple equalities from
-         new_cond_equal.
+         Create new condition through union of cond, conditions from new_conds
+         list and created multiple equalities from new_cond_equal.
     */
     List<Item> new_conds_list;
     /* Flag is set to true if cond is a multiple equality */
     bool is_mult_eq= (cond && cond->type() == Item::FUNC_ITEM &&
         ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC);
 
+    /*
+      If cond is non-empty and is not multiple equality save it as
+      a part of a new condition.
+    */
     if (cond && !is_mult_eq &&
         new_conds_list.push_back(cond, thd->mem_root))
       return NULL;
 
-    if (new_conds.elements > 0)
-    {
-      li.rewind();
-      while ((item=li++))
-      {
-        if (!item->is_fixed() && item->fix_fields(thd, NULL))
-          return NULL;
-        if (item->const_item() && !item->val_int())
-          is_simplified_cond= true;
-      }
-      new_conds_list.append(&new_conds);
-    }
-
+    /*
+      If cond is a multiple equality merge it with new_cond_equal
+      multiple equalities.
+    */
     if (is_mult_eq)
     {
       Item_equal *eq_cond= (Item_equal *)cond;
       eq_cond->upper_levels= 0;
       eq_cond->merge_into_list(thd, &new_cond_equal.current_level,
                                false, false);
+    }
 
-      while ((equality= it++))
+    /**
+      Fix created multiple equalities and check if they are knowingly
+      true or false.
+    */
+    List_iterator_fast<Item_equal> ei(new_cond_equal.current_level);
+    while ((mult_eq=ei++))
+    {
+      if (mult_eq->const_item() && !mult_eq->val_int())
+        is_simplified_cond= true;
+      else
       {
-        if (equality->const_item() && !equality->val_int())
-          is_simplified_cond= true;
-      }
-
-      if (new_cond_equal.current_level.elements +
-          new_conds_list.elements == 1)
-      {
-        it.rewind();
-        equality= it++;
-        equality->fixed= 0;
-        if (equality->fix_fields(thd, NULL))
+        mult_eq->unfix_fields();
+        if (mult_eq->fix_fields(thd, NULL))
           return NULL;
       }
-      (*cond_eq)->copy(new_cond_equal);
+    }
+
+    /*
+      Create AND condition if new condition will have two or
+      more elements.
+    */
+    Item_cond_and *and_cond= 0;
+    COND_EQUAL *inherited= 0;
+    if (new_conds_list.elements +
+        new_conds.elements +
+        new_cond_equal.current_level.elements > 1)
+    {
+      and_cond= new (thd->mem_root) Item_cond_and(thd);
+      and_cond->m_cond_equal.copy(new_cond_equal);
+      inherited= &and_cond->m_cond_equal;
+    }
+
+    li.rewind();
+    while ((item=li++))
+    {
+      /*
+        Look for the comment in the case when cond is an
+        AND condition above the build_equal_items() call.
+      */
+      if (item->type() == Item::COND_ITEM &&
+          ((Item_cond *)item)->functype() == Item_func::COND_OR_FUNC)
+      {
+        item= item->build_equal_items(thd, inherited, false, NULL);
+      }
+      /*
+        Check if equalities that can't be transformed into multiple
+        equalities are knowingly true or false.
+      */
+      if (item->const_item() && !item->val_int())
+        is_simplified_cond= true;
+      new_conds_list.push_back(item, thd->mem_root);
     }
     new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
 
-    if (new_conds_list.elements > 1)
+    if (and_cond)
     {
-      Item_cond_and *and_cond=
-        new (thd->mem_root) Item_cond_and(thd, new_conds_list);
-
-      and_cond->m_cond_equal.copy(new_cond_equal);
+      and_cond->argument_list()->append(&new_conds_list);
       cond= (Item *)and_cond;
-      *cond_eq= &((Item_cond_and *)cond)->m_cond_equal;
+      *cond_eq= &((Item_cond_and *) cond)->m_cond_equal;
     }
     else
     {
       List_iterator_fast<Item> iter(new_conds_list);
       cond= iter++;
+      if (cond->type() == Item::FUNC_ITEM &&
+          ((Item_func *)cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+      {
+        if (!(*cond_eq))
+          *cond_eq= new COND_EQUAL();
+        (*cond_eq)->copy(new_cond_equal);
+      }
+      else
+        *cond_eq= 0;
     }
+  }
 
-    if (!cond->is_fixed() && cond->fix_fields(thd, NULL))
-      return NULL;
+  if (!cond)
+    return NULL;
 
-    if (new_cond_equal.current_level.elements > 0)
-      cond= cond->propagate_equal_fields(thd,
-                                         Item::Context_boolean(),
-                                         &new_cond_equal);
+  if (*cond_eq)
+  {
+    /*
+      The multiple equalities are attached only to the upper level
+      of AND-condition cond.
+      Push them down to the bottom levels of cond AND-condition if needed.
+    */
+    propagate_new_equalities(thd, cond,
+                             &(*cond_eq)->current_level,
+                             0,
+                             &is_simplified_cond);
+    cond= cond->propagate_equal_fields(thd,
+                                       Item::Context_boolean(),
+                                       *cond_eq);
   }
 
   /*
-    If it was found that some of the created condition parts are knowingly
-    true or false equalities the method calls removes_eq_cond() to remove them
-    from cond and set the cond_value to the appropriate value.
+    If it was found that there are some knowingly true or false equalities
+    remove them  from cond and set cond_value to the appropriate value.
   */
-  if (is_simplified_cond)
+  if (cond && is_simplified_cond)
     cond= cond->remove_eq_conds(thd, cond_value, true);
+
+  if (cond && cond->fix_fields_if_needed(thd, NULL))
+    return NULL;
 
   return cond;
 }
@@ -6889,10 +6963,14 @@ bool Item_in_subselect::pushdown_cond_for_in_subquery(THD *thd, Item *cond)
     remaining_cond->transform(thd,
                               &Item::in_subq_field_transformer_for_having,
                               (uchar *)this);
-  if (!remaining_cond)
+  if (!remaining_cond ||
+      remaining_cond->walk(&Item::cleanup_excluding_const_fields_processor,
+                           0, 0))
     goto exit;
 
-  sel->mark_or_conds_to_avoid_pushdown(remaining_cond);
+  mark_or_conds_to_avoid_pushdown(remaining_cond);
+
+  sel->cond_pushed_into_having= remaining_cond;
 
 exit:
   thd->lex->current_select= save_curr_select;

@@ -486,3 +486,818 @@ EXPLAIN
 SELECT a FROM t1 WHERE b = 1 AND b = 2 GROUP BY a HAVING a <= 3;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18769: unfixed OR condition pushed from HAVING into WHERE
+--echo #
+
+CREATE TABLE t1(a INT, b INT, c INT);
+CREATE TABLE t3(a INT, b INT, c INT, d INT);
+
+INSERT INTO t1 VALUES (1,14,3), (2,13,2), (1,22,1), (3,13,4), (3,14,2);
+INSERT INTO t3 VALUES (1,2,16,1), (1,3,11,2), (2,3,10,2);
+
+--echo # nothing to push
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a
+HAVING t1.b = 13 AND MAX(t1.c) > 2;
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a
+HAVING t1.b = 13 AND MAX(t1.c) > 2;
+eval $no_pushdown explain format=json $query;
+
+--echo # extracted AND formula
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.b
+HAVING (t1.a = 1 OR t1.b > 10) AND (t1.b < 14);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 1 OR t1.b > 10) AND (t1.b < 14)
+GROUP BY t1.a,t1.b;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.b
+HAVING (t1.a = 1 OR t1.b > 10) AND (t1.b < 14 OR t1.b > 15);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 1 OR t1.b > 10) AND (t1.b < 14 OR t1.b > 15)
+GROUP BY t1.a,t1.b;
+eval $no_pushdown explain format=json $query;
+
+--echo # extracted AND formula : equality in the inner AND formula
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.b
+HAVING (t1.a = 1 OR t1.b > 10) AND (t1.b < 14 OR (t1.b > 15 AND t1.a = 2));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 1 OR t1.b > 10) AND (t1.b < 14 OR (t1.b > 15 AND t1.a = 2))
+GROUP BY t1.a,t1.b;
+eval $no_pushdown explain format=json $query;
+
+--echo # extracted OR formula
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.b
+HAVING (t1.a < 2) OR (t1.b = 13 AND t1.a > 2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a < 2) OR (t1.b = 13 AND t1.a > 2)
+GROUP BY t1.a,t1.b;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.b
+HAVING (t1.a < 2 AND t1.b = 14) OR (t1.a > 2 AND t1.b = 13);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a < 2 AND t1.b = 14) OR (t1.a > 2 AND t1.b = 13)
+GROUP BY t1.a,t1.b;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.b
+HAVING (t1.a < 2 AND t1.b = 14) OR (t1.a > 2 AND (t1.b = 13 OR t1.b = 14));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a < 2 AND t1.b = 14) OR (t1.a > 2 AND (t1.b = 13 OR t1.b = 14))
+GROUP BY t1.a,t1.b;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a
+HAVING (t1.a < 2 AND MAX(t1.c) = 2) OR (MAX(t1.c) > 2 AND (t1.a = 1 OR t1.a = 2));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a < 2) OR (t1.a = 1 OR t1.a = 2)
+GROUP BY t1.a
+HAVING (t1.a < 2 AND MAX(t1.c) = 2) OR (MAX(t1.c) > 2 AND (t1.a = 1 OR t1.a = 2));
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a
+HAVING (t1.a = 2 AND MAX(t1.c) = 2) OR (MAX(t1.c) > 2 AND (t1.a = 1 OR t1.a = 2));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 2) OR (t1.a = 1 OR t1.a = 2)
+GROUP BY t1.a
+HAVING (t1.a = 2 AND MAX(t1.c) = 2) OR (MAX(t1.c) > 2 AND (t1.a = 1 OR t1.a = 2));
+eval $no_pushdown explain format=json $query;
+
+--echo # conjunctive subformula : equality pushdown
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a
+HAVING (t1.a = 1) AND (MAX(t1.c) = 3);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 1)
+GROUP BY t1.a
+HAVING (MAX(t1.c) = 3);
+eval $no_pushdown explain format=json $query;
+
+--echo # conjunctive subformula : equalities pushdown
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.c
+HAVING (t1.a = 1) AND (t1.c = 3) AND MAX(t1.b = 14);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 1) AND (t1.c = 3)
+GROUP BY t1.a,t1.c
+HAVING (MAX(t1.b) = 14);
+eval $no_pushdown explain format=json $query;
+
+--echo # conjunctive subformula : multiple equality consists of
+--echo                            two equalities pushdown
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+GROUP BY t1.a,t1.c
+HAVING (t1.a = 1) AND (t1.c = 1) AND MAX(t1.b = 14);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 1) AND (t1.c = 1)
+GROUP BY t1.a,t1.c
+HAVING (MAX(t1.b) = 14);
+eval $no_pushdown explain format=json $query;
+
+--echo #
+--echo #  Pushdown from HAVING into non-empty WHERE
+--echo #
+
+--echo # inequality : inequality in WHERE
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b > 2)
+GROUP BY t1.a
+HAVING (t1.a < 3);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b > 2) AND (t1.a < 3)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # equality : inequality in WHERE
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b > 2)
+GROUP BY t1.a
+HAVING (t1.a = 3);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b > 2) AND (t1.a = 3)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # inequality : equality in WHERE
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b = 14)
+GROUP BY t1.a
+HAVING (t1.a < 3);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b = 14) AND (t1.a < 3)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # equality : equality in WHERE
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b = 14)
+GROUP BY t1.a
+HAVING (t1.a = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,t1.b,MAX(t1.c)
+FROM t1
+WHERE (t1.b = 14) AND (t1.a = 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # equality : equality in WHERE, impossible WHERE
+let $query=
+SELECT t1.a,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 3)
+GROUP BY t1.a
+HAVING (t1.a = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.c)
+FROM t1
+WHERE (t1.a = 3) AND (t1.a = 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # equality : equality in WHERE (equal through constant)
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.c = 1)
+GROUP BY t1.a
+HAVING (t1.a = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.c = 1) AND (t1.a = 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # inequality : AND formula in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.c > 0) AND (t1.c < 3)
+GROUP BY t1.a
+HAVING (t1.a > 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.c > 0) AND (t1.c < 3) AND (t1.a > 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # equality : AND formula in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.c > 0) AND (t1.c < 3)
+GROUP BY t1.a
+HAVING (t1.a = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.c > 0) AND (t1.c < 3) AND (t1.a = 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # equality : AND formula in WHERE, impossible WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 0) AND (t1.c < 3)
+GROUP BY t1.a
+HAVING (t1.a = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 0) AND (t1.c < 3) AND (t1.a = 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,MAX(t1.b)
+FROM t1
+WHERE (t1.a = 0) AND (t1.a = 3)
+GROUP BY t1.a
+HAVING (t1.a = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b)
+FROM t1
+WHERE (t1.a = 0) AND (t1.a = 3) AND (t1.a = 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t3.a,t3.b,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.b = 2) AND (t3.d = 1)
+GROUP BY t3.a,t3.b,t3.d
+HAVING (t3.a = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t3.a,t3.b,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.b = 2) AND (t3.d = 1) AND (t3.a = 1)
+GROUP BY t3.a,t3.b,t3.d;
+eval $no_pushdown explain format=json $query;
+
+--echo # inequality : OR formula in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1) OR (t1.c < 3)
+GROUP BY t1.a
+HAVING (t1.a < 2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE ((t1.a > 1) OR (t1.c < 3)) AND (t1.a < 2)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,MAX(t1.b)
+FROM t1
+WHERE (t1.a = 1) OR (t1.a = 3)
+GROUP BY t1.a
+HAVING (t1.a = 2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b)
+FROM t1
+WHERE ((t1.a = 1) OR (t1.a = 3)) AND (t1.a = 2)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # AND formula : inequality in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1)
+GROUP BY t1.a
+HAVING (t1.a < 4) AND (t1.a > 0);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1) AND (t1.a < 4) AND (t1.a > 0)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # AND formula : equality in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1)
+GROUP BY t1.a
+HAVING (t1.a < 4) AND (t1.a > 0);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.a < 4) AND (t1.a > 0)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # OR formula : inequality in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1)
+GROUP BY t1.a
+HAVING (t1.a < 4) OR (t1.a > 0);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1) AND ((t1.a < 4) OR (t1.a > 0))
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # OR formula : equality in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1)
+GROUP BY t1.a
+HAVING (t1.a < 4) OR (t1.a > 0);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND ((t1.a < 4) OR (t1.a > 0))
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # AND formula : AND formula in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1) AND (t1.c < 3)
+GROUP BY t1.a
+HAVING (t1.a < 4) AND (t1.c > 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE ((t1.a > 1) AND (t1.c < 3)) AND
+      (t1.a < 4)
+GROUP BY t1.a
+HAVING (t1.c > 1);
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.c < 3)
+GROUP BY t1.a,t1.c
+HAVING (t1.a < 4) AND (t1.c > 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE ((t1.a = 1) AND (t1.c < 3)) AND
+      ((t1.a < 4) AND (t1.c > 1))
+GROUP BY t1.a,t1.c;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.c = 3)
+GROUP BY t1.a,t1.c
+HAVING (t1.a < 4) AND (t1.c > 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE ((t1.a = 1) AND (t1.c = 3)) AND
+      ((t1.a < 4) AND (t1.c > 1))
+GROUP BY t1.a,t1.c;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t3.a,t3.b,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.a = 1) AND (t3.d = 1)
+GROUP BY t3.a,t3.b
+HAVING (t3.b = 2) AND (t3.d > 0);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t3.a,t3.b,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.a = 1) AND (t3.d = 1) AND
+      (t3.b = 2)
+GROUP BY t3.a,t3.b
+HAVING (t3.d > 0);
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t3.a,t3.b,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.a = 1) AND (t3.d = 1)
+GROUP BY t3.a,t3.b,t3.d
+HAVING (t3.b = 2) AND (t3.d > 0);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t3.a,t3.b,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.a = 1) AND (t3.d = 1) AND
+      (t3.b = 2) AND (t3.d > 0)
+GROUP BY t3.a,t3.b,t3.d;
+eval $no_pushdown explain format=json $query;
+
+--echo # AND formula : OR formula in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1) OR (t1.c < 3)
+GROUP BY t1.a
+HAVING (t1.a < 4) AND (t1.c > 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE ((t1.a > 1) OR (t1.c < 3)) AND
+      (t1.a < 4)
+GROUP BY t1.a
+HAVING (t1.c > 1);
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a > 1) OR (t1.c < 3)
+GROUP BY t1.a,t1.c
+HAVING (t1.a < 4) AND (t1.c > 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE ((t1.a > 1) OR (t1.c < 3)) AND
+      (t1.a < 4) AND (t1.c > 1)
+GROUP BY t1.a,t1.c;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) OR (t1.a = 3)
+GROUP BY t1.a,t1.c
+HAVING (t1.a = 4) OR (t1.c > 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE ((t1.a = 1) OR (t1.a = 3)) AND
+      ((t1.a = 4) OR (t1.c > 1))
+GROUP BY t1.a,t1.c;
+eval $no_pushdown explain format=json $query;
+
+--echo # equality : pushdown through equality in WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.a = t1.c)
+GROUP BY t1.a
+HAVING (t1.c = 1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.a = t1.c) AND (t1.c = 1)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # OR formula : pushdown through equality
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.a = t1.c)
+GROUP BY t1.a
+HAVING (t1.c = 1) OR (t1.c = 2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.a = t1.c) AND
+      ((t1.c = 1) OR (t1.c = 2))
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # OR formula : pushdown through equality, impossible WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.a = t1.c)
+GROUP BY t1.a
+HAVING (t1.c = 3) OR (t1.c = 2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.a = t1.c) AND
+      ((t1.c = 3) OR (t1.c = 2))
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # AND formula : pushdown through equality, impossible WHERE
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1)
+GROUP BY t1.a,t1.c
+HAVING (t1.c = 3) AND (t1.a > 2) AND (t1.a = t1.c);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.c = 3) AND
+      (t1.a > 2) AND (t1.a = t1.c)
+GROUP BY t1.a,t1.c;
+eval $no_pushdown explain format=json $query;
+
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1)
+GROUP BY t1.a
+HAVING (t1.c = 3) AND (t1.a > 2) AND (t1.a = t1.c);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+WHERE (t1.a = 1) AND (t1.c = 3) AND
+      (t1.a > 2) AND (t1.a = t1.c)
+GROUP BY t1.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # AND formula with OR subformula : AND condition in WHERE
+let $query=
+SELECT t3.a,MAX(t3.b),t3.c,t3.d
+FROM t3
+WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2))
+GROUP BY t3.a
+HAVING (t3.a = t3.d) AND ((t3.d = 1) OR (t3.d > 1));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t3.a,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2)) AND
+      (t3.a = t3.d) AND ((t3.d = 1) OR (t3.d > 1))
+GROUP BY t3.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # AND formula with OR subformula : AND condition in WHERE
+let $query=
+SELECT t3.a,MAX(t3.b),t3.c,t3.d
+FROM t3
+WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2))
+GROUP BY t3.a
+HAVING (t3.a = t3.d) AND (((t3.d = t3.c) AND (t3.c < 15)) OR (t3.d > 1));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+let $query=
+SELECT t3.a,t3.b,MAX(t3.c),t3.d
+FROM t3
+WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2)) AND
+      (t3.a = t3.d) AND (((t3.d = t3.c) AND (t3.c < 15)) OR (t3.d > 1))
+GROUP BY t3.a;
+eval $no_pushdown explain format=json $query;
+
+--echo # prepare statement
+PREPARE stmt1 from "
+SELECT t1.a,MAX(t1.b),t1.c
+FROM t1
+GROUP BY t1.a
+HAVING (t1.a = 1)
+";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+DROP TABLE t1,t3;

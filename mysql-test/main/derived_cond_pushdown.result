@@ -8218,12 +8218,10 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "<subquery2>",
-      "access_type": "system",
-      "rows": 1,
-      "filtered": 100,
-      "materialized": {
-        "unique": 1,
+      "message": "Impossible WHERE"
+    },
+    "subqueries": [
+      {
         "query_block": {
           "select_id": 2,
           "table": {
@@ -8231,26 +8229,7 @@ EXPLAIN
           }
         }
       }
-    },
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "v1.c = NULL",
-      "materialized": {
-        "query_block": {
-          "select_id": 3,
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100,
-            "attached_condition": "t1.c = NULL"
-          }
-        }
-      }
-    }
+    ]
   }
 }
 DROP VIEW v1;

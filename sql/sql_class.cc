@@ -865,7 +865,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
   org_charset= 0;
-  having_pushdown= FALSE;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
 }

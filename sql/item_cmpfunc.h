@@ -3012,7 +3012,6 @@ public:
   Item *build_clone(THD *thd);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
-  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;
@@ -3200,13 +3199,14 @@ public:
     return used_tables() & tab_map;
   }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
-  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel);
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool create_pushable_equalities(THD *thd, List<Item> *equalities,
                                   Pushdown_checker checker, uchar *arg);
   /* Return the number of elements in this multiple equality */
   uint elements_count() { return equal_items.elements; }
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(void *arg);
+  Item *multiple_equality_transformer(THD *thd, uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(THD *thd, COND *cond,

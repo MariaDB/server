@@ -1870,9 +1870,11 @@ public:
     Not to be used for AND/OR formulas.
   */
   virtual bool excl_dep_on_table(table_map tab_map) { return false; }
-  /* 
+  /*
     TRUE if the expression depends only on grouping fields of sel
-    or can be converted to such an exression using equalities.
+    or can be converted to such an expression using equalities.
+    It also checks if the expression doesn't contain stored procedures,
+    subqueries or randomly generated elements.
     Not to be used for AND/OR formulas.
   */
   virtual bool excl_dep_on_grouping_fields(st_select_lex *sel)
@@ -1883,15 +1885,6 @@ public:
     Not to be used for AND/OR formulas.
   */
   virtual bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
-  { return false; }
-  /*
-    TRUE if the expression depends only on grouping fields of sel
-    or can be converted to such an expression using equalities.
-    It also checks if the expression doesn't contain stored procedures,
-    subqueries or randomly generated elements.
-    Not to be used for AND/OR formulas.
-  */
-  virtual bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
   { return false; }
 
   virtual bool switch_to_nullable_fields_processor(void *arg) { return 0; }
@@ -2089,6 +2082,10 @@ public:
   { return this; }
   virtual Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg)
   { return this; }
+  virtual Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
+  { return this; }
+  virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
+  { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const
@@ -2269,6 +2266,11 @@ public:
   */
   virtual void under_not(Item_func_not * upper
                          __attribute__((unused))) {};
+  /*
+    If Item_field is wrapped in Item_direct_wrep remove this Item_direct_ref
+    wrapper.
+  */
+  virtual Item *remove_item_direct_ref() { return this; }
 	
 
   void register_in(THD *thd);	 
@@ -2309,24 +2311,6 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
-  /*
-    Checks if this item is of the type FIELD_ITEM or REF_ITEM so it
-    can be pushed as the part of the equality into the WHERE clause.
-  */
-  bool pushable_equality_checker_for_having_pushdown(uchar *arg);
-  /*
-    Checks if this item consists in the GROUP BY of the SELECT arg
-  */
-  bool dep_on_grouping_fields_checker(uchar *arg)
-  { return excl_dep_on_grouping_fields((st_select_lex *) arg); }
-  /*
-    Checks if this item consists in the GROUP BY of the SELECT arg
-    with respect to the pushdown from HAVING into WHERE clause limitations.
-  */
-  bool dep_on_grouping_fields_checker_for_having_pushdown(uchar *arg)
-  {
-    return excl_dep_on_group_fields_for_having_pushdown((st_select_lex *) arg);
-  }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -2504,17 +2488,7 @@ protected:
     }
     return true;
   }
-  bool excl_dep_on_grouping_fields(st_select_lex *sel)
-  {
-    for (uint i= 0; i < arg_count; i++)
-    {
-      if (args[i]->const_item())
-        continue;
-      if (!args[i]->excl_dep_on_grouping_fields(sel))
-        return false;
-    }
-    return true;
-  }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool eq(const Item_args *other, bool binary_cmp) const
   {
     for (uint i= 0; i < arg_count ; i++)
@@ -2535,7 +2509,6 @@ protected:
     }
     return true;
   }
-  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel);
 public:
   Item_args(void)
     :args(NULL), arg_count(0)
@@ -3450,8 +3423,6 @@ public:
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
-  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
-  { return excl_dep_on_grouping_fields(sel); }
   bool cleanup_excluding_fields_processor(void *arg)
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
@@ -5342,8 +5313,6 @@ public:
   { return (*ref)->excl_dep_on_grouping_fields(sel); }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
   { return (*ref)->excl_dep_on_in_subq_left_part(subq_pred); }
-  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
-  { return (*ref)->excl_dep_on_group_fields_for_having_pushdown(sel); }
   bool cleanup_excluding_fields_processor(void *arg)
   {
     Item *item= real_item();
@@ -5362,6 +5331,13 @@ public:
   }
   bool with_sum_func() const { return m_with_sum_func; }
   With_sum_func_cache* get_with_sum_func_cache() { return this; }
+  Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
+  { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
+  Item *remove_item_direct_ref()
+  {
+    *ref= (*ref)->remove_item_direct_ref();
+    return this;
+  }
 };
 
 
@@ -5406,6 +5382,8 @@ public:
   virtual Ref_Type ref_type() { return DIRECT_REF; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_direct_ref>(thd, this); }
+  Item *remove_item_direct_ref()
+  { return (*ref)->remove_item_direct_ref(); }
 };
 
 
@@ -5658,7 +5636,6 @@ public:
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
-  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
   Item *grouping_field_transformer_for_where(THD *thd, uchar *arg);
@@ -5754,6 +5731,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
+  Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
+  { return this; }
 };
 
 

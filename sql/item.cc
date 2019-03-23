@@ -2832,8 +2832,6 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
 Item* Item_ref::build_clone(THD *thd)
 {
-  if (thd->having_pushdown)
-    return real_item()->build_clone(thd);
   Item_ref *copy= (Item_ref *) get_copy(thd);
   if (unlikely(!copy) ||
       unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
@@ -7195,8 +7193,9 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     Build condition extractable from this condition for pushdown
 
   @param thd      the thread handle
-  @param checker  the checker callback function to be applied to the
-                  equal items of multiple equality items
+  @param checker  the checker callback function to be applied to the nodes
+                  of the tree of the object to check if multiple equality
+                  elements can be used to create equalities
   @param arg      parameter to be passed to the checker
 
   @details
@@ -7299,19 +7298,6 @@ Item *Item::build_pushable_cond(THD *thd,
                                                          checker, arg) ||
         (equalities.elements == 0))
       return 0;
-
-    if (thd->having_pushdown)
-    {
-      /* Creates multiple equalities from equalities that can be pushed */
-      Item::cond_result cond_value;
-      COND_EQUAL *cond_equal= new (thd->mem_root) COND_EQUAL();
-      new_cond= and_new_conditions_to_optimized_cond(thd, new_cond,
-                                                     &cond_equal,
-                                                     equalities,
-                                                     &cond_value,
-                                                     false);
-      return new_cond;
-    }
 
     switch (equalities.elements)
     {
@@ -7481,15 +7467,6 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
     return producing_clone;
   }
   return this;
-}
-
-
-bool Item::pushable_equality_checker_for_having_pushdown(uchar *arg)
-{
-  return (type() == Item::FIELD_ITEM ||
-          (type() == Item::REF_ITEM &&
-          ((((Item_ref *) this)->ref_type() == Item_ref::VIEW_REF) ||
-          (((Item_ref *) this)->ref_type() == Item_ref::REF))));
 }
 
 
@@ -9079,18 +9056,7 @@ bool Item_direct_view_ref::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
-bool Item_direct_view_ref::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
-{
-  if (item_equal)
-  {
-    DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
-    return (find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL);
-  }
-  return (*ref)->excl_dep_on_group_fields_for_having_pushdown(sel);
-}
-
-
-bool Item_args::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   for (uint i= 0; i < arg_count; i++)
   {
@@ -9100,7 +9066,7 @@ bool Item_args::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
       return false;
     if (args[i]->const_item())
       continue;
-    if (!args[i]->excl_dep_on_group_fields_for_having_pushdown(sel))
+    if (!args[i]->excl_dep_on_grouping_fields(sel))
       return false;
   }
   return true;

@@ -47,7 +47,6 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived);
 bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived);
 bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived);
 
-
 dt_processor processors[]=
 {
   &mysql_derived_init,
@@ -1463,7 +1462,13 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (!remaining_cond)
       continue;
 
-    sl->mark_or_conds_to_avoid_pushdown(remaining_cond);
+    if (remaining_cond->walk(&Item::cleanup_excluding_const_fields_processor,
+                             0, 0))
+      continue;
+
+    mark_or_conds_to_avoid_pushdown(remaining_cond);
+
+    sl->cond_pushed_into_having= remaining_cond;
   }
   thd->lex->current_select= save_curr_select;
   DBUG_RETURN(false);
