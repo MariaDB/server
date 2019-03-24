@@ -1540,7 +1540,7 @@ struct dict_table_t {
 	bool versioned() const { return vers_start || vers_end; }
 	bool versioned_by_id() const
 	{
-		return vers_start && cols[vers_start].mtype == DATA_INT;
+		return versioned() && cols[vers_start].mtype == DATA_INT;
 	}
 
 	void inc_fk_checks()
