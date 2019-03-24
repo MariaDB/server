@@ -512,4 +512,16 @@ alter table t
   with system versioning;
 set autocommit= 1;
 
+--echo # MDEV-18865 Assertion `t->first->versioned_by_id()'
+--echo # failed in innodb_prepare_commit_versioned
+
+create or replace table t (x int) engine=innodb;
+insert into t values (0);
+alter table t add `row_start` bigint unsigned as row start,
+              add `row_end` bigint unsigned as row end,
+              add period for system_time(`row_start`,`row_end`),
+              modify x int after row_start,
+              with system versioning;
+
+
 create or replace database test;
