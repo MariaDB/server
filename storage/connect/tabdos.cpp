@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.3                                                      */
+/*  Version 4.9.4                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2019    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -2493,8 +2493,8 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 
   // Allocate the buffer used in WriteColumn for numeric columns
 	if (!Buf && IsTypeNum(Buf_Type))
-		Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(32, Long + 1));
-	else
+		Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(64, Long + 1));
+	else // Text columns do not need additional buffer
 		Buf = (char*)Value->GetTo_Val();
 
   // Because Colblk's have been made from a copy of the original TDB in
@@ -2709,7 +2709,9 @@ void DOSCOL::WriteColumn(PGLOBAL g)
       htrc("new length(%p)=%d\n", Buf, n);
 
     if ((len = n) > field) {
-      sprintf(g->Message, MSG(VALUE_TOO_LONG), Buf, Name, field);
+			char *p = Value->GetCharString(Buf);
+
+      sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, field);
 			throw 31;
 		} else if (Dsp)
       for (i = 0; i < len; i++)
