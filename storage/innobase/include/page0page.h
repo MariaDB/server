@@ -175,7 +175,7 @@ inline
 page_t*
 page_align(const void* ptr)
 {
-	return(static_cast<page_t*>(ut_align_down(ptr, UNIV_PAGE_SIZE)));
+	return(static_cast<page_t*>(ut_align_down(ptr, srv_page_size)));
 }
 
 /** Gets the byte offset within a page frame.
@@ -186,7 +186,7 @@ inline
 ulint
 page_offset(const void*	ptr)
 {
-	return(ut_align_offset(ptr, UNIV_PAGE_SIZE));
+	return(ut_align_offset(ptr, srv_page_size));
 }
 
 /** Determine whether an index page is not in ROW_FORMAT=REDUNDANT.
@@ -286,7 +286,7 @@ page_rec_is_user_rec_low(ulint offset)
 	compile_time_assert(PAGE_NEW_SUPREMUM < PAGE_OLD_SUPREMUM_END);
 	compile_time_assert(PAGE_OLD_SUPREMUM < PAGE_NEW_SUPREMUM_END);
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 
 	return(offset != PAGE_NEW_SUPREMUM
 	       && offset != PAGE_NEW_INFIMUM
@@ -302,7 +302,7 @@ bool
 page_rec_is_supremum_low(ulint offset)
 {
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 	return(offset == PAGE_NEW_SUPREMUM || offset == PAGE_OLD_SUPREMUM);
 }
 
@@ -314,7 +314,7 @@ bool
 page_rec_is_infimum_low(ulint offset)
 {
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 	return(offset == PAGE_NEW_INFIMUM || offset == PAGE_OLD_INFIMUM);
 }
 
@@ -455,7 +455,7 @@ page_header_set_field(
 Returns the offset stored in the given header field.
 @return offset from the start of the page, or 0 */
 UNIV_INLINE
-ulint
+uint16_t
 page_header_get_offs(
 /*=================*/
 	const page_t*	page,	/*!< in: page */
@@ -549,7 +549,7 @@ Gets the number of user records on page (the infimum and supremum records
 are not user records).
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_n_recs(
 /*============*/
 	const page_t*	page);	/*!< in: index page */
@@ -567,7 +567,7 @@ page_rec_get_n_recs_before(
 Gets the number of records in the heap.
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_heap(
 /*================*/
 	const page_t*	page);	/*!< in: index page */
@@ -588,7 +588,7 @@ page_dir_set_n_heap(
 Gets the number of dir slots in directory.
 @return number of slots */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_slots(
 /*=================*/
 	const page_t*	page);	/*!< in: index page */
@@ -614,7 +614,7 @@ page_dir_get_nth_slot(
 	ulint		n);	/*!< in: position */
 #else /* UNIV_DEBUG */
 # define page_dir_get_nth_slot(page, n)			\
-	((page) + (UNIV_PAGE_SIZE - PAGE_DIR		\
+	((page) + (srv_page_size - PAGE_DIR		\
 		   - (n + 1) * PAGE_DIR_SLOT_SIZE))
 #endif /* UNIV_DEBUG */
 /**************************************************************//**
@@ -868,7 +868,7 @@ Returns the sum of the sizes of the records in the record list
 excluding the infimum and supremum records.
 @return data in bytes */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_data_size(
 /*===============*/
 	const page_t*	page);	/*!< in: index page */
