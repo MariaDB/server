@@ -1062,18 +1062,13 @@ btr_page_get_father_block(
 	return(btr_page_get_father_node_ptr(offsets, heap, cursor, mtr));
 }
 
-/************************************************************//**
-Seeks to the upper level node pointer to a page.
-It is assumed that mtr holds an x-latch on the tree. */
-static
-void
-btr_page_get_father(
-/*================*/
-	dict_index_t*	index,	/*!< in: b-tree index */
-	buf_block_t*	block,	/*!< in: child page in the index */
-	mtr_t*		mtr,	/*!< in: mtr */
-	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
-				its page x-latched */
+/** Seek to the parent page of a B-tree page.
+@param[in,out]	index	b-tree
+@param[in]	block	child page
+@param[in,out]	mtr	mini-transaction
+@param[out]	cursor	cursor pointing to the x-latched parent page */
+void btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
+			 btr_cur_t* cursor)
 {
 	mem_heap_t*	heap;
 	rec_t*		rec
@@ -3470,33 +3465,6 @@ btr_set_min_rec_mark(
 }
 
 /*************************************************************//**
-Deletes on the upper level the node pointer to a page. */
-void
-btr_node_ptr_delete(
-/*================*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: page whose node pointer is deleted */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	btr_cur_t	cursor;
-	ibool		compressed;
-	dberr_t		err;
-
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-
-	/* Delete node pointer on father page */
-	btr_page_get_father(index, block, mtr, &cursor);
-
-	compressed = btr_cur_pessimistic_delete(&err, TRUE, &cursor,
-						BTR_CREATE_FLAG, false, mtr);
-	ut_a(err == DB_SUCCESS);
-
-	if (!compressed) {
-		btr_cur_compress_if_useful(&cursor, FALSE, mtr);
-	}
-}
-
-/*************************************************************//**
 If page is the only on its level, this function moves its records to the
 father page, thus reducing the tree height.
 @return father block */
@@ -3952,7 +3920,7 @@ retry:
 			lock_rec_free_all_from_discard_page(block);
 			lock_mutex_exit();
 		} else {
-			btr_node_ptr_delete(index, block, mtr);
+			btr_cur_node_ptr_delete(&father_cursor, mtr);
 			if (!dict_table_is_locking_disabled(index->table)) {
 				lock_update_merge_left(
 					merge_block, orig_pred, block);
@@ -4225,8 +4193,9 @@ err_exit:
 /*************************************************************//**
 Discards a page that is the only page on its level.  This will empty
 the whole B-tree, leaving just an empty root page.  This function
-should never be reached, because btr_compress(), which is invoked in
+should almost never be reached, because btr_compress(), which is invoked in
 delete operations, calls btr_lift_page_up() to flatten the B-tree. */
+ATTRIBUTE_COLD
 static
 void
 btr_discard_only_page_on_level(
@@ -4331,10 +4300,7 @@ btr_discard_page(
 	buf_block_t*	block;
 	page_t*		page;
 	rec_t*		node_ptr;
-#ifdef UNIV_DEBUG
 	btr_cur_t	parent_cursor;
-	bool		parent_is_different = false;
-#endif
 
 	block = btr_cur_get_block(cursor);
 	index = btr_cur_get_index(cursor);
@@ -4348,13 +4314,11 @@ btr_discard_page(
 
 	MONITOR_INC(MONITOR_INDEX_DISCARD);
 
-#ifdef UNIV_DEBUG
 	if (dict_index_is_spatial(index)) {
 		rtr_page_get_father(index, block, mtr, cursor, &parent_cursor);
 	} else {
 		btr_page_get_father(index, block, mtr, &parent_cursor);
 	}
-#endif
 
 	/* Decide the page which will inherit the locks */
 
@@ -4362,7 +4326,7 @@ btr_discard_page(
 	right_page_no = btr_page_get_next(buf_block_get_frame(block), mtr);
 
 	const page_size_t	page_size(index->table->space->flags);
-
+	ut_d(bool parent_is_different = false);
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(
 			page_id_t(index->table->space_id, left_page_no),
@@ -4418,15 +4382,9 @@ btr_discard_page(
 	}
 
 	if (dict_index_is_spatial(index)) {
-		btr_cur_t	father_cursor;
-
-		/* Since rtr_node_ptr_delete doesn't contain get father
-		node ptr, so, we need to get father node ptr first and then
-		delete it. */
-		rtr_page_get_father(index, block, mtr, cursor, &father_cursor);
-		rtr_node_ptr_delete(&father_cursor, mtr);
+		rtr_node_ptr_delete(&parent_cursor, mtr);
 	} else {
-		btr_node_ptr_delete(index, block, mtr);
+		btr_cur_node_ptr_delete(&parent_cursor, mtr);
 	}
 
 	/* Remove the page from the level list */
@@ -4465,6 +4423,12 @@ btr_discard_page(
 	we cannot use btr_check_node_ptr() */
 	ut_ad(parent_is_different
 	      || btr_check_node_ptr(index, merge_block, mtr));
+
+	if (btr_cur_get_block(&parent_cursor)->page.id.page_no() == index->page
+	    && !page_has_siblings(btr_cur_get_page(&parent_cursor))
+	    && page_get_n_recs(btr_cur_get_page(&parent_cursor)) == 1) {
+		btr_lift_page_up(index, merge_block, mtr);
+	}
 }
 
 #ifdef UNIV_BTR_PRINT
