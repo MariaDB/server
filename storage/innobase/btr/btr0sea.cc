@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -80,7 +80,7 @@ btr_search_sys_t*	btr_search_sys;
 /** If the number of records on the page divided by this parameter
 would have been successfully accessed using a hash index, the index
 is then built on the page, assuming the global limit has been reached */
-#define BTR_SEARCH_PAGE_BUILD_LIMIT	16
+#define BTR_SEARCH_PAGE_BUILD_LIMIT	16U
 
 /** The global limit for consecutive potentially successful hash searches,
 before hash index building is started */
@@ -570,7 +570,7 @@ btr_search_update_block_hash_info(
 
 		if ((!block->index)
 		    || (block->n_hash_helps
-			> 2 * page_get_n_recs(block->frame))
+			> 2U * page_get_n_recs(block->frame))
 		    || (block->n_fields != block->curr_n_fields)
 		    || (block->n_bytes != block->curr_n_bytes)
 		    || (block->left_side != block->curr_left_side)) {
