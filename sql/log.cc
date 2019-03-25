@@ -2481,11 +2481,19 @@ static void setup_windows_event_source()
   exceeds FN_REFLEN; (ii) if the number of extensions is exhausted;
   or (iii) some other error happened while examining the filesystem.
 
+  @param name                   Base name of file
+  @param min_log_number_to_use  minimum log number to choose. Set by
+                                CHANGE MASTER .. TO
+  @param last_used_log_number   If 0, find log number based on files.
+                                If not 0, then use *last_used_log_number +1
+                                Will be update to new generated number
   @return
+    0       ok
     nonzero if not possible to get unique filename.
 */
 
-static int find_uniq_filename(char *name, ulong next_log_number)
+static int find_uniq_filename(char *name, ulong min_log_number_to_use,
+                              ulong *last_used_log_number)
 {
   uint                  i;
   char                  buff[FN_REFLEN], ext_buf[FN_REFLEN];
@@ -2504,24 +2512,34 @@ static int find_uniq_filename(char *name, ulong next_log_number)
   *end='.';
   length= (size_t) (end - start + 1);
 
-  if ((DBUG_EVALUATE_IF("error_unique_log_filename", 1, 
-                        unlikely(!(dir_info= my_dir(buff,
-                                                    MYF(MY_DONT_SORT)))))))
-  {						// This shouldn't happen
-    strmov(end,".1");				// use name+1
-    DBUG_RETURN(1);
-  }
-  file_info= dir_info->dir_entry;
-  max_found= next_log_number ? next_log_number-1 : 0;
-  for (i= dir_info->number_of_files ; i-- ; file_info++)
+  /* The following matches the code for my_dir () below */
+  DBUG_EXECUTE_IF("error_unique_log_filename",
+                  {
+                    strmov(end,".1");
+                    DBUG_RETURN(1);
+                  });
+
+  if (*last_used_log_number)
+    max_found= *last_used_log_number;
+  else
   {
-    if (strncmp(file_info->name, start, length) == 0 &&
-	test_if_number(file_info->name+length, &number,0))
-    {
-      set_if_bigger(max_found,(ulong) number);
+    if (unlikely(!(dir_info= my_dir(buff, MYF(MY_DONT_SORT)))))
+    {						// This shouldn't happen
+      strmov(end,".1");				// use name+1
+      DBUG_RETURN(1);
     }
+    file_info= dir_info->dir_entry;
+    max_found= min_log_number_to_use ? min_log_number_to_use-1 : 0;
+    for (i= dir_info->number_of_files ; i-- ; file_info++)
+    {
+      if (strncmp(file_info->name, start, length) == 0 &&
+          test_if_number(file_info->name+length, &number,0))
+      {
+        set_if_bigger(max_found,(ulong) number);
+      }
+    }
+    my_dirend(dir_info);
   }
-  my_dirend(dir_info);
 
   /* check if reached the maximum possible extension number */
   if (max_found >= MAX_LOG_UNIQUE_FN_EXT)
@@ -2560,6 +2578,7 @@ index files.", name, ext_buf, (strlen(ext_buf) + (end - name)));
     error= 1;
     goto end;
   }
+  *last_used_log_number= next;
 
   /* print warning if reaching the end of available extensions. */
   if ((next > (MAX_LOG_UNIQUE_FN_EXT - LOG_WARN_UNIQUE_FN_EXT_LEFT)))
@@ -2811,19 +2830,24 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
                                  ulong next_log_number)
 {
   fn_format(new_name, log_name, mysql_data_home, "", 4);
-  if (log_type == LOG_BIN)
+  return 0;
+}
+
+int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
+                                     ulong next_log_number)
+{
+  fn_format(new_name, log_name, mysql_data_home, "", 4);
+  if (!fn_ext(log_name)[0])
   {
-    if (!fn_ext(log_name)[0])
+    if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
+        unlikely(find_uniq_filename(new_name, next_log_number,
+                                    &last_used_log_number)))
     {
-      if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
-          unlikely(find_uniq_filename(new_name, next_log_number)))
-      {
-        THD *thd= current_thd;
-        if (unlikely(thd))
-          my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
-        sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
-	return 1;
-      }
+      THD *thd= current_thd;
+      if (unlikely(thd))
+        my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
+      sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
+      return 1;
     }
   }
   return 0;
@@ -3223,7 +3247,8 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
 
 MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
   :reset_master_pending(0), mark_xid_done_waiting(0),
-   bytes_written(0), file_id(1), open_count(1),
+   bytes_written(0), last_used_log_number(0),
+   file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
    group_commit_trigger_count(0), group_commit_trigger_timeout(0),
@@ -4203,6 +4228,8 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
   name=0;					// Protect against free
   close(LOG_CLOSE_TO_BE_OPENED);
 
+  last_used_log_number= 0;                      // Reset log number cache
+
   /*
     First delete all old log files and then update the index file.
     As we first delete the log files and do not use sort of logging,
@@ -5138,7 +5165,11 @@ bool MYSQL_BIN_LOG::is_active(const char *log_file_name_arg)
 
 int MYSQL_BIN_LOG::new_file()
 {
-  return new_file_impl(1);
+  int res;
+  mysql_mutex_lock(&LOCK_log);
+  res= new_file_impl();
+  mysql_mutex_unlock(&LOCK_log);
+  return res;
 }
 
 /*
@@ -5147,7 +5178,7 @@ int MYSQL_BIN_LOG::new_file()
  */
 int MYSQL_BIN_LOG::new_file_without_locking()
 {
-  return new_file_impl(0);
+  return new_file_impl();
 }
 
 
@@ -5163,7 +5194,7 @@ int MYSQL_BIN_LOG::new_file_without_locking()
     The new file name is stored last in the index file
 */
 
-int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
+int MYSQL_BIN_LOG::new_file_impl()
 {
   int error= 0, close_on_error= FALSE;
   char new_name[FN_REFLEN], *new_name_ptr, *old_name, *file_to_open;
@@ -5172,14 +5203,12 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   File UNINIT_VAR(old_file);
   DBUG_ENTER("MYSQL_BIN_LOG::new_file_impl");
 
-  if (need_lock)
-    mysql_mutex_lock(&LOCK_log);
+  DBUG_ASSERT(log_type == LOG_BIN);
   mysql_mutex_assert_owner(&LOCK_log);
 
   if (!is_open())
   {
     DBUG_PRINT("info",("log is closed"));
-    mysql_mutex_unlock(&LOCK_log);
     DBUG_RETURN(error);
   }
 
@@ -5198,7 +5227,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
 #ifdef ENABLE_AND_FIX_HANG
     close_on_error= TRUE;
 #endif
-    goto end;
+    goto end2;
   }
   new_name_ptr=new_name;
 
@@ -5301,7 +5330,14 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   my_free(old_name);
 
 end:
+  /* In case of errors, reuse the last generated log file name */
+  if (unlikely(error))
+  {
+    DBUG_ASSERT(last_used_log_number > 0);
+    last_used_log_number--;
+  }
 
+end2:
   if (delay_close)
   {
     clear_inuse_flag_when_closing(old_file);
@@ -5327,8 +5363,6 @@ end:
   }
 
   mysql_mutex_unlock(&LOCK_index);
-  if (need_lock)
-    mysql_mutex_unlock(&LOCK_log);
 
   DBUG_RETURN(error);
 }
