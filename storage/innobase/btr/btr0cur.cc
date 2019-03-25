@@ -5358,8 +5358,10 @@ btr_cur_pessimistic_delete(
 			on the page */
 			ulint level = btr_page_get_level(page, mtr);
 
-			btr_node_ptr_delete(index, block, mtr);
-
+			btr_cur_t cursor;
+			btr_page_get_father(index, block, mtr, &cursor);
+			btr_cur_node_ptr_delete(&cursor, mtr);
+			// FIXME: reuse the node_ptr from above
 			dtuple_t*	node_ptr = dict_index_build_node_ptr(
 				index, next_rec, block->page.id.page_no(),
 				heap, level);
@@ -5426,6 +5428,23 @@ return_after_reservations:
 	}
 
 	return(ret);
+}
+
+/** Delete the node pointer in a parent page.
+@param[in,out]	parent	cursor pointing to parent record
+@param[in,out]	mtr	mini-transaction */
+void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
+{
+	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(parent),
+				MTR_MEMO_PAGE_X_FIX));
+	dberr_t err;
+	ibool compressed = btr_cur_pessimistic_delete(&err, TRUE, parent,
+						      BTR_CREATE_FLAG, false,
+						      mtr);
+	ut_a(err == DB_SUCCESS);
+	if (!compressed) {
+		btr_cur_compress_if_useful(parent, FALSE, mtr);
+	}
 }
 
 /*******************************************************************//**
