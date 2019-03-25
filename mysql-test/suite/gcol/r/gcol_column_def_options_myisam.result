@@ -255,9 +255,9 @@ a	b	c
 4	-4	-3
 drop table t1;
 create table t1 (a int, b int generated always as(-b) virtual, c int generated always as (b + 1) virtual);
-ERROR 01000: Expression for field `b` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `b` is referring to uninitialized field `b`
 create table t1 (a int, b int generated always as(-c) virtual, c int generated always as (b + 1) virtual);
-ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
+ERROR 01000: Expression for field `b` is referring to uninitialized field `c`
 create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) stored, col_int_key int);
 ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the GENERATED ALWAYS AS clause of `pk`
 # Bug#20339347: FAIL TO USE CREATE ....SELECT STATEMENT TO CREATE A NEW TABLE
@@ -277,7 +277,7 @@ drop table t1,tt;
 #   THD->CHANGE_LIST.IS_EMPTY()
 #
 CREATE TABLE t1(a bigint AS (a between 1 and 1));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 # Bug#20757211: GENERATED COLUMNS: ALTER TABLE CRASHES
 #  IN FIND_FIELD_IN_TABLE
 #

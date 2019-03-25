@@ -764,9 +764,6 @@ struct TABLE_SHARE
   /* For sequence tables, the current sequence state */
   SEQUENCE *sequence;
 
-  /* Name of the tablespace used for this table */
-  char *tablespace;
-
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* filled in when reading from frm */
   bool auto_partitioned;
@@ -882,12 +879,6 @@ struct TABLE_SHARE
   {
     memcpy(key_buff, key, key_length);
     set_table_cache_key(key_buff, key_length);
-  }
-
-  inline bool honor_global_locks()
-  {
-    return ((table_category == TABLE_CATEGORY_USER)
-            || (table_category == TABLE_CATEGORY_SYSTEM));
   }
 
   inline bool require_write_privileges()

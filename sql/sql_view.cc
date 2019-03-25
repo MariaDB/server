@@ -1725,7 +1725,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     view_select->linkage= DERIVED_TABLE_TYPE;
     table->updatable= 0;
     table->effective_with_check= VIEW_CHECK_NONE;
-    old_lex->subqueries= TRUE;
 
     table->derived= &lex->unit;
   }

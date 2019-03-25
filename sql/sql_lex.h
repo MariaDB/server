@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -808,12 +808,6 @@ public:
   friend bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
   friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                               bool open_view_no_parse);
-  friend bool mysql_derived_prepare(THD *thd, LEX *lex,
-                                  TABLE_LIST *orig_table_list);
-  friend bool mysql_derived_merge(THD *thd, LEX *lex,
-                                  TABLE_LIST *orig_table_list);
-  friend bool TABLE_LIST::init_derived(THD *thd, bool init_view);
-
   friend class st_select_lex;
 private:
   void fast_exclude();
@@ -3302,7 +3296,7 @@ public:
 
   enum enum_yes_no_unknown tx_chain, tx_release;
   bool safe_to_cache_query;
-  bool subqueries, ignore;
+  bool ignore;
   bool next_is_main; // use "main" SELECT_LEX for nrxt allocation;
   bool next_is_down; // use "main" SELECT_LEX for nrxt allocation;
   st_parsing_options parsing_options;
@@ -3326,7 +3320,6 @@ public:
   sp_name *spname;
   bool sp_lex_in_use;   // Keep track on lex usage in SPs for error handling
   bool all_privileges;
-  bool proxy_priv;
 
   sp_pcontext *spcont;
 
@@ -4635,18 +4628,6 @@ public:
 };
 
 /**
-  Input parameters to the parser.
-*/
-struct Parser_input
-{
-  bool m_compute_digest;
-
-  Parser_input()
-    : m_compute_digest(false)
-  {}
-};
-
-/**
   Internal state of the parser.
   The complete state consist of:
   - state data used during lexical parsing,
@@ -4673,7 +4654,6 @@ public:
   ~Parser_state()
   {}
 
-  Parser_input m_input;
   Lex_input_stream m_lip;
   Yacc_state m_yacc;
 

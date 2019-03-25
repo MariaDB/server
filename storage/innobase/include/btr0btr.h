@@ -551,14 +551,13 @@ btr_set_min_rec_mark(
 	rec_t*	rec,	/*!< in/out: record */
 	mtr_t*	mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
-/*************************************************************//**
-Deletes on the upper level the node pointer to a page. */
-void
-btr_node_ptr_delete(
-/*================*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: page whose node pointer is deleted */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Seek to the parent page of a B-tree page.
+@param[in,out]	index	b-tree
+@param[in]	block	child page
+@param[in,out]	mtr	mini-transaction
+@param[out]	cursor	cursor pointing to the x-latched parent page */
+void btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
+			 btr_cur_t* cursor)
 	MY_ATTRIBUTE((nonnull));
 #ifdef UNIV_DEBUG
 /************************************************************//**

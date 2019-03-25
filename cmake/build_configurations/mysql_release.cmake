@@ -1,5 +1,5 @@
 # Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2011, 2018, MariaDB Corporation
+# Copyright (c) 2011, 2019, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -87,6 +87,7 @@ IF(FEATURE_SET)
 ENDIF()
 
 SET(WITH_INNODB_SNAPPY OFF CACHE STRING "")
+SET(WITH_NUMA 0 CACHE BOOL "")
 IF(WIN32)
   SET(INSTALL_MYSQLTESTDIR "" CACHE STRING "")
   SET(INSTALL_SQLBENCHDIR  "" CACHE STRING "")
@@ -96,20 +97,17 @@ ELSEIF(RPM)
   SET(WITH_ZLIB system CACHE STRING "")
   SET(CHECKMODULE /usr/bin/checkmodule CACHE STRING "")
   SET(SEMODULE_PACKAGE /usr/bin/semodule_package CACHE STRING "")
-  SET(WITH_LIBARCHIVE ON CACHE STRING "")
   SET(PLUGIN_AUTH_SOCKET YES CACHE STRING "")
 ELSEIF(DEB)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
   SET(WITH_LIBWRAP ON)
   SET(HAVE_EMBEDDED_PRIVILEGE_CONTROL ON)
-  SET(WITH_LIBARCHIVE ON CACHE STRING "")
   SET(PLUGIN_AUTH_SOCKET YES CACHE STRING "")
 ELSE()
   SET(WITH_SSL bundled CACHE STRING "")
   SET(WITH_ZLIB bundled CACHE STRING "")
   SET(WITH_JEMALLOC static CACHE STRING "")
-  SET(WITH_LIBARCHIVE STATIC CACHE STRING "")
   SET(PLUGIN_AUTH_SOCKET STATIC CACHE STRING "")
 ENDIF()
 

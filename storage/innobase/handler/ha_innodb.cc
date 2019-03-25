@@ -145,9 +145,6 @@ void close_thread_tables(THD* thd);
 #include "dict0priv.h"
 #include <mysql/service_md5.h>
 #include "wsrep_sst.h"
-
-extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
-
 #endif /* WITH_WSREP */
 
 /** to force correct commit order in binlog */
@@ -236,12 +233,6 @@ static
 void set_my_errno(int err)
 {
 	errno = err;
-}
-
-static uint omits_virtual_cols(const TABLE_SHARE &share)
-{
-	return share.frm_version < FRM_VER_EXPRESSSIONS &&
-	       share.virtual_fields;
 }
 
 /** Checks whether the file name belongs to a partition of a table.
@@ -7329,7 +7320,8 @@ build_template_needs_field(
 {
 	const Field*	field	= table->field[i];
 
-	if (!field->stored_in_db() && omits_virtual_cols(*table->s)) {
+	if (!field->stored_in_db()
+	    && ha_innobase::omits_virtual_cols(*table->s)) {
 		return NULL;
 	}
 
@@ -7486,7 +7478,7 @@ build_template_field(
 						&templ->rec_prefix_field_no);
 		}
 	} else {
-		ut_ad(!omits_virtual_cols(*table->s));
+		DBUG_ASSERT(!ha_innobase::omits_virtual_cols(*table->s));
 		col = &dict_table_get_nth_v_col(index->table, v_no)->m_col;
 		templ->clust_rec_field_no = v_no;
 		templ->rec_prefix_field_no = ULINT_UNDEFINED;
@@ -7876,7 +7868,8 @@ no_icp:
 					continue;
 				}
 			} else {
-				if (is_v && index->is_primary()) {
+				if (is_v
+				    && (skip_virtual || index->is_primary())) {
 					num_v++;
 					continue;
 				}
@@ -8364,7 +8357,7 @@ calc_row_difference(
 	trx_t* const	trx = prebuilt->trx;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	ulint		num_v = 0;
-	const bool 	skip_virtual = omits_virtual_cols(*table->s);
+	const bool skip_virtual = ha_innobase::omits_virtual_cols(*table->s);
 
 	ut_ad(!srv_read_only_mode);
 
@@ -10942,7 +10935,7 @@ create_table_info_t::create_table_def()
 
 	/* Find out the number of virtual columns. */
 	ulint num_v = 0;
-	const bool omit_virtual = omits_virtual_cols(*m_form->s);
+	const bool omit_virtual = ha_innobase::omits_virtual_cols(*m_form->s);
 	const ulint n_cols = omit_virtual
 		? m_form->s->stored_fields : m_form->s->fields;
 

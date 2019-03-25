@@ -164,9 +164,6 @@ typedef struct st_key {
   */
   Index_statistics *collected_stats;
  
-  union {
-    int  bdb_return_if_eq;
-  } handler;
   TABLE *table;
   LEX_CSTRING comment;
   /** reference to the list of options or NULL */

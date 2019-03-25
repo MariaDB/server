@@ -4643,8 +4643,7 @@ end_with_restore_list:
                                   select_lex->order_list.elements,
                                   select_lex->order_list.first,
                                   unit->select_limit_cnt,
-                                  lex->duplicates, lex->ignore,
-                                  &found, &updated);
+                                  lex->ignore, &found, &updated);
     MYSQL_UPDATE_DONE(res, found, updated);
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)
@@ -7790,7 +7789,6 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
     if (select_lex->set_nest_level(old_nest_level + 1))
       DBUG_RETURN(1);
     SELECT_LEX_UNIT *unit;
-    lex->subqueries= TRUE;
     /* first select_lex of subselect or derived table */
     if (!(unit= lex->alloc_unit()))
       DBUG_RETURN(1);
@@ -10174,8 +10172,7 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
     /* Start Digest */
     parser_state->m_digest_psi= MYSQL_DIGEST_START(thd->m_statement_psi);
 
-    if (parser_state->m_input.m_compute_digest ||
-       (parser_state->m_digest_psi != NULL))
+    if (parser_state->m_digest_psi != NULL)
     {
       /*
         If either:

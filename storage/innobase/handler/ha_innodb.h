@@ -21,6 +21,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_wsrep.h>
 #endif /* WITH_WSREP */
 
+#include "table.h"
+
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
@@ -421,6 +423,14 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
+	/** Check if InnoDB is not storing virtual column metadata for a table.
+	@param	s	table definition (based on .frm file)
+	@return	whether InnoDB will omit virtual column metadata */
+	static bool omits_virtual_cols(const TABLE_SHARE& s)
+	{
+		return s.frm_version<FRM_VER_EXPRESSSIONS && s.virtual_fields;
+	}
+
 	/** Push a primary key filter.
 	@param[in]	pk_filter	filter against which primary keys
 					are to be checked
@@ -428,7 +438,6 @@ public:
 	bool rowid_filter_push(Rowid_filter *rowid_filter);
 
 protected:
-
 	/**
 	MySQL calls this method at the end of each statement. This method
 	exists for readability only, called from reset(). The name reset()
@@ -445,7 +454,6 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-protected:
 	inline void update_thd(THD* thd);
 	void update_thd();
 
