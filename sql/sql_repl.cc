@@ -31,6 +31,7 @@
 #include "debug_sync.h"
 #include "semisync_master.h"
 #include "semisync_slave.h"
+#include "mysys_err.h"
 
 enum enum_gtid_until_state {
   GTID_UNTIL_NOT_DONE,
@@ -866,44 +867,88 @@ static int send_heartbeat_event(binlog_send_info *info,
 struct binlog_file_entry
 {
   binlog_file_entry *next;
-  char *name;
+  LEX_CSTRING name;
+  my_off_t size;
 };
 
+/**
+   Read all binary logs and return as a list
+
+   @param memroot        Use this for mem_root calls
+   @param reverse        If set filenames returned in latest first order (reverse
+                         order than in the index file)
+   @param already_locked If set, index file is already locked.
+
+   @return 0 error
+           # pointer to list
+
+   @notes
+     index_file is always unlocked at return
+*/
+
 static binlog_file_entry *
-get_binlog_list(MEM_ROOT *memroot)
+get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
+                bool already_locked= false)
 {
   IO_CACHE *index_file;
-  char fname[FN_REFLEN];
-  size_t length;
-  binlog_file_entry *current_list= NULL, *e;
+  char *fname, *buff, *end_pos;
+  binlog_file_entry *current_list= NULL, *current_link= NULL, *e;
   DBUG_ENTER("get_binlog_list");
 
   if (!mysql_bin_log.is_open())
   {
+    if (already_locked)
+      mysql_bin_log.unlock_index();
     my_error(ER_NO_BINARY_LOGGING, MYF(0));
     DBUG_RETURN(NULL);
   }
-
-  mysql_bin_log.lock_index();
+  if (!already_locked)
+    mysql_bin_log.lock_index();
   index_file=mysql_bin_log.get_index_file();
   reinit_io_cache(index_file, READ_CACHE, (my_off_t) 0, 0, 0);
 
-  /* The file ends with EOF or empty line */
-  while ((length=my_b_gets(index_file, fname, sizeof(fname))) > 1)
+  if (!(buff= (char*) alloc_root(memroot,
+                                 (size_t) (index_file->end_of_file+1))))
+    goto err;
+  if (my_b_read(index_file, (uchar*) buff, (size_t) index_file->end_of_file))
   {
-    --length;                                   /* Remove the newline */
-    if (!(e= (binlog_file_entry *)alloc_root(memroot, sizeof(*e))) ||
-        !(e->name= strmake_root(memroot, fname, length)))
-    {
-      mysql_bin_log.unlock_index();
-      DBUG_RETURN(NULL);
-    }
-    e->next= current_list;
-    current_list= e;
+    my_error(EE_READ, MYF(ME_ERROR_LOG), my_filename(index_file->file),
+	     my_errno);
+    goto err;
   }
+  buff[index_file->end_of_file]= 0;             // For strchr
   mysql_bin_log.unlock_index();
 
+  /* The file ends with EOF or empty line */
+  for (fname= buff;
+       (end_pos= strchr(fname, '\n')) && (end_pos - fname) > 1;
+       fname= end_pos+1)
+  {
+    end_pos[0]= '\0';				// remove the newline
+    if (!(e= (binlog_file_entry *) alloc_root(memroot, sizeof(*e))))
+      DBUG_RETURN(NULL);
+    if (reverse)
+    {
+      e->next= current_list;
+      current_list= e;
+    }
+    else
+    {
+      e->next= NULL;
+      if (!current_link)
+        current_list= e;
+      else
+        current_link->next= e;
+      current_link= e;
+    }
+    e->name.str=    fname;
+    e->name.length= (size_t) (end_pos - fname);
+  }
   DBUG_RETURN(current_list);
+
+err:
+  mysql_bin_log.unlock_index();
+  DBUG_RETURN(0);
 }
 
 
@@ -1228,8 +1273,7 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
   char buf[FN_REFLEN];
 
   init_alloc_root(&memroot, "gtid_find_binlog_file",
-                  10*(FN_REFLEN+sizeof(binlog_file_entry)),
-                  0, MYF(MY_THREAD_SPECIFIC));
+                  8192, 0, MYF(MY_THREAD_SPECIFIC));
   if (!(list= get_binlog_list(&memroot)))
   {
     errormsg= "Out of memory while looking for GTID position in binlog";
@@ -1255,7 +1299,7 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
       Read the Gtid_list_log_event at the start of the binlog file to
       get the binlog state.
     */
-    if (normalize_binlog_name(buf, list->name, false))
+    if (normalize_binlog_name(buf, list->name.str, false))
     {
       errormsg= "Failed to determine binlog file name while looking for "
         "GTID position in binlog";
@@ -4193,17 +4237,25 @@ void show_binlogs_get_fields(THD *thd, List<Item> *field_list)
 
   @retval FALSE success
   @retval TRUE failure
+
+  @notes
+    We only keep the index locked while reading all file names as
+    if there are 1000+ binary logs, there can be a serious impact
+    as getting the file sizes can take some notable time (up to 20 seconds
+    has been reported) and we don't want to block log rotations for that long.
 */
+
+#define BINLOG_INDEX_RETRY_COUNT 5
+
 bool show_binlogs(THD* thd)
 {
-  IO_CACHE *index_file;
   LOG_INFO cur;
-  File file;
-  char fname[FN_REFLEN];
+  MEM_ROOT mem_root;
+  binlog_file_entry *list;
   List<Item> field_list;
-  size_t length;
-  size_t cur_dir_len;
   Protocol *protocol= thd->protocol;
+  uint retry_count= 0;
+  size_t cur_dir_len;
   DBUG_ENTER("show_binlogs");
 
   if (!mysql_bin_log.is_open())
@@ -4217,55 +4269,71 @@ bool show_binlogs(THD* thd)
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
-  
+
+  init_alloc_root(&mem_root, "binlog_file_list", 8192, 0,
+                  MYF(MY_THREAD_SPECIFIC));
+retry:
+  /*
+    The current mutex handling here is to ensure we get the current log position
+    and all the log files from the index in sync without any index rotation
+    in between.
+  */
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   mysql_bin_log.lock_index();
-  index_file=mysql_bin_log.get_index_file();
+  mysql_bin_log.raw_get_current_log(&cur);
+  mysql_mutex_unlock(mysql_bin_log.get_log_lock());
   
-  mysql_bin_log.raw_get_current_log(&cur); // dont take mutex
-  mysql_mutex_unlock(mysql_bin_log.get_log_lock()); // lockdep, OK
-  
+  /* The following call unlocks lock_index */
+  if ((!(list= get_binlog_list(&mem_root, false, true))))
+    goto err;
+
+  DEBUG_SYNC(thd, "at_after_lock_index");
+
+  // the 1st loop computes the sizes; If stat() fails, then retry
   cur_dir_len= dirname_length(cur.log_file_name);
-
-  reinit_io_cache(index_file, READ_CACHE, (my_off_t) 0, 0, 0);
-
-  /* The file ends with EOF or empty line */
-  while ((length=my_b_gets(index_file, fname, sizeof(fname))) > 1)
+  for (binlog_file_entry *cur_link= list; cur_link; cur_link= cur_link->next)
   {
-    size_t dir_len;
-    ulonglong file_length= 0;                   // Length if open fails
-    fname[--length] = '\0';                     // remove the newline
+    const char *fname= cur_link->name.str;
+    size_t dir_len=    dirname_length(fname);
+    size_t length=     cur_link->name.length- dir_len;
 
-    protocol->prepare_for_resend();
-    dir_len= dirname_length(fname);
-    length-= dir_len;
-    protocol->store(fname + dir_len, length, &my_charset_bin);
+    /* Skip directory name as we shouldn't include this in the result */
+    cur_link->name.str+=    dir_len;
+    cur_link->name.length-= dir_len;
 
     if (!(strncmp(fname+dir_len, cur.log_file_name+cur_dir_len, length)))
-      file_length= cur.pos;  /* The active log, use the active position */
+      cur_link->size= cur.pos;  /* The active log, use the active position */
     else
     {
-      /* this is an old log, open it and find the size */
-      if ((file= mysql_file_open(key_file_binlog,
-                                 fname, O_RDONLY | O_SHARE | O_BINARY,
-                                 MYF(0))) >= 0)
+      MY_STAT stat_info;
+      if (mysql_file_stat(key_file_binlog, fname, &stat_info, MYF(0)))
+	cur_link->size= stat_info.st_size;
+      else
       {
-        file_length= (ulonglong) mysql_file_seek(file, 0L, MY_SEEK_END, MYF(0));
-        mysql_file_close(file, MYF(0));
+        if (retry_count++ < BINLOG_INDEX_RETRY_COUNT)
+        {
+          free_root(&mem_root, MYF(MY_MARK_BLOCKS_FREE));
+          goto retry;
+        }
+	cur_link->size= 0;
       }
     }
-    protocol->store(file_length);
+  }
+
+  for (binlog_file_entry *cur_link= list; cur_link; cur_link= cur_link->next)
+  {
+    protocol->prepare_for_resend();
+    protocol->store(cur_link->name.str, cur_link->name.length, &my_charset_bin);
+    protocol->store((ulonglong) cur_link->size);
     if (protocol->write())
       goto err;
   }
-  if (unlikely(index_file->error == -1))
-    goto err;
-  mysql_bin_log.unlock_index();
+  free_root(&mem_root, MYF(0));
   my_eof(thd);
   DBUG_RETURN(FALSE);
 
 err:
-  mysql_bin_log.unlock_index();
+  free_root(&mem_root, MYF(0));
   DBUG_RETURN(TRUE);
 }
 

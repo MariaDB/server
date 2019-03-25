@@ -1,0 +1,24 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+# mere to limit it run rate
+--source include/have_binlog_format_row.inc
+
+connect(con1,localhost,root,,);
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+
+SET DEBUG_SYNC= "at_after_lock_index WAIT_FOR con1_go";
+--send SHOW BINARY LOGS
+
+connect(con2,localhost,root,,);
+RESET MASTER;
+FLUSH LOGS;
+SET DEBUG_SYNC= "now SIGNAL con1_go";
+
+--connection con1
+--echo # The correct result must consists of two records
+--replace_column 2 #
+--reap
+
+SET debug_sync = 'reset';
