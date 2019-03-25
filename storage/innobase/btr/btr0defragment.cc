@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2018, MariaDB Corporation.
+Copyright (C) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,7 +181,8 @@ btr_defragment_add_index(
 		return NULL;
 	}
 
-	ut_ad(page_is_root(page));
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
 
 	if (page_is_leaf(page)) {
 		// Index root is a leaf page, no need to defragment.

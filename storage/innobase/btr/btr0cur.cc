@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -557,7 +557,11 @@ index root page.
 @return	whether the page is corrupted */
 bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
-	ut_ad(page_is_root(page));
+	ut_ad(!index->is_dummy);
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
+	ut_ad(page_get_space_id(page) == index->table->space_id);
+	ut_ad(page_get_page_no(page) == index->page);
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
 	ut_ad(index->is_primary());
 	ut_ad(!index->is_instant());
@@ -5441,14 +5445,14 @@ btr_cur_optimistic_delete_func(
 	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
 	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
 				MTR_MEMO_PAGE_X_FIX));
-	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
-			       MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(cursor->index->table->space));
+	ut_ad(!cursor->index->is_dummy);
 
 	/* This is intended only for leaf page deletions */
 
 	block = btr_cur_get_block(cursor);
 
+	ut_ad(block->page.id.space() == cursor->index->table->space->id);
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
 	ut_ad(!dict_index_is_online_ddl(cursor->index)
 	      || dict_index_is_clust(cursor->index)
@@ -5456,7 +5460,7 @@ btr_cur_optimistic_delete_func(
 
 	rec = btr_cur_get_rec(cursor);
 
-	if (UNIV_UNLIKELY(page_is_root(block->frame)
+	if (UNIV_UNLIKELY(block->page.id.page_no() == cursor->index->page
 			  && page_get_n_recs(block->frame) == 1
 			  + (cursor->index->is_instant()
 			     && !rec_is_metadata(rec, cursor->index)))) {
@@ -5635,6 +5639,8 @@ btr_cur_pessimistic_delete(
 					| MTR_MEMO_SX_LOCK));
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(index->table->space));
+	ut_ad(!index->is_dummy);
+	ut_ad(block->page.id.space() == index->table->space->id);
 
 	if (!has_reserved_extents) {
 		/* First reserve enough free space for the file segments
@@ -5688,7 +5694,7 @@ btr_cur_pessimistic_delete(
 			lock_update_delete(block, rec);
 		}
 
-		if (!page_is_root(page)) {
+		if (block->page.id.page_no() != index->page) {
 			if (page_get_n_recs(page) < 2) {
 				goto discard_page;
 			}

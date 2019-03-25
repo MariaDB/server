@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -91,7 +91,8 @@ UNIV_INLINE
 ib_uint64_t
 page_get_autoinc(const page_t* page)
 {
-	ut_ad(page_is_root(page));
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
 	return(mach_read_from_8(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page));
 }
 
@@ -172,6 +173,7 @@ page_header_set_field(
 {
 	ut_ad(page);
 	ut_ad(field <= PAGE_N_RECS);
+	ut_ad(field != PAGE_N_RECS || val);
 	ut_ad(field == PAGE_N_HEAP || val < srv_page_size);
 	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < srv_page_size);
 
