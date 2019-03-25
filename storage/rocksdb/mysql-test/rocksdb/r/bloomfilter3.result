@@ -1,3 +1,4 @@
+# restart
 CREATE TABLE `linktable` (
 `id1` bigint(20) unsigned NOT NULL DEFAULT '0',
 `id1_type` int(10) unsigned NOT NULL DEFAULT '0',
@@ -74,6 +75,7 @@ select case when variable_value-@c = 0 then 'true' else 'false' end from informa
 case when variable_value-@c = 0 then 'true' else 'false' end
 true
 DROP TABLE linktable;
+# restart
 #
 # bloom filter prefix is 20 byte
 #  Create a key which is longer than that, so that we see that  
@@ -98,6 +100,7 @@ insert into t1 values (10,1,1,0x12FFFFFFFFFF,1);
 insert into t1 values (11,1,1,0x12FFFFFFFFFF,1);
 insert into t1 values (20,2,2,0x12FFFFFFFFFF,1);
 insert into t1 values (21,2,2,0x12FFFFFFFFFF,1);
+# restart
 explain 
 select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

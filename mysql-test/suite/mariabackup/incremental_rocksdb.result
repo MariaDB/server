@@ -10,7 +10,7 @@ INSERT INTO t2 VALUES(2);
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 SELECT * FROM t2;
 i
 2

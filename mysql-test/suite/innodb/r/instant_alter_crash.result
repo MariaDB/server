@@ -18,6 +18,7 @@ SET GLOBAL innodb_flush_log_at_trx_commit=1;
 INSERT INTO t2 VALUES(3,4,'accusantium doloremque laudantium');
 # Kill the server
 disconnect ddl;
+# restart
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT * FROM t1;
 id	c2
@@ -41,6 +42,7 @@ SET GLOBAL innodb_flush_log_at_trx_commit=1;
 UPDATE t1 SET c2=c2+1;
 # Kill the server
 disconnect ddl;
+# restart
 SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT * FROM t1;
@@ -68,6 +70,7 @@ SET GLOBAL innodb_flush_log_at_trx_commit=1;
 DELETE FROM t1;
 # Kill the server
 disconnect ddl;
+# restart
 SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 FOUND 3 /\[Note\] InnoDB: Rolled back recovered transaction / in mysqld.1.err

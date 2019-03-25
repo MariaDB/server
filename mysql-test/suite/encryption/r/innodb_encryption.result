@@ -53,6 +53,7 @@ NAME
 innodb_system
 # Success!
 # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
+# restart: --innodb_encrypt_tables=0 --innodb_encryption_threads=0
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	ON

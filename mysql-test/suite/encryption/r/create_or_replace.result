@@ -24,3 +24,4 @@ SET GLOBAL innodb_encryption_threads = 4;
 # Success!
 SET GLOBAL innodb_encryption_threads = 0;
 SET GLOBAL innodb_encrypt_tables = OFF;
+# restart

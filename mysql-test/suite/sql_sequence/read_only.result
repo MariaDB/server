@@ -1,4 +1,5 @@
 create sequence s1 cache 2 engine=innodb;
+# restart: --innodb-read-only
 connection default;
 show global variables like 'innodb_read_only';
 Variable_name	Value
@@ -26,6 +27,7 @@ ERROR HY000: Table 's1' is read only
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	2	0	0
+# restart
 select * from s1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	2	0	0

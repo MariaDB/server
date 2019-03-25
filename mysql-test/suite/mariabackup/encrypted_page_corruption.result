@@ -3,6 +3,7 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: Table `test`\\.`t1` has an unreada
 CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB, encrypted=yes;
 insert into t1 select repeat('a',100);
 # Corrupt the table
+# restart
 # xtrabackup backup
 FOUND 1 /Database page corruption detected.*/ in backup.log
 drop table t1;

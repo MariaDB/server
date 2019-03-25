@@ -41,6 +41,7 @@ call innodb_insert_proc(2000);
 insert into innodb_compact select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
 commit;
+# restart: --innodb-encrypt-tables=OFF
 set global innodb_compression_algorithm = 1;
 alter table innodb_normal engine=innodb page_compressed=DEFAULT;
 show create table innodb_normal;

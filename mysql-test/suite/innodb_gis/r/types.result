@@ -51,6 +51,7 @@ FLUSH TABLES;
 INSERT INTO t_wl6455 VALUES(11, POINT(11,11));
 BEGIN;
 INSERT INTO t_wl6455 VALUES(1, POINT(1,1));
+# restart
 CHECK TABLE t_wl6455;
 Table	Op	Msg_type	Msg_text
 test.t_wl6455	check	status	OK

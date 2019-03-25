@@ -11,6 +11,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1
+# restart
 # SETTING auto_increment_increment IN CONNECTION1
 SET AUTO_INCREMENT_INCREMENT = 2;
 SET DEBUG_SYNC= 'ib_after_row_insert SIGNAL opened WAIT_FOR flushed1';

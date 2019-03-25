@@ -1139,7 +1139,9 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 if ($have_debug) {
 # Initiate shutdown in order to issue a redo log checkpoint and to discard
 # the redo log record that was emitted due to '+d,fil_names_write_bogus'.
+--let $restart_noprint=2
 --source include/restart_mysqld.inc
+--let $restart_noprint=0
 }
 
 SELECT * FROM t1;

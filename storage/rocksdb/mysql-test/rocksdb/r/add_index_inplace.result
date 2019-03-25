@@ -391,6 +391,7 @@ set global rocksdb_force_flush_memtable_now=1;
 ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
 larger
 1
+# restart
 larger
 1
 Table	Op	Msg_type	Msg_text
@@ -398,6 +399,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 larger
 1
+# restart
 larger
 1
 Table	Op	Msg_type	Msg_text

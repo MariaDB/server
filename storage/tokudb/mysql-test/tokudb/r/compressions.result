@@ -8,4 +8,5 @@ FOUND 1 /compression_method=7/ in dump
 FOUND 1 /compression_method=9/ in dump
 FOUND 1 /compression_method=10/ in dump
 FOUND 1 /compression_method=11/ in dump
+# restart
 DROP TABLE t1, t2, t3, t4, t5;

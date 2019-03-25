@@ -4,6 +4,7 @@ insert into t1 values(1, 2);
 insert into t2 values(1, 2);
 SET GLOBAL innodb_fast_shutdown = 0;
 # Restart the server with innodb_force_recovery as 4.
+# restart: --innodb-force-recovery=4
 select * from t1;
 f1	f2
 1	2
@@ -32,6 +33,7 @@ show tables;
 Tables_in_test
 t2
 # Restart the server with innodb_force_recovery as 5.
+# restart: --innodb-force-recovery=5
 select * from t2;
 f1	f2
 1	2
@@ -59,6 +61,7 @@ show tables;
 Tables_in_test
 t2
 # Restart the server with innodb_force_recovery as 6.
+# restart: --innodb-force-recovery=6
 select * from t2;
 f1	f2
 1	2
@@ -86,6 +89,7 @@ show tables;
 Tables_in_test
 t2
 # Restart the server with innodb_force_recovery=2
+# restart: --innodb-force-recovery=2
 select * from t2;
 f1	f2
 1	2
@@ -100,6 +104,7 @@ disconnect con1;
 connection default;
 # Kill the server
 # Restart the server with innodb_force_recovery=3
+# restart: --innodb-force-recovery=3
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select * from t2;
 f1	f2
@@ -112,6 +117,7 @@ SET GLOBAL innodb_lock_wait_timeout=1;
 insert into t2 values(1,2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into t2 values(9,10);
+# restart
 select * from t2;
 f1	f2
 1	2

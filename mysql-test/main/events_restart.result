@@ -15,6 +15,7 @@ insert into event_like select * from mysql.event;
 alter table mysql.event
 change column body  body longtext character set utf8 collate utf8_bin;
 "Now we restart the server"
+# restart
 use events_test;
 select @@event_scheduler;
 @@event_scheduler
@@ -75,6 +76,7 @@ events_test	abc1	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1
 events_test	abc2	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
 events_test	abc3	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
 Now let's restart the server again
+# restart
 use events_test;
 select @@event_scheduler;
 @@event_scheduler
@@ -95,6 +97,7 @@ SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test	e1	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
 "Now we restart the server"
+# restart
 USE test;
 SELECT @@event_scheduler;
 @@event_scheduler

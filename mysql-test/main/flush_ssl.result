@@ -1,4 +1,5 @@
 # Kill the server
+# restart: --ssl-key=MYSQLTEST_VARDIR/tmp/ssl_key.pem --ssl-cert=MYSQLTEST_VARDIR/tmp/ssl_cert.pem
 connect  ssl_con,localhost,root,,,,,SSL;
 SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
 # Use a different certificate ("Not after" certificate field changed)
@@ -24,3 +25,4 @@ SSL_ACCEPTS	0
 SSL_FINISHED_ACCEPTS	0
 # Cleanup
 # Kill the server
+# restart

@@ -31,6 +31,7 @@ Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
 ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+# restart
 SELECT 'All done';
 All done
 All done

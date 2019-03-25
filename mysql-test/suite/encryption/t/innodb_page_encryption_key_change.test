@@ -3,7 +3,6 @@
 # embedded does not support restart
 -- source include/not_embedded.inc
 
---echo # Restart mysqld --loose-file-key-management-filename=keys2.txt
 -- let $restart_parameters=--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
 
@@ -43,7 +42,6 @@ select * from innodb_redundant;
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 
---echo # Restart mysqld --loose-file-key-management-filename=keys3.txt
 -- let $restart_parameters=--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 -- source include/restart_mysqld.inc
 

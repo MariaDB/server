@@ -35,4 +35,5 @@ CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 # Run innochecksum on t3
 # Run innochecksum on t6
 # Restore the original tables
+# restart
 DROP TABLE t1, t2, t3, t4, t5, t6;

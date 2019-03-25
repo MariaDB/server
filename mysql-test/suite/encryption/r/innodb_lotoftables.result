@@ -1,4 +1,5 @@
 SET GLOBAL innodb_fast_shutdown=0;
+# restart
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	OFF
@@ -749,6 +750,7 @@ innodb_encrypted_3/t_98
 innodb_encrypted_3/t_99
 # Success!
 # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
+# restart: --innodb_encrypt_tables=0 --innodb_encryption_threads=0
 # Restart Success!
 use innodb_encrypted_1;
 use innodb_encrypted_2;

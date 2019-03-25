@@ -36,6 +36,7 @@ t1.frm
 t1.ibd
 t2.frm
 t2.ibd
+# restart
 FLUSH TABLE t1, t2 FOR EXPORT;
 # List before copying files
 db.opt
@@ -61,6 +62,7 @@ a	b	c
 1462	Devotion	asdfuihknaskdf
 1461	Cavalry	..asdasdfaeraf
 # Restarting server
+# restart
 # Done restarting server
 # List before t1 DISCARD
 db.opt

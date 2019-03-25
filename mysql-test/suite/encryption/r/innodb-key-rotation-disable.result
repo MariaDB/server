@@ -61,4 +61,5 @@ FOUND 1 /public/ in t7.ibd
 FOUND 1 /public/ in t8.ibd
 # t9 page compressed expecting NOT FOUND
 NOT FOUND /public/ in t9.ibd
+# restart
 drop database enctests;

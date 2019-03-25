@@ -146,6 +146,7 @@ variable_value > 0
 SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
 variable_value > 0
 1
+# restart
 SET GLOBAL innodb_encryption_threads = 4;
 SET GLOBAL innodb_encrypt_tables = off;
 update innodb_page_compressed1 set c1 = c1 + 1;

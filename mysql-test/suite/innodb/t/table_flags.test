@@ -34,6 +34,7 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 if ($have_debug) {
 --let $d=$d --debug=d,create_and_drop_garbage
 }
+--let $restart_noprint=1
 --let $restart_parameters=$d --innodb-stats-persistent=0
 --source include/restart_mysqld.inc
 

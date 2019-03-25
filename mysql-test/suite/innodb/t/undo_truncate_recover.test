@@ -44,6 +44,7 @@ SET GLOBAL innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc
 --source include/search_pattern_in_file.inc
 --let $restart_parameters= --innodb-undo-tablespaces=1
+--let $restart_noprint=1
 if ($checksum_algorithm == "strict_full_crc32")
 {
   let $restart_parameters= $restart_parameters --innodb_checksum_algorithm=strict_crc32;

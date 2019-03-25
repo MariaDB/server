@@ -96,6 +96,7 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR done';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 COMMIT;
+# restart
 disconnect con1;
 select * from t1;
 f1	f2

@@ -22,7 +22,7 @@ count(*)
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart: --innodb-force-recovery=3
 SELECT COUNT(*) FROM t;
 COUNT(*)
 1
@@ -30,6 +30,7 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT COUNT(*) FROM t;
 COUNT(*)
 201
+# restart
 SELECT * FROM t;
 a
 0

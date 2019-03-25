@@ -4,7 +4,7 @@ INSERT INTO t VALUES('foobar1');
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 SELECT * from t;
 c
 foobar1

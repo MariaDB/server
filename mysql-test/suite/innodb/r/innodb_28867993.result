@@ -1,6 +1,7 @@
 create table t1 (a int) engine=innodb;
 insert t1 values (1),(2);
 create database ib_logfile2;
+# restart
 select * from t1;
 a
 1

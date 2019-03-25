@@ -157,6 +157,7 @@ alter table t3 drop column f2, add column f3 int default 1, add column f4 int de
 create table t4(a varchar(1), b int, c int, primary key(a,b))engine=innodb;
 insert into t4 values('4',5,6);
 alter table t4 drop column c;
+# restart
 select * from t1;
 f5	f3
 10	19
@@ -193,6 +194,7 @@ a	b
 4	5
 alter table t4 add column d varchar(5) default 'fubar';
 insert into t4 values('',0,'snafu');
+# restart
 select * from t3;
 f1	f3	f4	f5
 1	1	4	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

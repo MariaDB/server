@@ -111,3 +111,4 @@ CREATE USER for baz@baz
 CREATE USER 'baz'@'baz' IDENTIFIED BY PASSWORD '*E52096EF8EB0240275A7FE9E069101C33F98CF07'
 drop user bar@foo;
 drop user baz@baz;
+# restart

@@ -56,6 +56,7 @@ grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
 Variable_name	Value
 Ssl_cipher	AES256-SHA
 drop user mysqltest_1@localhost;
+# restart: --ssl-cipher=AES128-SHA
 connect  ssl_con,localhost,root,,,,,SSL;
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value

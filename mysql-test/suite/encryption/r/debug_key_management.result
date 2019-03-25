@@ -18,6 +18,7 @@ SET GLOBAL debug_dbug = '+d,ib_log';
 SET GLOBAL innodb_log_checkpoint_now = 1;
 SET GLOBAL innodb_flush_log_at_trx_commit = 1;
 INSERT INTO t1 VALUES(NULL);
+# restart
 set global innodb_encrypt_tables=OFF;
 set global debug_key_management_version=1;
 select * from t1;

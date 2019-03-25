@@ -653,6 +653,7 @@ insert into t2 values(
 @a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
 @a,@a,@a,@a,@a,@a,@a);
 update t2 set col190=@b;
+# restart
 set @a = repeat('abcdefghijklmnopqrstuvwxyz', 1650);
 set @b = repeat('zyxwvutsrqponmlkjihgfedcba', 2000);
 show create table t2;

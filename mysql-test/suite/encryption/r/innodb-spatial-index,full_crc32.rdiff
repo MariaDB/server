@@ -1,11 +1,12 @@
 --- innodb-spatial-index.result
 +++ innodb-spatial-index.result
-@@ -1,23 +1,26 @@
+@@ -1,23 +1,27 @@
  CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
  c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
  ENCRYPTED=YES;
 -Got one of the listed errors
 +INSERT INTO t1(c, coordinate) values('mysql', ST_GeomFromText('POINT(903994614 180726515)'));
++# restart
 +INSERT INTO t1(c, coordinate) values('mariadb', ST_GeomFromText('POINT(903994614 180726515)'));
 +DROP TABLE t1;
  CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,

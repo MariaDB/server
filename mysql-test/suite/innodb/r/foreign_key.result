@@ -137,6 +137,7 @@ SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
 PRIMARY
+# restart
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints

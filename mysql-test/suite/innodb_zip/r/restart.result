@@ -263,6 +263,7 @@ t7_restart#p#p1#sp#s3.ibd
 #
 # Start the server and show that tables are still visible and accessible.
 #
+# restart
 SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	ON
@@ -517,6 +518,7 @@ t7_restart#p#p1#sp#s3.ibd
 #
 # Start the server and show the tablespaces.
 #
+# restart
 SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	ON
@@ -715,6 +717,7 @@ t77_restart#p#p1#sp#s3.ibd
 #
 # Restart the server
 #
+# restart
 SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	ON
@@ -851,6 +854,7 @@ t77_restart#p#p1#sp#s3.ibd
 #
 # Start the server and check tablespaces.
 #
+# restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t4_restart	Single	DEFAULT	DEFAULT	Dynamic	MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
@@ -988,6 +992,7 @@ t77_restart.par
 #
 # Start the server and check tablespaces.
 #
+# restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t4_restart	Single	DEFAULT	DEFAULT	Dynamic	MYSQLD_DATADIR/test/t4_restart.ibd

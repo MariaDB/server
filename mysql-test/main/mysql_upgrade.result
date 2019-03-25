@@ -581,6 +581,7 @@ GRANT USAGE ON *.* TO 'user3'@'%';
 GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
 alter table mysql.user drop column Delete_history_priv;
 alter table mysql.db drop column Delete_history_priv;
+# restart
 Run mysql_upgrade with all privileges on a user
 flush privileges;
 SHOW GRANTS FOR 'user3'@'%';

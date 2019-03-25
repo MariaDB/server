@@ -45,7 +45,7 @@ INSERT INTO isam_p VALUES (401), (501);
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 SELECT * from p;
 a
 201

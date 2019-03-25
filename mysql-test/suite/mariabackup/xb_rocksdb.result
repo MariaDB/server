@@ -6,7 +6,7 @@ INSERT INTO t VALUES(2);
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 SELECT * FROM t;
 i
 1
@@ -16,6 +16,7 @@ i
 # remove datadir
 # xtrabackup move back
 # restart server
+# restart
 SELECT * FROM t;
 i
 1

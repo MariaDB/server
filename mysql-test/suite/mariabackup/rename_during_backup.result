@@ -18,7 +18,7 @@ INSERT INTO b1 VALUES('b1');
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 CREATE TABLE t1(i int);
 DROP TABLE t1;
 SELECT * from t1_renamed;

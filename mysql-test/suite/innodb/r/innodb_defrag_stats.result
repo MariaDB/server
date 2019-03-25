@@ -59,6 +59,7 @@ delete from t1 where a between 100 * 4 and 100 * 4 + 30;
 delete from t1 where a between 100 * 3 and 100 * 3 + 30;
 delete from t1 where a between 100 * 2 and 100 * 2 + 30;
 delete from t1 where a between 100 * 1 and 100 * 1 + 30;
+# restart
 # Server Restarted
 # Confirm persistent stats still there after restart.
 select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
@@ -143,6 +144,7 @@ count(stat_value) > 0
 select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and index_name = 'SECOND' and stat_name in ('n_leaf_pages_defrag');
 count(stat_value) > 0
 1
+# restart
 Server Restarted
 select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name in ('n_page_split');
 count(stat_value) = 0

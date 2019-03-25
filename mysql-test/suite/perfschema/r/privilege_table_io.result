@@ -1,3 +1,4 @@
+# restart
 drop table if exists test.marker;
 create table test.marker(a int);
 update performance_schema.setup_consumers set enabled='NO';
