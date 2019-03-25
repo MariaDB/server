@@ -1,9 +1,9 @@
 # This logname can be set in /etc/my.cnf
-# by setting the variable "err-log"
-# in the [safe_mysqld] section as follows:
+# by setting the variable "log-error"
+# in the [mysqld_safe] section as follows:
 #
-# [safe_mysqld]
-# err-log=@localstatedir@/mysqld.log
+# [mysqld_safe]
+# log-error=@localstatedir@/mysqld.log
 #
 # If the root user has a password you have to create a
 # /root/.my.cnf configuration file with the following
