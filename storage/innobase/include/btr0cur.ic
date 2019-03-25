@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -134,7 +135,7 @@ btr_cur_compress_recommendation(
 
 	page = btr_cur_get_page(cursor);
 
-	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page) * 2,
+	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page) * 2U,
 				      return(FALSE));
 
 	if ((page_get_data_size(page)
