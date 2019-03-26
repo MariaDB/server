@@ -938,6 +938,7 @@ buf_page_is_corrupted(
 	const void* 	 	space)
 #endif
 {
+	ut_ad(page_size.logical() == srv_page_size);
 #ifndef UNIV_INNOCHECKSUM
 	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(true); );
 #endif
@@ -1031,26 +1032,31 @@ buf_page_is_corrupted(
 
 	compile_time_assert(!(FIL_PAGE_LSN % 8));
 
-	/* declare empty pages non-corrupted */
-	if (checksum_field1 == 0
-	    && checksum_field2 == 0
-	    && *reinterpret_cast<const ib_uint64_t*>(
-		    read_buf + FIL_PAGE_LSN) == 0) {
-
-		/* make sure that the page is really empty */
-		for (ulint i = 0; i < page_size.logical(); i++) {
-			if (read_buf[i] != 0) {
-				return(true);
+	/* A page filled with NUL bytes is considered not corrupted.
+	The FIL_PAGE_FILE_FLUSH_LSN field may be written nonzero for
+	the first page of each file of the system tablespace.
+	Ignore it for the system tablespace. */
+	if (!checksum_field1 && !checksum_field2) {
+		ulint i = 0;
+		do {
+			if (read_buf[i]) {
+				return true;
 			}
+		} while (++i < FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+#ifndef UNIV_INNOCHECKSUM
+		if (!space || !space->id) {
+			/* Skip FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			in the system tablespace. */
+			i += 8;
 		}
-#ifdef UNIV_INNOCHECKSUM
-		if (log_file) {
-			fprintf(log_file, "Page::%llu"
-				" is empty and uncorrupted\n",
-				cur_page_num);
-		}
-#endif /* UNIV_INNOCHECKSUM */
-		return(false);
+#endif
+		do {
+			if (read_buf[i]) {
+				return true;
+			}
+		} while (++i < srv_page_size);
+		return false;
 	}
 
 	switch (curr_algo) {

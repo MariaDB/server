@@ -4609,7 +4609,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
-      if (item->val_int() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && top_level())
       {
         /* 
           a. This is "... AND true_cond AND ..."
