@@ -2174,7 +2174,7 @@ CREATE DATABASE mysqltest1 DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_unico
 CREATE DATABASE mysqltest2 DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_unicode_ci|
 use mysqltest1|
 
-CREATE EVENT ev1 ON SCHEDULE AT '2030-01-01 00:00:00' DO
+CREATE EVENT ev1 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO
 BEGIN
 DECLARE перем1 CHAR(10);
 SELECT
@@ -2186,7 +2186,7 @@ COLLATION(_koi8r    '�����') AS c4,
 @@character_set_client AS c6;
 END|
 
-CREATE EVENT ev2 ON SCHEDULE AT '2030-01-01 00:00:00' DO
+CREATE EVENT ev2 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO
 BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2198,7 +2198,7 @@ COLLATION(_koi8r    '�����') AS c4,
 @@character_set_client AS c6;
 END|
 
-CREATE EVENT mysqltest2.ev3 ON SCHEDULE AT '2030-01-01 00:00:00' DO
+CREATE EVENT mysqltest2.ev3 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO
 BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2210,7 +2210,7 @@ COLLATION(_koi8r    '�����') AS c4,
 @@character_set_client AS c6;
 END|
 
-CREATE EVENT mysqltest2.ev4 ON SCHEDULE AT '2030-01-01 00:00:00' DO
+CREATE EVENT mysqltest2.ev4 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO
 BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
@@ -2226,7 +2226,7 @@ END|
 
 SHOW CREATE EVENT ev1|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev1		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev1		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10);
 SELECT
 COLLATION(перем1) AS c1,
@@ -2239,7 +2239,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT ev2|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev2		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev2` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev2		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev2` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2252,7 +2252,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT mysqltest2.ev3|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2265,7 +2265,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT mysqltest2.ev3|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2279,11 +2279,11 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev1'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-mysqltest1	ev1	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
+mysqltest1	ev1	root@localhost	SYSTEM	ONE TIME	1970-01-02 00:00:00	NULL	NULL	NULL	NULL	DISABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev2'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-mysqltest1	ev2	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
+mysqltest1	ev2	root@localhost	SYSTEM	ONE TIME	1970-01-02 00:00:00	NULL	NULL	NULL	NULL	DISABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev3'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
@@ -2303,7 +2303,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev2'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2316,7 +2316,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev3'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2329,7 +2329,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev4'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2342,7 +2342,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 
 ALTER DATABASE mysqltest1 COLLATE cp866_general_ci|
@@ -2361,7 +2361,7 @@ set names utf8|
 
 SHOW CREATE EVENT ev1|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev1		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev1		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10);
 SELECT
 COLLATION(перем1) AS c1,
@@ -2374,7 +2374,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT ev2|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev2		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev2` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev2		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev2` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2387,7 +2387,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT mysqltest2.ev3|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2400,7 +2400,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT mysqltest2.ev3|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2414,11 +2414,11 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev1'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-mysqltest1	ev1	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
+mysqltest1	ev1	root@localhost	SYSTEM	ONE TIME	1970-01-02 00:00:00	NULL	NULL	NULL	NULL	DISABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev2'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-mysqltest1	ev2	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
+mysqltest1	ev2	root@localhost	SYSTEM	ONE TIME	1970-01-02 00:00:00	NULL	NULL	NULL	NULL	DISABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev3'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
@@ -2438,7 +2438,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev2'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2451,7 +2451,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev3'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2464,7 +2464,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev4'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2477,7 +2477,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 ---> Dump of mysqltest1
 
@@ -2497,7 +2497,7 @@ ALTER DATABASE `mysqltest1` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET sql_mode              = '' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev1` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10);
 SELECT
 COLLATION(перем1) AS c1,
@@ -2525,7 +2525,7 @@ ALTER DATABASE `mysqltest1` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET sql_mode              = '' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev2` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev2` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2564,7 +2564,7 @@ ALTER DATABASE `mysqltest2` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET sql_mode              = '' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2592,7 +2592,7 @@ ALTER DATABASE `mysqltest2` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;;
 /*!50003 SET sql_mode              = '' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev4` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev4` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2634,7 +2634,7 @@ set names utf8|
 
 SHOW CREATE EVENT ev1|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev1		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev1		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10);
 SELECT
 COLLATION(перем1) AS c1,
@@ -2647,7 +2647,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT ev2|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev2		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev2` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev2		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev2` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2660,7 +2660,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT mysqltest2.ev3|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2673,7 +2673,7 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW CREATE EVENT mysqltest2.ev3|
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+ev3		SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2687,11 +2687,11 @@ END	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev1'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-mysqltest1	ev1	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
+mysqltest1	ev1	root@localhost	SYSTEM	ONE TIME	1970-01-02 00:00:00	NULL	NULL	NULL	NULL	DISABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev2'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-mysqltest1	ev2	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
+mysqltest1	ev2	root@localhost	SYSTEM	ONE TIME	1970-01-02 00:00:00	NULL	NULL	NULL	NULL	DISABLED	1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SHOW EVENTS LIKE 'ev3'|
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
@@ -2711,7 +2711,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev2'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2724,7 +2724,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev3'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2737,7 +2737,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 SELECT * FROM INFORMATION_SCHEMA.EVENTS WHERE event_name = 'ev4'|
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	TIME_ZONE	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	SQL_MODE	STARTS	ENDS	STATUS	ON_COMPLETION	CREATED	LAST_ALTERED	LAST_EXECUTED	EVENT_COMMENT	ORIGINATOR	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
@@ -2750,7 +2750,7 @@ COLLATION( 'текст') AS c3,
 COLLATION(    'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END	ONE TIME	2030-01-01 00:00:00	NULL	NULL		NULL	NULL	ENABLED	NOT PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
+END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 -------------------------------------------------------------------
 DDL statements within stored routine.
