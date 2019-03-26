@@ -7,7 +7,7 @@ PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
-ERROR 22007: Truncated incorrect INTEGER value: 'foo'
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
 SELECT a FROM t1 GROUP BY NULL WITH ROLLUP;
 a
 DROP TABLE t1;
@@ -18,7 +18,7 @@ PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
-ERROR 22007: Truncated incorrect INTEGER value: 'foo'
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
 SET @a = REPLACE( @@global.optimizer_switch, '=on', '=off' ) ;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
@@ -30,7 +30,7 @@ PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
-ERROR 22007: Truncated incorrect INTEGER value: 'foo'
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
 SELECT 'All done';
 All done
 All done
@@ -40,7 +40,7 @@ PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
-ERROR 22007: Truncated incorrect INTEGER value: 'foo'
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
 DEALLOCATE PREPARE stmt;
 SELECT 'All done';
 All done
@@ -52,7 +52,7 @@ PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
-ERROR 22007: Truncated incorrect INTEGER value: 'foo'
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
 SELECT a FROM t1 GROUP BY a;
 a
 SELECT * FROM t1;
@@ -65,7 +65,7 @@ PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
-ERROR 22007: Truncated incorrect INTEGER value: 'foo'
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
 SELECT a FROM t1 GROUP BY a;
 a
 INSERT t1 SELECT * FROM ( SELECT * FROM t1 ) sq;
