@@ -14,14 +14,6 @@ FROM mysql.slow_log
 WHERE sql_text NOT LIKE '%debug_dbug%';
 END
 $$
-CREATE PROCEDURE show_slow_log_exclude_ps()
-BEGIN
-SELECT CONCAT('[slow] ', sql_text) AS sql_text
-FROM mysql.slow_log
-WHERE sql_text NOT LIKE '%debug_dbug%'
-       AND sql_text NOT IN ('Prepare','Close stmt');
-END
-$$
 #
 # Expect all admin statements in the slow log (ON,DEFAULT)
 #
@@ -231,4 +223,3 @@ SET @@global.slow_query_log= @org_slow_query_log;
 SET @@global.log_output= @org_log_output;
 SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
 DROP PROCEDURE show_slow_log;
-DROP PROCEDURE show_slow_log_exclude_ps;

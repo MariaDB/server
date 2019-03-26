@@ -3445,7 +3445,6 @@ Item *get_system_var(THD *thd, enum_var_type var_type,
 extern bool check_reserved_words(const LEX_CSTRING *name);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
-bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
 

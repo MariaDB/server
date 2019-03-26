@@ -5246,6 +5246,7 @@ next_file_item_1:
 						    fileinfo.name, NULL))
 					{
 						os_file_closedir(dbdir);
+						os_file_closedir(dir);
 						return(FALSE);
 					}
 				}

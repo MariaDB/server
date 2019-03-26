@@ -1449,6 +1449,13 @@ public:
   }
   virtual String *val_raw(String*) { return 0; }
 
+  bool eval_const_cond()
+  {
+    DBUG_ASSERT(const_item());
+    DBUG_ASSERT(!is_expensive());
+    return val_bool();
+  }
+
   /*
     save_val() is method of val_* family which stores value in the given
     field.
