@@ -70,18 +70,6 @@ bool check_reserved_words(LEX_STRING *name)
 
 
 /**
-  @return
-    TRUE if item is a constant
-*/
-
-bool
-eval_const_cond(COND *cond)
-{
-  return ((Item_func*) cond)->val_int() ? TRUE : FALSE;
-}
-
-
-/**
    Test if the sum of arguments overflows the ulonglong range.
 */
 static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)

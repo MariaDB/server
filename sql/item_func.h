@@ -2556,7 +2556,6 @@ extern enum_field_types agg_field_type(Item **items, uint nitems,
                                        bool treat_bit_as_number);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
-bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
 

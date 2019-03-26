@@ -384,6 +384,7 @@ create_worker_threads(uint n)
 	return threads;
 
 err:
+	my_free(threads);
 	return NULL;
 }
 

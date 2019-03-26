@@ -5,7 +5,7 @@ SET SQL_MODE= 'STRICT_ALL_TABLES';
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
 ERROR 22007: Truncated incorrect INTEGER value: 'foo'
 SELECT a FROM t1 GROUP BY NULL WITH ROLLUP;
@@ -16,7 +16,7 @@ SET SQL_MODE= 'STRICT_ALL_TABLES';
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
 ERROR 22007: Truncated incorrect INTEGER value: 'foo'
 SET @a = REPLACE( @@global.optimizer_switch, '=on', '=off' ) ;
@@ -28,7 +28,7 @@ SET sql_mode=DEFAULT;
 SET SQL_MODE='STRICT_ALL_TABLES';
 PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
 ERROR 22007: Truncated incorrect INTEGER value: 'foo'
 SELECT 'All done';
@@ -38,7 +38,7 @@ SET SQL_MODE=DEFAULT;
 SET SQL_MODE='STRICT_ALL_TABLES';
 PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
 ERROR 22007: Truncated incorrect INTEGER value: 'foo'
 DEALLOCATE PREPARE stmt;
@@ -50,7 +50,7 @@ SET SQL_MODE= 'STRICT_ALL_TABLES';
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
 ERROR 22007: Truncated incorrect INTEGER value: 'foo'
 SELECT a FROM t1 GROUP BY a;
@@ -63,7 +63,7 @@ SET SQL_MODE= 'STRICT_ALL_TABLES';
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 EXECUTE stmt;
 ERROR 22007: Truncated incorrect INTEGER value: 'foo'
 SELECT a FROM t1 GROUP BY a;
