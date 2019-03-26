@@ -612,3 +612,24 @@ select cast('-0.0' as decimal(5,1)) < 0;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-18968 Both (WHERE 0.1) and (WHERE NOT 0.1) return empty set
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT CASE WHEN 0.1 THEN 'TRUE' ELSE 'FALSE' END FROM t1;
+SELECT * FROM t1 WHERE 0.1;
+SELECT * FROM t1 WHERE NOT 0.1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

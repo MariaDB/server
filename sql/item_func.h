@@ -2279,7 +2279,6 @@ extern enum_field_types agg_field_type(Item **items, uint nitems,
 Item *find_date_time_item(Item **args, uint nargs, uint col);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
-bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
 
