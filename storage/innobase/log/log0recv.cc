@@ -601,7 +601,7 @@ recv_sys_var_init(void)
 	recv_previous_parsed_rec_type = MLOG_SINGLE_REC_FLAG;
 	recv_previous_parsed_rec_offset	= 0;
 	recv_previous_parsed_rec_is_multi = 0;
-	recv_n_pool_free_frames	= 256;
+	recv_n_pool_free_frames	= 384;
 	recv_max_page_lsn = 0;
 }
 
