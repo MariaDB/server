@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3511,8 +3511,10 @@ mysql_execute_command(THD *thd)
       else
       {
         WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
+#ifdef ENABLED_PROFILING
         if (lex->sql_command == SQLCOM_SHOW_PROFILE)
           thd->profiling.discard_current_query();
+#endif
       }
 
     thd->status_var.last_query_cost= 0.0;
