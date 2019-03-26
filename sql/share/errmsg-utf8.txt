@@ -7827,7 +7827,7 @@ ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %s for system-versioned table %`s"
 
 ER_VERS_ENGINE_UNSUPPORTED
-        eng "Transaction system versioning for %`s is not supported"
+        eng "Transaction-precise system versioning for %`s is not supported"
 
 ER_UNUSED_23
         eng "You should never see it"
@@ -7908,7 +7908,7 @@ ER_VERS_TEMPORARY
 	eng "TEMPORARY tables do not support system versioning"
 
 ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
-        eng "Transactional system versioned tables do not support partitioning by ROW START or ROW END"
+        eng "Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE
