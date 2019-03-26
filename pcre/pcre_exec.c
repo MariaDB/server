@@ -2086,7 +2086,7 @@ for (;;)
     case OP_CIRC:
     if (md->notbol && eptr == md->start_subject) RRETURN(MATCH_NOMATCH);
 
-    /* Start of subject assertion */
+    /* Fall through. Start of subject assertion */
 
     case OP_SOD:
     if (eptr != md->start_subject) RRETURN(MATCH_NOMATCH);
