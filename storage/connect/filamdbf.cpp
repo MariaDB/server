@@ -447,7 +447,7 @@ int DBFFAM::Cardinality(PGLOBAL g)
 
 		if (rln && Lrecl != rln) {
 			// This happens always on some Linux platforms
-			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, rln);
+			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, (ushort)rln);
 
 			if (Accept) {
 				Lrecl = rln;
@@ -967,7 +967,7 @@ int DBMFAM::Cardinality(PGLOBAL g)
 
 		if (rln && Lrecl != rln) {
 			// This happens always on some Linux platforms
-			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, rln);
+			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, (ushort)rln);
 
 			if (Accept) {
 				Lrecl = rln;
