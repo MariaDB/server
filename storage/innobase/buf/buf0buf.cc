@@ -946,18 +946,31 @@ buf_page_is_corrupted(
 #error "FIL_PAGE_LSN must be 64 bit aligned"
 #endif
 
-	/* declare empty pages non-corrupted */
-	if (checksum_field1 == 0 && checksum_field2 == 0
-	    && *reinterpret_cast<const ib_uint64_t*>(read_buf +
-						     FIL_PAGE_LSN) == 0) {
-		/* make sure that the page is really empty */
-		for (ulint i = 0; i < UNIV_PAGE_SIZE; i++) {
-			if (read_buf[i] != 0) {
-				return(true);
+	/* A page filled with NUL bytes is considered not corrupted.
+	The FIL_PAGE_FILE_FLUSH_LSN field may be written nonzero for
+	the first page of each file of the system tablespace.
+	Ignore it for the system tablespace. */
+	if (!checksum_field1 && !checksum_field2) {
+		ulint i = 0;
+		do {
+			if (read_buf[i]) {
+				return true;
 			}
-		}
+		} while (++i < FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
-		return(false);
+#ifndef UNIV_INNOCHECKSUM
+		if (!space || !space->id) {
+			/* Skip FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			in the system tablespace. */
+			i += 8;
+		}
+#endif
+		do {
+			if (read_buf[i]) {
+				return true;
+			}
+		} while (++i < srv_page_size);
+		return false;
 	}
 
 	switch (curr_algo) {
