@@ -259,7 +259,7 @@ public:
   void add_str(const char* val, size_t length)
   {
     if (writer)
-      writer->add_str(val);
+      writer->add_str(val, length);
   }
   void add_str(const String &str)
   {

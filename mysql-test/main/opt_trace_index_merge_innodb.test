@@ -36,10 +36,19 @@ explain select * from t1 where pk1 != 0  and key1 = 1;
 select * from information_schema.OPTIMIZER_TRACE;
 drop table t1;
 set @@optimizer_switch= @tmp_index_merge_ror_cpk;
-set optimizer_trace="enabled=off";
-
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;
 
+--echo #
+--echo # MDEV-18962: ASAN heap-buffer-overflow in Single_line_formatting_helper::on_add_str with optimizer trace
+--echo #
+
+CREATE TABLE t1 (a date not null, b time, key(a), key(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('1991-09-09','00:00:00'),('2032-08-24','02:22:24');
+SET SESSION optimizer_trace = 'enabled=on';
+SELECT * FROM t1 WHERE b IS NULL AND a = '2000-01-01';
+DROP TABLE t1;
+
+set optimizer_trace="enabled=off";
