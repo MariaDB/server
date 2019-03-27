@@ -563,6 +563,7 @@ sp_head::sp_head()
 
   DBUG_ENTER("sp_head::sp_head");
 
+  m_security_ctx.init();
   m_backpatch.empty();
   m_cont_backpatch.empty();
   m_lex.empty();
