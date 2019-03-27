@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -623,7 +623,6 @@ struct trx_lock_t {
 					lock_sys->mutex. Otherwise, this may
 					only be modified by the thread that is
 					serving the running transaction. */
-
 	mem_heap_t*	lock_heap;	/*!< memory heap for trx_locks;
 					protected by lock_sys->mutex */
 
@@ -694,14 +693,6 @@ holding trx_sys->mutex exclusively.
 lock_rec_convert_impl_to_expl()) will access transactions associated
 to other connections. The locks of transactions are protected by
 lock_sys->mutex and sometimes by trx->mutex. */
-
-enum trx_abort_t {
-	TRX_SERVER_ABORT = 0,
-#ifdef WITH_WSREP
-	TRX_WSREP_ABORT,
-#endif
-	TRX_REPLICATION_ABORT
-};
 
 struct trx_t{
 	ulint		magic_n;
@@ -880,8 +871,12 @@ struct trx_t{
 	/*------------------------------*/
 	THD*		mysql_thd;	/*!< MySQL thread handle corresponding
 					to this trx, or NULL */
-	trx_abort_t	abort_type;	/*!< Transaction abort type*/
-
+	bool		victim;		/*!< This transaction is
+					selected as victim for abort
+					either by replication or
+					high priority wsrep thread. This
+					field is protected by trx and
+					lock sys mutex. */
 	const char*	mysql_log_file_name;
 					/*!< if MySQL binlog is used, this field
 					contains a pointer to the latest file

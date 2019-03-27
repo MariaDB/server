@@ -4929,8 +4929,6 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 		/* if victim has been signaled by BF thread and/or aborting
 		   is already progressing, following query aborting is not necessary
 		   any more.
-		   Also, BF thread should own trx mutex for the victim, which would
-		   conflict with trx_mutex_enter() below
 		*/
 		DBUG_VOID_RETURN;
 	}
@@ -4939,34 +4937,8 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 	if (trx_t* trx = thd_to_trx(thd)) {
 		ut_ad(trx->mysql_thd == thd);
 
-		switch (trx->abort_type) {
-#ifdef WITH_WSREP
-		case TRX_WSREP_ABORT:
-			break;
-#endif
-		case TRX_SERVER_ABORT:
-			if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-				lock_mutex_enter();
-			}
-			/* fall through */
-		case TRX_REPLICATION_ABORT:
-			trx_mutex_enter(trx);
-		}
 		/* Cancel a pending lock request if there are any */
 		lock_trx_handle_wait(trx);
-		switch (trx->abort_type) {
-#ifdef WITH_WSREP
-		case TRX_WSREP_ABORT:
-			break;
-#endif
-		case TRX_SERVER_ABORT:
-			if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-				lock_mutex_exit();
-			}
-			/* fall through */
-		case TRX_REPLICATION_ABORT:
-			trx_mutex_exit(trx);
-		}
 	}
 
 	DBUG_VOID_RETURN;
@@ -18683,6 +18655,12 @@ wsrep_innobase_kill_one_trx(
 		    wsrep_thd_ws_handle(thd)->trx_id);
 
 	wsrep_thd_LOCK(thd);
+
+	/* We mark this as victim transaction, which is already marked
+	as BF victim. Both trx mutex and lock_sys mutex is held until
+	this victim has aborted. */
+	victim_trx->victim = true;
+
         DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
                  {
                    const char act[]=
@@ -18866,7 +18844,7 @@ wsrep_abort_transaction(
 	my_bool signal)
 {
 	DBUG_ENTER("wsrep_innobase_abort_thd");
-	
+
 	trx_t* victim_trx	= thd_to_trx(victim_thd);
 	trx_t* bf_trx		= (bf_thd) ? thd_to_trx(bf_thd) : NULL;
 
@@ -18878,12 +18856,10 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		victim_trx->abort_type = TRX_WSREP_ABORT;
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);
 		trx_mutex_exit(victim_trx);
 		lock_mutex_exit();
-		victim_trx->abort_type = TRX_SERVER_ABORT;
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {
