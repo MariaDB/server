@@ -130,6 +130,7 @@ public:
     return false;
   }
 
+  void reset_field() { DBUG_ASSERT(0); }
   void update_field() {}
 
   enum Sumfunctype sum_func() const
@@ -193,11 +194,8 @@ public:
     return cur_rank;
   }
 
+  void reset_field() { DBUG_ASSERT(0); }
   void update_field() {}
-  /*
-   void reset_field();
-    TODO: ^^ what does this do ? It is not called ever?
-  */
 
   enum Sumfunctype sum_func () const
   {
@@ -261,6 +259,7 @@ class Item_sum_dense_rank: public Item_sum_int
     first_add= true;
   }
   bool add();
+  void reset_field() { DBUG_ASSERT(0); }
   void update_field() {}
   longlong val_int()
   {
@@ -460,6 +459,7 @@ class Item_sum_window_with_row_count : public Item_sum_num
 
   void set_row_count(ulonglong count) { partition_row_count_ = count; }
 
+  void reset_field() { DBUG_ASSERT(0); }
  protected:
   longlong get_row_count() { return partition_row_count_; }
  private:
