@@ -18,6 +18,7 @@ SET SESSION wsrep_sync_wait = 0;
 --source include/galera_set_sync_point.inc
 
 --connection node_2
+SET SESSION wsrep_retry_autocommit = 0;
 SET SESSION wsrep_trx_fragment_size = 64;
 --send DELETE FROM t1 ORDER BY f1 DESC LIMIT 2;
 
@@ -32,7 +33,7 @@ INSERT INTO t1 (f2) VALUES ('d'),('e');
 --source include/galera_clear_sync_point.inc
 
 --connection node_2
---error ER_LOCK_DEADLOCK, ER_QUERY_INTERRUPTED
+--error ER_LOCK_DEADLOCK
 --reap
 
 DROP TABLE t1;
