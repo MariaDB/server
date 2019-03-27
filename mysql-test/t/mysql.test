@@ -702,3 +702,9 @@ select count(*) from t1; truncate table t1;
  --exec $MYSQL --disable-local-infile -e "/*q*/$ldli"
 select count(*) from t1; truncate table t1;
 drop table t1;
+
+
+--echo #
+--echo # MDEV-15538 '-N' Produce html output wrong
+--echo #
+--exec $MYSQL -NHe "select 1 as a"

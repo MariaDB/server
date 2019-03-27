@@ -7,8 +7,8 @@ b	int(11)	#		#	VIRTUAL GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
 SELECT a,b FROM t1;
 a	b
 1	2
@@ -24,8 +24,8 @@ b	int(11)	#		#	STORED GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
 SELECT a,b FROM t1;
 a	b
 1	2
@@ -41,8 +41,8 @@ b	int(11)	#		#	VIRTUAL GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
 SELECT a,b FROM t1;
 a	b
 1	2
@@ -58,8 +58,8 @@ b	int(11)	#		#	STORED GENERATED
 INSERT INTO t1 (a) VALUES (1),(2);
 INSERT INTO t1 (a,b) VALUES (3,3),(4,4);
 Warnings:
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
-Warning	1906	The value specified for generated column 'b' in table 't1' ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't1' has been ignored
 SELECT a,b FROM t1;
 a	b
 1	2

@@ -76,10 +76,10 @@ b int, c blob as (b), index (c(57)),
 d blob, e blob as (d), index (e(57)))
 replace select * from t1;
 Warnings:
-Warning	1906	The value specified for generated column 'c' in table 't' ignored
-Warning	1906	The value specified for generated column 'e' in table 't' ignored
-Warning	1906	The value specified for generated column 'c' in table 't' ignored
-Warning	1906	The value specified for generated column 'e' in table 't' ignored
+Warning	1906	The value specified for generated column 'c' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'c' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -256,10 +256,10 @@ b int, c blob as (b), index (c(57)),
 d blob, e blob as (d), index (e(57)))
 replace select * from t1;
 Warnings:
-Warning	1906	The value specified for generated column 'c' in table 't' ignored
-Warning	1906	The value specified for generated column 'e' in table 't' ignored
-Warning	1906	The value specified for generated column 'c' in table 't' ignored
-Warning	1906	The value specified for generated column 'e' in table 't' ignored
+Warning	1906	The value specified for generated column 'c' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'c' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
