@@ -1,0 +1,136 @@
+overhead command    sharedobj               function 
+16.09   mysqld      mysqld                 bin2decimal
+ 9.54   mysqld      mysqld                 decimal2bin
+ 6.87   mysqld      mysqld                 do_add
+ 5.20   mysqld      mysqld                 decimal_m.l
+ 3.83   mysqld      mysqld                 decimal_act.al_fraction
+ 2.88   mysqld      mysqld                 Item_s.m_s.m::.pdate_field
+ 7.26   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::Resize
+ 3.56   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 3.01   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 2.82   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 2.27   mysqld      ha_rocksdb.so           myrocks::Rdb_key_def::.npack_record 
+ 2.06   mysqld      mysqld                  handler::ha_rnd_next 
+ 11.69   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 10.05   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 3.97   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::FindPointer
+ 2.77   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare 
+ 2.17   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 2.10   mysqld      ha_rocksdb.so           rocksdb::Version::Get   
+ 6.42   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek                                                   
+ 4.49   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey                                                                      
+ 3.42   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format                     
+ 2.75   mysqld      ha_rocksdb.so           myrocks::Rdb_key_def::.npack_record                                  
+ 2.61   mysqld      ha_rocksdb.so           rocksdb::DBIter::FindNextUserEntryInternal                                                           
+ 2.57   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::FindPointer               
+ 11.82   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 7.50   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 3.24   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare 
+ 2.75   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::FindPointer
+ 2.54   mysqld      ha_rocksdb.so           rocksdb::Version::Get
+ 2.43   mysqld      ha_rocksdb.so           rocksdb::BlockIter::Seek   
+ 7.52   mysqld      ha_rocksdb.so          myrocks::ha_rocksdb::convert_record_from_storage_format
+ 4.57   mysqld      ha_rocksdb.so          rocksdb::BlockIter::ParseNextKey
+ 4.43   mysqld      mysqld                 handler::ha_rnd_next
+ 3.89   mysqld      mysqld                 pack_time
+ 3.74   mysqld      ha_rocksdb.so          rocksdb::DBIter::FindNextUserEntryInternal
+ 3.25   mysqld      ha_rocksdb.so          rocksdb::MergingIterator::Next
+ 12.02   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 8.67   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 3.52   mysqld      ha_rocksdb.so           rocksdb::Version::Get
+ 3.21   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare 
+ 3.06   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::FindPointer
+ 2.50   mysqld      ha_rocksdb.so           rocksdb::BlockIter::Seek  
+13.41   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek                                                
+10.45   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey                                                                   
+ 4.25   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::FindPointer                                                     
+ 3.10   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare                                               
+ 2.52   mysqld      ha_rocksdb.so           rocksdb::Version::Get
+ 2.43   mysqld      ha_rocksdb.so           rocksdb::BlockIter::Seek                                                                      
+ 13.90   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 9.56   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 3.11   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare 
+ 2.97   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::FindPointer
+ 2.66   mysqld      ha_rocksdb.so           rocksdb::BlockIter::Seek
+ 2.49   mysqld      ha_rocksdb.so           rocksdb::Version::Get 
+ 7.57   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 7.35   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 3.10   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 2.31   mysqld      mysqld                  my_hash_sort_simple_nopad
+ 1.96   mysqld      ha_rocksdb.so           myrocks::Rdb_key_def::.npack_record 
+ 1.94   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare   
+ 9.38   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 5.02   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 4.38   mysqld      ha_rocksdb.so           rocksdb::Version::Get
+ 3.39   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare 
+ 2.88   mysqld      ha_rocksdb.so           rocksdb::BlockIter::Seek
+ 2.30   mysqld      ha_rocksdb.so           rocksdb::StatisticsImpl::recordTick
+ 14.85   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 5.79   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 5.05   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare 
+ 3.63   mysqld      ha_rocksdb.so           rocksdb::BlockIter::Seek
+ 2.59   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 2.40   mysqld      ha_rocksdb.so           _init
+ 7.83   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 6.86   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 4.17   mysqld      mysqld                  handler::ha_rnd_next
+ 3.40   mysqld      ha_rocksdb.so           rocksdb::DBIter::FindNextUserEntryInternal
+ 3.34   mysqld      ha_rocksdb.so           rocksdb::MergingIterator::Next
+ 2.94   mysqld      mysqld                  pack_time
+ 7.30   mysqld      ha_rocksdb.so          myrocks::ha_rocksdb::convert_record_from_storage_format
+ 6.56   mysqld      ha_rocksdb.so          rocksdb::BlockIter::ParseNextKey
+ 5.87   mysqld      ha_rocksdb.so          myrocks::Rdb_key_def::.npack_record 
+ 3.84   mysqld      ha_rocksdb.so          rocksdb::DBIter::FindNextUserEntryInternal
+ 3.42   mysqld      ha_rocksdb.so          myrocks::Rdb_key_def::.npack_integer
+ 2.72   mysqld      mysqld                 pack_time  
+10.12   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek
+ 7.92   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 3.08   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare 
+ 2.58   mysqld      ha_rocksdb.so           rocksdb::LRUHandleTable::FindPointer
+ 2.19   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 1.91   mysqld      ha_rocksdb.so           _init 
+ 13.08   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 6.18   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 4.94   mysqld      ha_rocksdb.so           rocksdb::DBIter::FindNextUserEntryInternal
+ 4.20   mysqld      ha_rocksdb.so           rocksdb::DBIter::Next
+ 3.62   mysqld      ha_rocksdb.so           rocksdb::MergingIterator::val.e 
+ 3.38   mysqld      ha_rocksdb.so           rocksdb::MergingIterator::Next 
+ 7.91   mysqld      ha_rocksdb.so          rocksdb::BlockIter::ParseNextKey
+ 5.33   mysqld      ha_rocksdb.so          myrocks::Rdb_key_def::.npack_record 
+ 3.64   mysqld      ha_rocksdb.so          myrocks::ha_rocksdb::convert_record_from_storage_format
+ 3.57   mysqld      ha_rocksdb.so          rocksdb::DBIter::FindNextUserEntryInternal
+ 3.08   mysqld      ha_rocksdb.so          rocksdb::DBIter::Next
+ 2.99   mysqld      ha_rocksdb.so          rocksdb::MergingIterator::Next 
+ 7.50   mysqld      ha_rocksdb.so           myrocks::ha_rocksdb::convert_record_from_storage_format
+ 4.40   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey
+ 3.18   mysqld      mysqld                  my_lengthsp_8bit
+ 2.95   mysqld      mysqld                  handler::ha_rnd_next
+ 2.87   mysqld      mysqld                  bin2decimal
+ 2.82   mysqld      mysqld                  Arg_comparator::compare_string
+ 10.39   mysqld      ha_rocksdb.so           rocksdb::BlockIter::BinarySeek                                                  
+ 4.30   mysqld      ha_rocksdb.so           rocksdb::BlockIter::ParseNextKey                                                             
+ 3.04   mysqld      ha_rocksdb.so           myrocks::Rdb_pk_comparator::Compare                                               
+ 2.34   mysqld      ha_rocksdb.so           rocksdb::BlockIter::Seek                                                                    
+ 1.94   mysqld      ha_rocksdb.so           _init                                                                                                      
+ 1.61   mysqld      ha_rocksdb.so           rocksdb::StatisticsImpl::recordTick                                                                 
+ 10.43  mysqld      ha_rocksdb.so          myrocks::ha_rocksdb::convert_record_from_storage_format
+ 8.18  mysqld      ha_rocksdb.so         rocksdb::BlockIter::ParseNextKey
+ 5.37  mysqld      ha_rocksdb.so         rocksdb::DBIter::FindNextUserEntryInternal 
+ 4.06  mysqld      ha_rocksdb.so         rocksdb::DBIter::Next
+ 3.52  mysqld      ha_rocksdb.so         rocksdb::MergingIterator::Next
+ 3.41  mysqld      ha_rocksdb.so         rocksdb::MergingIterator::val.e 
+ 12.75  mysqld      ha_rocksdb.so         rocksdb::BlockIter::ParseNextKey
+ 5.87  mysqld      ha_rocksdb.so         rocksdb::DBIter::FindNextUserEntryInternal 
+ 5.23  mysqld      ha_rocksdb.so         myrocks::ha_rocksdb::convert_record_from_storage_format 
+ 4.48  mysqld      ha_rocksdb.so         rocksdb::DBIter::Next
+ 4.33  mysqld      ha_rocksdb.so         rocksdb::MergingIterator::val.e 
+ 3.72  mysqld      mysqld                Arg_comparator::compare_int_signed
+
+
+   
+
+   
+
+                                         
+
+
