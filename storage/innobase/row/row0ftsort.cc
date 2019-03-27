@@ -1673,7 +1673,7 @@ row_fts_merge_insert(
 	/* Create bulk load instance */
 	ins_ctx.btr_bulk = UT_NEW_NOKEY(
 		BtrBulk(aux_index, trx, psort_info[0].psort_common->trx
-			->flush_observer));
+			->get_flush_observer()));
 
 	/* Create tuple for insert */
 	ins_ctx.tuple = dtuple_create(heap, dict_index_get_n_fields(aux_index));
