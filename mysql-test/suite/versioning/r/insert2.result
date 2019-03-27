@@ -36,18 +36,18 @@ period for system_time (row_start, row_end)
 ) with system versioning;
 insert into t1 values  (1), (2);
 insert into t1 (row_start) select row_end from t1;
-ERROR HY000: The value specified for generated column 'row_start' in table 't1' ignored
+ERROR HY000: The value specified for generated column 'row_start' in table 't1' has been ignored
 set sql_mode='';
 insert into t1 (row_start, row_end) values (DEFAULT, 1);
 Warnings:
-Warning	1906	The value specified for generated column 'row_end' in table 't1' ignored
+Warning	1906	The value specified for generated column 'row_end' in table 't1' has been ignored
 set sql_mode=default;
 select @@sql_mode into @saved_mode;
 set sql_mode= '';
 insert into t1 (x, row_start, row_end) values (3, 4, 5);
 Warnings:
-Warning	1906	The value specified for generated column 'row_start' in table 't1' ignored
-Warning	1906	The value specified for generated column 'row_end' in table 't1' ignored
+Warning	1906	The value specified for generated column 'row_start' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'row_end' in table 't1' has been ignored
 set sql_mode= @saved_mode;
 insert into t1 (row_start, row_end) values (DEFAULT, DEFAULT);
 select * from t1;

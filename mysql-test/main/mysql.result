@@ -626,3 +626,7 @@ count(*)
 0
 truncate table t1;
 drop table t1;
+#
+# MDEV-15538 '-N' Produce html output wrong
+#
+<TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>
