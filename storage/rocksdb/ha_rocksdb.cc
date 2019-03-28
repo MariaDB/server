@@ -3750,20 +3750,32 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
          - For a COMMIT statement that finishes a multi-statement transaction
          - For a statement that has its own transaction
       */
-
-      //  First, commit without syncing. This establishes the commit order
-      tx->set_sync(false);
-      bool tx_had_writes = tx->get_write_count()? true : false ;
-      if (tx->commit()) {
-        DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
-      }
-      thd_wakeup_subsequent_commits(thd, 0);
-
-      if (tx_had_writes && rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+      if (thd->slave_thread)
       {
-        rocksdb::Status s= rdb->FlushWAL(true);
-        if (!s.ok())
-          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        // An attempt to make parallel slave performant (not fully successful,
+        // see MDEV-15372):
+
+        //  First, commit without syncing. This establishes the commit order
+        tx->set_sync(false);
+        bool tx_had_writes = tx->get_write_count()? true : false ;
+        if (tx->commit()) {
+          DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
+        }
+        thd_wakeup_subsequent_commits(thd, 0);
+
+        if (tx_had_writes && rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+        {
+          rocksdb::Status s= rdb->FlushWAL(true);
+          if (!s.ok())
+            DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        }
+      }
+      else
+      {
+        /* Not a slave thread */
+        if (tx->commit()) {
+          DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
+        }
       }
     } else {
       /*
