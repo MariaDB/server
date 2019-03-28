@@ -2449,7 +2449,7 @@ static void setup_windows_event_source()
 
   // Create the event source registry key
   dwError= RegCreateKey(HKEY_LOCAL_MACHINE,
-                          "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\MySQL", 
+                          "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\MariaDB",
                           &hRegKey);
 
   /* Name of the PE module that contains the message resource */
@@ -8697,18 +8697,35 @@ bool flush_error_log()
 }
 
 #ifdef _WIN32
+struct eventlog_source
+{
+  HANDLE handle;
+  eventlog_source()
+  {
+    setup_windows_event_source();
+    handle = RegisterEventSource(NULL, "MariaDB");
+  }
+
+  ~eventlog_source()
+  {
+    if (handle)
+      DeregisterEventSource(handle);
+  }
+};
+
+static eventlog_source eventlog;
+
 static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
                                         size_t length, size_t buffLen)
 {
-  HANDLE event;
+  HANDLE event= eventlog.handle;
   char   *buffptr= buff;
   DBUG_ENTER("print_buffer_to_nt_eventlog");
 
   /* Add ending CR/LF's to string, overwrite last chars if necessary */
   strmov(buffptr+MY_MIN(length, buffLen-5), "\r\n\r\n");
 
-  setup_windows_event_source();
-  if ((event= RegisterEventSource(NULL,"MySQL")))
+  if (event)
   {
     switch (level) {
       case ERROR_LEVEL:
@@ -8724,7 +8741,6 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
                     0, (LPCSTR*) &buffptr, NULL);
         break;
     }
-    DeregisterEventSource(event);
   }
 
   DBUG_VOID_RETURN;
