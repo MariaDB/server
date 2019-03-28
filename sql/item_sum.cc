@@ -2089,46 +2089,42 @@ Item *Item_sum_std::result_item(THD *thd, Field *field)
   variance.  The difference between the two classes is that the first is used
   for a mundane SELECT, while the latter is used in a GROUPing SELECT.
 */
-static void variance_fp_recurrence_next(double *m, double *s, ulonglong *count, double nr)
+void Stddev::recurrence_next(double nr)
 {
-  *count += 1;
-
-  if (*count == 1) 
+  if (!m_count++)
   {
-    *m= nr;
-    *s= 0;
+    DBUG_ASSERT(m_m == 0);
+    DBUG_ASSERT(m_s == 0);
+    m_m= nr;
   }
   else
   {
-    double m_kminusone= *m;
+    double m_kminusone= m_m;
     volatile double diff= nr - m_kminusone;
-    *m= m_kminusone + diff / (double) *count;
-    *s= *s + diff * (nr - *m);
+    m_m= m_kminusone + diff / (double) m_count;
+    m_s= m_s + diff * (nr - m_m);
   }
 }
 
 
-static double variance_fp_recurrence_result(double s, ulonglong count, bool is_sample_variance)
+double Stddev::result(bool is_sample_variance)
 {
-  if (count == 1)
+  if (m_count == 1)
     return 0.0;
 
   if (is_sample_variance)
-    return s / (count - 1);
+    return m_s / (m_count - 1);
 
   /* else, is a population variance */
-  return s / count;
+  return m_s / m_count;
 }
 
 
 Item_sum_variance::Item_sum_variance(THD *thd, Item_sum_variance *item):
   Item_sum_num(thd, item),
-    count(item->count), sample(item->sample),
+    m_stddev(item->m_stddev), sample(item->sample),
     prec_increment(item->prec_increment)
-{
-  recurrence_m= item->recurrence_m;
-  recurrence_s= item->recurrence_s;
-}
+{ }
 
 
 void Item_sum_variance::fix_length_and_dec_double()
@@ -2191,8 +2187,7 @@ Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table)
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new Field_string(sizeof(double)*2 + sizeof(longlong), 0,
-                            &name, &my_charset_bin);
+    field= new Field_string(Stddev::binary_size(), 0, &name, &my_charset_bin);
   }
   else
     field= new Field_double(max_length, maybe_null, &name, decimals,
@@ -2207,7 +2202,7 @@ Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table)
 
 void Item_sum_variance::clear()
 {
-  count= 0; 
+  m_stddev= Stddev();
 }
 
 bool Item_sum_variance::add()
@@ -2219,7 +2214,7 @@ bool Item_sum_variance::add()
   double nr= args[0]->val_real();
   
   if (!args[0]->null_value)
-    variance_fp_recurrence_next(&recurrence_m, &recurrence_s, &count, nr);
+    m_stddev.recurrence_next(nr);
   return 0;
 }
 
@@ -2237,14 +2232,14 @@ double Item_sum_variance::val_real()
     below which a 'count' number of items is called NULL.
   */
   DBUG_ASSERT((sample == 0) || (sample == 1));
-  if (count <= sample)
+  if (m_stddev.count() <= sample)
   {
     null_value=1;
     return 0.0;
   }
 
   null_value=0;
-  return variance_fp_recurrence_result(recurrence_s, count, sample);
+  return m_stddev.result(sample);
 }
 
 
@@ -2263,24 +2258,32 @@ void Item_sum_variance::reset_field()
   nr= args[0]->val_real();              /* sets null_value as side-effect */
 
   if (args[0]->null_value)
-    bzero(res,sizeof(double)*2+sizeof(longlong));
+    bzero(res,Stddev::binary_size());
   else
-  {
-    /* Serialize format is (double)m, (double)s, (longlong)count */
-    ulonglong tmp_count;
-    double tmp_s;
-    float8store(res, nr);               /* recurrence variable m */
-    tmp_s= 0.0;
-    float8store(res + sizeof(double), tmp_s);
-    tmp_count= 1;
-    int8store(res + sizeof(double)*2, tmp_count);
-  }
+    Stddev(nr).to_binary(res);
+}
+
+
+Stddev::Stddev(const uchar *ptr)
+{
+  float8get(m_m, ptr);
+  float8get(m_s, ptr + sizeof(double));
+  m_count= sint8korr(ptr + sizeof(double) * 2);
+}
+
+
+void Stddev::to_binary(uchar *ptr) const
+{
+  /* Serialize format is (double)m, (double)s, (longlong)count */
+  float8store(ptr, m_m);
+  float8store(ptr + sizeof(double), m_s);
+  ptr+= sizeof(double)*2;
+  int8store(ptr, m_count);
 }
 
 
 void Item_sum_variance::update_field()
 {
-  ulonglong field_count;
   uchar *res=result_field->ptr;
 
   double nr= args[0]->val_real();       /* sets null_value as side-effect */
@@ -2289,17 +2292,9 @@ void Item_sum_variance::update_field()
     return;
 
   /* Serialize format is (double)m, (double)s, (longlong)count */
-  double field_recurrence_m, field_recurrence_s;
-  float8get(field_recurrence_m, res);
-  float8get(field_recurrence_s, res + sizeof(double));
-  field_count=sint8korr(res+sizeof(double)*2);
-
-  variance_fp_recurrence_next(&field_recurrence_m, &field_recurrence_s, &field_count, nr);
-
-  float8store(res, field_recurrence_m);
-  float8store(res + sizeof(double), field_recurrence_s);
-  res+= sizeof(double)*2;
-  int8store(res,field_count);
+  Stddev field_stddev(res);
+  field_stddev.recurrence_next(nr);
+  field_stddev.to_binary(res);
 }
 
 
@@ -3201,15 +3196,11 @@ double Item_std_field::val_real()
 double Item_variance_field::val_real()
 {
   // fix_fields() never calls for this Item
-  double recurrence_s;
-  ulonglong count;
-  float8get(recurrence_s, (field->ptr + sizeof(double)));
-  count=sint8korr(field->ptr+sizeof(double)*2);
-
-  if ((null_value= (count <= sample)))
+  Stddev tmp(field->ptr);
+  if ((null_value= (tmp.count() <= sample)))
     return 0.0;
 
-  return variance_fp_recurrence_result(recurrence_s, count, sample);
+  return tmp.result(sample);
 }
 
 

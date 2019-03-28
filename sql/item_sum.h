@@ -964,18 +964,38 @@ But, this falls prey to catastrophic cancellation.  Instead, use the recurrence 
 
 */
 
+class Stddev
+{
+  double m_m;
+  double m_s;
+  ulonglong m_count;
+public:
+  Stddev() :m_m(0), m_s(0), m_count(0) { }
+  Stddev(double nr) :m_m(nr), m_s(0.0), m_count(1) { }
+  Stddev(const uchar *);
+  void to_binary(uchar *) const;
+  void recurrence_next(double nr);
+  double result(bool is_simple_variance);
+  ulonglong count() const { return m_count; }
+  static uint32 binary_size()
+  {
+    return (uint32) (sizeof(double) * 2 + sizeof(ulonglong));
+  };
+};
+
+
+
 class Item_sum_variance : public Item_sum_num
 {
+  Stddev m_stddev;
   bool fix_length_and_dec();
 
 public:
-  double recurrence_m, recurrence_s;    /* Used in recurrence relation. */
-  ulonglong count;
   uint sample;
   uint prec_increment;
 
   Item_sum_variance(THD *thd, Item *item_par, uint sample_arg):
-    Item_sum_num(thd, item_par), count(0),
+    Item_sum_num(thd, item_par),
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
@@ -997,7 +1017,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_double; }
   void cleanup()
   {
-    count= 0;
+    m_stddev= Stddev();
     Item_sum_num::cleanup();
   }
   Item *get_copy(THD *thd)
