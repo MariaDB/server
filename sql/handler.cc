@@ -6590,10 +6590,10 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
       error= HA_ERR_FOUND_DUPP_KEY;
     goto exit;
   }
-  if (result == HA_ERR_LOCK_WAIT_TIMEOUT)
-    error= HA_ERR_LOCK_WAIT_TIMEOUT;
+  if (result != HA_ERR_KEY_NOT_FOUND)
+    error= result;
 exit:
-  if (error)
+  if (error == HA_ERR_FOUND_DUPP_KEY)
   {
     table->file->errkey= key_no;
     if (h->ha_table_flags() & HA_DUPLICATE_POS)
