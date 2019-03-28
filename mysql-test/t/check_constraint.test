@@ -176,3 +176,16 @@ select * from t1 where a is null;
 --error ER_CONSTRAINT_FAILED
 insert t1 (b) values (1);
 drop table t1;
+
+--echo #
+--echo # MDEV-18463 Don't allow multiple table CONSTRAINTs with the same name
+--echo #
+
+create table tpk
+(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL);
+--error ER_DUP_CONSTRAINT_NAME
+create table tfk
+(id INT, c1 INT, c2 INT NOT NULL,
+ CONSTRAINT sid FOREIGN KEY (`c1`) REFERENCES tpk (`id`)
+ ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT sid check (c2>15));
+drop table tpk;

@@ -235,3 +235,14 @@ a	b
 insert t1 (b) values (1);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 drop table t1;
+#
+# MDEV-18463 Don't allow multiple table CONSTRAINTs with the same name
+#
+create table tpk
+(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL);
+create table tfk
+(id INT, c1 INT, c2 INT NOT NULL,
+CONSTRAINT sid FOREIGN KEY (`c1`) REFERENCES tpk (`id`)
+ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT sid check (c2>15));
+ERROR HY000: Duplicate CHECK constraint name 'sid'
+drop table tpk;

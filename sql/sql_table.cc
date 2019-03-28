@@ -4189,7 +4189,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                                     &alter_info->check_constraint_list,
                                     &nr);
       {
-        /* Check that there's no repeating constraint names. */
+        /* Check that there's no repeating CHECK constraint names. */
         List_iterator_fast<Virtual_column_info>
           dup_it(alter_info->check_constraint_list);
         Virtual_column_info *dup_check;
@@ -4198,6 +4198,20 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           if (check->name.length == dup_check->name.length &&
               my_strcasecmp(system_charset_info,
                             check->name.str, dup_check->name.str) == 0)
+          {
+            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+            DBUG_RETURN(TRUE);
+          }
+        }
+
+        /* Check that there's no repeating foreign key constraint names. */
+        List_iterator_fast<Key> key_it(alter_info->key_list);
+        Key *key;
+        while ((key= key_it++))
+        {
+          if (check->name.length == key->name.length &&
+              my_strcasecmp(system_charset_info,
+                            check->name.str, key->name.str) == 0)
           {
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
