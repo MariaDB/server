@@ -108,7 +108,7 @@ BOOL exclude_service(mysqld_service_properties *props)
   }
   if ((props->version_major == 0) ||
      (props->version_major > 5 && props->version_major < 10) ||
-     (props->version_major == 5 && props->version_minor > 6))
+     (props->version_major == 5 && props->version_minor > 7))
   {
     return TRUE;
   }
