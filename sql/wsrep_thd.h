@@ -37,7 +37,6 @@ int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
 */
 extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
 extern my_bool  wsrep_thd_is_BF(THD *thd, my_bool sync);
-extern my_bool wsrep_thd_is_applier(THD *thd);
 extern my_bool wsrep_thd_is_wsrep(void *thd_ptr);
 
 enum wsrep_conflict_state wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
@@ -48,7 +47,6 @@ extern "C" int  wsrep_thd_in_locking_session(void *thd_ptr);
 #else /* WITH_WSREP */
 
 #define wsrep_thd_is_BF(T, S) (0)
-#define wsrep_thd_is_applier(T) (0)
 #define wsrep_abort_thd(X,Y,Z) do { } while(0)
 #define wsrep_create_appliers(T) do { } while(0)
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,6 +33,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0roll.ic"
 #endif
 
+#include <mysql/service_wsrep.h>
+
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "trx0rseg.h"
@@ -49,6 +51,9 @@ Created 3/26/1996 Heikki Tuuri
 #include "pars0pars.h"
 #include "srv0mon.h"
 #include "trx0sys.h"
+#ifdef WITH_WSREP
+#include "ha_prototypes.h"
+#endif /* WITH_WSREP */
 
 /** This many pages must be undone before a truncate is tried within
 rollback */
@@ -370,7 +375,13 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx_mark_sql_stat_end(trx);
 
 	trx->op_info = "";
-	trx->victim = false;
+
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    trx->lock.was_chosen_as_deadlock_victim) {
+		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 
 	return(err);
 }
@@ -1068,6 +1079,12 @@ trx_roll_try_truncate(
 	if (trx->update_undo) {
 		trx_undo_truncate_end(trx, trx->update_undo, limit);
 	}
+
+#ifdef WITH_WSREP_OUT
+	if (wsrep_on(trx->mysql_thd)) {
+		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif /* WITH_WSREP */
 }
 
 /***********************************************************************//**
