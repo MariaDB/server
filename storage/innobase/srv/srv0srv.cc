@@ -2322,7 +2322,6 @@ DECLARE_THREAD(srv_master_thread)(
 			os_thread_create */
 {
 	my_thread_init();
-	DBUG_ENTER("srv_master_thread");
 
 	srv_slot_t*	slot;
 	ulint		old_activity_count = srv_get_activity_count();

@@ -98,6 +98,8 @@
 #include <process.h>
 #endif
 
+#include <memory>
+
 /*
  *            Manifest constants which may be "tuned" if desired.
  */
@@ -329,10 +331,10 @@ static void DbugVfprintf(FILE *stream, const char* format, va_list args);
 #include <my_pthread.h>
 static pthread_mutex_t THR_LOCK_dbug;
 
+thread_local std::unique_ptr<CODE_STATE> g_code_state;
+
 static CODE_STATE *code_state(void)
 {
-  CODE_STATE *cs, **cs_ptr;
-
   /*
     _dbug_on_ is reset if we don't plan to use any debug commands at all and
     we want to run on maximum speed
@@ -351,30 +353,25 @@ static CODE_STATE *code_state(void)
     init_settings.flags=OPEN_APPEND;
   }
 
-  if (!(cs_ptr= (CODE_STATE**) my_thread_var_dbug()))
-    return 0;                                   /* Thread not initialised */
-  if (!(cs= *cs_ptr))
+  if (!g_code_state)
   {
-    cs=(CODE_STATE*) DbugMalloc(sizeof(*cs));
-    bzero((uchar*) cs,sizeof(*cs));
-    cs->process= db_process ? db_process : "dbug";
-    cs->func= "?func";
-    cs->file= "?file";
-    cs->stack=&init_settings;
-    *cs_ptr= cs;
+    g_code_state.reset(new CODE_STATE);
+    bzero((uchar*) g_code_state.get(),sizeof(*g_code_state));
+    g_code_state->process= db_process ? db_process : "dbug";
+    g_code_state->func= "?func";
+    g_code_state->file= "?file";
+    g_code_state->stack=&init_settings;
   }
-  return cs;
+  return g_code_state.get();
 }
 
 void
 dbug_swap_code_state(void **code_state_store)
 {
-  CODE_STATE *cs, **cs_ptr;
+  CODE_STATE *cs;
 
-  if (!(cs_ptr= (CODE_STATE**) my_thread_var_dbug()))
-    return;
-  cs= *cs_ptr;
-  *cs_ptr= *code_state_store;
+  cs= g_code_state.get();
+  g_code_state.reset(static_cast<CODE_STATE*>(*code_state_store));
   *code_state_store= cs;
 }
 
@@ -382,7 +379,7 @@ void dbug_free_code_state(void **code_state_store)
 {
   if (*code_state_store)
   {
-    free(*code_state_store);
+    delete static_cast<CODE_STATE *>(*code_state_store);
     *code_state_store= NULL;
   }
 }

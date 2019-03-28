@@ -44,7 +44,6 @@ struct mysql_heartbeat_context
 
 pthread_handler_t mysql_heartbeat(void *p)
 {
-  DBUG_ENTER("mysql_heartbeat");
   struct mysql_heartbeat_context *con= (struct mysql_heartbeat_context *)p;
   char buffer[HEART_STRING_BUFFER];
   time_t result;
@@ -67,7 +66,7 @@ pthread_handler_t mysql_heartbeat(void *p)
     my_write(con->heartbeat_file, (uchar*) buffer, strlen(buffer), MYF(0));
   }
 
-  DBUG_RETURN(0);
+  return 0;
 }
 
 /*

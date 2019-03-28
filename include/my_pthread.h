@@ -734,7 +734,6 @@ struct st_my_thread_var
   void  *stack_ends_here;
   safe_mutex_t *mutex_in_use;
 #ifndef DBUG_OFF
-  void *dbug;
   char name[THREAD_NAME_SIZE+1];
 #endif
 };

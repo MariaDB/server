@@ -359,14 +359,6 @@ void my_thread_end(void)
 
   if (tmp && tmp->init)
   {
-#if !defined(DBUG_OFF)
-    /* tmp->dbug is allocated inside DBUG library */
-    if (tmp->dbug)
-    {
-      free(tmp->dbug);
-      tmp->dbug=0;
-    }
-#endif
     my_thread_destory_thr_mutex(tmp);
 
     /*
@@ -432,16 +424,6 @@ const char *my_thread_name(void)
   return tmp->name;
 }
 
-/* Return pointer to DBUG for holding current state */
-
-extern void **my_thread_var_dbug()
-{
-  struct st_my_thread_var *tmp;
-  if (!my_thread_global_init_done)
-    return NULL;
-  tmp= my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
-  return tmp && tmp->init ? &tmp->dbug : 0;
-}
 #endif /* DBUG_OFF */
 
 /* Return pointer to mutex_in_use */
