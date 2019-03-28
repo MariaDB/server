@@ -7027,8 +7027,11 @@ Field_longstr::check_string_copy_error(const String_copier *copier,
   if (!(pos= copier->most_important_error_pos()))
     return FALSE;
 
-  convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
-  set_warning_truncated_wrong_value("string", tmp);
+  if (!is_stat_field)
+  {
+    convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
+    set_warning_truncated_wrong_value("string", tmp);
+  }
   return TRUE;
 }
 

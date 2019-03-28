@@ -651,6 +651,63 @@ SELECT MAX(pk) FROM t1;
 MAX(pk)
 NULL
 DROP TABLE t1;
+#
+# MDEV-18899: Server crashes in Field::set_warning_truncated_wrong_value
+#
+set names utf8;
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables=preferably;
+set @save_histogram_size= @@histogram_size;
+set histogram_size=255;
+create table t1 ( a varchar(255) character set utf8);
+insert into t1 values (REPEAT('ӥ',255)), (REPEAT('ç',255));
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select HEX(RIGHT(min_value, 1)), length(min_value) from mysql.column_stats where db_name='test' and table_name='t1';
+HEX(RIGHT(min_value, 1))	length(min_value)
+A7	254
+select HEX(RIGHT(max_value, 1)), length(max_value) from mysql.column_stats where db_name='test' and table_name='t1';
+HEX(RIGHT(max_value, 1))	length(max_value)
+A5	254
+analyze select * from t1 where a  >= 'ӥ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	50.00	50.00	Using where
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+update mysql.column_stats set min_value= REPEAT('ӥ',255) where db_name='test' and table_name='t1';
+Warnings:
+Warning	1265	Data truncated for column 'min_value' at row 1
+select HEX(RIGHT(min_value, 1)), length(min_value) from mysql.column_stats where db_name='test' and table_name='t1';
+HEX(RIGHT(min_value, 1))	length(min_value)
+D3	255
+analyze select * from t1 where a  >= 'ӥ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	50.00	50.00	Using where
+set names latin1;
+drop table t1;
+CREATE TABLE t1 (col1 date);
+INSERT INTO t1 VALUES('2004-01-01'),('2004-02-29');
+INSERT INTO t1 VALUES('0000-10-31');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+update mysql.column_stats set min_value='2004-0-31123' where db_name='test' and table_name='t1';
+select min_value from mysql.column_stats where db_name='test' and table_name='t1';
+min_value
+2004-0-31123
+select * from t1;
+col1
+2004-01-01
+2004-02-29
+0000-10-31
+drop table t1;
+set @@sql_mode= @save_sql_mode;
 set use_stat_tables=@save_use_stat_tables;
+set @@histogram_size= @save_histogram_size;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;
