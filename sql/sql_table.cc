@@ -7873,11 +7873,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     if (alter)
     {
-      if (def->sql_type == MYSQL_TYPE_BLOB)
-      {
-        my_error(ER_BLOB_CANT_HAVE_DEFAULT, MYF(0), def->change);
-        goto err;
-      }
       if ((def->default_value= alter->default_value)) // Use new default
         def->flags&= ~NO_DEFAULT_VALUE_FLAG;
       else

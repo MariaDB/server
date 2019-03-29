@@ -4827,12 +4827,6 @@ will_not_choose:
 				srv_force_recovery);
 			return;
 		}
-
-		/* In mariabackup lets not crash. */
-		if (IS_XTRABACKUP()) {
-			return;
-		}
-
 		abort();
 	}
 
