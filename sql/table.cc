@@ -59,6 +59,8 @@ struct extra2_fields
   LEX_CUSTRING field_flags;
   LEX_CUSTRING system_period;
   LEX_CUSTRING application_period;
+  void reset()
+  { bzero((void*)this, sizeof(*this)); }
 };
 
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
@@ -1451,7 +1453,7 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
 
   DBUG_ENTER("read_extra2");
 
-  memset(fields, 0, sizeof(extra2_fields));
+  fields->reset();
 
   if (*extra2 != '/')   // old frm had '/' there
   {

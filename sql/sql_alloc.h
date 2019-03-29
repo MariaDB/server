@@ -45,9 +45,6 @@ public:
 #ifdef HAVE_valgrind
   bool dummy_for_valgrind;
   inline Sql_alloc() :dummy_for_valgrind(0) {}
-#else
-  inline Sql_alloc() {}
 #endif
-  inline ~Sql_alloc() {}
 };
 #endif /* SQL_ALLOC_INCLUDED */
