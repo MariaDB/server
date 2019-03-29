@@ -58,11 +58,11 @@ s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
 select * from log_tbl order by id;
 id	log
 1	>DEL: 1999-01-01, 2018-12-12
-2	<DEL: 1999-01-01, 2018-12-12
-3	>INS: 1999-01-01, 2000-01-01
-4	<INS: 1999-01-01, 2000-01-01
-5	>INS: 2018-01-01, 2018-12-12
-6	<INS: 2018-01-01, 2018-12-12
+2	>INS: 1999-01-01, 2000-01-01
+3	<INS: 1999-01-01, 2000-01-01
+4	>INS: 2018-01-01, 2018-12-12
+5	<INS: 2018-01-01, 2018-12-12
+6	<DEL: 1999-01-01, 2018-12-12
 # UPDATE
 create or replace table t (x int, s date, e date,
 row_start SYS_TYPE as row start invisible,
