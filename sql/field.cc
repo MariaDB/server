@@ -11010,9 +11010,18 @@ void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
 {
   THD *thd= get_thd();
   if (thd->really_abort_on_warning() && level >= Sql_condition::WARN_LEVEL_WARN)
-    thd->push_warning_truncated_value_for_field(level, typestr,
-                                                str->ptr(), table->s,
-                                                field_name.str);
+  {
+    /*
+      field_str.name can be NULL when field is not in the select list:
+        SET SESSION SQL_MODE= 'STRICT_ALL_TABLES,NO_ZERO_DATE';
+        CREATE OR REPLACE TABLE t2 SELECT 1 AS f FROM t1 GROUP BY FROM_DAYS(d);
+      Can't call push_warning_truncated_value_for_field() directly here,
+      as it expect a non-NULL name.
+    */
+    thd->push_warning_wrong_or_truncated_value(level, false, typestr,
+                                               str->ptr(), table->s,
+                                               field_name.str);
+  }
   else
     set_warning(level, code, cuted_increment);
 }

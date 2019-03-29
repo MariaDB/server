@@ -1185,5 +1185,14 @@ c IN (GREATEST(a,b))
 0
 DROP TABLE t1;
 #
+# MDEV-17969 Assertion `name' failed in THD::push_warning_truncated_value_for_field
+#
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('2018-01-01'),('2019-01-01');
+SET SESSION SQL_MODE= 'STRICT_ALL_TABLES,NO_ZERO_DATE';
+CREATE TABLE t2 SELECT 1 AS f FROM t1 GROUP BY FROM_DAYS(d);
+ERROR 22007: Truncated incorrect date value: '0000-00-00'
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
