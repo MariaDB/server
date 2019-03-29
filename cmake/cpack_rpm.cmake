@@ -69,6 +69,8 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
 
 %{?filter_setup:
+%filter_provides_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
+%filter_requires_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_from_provides /perl(\\\\(mtr\\\\|My::\\\\)/d
 %filter_from_requires /\\\\(lib\\\\(ft\\\\|lzma\\\\|tokuportability\\\\)\\\\)\\\\|\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
 %filter_setup
