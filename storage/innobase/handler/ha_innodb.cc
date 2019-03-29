@@ -14455,6 +14455,10 @@ get_foreign_key_info(
 	LEX_STRING*		referenced_key_name;
 	LEX_STRING*		name = NULL;
 
+	if (row_is_mysql_tmp_table_name(foreign->foreign_table_name)) {
+		return NULL;
+	}
+
 	ptr = dict_remove_db_name(foreign->id);
 	f_key_info.foreign_id = thd_make_lex_string(thd, 0, ptr,
 						    (uint) strlen(ptr), 1);
