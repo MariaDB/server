@@ -5,6 +5,7 @@ connection node_1;
 create table t1 (a int, s bigint unsigned as row start, e bigint unsigned as row end, period for system_time(s,e)) engine=InnoDB with system versioning;
 insert into t1 (a) values (1),(2);
 connection node_2;
+set session wsrep_sync_wait=15;
 insert into t1 (a) values (3),(4);
 select a from t1;
 a
@@ -19,6 +20,7 @@ select count(*) from mysql.transaction_registry where begin_timestamp>=commit_ti
 count(*)
 0
 connection node_3;
+set session wsrep_sync_wait=15;
 insert into t1 (a) values (5),(6);
 select a from t1;
 a
@@ -35,6 +37,7 @@ select count(*) from mysql.transaction_registry where begin_timestamp>=commit_ti
 count(*)
 0
 connection node_1;
+set session wsrep_sync_wait=15;
 select a from t1;
 a
 1
@@ -50,5 +53,4 @@ select count(*) from mysql.transaction_registry where begin_timestamp>=commit_ti
 count(*)
 0
 drop table t1;
-disconnect node_2;
-disconnect node_1;
+disconnect node_3;
