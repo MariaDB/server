@@ -240,7 +240,7 @@ public:
   int close(void);
 
   int write_row(uchar *buf);
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
 
   /** @brief
@@ -268,7 +268,7 @@ public:
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type);     ///< required
 
-  my_bool register_query_cache_table(THD *thd, char *table_key,
+  my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,
