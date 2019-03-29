@@ -2148,12 +2148,11 @@ static const char *BaseName(const char *pathname)
 
 #ifndef Writable
 
-static BOOLEAN Writable(const char *pathname)
+static BOOLEAN Writable(const char *path)
 {
-  BOOLEAN granted;
-  char *lastslash;
+  BOOLEAN granted = false;;
+  char *pathname = strdup(path);
 
-  granted= FALSE;
   if (EXISTS(pathname))
   {
     if (WRITABLE(pathname))
@@ -2161,16 +2160,22 @@ static BOOLEAN Writable(const char *pathname)
   }
   else
   {
-    lastslash= strrchr(pathname, '/');
+    char *lastslash= strrchr(pathname, '/');
     if (lastslash != NULL)
+    {
       *lastslash= '\0';
+    }
     else
+    {
+      free(pathname);
       pathname= ".";
+    }
     if (WRITABLE(pathname))
       granted= TRUE;
     if (lastslash != NULL)
       *lastslash= '/';
   }
+  free(pathname);
   return granted;
 }
 #endif
