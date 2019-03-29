@@ -392,7 +392,7 @@ buf_dump(
 			if (SHUTTING_DOWN() && !(j % 1024)) {
 				service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 					"Dumping buffer pool "
-					ULINTPF "/" ULINTPF ", "
+					ULINTPF "/%lu, "
 					"page " ULINTPF "/" ULINTPF,
 					i + 1, srv_buf_pool_instances,
 					j + 1, n_pages);

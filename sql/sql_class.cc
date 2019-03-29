@@ -6061,16 +6061,18 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       replicated_tables_count++;
 
-      if (table->lock_type <= TL_READ_NO_INSERT &&
-          table->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
-        has_read_tables= true;
-      else if (table->table->found_next_number_field &&
-                (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+      if (table->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
       {
-        has_auto_increment_write_tables= true;
-        has_auto_increment_write_tables_not_first= found_first_not_own_table;
-        if (table->table->s->next_number_keypart != 0)
-          has_write_table_auto_increment_not_first_in_pk= true;
+        if (table->lock_type <= TL_READ_NO_INSERT)
+          has_read_tables= true;
+        else if (table->table->found_next_number_field &&
+                 (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+        {
+          has_auto_increment_write_tables= true;
+          has_auto_increment_write_tables_not_first= found_first_not_own_table;
+          if (table->table->s->next_number_keypart != 0)
+            has_write_table_auto_increment_not_first_in_pk= true;
+        }
       }
 
       if (table->lock_type >= TL_WRITE_ALLOW_WRITE)

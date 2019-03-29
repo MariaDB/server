@@ -1076,6 +1076,15 @@ t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+create table t1 (a int);
+alter table t1 add column b blob, alter column b set default "foo";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` blob DEFAULT 'foo'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 #
 # End of 10.2 test
 #

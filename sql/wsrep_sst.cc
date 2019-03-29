@@ -220,7 +220,7 @@ bool wsrep_sst_wait ()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 
@@ -1472,7 +1472,7 @@ void wsrep_SE_init_wait()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 

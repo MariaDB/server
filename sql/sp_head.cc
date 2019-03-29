@@ -552,6 +552,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
 
   DBUG_ENTER("sp_head::sp_head");
 
+  m_security_ctx.init();
   m_backpatch.empty();
   m_backpatch_goto.empty();
   m_cont_backpatch.empty();

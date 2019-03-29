@@ -401,4 +401,44 @@ SELECT MAX(pk) FROM t1;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-18899: Server crashes in Field::set_warning_truncated_wrong_value
+--echo #
+
+set names utf8;
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables=preferably;
+set @save_histogram_size= @@histogram_size;
+set histogram_size=255;
+
+create table t1 ( a varchar(255) character set utf8);
+insert into t1 values (REPEAT('ӥ',255)), (REPEAT('ç',255));
+
+analyze table t1;
+select HEX(RIGHT(min_value, 1)), length(min_value) from mysql.column_stats where db_name='test' and table_name='t1';
+select HEX(RIGHT(max_value, 1)), length(max_value) from mysql.column_stats where db_name='test' and table_name='t1';
+analyze select * from t1 where a  >= 'ӥ';
+
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+update mysql.column_stats set min_value= REPEAT('ӥ',255) where db_name='test' and table_name='t1';
+select HEX(RIGHT(min_value, 1)), length(min_value) from mysql.column_stats where db_name='test' and table_name='t1';
+analyze select * from t1 where a  >= 'ӥ';
+
+set names latin1;
+drop table t1;
+
+CREATE TABLE t1 (col1 date);
+INSERT INTO t1 VALUES('2004-01-01'),('2004-02-29');
+INSERT INTO t1 VALUES('0000-10-31');
+analyze table t1;
+update mysql.column_stats set min_value='2004-0-31123' where db_name='test' and table_name='t1';
+select min_value from mysql.column_stats where db_name='test' and table_name='t1';
+select * from t1;
+drop table t1;
+
+set @@sql_mode= @save_sql_mode;
 set use_stat_tables=@save_use_stat_tables;
+set @@histogram_size= @save_histogram_size;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;

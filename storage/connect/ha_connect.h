@@ -32,6 +32,10 @@
 /****************************************************************************/
 #include "mycat.h"
 
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+bool MongoEnabled(void);
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
+
 /****************************************************************************/
 /*  Structures used to pass info between CONNECT and ha_connect.            */
 /****************************************************************************/

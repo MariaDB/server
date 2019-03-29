@@ -7684,7 +7684,7 @@ int spider_get_sts(
   int sts_sync_level,
   uint flag
 ) {
-  int get_type;
+  int get_type __attribute__ ((unused));
   int error_num = 0;
   bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_sts");
@@ -7841,7 +7841,7 @@ int spider_get_crd(
 #endif
   int crd_sync_level
 ) {
-  int get_type;
+  int get_type __attribute__ ((unused));
   int error_num = 0;
   bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_crd");
@@ -9253,7 +9253,7 @@ int spider_discover_table_structure(
 #endif
   Open_tables_backup open_tables_backup;
   TABLE *table_tables;
-  uint str_len;
+  uint str_len __attribute__ ((unused));
   char buf[MAX_FIELD_WIDTH];
   spider_string str(buf, sizeof(buf), system_charset_info);
   DBUG_ENTER("spider_discover_table_structure");
