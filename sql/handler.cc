@@ -1354,6 +1354,14 @@ int ha_prepare(THD *thd)
 
       }
     }
+
+    DEBUG_SYNC(thd, "at_unlog_xa_prepare");
+
+    if (tc_log->unlog_xa_prepare(thd, all))
+    {
+      ha_rollback_trans(thd, all);
+      error=1;
+    }
   }
 
   DBUG_RETURN(error);
@@ -1630,10 +1638,6 @@ int ha_commit_trans(THD *thd, bool all)
 
   need_prepare_ordered= FALSE;
   need_commit_ordered= FALSE;
-  DBUG_ASSERT(thd->transaction.implicit_xid.get_my_xid() ==
-              thd->transaction.implicit_xid.quick_get_my_xid());
-  xid= thd->transaction.xid_state.is_explicit_XA() ? 0 :
-       thd->transaction.implicit_xid.quick_get_my_xid();
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {
@@ -1658,6 +1662,18 @@ int ha_commit_trans(THD *thd, bool all)
   DEBUG_SYNC(thd, "ha_commit_trans_after_prepare");
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
 
+  if (!is_real_trans)
+  {
+    error= commit_one_phase_2(thd, all, trans, is_real_trans);
+    goto done;
+  }
+
+  DBUG_ASSERT(thd->transaction.implicit_xid.get_my_xid() ==
+              thd->transaction.implicit_xid.quick_get_my_xid());
+  DBUG_ASSERT(!thd->transaction.xid_state.is_explicit_XA() ||
+              thd->lex->xa_opt == XA_ONE_PHASE);
+  xid= thd->transaction.implicit_xid.quick_get_my_xid();
+
 #ifdef WITH_WSREP
   if (run_wsrep_hooks && !error)
   {
@@ -1668,14 +1684,6 @@ int ha_commit_trans(THD *thd, bool all)
       xid= s.get();
     }
   }
-#endif /* WITH_WSREP */
-
-  if (!is_real_trans)
-  {
-    error= commit_one_phase_2(thd, all, trans, is_real_trans);
-    goto done;
-  }
-#ifdef WITH_WSREP
   if (run_wsrep_hooks && (error = wsrep_before_commit(thd, all)))
     goto wsrep_err;
 #endif /* WITH_WSREP */
@@ -1915,7 +1923,8 @@ int ha_rollback_trans(THD *thd, bool all)
       rollback without signalling following transactions. And in release
       builds, we explicitly do the signalling before rolling back.
     */
-    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit));
+    DBUG_ASSERT(!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit) ||
+                thd->transaction.xid_state.is_explicit_XA());
     if (thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)
       thd->rgi_slave->unmark_start_commit();
   }

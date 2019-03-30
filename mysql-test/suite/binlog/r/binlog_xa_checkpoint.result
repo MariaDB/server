@@ -1,0 +1,33 @@
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+connect con1,localhost,root,,;
+SET DEBUG_SYNC= "at_unlog_xa_prepare SIGNAL con1_ready WAIT_FOR con1_go";
+XA START '1';
+INSERT INTO t1 SET a=1;
+XA END '1';
+XA PREPARE '1';;
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000004	#	Gtid_list	#	#	[#-#-#]
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000001
+SET DEBUG_SYNC= "now SIGNAL con1_go";
+connection con1;
+*** master-bin.000004 checkpoint must show up now ***
+connection con1;
+XA ROLLBACK '1';
+SET debug_sync = 'reset';
+connection default;
+DROP TABLE t1;
+SET debug_sync = 'reset';

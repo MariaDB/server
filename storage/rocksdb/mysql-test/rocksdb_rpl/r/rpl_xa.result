@@ -1,0 +1,61 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table ti (a int, b int) engine=innodb;
+create table t1 (a int, b int) engine=rocksdb;
+insert into ti values(0, 0);
+insert into t1 values(0, 0);
+xa start 't';
+insert into ti values(1, 2);
+insert into t1 values(1, 2);
+xa end 't';
+xa prepare 't';
+xa commit 't';
+connection slave;
+include/diff_tables.inc [master:t1, slave:t1]
+connection master;
+xa start 't';
+insert into ti values(3, 4);
+insert into t1 values(3, 4);
+xa end 't';
+xa prepare 't';
+xa rollback 't';
+connection slave;
+include/diff_tables.inc [master:t1, slave:t1]
+connection master;
+SET pseudo_slave_mode=1;
+create table t2 (a int) engine=rocksdb;
+xa start 't';
+insert into ti values (5, 6);
+insert into t1 values (5, 6);
+xa end 't';
+xa prepare 't';
+xa start 's';
+insert into ti values (7, 8);
+insert into t2 values (0);
+xa end 's';
+xa prepare 's';
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	1	0	t
+1	1	0	s
+connection master;
+xa commit 't';
+xa commit 's';
+SET pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
+xa start 'r';
+insert into t1 values(7, 8);
+xa end 'r';
+xa prepare 'r';
+xa commit 'r';
+connection slave;
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+connection master;
+drop table ti, t1, t2;
+include/rpl_end.inc

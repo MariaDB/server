@@ -3892,11 +3892,44 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
                       buf, print_event_info->delimiter))
         goto err;
   }
-  if (!(flags2 & FL_STANDALONE))
-    if (my_b_printf(&cache, is_flashback ? "COMMIT\n%s\n" : "BEGIN\n%s\n", print_event_info->delimiter))
+  if ((flags2 & FL_PREPARED_XA) && !is_flashback)
+  {
+    my_b_write_string(&cache, "XA START ");
+    xid.serialize();
+    my_b_write(&cache, (uchar*) xid.buf, strlen(xid.buf));
+    if (my_b_printf(&cache, "%s\n", print_event_info->delimiter))
       goto err;
+  }
+  else if (!(flags2 & FL_STANDALONE))
+  {
+    if (my_b_printf(&cache, is_flashback ? "COMMIT\n%s\n" : "BEGIN\n%s\n",
+                    print_event_info->delimiter))
+      goto err;
+  }
 
   return cache.flush_data();
 err:
   return 1;
+}
+
+bool XA_prepare_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
+{
+  Write_on_release_cache cache(&print_event_info->head_cache, file,
+                               Write_on_release_cache::FLUSH_F, this);
+  m_xid.serialize();
+
+  if (!print_event_info->short_form)
+  {
+    print_header(&cache, print_event_info, FALSE);
+    if (my_b_printf(&cache, "\tXID = %s\n", m_xid.buf))
+      goto error;
+  }
+
+  if (my_b_printf(&cache, "XA PREPARE %s\n%s\n",
+                   m_xid.buf, print_event_info->delimiter))
+    goto error;
+
+  return cache.flush_data();
+error:
+  return TRUE;
 }

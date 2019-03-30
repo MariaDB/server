@@ -1,0 +1,235 @@
+# The tests verify concurrent execution of replicated (MDEV-742)
+# XA transactions in the parallel optimistic mode.
+
+--source include/have_innodb.inc
+--source include/have_perfschema.inc
+--source include/master-slave.inc
+
+# Tests' global declarations
+--let $trx = _trx_
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+call mtr.add_suppression("WSREP: handlerton rollback failed");
+#call mtr.add_suppression("Can't find record in 't1'");
+CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where type = 'FOREGROUND';
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--save_master_pos
+
+# Prepare to restart slave into optimistic parallel mode
+--connection slave
+--sync_with_master
+--source include/stop_slave.inc
+SET @old_parallel_threads            = @@GLOBAL.slave_parallel_threads;
+SET @@global.slave_parallel_threads  = 7;
+SET @old_parallel_mode               = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_mode     ='optimistic';
+# Run the first part of the test with high batch size and see that
+# old rows remain in the table.
+SET @old_gtid_cleanup_batch_size     = @@GLOBAL.gtid_cleanup_batch_size;
+SET @@global.gtid_cleanup_batch_size = 1000000;
+
+CHANGE MASTER TO master_use_gtid=slave_pos;
+
+# LOAD GENERATOR creates XA:s interleaved in binlog when they are from
+# different connections. All the following block XA:s of the same connection
+# update the same data which challenges slave optimistic scheduler's correctness.
+# Slave must eventually apply such load, and correctly (checked).
+
+--connection master
+CREATE TABLE t0 (a int,             b INT) ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+
+
+# I. Logging some sequence of XA:s by one connection.
+#
+# The slave applier's task is to successfully execute a series of
+# Prepare and Complete parts of a sequence of XA:s
+
+--let $trx_num = 300
+--let $i       = $trx_num
+--let $conn    = master
+--disable_query_log
+while($i > 0)
+{
+  # 'decision' to commit 0, or rollback 1
+  --let  $decision = `SELECT $i % 2`
+  --eval XA START '$conn$trx$i'
+  --eval   UPDATE t1 SET b = 1 - 2 * $decision WHERE a = 1
+  --eval XA END '$conn$trx$i'
+  --let $one_phase = `SELECT IF(floor(rand()*10)%2, "ONE PHASE", 0)`
+  if (!$one_phase)
+  {
+    --eval XA PREPARE '$conn$trx$i'
+    --let $one_phase =
+  }
+
+  --let $term = COMMIT
+  if ($decision)
+  {
+    --let $term = ROLLBACK
+    --let $one_phase =
+  }
+  --eval XA $term '$conn$trx$i' $one_phase
+
+  --dec $i
+}
+--enable_query_log
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+
+# II. Logging XS:s from multiple connections in random interweaving manner:
+#
+# in a loop ($i) per connection
+#   arrange an inner ($k) loop where
+#     start and prepare an XA;
+#     decide whether to terminate it and then continue to loop innerly
+#     OR disconnect to break the inner loop;
+#   the disconnected one's XA is taken care by 'master' connection
+#
+# Effectively binlog must collect a well mixed XA- prepared and terminated
+# groups for slave to handle.
+
+--connection master
+# Total # of connections
+--let $conn_num=53
+
+--let $i = $conn_num
+--disable_query_log
+while($i > 0)
+{
+  --connect (master_conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,)
+--dec $i
+}
+--enable_query_log
+
+--let $i = $conn_num
+while($i > 0)
+{
+  --let $conn_i      = conn$i
+  # $i2 indexes the current connection's "own" row
+  --let $i2 = `SELECT $i + 2`
+--disable_query_log
+  --connection master_conn$i
+--enable_query_log
+  --disable_query_log
+  --let $i_conn_id   = `SELECT connection_id()`
+
+  --let $decision  = 0
+  # the row id of the last connection that committed its XA
+  --let $c_max     = 1
+  --let $k         = 0
+  while ($decision < 3)
+  {
+    --inc $k
+    --eval XA START '$conn_i$trx$k'
+    # UPDATE depends on previously *committed* transactions
+    --eval UPDATE t1 SET b = b + $k + 1 WHERE a = $c_max
+    if (`SELECT $k % 2 = 1`)
+    {
+    --eval REPLACE INTO t1 VALUES ($i2, $k)
+    }
+    if (`SELECT $k % 2 = 0`)
+    {
+    --eval DELETE FROM t1 WHERE a = $i2
+    }
+    CREATE TEMPORARY TABLE tmp LIKE t0;
+    --eval INSERT INTO tmp SET a=$i, b= $k
+    INSERT INTO t0 SELECT * FROM tmp;
+    DROP TEMPORARY TABLE tmp;
+    --eval XA END '$conn_i$trx$k'
+
+    --let $term = COMMIT
+    --let $decision  = `SELECT (floor(rand()*10 % 10) + ($i+$k)) % 4`
+    if ($decision == 1)
+    {
+    --let $term = ROLLBACK
+    }
+    if ($decision < 2)
+    {
+    --eval XA PREPARE '$conn_i$trx$k'
+    --eval XA $term '$conn_i$trx$k'
+    # Iteration counter is taken care *now*
+    }
+    if ($decision == 2)
+    {
+    --eval XA COMMIT '$conn_i$trx$k' ONE PHASE
+    }
+  }
+
+  # $decision = 3
+  --eval XA PREPARE '$conn_i$trx$k'
+  # disconnect now
+  --disconnect master_conn$i
+  --connection master
+
+  --let $wait_condition= SELECT count(*) = 0 FROM v_processlist WHERE PROCESSLIST_ID = $i_conn_id
+  --source include/wait_condition.inc
+
+  --disable_query_log
+  --let $decision = `SELECT ($i+$k) % 2`
+  --let $term     = COMMIT
+  if ($decision == 1)
+  {
+  --let $term = ROLLBACK
+  }
+  --eval XA $term '$conn_i$trx$k'
+  --let $c_max = $i2
+
+--dec $i
+}
+--enable_query_log
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+#
+# Overall consistency check
+#
+--let $diff_tables= master:t0, slave:t0
+--source include/diff_tables.inc
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+
+#
+# Clean up.
+#
+--connection slave
+--source include/stop_slave.inc
+set global log_warnings=default;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection master
+DROP VIEW v_processlist;
+DROP TABLE t0, t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+# Check that old rows are deleted from mysql.gtid_slave_pos.
+# Deletion is asynchronous, so use wait_condition.inc.
+# Also, there is a small amount of non-determinism in the deletion of old
+# rows, so it is not guaranteed that there can never be more than
+# @@gtid_cleanup_batch_size rows in the table; so allow a bit of slack
+# here.
+let $wait_condition=
+  SELECT COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
+    FROM mysql.gtid_slave_pos;
+--source include/wait_condition.inc
+eval $wait_condition;
+SET GLOBAL gtid_cleanup_batch_size= @old_gtid_cleanup_batch_size;
+
+--connection master
+--source include/rpl_end.inc

@@ -672,12 +672,14 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
 static int
 is_group_ending(Log_event *ev, Log_event_type event_type)
 {
-  if (event_type == XID_EVENT)
+  if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT)
     return 1;
   if (event_type == QUERY_EVENT)  // COMMIT/ROLLBACK are never compressed
   {
     Query_log_event *qev = (Query_log_event *)ev;
-    if (qev->is_commit())
+    if (qev->is_commit() ||
+        !strncmp(qev->query, STRING_WITH_LEN("XA COMMIT")) ||
+        !strncmp(qev->query, STRING_WITH_LEN("XA ROLLBACK")))
       return 1;
     if (qev->is_rollback())
       return 2;
@@ -2088,23 +2090,34 @@ rpl_parallel_thread_pool::release_thread(rpl_parallel_thread *rpt)
   and the LOCK_rpl_thread must be released with THD::EXIT_COND() instead
   of mysql_mutex_unlock.
 
-  If the flag `reuse' is set, the last worker thread will be returned again,
+  When `gtid_ev' is not NULL the last worker thread will be returned again,
   if it is still available. Otherwise a new worker thread is allocated.
+
+  A worker for XA transaction is determined through xid hashing which
+  ensure for a XA-complete to be scheduled to the same-xid XA-prepare worker.
 */
 rpl_parallel_thread *
 rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                  PSI_stage_info *old_stage, bool reuse)
+                                  PSI_stage_info *old_stage,
+                                  Gtid_log_event *gtid_ev)
 {
   uint32 idx;
   Relay_log_info *rli= rgi->rli;
   rpl_parallel_thread *thr;
 
   idx= rpl_thread_idx;
-  if (!reuse)
+  if (gtid_ev)
   {
-    ++idx;
-    if (idx >= rpl_thread_max)
-      idx= 0;
+    if (gtid_ev->flags2 &
+        (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
+      idx= my_hash_sort(&my_charset_bin, gtid_ev->xid.key(),
+                        gtid_ev->xid.key_length()) % rpl_thread_max;
+    else
+    {
+      ++idx;
+      if (idx >= rpl_thread_max)
+        idx= 0;
+    }
     rpl_thread_idx= idx;
   }
   thr= rpl_threads[idx];
@@ -2662,7 +2675,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       else
       {
         DBUG_ASSERT(rli->gtid_skip_flag == GTID_SKIP_TRANSACTION);
-        if (typ == XID_EVENT ||
+        if (typ == XID_EVENT || typ == XA_PREPARE_LOG_EVENT ||
             (typ == QUERY_EVENT &&  // COMMIT/ROLLBACK are never compressed
              (((Query_log_event *)ev)->is_commit() ||
               ((Query_log_event *)ev)->is_rollback())))
@@ -2673,10 +2686,11 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     }
   }
 
+  Gtid_log_event *gtid_ev= NULL;
   if (typ == GTID_EVENT)
   {
     rpl_gtid gtid;
-    Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
+    gtid_ev= static_cast<Gtid_log_event *>(ev);
     uint32 domain_id= (rli->mi->using_gtid == Master_info::USE_GTID_NO ||
                        rli->mi->parallel_mode <= SLAVE_PARALLEL_MINIMAL ?
                        0 : gtid_ev->domain_id);
@@ -2715,8 +2729,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     instead re-use a thread that we queued for previously.
   */
   cur_thread=
-    e->choose_thread(serial_rgi, &did_enter_cond, &old_stage,
-                     typ != GTID_EVENT);
+    e->choose_thread(serial_rgi, &did_enter_cond, &old_stage, gtid_ev);
   if (!cur_thread)
   {
     /* This means we were killed. The error is already signalled. */
@@ -2734,7 +2747,6 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
   if (typ == GTID_EVENT)
   {
-    Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
     bool new_gco;
     enum_slave_parallel_mode mode= rli->mi->parallel_mode;
     uchar gtid_flags= gtid_ev->flags2;

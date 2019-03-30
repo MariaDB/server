@@ -1,0 +1,51 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+call mtr.add_suppression("WSREP: handlerton rollback failed");
+CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where type = 'FOREGROUND';
+connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection slave;
+include/stop_slave.inc
+SET @old_parallel_threads            = @@GLOBAL.slave_parallel_threads;
+SET @@global.slave_parallel_threads  = 7;
+SET @old_parallel_mode               = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_mode     ='optimistic';
+SET @old_gtid_cleanup_batch_size     = @@GLOBAL.gtid_cleanup_batch_size;
+SET @@global.gtid_cleanup_batch_size = 1000000;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+connection master;
+CREATE TABLE t0 (a int,             b INT) ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t0, slave:t0]
+include/diff_tables.inc [master:t1, slave:t1]
+connection slave;
+include/stop_slave.inc
+set global log_warnings=default;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection master;
+DROP VIEW v_processlist;
+DROP TABLE t0, t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
+FROM mysql.gtid_slave_pos;
+COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
+1
+SET GLOBAL gtid_cleanup_batch_size= @old_gtid_cleanup_batch_size;
+connection master;
+include/rpl_end.inc

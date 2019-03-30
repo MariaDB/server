@@ -1487,6 +1487,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t que
       case SQLCOM_RELEASE_SAVEPOINT:
       case SQLCOM_ROLLBACK_TO_SAVEPOINT:
       case SQLCOM_SAVEPOINT:
+      case SQLCOM_XA_END:
         use_cache= trx_cache= TRUE;
         break;
       default:
@@ -3218,6 +3219,18 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
+
+  XID_STATE &xid_state= thd->transaction.xid_state;
+  if (is_transactional && xid_state.is_explicit_XA() &&
+      (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
+       xid_state.get_state_code() == XA_PREPARED))
+  {
+    DBUG_ASSERT(thd->lex->xa_opt != XA_ONE_PHASE);
+
+    flags2|= thd->lex->sql_command == SQLCOM_XA_PREPARE ?
+      FL_PREPARED_XA : FL_COMPLETED_XA;
+    xid.set(xid_state.get_xid());
+  }
 }
 
 
@@ -3260,7 +3273,7 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
 bool
 Gtid_log_event::write()
 {
-  uchar buf[GTID_HEADER_LEN+2];
+  uchar buf[GTID_HEADER_LEN+2+sizeof(XID)];
   size_t write_len;
 
   int8store(buf, seq_no);
@@ -3272,8 +3285,22 @@ Gtid_log_event::write()
     write_len= GTID_HEADER_LEN + 2;
   }
   else
+    write_len= 13;
+
+  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
   {
-    bzero(buf+13, GTID_HEADER_LEN-13);
+    int4store(&buf[write_len],   xid.formatID);
+    buf[write_len +4]=   (uchar) xid.gtrid_length;
+    buf[write_len +4+1]= (uchar) xid.bqual_length;
+    write_len+= 6;
+    long data_length= xid.bqual_length + xid.gtrid_length;
+    memcpy(buf+write_len, xid.data, data_length);
+    write_len+= data_length;
+  }
+
+  if (write_len < GTID_HEADER_LEN)
+  {
+    bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
   return write_header(write_len) ||
@@ -3316,9 +3343,14 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
 void
 Gtid_log_event::pack_info(Protocol *protocol)
 {
-  char buf[6+5+10+1+10+1+20+1+4+20+1];
+  char buf[6+5+10+1+10+1+20+1+4+20+1+ ser_buf_size+5 /* sprintf */];
   char *p;
-  p = strmov(buf, (flags2 & FL_STANDALONE ? "GTID " : "BEGIN GTID "));
+  p = strmov(buf, (flags2 & FL_STANDALONE  ? "GTID " :
+                   flags2 & FL_PREPARED_XA ? "XA START " : "BEGIN GTID "));
+  if (flags2 & FL_PREPARED_XA)
+  {
+    p+= sprintf(p, "%s GTID ", xid.serialize());
+  }
   p= longlong10_to_str(domain_id, p, 10);
   *p++= '-';
   p= longlong10_to_str(server_id, p, 10);
@@ -3378,16 +3410,37 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
     bits|= (ulonglong)OPTION_RPL_SKIP_PARALLEL;
   thd->variables.option_bits= bits;
   DBUG_PRINT("info", ("Set OPTION_GTID_BEGIN"));
-  thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
-                        &my_charset_bin, next_query_id());
-  thd->lex->sql_command= SQLCOM_BEGIN;
   thd->is_slave_error= 0;
-  status_var_increment(thd->status_var.com_stat[thd->lex->sql_command]);
-  if (trans_begin(thd, 0))
+
+  char buf_xa[sizeof("XA START") + 1 + ser_buf_size];
+  if (flags2 & FL_PREPARED_XA)
   {
-    DBUG_PRINT("error", ("trans_begin() failed"));
-    thd->is_slave_error= 1;
+    const char fmt[]= "XA START %s";
+
+    thd->lex->xid= &xid;
+    thd->lex->xa_opt= XA_NONE;
+    sprintf(buf_xa, fmt, xid.serialize());
+    thd->set_query_and_id(buf_xa, static_cast<uint32>(strlen(buf_xa)),
+                          &my_charset_bin, next_query_id());
+    thd->lex->sql_command= SQLCOM_XA_START;
+    if (trans_xa_start(thd))
+    {
+      DBUG_PRINT("error", ("trans_xa_start() failed"));
+      thd->is_slave_error= 1;
+    }
   }
+  else
+  {
+    thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
+                          &my_charset_bin, next_query_id());
+    thd->lex->sql_command= SQLCOM_BEGIN;
+    if (trans_begin(thd, 0))
+    {
+      DBUG_PRINT("error", ("trans_begin() failed"));
+      thd->is_slave_error= 1;
+    }
+  }
+  status_var_increment(thd->status_var.com_stat[thd->lex->sql_command]);
   thd->update_stats();
 
   if (likely(!thd->is_slave_error))
@@ -3771,46 +3824,58 @@ bool slave_execute_deferred_events(THD *thd)
 
 
 /**************************************************************************
-  Xid_log_event methods
+  Xid_apply_log_event methods
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION)
-void Xid_log_event::pack_info(Protocol *protocol)
+
+int Xid_apply_log_event::do_record_gtid(THD *thd, rpl_group_info *rgi,
+                                        bool in_trans, void **out_hton)
 {
-  char buf[128], *pos;
-  pos= strmov(buf, "COMMIT /* xid=");
-  pos= longlong10_to_str(xid, pos, 10);
-  pos= strmov(pos, " */");
-  protocol->store(buf, (uint) (pos-buf), &my_charset_bin);
+  int err= 0;
+  Relay_log_info const *rli= rgi->rli;
+
+  rgi->gtid_pending= false;
+  err= rpl_global_gtid_slave_state->record_gtid(thd, &rgi->current_gtid,
+                                                rgi->gtid_sub_id,
+                                                in_trans, false, out_hton);
+
+  if (unlikely(err))
+  {
+    int ec= thd->get_stmt_da()->sql_errno();
+    /*
+      Do not report an error if this is really a kill due to a deadlock.
+      In this case, the transaction will be re-tried instead.
+    */
+    if (!is_parallel_retry_error(rgi, ec))
+      rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
+                  "Error during XID COMMIT: failed to update GTID state in "
+                  "%s.%s: %d: %s",
+                  "mysql", rpl_gtid_slave_state_table_name.str, ec,
+                  thd->get_stmt_da()->message());
+    thd->is_slave_error= 1;
+  }
+
+  return err;
 }
-#endif
 
-
-bool Xid_log_event::write()
-{
-  DBUG_EXECUTE_IF("do_not_write_xid", return 0;);
-  return write_header(sizeof(xid)) ||
-         write_data((uchar*)&xid, sizeof(xid)) ||
-         write_footer();
-}
-
-
-#if defined(HAVE_REPLICATION)
-int Xid_log_event::do_apply_event(rpl_group_info *rgi)
+int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 {
   bool res;
   int err;
-  rpl_gtid gtid;
   uint64 sub_id= 0;
-  Relay_log_info const *rli= rgi->rli;
   void *hton= NULL;
+  rpl_gtid gtid;
 
   /*
-    XID_EVENT works like a COMMIT statement. And it also updates the
-    mysql.gtid_slave_pos table with the GTID of the current transaction.
-
+    An instance of this class such as XID_EVENT works like a COMMIT
+    statement. It updates mysql.gtid_slave_pos with the GTID of the
+    current transaction.
     Therefore, it acts much like a normal SQL statement, so we need to do
     THD::reset_for_next_command() as if starting a new statement.
+
+    XA_PREPARE_LOG_EVENT also updates the gtid table *but* the update gets
+    committed as separate "autocommit" transaction.
   */
   thd->reset_for_next_command();
   /*
@@ -3824,57 +3889,50 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   if (rgi->gtid_pending)
   {
     sub_id= rgi->gtid_sub_id;
-    rgi->gtid_pending= false;
-
     gtid= rgi->current_gtid;
-    err= rpl_global_gtid_slave_state->record_gtid(thd, &gtid, sub_id, true,
-                                                  false, &hton);
-    if (unlikely(err))
-    {
-      int ec= thd->get_stmt_da()->sql_errno();
-      /*
-        Do not report an error if this is really a kill due to a deadlock.
-        In this case, the transaction will be re-tried instead.
-      */
-      if (!is_parallel_retry_error(rgi, ec))
-        rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
-                    "Error during XID COMMIT: failed to update GTID state in "
-                    "%s.%s: %d: %s",
-                    "mysql", rpl_gtid_slave_state_table_name.str, ec,
-                    thd->get_stmt_da()->message());
-      thd->is_slave_error= 1;
-      return err;
-    }
 
-    DBUG_EXECUTE_IF("gtid_fail_after_record_gtid",
-        { my_error(ER_ERROR_DURING_COMMIT, MYF(0), HA_ERR_WRONG_COMMAND);
-          thd->is_slave_error= 1;
-          return 1;
-        });
+    if (!thd->transaction.xid_state.is_explicit_XA())
+    {
+      if ((err= do_record_gtid(thd, rgi, true /* in_trans */, &hton)))
+        return err;
+
+      DBUG_EXECUTE_IF("gtid_fail_after_record_gtid",
+                      {
+                        my_error(ER_ERROR_DURING_COMMIT, MYF(0),
+                                 HA_ERR_WRONG_COMMAND);
+                        thd->is_slave_error= 1;
+                        return 1;
+                      });
+    }
   }
 
-  /* For a slave Xid_log_event is COMMIT */
-  general_log_print(thd, COM_QUERY,
-                    "COMMIT /* implicit, from Xid_log_event */");
+  general_log_print(thd, COM_QUERY, get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
-  res= trans_commit(thd); /* Automatically rolls back on error. */
-  thd->mdl_context.release_transactional_locks();
+  res= do_commit();
+  if (!res && rgi->gtid_pending)
+  {
+    DBUG_ASSERT(!thd->transaction.xid_state.is_explicit_XA());
 
+    if ((err= do_record_gtid(thd, rgi, false, &hton)))
+      return err;
+  }
   if (likely(!res) && sub_id)
     rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, hton, rgi);
 
   /*
     Increment the global status commit count variable
   */
-  status_var_increment(thd->status_var.com_stat[SQLCOM_COMMIT]);
+  enum enum_sql_command cmd= !thd->transaction.xid_state.is_explicit_XA() ?
+    SQLCOM_COMMIT : SQLCOM_XA_PREPARE;
+  status_var_increment(thd->status_var.com_stat[cmd]);
 
   return res;
 }
 
 Log_event::enum_skip_reason
-Xid_log_event::do_shall_skip(rpl_group_info *rgi)
+Xid_apply_log_event::do_shall_skip(rpl_group_info *rgi)
 {
-  DBUG_ENTER("Xid_log_event::do_shall_skip");
+  DBUG_ENTER("Xid_apply_log_event::do_shall_skip");
   if (rgi->rli->slave_skip_counter > 0)
   {
     DBUG_ASSERT(!rgi->rli->get_flag(Relay_log_info::IN_TRANSACTION));
@@ -3898,7 +3956,106 @@ Xid_log_event::do_shall_skip(rpl_group_info *rgi)
 #endif
   DBUG_RETURN(Log_event::do_shall_skip(rgi));
 }
+#endif /* HAVE_REPLICATION */
+
+/**************************************************************************
+  Xid_log_event methods
+**************************************************************************/
+
+#if defined(HAVE_REPLICATION)
+void Xid_log_event::pack_info(Protocol *protocol)
+{
+  char buf[128], *pos;
+  pos= strmov(buf, "COMMIT /* xid=");
+  pos= longlong10_to_str(xid, pos, 10);
+  pos= strmov(pos, " */");
+  protocol->store(buf, (uint) (pos-buf), &my_charset_bin);
+}
+
+
+int Xid_log_event::do_commit()
+{
+  bool res;
+  res= trans_commit(thd); /* Automatically rolls back on error. */
+  thd->mdl_context.release_transactional_locks();
+  return res;
+}
+#endif
+
+
+bool Xid_log_event::write()
+{
+  DBUG_EXECUTE_IF("do_not_write_xid", return 0;);
+  return write_header(sizeof(xid)) ||
+         write_data((uchar*)&xid, sizeof(xid)) ||
+         write_footer();
+}
+
+/**************************************************************************
+  XA_prepare_log_event methods
+**************************************************************************/
+
+#if defined(HAVE_REPLICATION)
+void XA_prepare_log_event::pack_info(Protocol *protocol)
+{
+  char query[sizeof("XA COMMIT ONE PHASE") + 1 + ser_buf_size];
+
+  sprintf(query,
+          (one_phase ? "XA COMMIT %s ONE PHASE" :  "XA PREPARE %s"),
+          m_xid.serialize());
+
+  protocol->store(query, strlen(query), &my_charset_bin);
+}
+
+
+int XA_prepare_log_event::do_commit()
+{
+  int res;
+  xid_t xid;
+  xid.set(m_xid.formatID,
+          m_xid.data, m_xid.gtrid_length,
+          m_xid.data + m_xid.gtrid_length, m_xid.bqual_length);
+
+  thd->lex->xid= &xid;
+  if (!one_phase)
+  {
+    if ((res= thd->wait_for_prior_commit()))
+      return res;
+
+    thd->lex->sql_command= SQLCOM_XA_PREPARE;
+    res= trans_xa_prepare(thd);
+  }
+  else
+  {
+    res= trans_xa_commit(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+
+  return res;
+}
 #endif // HAVE_REPLICATION
+
+
+bool XA_prepare_log_event::write()
+{
+  uchar data[1 + 4 + 4 + 4]= {one_phase,};
+  uint8 one_phase_byte= one_phase;
+
+  int4store(data+1, static_cast<XID*>(xid)->formatID);
+  int4store(data+(1+4), static_cast<XID*>(xid)->gtrid_length);
+  int4store(data+(1+4+4), static_cast<XID*>(xid)->bqual_length);
+
+  DBUG_ASSERT(xid_subheader_no_data == sizeof(data) - 1);
+
+  return write_header(sizeof(one_phase_byte) + xid_subheader_no_data +
+                      static_cast<XID*>(xid)->gtrid_length +
+                      static_cast<XID*>(xid)->bqual_length) ||
+         write_data(data, sizeof(data)) ||
+         write_data((uchar*) static_cast<XID*>(xid)->data,
+                     static_cast<XID*>(xid)->gtrid_length +
+                     static_cast<XID*>(xid)->bqual_length) ||
+         write_footer();
+}
 
 
 /**************************************************************************
@@ -8300,7 +8457,6 @@ bool event_that_should_be_ignored(const char *buf)
       event_type == PREVIOUS_GTIDS_LOG_EVENT ||
       event_type == TRANSACTION_CONTEXT_EVENT ||
       event_type == VIEW_CHANGE_EVENT ||
-      event_type == XA_PREPARE_LOG_EVENT ||
       (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F))
     return 1;
   return 0;
