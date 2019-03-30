@@ -1407,6 +1407,7 @@ void do_handle_one_connection(CONNECT *connect)
 
 end_thread:
     close_connection(thd);
+    thd->get_stmt_da()->reset_diagnostics_area();
 
     if (thd->userstat_running)
       update_global_user_stats(thd, create_user, time(NULL));

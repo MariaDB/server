@@ -1247,6 +1247,7 @@ int ha_prepare(THD *thd)
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_prepare");
 
+  thd->transaction.xid_state.registered_for_binlog= false;
   if (ha_info)
   {
     for (; ha_info; ha_info= ha_info->next())
@@ -1269,6 +1270,13 @@ int ha_prepare(THD *thd)
                             ha_resolve_storage_engine_name(ht));
 
       }
+    }
+
+    if (thd->transaction.xid_state.registered_for_binlog &&
+        unlikely(tc_log->log_xa_prepare(thd, all)))
+    {
+      ha_rollback_trans(thd, all);
+      error=1;
     }
   }
 
@@ -2110,7 +2118,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           char buf[XIDDATASIZE*4+6]; // see xid_to_str
           DBUG_PRINT("info", ("ignore xid %s", xid_to_str(buf, info->list+i)));
 #endif
-          xid_cache_insert(info->list+i, XA_PREPARED);
+          xid_cache_insert(info->list+i, XA_PREPARED, TRUE);
           info->found_foreign_xids++;
           continue;
         }

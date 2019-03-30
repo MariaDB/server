@@ -1,0 +1,62 @@
+include/master-slave.inc
+[connection master]
+create table t1 (a int, b int) engine=InnoDB;
+xa start 't';
+insert into t1 values(1, 2);
+xa end 't';
+xa prepare 't';
+xa commit 't';
+select * from t1;
+a	b
+1	2
+connection slave;
+select * from t1;
+a	b
+1	2
+connection master;
+xa start 't';
+insert into t1 values(3, 4);
+xa end 't';
+xa prepare 't';
+xa rollback 't';
+select * from t1;
+a	b
+1	2
+connection slave;
+select * from t1;
+a	b
+1	2
+connection master;
+SET pseudo_slave_mode=1;
+create table t2 (a int) engine=InnoDB;
+xa start 't';
+insert into t1 values (5, 6);
+xa end 't';
+xa prepare 't';
+xa start 's';
+insert into t2 values (0);
+xa end 's';
+xa prepare 's';
+xa commit 't';
+xa commit 's';
+SET pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
+select * from t1;
+a	b
+1	2
+5	6
+select * from t2;
+a
+0
+connection slave;
+select * from t1;
+a	b
+1	2
+5	6
+select * from t2;
+a
+0
+connection master;
+drop table t1, t2;
+include/rpl_end.inc

@@ -66,6 +66,7 @@ xa end 'tr1';
 xa prepare 'tr1';
 xa recover format='SQL';
 formatID	gtrid_length	bqual_length	data
+11	5	5	X'7465737462',X'2030405060',11
 1	3	0	'tr1'
 xa rollback 'tr1';
 xa start 'tr1', 'bq';
@@ -75,6 +76,7 @@ xa prepare 'tr1', 'bq';
 xa recover format='SQL';
 formatID	gtrid_length	bqual_length	data
 1	3	2	'tr1','bq'
+11	5	5	X'7465737462',X'2030405060',11
 xa rollback 'tr1', 'bq';
 xa start 'tr1', 'bq', 3;
 insert t1 values (40);
@@ -83,6 +85,7 @@ xa prepare 'tr1', 'bq', 3;
 xa recover format='SQL';
 formatID	gtrid_length	bqual_length	data
 3	3	2	'tr1','bq',3
+11	5	5	X'7465737462',X'2030405060',11
 xa rollback 'tr1', 'bq', 3;
 xa start 'tr1#$';
 insert t1 values (40);
@@ -90,6 +93,7 @@ xa end 'tr1#$';
 xa prepare 'tr1#$';
 xa recover format='SQL';
 formatID	gtrid_length	bqual_length	data
+11	5	5	X'7465737462',X'2030405060',11
 1	5	0	X'7472312324'
 xa rollback 'tr1#$';
 xa start 'tr1#$', 'bq';
@@ -98,6 +102,7 @@ xa end 'tr1#$', 'bq';
 xa prepare 'tr1#$', 'bq';
 xa recover format='SQL';
 formatID	gtrid_length	bqual_length	data
+11	5	5	X'7465737462',X'2030405060',11
 1	5	2	X'7472312324',X'6271'
 xa rollback 'tr1#$', 'bq';
 xa start 'tr1#$', 'bq', 3;
@@ -106,11 +111,13 @@ xa end 'tr1#$', 'bq', 3;
 xa prepare 'tr1#$', 'bq', 3;
 xa recover format='RAW';
 formatID	gtrid_length	bqual_length	data
+11	5	5	testb 0@P`
 3	5	2	tr1#$bq
 xa recover format='PLAIN';
 ERROR HY000: Unknown XA RECOVER format name: 'PLAIN'
 xa recover format='SQL';
 formatID	gtrid_length	bqual_length	data
+11	5	5	X'7465737462',X'2030405060',11
 3	5	2	X'7472312324',X'6271',3
 xa rollback 'tr1#$', 'bq', 3;
 drop table t1;
@@ -345,3 +352,6 @@ connection default;
 XA END 'xid1';
 XA ROLLBACK 'xid1';
 DROP TABLE t1, t2, t3;
+xa rollback 'testb',0x2030405060,11;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data

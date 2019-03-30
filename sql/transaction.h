@@ -42,6 +42,8 @@ bool trans_xa_end(THD *thd);
 bool trans_xa_prepare(THD *thd);
 bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
+bool trans_xa_detach(THD *thd);
+bool applier_reset_xa_trans(THD *thd);
 
 void trans_reset_one_shot_chistics(THD *thd);
 

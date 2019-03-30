@@ -92,6 +92,9 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all);
 static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
+static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
+                              Log_event *end_ev, bool all, bool using_stmt,
+                              bool using_trx);
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -1887,23 +1890,16 @@ static inline int
 binlog_commit_flush_xid_caches(THD *thd, binlog_cache_mngr *cache_mngr,
                                bool all, my_xid xid)
 {
-  if (xid)
+  /* Mask XA COMMIT ... ONE PHASE as plain BEGIN ... COMMIT */
+  if (!xid)
   {
-    Xid_log_event end_evt(thd, xid, TRUE);
-    return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
+    DBUG_ASSERT(thd->transaction.xid_state.xa_state == XA_IDLE &&
+                thd->lex->xa_opt == XA_ONE_PHASE);
+    xid= thd->query_id;
   }
-  else
-  {
-    /*
-      Empty xid occurs in XA COMMIT ... ONE PHASE.
-      In this case, we do not have a MySQL xid for the transaction, and the
-      external XA transaction coordinator will have to handle recovery if
-      needed. So we end the transaction with a plain COMMIT query event.
-    */
-    Query_log_event end_evt(thd, STRING_WITH_LEN("COMMIT"),
-                            TRUE, TRUE, TRUE, 0);
-    return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
-  }
+
+  Xid_log_event end_evt(thd, xid, TRUE);
+  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
 }
 
 /**
@@ -1962,13 +1958,36 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
 static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 {
   /*
-    do nothing.
-    just pretend we can do 2pc, so that MySQL won't
-    switch to 1pc.
-    real work will be done in MYSQL_BIN_LOG::log_and_order()
+    Mark the XA for binlogging.
+    Transactions with no binlog handler registered like readonly ones,
+    should not go to the binlog.
+    Real work is done in MYSQL_BIN_LOG::log_xa_prepare()
   */
+  thd->transaction.xid_state.registered_for_binlog= true;
   return 0;
 }
+
+
+static int serialize_xid(XID *xid, char *buf)
+{
+  size_t size;
+  buf[0]= '\'';
+  memcpy(buf+1, xid->data, xid->gtrid_length);
+  size= xid->gtrid_length + 2;
+  buf[size-1]= '\'';
+  if (xid->bqual_length == 0 && xid->formatID == 1)
+    return size;
+
+  memcpy(buf+size, ", '", 3);
+  memcpy(buf+size+3, xid->data+xid->gtrid_length, xid->bqual_length);
+  size+= 3 + xid->bqual_length;
+  buf[size]= '\'';
+  size++;
+  if (xid->formatID != 1)
+    size+= sprintf(buf+size, ", %ld", xid->formatID);
+  return size;
+}
+
 
 /*
   We flush the cache wrapped in a beging/rollback if:
@@ -9865,6 +9884,43 @@ int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
   */
   DBUG_RETURN(BINLOG_COOKIE_GET_ERROR_FLAG(cookie));
 }
+
+
+int TC_LOG_BINLOG::log_xa_prepare(THD *thd, bool all)
+{
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+  XID *xid= &thd->transaction.xid_state.xid;
+  {
+    /*
+      Log the XA END event first.
+      We don't do that in trans_xa_end() as XA COMMIT ONE PHASE
+      is logged as simple BEGIN/COMMIT so the XA END should
+      not get to the log.
+    */
+    const size_t xc_len= sizeof("XA END ") - 1; // do not count trailing 0
+    char buf[xc_len + xid_t::ser_buf_size];
+    size_t buflen;
+    binlog_cache_data *cache_data;
+    IO_CACHE *file;
+
+    memcpy(buf, "XA END ", xc_len);
+    buflen= xc_len + serialize_xid(xid, buf+xc_len);
+    cache_data= cache_mngr->get_binlog_cache_data(true);
+    file= &cache_data->cache_log;
+    thd->lex->sql_command= SQLCOM_XA_END;
+    Query_log_event xa_end(thd, buf, buflen, true, false, true, 0);
+    if (write_event(&xa_end, cache_data, file))
+      return 1;
+    thd->lex->sql_command= SQLCOM_XA_PREPARE;
+  }
+
+  cache_mngr->using_xa= FALSE;
+  XA_prepare_log_event end_evt(thd, xid, FALSE);
+  if (thd->variables.option_bits & OPTION_BIN_LOG)
+    thd->transaction.xid_state.set_binlogged();
+  return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
+}
+
 
 void
 TC_LOG_BINLOG::commit_checkpoint_notify(void *cookie)

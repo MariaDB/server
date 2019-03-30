@@ -6274,6 +6274,9 @@ end_with_restore_list:
   {
     bool rollback_failed= trans_xa_rollback(thd);
     thd->mdl_context.release_transactional_locks();
+
+    DBUG_EXECUTE_IF("crash_after_xa_rollback", DBUG_SUICIDE(););
+
     if (rollback_failed)
     {
       WSREP_DEBUG("XA rollback failed, MDL released: %lld",
