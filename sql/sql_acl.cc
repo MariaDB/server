@@ -5311,7 +5311,7 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   ulong UNINIT_VAR(access), update_flags= 0;
   for (int *p= dbs.front(); p <= dbs.back(); p++)
   {
-    if (first<0 || (!dbname && strcmp(acl_dbs.at(*p).db, acl_dbs.at(*p-1).db)))
+    if (first<0 || (!dbname && strcmp(acl_dbs.at(p[0]).db, acl_dbs.at(p[-1]).db)))
     { // new db name series
       update_flags|= update_role_db(merged, first, access, grantee->user.str);
       merged= -1;
