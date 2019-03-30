@@ -700,3 +700,124 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
 
   DBUG_RETURN(MY_TEST(res));
 }
+
+
+void attach_native_trx(THD *thd);
+/**
+  This is a specific to "slave" applier collection of standard cleanup
+  actions to reset XA transaction states at the end of XA prepare rather than
+  to do it at the transaction commit, see @c ha_commit_one_phase.
+  THD of the slave applier is dissociated from a transaction object in engine
+  that continues to exist there.
+
+  @param  THD current thread
+  @return the value of is_error()
+*/
+
+bool applier_reset_xa_trans(THD *thd)
+{
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->server_status&=
+    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+  //TODO: review
+  //xid_cache_delete(thd, xid_s);
+  //if (xid_cache_insert(&xid_s->xid_cache_element->xid, XA_PREPARED, xid_s->is_binlogged))
+  // return true;
+  thd->transaction.xid_state.xid_cache_element->acquired_to_recovered();
+  thd->transaction.xid_state.xid_cache_element= 0;
+
+  attach_native_trx(thd);
+  thd->transaction.cleanup();
+  //TODO: thd->transaction.xid_state.xid_cache_element->xa_state= XA_NOTR;
+  thd->mdl_context.release_transactional_locks();
+
+  return thd->is_error();
+#ifdef p7974
+  Transaction_ctx *trn_ctx= thd->get_transaction();
+  XID_STATE *xid_state= trn_ctx->xid_state();
+  /*
+    In the following the server transaction state gets reset for
+    a slave applier thread similarly to xa_commit logics
+    except commit does not run.
+  */
+  thd->variables.option_bits&= ~OPTION_BEGIN;
+  trn_ctx->reset_unsafe_rollback_flags(Transaction_ctx::STMT);
+  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  /* Server transaction ctx is detached from THD */
+  transaction_cache_detach(trn_ctx);
+  xid_state->reset();
+  /*
+     The current engine transactions is detached from THD, and
+     previously saved is restored.
+  */
+  attach_native_trx(thd);
+  trn_ctx->set_ha_trx_info(Transaction_ctx::SESSION, NULL);
+  trn_ctx->set_no_2pc(Transaction_ctx::SESSION, false);
+  trn_ctx->cleanup();
+#ifdef HAVE_PSI_TRANSACTION_INTERFACE
+  MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
+  thd->m_transaction_psi= NULL;
+#endif
+
+#endif /*p7974*/
+  return thd->is_error();
+}
+
+
+/**
+  The function detaches existing storage engines transaction
+  context from thd. Backup area to save it is provided to low level
+  storage engine function.
+
+  is invoked by plugin_foreach() after
+  trans_xa_start() for each storage engine.
+
+  @param[in,out]     thd     Thread context
+  @param             plugin  Reference to handlerton
+
+  @return    FALSE   on success, TRUE otherwise.
+*/
+
+my_bool detach_native_trx(THD *thd, plugin_ref plugin, void *unused)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->replace_native_transaction_in_thd)
+    hton->replace_native_transaction_in_thd(thd, NULL,
+                                            thd_ha_data_backup(thd, hton));
+
+  return FALSE;
+
+}
+
+/**
+  The function restores previously saved storage engine transaction context.
+
+  @param     thd     Thread context
+*/
+void attach_native_trx(THD *thd)
+{
+  Ha_trx_info *ha_info= thd->transaction.all.ha_list;
+  Ha_trx_info *ha_info_next;
+
+  if (ha_info)
+  {
+    for (; ha_info; ha_info= ha_info_next)
+    {
+      handlerton *hton= ha_info->ht();
+      if (hton->replace_native_transaction_in_thd)
+      {
+        /* restore the saved original engine transaction's link with thd */
+        void **trx_backup= thd_ha_data_backup(thd, hton);
+
+        hton->
+          replace_native_transaction_in_thd(thd, *trx_backup, NULL);
+        *trx_backup= NULL;
+      }
+      ha_info_next= ha_info->next();
+      ha_info->reset();
+    }
+  }
+  thd->transaction.all.ha_list= 0;
+  thd->transaction.all.no_2pc= 0;
+}

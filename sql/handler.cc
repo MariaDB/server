@@ -113,6 +113,10 @@ TYPELIB tx_isolation_typelib= {array_elements(tx_isolation_names)-1,"",
 static TYPELIB known_extensions= {0,"known_exts", NULL, NULL};
 uint known_extensions_id= 0;
 
+static
+uint
+ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
+                                    bool all);
 static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
                               bool is_real_trans);
 
@@ -1273,6 +1277,17 @@ int ha_prepare(THD *thd)
 
       }
     }
+
+    uint rw_ha_count=
+      ha_check_and_coalesce_trx_read_only(thd,trans->ha_list, all);
+    bool rw_trans=
+      (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+
+    if (rw_trans && tc_log->log_xa_prepare(thd, all))
+    {
+      ha_rollback_trans(thd, all);
+      error=1;
+    }
   }
 
   DBUG_RETURN(error);
@@ -2115,6 +2130,8 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           char buf[XIDDATASIZE*4+6]; // see xid_to_str
           DBUG_PRINT("info", ("ignore xid %s", xid_to_str(buf, info->list+i)));
 #endif
+          // Todo MDEV-7974: remove comments upon merge
+          // xid_cache_insert(info->list+i, XA_PREPARED, TRUE);
           xid_cache_insert(info->list + i);
           info->found_foreign_xids++;
           continue;

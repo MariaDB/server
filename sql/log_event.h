@@ -217,6 +217,7 @@ class String;
 #define GTID_HEADER_LEN       19
 #define GTID_LIST_HEADER_LEN   4
 #define START_ENCRYPTION_HEADER_LEN 0
+#define XA_PREPARE_HEADER_LEN 0
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -3017,6 +3018,31 @@ private:
 #endif
 };
 
+
+class Xid_apply_log_event: public Log_event
+{
+public:
+#ifdef MYSQL_SERVER
+  Xid_apply_log_event(THD* thd_arg):
+   Log_event(thd_arg, 0, TRUE) {}
+#endif
+  Xid_apply_log_event(const char* buf,
+                const Format_description_log_event *description_event):
+    Log_event(buf, description_event) {}
+
+  ~Xid_apply_log_event() {}
+  bool is_valid() const { return 1; }
+private:
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  virtual int do_commit()= 0;
+  virtual int do_apply_event(rpl_group_info *rgi);
+  int do_record_gtid(THD *thd, rpl_group_info *rgi, bool in_trans,
+                     void **out_hton);
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
+#endif
+};
+
+
 /**
   @class Xid_log_event
 
@@ -3029,14 +3055,14 @@ private:
 typedef ulonglong my_xid; // this line is the same as in handler.h
 #endif
 
-class Xid_log_event: public Log_event
+class Xid_log_event: public Xid_apply_log_event
 {
- public:
-   my_xid xid;
+public:
+  my_xid xid;
 
 #ifdef MYSQL_SERVER
   Xid_log_event(THD* thd_arg, my_xid x, bool direct):
-   Log_event(thd_arg, 0, TRUE), xid(x)
+   Xid_apply_log_event(thd_arg)
    {
      if (direct)
        cache_type= Log_event::EVENT_NO_CACHE;
@@ -3056,14 +3082,86 @@ class Xid_log_event: public Log_event
 #ifdef MYSQL_SERVER
   bool write();
 #endif
-  bool is_valid() const { return 1; }
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(rpl_group_info *rgi);
-  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
+  int do_commit();
 #endif
 };
+
+
+/**
+  @class XA_prepare_log_event
+
+  Similar to Xid_log_event except that
+  - it is specific to XA transaction
+  - it carries out the prepare logics rather than the final committing
+    when @c one_phase member is off.
+  From the groupping perspective the event finalizes the current "prepare" group
+  started with XA START Query-log-event.
+  When @c one_phase is false Commit of Rollback for XA transaction are
+  logged separately to the prepare-group events so being a groups of
+  their own.
+  The XA COMMIT ONE PHASE normally is logged as simple BEGIN ... COMMIT,
+  so one_phase is always OFF. Still it is read and handled to be consistent
+  with other servers.
+*/
+
+class XA_prepare_log_event: public Xid_apply_log_event
+{
+protected:
+  /* The event_xid_t members were copied from handler.h */
+  struct event_xid_t
+  {
+    long formatID;
+    long gtrid_length;
+    long bqual_length;
+    char data[MYSQL_XIDDATASIZE];  // not \0-terminated !
+    char *serialize(char *buf) const;
+  };
+
+  /* size of serialization buffer is explained in $MYSQL/sql/xa.h. */
+  static const uint ser_buf_size=
+    8 + 2 * MYSQL_XIDDATASIZE + 4 * sizeof(long) + 1;
+
+  /* Total size of buffers to hold serialized members of XID struct */
+  static const int xid_bufs_size= 12;
+  event_xid_t m_xid;
+  void *xid;
+  bool one_phase;
+
+public:
+#ifdef MYSQL_SERVER
+  XA_prepare_log_event(THD* thd_arg, XID *xid_arg, bool one_phase_arg):
+    Xid_apply_log_event(thd_arg), xid(xid_arg), one_phase(one_phase_arg)
+  {
+    cache_type= Log_event::EVENT_NO_CACHE;
+  }
+#ifdef HAVE_REPLICATION
+  void pack_info(Protocol* protocol);
+#endif /* HAVE_REPLICATION */
+#else
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
+#endif
+  XA_prepare_log_event(const char* buf,
+                       const Format_description_log_event *description_event);
+  ~XA_prepare_log_event() {}
+  Log_event_type get_type_code() { return XA_PREPARE_LOG_EVENT; }
+  int get_data_size()
+  {
+    return xid_bufs_size + m_xid.gtrid_length + m_xid.bqual_length;
+  }
+
+#ifdef MYSQL_SERVER
+  bool write();
+#endif
+
+private:
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  int do_commit();
+#endif
+};
+
 
 /**
   @class User_var_log_event
@@ -3377,6 +3475,11 @@ public:
   uint64 seq_no;
   uint64 commit_id;
   uint32 domain_id;
+#ifdef MYSQL_SERVER
+  XID xid;
+#else
+  struct st_mysql_xid xid;
+#endif
   uchar flags2;
 
   /* Flags2. */
@@ -3405,6 +3508,8 @@ public:
   static const uchar FL_WAITED= 16;
   /* FL_DDL is set for event group containing DDL. */
   static const uchar FL_DDL= 32;
+  /* FL_PREPARED_XA is set for XA transaction. */
+  static const uchar FL_PREPARED_XA= 64;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,

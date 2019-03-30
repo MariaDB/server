@@ -60,6 +60,7 @@ class TC_LOG
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
   virtual int unlog(ulong cookie, my_xid xid)=0;
+  virtual int log_xa_prepare(THD *thd, bool all)= 0;
   virtual void commit_checkpoint_notify(void *cookie)= 0;
 
 protected:
@@ -114,6 +115,10 @@ public:
     return 1;
   }
   int unlog(ulong cookie, my_xid xid)  { return 0; }
+  int log_xa_prepare(THD *thd, bool all)
+  {
+    return 0;
+  }
   void commit_checkpoint_notify(void *cookie) { DBUG_ASSERT(0); };
 };
 
@@ -197,6 +202,10 @@ class TC_LOG_MMAP: public TC_LOG
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
+  int log_xa_prepare(THD *thd, bool all)
+  {
+    return 0;
+  }
   void commit_checkpoint_notify(void *cookie);
   int recover();
 
@@ -693,6 +702,7 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
+  int log_xa_prepare(THD *thd, bool all);
   void commit_checkpoint_notify(void *cookie);
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
               Format_description_log_event *fdle, bool do_xa);

@@ -468,7 +468,6 @@ REPLACE INTO t2 SELECT * FROM t2;
 INSERT INTO t3 VALUES (1);
 XA BEGIN 'xid3';
 
-
 #Cleanup
 --disconnect con2
 --connection default
@@ -476,5 +475,53 @@ XA END 'xid1';
 XA ROLLBACK 'xid1';
 DROP TABLE t1, t2, t3;
 
+xa rollback 'testb',0x2030405060,11;
+XA RECOVER;
+
 --source include/wait_until_count_sessions.inc
 
+--echo # Check XA state when lock_wait_timeout happens
+--echo # More tests added to flush_read_lock.test
+connect (con_tmp,localhost,root,,);
+set session lock_wait_timeout=1;
+create table asd (a int);
+xa start 'test1';
+insert into asd values(1);
+xa end 'test1';
+connection default;
+flush table with read lock;
+connection con_tmp;
+--echo # PREPARE error will do auto rollback.
+--ERROR ER_LOCK_WAIT_TIMEOUT
+xa prepare 'test1';
+show errors;
+connection default;
+unlock tables;
+
+connection con_tmp;
+xa start 'test1';
+insert into asd values(1);
+xa end 'test1';
+xa prepare 'test1';
+connection default;
+flush tables with read lock;
+connection con_tmp;
+--echo # LOCK error during ROLLBACK will not alter transaction state.
+--ERROR ER_LOCK_WAIT_TIMEOUT
+xa rollback 'test1';
+show errors;
+xa recover;
+--echo # LOCK error during COMMIT will not alter transaction state.
+--ERROR ER_LOCK_WAIT_TIMEOUT
+xa commit 'test1';
+show errors;
+xa recover;
+connection default;
+unlock tables;
+connection con_tmp;
+xa rollback 'test1';
+xa recover;
+drop table asd;
+disconnect con_tmp;
+--source include/wait_until_disconnected.inc
+connection default;

@@ -1826,7 +1826,7 @@ thd_innodb_tmpdir(
 /** Obtain the InnoDB transaction of a MySQL thread.
 @param[in,out]	thd	thread handle
 @return reference to transaction pointer */
-static trx_t* thd_to_trx(THD* thd)
+static trx_t*& thd_to_trx(THD* thd)
 {
 	return *reinterpret_cast<trx_t**>(thd_ha_data(thd, innodb_hton_ptr));
 }
@@ -3632,6 +3632,46 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 	return 0;
 }
 
+/** InnoDB transaction object that is currently associated with THD is
+replaced with that of the 2nd argument. The previous value is
+returned through the 3rd argument's buffer, unless it's NULL.  When
+the buffer is not provided (value NULL) that should mean the caller
+restores previously saved association so the current trx has to be
+additionally freed from all association with MYSQL.
+
+@param[in,out] thd             MySQL thread handle
+@param[in]     new_trx_arg     replacement trx_t
+@param[in,out] ptr_trx_arg     pointer to a buffer to store old trx_t */
+static
+void
+innodb_replace_trx_in_thd(
+       THD*    thd,
+       void*   new_trx_arg,
+       void**  ptr_trx_arg)
+{
+       trx_t*& trx = thd_to_trx(thd);
+
+       ut_ad(new_trx_arg == NULL
+             || (((trx_t*) new_trx_arg)->mysql_thd == thd
+                 && !((trx_t*) new_trx_arg)->is_recovered));
+
+       if (ptr_trx_arg) {
+               *ptr_trx_arg = trx;
+
+               ut_ad(trx == NULL
+                     || (trx->mysql_thd == thd && !trx->is_recovered));
+
+       } else if (trx->state == TRX_STATE_NOT_STARTED) {
+               ut_ad(thd == trx->mysql_thd);
+               trx->read_view.close();
+       } else {
+               ut_ad(thd == trx->mysql_thd);
+               ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
+               trx_disconnect_prepared(trx);
+       }
+       trx = static_cast<trx_t*>(new_trx_arg);
+}
+
 /** Initialize and normalize innodb_buffer_pool_size. */
 static void innodb_buffer_pool_size_init()
 {
@@ -4192,6 +4232,9 @@ static int innodb_init(void* p)
 	/* System Versioning */
 	innobase_hton->prepare_commit_versioned
 		= innodb_prepare_commit_versioned;
+
+        innobase_hton->replace_native_transaction_in_thd =
+                innodb_replace_trx_in_thd;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -5113,6 +5156,7 @@ innobase_close_connection(
 				if (trx->has_logged_persistent()) {
 					trx_disconnect_prepared(trx);
 				} else {
+					trx_rollback_for_mysql(trx);
 					trx_deregister_from_2pc(trx);
 					goto rollback_and_free;
 				}
