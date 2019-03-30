@@ -1,0 +1,11 @@
+###############################################################################
+# MDEV-7974 (bug#12161 Xa recovery and client disconnection)
+# Testing XA behaviour with binlog turned off.
+###############################################################################
+
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
+# Common part with XA binlogging testing
+call mtr.add_suppression("You need to use --log-bin to make --log-slave-updates work.");
+--source suite/binlog/t/binlog_xa_prepared.inc

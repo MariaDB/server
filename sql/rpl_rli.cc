@@ -35,7 +35,7 @@
 #include "sql_table.h"
 
 static int count_relay_log_space(Relay_log_info* rli);
-
+bool xa_trans_force_rollback(THD *thd);
 /**
    Current replication state (hash of last GTID executed, per replication
    domain).
@@ -2234,6 +2234,13 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
 
   if (unlikely(error))
   {
+    /*
+      trans_rollback above does not rollback XA transactions
+      (todo/fixme consider to do so.
+    */
+    if (thd->transaction.xid_state.is_explicit_XA())
+      xa_trans_force_rollback(thd);
+
     thd->mdl_context.release_transactional_locks();
 
     if (thd == rli->sql_driver_thd)

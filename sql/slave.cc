@@ -4241,7 +4241,7 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
         rli->clear_flag(Relay_log_info::IN_TRANSACTION);
     }
   }
-  if (typ == XID_EVENT)
+  if (typ == XID_EVENT || typ == XA_PREPARE_LOG_EVENT)
     rli->clear_flag(Relay_log_info::IN_TRANSACTION);
   if (typ == GTID_EVENT &&
       !(((Gtid_log_event*) ev)->flags2 & Gtid_log_event::FL_STANDALONE))
@@ -7111,6 +7111,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                                       buf[EVENT_TYPE_OFFSET])) ||
         (!mi->last_queued_gtid_standalone &&
          ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
+          (uchar)buf[EVENT_TYPE_OFFSET] == XA_PREPARE_LOG_EVENT ||
           ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
            Query_log_event::peek_is_commit_rollback(buf, event_len,
                                                     checksum_alg))))))

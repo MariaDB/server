@@ -3121,6 +3121,8 @@ protected:
     s_tx_list.erase(this);
     RDB_MUTEX_UNLOCK_CHECK(s_tx_list_mutex);
   }
+  virtual bool is_prepared()        { return false; };
+  virtual void detach_prepared_tx() {};
 };
 
 /*
@@ -3157,7 +3159,16 @@ class Rdb_transaction_impl : public Rdb_transaction {
 
   virtual bool is_writebatch_trx() const override { return false; }
 
- private:
+  bool is_prepared() {
+    return m_rocksdb_tx && rocksdb::Transaction::PREPARED == m_rocksdb_tx->GetState();
+  }
+
+  void detach_prepared_tx() {
+    DBUG_ASSERT(rocksdb::Transaction::PREPARED == m_rocksdb_tx->GetState());
+    m_rocksdb_tx = nullptr;
+  }
+
+private:
   void release_tx(void) {
     // We are done with the current active transaction object.  Preserve it
     // for later reuse.
@@ -3798,7 +3809,8 @@ static int rocksdb_close_connection(handlerton *const hton, THD *const thd) {
           "disconnecting",
           rc);
     }
-
+    if (tx->is_prepared())
+      tx->detach_prepared_tx();
     delete tx;
   }
   return HA_EXIT_SUCCESS;
@@ -5301,7 +5313,7 @@ static int rocksdb_init_func(void *const p) {
 #ifdef MARIAROCKS_NOT_YET
   rocksdb_hton->update_table_stats = rocksdb_update_table_stats;
 #endif // MARIAROCKS_NOT_YET
-  
+
   /*
   Not needed in MariaDB:
   rocksdb_hton->flush_logs = rocksdb_flush_wal;
