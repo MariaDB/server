@@ -2168,7 +2168,7 @@ static BOOLEAN Writable(const char *path)
     else
     {
       free(pathname);
-      pathname= ".";
+      pathname= strdup(".");
     }
     if (WRITABLE(pathname))
       granted= TRUE;
