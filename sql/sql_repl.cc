@@ -1950,7 +1950,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
   pos= my_b_tell(log);
   if (repl_semisync_master.update_sync_header(info->thd,
-                                              (uchar*) packet->c_ptr(),
+                                              (uchar*) packet->ptr(),
                                               info->log_file_name + info->dirlen,
                                               pos, &need_sync))
   {
