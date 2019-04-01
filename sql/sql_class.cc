@@ -697,9 +697,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_apply_format(0),
    wsrep_rbr_buf(NULL),
    wsrep_sync_wait_gtid(WSREP_GTID_UNDEFINED),
+   wsrep_last_written_gtid_seqno(0),
+   wsrep_current_gtid_seqno(0),
    wsrep_affected_rows(0),
    wsrep_has_ignored_error(false),
-   wsrep_replicate_GTID(false),
    wsrep_ignore_table(false),
 
 /* wsrep-lib */
@@ -1313,7 +1314,6 @@ void THD::init()
   wsrep_rbr_buf           = NULL;
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
-  wsrep_replicate_GTID    = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)

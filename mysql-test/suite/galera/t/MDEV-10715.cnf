@@ -1,4 +1,4 @@
-!include ../galera_2nodes_as_slave.cnf
+!include ../galera_2nodes.cnf
 
 [mysqld]
 log-bin=mysqld-bin
@@ -12,5 +12,3 @@ wsrep_gtid_domain_id=1
 gtid-domain-id=1
 wsrep_gtid_mode=1
 wsrep_gtid_domain_id=1
-[mysqld.3]
-gtid-domain-id=2

@@ -131,6 +131,12 @@ int wsrep_apply_events(THD*        thd,
   if (!buf_len) WSREP_DEBUG("empty rbr buffer to apply: %lld",
                             (long long) wsrep_thd_trx_seqno(thd));
 
+  thd->variables.gtid_seq_no= 0;
+  if (wsrep_gtid_mode)
+    thd->variables.gtid_domain_id= wsrep_gtid_server.domain_id;
+  else
+    thd->variables.gtid_domain_id= global_system_variables.gtid_domain_id;
+
   while (buf_len)
   {
     int exec_res;
@@ -150,22 +156,38 @@ int wsrep_apply_events(THD*        thd,
     case FORMAT_DESCRIPTION_EVENT:
       wsrep_set_apply_format(thd, (Format_description_log_event*)ev);
       continue;
-#ifdef GTID_SUPPORT
-    case GTID_LOG_EVENT:
-    {
-      Gtid_log_event* gev= (Gtid_log_event*)ev;
-      if (gev->get_gno() == 0)
+    case GTID_EVENT:
       {
-        /* Skip GTID log event to make binlog to generate LTID on commit */
+        Gtid_log_event *gtid_ev= (Gtid_log_event*)ev;
+        thd->variables.server_id= gtid_ev->server_id;
+        thd->variables.gtid_domain_id= gtid_ev->domain_id;
+        if ((gtid_ev->server_id == wsrep_gtid_server.server_id) &&
+            (gtid_ev->domain_id == wsrep_gtid_server.domain_id))
+        {
+          thd->variables.wsrep_gtid_seq_no= gtid_ev->seq_no;
+        }
+        else
+        {
+          thd->variables.gtid_seq_no= gtid_ev->seq_no;
+        }
         delete ev;
-        continue;
       }
-    }
-#endif /* GTID_SUPPORT */
+      continue;
     default:
       break;
     }
 
+
+    if (!thd->variables.gtid_seq_no && wsrep_thd_is_toi(thd) && 
+        (ev->get_type_code() == QUERY_EVENT))
+    { 
+      uint64 seqno= wsrep_gtid_server.seqno_inc();
+      thd->wsrep_current_gtid_seqno= seqno;
+      if (mysql_bin_log.is_open() && wsrep_gtid_mode)
+      { 
+        thd->variables.gtid_seq_no= seqno;
+      }
+    }
     /* Use the original server id for logging. */
     thd->set_server_id(ev->server_id);
     thd->set_time();                            // time the query

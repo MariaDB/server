@@ -5724,6 +5724,8 @@ int mysqld_main(int argc, char **argv)
   {
     wsrep_shutdown_replication();
   }
+  /* Release threads if they are waiting in WSREP_SYNC_WAIT_UPTO_GTID */
+  wsrep_gtid_server.signal_waiters(0, true);
 #endif
 
   close_connections();

@@ -1,5 +1,7 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
 connection node_2;
 SET GLOBAL wsrep_ignore_apply_errors=0;
 SET SESSION wsrep_on=OFF;
