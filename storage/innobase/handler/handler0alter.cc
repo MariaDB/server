@@ -3280,10 +3280,17 @@ innobase_build_col_map(
 				     & INNOBASE_DEFAULTS));
 	DBUG_ASSERT(!defaults || dtuple_get_n_fields(defaults)
 		    == dict_table_get_n_cols(new_table));
+	DBUG_ASSERT(table->s->stored_fields > 0);
+
+	size_t old_n_v_cols = old_n_v_cols = table->s->fields
+		- table->s->stored_fields;
+	DBUG_ASSERT(old_n_v_cols == old_table->n_v_cols
+		    || table->s->frm_version < FRM_VER_EXPRESSSIONS);
+	DBUG_ASSERT(!old_n_v_cols || table->s->virtual_fields);
 
 	ulint*	col_map = static_cast<ulint*>(
 		mem_heap_alloc(
-			heap, unsigned(old_table->n_cols + old_table->n_v_cols)
+			heap, (size_t(old_table->n_cols) + old_n_v_cols)
 			* sizeof *col_map));
 
 	List_iterator_fast<Create_field> cf_it(
@@ -3297,9 +3304,11 @@ innobase_build_col_map(
 		col_map[old_i] = ULINT_UNDEFINED;
 	}
 
-	for (uint old_i = 0; old_i < old_table->n_v_cols; old_i++) {
+	for (uint old_i = 0; old_i < old_n_v_cols; old_i++) {
 		col_map[old_i + old_table->n_cols] = ULINT_UNDEFINED;
 	}
+
+	const bool omits_virtual = ha_innobase::omits_virtual_cols(*table->s);
 
 	while (const Create_field* new_field = cf_it++) {
 		bool	is_v = !new_field->stored_in_db();
@@ -3309,8 +3318,11 @@ innobase_build_col_map(
 			const Field* field = table->field[old_i];
 			if (!field->stored_in_db()) {
 				if (is_v && new_field->field == field) {
-					col_map[old_table->n_cols + num_v]
-						= num_old_v;
+					if (!omits_virtual) {
+						col_map[old_table->n_cols
+							+ num_v]
+							= num_old_v;
+					}
 					num_old_v++;
 					goto found_col;
 				}
@@ -3355,7 +3367,7 @@ found_col:
 
 	DBUG_ASSERT(i == altered_table->s->fields - num_v);
 
-	i = table->s->fields - old_table->n_v_cols;
+	i = table->s->fields - old_n_v_cols;
 
 	/* Add the InnoDB hidden FTS_DOC_ID column, if any. */
 	if (i + DATA_N_SYS_COLS < old_table->n_cols) {
