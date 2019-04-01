@@ -238,11 +238,224 @@ drop table t1;
 #
 # MDEV-18463 Don't allow multiple table CONSTRAINTs with the same name
 #
-create table tpk
-(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL);
-create table tfk
+CREATE TABLE tpk
+(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL)
+ENGINE=MyISAM;
+#
+# Same name `sid` for check and foreign key constraint while creating the table
+#
+CREATE TABLE tfk
 (id INT, c1 INT, c2 INT NOT NULL,
 CONSTRAINT sid FOREIGN KEY (`c1`) REFERENCES tpk (`id`)
-ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT sid check (c2>15));
+ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT sid check (c2>15))
+ENGINE=MyISAM;
 ERROR HY000: Duplicate CHECK constraint name 'sid'
-drop table tpk;
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT sid FOREIGN KEY (c1)
+REFERENCES tpk (id)) ENGINE=MyISAM;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  KEY `sid` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+#
+# Add check constraint with the same name `sid` as foreign key
+#
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>15);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  KEY `sid` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+#
+# Add new foreign constraint with the same name `sid` as foreign key
+#
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>20);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+ALTER TABLE tfk DROP FOREIGN KEY sid;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  KEY `sid` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+#
+# Drop the foreign key will not drop the index so adding new constraint
+# will raise an error
+#
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>15);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+ALTER TABLE tfk DROP INDEX sid;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>15);
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  CONSTRAINT `Sid` CHECK (`c2` > 15)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT constraint_name, check_clause FROM information_schema.check_constraints;
+constraint_name	check_clause
+Sid	`c2` > 15
+#
+# Add foreign key with the same name `sid` as check constraint
+#
+ALTER TABLE tfk ADD CONSTRAINT sid FOREIGN KEY (c1) REFERENCES tpk (id);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  CONSTRAINT `Sid` CHECK (`c2` > 15)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT constraint_name, check_clause FROM information_schema.check_constraints;
+constraint_name	check_clause
+Sid	`c2` > 15
+DROP TABLE tfk;
+#
+# Create table with unnamed table check constraint and foreign constraint with the same name
+#
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT CONSTRAINT_1 FOREIGN KEY (c1)                        REFERENCES tpk (id), CONSTRAINT CHECK (c2>0))
+ENGINE=MyISAM;
+ERROR HY000: Duplicate CHECK constraint name 'CONSTRAINT_1'
+#
+# Field check constraints name same as name of field `c2` and as foreign key
+#
+CREATE TABLE tfk (c1 INT, c2 INT check (c2>0), CONSTRAINT c2
+FOREIGN KEY (c1) REFERENCES tpk (id)) ENGINE=MyISAM;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL CHECK (`c2` > 0),
+  KEY `c2` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT constraint_name, check_clause FROM information_schema.check_constraints;
+constraint_name	check_clause
+c2	`c2` > 0
+DROP TABLE tfk;
+DROP TABLE tpk;
+CREATE TABLE tpk
+(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL)
+ENGINE=InnoDB;
+#
+# Same name `sid` for check and foreign key constraint while creating the table
+#
+CREATE TABLE tfk
+(id INT, c1 INT, c2 INT NOT NULL,
+CONSTRAINT sid FOREIGN KEY (`c1`) REFERENCES tpk (`id`)
+ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT sid check (c2>15))
+ENGINE=InnoDB;
+ERROR HY000: Duplicate CHECK constraint name 'sid'
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT sid FOREIGN KEY (c1)
+REFERENCES tpk (id)) ENGINE=InnoDB;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  KEY `sid` (`c1`),
+  CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `tpk` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+#
+# Add check constraint with the same name `sid` as foreign key
+#
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>15);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  KEY `sid` (`c1`),
+  CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `tpk` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+#
+# Add new foreign constraint with the same name `sid` as foreign key
+#
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>20);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+ALTER TABLE tfk DROP FOREIGN KEY sid;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  KEY `sid` (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+#
+# Drop the foreign key will not drop the index so adding new constraint
+# will raise an error
+#
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>15);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+ALTER TABLE tfk DROP INDEX sid;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE tfk ADD CONSTRAINT Sid CHECK (c2>15);
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  CONSTRAINT `Sid` CHECK (`c2` > 15)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT constraint_name, check_clause FROM information_schema.check_constraints;
+constraint_name	check_clause
+Sid	`c2` > 15
+#
+# Add foreign key with the same name `sid` as check constraint
+#
+ALTER TABLE tfk ADD CONSTRAINT sid FOREIGN KEY (c1) REFERENCES tpk (id);
+ERROR HY000: Duplicate CHECK constraint name 'Sid'
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL,
+  CONSTRAINT `Sid` CHECK (`c2` > 15)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT constraint_name, check_clause FROM information_schema.check_constraints;
+constraint_name	check_clause
+Sid	`c2` > 15
+DROP TABLE tfk;
+#
+# Create table with unnamed table check constraint and foreign constraint with the same name
+#
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT CONSTRAINT_1 FOREIGN KEY (c1)                        REFERENCES tpk (id), CONSTRAINT CHECK (c2>0))
+ENGINE=InnoDB;
+ERROR HY000: Duplicate CHECK constraint name 'CONSTRAINT_1'
+#
+# Field check constraints name same as name of field `c2` and as foreign key
+#
+CREATE TABLE tfk (c1 INT, c2 INT check (c2>0), CONSTRAINT c2
+FOREIGN KEY (c1) REFERENCES tpk (id)) ENGINE=InnoDB;
+SHOW CREATE TABLE tfk;
+Table	Create Table
+tfk	CREATE TABLE `tfk` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL CHECK (`c2` > 0),
+  KEY `c2` (`c1`),
+  CONSTRAINT `c2` FOREIGN KEY (`c1`) REFERENCES `tpk` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT constraint_name, check_clause FROM information_schema.check_constraints;
+constraint_name	check_clause
+c2	`c2` > 0
+DROP TABLE tfk;
+DROP TABLE tpk;
