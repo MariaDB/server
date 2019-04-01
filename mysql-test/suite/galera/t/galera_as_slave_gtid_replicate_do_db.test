@@ -19,11 +19,11 @@ SET global wsrep_on=ON;
 RESET MASTER;
 
 --connection node_2
-SET global wsrep_on=OFF;
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
-SET global wsrep_on=ON;
+SET GLOBAL wsrep_on=ON;
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_3, MASTER_USER='root';
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
@@ -148,3 +148,14 @@ DROP SCHEMA test2;
 
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+
+--connection node_1
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+
+--connection node_3
+RESET MASTER;
