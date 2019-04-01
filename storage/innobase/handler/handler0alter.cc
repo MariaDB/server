@@ -1560,6 +1560,14 @@ instant_alter_column_possible(
 
 	if (ha_alter_info->handler_flags & ALTER_COLUMN_NULLABLE) {
 		if (ib_table.not_redundant()) {
+			/* Instantaneous removal of NOT NULL is
+			only supported for ROW_FORMAT=REDUNDANT. */
+			return false;
+		}
+		if (ib_table.fts_doc_id_index
+		    && !innobase_fulltext_exist(altered_table)) {
+			/* Removing hidden FTS_DOC_ID_INDEX(FTS_DOC_ID)
+			requires that the table be rebuilt. */
 			return false;
 		}
 
