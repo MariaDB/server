@@ -31,4 +31,4 @@ ENGINE=RocksDB DEFAULT CHARSET=latin1 COLLATE=latin1_bin;
 --let $num_requests = 10000
 --let $reap_delay = 180
 
---source suite/rocksdb_stress/include/rocksdb_stress.inc
+--source include/rocksdb_stress.inc
