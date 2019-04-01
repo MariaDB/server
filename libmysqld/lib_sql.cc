@@ -1073,7 +1073,7 @@ bool Protocol_text::store_field_metadata(const THD * thd,
     client_field->length= server_field.max_octet_length(charset_for_protocol,
                                                         thd_cs);
   }
-  client_field->type= server_field.type;
+  client_field->type= server_field.type_handler()->type_code_for_protocol();
   client_field->flags= (uint16) server_field.flags;
   client_field->decimals= server_field.decimals;
 

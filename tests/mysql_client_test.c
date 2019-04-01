@@ -8397,6 +8397,50 @@ static void test_list_fields()
 }
 
 
+static void test_list_fields_blob()
+{
+  MYSQL_RES *result;
+  int rc;
+  myheader("test_list_fields_blob");
+
+  rc= mysql_query(mysql, "drop table if exists t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "create table t1(c1 tinyblob, c2 blob, c3 mediumblob, c4 longblob)");
+  myquery(rc);
+
+  result= mysql_list_fields(mysql, "t1", NULL);
+  mytest(result);
+
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 0);
+
+  /*
+    All BLOB variant Fields are displayed as MYSQL_TYPE_BLOB in
+    the result set metadata. Note, some Items display the exact
+    BLOB type. This inconsistency should be fixed eventually.
+  */
+  verify_prepare_field(result, 0, "c1", "c1", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 255, NULL);
+
+  verify_prepare_field(result, 1, "c2", "c2", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 65535, NULL);
+
+  verify_prepare_field(result, 2, "c3", "c3", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 16777215, NULL);
+
+  verify_prepare_field(result, 3, "c4", "c4", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 4294967295ULL, NULL);
+
+  mysql_free_result(result);
+  myquery(mysql_query(mysql, "drop table t1"));
+}
+
+
 static void test_list_fields_default()
 {
   int rc, i;
@@ -20843,6 +20887,7 @@ static struct my_tests_st my_tests[]= {
   { "test_fetch_column", test_fetch_column },
   { "test_mem_overun", test_mem_overun },
   { "test_list_fields", test_list_fields },
+  { "test_list_fields_blob", test_list_fields_blob },
   { "test_list_fields_default", test_list_fields_default },
   { "test_free_result", test_free_result },
   { "test_free_store_result", test_free_store_result },

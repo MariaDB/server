@@ -22,6 +22,7 @@
 
 #include "sql_error.h"
 #include "my_decimal.h"                         /* my_decimal */
+#include "sql_type.h"
 
 class i_string;
 class Field;
@@ -40,7 +41,12 @@ protected:
   String *convert;
   uint field_pos;
 #ifndef DBUG_OFF
-  enum enum_field_types *field_types;
+  const Type_handler **field_handlers;
+  bool valid_handler(uint pos, protocol_send_type_t type) const
+  {
+    return field_handlers == 0 ||
+           field_handlers[field_pos]->protocol_send_type() == type;
+  }
 #endif
   uint field_count;
 #ifndef EMBEDDED_LIBRARY

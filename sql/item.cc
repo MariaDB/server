@@ -4696,7 +4696,7 @@ void
 Item_param::set_out_param_info(Send_field *info)
 {
   m_out_param_info= info;
-  set_handler_by_field_type(m_out_param_info->type);
+  set_handler(m_out_param_info->type_handler());
 }
 
 
@@ -4737,16 +4737,7 @@ void Item_param::make_send_field(THD *thd, Send_field *field)
     OUT-parameter info to fill out the names.
   */
 
-  field->db_name= m_out_param_info->db_name;
-  field->table_name= m_out_param_info->table_name;
-  field->org_table_name= m_out_param_info->org_table_name;
-  field->col_name= m_out_param_info->col_name;
-  field->org_col_name= m_out_param_info->org_col_name;
-
-  field->length= m_out_param_info->length;
-  field->flags= m_out_param_info->flags;
-  field->decimals= m_out_param_info->decimals;
-  field->type= m_out_param_info->type;
+  *field= *m_out_param_info;
 }
 
 bool Item_param::append_for_log(THD *thd, String *str)
@@ -6124,7 +6115,7 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 
 
 void Item::init_make_send_field(Send_field *tmp_field,
-                                enum enum_field_types field_type_arg)
+                                const Type_handler *h)
 {
   tmp_field->db_name=		"";
   tmp_field->org_table_name=	"";
@@ -6134,7 +6125,7 @@ void Item::init_make_send_field(Send_field *tmp_field,
   tmp_field->flags=             (maybe_null ? 0 : NOT_NULL_FLAG) | 
                                 (my_binary_compare(charset_for_protocol()) ?
                                  BINARY_FLAG : 0);
-  tmp_field->type=              field_type_arg;
+  tmp_field->set_handler(h);
   tmp_field->length=max_length;
   tmp_field->decimals=decimals;
   if (unsigned_flag)
@@ -6143,13 +6134,13 @@ void Item::init_make_send_field(Send_field *tmp_field,
 
 void Item::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_send_field(tmp_field, field_type());
+  init_make_send_field(tmp_field, type_handler());
 }
 
 
 void Item_empty_string::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_send_field(tmp_field, string_type_handler()->field_type());
+  init_make_send_field(tmp_field, string_type_handler());
 }
 
 

@@ -5289,6 +5289,7 @@ bool Protocol_local::store_longlong(longlong value, bool unsigned_flag)
 
 bool Protocol_local::store_decimal(const my_decimal *value)
 {
+  DBUG_ASSERT(0); // This method is not used yet
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
   return value->to_string(&str) ? store_column(str.ptr(), str.length()) : true;
 }

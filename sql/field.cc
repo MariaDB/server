@@ -1968,7 +1968,7 @@ void Field::make_send_field(Send_field *field)
   }
   field->col_name= field_name;
   field->length=field_length;
-  field->type=type();
+  field->set_handler(type_handler());
   field->flags=table->maybe_null ? (flags & ~NOT_NULL_FLAG) : flags;
   field->decimals= 0;
 }
@@ -8743,6 +8743,20 @@ uint Field_blob::is_equal(Create_field *new_field)
 }
 
 
+void Field_blob::make_send_field(Send_field *field)
+{
+  /*
+    Historically all BLOB variant Fields are displayed as MYSQL_TYPE_BLOB
+    in the result set metadata. Note, Item can work differently and
+    display the exact BLOB type, such as
+    MYSQL_TYPE_{TINY_BLOB|BLOB|MEDIUM_BLOB|LONG_BLOB}.
+    QQ: this should be made consistent eventually.
+  */
+  Field_longstr::make_send_field(field);
+  field->set_handler(&type_handler_blob);
+}
+
+
 int Field_blob_compressed::store(const char *from, size_t length,
                                  CHARSET_INFO *cs)
 {
@@ -10912,6 +10926,13 @@ bool Column_definition::set_compressed(const char *method)
   else
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name.str);
   return true;
+}
+
+
+Send_field::Send_field(THD *thd, Item *item)
+{
+  item->make_send_field(thd, this);
+  normalize();
 }
 
 

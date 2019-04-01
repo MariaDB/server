@@ -3861,6 +3861,7 @@ public:
     uint32 chars= octets / field_charset->mbminlen;
     return Information_schema_character_attributes(octets, chars);
   }
+  void make_send_field(Send_field *);
   Copy_func *get_copy_func(const Field *from) const
   {
     /*
@@ -4114,6 +4115,10 @@ public:
     information_schema_character_attributes() const
   {
     return Information_schema_character_attributes();
+  }
+  void make_send_field(Send_field *to)
+  {
+    Field_longstr::make_send_field(to);
   }
   bool can_optimize_range(const Item_bool_func *cond,
                                   const Item *item,
@@ -4994,14 +4999,15 @@ public:
   A class for sending info to the client
 */
 
-class Send_field :public Sql_alloc {
- public:
+class Send_field :public Sql_alloc,
+                  public Type_handler_hybrid_field_type
+{
+public:
   const char *db_name;
   const char *table_name,*org_table_name;
   LEX_CSTRING col_name, org_col_name;
   ulong length;
   uint flags, decimals;
-  enum_field_types type;
   Send_field() {}
   Send_field(Field *field)
   {
@@ -5009,11 +5015,12 @@ class Send_field :public Sql_alloc {
     DBUG_ASSERT(table_name != 0);
     normalize();
   }
-
+  Send_field(THD *thd, Item *item);
   Send_field(Field *field,
              const char *db_name_arg,
              const char *table_name_arg)
-   :db_name(db_name_arg),
+   :Type_handler_hybrid_field_type(field->type_handler()),
+    db_name(db_name_arg),
     table_name(table_name_arg),
     org_table_name(table_name_arg),
     col_name(field->field_name),
@@ -5021,33 +5028,25 @@ class Send_field :public Sql_alloc {
     length(field->field_length),
     flags(field->table->maybe_null ?
           (field->flags & ~NOT_NULL_FLAG) : field->flags),
-    decimals(field->decimals()),
-    type(field->type())
+    decimals(field->decimals())
   {
     normalize();
   }
 
-  // This should move to Type_handler eventually
-  static enum_field_types protocol_type_code(enum_field_types type)
-  {
-    /* Keep things compatible for old clients */
-    if (type == MYSQL_TYPE_VARCHAR)
-      return MYSQL_TYPE_VAR_STRING;
-    return type;
-  }
+private:
   void normalize()
   {
     /* limit number of decimals for float and double */
-    if (type == MYSQL_TYPE_FLOAT || type == MYSQL_TYPE_DOUBLE)
+    if (type_handler()->field_type() == MYSQL_TYPE_FLOAT ||
+        type_handler()->field_type() == MYSQL_TYPE_DOUBLE)
       set_if_smaller(decimals, FLOATING_POINT_DECIMALS);
-    /* Keep things compatible for old clients */
-    type= protocol_type_code(type);
   }
-
+public:
   // This should move to Type_handler eventually
   uint32 max_char_length(CHARSET_INFO *cs) const
   {
-    return type >= MYSQL_TYPE_TINY_BLOB && type <= MYSQL_TYPE_BLOB ?
+    return type_handler()->field_type() >= MYSQL_TYPE_TINY_BLOB &&
+           type_handler()->field_type() <= MYSQL_TYPE_BLOB ?
                    length / cs->mbminlen :
                    length / cs->mbmaxlen;
   }
@@ -5077,8 +5076,8 @@ class Send_field :public Sql_alloc {
   bool is_sane() const
   {
     return (decimals <= FLOATING_POINT_DECIMALS ||
-            (type != MYSQL_TYPE_FLOAT && type != MYSQL_TYPE_DOUBLE)) &&
-           type != MYSQL_TYPE_VARCHAR;
+            (type_handler()->field_type() != MYSQL_TYPE_FLOAT &&
+             type_handler()->field_type() != MYSQL_TYPE_DOUBLE));
   }
 };
 

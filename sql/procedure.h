@@ -59,10 +59,6 @@ public:
   virtual void set(longlong nr)=0;
   const Type_handler *type_handler() const=0;
   void set(const char *str) { set(str,(uint) strlen(str), default_charset()); }
-  void make_send_field(THD *thd, Send_field *tmp_field)
-  {
-    init_make_send_field(tmp_field,field_type());
-  }
   unsigned int size_of() { return sizeof(*this);}
   bool check_vcol_func_processor(void *arg)
   {
