@@ -185,3 +185,23 @@ ALTER TABLE t1 DROP a;
 # Exploit MDEV-17468 to force the table definition to be reloaded
 ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19030 Assertion index->n_core_null_bytes <= ... failed
+--echo # in rec_init_offsets after instant DROP COLUMN
+--echo #
+CREATE TABLE t1 (a INT, b INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (),(),(),();
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+ALTER TABLE t1 FORCE;
+INSERT INTO t1 SELECT * FROM t1;
+ALTER TABLE t1 DROP a, ADD a SMALLINT NOT NULL;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
+DROP TABLE t1;

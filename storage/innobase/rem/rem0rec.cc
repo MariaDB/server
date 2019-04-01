@@ -618,7 +618,7 @@ rec_init_offsets(
 	until btr_cur_instant_init_low() has invoked
 	dict_table_t::deserialise_columns(). */
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable)
-	      || (!leaf && index->n_core_fields != index->n_fields));
+	      || index->in_instant_init);
 	ut_d(offsets[2] = ulint(rec));
 	ut_d(offsets[3] = ulint(index));
 

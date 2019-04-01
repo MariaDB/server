@@ -423,8 +423,12 @@ unreadable:
 	}
 
 	btr_cur_t cur;
+	/* Relax the assertion in rec_init_offsets(). */
+	ut_ad(!index->in_instant_init);
+	ut_d(index->in_instant_init = true);
 	dberr_t err = btr_cur_open_at_index_side(true, index, BTR_SEARCH_LEAF,
 						 &cur, 0, mtr);
+	ut_d(index->in_instant_init = false);
 	if (err != DB_SUCCESS) {
 		index->table->corrupted = true;
 		return err;

@@ -426,6 +426,8 @@ dict_process_sys_indexes_rec(
 	const char*	err_msg;
 	byte*		buf;
 
+	ut_d(index->is_dummy = true);
+	ut_d(index->in_instant_init = false);
 	buf = static_cast<byte*>(mem_heap_alloc(heap, 8));
 
 	/* Parse the record, and get "dict_index_t" struct filled */

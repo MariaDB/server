@@ -964,6 +964,8 @@ struct dict_index_t {
 #ifdef UNIV_DEBUG
 	/** whether this is a dummy index object */
 	bool		is_dummy;
+	/** whether btr_cur_instant_init() is in progress */
+	bool		in_instant_init;
 	uint32_t	magic_n;/*!< magic number */
 /** Value of dict_index_t::magic_n */
 # define DICT_INDEX_MAGIC_N	76789786
