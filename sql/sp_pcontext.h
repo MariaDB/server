@@ -22,7 +22,6 @@
 #endif
 
 #include "sql_string.h"                         // LEX_STRING
-#include "mysql_com.h"                          // enum_field_types
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
 
