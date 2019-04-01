@@ -32,12 +32,14 @@ create table t1 (
 
 
 --disable_query_log
+begin;
 let $1=1000;
 while ($1)
 {
   eval insert into t1 values($1, $1, $1, 'filler-data','filler-data-2');
   dec $1;
 }
+commit;
 --enable_query_log
 
 select * from t1 where (key1 >= 2 and key1 <= 10) or (pk >= 4 and pk <=8 );

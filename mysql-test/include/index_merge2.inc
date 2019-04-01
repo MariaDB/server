@@ -34,11 +34,13 @@ create table t1
 
 --disable_query_log
 let $1=200;
+begin;
 while ($1)
 {
   eval insert into t1 values (200-$1, $1);
   dec $1;
 }
+commit;
 --enable_query_log
 
 # No primary key
@@ -80,11 +82,13 @@ create table t1 (
 show warnings;
 --disable_query_log
 let $1=30;
+begin;
 while ($1)
 {
   eval insert into t1 (key1, key2, filler) values ($1/4, $1/8, 'filler-data');
   dec $1;
 }
+commit;
 --enable_query_log
 explain select pk from t1 where key1 = 1 and key2 = 1;
 select pk from t1 where key2 = 1 and key1 = 1;
@@ -331,16 +335,20 @@ insert into t1(key1) values (1),(2),(3),(4),(5),(6),(7),(8);
 
 let $1=7;
 set @d=8;
+begin;
 while ($1)
 {
   eval insert into t1 (key1) select key1+@d from t1;
   eval set @d=@d*2;
   dec $1;
 }
+commit;
 
 alter table t1 add index i2(key2);
 alter table t1 add index i3(key3);
 update t1 set key2=key1,key3=key1;
+
+insert into t1 select 10000+key1, 10000+key2,10000+key3 from t1;
 analyze table t1;
 
 # to test the bug, the following must use "sort_union":
