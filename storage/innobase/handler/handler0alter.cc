@@ -3024,8 +3024,7 @@ innobase_build_col_map(
 		    == dict_table_get_n_cols(new_table));
 	DBUG_ASSERT(table->s->stored_fields > 0);
 
-	size_t old_n_v_cols = old_n_v_cols = table->s->fields
-		- table->s->stored_fields;
+	const size_t old_n_v_cols = table->s->fields - table->s->stored_fields;
 	DBUG_ASSERT(old_n_v_cols == old_table->n_v_cols
 		    || table->s->frm_version < FRM_VER_EXPRESSSIONS);
 	DBUG_ASSERT(!old_n_v_cols || table->s->virtual_fields);
