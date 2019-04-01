@@ -33,6 +33,9 @@ Created 10/25/1995 Heikki Tuuri
 
 #include "log0recv.h"
 #include "dict0types.h"
+#ifdef UNIV_LINUX
+# include <set>
+#endif
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
@@ -234,7 +237,10 @@ struct fil_space_t {
 	/** Note that the tablespace has been imported.
 	Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
 	written while the space ID is being updated in each page. */
-	void set_imported();
+	inline void set_imported();
+
+	/** @return whether the storage device is rotational (HDD, not SSD) */
+	inline bool is_rotational() const;
 
 	/** Open each file. Only invoked on fil_system.temp_space.
 	@return whether all files were opened */
@@ -537,6 +543,8 @@ struct fil_node_t {
 	pfs_os_file_t	handle;
 	/** whether the file actually is a raw device or disk partition */
 	bool		is_raw_disk;
+	/** whether the file is on non-rotational media (SSD) */
+	bool		on_ssd;
 	/** size of the file in database pages (0 if not known yet);
 	the possible last incomplete megabyte may be ignored
 	if space->id == 0 */
@@ -579,12 +587,38 @@ struct fil_node_t {
 	@return	whether the page was found valid */
 	bool read_page0(bool first);
 
+	/** Determine some file metadata when creating or reading the file.
+	@param	file	the file that is being created, or OS_FILE_CLOSED */
+	void find_metadata(os_file_t file = OS_FILE_CLOSED
+#ifdef UNIV_LINUX
+			   , struct stat* statbuf = NULL
+#endif
+			   );
+
 	/** Close the file handle. */
 	void close();
 };
 
 /** Value of fil_node_t::magic_n */
 #define	FIL_NODE_MAGIC_N	89389
+
+inline void fil_space_t::set_imported()
+{
+	ut_ad(purpose == FIL_TYPE_IMPORT);
+	purpose = FIL_TYPE_TABLESPACE;
+	UT_LIST_GET_FIRST(chain)->find_metadata();
+}
+
+inline bool fil_space_t::is_rotational() const
+{
+	for (const fil_node_t* node = UT_LIST_GET_FIRST(chain);
+	     node != NULL; node = UT_LIST_GET_NEXT(chain, node)) {
+		if (!node->on_ssd) {
+			return true;
+		}
+	}
+	return false;
+}
 
 /** Common InnoDB file extentions */
 enum ib_extention {
@@ -853,6 +887,22 @@ struct fil_system_t {
 
 private:
   bool m_initialised;
+#ifdef UNIV_LINUX
+  /** available block devices that reside on non-rotational storage */
+  std::vector<dev_t> ssd;
+public:
+  /** @return whether a file system device is on non-rotational storage */
+  bool is_ssd(dev_t dev) const
+  {
+    /* Linux seems to allow up to 15 partitions per block device.
+    If the detected ssd carries "partition number 0" (it is the whole device),
+    compare the candidate file system number without the partition number. */
+    for (const auto s : ssd)
+      if (dev == s || (dev & ~15U) == s)
+        return true;
+    return false;
+  }
+#endif
 public:
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */

@@ -8697,7 +8697,7 @@ static ST_FIELD_INFO	innodb_tablespaces_scrubbing_fields_info[] =
 
 #define TABLESPACES_SCRUBBING_COMPRESSED	2
 	{STRUCT_FLD(field_name,		"COMPRESSED"),
-	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
 	 STRUCT_FLD(value,		0),
 	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
@@ -8749,14 +8749,14 @@ static ST_FIELD_INFO	innodb_tablespaces_scrubbing_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING 9
-	{STRUCT_FLD(field_name,		"ROTATING_OR_FLUSHING"),
-	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+#define TABLESPACES_SCRUBBING_ON_SSD	8
+	{STRUCT_FLD(field_name,		"ON_SSD"),
+	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
 	 STRUCT_FLD(value,		0),
 	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+	 STRUCT_FLD(old_name,           ""),
+	 STRUCT_FLD(open_method,        SKIP_OPEN_TABLE)},
 
 	END_OF_ST_FIELD_INFO
 };
@@ -8829,6 +8829,8 @@ i_s_dict_fill_tablespaces_scrubbing(
 		}
 	}
 
+	OK(fields[TABLESPACES_SCRUBBING_ON_SSD]->store(!space->is_rotational(),
+						       true));
 	OK(schema_table_store_record(thd, table_to_fill));
 
 	DBUG_RETURN(0);

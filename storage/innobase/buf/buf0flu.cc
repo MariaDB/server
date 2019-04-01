@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1314,9 +1314,13 @@ buf_flush_try_neighbors(
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 
 	ut_ad(flush_type == BUF_FLUSH_LRU || flush_type == BUF_FLUSH_LIST);
+	fil_space_t* space = fil_space_acquire_for_io(page_id.space());
+	if (!space) {
+		return 0;
+	}
 
 	if (UT_LIST_GET_LEN(buf_pool->LRU) < BUF_LRU_OLD_MIN_LEN
-	    || srv_flush_neighbors == 0) {
+	    || !srv_flush_neighbors || !space->is_rotational()) {
 		/* If there is little space or neighbor flushing is
 		not enabled then just flush the victim. */
 		low = page_id.page_no();
@@ -1371,9 +1375,8 @@ buf_flush_try_neighbors(
 		}
 	}
 
-	const ulint	space_size = fil_space_get_size(page_id.space());
-	if (high > space_size) {
-		high = space_size;
+	if (high > space->size) {
+		high = space->size;
 	}
 
 	DBUG_PRINT("ib_buf", ("flush %u:%u..%u",
@@ -1449,6 +1452,8 @@ buf_flush_try_neighbors(
 		}
 		buf_pool_mutex_exit(buf_pool);
 	}
+
+	space->release_for_io();
 
 	if (count > 1) {
 		MONITOR_INC_VALUE_CUMULATIVE(

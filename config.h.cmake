@@ -184,7 +184,6 @@
 #cmakedefine HAVE_PERROR 1
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
-#cmakedefine HAVE_LINUX_FALLOC_H 1
 #cmakedefine HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE 1
 #cmakedefine HAVE_PREAD 1
 #cmakedefine HAVE_PAUSE_INSTRUCTION 1

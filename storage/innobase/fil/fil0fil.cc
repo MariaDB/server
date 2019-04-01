@@ -50,6 +50,11 @@ Created 10/25/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "buf0flu.h"
 #include "os0api.h"
+#ifdef UNIV_LINUX
+# include <sys/types.h>
+# include <sys/sysmacros.h>
+# include <dirent.h>
+#endif
 
 /** Tries to close a file in the LRU list. The caller must hold the fil_sys
 mutex.
@@ -380,19 +385,6 @@ fil_space_get_latch(
 	return(&(space->latch));
 }
 
-/** Note that the tablespace has been imported.
-Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
-written while the space ID is being updated in each page. */
-void fil_space_t::set_imported()
-{
-	ut_ad(purpose == FIL_TYPE_IMPORT);
-	const fil_node_t* node = UT_LIST_GET_FIRST(chain);
-	atomic_write_supported = node->atomic_write
-		&& srv_use_atomic_writes
-		&& my_test_if_atomic_write(node->handle, physical_size());
-	purpose = FIL_TYPE_TABLESPACE;
-}
-
 /**********************************************************************//**
 Checks if all the file nodes in a space are flushed.
 @return true if all are flushed */
@@ -505,108 +497,6 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	return node;
 }
 
-/** Read the first page of a data file.
-@param[in]	first	whether this is the very first read
-@return	whether the page was found valid */
-bool fil_node_t::read_page0(bool first)
-{
-	ut_ad(mutex_own(&fil_system.mutex));
-	ut_a(space->purpose != FIL_TYPE_LOG);
-	const ulint psize = space->physical_size();
-
-	os_offset_t size_bytes = os_file_get_size(handle);
-	ut_a(size_bytes != (os_offset_t) -1);
-	const ulint min_size = FIL_IBD_FILE_INITIAL_SIZE * psize;
-
-	if (size_bytes < min_size) {
-		ib::error() << "The size of the file " << name
-			    << " is only " << size_bytes
-			    << " bytes, should be at least " << min_size;
-		return false;
-	}
-
-	byte* buf2 = static_cast<byte*>(ut_malloc_nokey(2 * psize));
-
-	/* Align the memory for file i/o if we might have O_DIRECT set */
-	byte* page = static_cast<byte*>(ut_align(buf2, psize));
-	IORequest request(IORequest::READ);
-	if (!os_file_read(request, handle, page, 0, psize)) {
-		ib::error() << "Unable to read first page of file " << name;
-		ut_free(buf2);
-		return false;
-	}
-	const ulint space_id = fsp_header_get_space_id(page);
-	ulint flags = fsp_header_get_flags(page);
-	const ulint size = fsp_header_get_field(page, FSP_SIZE);
-	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
-	const ulint free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
-					    + page);
-	if (!fil_space_t::is_valid_flags(flags, space->id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
-invalid:
-			ib::error()
-				<< "Expected tablespace flags "
-				<< ib::hex(space->flags)
-				<< " but found " << ib::hex(flags)
-				<< " in the file " << name;
-			ut_free(buf2);
-			return false;
-		}
-
-		ulint cf = cflags & ~FSP_FLAGS_MEM_MASK;
-		ulint sf = space->flags & ~FSP_FLAGS_MEM_MASK;
-
-		if (!fil_space_t::is_flags_equal(cf, sf)
-		    && !fil_space_t::is_flags_equal(sf, cf)) {
-			goto invalid;
-		}
-
-		flags = cflags;
-	}
-
-	ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
-
-	/* Try to read crypt_data from page 0 if it is not yet read. */
-	if (!space->crypt_data) {
-		space->crypt_data = fil_space_read_crypt_data(
-			fil_space_t::zip_size(flags), page);
-	}
-	ut_free(buf2);
-
-	if (UNIV_UNLIKELY(space_id != space->id)) {
-		ib::error() << "Expected tablespace id " << space->id
-			<< " but found " << space_id
-			<< " in the file " << name;
-		return false;
-	}
-
-	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
-	ut_ad(space->free_len == 0 || space->free_len == free_len);
-	space->size_in_header = size;
-	space->free_limit = free_limit;
-	space->free_len = free_len;
-
-	if (first) {
-		/* Truncate the size to a multiple of extent size. */
-		ulint	mask = psize * FSP_EXTENT_SIZE - 1;
-
-		if (size_bytes <= mask) {
-			/* .ibd files start smaller than an
-			extent size. Do not truncate valid data. */
-		} else {
-			size_bytes &= ~os_offset_t(mask);
-		}
-
-		space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
-
-		this->size = ulint(size_bytes / psize);
-		space->size += this->size;
-	}
-
-	return true;
-}
-
 /** Open a file node of a tablespace.
 @param[in,out]	node	File node
 @return false if the file can't be opened, otherwise true */
@@ -680,28 +570,6 @@ fail:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO, OS_DATA_FILE, read_only_mode, &success);
-	}
-
-	if (space->purpose != FIL_TYPE_LOG) {
-		/*
-		For the temporary tablespace and during the
-		non-redo-logged adjustments in
-		IMPORT TABLESPACE, we do not care about
-		the atomicity of writes.
-
-		Atomic writes is supported if the file can be used
-		with atomic_writes (not log file), O_DIRECT is
-		used (tested in ha_innodb.cc) and the file is
-		device and file system that supports atomic writes
-		for the given block size
-		*/
-		space->atomic_write_supported
-			= space->purpose == FIL_TYPE_TEMPORARY
-			|| space->purpose == FIL_TYPE_IMPORT
-			|| (node->atomic_write
-			    && srv_use_atomic_writes
-			    && my_test_if_atomic_write(
-				    node->handle, space->physical_size()));
 	}
 
 	ut_a(success);
@@ -966,12 +834,6 @@ fil_space_extend_must_retry(
 
 	ulint		last_page_no		= space->size;
 	const ulint	file_start_page_no	= last_page_no - node->size;
-
-	/* Determine correct file block size */
-	if (node->block_size == 0) {
-		node->block_size = os_file_get_block_size(
-			node->handle, node->name);
-	}
 
 	const ulint	page_size = space->physical_size();
 
@@ -1435,8 +1297,8 @@ fil_space_create(
 	to do */
 	if (purpose == FIL_TYPE_TABLESPACE
 	    && !srv_fil_crypt_rotate_key_age && fil_crypt_threads_event &&
-	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
-		    srv_encrypt_tables)) {
+	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
+	     || srv_encrypt_tables)) {
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
 		UT_LIST_ADD_LAST(fil_system.rotation_list, space);
@@ -1707,6 +1569,66 @@ void fil_system_t::create(ulint hash_size)
 	spaces = hash_create(hash_size);
 
 	fil_space_crypt_init();
+#ifdef UNIV_LINUX
+	ssd.clear();
+	char fn[sizeof(dirent::d_name)
+		+ sizeof "/sys/block/" "/queue/rotational"];
+	const size_t sizeof_fnp = (sizeof fn) - sizeof "/sys/block";
+	memcpy(fn, "/sys/block/", sizeof "/sys/block");
+	char* fnp = &fn[sizeof "/sys/block"];
+
+	std::set<std::string> ssd_devices;
+	if (DIR* d = opendir("/sys/block")) {
+		while (struct dirent* e = readdir(d)) {
+			if (e->d_name[0] == '.') {
+				continue;
+			}
+			snprintf(fnp, sizeof_fnp, "%s/queue/rotational",
+				 e->d_name);
+			int f = open(fn, O_RDONLY);
+			if (f == -1) {
+				continue;
+			}
+			char b[sizeof "4294967295:4294967295\n"];
+			ssize_t l = read(f, b, sizeof b);
+			::close(f);
+			if (l != 2 || memcmp("0\n", b, 2)) {
+				continue;
+			}
+			snprintf(fnp, sizeof_fnp, "%s/dev", e->d_name);
+			f = open(fn, O_RDONLY);
+			if (f == -1) {
+				continue;
+			}
+			l = read(f, b, sizeof b);
+			::close(f);
+			if (l <= 0 || b[l - 1] != '\n') {
+				continue;
+			}
+			b[l - 1] = '\0';
+			char* end = b;
+			unsigned long dev_major = strtoul(b, &end, 10);
+			if (b == end || *end != ':'
+			    || dev_major != unsigned(dev_major)) {
+				continue;
+			}
+			char* c = end + 1;
+			unsigned long dev_minor = strtoul(c, &end, 10);
+			if (c == end || *end
+			    || dev_minor != unsigned(dev_minor)) {
+				continue;
+			}
+			ssd.push_back(makedev(unsigned(dev_major),
+					      unsigned(dev_minor)));
+		}
+		closedir(d);
+	}
+	/* fil_system_t::is_ssd() assumes the following */
+	ut_ad(makedev(0, 8) == 8);
+	ut_ad(makedev(0, 4) == 4);
+	ut_ad(makedev(0, 2) == 2);
+	ut_ad(makedev(0, 1) == 1);
+#endif
 }
 
 void fil_system_t::close()
@@ -2969,6 +2891,9 @@ fil_rename_tablespace(
 	return(success);
 }
 
+/* FIXME: remove this! */
+IF_WIN(, bool os_is_sparse_file_supported(os_file_t fh));
+
 /** Create a tablespace file.
 @param[in]	space_id	Tablespace ID
 @param[in]	name		Tablespace name in dbname/tablename format.
@@ -3044,6 +2969,7 @@ fil_ibd_create(
 	}
 
 	const bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+	bool punch_hole = is_compressed;
 
 #ifdef _WIN32
 	if (is_compressed) {
@@ -3061,9 +2987,8 @@ err_exit:
 		return NULL;
 	}
 
-	bool punch_hole = os_is_sparse_file_supported(file);
-
-	ulint block_size = os_file_get_block_size(file, path);
+	/* FIXME: remove this */
+	IF_WIN(, punch_hole = punch_hole && os_is_sparse_file_supported(file));
 
 	/* We have to write the space id to the file immediately and flush the
 	file to disk. This is because in crash recovery we must be aware what
@@ -3139,7 +3064,7 @@ err_exit:
 	/* Create crypt data if the tablespace is either encrypted or user has
 	requested it to remain unencrypted. */
 	if (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
-		srv_encrypt_tables) {
+	    srv_encrypt_tables) {
 		crypt_data = fil_space_create_crypt_data(mode, key_id);
 	}
 
@@ -3149,19 +3074,19 @@ err_exit:
 		free(crypt_data);
 		*err = DB_ERROR;
 	} else {
-		fil_node_t* file = space->add(path, OS_FILE_CLOSED, size,
+		space->punch_hole = punch_hole;
+		/* FIXME: Keep the file open! */
+		fil_node_t* node = space->add(path, OS_FILE_CLOSED, size,
 					      false, true);
 		mtr_t mtr;
 		mtr.start();
 		fil_op_write_log(
-			MLOG_FILE_CREATE2, space_id, 0, file->name,
+			MLOG_FILE_CREATE2, space_id, 0, node->name,
 			NULL, space->flags & ~FSP_FLAGS_MEM_MASK, &mtr);
-		fil_name_write(space, 0, file, &mtr);
+		fil_name_write(space, 0, node, &mtr);
 		mtr.commit();
 
-		file->block_size = block_size;
-		space->punch_hole = punch_hole;
-
+		node->find_metadata(file);
 		*err = DB_SUCCESS;
 	}
 
@@ -4152,6 +4077,15 @@ fil_report_invalid_page_access(
 		? "Please check that the configuration matches"
 		" the InnoDB system tablespace location (ibdata files)"
 		: "");
+}
+
+inline void IORequest::set_fil_node(fil_node_t* node)
+{
+	if (!node->space->punch_hole) {
+		clear_punch_hole();
+	}
+
+	m_fil_node = node;
 }
 
 /** Reads or writes data. This operation could be asynchronous (aio).
@@ -5213,29 +5147,6 @@ fil_space_found_by_id(
 
 	mutex_exit(&fil_system.mutex);
 	return space;
-}
-
-/**
-Get should we punch hole to tablespace.
-@param[in]	node		File node
-@return true, if punch hole should be tried, false if not. */
-bool
-fil_node_should_punch_hole(
-	const fil_node_t*	node)
-{
-	return (node->space->punch_hole);
-}
-
-/**
-Set punch hole to tablespace to given value.
-@param[in]	node		File node
-@param[in]	val		value to be set. */
-void
-fil_space_set_punch_hole(
-	fil_node_t*		node,
-	bool			val)
-{
-	node->space->punch_hole = val;
 }
 
 /** Checks that this tablespace in a list of unflushed tablespaces.
