@@ -231,7 +231,8 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
     wsrep_xid_init(&thd->wsrep_xid,
-                     thd->wsrep_trx().ws_meta().gtid());
+                   thd->wsrep_trx().ws_meta().gtid(),
+                   wsrep_gtid_server.gtid());
   }
   DBUG_RETURN(ret);
 }
@@ -271,8 +272,22 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   if ((ret= thd->wsrep_cs().before_commit()) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+    if (!thd->variables.gtid_seq_no && 
+        (thd->wsrep_trx().ws_meta().flags() & wsrep::provider::flag::commit))
+    {
+        uint64 seqno= wsrep_gtid_server.seqno_inc();
+        thd->wsrep_current_gtid_seqno= seqno;
+        if (mysql_bin_log.is_open() && wsrep_gtid_mode)
+        {
+          thd->variables.gtid_seq_no= seqno;
+          thd->variables.gtid_domain_id= wsrep_gtid_server.domain_id;
+          thd->variables.server_id= wsrep_gtid_server.server_id;
+        }
+    }
+
     wsrep_xid_init(&thd->wsrep_xid,
-                   thd->wsrep_trx().ws_meta().gtid());
+                   thd->wsrep_trx().ws_meta().gtid(),
+                   wsrep_gtid_server.gtid());
     wsrep_register_for_group_commit(thd);
   }
   DBUG_RETURN(ret);

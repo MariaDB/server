@@ -38,6 +38,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "wsrep/streaming_context.hpp"
 #include "wsrep_api.h"
 #include <vector>
+#include <map>
 #include "wsrep_server_state.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
@@ -97,7 +98,6 @@ extern ulong       wsrep_running_applier_threads;
 extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
-extern uint32      wsrep_gtid_domain_id;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -303,6 +303,7 @@ extern mysql_mutex_t LOCK_wsrep_replaying;
 extern mysql_cond_t  COND_wsrep_replaying;
 extern mysql_mutex_t LOCK_wsrep_slave_threads;
 extern mysql_cond_t  COND_wsrep_slave_threads;
+extern mysql_mutex_t LOCK_wsrep_gtid_wait_upto;
 extern mysql_mutex_t LOCK_wsrep_cluster_config;
 extern mysql_mutex_t LOCK_wsrep_desync;
 extern mysql_mutex_t LOCK_wsrep_SR_pool;
@@ -311,9 +312,6 @@ extern mysql_mutex_t LOCK_wsrep_config_state;
 extern mysql_mutex_t LOCK_wsrep_group_commit;
 extern my_bool       wsrep_emulate_bin_log;
 extern int           wsrep_to_isolation;
-#ifdef GTID_SUPPORT
-extern rpl_sidno     wsrep_sidno;
-#endif /* GTID_SUPPORT */
 extern my_bool       wsrep_preordered_opt;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -332,6 +330,8 @@ extern PSI_mutex_key key_LOCK_wsrep_replaying;
 extern PSI_cond_key  key_COND_wsrep_replaying;
 extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
 extern PSI_cond_key  key_COND_wsrep_slave_threads;
+extern PSI_mutex_key key_LOCK_wsrep_gtid_wait_upto;
+extern PSI_cond_key  key_COND_wsrep_gtid_wait_upto;
 extern PSI_mutex_key key_LOCK_wsrep_cluster_config;
 extern PSI_mutex_key key_LOCK_wsrep_desync;
 extern PSI_mutex_key key_LOCK_wsrep_SR_pool;
@@ -378,7 +378,122 @@ class Log_event;
 int wsrep_ignored_error_code(Log_event* ev, int error);
 int wsrep_must_ignore_error(THD* thd);
 
-bool wsrep_replicate_GTID(THD* thd);
+struct wsrep_server_gtid_t
+{
+  uint32 domain_id;
+  uint32 server_id;
+  uint64 seqno;
+};
+class Wsrep_gtid_server
+{
+public:
+  uint32 domain_id;
+  uint32 server_id;
+  Wsrep_gtid_server()
+    : m_force_signal(false)
+    , m_seqno(0)
+    , m_committed_seqno(0)
+  { }
+  void gtid(const wsrep_server_gtid_t& gtid)
+  {
+    domain_id=  gtid.domain_id;
+    server_id=  gtid.server_id;
+    m_seqno=    gtid.seqno;
+  }
+  wsrep_server_gtid_t gtid()
+  {
+    wsrep_server_gtid_t gtid;
+    gtid.domain_id= domain_id;
+    gtid.server_id= server_id;
+    gtid.seqno=     m_seqno;
+    return gtid;
+  }
+  void seqno(const uint64 seqno) { m_seqno= seqno; }
+  uint64 seqno() const { return m_seqno; }
+  uint64 seqno_committed() const { return m_committed_seqno; }
+  uint64 seqno_inc() 
+  {
+    m_seqno++;
+    return m_seqno;
+  }
+  const wsrep_server_gtid_t& undefined()
+  {
+    return m_undefined;
+  }
+  int wait_gtid_upto(const uint64_t seqno, uint timeout)
+  {
+    int wait_result;
+    struct timespec wait_time;
+    int ret= 0;
+    mysql_cond_t wait_cond;
+    mysql_cond_init(key_COND_wsrep_gtid_wait_upto, &wait_cond, NULL);
+    set_timespec(wait_time, timeout);
+    mysql_mutex_lock(&LOCK_wsrep_gtid_wait_upto);
+    std::multimap<uint64, mysql_cond_t*>::iterator it;
+    try
+    {
+      it= m_wait_map.insert(std::make_pair(seqno, &wait_cond));
+    } 
+    catch (std::bad_alloc& e)
+    {
+      return 0;
+    }
+    while ((m_committed_seqno < seqno) && !m_force_signal)
+    {
+      wait_result= mysql_cond_timedwait(&wait_cond,
+                                        &LOCK_wsrep_gtid_wait_upto,
+                                        &wait_time);
+      if (wait_result == ETIMEDOUT || wait_result == ETIME)
+      {
+        ret= 1;
+        break;
+      }
+    }
+    m_wait_map.erase(it);
+    mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
+    mysql_cond_destroy(&wait_cond);
+    return ret;
+  }
+  void signal_waiters(uint64 seqno, bool signal_all)
+  {
+    if (!signal_all && (m_committed_seqno >= seqno))
+    {
+      return;
+    }
+    mysql_mutex_lock(&LOCK_wsrep_gtid_wait_upto);
+    m_force_signal= true;
+    std::multimap<uint64, mysql_cond_t*>::iterator it_end;
+    std::multimap<uint64, mysql_cond_t*>::iterator it_begin;
+    if (signal_all)
+    {
+      it_end= m_wait_map.end();
+    }
+    else
+    {
+      it_end= m_wait_map.upper_bound(seqno);
+    }
+    for (it_begin = m_wait_map.begin(); it_begin != it_end; ++it_begin)
+    {
+      mysql_cond_signal(it_begin->second);
+    }
+    m_force_signal= false;
+    mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
+    if (m_committed_seqno < seqno)
+    {
+      m_committed_seqno= seqno;
+    }
+  }
+private:
+  const wsrep_server_gtid_t m_undefined= {0,0,0};
+  std::multimap<uint64, mysql_cond_t*> m_wait_map;
+  bool m_force_signal;
+  Atomic_counter<uint64_t> m_seqno;
+  Atomic_counter<uint64_t> m_committed_seqno;
+};
+extern Wsrep_gtid_server wsrep_gtid_server;
+void wsrep_init_gtid();
+bool wsrep_check_gtid_seqno(const uint32&, const uint32&, uint64&);
+bool wsrep_get_binlog_gtid_seqno(wsrep_server_gtid_t&);
 
 typedef struct wsrep_key_arr
 {

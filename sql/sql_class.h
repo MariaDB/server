@@ -4833,17 +4833,13 @@ public:
   size_t                    wsrep_TOI_pre_query_len;
   wsrep_po_handle_t         wsrep_po_handle;
   size_t                    wsrep_po_cnt;
-#ifdef GTID_SUPPORT
-  my_bool                   wsrep_po_in_trans;
-  rpl_sid                   wsrep_po_sid;
-#endif /* GTID_SUPPORT */
   void                      *wsrep_apply_format;
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
-  //  wsrep_gtid_t              wsrep_last_written_gtid;
+  uint64                    wsrep_last_written_gtid_seqno;
+  uint64                    wsrep_current_gtid_seqno;
   ulong                     wsrep_affected_rows;
   bool                      wsrep_has_ignored_error;
-  bool                      wsrep_replicate_GTID;
 
   /*
     When enabled, do not replicate/binlog updates from the current table that's

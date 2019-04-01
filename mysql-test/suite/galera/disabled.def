@@ -17,8 +17,6 @@ MW-336 : MDEV-21409: Galera test failure on MW-336
 MW-360 : needs rewrite to be MariaDB gtid compatible
 MW-388: MDEV-19803 Long semaphore wait error on galera.MW-388	
 galera_account_management : MariaDB 10.0 does not support ALTER USER
-galera_as_master_gtid : Requires MySQL GTID
-galera_as_master_gtid_change_master : Requires MySQL GTID
 galera_as_slave_gtid_replicate_do_db_cc : Requires MySQL GTID
 galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()

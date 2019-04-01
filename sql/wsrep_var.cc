@@ -37,7 +37,10 @@ int wsrep_init_vars()
   wsrep_node_name       = my_strdup("", MYF(MY_WME));
   wsrep_node_address    = my_strdup("", MYF(MY_WME));
   wsrep_node_incoming_address= my_strdup(WSREP_NODE_INCOMING_AUTO, MYF(MY_WME));
-  wsrep_start_position  = my_strdup(WSREP_START_POSITION_ZERO, MYF(MY_WME));
+  if (wsrep_gtid_mode)
+    wsrep_start_position  = my_strdup(WSREP_START_POSITION_ZERO_GTID, MYF(MY_WME));
+  else
+    wsrep_start_position  = my_strdup(WSREP_START_POSITION_ZERO, MYF(MY_WME));
   return 0;
 }
 
@@ -103,6 +106,13 @@ bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
   return false;
 }
 
+template<typename T>
+static T parse_value(char** startptr, char** endptr)
+{
+   T val= strtoll(*startptr, *&endptr, 10);
+   *startptr= *endptr;
+   return val;
+}
 
 /*
   Verify the format of the given UUID:seqno.
@@ -136,8 +146,25 @@ bool wsrep_start_position_verify (const char* start_str)
     return true;
 
   char* endptr;
+  char* startptr= (char *)start_str + uuid_len + 1;
   wsrep_seqno_t const seqno __attribute__((unused)) // to avoid GCC warnings
-    (strtoll(&start_str[uuid_len + 1], &endptr, 10));
+    (parse_value<uint64_t>(&startptr, &endptr));
+
+  // Start parsing native GTID part
+  if (*startptr == ',')
+  {
+    startptr++;
+    uint32_t domain  __attribute__((unused))
+      (parse_value<uint32_t>(&startptr, &endptr));
+    if (*endptr != '-') return true;
+    startptr++;
+    uint32_t server  __attribute__((unused))
+      (parse_value<uint32_t>(&startptr, &endptr));
+    if (*endptr != '-') return true;
+    startptr++;
+    uint64_t seq  __attribute__((unused))
+      (parse_value<uint64_t>(&startptr, &endptr));
+  }
 
   // Remaining string was seqno.
   if (*endptr == '\0') return false;
@@ -150,9 +177,22 @@ static
 bool wsrep_set_local_position(THD* thd, const char* const value,
                               size_t length, bool const sst)
 {
+  char* endptr;
+  char* startptr;
   wsrep_uuid_t uuid;
   size_t const uuid_len= wsrep_uuid_scan(value, length, &uuid);
-  wsrep_seqno_t const seqno= strtoll(value + uuid_len + 1, NULL, 10);
+  startptr= (char *)value + uuid_len + 1;
+  wsrep_seqno_t const seqno= parse_value<uint64_t>(&startptr, &endptr);
+
+  if (*startptr == ',')
+  {
+    startptr++;
+    wsrep_gtid_server.domain_id= parse_value<uint32_t>(&startptr, &endptr);
+    startptr++;
+    wsrep_gtid_server.server_id= parse_value<uint32_t>(&startptr, &endptr);
+    startptr++;
+    wsrep_gtid_server.seqno(parse_value<uint64_t>(&startptr, &endptr));
+  }
 
   if (sst) {
     wsrep_sst_received (thd, uuid, seqno, NULL, 0);
