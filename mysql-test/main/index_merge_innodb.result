@@ -296,6 +296,7 @@ key3 int not null default 0
 );
 insert into t1(key1) values (1),(2),(3),(4),(5),(6),(7),(8);
 set @d=8;
+begin;
 insert into t1 (key1) select key1+@d from t1;
 set @d=@d*2;
 insert into t1 (key1) select key1+@d from t1;
@@ -310,9 +311,11 @@ insert into t1 (key1) select key1+@d from t1;
 set @d=@d*2;
 insert into t1 (key1) select key1+@d from t1;
 set @d=@d*2;
+commit;
 alter table t1 add index i2(key2);
 alter table t1 add index i3(key3);
 update t1 set key2=key1,key3=key1;
+insert into t1 select 10000+key1, 10000+key2,10000+key3 from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -675,6 +678,7 @@ a int,
 b int,
 INDEX idx(a))
 ENGINE=INNODB;
+begin;
 INSERT INTO t1(a,b) VALUES
 (11, 1100), (2, 200), (1, 100), (14, 1400), (5, 500),
 (3, 300), (17, 1700), (4, 400), (12, 1200), (8, 800),
@@ -694,6 +698,7 @@ INSERT INTO t1(a,b) SELECT a,b FROM t1;
 INSERT INTO t1(a,b) SELECT a,b FROM t1;
 INSERT INTO t1(a,b) SELECT a,b FROM t1;
 INSERT INTO t1 VALUES (1000000, 0, 0);
+commit;
 SET SESSION sort_buffer_size = 1024*36;
 set @tmp_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';

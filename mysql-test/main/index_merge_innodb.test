@@ -47,6 +47,7 @@ CREATE TABLE t1 (
   INDEX idx(a))
 ENGINE=INNODB;
 
+begin;
 INSERT INTO t1(a,b) VALUES
   (11, 1100), (2, 200), (1, 100), (14, 1400), (5, 500),
   (3, 300), (17, 1700), (4, 400), (12, 1200), (8, 800),
@@ -66,6 +67,7 @@ INSERT INTO t1(a,b) SELECT a,b FROM t1;
 INSERT INTO t1(a,b) SELECT a,b FROM t1;
 INSERT INTO t1(a,b) SELECT a,b FROM t1;
 INSERT INTO t1 VALUES (1000000, 0, 0);
+commit;
 
 SET SESSION sort_buffer_size = 1024*36;
 set @tmp_optimizer_switch=@@optimizer_switch;
