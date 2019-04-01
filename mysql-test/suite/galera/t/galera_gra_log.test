@@ -5,6 +5,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --connection node_2
 --exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
 let $restore_wsrep_ignore_apply_errors = `SELECT @@GLOBAL.wsrep_ignore_apply_errors`;
@@ -39,3 +44,6 @@ CREATE TABLE t1 (f1 INTEGER);
 DROP TABLE t1;
 
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc

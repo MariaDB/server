@@ -281,16 +281,34 @@ extern "C" int wsrep_thd_append_key(THD *thd,
     }
     ret= client_state.append_key(wsrep_key);
   }
+  /*
+    In case of `wsrep_gtid_mode` when WS will be replicated, we need to set
+    `server_id` for events that are going to be written in IO, and in case of
+    manual SET gtid_seq_no=X we are ignoring value.
+   */
+  if (!ret && wsrep_gtid_mode && !thd->slave_thread && !wsrep_thd_is_applying(thd))
+  {
+    thd->variables.server_id= wsrep_gtid_server.server_id;
+    thd->variables.gtid_seq_no= 0;
+  }
   return ret;
 }
 
 extern "C" void wsrep_commit_ordered(THD *thd)
 {
   if (wsrep_is_active(thd) &&
-      thd->wsrep_trx().state() == wsrep::transaction::s_committing &&
-      !wsrep_commit_will_write_binlog(thd))
+      (thd->wsrep_trx().state() == wsrep::transaction::s_committing ||
+       thd->wsrep_trx().state() == wsrep::transaction::s_ordered_commit))
   {
-    thd->wsrep_cs().ordered_commit();
+    wsrep_gtid_server.signal_waiters(thd->wsrep_current_gtid_seqno, false);
+    if (wsrep_thd_is_local(thd))
+    {
+      thd->wsrep_last_written_gtid_seqno= thd->wsrep_current_gtid_seqno;
+    }
+    if (!wsrep_commit_will_write_binlog(thd))
+    {
+      thd->wsrep_cs().ordered_commit();
+    }
   }
 }
 

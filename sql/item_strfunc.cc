@@ -5234,28 +5234,33 @@ String *Item_temptable_rowid::val_str(String *str)
   str_value.set((char*)(table->file->ref), max_length, &my_charset_bin);
   return &str_value;
 }
+
 #ifdef WITH_WSREP
 
 #include "wsrep_mysqld.h"
+/* Format is %d-%d-%llu */
+#define WSREP_MAX_WSREP_SERVER_GTID_STR_LEN 10+1+10+1+20
 
 String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
-  wsrep::gtid gtid= current_thd->wsrep_cs().last_written_gtid();
-  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
+  if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
-    null_value= true;
-    return NULL;
+    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    null_value= TRUE;
+    return 0;
   }
 
-  ssize_t gtid_len= gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
-                                        wsrep::gtid_c_str_len());
+  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(), 
+                                WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1,
+                                "%u-%u-%llu", wsrep_gtid_server.domain_id,
+                                wsrep_gtid_server.server_id,
+                                current_thd->wsrep_last_written_gtid_seqno);
   if (gtid_len < 0)
   {
     my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
-             "wsrep_gtid_print failed");
-    null_value= true;
-    return NULL;
+            "wsrep_gtid_print failed");
+    null_value= TRUE;
+    return 0;
   }
   gtid_str.length(gtid_len);
   return &gtid_str;
@@ -5263,23 +5268,23 @@ String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 
 String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
-  /* TODO: Should call Wsrep_server_state.instance().last_committed_gtid()
-     instead. */
-  wsrep::gtid gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
-  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
+  if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
-    null_value= true;
-    return NULL;
+    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    null_value= TRUE;
+    return 0;
   }
-  ssize_t gtid_len= wsrep::gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
-                                               wsrep::gtid_c_str_len());
+  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(), 
+                                WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1,
+                                "%u-%u-%llu", wsrep_gtid_server.domain_id,
+                                wsrep_gtid_server.server_id,
+                                wsrep_gtid_server.seqno());
   if (gtid_len < 0)
   {
     my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
              "wsrep_gtid_print failed");
-    null_value= true;
-    return NULL;
+    null_value= TRUE;
+    return 0;
   }
   gtid_str.length(gtid_len);
   return &gtid_str;
@@ -5287,49 +5292,52 @@ String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 
 longlong Item_func_wsrep_sync_wait_upto::val_int()
 {
-  int timeout= -1;
-  String* gtid_str= args[0]->val_str(&value);
-  if (gtid_str == NULL)
+  String *gtid_str __attribute__((unused)) = args[0]->val_str(&value);
+  null_value=0;
+  uint timeout;
+  rpl_gtid *gtid_list;
+  uint32 count;
+  int ret= 1;
+
+  if (args[0]->null_value)
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
-    return 0LL;
+    null_value= TRUE;
+    return 0;
   }
 
-  if (arg_count == 2)
+  if (arg_count==2 && !args[1]->null_value)
+    timeout= (uint)(args[1]->val_real());
+  else
+    timeout= (uint)-1;
+
+  if (!(gtid_list= gtid_parse_string_to_list(gtid_str->ptr(), gtid_str->length(),
+                                             &count)))
   {
-    timeout= args[1]->val_int();
+    my_error(ER_INCORRECT_GTID_STATE, MYF(0), func_name());
+    null_value= TRUE;
+    return 0;
   }
-
-  wsrep_gtid_t gtid;
-  int gtid_len= wsrep_gtid_scan(gtid_str->ptr(), gtid_str->length(), &gtid);
-  if (gtid_len < 0)
+  if (count == 1)
   {
-    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
-    return 0LL;
-  }
-
-  if (gtid.seqno == WSREP_SEQNO_UNDEFINED &&
-      wsrep_uuid_compare(&gtid.uuid, &WSREP_UUID_UNDEFINED) == 0)
-  {
-    return 1LL;
-  }
-
-  enum wsrep::provider::status status=
-      wsrep_sync_wait_upto(current_thd, &gtid, timeout);
-
-  if (status)
-  {
-    int err;
-    switch (status) {
-    case wsrep::provider::error_transaction_missing:
-      err= ER_WRONG_ARGUMENTS;
-      break;
-    default:
-      err= ER_LOCK_WAIT_TIMEOUT;
+    if (wsrep_check_gtid_seqno(gtid_list[0].domain_id, gtid_list[0].server_id,
+                               gtid_list[0].seq_no))
+    {
+      if (wsrep_gtid_server.wait_gtid_upto(gtid_list[0].seq_no, timeout))
+      {
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), func_name());
+        ret= 0;
+      }
     }
-    my_error(err, MYF(0), func_name());
-    return 0LL;
   }
-  return 1LL;
+  else
+  { 
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    null_value= TRUE;
+    ret= 0;
+  }
+  my_free(gtid_list);
+  return ret;
 }
+
 #endif /* WITH_WSREP */
