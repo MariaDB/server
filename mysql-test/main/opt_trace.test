@@ -373,4 +373,18 @@ explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 set @@optimizer_switch= @save_optimizer_switch;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-18942: Json_writer::add_bool: Conditional jump or move depends on uninitialised value upon 
+--echo # fulltext search under optimizer trace
+--echo #
+
+CREATE TABLE t1 (f VARCHAR(255), FULLTEXT(f));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('fooba'),('abcde'),('xyzab');
+SET optimizer_trace = 'enabled=on';
+SELECT COUNT(*) FROM v1 WHERE MATCH (f) AGAINST ('fooba');
+DROP VIEW v1;
+DROP TABLE t1;
+
 set optimizer_trace='enabled=off';
