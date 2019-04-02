@@ -3162,3 +3162,11 @@ SELECT TIME('- 01:00:00'), TIME('- 1 01:00:00');
 SET time_zone='+00:00';
 SELECT NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14');
 SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # MDEV-18402 Assertion `sec.sec() <= 59' failed in Item_func_maketime::get_date
+--echo #
+
+SELECT MAKETIME('01', '01', LEAST( -100, NULL ));
+SELECT CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )));

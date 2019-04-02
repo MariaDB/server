@@ -6336,3 +6336,12 @@ Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'foo'
 Warning	1292	Truncated incorrect DECIMAL value: 'foo'
 SET time_zone=DEFAULT;
+#
+# MDEV-18402 Assertion `sec.sec() <= 59' failed in Item_func_maketime::get_date
+#
+SELECT MAKETIME('01', '01', LEAST( -100, NULL ));
+MAKETIME('01', '01', LEAST( -100, NULL ))
+NULL
+SELECT CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )));
+CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )))
+NULL

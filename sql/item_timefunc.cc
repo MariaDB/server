@@ -2595,7 +2595,7 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   longlong minute= args[1]->val_int();
   VSec9 sec(thd, args[2], "seconds", 59);
 
-  DBUG_ASSERT(sec.sec() <= 59);
+  DBUG_ASSERT(sec.is_null() || sec.sec() <= 59);
   if (args[0]->null_value || args[1]->null_value || sec.is_null() ||
        minute < 0 || minute > 59 || sec.neg() || sec.truncated())
     return (null_value= 1);
