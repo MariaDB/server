@@ -561,7 +561,7 @@ public:
   */
   bool seeing_scalar(Json_scalar *scalar)
   {
-    std::auto_ptr<Json_scalar> aptr(scalar);
+    std::unique_ptr<Json_scalar> aptr(scalar);
     if (scalar == NULL || check_json_depth(m_stack.size() + 1))
       return false;
     switch (m_state)
@@ -729,7 +729,7 @@ public:
     {
     case expect_object_key:
       {
-        std::auto_ptr<Json_object> o(new (std::nothrow) Json_object());
+        std::unique_ptr<Json_object> o(new (std::nothrow) Json_object());
         if (o.get() == NULL)
           return false;                       /* purecov: inspected */
         for (Element_vector::const_iterator iter=
@@ -803,7 +803,7 @@ public:
     {
     case expect_array_value:
       {
-        std::auto_ptr<Json_array> a(new (std::nothrow) Json_array());
+        std::unique_ptr<Json_array> a(new (std::nothrow) Json_array());
         if (a.get() == NULL)
           return false;                         /* purecov: inspected */
         for (Element_vector::const_iterator iter=
@@ -1004,7 +1004,7 @@ Json_dom *Json_dom::parse(const json_mysql_binary::Value &v)
   {
   case json_mysql_binary::Value::OBJECT:
     {
-      std::auto_ptr<Json_object> jo(new (std::nothrow) Json_object());
+      std::unique_ptr<Json_object> jo(new (std::nothrow) Json_object());
       if (jo.get() == NULL)
         return NULL;                            /* purecov: inspected */
       for (uint32 i= 0; i < v.element_count(); ++i)
@@ -1025,7 +1025,7 @@ Json_dom *Json_dom::parse(const json_mysql_binary::Value &v)
     }
   case json_mysql_binary::Value::ARRAY:
     {
-      std::auto_ptr<Json_array> jarr(new (std::nothrow) Json_array());
+      std::unique_ptr<Json_array> jarr(new (std::nothrow) Json_array());
       if (jarr.get() == NULL)
         return NULL;                          /* purecov: inspected */
       for (uint32 i= 0; i < v.element_count(); ++i)
@@ -1035,7 +1035,7 @@ Json_dom *Json_dom::parse(const json_mysql_binary::Value &v)
           deallocated if it cannot be added. std::auto_ptr does that
           for us.
         */
-        std::auto_ptr<Json_dom> elt(parse(v.element(i)));
+        std::unique_ptr<Json_dom> elt(parse(v.element(i)));
         if (jarr->append_alias(elt.get()))
           return NULL;                        /* purecov: inspected */
         // The array owns the element now. Release it.
@@ -1156,7 +1156,7 @@ bool Json_object::add_alias(const std::string &key, Json_dom *value)
     add it to the object. The contract of add_alias() requires that it
     either gets added to the object or gets deleted.
   */
-  std::auto_ptr<Json_dom> aptr(value);
+  std::unique_ptr<Json_dom> aptr(value);
 
   /*
     We have already an element with this key.  Note we compare utf-8 bytes
@@ -1195,7 +1195,7 @@ bool Json_object::add_alias(const std::string &key, Json_dom *value)
 bool Json_object::consume(Json_object *other)
 {
   // We've promised to delete other before returning.
-  std::auto_ptr<Json_object> aptr(other);
+  std::unique_ptr<Json_object> aptr(other);
 
   Json_object_map &this_map= m_map;
   Json_object_map &other_map= other->m_map;
@@ -1327,14 +1327,14 @@ void Json_object::clear()
 
 bool Json_object::merge_patch(Json_object *patch)
 {
-  std::auto_ptr<Json_object> aptr(patch); // We own it, and must make sure
+  std::unique_ptr<Json_object> aptr(patch); // We own it, and must make sure
                                           // to delete it.
 
   for (Json_object_map::iterator it= patch->m_map.begin();
        it != patch->m_map.end(); ++it)
   {
     const std::string &patch_key= it->first;
-    std::auto_ptr<Json_dom> patch_value(it->second);
+    std::unique_ptr<Json_dom> patch_value(it->second);
     it->second= NULL;
 
     // Remove the member if the value in the patch is the null literal.
@@ -1349,7 +1349,7 @@ bool Json_object::merge_patch(Json_object *patch)
       target_pair= m_map.insert(std::make_pair(patch_key,
                                                static_cast<Json_dom*>(NULL)));
 
-    std::auto_ptr<Json_dom> target_value(target_pair.first->second);
+    std::unique_ptr<Json_dom> target_value(target_pair.first->second);
     target_pair.first->second= NULL;
 
     /*
@@ -1451,7 +1451,7 @@ bool Json_array::append_alias(Json_dom *value)
 bool Json_array::consume(Json_array *other)
 {
   // We've promised to delete other before returning.
-  std::auto_ptr<Json_array> aptr(other);
+  std::unique_ptr<Json_array> aptr(other);
 
   Json_dom_vector &other_vector= other->m_v;
 
@@ -2142,7 +2142,7 @@ static bool wrapper_to_string(const Json_wrapper &wr, String *buffer,
     }
   case Json_dom::J_OPAQUE:
     {
-      if (wr.get_data_length() > my_base64_encode_max_arg_length())
+      if (wr.get_data_length() > (uint) my_base64_encode_max_arg_length())
       {
         /* purecov: begin inspected */
         buffer->append("\"<data too long to decode - unexpected error>\"");

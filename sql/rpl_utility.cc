@@ -823,6 +823,7 @@ can_convert_field_to(Field *field,
   case MYSQL_TYPE_TIMESTAMP2:
   case MYSQL_TYPE_TIME2:
     DBUG_RETURN(false);
+  case MYSQL_TYPE_MYSQL_JSON:
   case MYSQL_TYPE_NEWDATE:
     {
       if (field->real_type() == MYSQL_TYPE_DATETIME2 ||

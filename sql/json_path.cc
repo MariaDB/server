@@ -610,7 +610,7 @@ const char *Json_path::parse_member_leg(const char *charptr,
 
     charptr= key_end;
 
-    std::auto_ptr<const Json_string> jstr;
+    std::unique_ptr<const Json_string> jstr;
 
     if (was_quoted)
     {
