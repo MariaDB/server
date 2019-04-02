@@ -18,6 +18,7 @@ SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
 connection node_2;
+# restart
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1

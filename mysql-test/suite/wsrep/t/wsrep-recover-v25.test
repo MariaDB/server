@@ -37,6 +37,8 @@ if ($log_bin) {
 # The expected recovered seqno is 1 corresponding to initial cluster
 # configuration change.
 #
+let $restart_noprint=2;
+
 --source include/kill_mysqld.inc
 --source wsrep-recover-step.inc
 --echo Expect seqno 1
@@ -53,6 +55,7 @@ if ($log_bin) {
 #
 
 CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+let $restart_noprint=2;
 --source include/kill_mysqld.inc
 --source wsrep-recover-step.inc
 --echo Expect seqno 3
@@ -71,6 +74,7 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 #
 
 INSERT INTO t1 VALUES (5);
+let $restart_noprint=2;
 --source include/kill_mysqld.inc
 --source wsrep-recover-step.inc
 --echo Expect seqno 5
@@ -99,6 +103,7 @@ if ($log_bin) {
    --send INSERT INTO t1 VALUES (7)
 
    --connection default
+   let $restart_noprint=2;
    SET DEBUG_SYNC = "now WAIT_FOR after_prepare_reached";
    --source include/kill_mysqld.inc
    --source wsrep-recover-step.inc

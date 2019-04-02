@@ -17,7 +17,9 @@ Killing server ...
 connection node_1;
 SET SESSION wsrep_sync_wait = 0;
 Killing server ...
+# restart
 connection node_2;
+# restart
 connection node_1;
 SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
 expect 0

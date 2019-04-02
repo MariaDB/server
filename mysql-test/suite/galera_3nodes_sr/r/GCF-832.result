@@ -15,6 +15,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
 COMMIT;
 ERROR HY000: Lost connection to MySQL server during query
+# restart
 connection node_1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0

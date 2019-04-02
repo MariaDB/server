@@ -24,6 +24,7 @@ COUNT(*) = 0
 1
 INSERT INTO t1 VALUES (1);
 connection node_2;
+# restart
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1

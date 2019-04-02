@@ -24,6 +24,7 @@ Shutting down server ...
 connection node_1;
 connection node_2;
 Starting server ...
+# restart: --wsrep_sst_auth=sst:sst --wsrep_sst_method=mysqldump --wsrep-sst-receive-address=127.0.0.1:16001
 connection node_1;
 connection node_2;
 SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;

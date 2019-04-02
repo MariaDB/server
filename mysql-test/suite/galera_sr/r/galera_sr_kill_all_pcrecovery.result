@@ -14,7 +14,9 @@ Killing server ...
 connection node_1;
 Killing server ...
 connection node_1;
+# restart
 connection node_2;
+# restart
 connection node_1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0

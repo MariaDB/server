@@ -59,6 +59,7 @@ INSERT INTO t1 VALUES (1);
 --connection node_2
 --echo Starting server ...
 --let $start_mysqld_params = --wsrep_sst_auth=sst: --wsrep_sst_method=mysqldump --wsrep-sst-receive-address=[::1].1:$NODE_MYPORT_2
+let $restart_noprint=2;
 --source include/start_mysqld.inc
 
 #--source suite/galera/include/galera_load_provider.inc

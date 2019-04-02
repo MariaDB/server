@@ -99,6 +99,7 @@ DROP TABLE t1;
 
 --echo Restarting node #3 to satisfy MTR's end-of-test checks
 --connection node_3
+let $restart_noprint=2;
 --source include/start_mysqld.inc
 
 # Restore original auto_increment_offset values.

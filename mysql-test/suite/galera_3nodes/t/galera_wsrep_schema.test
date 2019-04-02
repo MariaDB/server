@@ -59,6 +59,7 @@ SELECT COUNT(*) = 2 FROM mysql.wsrep_cluster_members;
 #disabled SELECT COUNT(*) = 2 FROM mysql.wsrep_cluster_member_history WHERE last_view_id = (SELECT MAX(last_view_id) FROM mysql.wsrep_cluster_member_history);
 
 --connection node_2
+let $restart_noprint=2;
 --source include/start_mysqld.inc
 --source include/wait_until_connected_again.inc
 
