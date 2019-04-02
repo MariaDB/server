@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-# Copyright (c) 2017, MariaDB Corporation.
+# Copyright (c) 2017, 2019, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -32,7 +32,7 @@ echo '#include "univ.i"' > $OUTFILE
 # a warning on Win64.  Add the cast.  Also define some symbols as static.
 sed -e '
 s/'"$TMPFILE"'/'"$OUTFILE"'/;
-s/^void yyset_extra *(YY_EXTRA_TYPE  *user_defined *);//
+s/^void  *yyset_extra *( *YY_EXTRA_TYPE  *user_defined *) *;//
 s/\(int offset = \)\((yy_c_buf_p) - (yytext_ptr)\);/\1(int)(\2);/;
 s/\(void yy\(restart\|_\(delete\|flush\)_buffer\)\)/static \1/;
 s/\(void yy_switch_to_buffer\)/MY_ATTRIBUTE((unused)) static \1/;

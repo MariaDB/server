@@ -1017,7 +1017,7 @@ MY_ATTRIBUTE((unused)) static void yyset_debug ( int debug_flag  );
 
 YY_EXTRA_TYPE yyget_extra ( void );
 
-MY_ATTRIBUTE((unused)) static void yyset_extra ( YY_EXTRA_TYPE user_defined  );
+
 
 MY_ATTRIBUTE((unused)) static FILE *yyget_in ( void );
 
