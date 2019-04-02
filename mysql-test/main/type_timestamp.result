@@ -1251,5 +1251,21 @@ Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`f` at row 1
 Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`f` at row 2
 DROP TABLE t1;
 #
+# MDEV-18503 Assertion `native.length() == binlen' failed in Type_handler_timestamp_common::make_sort_key
+#
+SET sql_mode='';
+CREATE TABLE t1 (a TIMESTAMP(3) DEFAULT 0, b TIMESTAMP);
+INSERT INTO t1 (b) VALUES ('2012-12-12 12:12:12'),('1988-08-26 12:12:12');
+SELECT GREATEST(a,b) AS f FROM t1 ORDER BY 1;
+f
+1988-08-26 12:12:12.000
+2012-12-12 12:12:12.000
+SELECT GREATEST(a,b) AS f FROM t1 ORDER BY 1 DESC;
+f
+2012-12-12 12:12:12.000
+1988-08-26 12:12:12.000
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
 # End of 10.4 tests
 #
