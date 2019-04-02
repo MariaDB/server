@@ -1735,8 +1735,9 @@ private:
 		MY_STRCONV_STATUS conv_status;
 		auto new_len = my_convert_fix(
 		    info.new_charset, new_data, buf_size, info.old_charset,
-		    dfield_get_data(dfield), dfield_get_len(dfield),
-		    old_max_chars, &copy_status, &conv_status);
+		    static_cast<char*>(dfield_get_data(dfield)),
+		    dfield_get_len(dfield), old_max_chars, &copy_status,
+		    &conv_status);
 
 		if (const char* err_pos
 		    = conv_status.m_cannot_convert_error_pos) {
@@ -1769,18 +1770,13 @@ private:
 					ulong n_rows)
 	{
 		char tmp[32];
-		const auto err_len = dfield_get_data(dfield)
+		const auto err_len = static_cast<char*>(dfield_get_data(dfield))
 				     + dfield_get_len(dfield) - err_pos;
 		convert_to_printable(tmp, sizeof(tmp), err_pos, err_len,
 				     info.old_charset, 6);
 		my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0), "string",
 			 tmp, table_share->db.str, table_share->table_name.str,
 			 info.old_col->name(*old_table), n_rows);
-	}
-
-	static char* dfield_get_data(const dfield_t* dfield)
-	{
-		return static_cast<char*>(::dfield_get_data(dfield));
 	}
 
 	std::vector<conversion_info_t> infos;
