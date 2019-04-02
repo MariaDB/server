@@ -3026,6 +3026,10 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
         for (order= win_spec->order_list->first; order; order= order->next)
           order->item= &order->item_ptr;
       }
+
+      // Reinit Pushdown
+      sl->cond_pushed_into_where= NULL;
+      sl->cond_pushed_into_having= NULL;
     }
     if (sl->changed_elements & TOUCHED_SEL_DERIVED)
     {
