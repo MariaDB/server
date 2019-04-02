@@ -450,14 +450,29 @@ fil_name_parse(
 	and end in .ibd. */
 	bool corrupt = is_predefined_tablespace(space_id)
 		|| len < sizeof "/a.ibd\0"
-		|| (!first_page_no != !memcmp(ptr + len - 5, DOT_IBD, 5))
-		|| memchr(ptr, OS_PATH_SEPARATOR, len) == NULL;
+		|| (!first_page_no != !memcmp(ptr + len - 5, DOT_IBD, 5));
+
+	if (!corrupt && !memchr(ptr, OS_PATH_SEPARATOR, len)) {
+		if (byte* c = static_cast<byte*>
+		    (memchr(ptr, OS_PATH_SEPARATOR_ALT, len))) {
+			ut_ad(c >= ptr);
+			ut_ad(c < ptr + len);
+			do {
+				*c = OS_PATH_SEPARATOR;
+			} while ((c = static_cast<byte*>
+				  (memchr(ptr, OS_PATH_SEPARATOR_ALT,
+					  len - ulint(c - ptr)))) != NULL);
+		} else {
+			corrupt = true;
+		}
+	}
 
 	byte*	end_ptr	= ptr + len;
 
 	switch (type) {
 	default:
 		ut_ad(0); // the caller checked this
+		/* fall through */
 	case MLOG_FILE_NAME:
 		if (corrupt) {
 			ib::error() << "MLOG_FILE_NAME incorrect:" << ptr;
@@ -518,8 +533,25 @@ fil_name_parse(
 
 		corrupt = corrupt
 			|| new_len < sizeof "/a.ibd\0"
-			|| memcmp(new_name + new_len - 5, DOT_IBD, 5) != 0
-			|| !memchr(new_name, OS_PATH_SEPARATOR, new_len);
+			|| memcmp(new_name + new_len - 5, DOT_IBD, 5) != 0;
+
+		if (!corrupt && !memchr(new_name, OS_PATH_SEPARATOR, new_len)) {
+			if (byte* c = static_cast<byte*>
+			    (memchr(new_name, OS_PATH_SEPARATOR_ALT,
+				    new_len))) {
+				ut_ad(c >= new_name);
+				ut_ad(c < new_name + new_len);
+				do {
+					*c = OS_PATH_SEPARATOR;
+				} while ((c = static_cast<byte*>
+					  (memchr(ptr, OS_PATH_SEPARATOR_ALT,
+						  new_len
+						  - ulint(c - new_name))))
+					 != NULL);
+			} else {
+				corrupt = true;
+			}
+		}
 
 		if (corrupt) {
 			ib::error() << "MLOG_FILE_RENAME2 new_name incorrect:" << ptr
@@ -1605,8 +1637,7 @@ parse_log:
 		break;
 	case MLOG_ZIP_PAGE_COMPRESS:
 		/* Allow anything in page_type when creating a page. */
-		ptr = page_zip_parse_compress(ptr, end_ptr,
-					      page, page_zip);
+		ptr = page_zip_parse_compress(ptr, end_ptr, page, page_zip);
 		break;
 	case MLOG_ZIP_PAGE_COMPRESS_NO_DATA:
 		if (NULL != (ptr = mlog_parse_index(
