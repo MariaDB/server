@@ -144,25 +144,10 @@ use test;
 --disable_warnings
 drop table if exists t;
 --enable_warnings
-
+--error ER_DUP_CONSTRAINT_NAME
 create table t(a int, b int check(b>0),
                constraint b check(a<b), constraint a check(a>0),
                constraint x check (a>10));
-
-show create table t;
-
-# Generate error when field constraint 'b' is violated
---echo # Field constraint 'b' will fail
---error ER_CONSTRAINT_FAILED
-insert into t values (-1, 0);
-
-# Generate error when table constraint 'b' is violated.
---echo # Table constraint 'b' will fail
---error ER_CONSTRAINT_FAILED
-insert into t values (1,1);
-
-drop table t;
-
 #
 # check constraints and auto_is_null typo
 #

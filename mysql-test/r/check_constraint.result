@@ -206,22 +206,7 @@ drop table if exists t;
 create table t(a int, b int check(b>0),
 constraint b check(a<b), constraint a check(a>0),
 constraint x check (a>10));
-show create table t;
-Table	Create Table
-t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL CHECK (`b` > 0),
-  CONSTRAINT `b` CHECK (`a` < `b`),
-  CONSTRAINT `a` CHECK (`a` > 0),
-  CONSTRAINT `x` CHECK (`a` > 10)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-# Field constraint 'b' will fail
-insert into t values (-1, 0);
-ERROR 23000: CONSTRAINT `t.b` failed for `test`.`t`
-# Table constraint 'b' will fail
-insert into t values (1,1);
-ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
-drop table t;
+ERROR HY000: Duplicate CHECK constraint name 'b'
 create table t1 (a int auto_increment primary key, b int, check (b > 5));
 insert t1 (b) values (1);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
@@ -327,25 +312,15 @@ DROP TABLE tfk;
 #
 # Create table with unnamed table check constraint and foreign constraint with the same name
 #
-CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT CONSTRAINT_1 FOREIGN KEY (c1)                        REFERENCES tpk (id), CONSTRAINT CHECK (c2>0))
-ENGINE=MyISAM;
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT CONSTRAINT_1 FOREIGN KEY (c1)
+REFERENCES tpk (id), CONSTRAINT CHECK (c2>0)) ENGINE=MyISAM;
 ERROR HY000: Duplicate CHECK constraint name 'CONSTRAINT_1'
 #
 # Field check constraints name same as name of field `c2` and as foreign key
 #
 CREATE TABLE tfk (c1 INT, c2 INT check (c2>0), CONSTRAINT c2
 FOREIGN KEY (c1) REFERENCES tpk (id)) ENGINE=MyISAM;
-SHOW CREATE TABLE tfk;
-Table	Create Table
-tfk	CREATE TABLE `tfk` (
-  `c1` int(11) DEFAULT NULL,
-  `c2` int(11) DEFAULT NULL CHECK (`c2` > 0),
-  KEY `c2` (`c1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT constraint_name, check_clause FROM information_schema.check_constraints;
-constraint_name	check_clause
-c2	`c2` > 0
-DROP TABLE tfk;
+ERROR HY000: Duplicate CHECK constraint name 'c2'
 DROP TABLE tpk;
 CREATE TABLE tpk
 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL)
@@ -438,24 +413,13 @@ DROP TABLE tfk;
 #
 # Create table with unnamed table check constraint and foreign constraint with the same name
 #
-CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT CONSTRAINT_1 FOREIGN KEY (c1)                        REFERENCES tpk (id), CONSTRAINT CHECK (c2>0))
-ENGINE=InnoDB;
+CREATE TABLE tfk (c1 INT, c2 INT, CONSTRAINT CONSTRAINT_1 FOREIGN KEY (c1)
+REFERENCES tpk (id), CONSTRAINT CHECK (c2>0)) ENGINE=InnoDB;
 ERROR HY000: Duplicate CHECK constraint name 'CONSTRAINT_1'
 #
 # Field check constraints name same as name of field `c2` and as foreign key
 #
 CREATE TABLE tfk (c1 INT, c2 INT check (c2>0), CONSTRAINT c2
 FOREIGN KEY (c1) REFERENCES tpk (id)) ENGINE=InnoDB;
-SHOW CREATE TABLE tfk;
-Table	Create Table
-tfk	CREATE TABLE `tfk` (
-  `c1` int(11) DEFAULT NULL,
-  `c2` int(11) DEFAULT NULL CHECK (`c2` > 0),
-  KEY `c2` (`c1`),
-  CONSTRAINT `c2` FOREIGN KEY (`c1`) REFERENCES `tpk` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
-SELECT constraint_name, check_clause FROM information_schema.check_constraints;
-constraint_name	check_clause
-c2	`c2` > 0
-DROP TABLE tfk;
+ERROR HY000: Duplicate CHECK constraint name 'c2'
 DROP TABLE tpk;
