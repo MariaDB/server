@@ -12,6 +12,7 @@
 # is independent of the page size.
 --source include/have_innodb_16k.inc
 
+let $restart_noprint=2;
 SET GLOBAL innodb_page_cleaner_disabled_debug = 1;
 SET GLOBAL innodb_dict_stats_disabled_debug = 1;
 SET GLOBAL innodb_master_thread_disabled_debug = 1;

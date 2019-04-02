@@ -8,6 +8,7 @@
 --source include/big_test.inc
 # Valgrind takes too much time on PB2 even in the --big-test runs.
 --source include/not_valgrind.inc
+let $restart_noprint=2;
 
 SET GLOBAL innodb_file_per_table=1;
 
