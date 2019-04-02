@@ -139,7 +139,7 @@ static struct st_mysql_sys_var *system_variables[]= {
 static struct st_mysql_auth server_handler= {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   "auth_gssapi_client",
-  gssapi_auth
+  gssapi_auth, NULL, NULL
 };
 
 maria_declare_plugin(gssapi_server)
