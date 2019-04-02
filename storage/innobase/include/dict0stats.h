@@ -187,21 +187,6 @@ dict_stats_rename_table(
 	char*		errstr,		/*!< out: error string if != DB_SUCCESS
 					is returned */
 	size_t		errstr_sz);	/*!< in: errstr size */
-#ifdef MYSQL_RENAME_INDEX
-/*********************************************************************//**
-Renames an index in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
-if the persistent stats do not exist. */
-dberr_t
-dict_stats_rename_index(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table whose index
-						is renamed */
-	const char*		old_index_name,	/*!< in: old index name */
-	const char*		new_index_name)	/*!< in: new index name */
-	__attribute__((warn_unused_result));
-#endif /* MYSQL_RENAME_INDEX */
 
 /** Save an individual index's statistic into the persistent statistics
 storage.

@@ -5523,6 +5523,20 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
   {
     ut_ad(!page_rec_is_metadata(rec));
     lock_mutex_enter();
+    ut_ad(trx->is_referenced());
+    /* Prevent a data race with trx_prepare(), which could change the
+    state from ACTIVE to PREPARED. Other state changes should be
+    blocked by lock_mutex_own() and trx->is_referenced(). */
+    trx_mutex_enter(trx);
+    const trx_state_t state = trx->state;
+    trx_mutex_exit(trx);
+    ut_ad(state != TRX_STATE_NOT_STARTED);
+    if (state == TRX_STATE_COMMITTED_IN_MEMORY)
+    {
+      /* The transaction was committed before our lock_mutex_enter(). */
+      lock_mutex_exit();
+      return;
+    }
     lock_rec_other_trx_holds_expl_arg arg= { page_rec_get_heap_no(rec), block,
                                              trx };
     trx_sys.rw_trx_hash.iterate(caller_trx,

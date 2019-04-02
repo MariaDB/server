@@ -2087,7 +2087,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]",
                         vers.start_fieldno, vers.end_fieldno));
     versioned= VERS_TIMESTAMP;
-    vers_can_native= plugin_hton(se_plugin)->flags & HTON_NATIVE_SYS_VERSIONING;
+    vers_can_native= handler_file->vers_can_native(thd);
     status_var_increment(thd->status_var.feature_system_versioning);
   } // if (system_period == NULL)
 
@@ -9149,7 +9149,10 @@ bool TR_table::query(ulonglong trx_id)
     return false;
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
   if (unlikely(error || !select))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return false;
+  }
   // FIXME: (performance) force index 'transaction_id'
   error= init_read_record(&info, thd, table, select, NULL,
                           1 /* use_record_cache */, true /* print_error */,
@@ -9159,6 +9162,7 @@ bool TR_table::query(ulonglong trx_id)
     if (select->skip_record(thd) > 0)
       return true;
   }
+  my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
   return false;
 }
 

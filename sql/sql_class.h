@@ -64,6 +64,7 @@ void set_thd_stage_info(void *thd,
 
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
+#include <inttypes.h>
 /* wsrep-lib */
 #include "wsrep_client_service.h"
 #include "wsrep_client_state.h"
@@ -4550,7 +4551,7 @@ public:
     if (WSREP(this))
     {
       set_wsrep_next_trx_id(query_id);
-      WSREP_DEBUG("assigned new next trx id: %lu", wsrep_next_trx_id());
+      WSREP_DEBUG("assigned new next trx id: %" PRIu64, wsrep_next_trx_id());
     }
 #endif /* WITH_WSREP */
   }

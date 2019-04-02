@@ -1209,7 +1209,7 @@ CREATE TRIGGER t1_bi BEFORE INSERT ON t1
   FOR EACH ROW
     SET NEW.c1 = 'тест';
 
-CREATE EVENT ev1 ON SCHEDULE AT '2030-01-01 00:00:00' DO SELECT 'тест' AS test;
+CREATE EVENT ev1 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO SELECT 'тест' AS test;
 
 # Test: switch the character set and show that SHOW CREATE output is
 # automatically converted to the new character_set_client.

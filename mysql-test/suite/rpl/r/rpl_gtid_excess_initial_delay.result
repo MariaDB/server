@@ -1,0 +1,23 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (i INT);
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID= current_pos, MASTER_DELAY= 10;
+include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES (1);
+include/sync_slave_io_with_master.inc
+connection slave;
+"Sleeping for 15"
+# Asserted this: Seconds_Behind_Master should be less than MASTER_DELAY
+# Asserted this: One row shoule be found in table t1.
+"======= Clean up ========"
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID=no, MASTER_DELAY=0;
+START SLAVE;
+connection master;
+DROP TABLE t1;
+connection slave;
+connection master;
+include/rpl_end.inc

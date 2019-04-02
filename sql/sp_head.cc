@@ -532,6 +532,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph,
 
   DBUG_ENTER("sp_head::sp_head");
 
+  m_security_ctx.init();
   m_backpatch.empty();
   m_backpatch_goto.empty();
   m_cont_backpatch.empty();
@@ -1338,7 +1339,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     if (WSREP(thd) && thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
     {
       thd->set_wsrep_next_trx_id(thd->query_id);
-      WSREP_DEBUG("assigned new next trx ID for SP,  trx id: %lu", thd->wsrep_next_trx_id());
+      WSREP_DEBUG("assigned new next trx ID for SP,  trx id: %" PRIu64, thd->wsrep_next_trx_id());
     }
 #endif /* WITH_WSREP */
     err_status= i->execute(thd, &ip);

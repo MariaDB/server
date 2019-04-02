@@ -1738,7 +1738,6 @@ row_merge_read_clustered_index(
 	mem_heap_t*		mtuple_heap = NULL;
 	mtuple_t		prev_mtuple;
 	mem_heap_t*		conv_heap = NULL;
-	FlushObserver*		observer = trx->flush_observer;
 	double 			curr_progress = 0.0;
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
@@ -2334,9 +2333,8 @@ write_buffers:
 		bool	skip_sort = skip_pk_sort
 			&& dict_index_is_clust(merge_buf[0]->index);
 
-		for (ulint i = 0; i < n_index; i++, skip_sort = false) {
+		for (ulint k = 0, i = 0; i < n_index; i++, skip_sort = false) {
 			row_merge_buf_t*	buf	= merge_buf[i];
-			merge_file_t*		file	= &files[i];
 			ulint			rows_added = 0;
 
 			if (dict_index_is_spatial(buf->index)) {
@@ -2365,12 +2363,23 @@ write_buffers:
 			      || trx_id_check(row->fields[new_trx_id_col].data,
 					      trx->id));
 
+			merge_file_t*	file = &files[k++];
+
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table, new_table,
 					psort_info, row, ext, &doc_id,
 					conv_heap, &err,
 					&v_heap, eval_table, trx)))) {
+
+				/* Set the page flush observer for the
+				transaction when buffering the very first
+				record for a non-redo-logged operation. */
+				if (file->n_rec == 0 && i == 0
+				    && innodb_log_optimize_ddl) {
+					trx->set_flush_observer(
+						new_table->space, stage);
+				}
 
 				/* If we are creating FTS index,
 				a single row can generate more
@@ -2511,7 +2520,7 @@ write_buffers:
 						clust_btr_bulk = UT_NEW_NOKEY(
 							BtrBulk(index[i],
 								trx,
-								observer/**/));
+								trx->get_flush_observer()));
 					} else {
 						clust_btr_bulk->latch();
 					}
@@ -2624,8 +2633,9 @@ write_buffers:
 						trx->error_key_num = i;
 						goto all_done;);
 
-					BtrBulk	btr_bulk(index[i], trx,
-							 observer);
+					BtrBulk	btr_bulk(
+						index[i], trx,
+						trx->get_flush_observer());
 
 					err = row_merge_insert_index_tuples(
 						index[i], old_table,
@@ -4638,47 +4648,26 @@ row_merge_build_indexes(
 	}
 
 	trx_start_if_not_started_xa(trx, true);
+	ulint	n_merge_files = 0;
 
-	/* Check if we need a flush observer to flush dirty pages.
-	Since we disable redo logging in bulk load, so we should flush
-	dirty pages before online log apply, because online log apply enables
-	redo logging(we can do further optimization here).
-	1. online add index: flush dirty pages right before row_log_apply().
-	2. table rebuild: flush dirty pages before row_log_table_apply().
-
-	we use bulk load to create all types of indexes except spatial index,
-	for which redo logging is enabled. If we create only spatial indexes,
-	we don't need to flush dirty pages at all. */
-	bool	need_flush_observer = bool(innodb_log_optimize_ddl);
-
-	if (need_flush_observer) {
-		need_flush_observer = old_table != new_table;
-
-		for (i = 0; i < n_indexes; i++) {
-			if (!dict_index_is_spatial(indexes[i])) {
-				need_flush_observer = true;
-			}
+	for (ulint i = 0; i < n_indexes; i++)
+	{
+		if (!dict_index_is_spatial(indexes[i])) {
+			n_merge_files++;
 		}
 	}
 
-	FlushObserver*	flush_observer = NULL;
-	if (need_flush_observer) {
-		flush_observer = UT_NEW_NOKEY(
-			FlushObserver(new_table->space, trx, stage));
-
-		trx_set_flush_observer(trx, flush_observer);
-	}
-
 	merge_files = static_cast<merge_file_t*>(
-		ut_malloc_nokey(n_indexes * sizeof *merge_files));
+		ut_malloc_nokey(n_merge_files * sizeof *merge_files));
 
 	/* Initialize all the merge file descriptors, so that we
 	don't call row_merge_file_destroy() on uninitialized
 	merge file descriptor */
 
-	for (i = 0; i < n_indexes; i++) {
+	for (i = 0; i < n_merge_files; i++) {
 		merge_files[i].fd = OS_FILE_CLOSED;
 		merge_files[i].offset = 0;
+		merge_files[i].n_rec = 0;
 	}
 
 	total_static_cost = COST_BUILD_INDEX_STATIC * n_indexes + COST_READ_CLUSTERED_INDEX;
@@ -4757,7 +4746,7 @@ row_merge_build_indexes(
 				      " and create temporary files");
 	}
 
-	for (i = 0; i < n_indexes; i++) {
+	for (i = 0; i < n_merge_files; i++) {
 		total_index_blocks += merge_files[i].offset;
 	}
 
@@ -4770,7 +4759,7 @@ row_merge_build_indexes(
 	/* Now we have files containing index entries ready for
 	sorting and inserting. */
 
-	for (i = 0; i < n_indexes; i++) {
+	for (ulint k = 0, i = 0; i < n_indexes; i++) {
 		dict_index_t*	sort_idx = indexes[i];
 
 		if (dict_index_is_spatial(sort_idx)) {
@@ -4849,13 +4838,13 @@ wait_again:
 #ifdef FTS_INTERNAL_DIAG_PRINT
 			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
 #endif
-		} else if (merge_files[i].fd != OS_FILE_CLOSED) {
+		} else if (merge_files[k].fd != OS_FILE_CLOSED) {
 			char	buf[NAME_LEN + 1];
 			row_merge_dup_t	dup = {
 				sort_idx, table, col_map, 0};
 
 			pct_cost = (COST_BUILD_INDEX_STATIC +
-				(total_dynamic_cost * merge_files[i].offset /
+				(total_dynamic_cost * merge_files[k].offset /
 					total_index_blocks)) /
 				(total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
@@ -4879,7 +4868,7 @@ wait_again:
 			}
 
 			error = row_merge_sort(
-					trx, &dup, &merge_files[i],
+					trx, &dup, &merge_files[k],
 					block, &tmpfd, true,
 					pct_progress, pct_cost,
 					crypt_block, new_table->space_id,
@@ -4902,10 +4891,10 @@ wait_again:
 
 			if (error == DB_SUCCESS) {
 				BtrBulk	btr_bulk(sort_idx, trx,
-						 flush_observer);
+						 trx->get_flush_observer());
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
-					(total_dynamic_cost * merge_files[i].offset /
+					(total_dynamic_cost * merge_files[k].offset /
 						total_index_blocks)) /
 					(total_static_cost + total_dynamic_cost) *
 					PCT_COST_INSERT_INDEX * 100;
@@ -4922,9 +4911,9 @@ wait_again:
 
 				error = row_merge_insert_index_tuples(
 					sort_idx, old_table,
-					merge_files[i].fd, block, NULL,
+					merge_files[k].fd, block, NULL,
 					&btr_bulk,
-					merge_files[i].n_rec, pct_progress, pct_cost,
+					merge_files[k].n_rec, pct_progress, pct_cost,
 					crypt_block, new_table->space_id,
 					stage);
 
@@ -4943,7 +4932,7 @@ wait_again:
 		}
 
 		/* Close the temporary file to free up space. */
-		row_merge_file_destroy(&merge_files[i]);
+		row_merge_file_destroy(&merge_files[k++]);
 
 		if (indexes[i]->type & DICT_FTS) {
 			row_fts_psort_info_destroy(psort_info, merge_info);
@@ -4955,7 +4944,12 @@ wait_again:
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
 		} else {
-			if (flush_observer) {
+			if (dict_index_is_spatial(indexes[i])) {
+				/* We never disable redo logging for
+				creating SPATIAL INDEX. Avoid writing any
+				unnecessary MLOG_INDEX_LOAD record. */
+			} else if (FlushObserver* flush_observer =
+					trx->get_flush_observer()) {
 				flush_observer->flush();
 				row_merge_write_redo(indexes[i]);
 			}
@@ -4997,7 +4991,7 @@ func_exit:
 
 	row_merge_file_destroy_low(tmpfd);
 
-	for (i = 0; i < n_indexes; i++) {
+	for (i = 0; i < n_merge_files; i++) {
 		row_merge_file_destroy(&merge_files[i]);
 	}
 
@@ -5054,8 +5048,7 @@ func_exit:
 
 	DBUG_EXECUTE_IF("ib_index_crash_after_bulk_load", DBUG_SUICIDE(););
 
-	if (flush_observer != NULL) {
-		ut_ad(need_flush_observer);
+	if (FlushObserver* flush_observer = trx->get_flush_observer()) {
 
 		DBUG_EXECUTE_IF("ib_index_build_fail_before_flush",
 			error = DB_INTERRUPTED;
@@ -5067,7 +5060,7 @@ func_exit:
 
 		flush_observer->flush();
 
-		UT_DELETE(flush_observer);
+		trx->remove_flush_observer();
 
 		if (trx_is_interrupted(trx)) {
 			error = DB_INTERRUPTED;

@@ -4874,10 +4874,7 @@ btr_cur_pessimistic_update(
 	}
 
 	rec = btr_cur_get_rec(cursor);
-
-	*offsets = rec_get_offsets(
-		rec, index, *offsets, page_is_leaf(page),
-		ULINT_UNDEFINED, offsets_heap);
+	ut_ad(rec_offs_validate(rec, index, *offsets));
 
 	dtuple_t* new_entry;
 

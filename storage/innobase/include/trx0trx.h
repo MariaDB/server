@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,19 +41,8 @@ Created 3/26/1996 Heikki Tuuri
 
 // Forward declaration
 struct mtr_t;
-
-// Forward declaration
 class FlushObserver;
-
 struct rw_trx_hash_element_t;
-
-/** Set flush observer for the transaction
-@param[in/out]	trx		transaction struct
-@param[in]	observer	flush observer */
-void
-trx_set_flush_observer(
-	trx_t*		trx,
-	FlushObserver*	observer);
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
@@ -1063,8 +1052,11 @@ public:
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
-	FlushObserver*	flush_observer;	/*!< flush observer */
-
+private:
+	/** flush observer used to track flushing of non-redo logged pages
+	during bulk create index */
+	FlushObserver*	flush_observer;
+public:
 	/* Lock wait statistics */
 	ulint		n_rec_lock_waits;
 					/*!< Number of record lock waits,
@@ -1115,6 +1107,20 @@ public:
 		}
 
 		return(assign_temp_rseg());
+	}
+
+	/** Set the innodb_log_optimize_ddl page flush observer
+	@param[in,out]	space	tablespace
+	@param[in,out]	stage	performance_schema accounting */
+	void set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage);
+
+	/** Remove the flush observer */
+	void remove_flush_observer();
+
+	/** @return the flush observer */
+	FlushObserver* get_flush_observer() const
+	{
+		return flush_observer;
 	}
 
 	/** Evict a table definition due to the rollback of ALTER TABLE.

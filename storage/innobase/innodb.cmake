@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2017, MariaDB Corporation.
+# Copyright (c) 2017, 2019, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -141,6 +141,12 @@ IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
 ENDIF()
 
 IF(NOT MSVC)
+  # Work around MDEV-18417, MDEV-18656, MDEV-18417
+  IF(WITH_ASAN AND CMAKE_COMPILER_IS_GNUCC AND
+     CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+    SET_SOURCE_FILES_PROPERTIES(trx/trx0rec.cc PROPERTIES COMPILE_FLAGS -O1)
+  ENDIF()
+
   CHECK_FUNCTION_EXISTS(posix_memalign HAVE_POSIX_MEMALIGN)
   IF(HAVE_POSIX_MEMALIGN)
     ADD_DEFINITIONS(-DHAVE_POSIX_MEMALIGN)

@@ -8390,7 +8390,8 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     val= p--;
     while (my_isspace(mysqld_charset, *p) && p > argument)
       *p-- = 0;
-    if (p == argument)
+    /* Db name can be one char also */
+    if (p == argument && my_isspace(mysqld_charset, *p))
     {
       sql_print_error("Bad syntax in replicate-rewrite-db - empty FROM db!");
       return 1;

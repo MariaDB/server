@@ -412,6 +412,22 @@ public:
 
   virtual void return_record_by_parent();
 
+  virtual bool vers_can_native(THD *thd)
+  {
+    if (thd->lex->part_info)
+    {
+      // PARTITION BY SYSTEM_TIME is not supported for now
+      return thd->lex->part_info->part_type != VERSIONING_PARTITION;
+    }
+    else
+    {
+      bool can= true;
+      for (uint i= 0; i < m_tot_parts && can; i++)
+        can= can && m_file[i]->vers_can_native(thd);
+      return can;
+    }
+  }
+
   /*
     -------------------------------------------------------------------------
     MODULE create/delete handler object

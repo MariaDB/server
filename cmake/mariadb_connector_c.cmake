@@ -37,3 +37,8 @@ SET(CLIENT_PLUGIN_PVIO_SOCKET STATIC)
 
 MESSAGE("== Configuring MariaDB Connector/C")
 ADD_SUBDIRECTORY(libmariadb)
+
+#remove after merging libmariadb > v3.0.9
+IF(TARGET caching_sha2_password AND CMAKE_C_FLAGS_DEBUG MATCHES "-Werror")
+  SET_PROPERTY(TARGET caching_sha2_password APPEND_STRING PROPERTY COMPILE_FLAGS -Wno-unused-function)
+ENDIF()

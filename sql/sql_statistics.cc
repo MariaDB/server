@@ -1057,7 +1057,9 @@ public:
           else
           {
             table_field->collected_stats->min_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
+            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
+                           MY_MIN(val.length(), stat_field->field_length)).length();
+            stat_field->store(val.ptr(), length, &my_charset_bin);
           }
           break;
         case COLUMN_STAT_MAX_VALUE:
@@ -1066,7 +1068,9 @@ public:
           else
           {
             table_field->collected_stats->max_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
+            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
+                            MY_MIN(val.length(), stat_field->field_length)).length();
+            stat_field->store(val.ptr(), length, &my_charset_bin);
           }
           break;
         case COLUMN_STAT_NULLS_RATIO:
@@ -3133,7 +3137,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       }
     }
   }
-      
+
   table->stats_is_read= TRUE;
 
   DBUG_RETURN(0);

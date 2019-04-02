@@ -99,7 +99,7 @@ INSERT IGNORE INTO t1 (d) VALUES ('2015-04-14');
 SET sql_mode= '';
 REPLACE INTO t1 SELECT * FROM t1;
 Warnings:
-Warning	1906	The value specified for generated column 'vd' in table 't1' ignored
+Warning	1906	The value specified for generated column 'vd' in table 't1' has been ignored
 DROP TABLE t1;
 InnoDB		0 transactions not purged
 DROP VIEW  IF EXISTS v1,v2;
