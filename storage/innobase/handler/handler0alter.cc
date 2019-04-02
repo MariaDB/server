@@ -3022,7 +3022,6 @@ innobase_build_col_map(
 				     & Alter_inplace_info::ADD_COLUMN));
 	DBUG_ASSERT(!add_cols || dtuple_get_n_fields(add_cols)
 		    == dict_table_get_n_cols(new_table));
-	DBUG_ASSERT(table->s->stored_fields > 0);
 
 	const uint old_n_v_cols = uint(table->s->fields
 				       - table->s->stored_fields);
