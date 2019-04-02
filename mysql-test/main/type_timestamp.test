@@ -787,5 +787,20 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-19124 Assertion `0' failed in Item::val_native
+--echo #
+
+CREATE TABLE t1 (d1 TIMESTAMP(5));
+INSERT INTO t1 VALUES ('2018-10-14 15:31:01');
+SELECT LEAD(d1,1) OVER(ORDER BY d1) FROM t1;
+SELECT LAG(d1,1) OVER(ORDER BY d1) FROM t1;
+INSERT INTO t1 VALUES ('2018-10-14 15:31:02');
+INSERT INTO t1 VALUES ('2018-10-14 15:31:03');
+SELECT LEAD(d1,1) OVER(ORDER BY d1) FROM t1;
+SELECT LAG(d1,1) OVER(ORDER BY d1) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

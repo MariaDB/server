@@ -439,6 +439,14 @@ Item_sum_hybrid_simple::val_str(String *str)
   return retval;
 }
 
+bool Item_sum_hybrid_simple::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return true;
+  return val_native_from_item(thd, value, to);
+}
+
 bool Item_sum_hybrid_simple::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);

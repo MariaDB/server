@@ -318,6 +318,7 @@ class Item_sum_hybrid_simple : public Item_sum,
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
+  bool val_native(THD *thd, Native *to);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
@@ -1248,6 +1249,15 @@ public:
       null_value= window_func()->null_value;
     }
     return res;
+  }
+
+  bool val_native(THD *thd, Native *to)
+  {
+    if (force_return_blank)
+      return null_value= true;
+    if (read_value_from_result_field)
+      return val_native_from_field(result_field, to);
+    return val_native_from_item(thd, window_func(), to);
   }
 
   my_decimal* val_decimal(my_decimal* dec)
