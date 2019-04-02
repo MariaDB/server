@@ -4846,23 +4846,20 @@ page_zip_copy_recs(
 	page_zip_compress_write_log(page_zip, page, index, mtr);
 }
 
-/**********************************************************************//**
-Parses a log record of compressing an index page.
-@return end of log record or NULL */
-byte*
-page_zip_parse_compress(
-/*====================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
-	page_t*		page,	/*!< out: uncompressed page */
-	page_zip_des_t*	page_zip)/*!< out: compressed page */
+/** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log
+@param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
+			      buf_block_t* block)
 {
 	ulint	size;
 	ulint	trailer_size;
 
 	ut_ad(ptr != NULL);
 	ut_ad(end_ptr!= NULL);
-	ut_ad(!page == !page_zip);
 
 	if (UNIV_UNLIKELY(ptr + (2 + 2) > end_ptr)) {
 
@@ -4879,14 +4876,22 @@ page_zip_parse_compress(
 		return(NULL);
 	}
 
-	if (page) {
-		if (!page_zip || page_zip_get_size(page_zip) < size) {
+	if (block) {
+		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+		page_zip_des_t* page_zip = buf_block_get_page_zip(block);
+		if (!page_zip || page_zip_get_size(page_zip) < size
+		    || block->page.id.page_no() < 3) {
 corrupt:
 			recv_sys->found_corrupt_log = TRUE;
 
 			return(NULL);
 		}
 
+		memset(page_zip->data, 0, page_zip_get_size(page_zip));
+		mach_write_to_4(FIL_PAGE_OFFSET
+				+ page_zip->data, block->page.id.page_no());
+		mach_write_to_4(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID
+				+ page_zip->data, block->page.id.space());
 		memcpy(page_zip->data + FIL_PAGE_PREV, ptr, 4);
 		memcpy(page_zip->data + FIL_PAGE_NEXT, ptr + 4, 4);
 		memcpy(page_zip->data + FIL_PAGE_TYPE, ptr + 8, size);
@@ -4896,14 +4901,14 @@ corrupt:
 		memcpy(page_zip->data + page_zip_get_size(page_zip)
 		       - trailer_size, ptr + 8 + size, trailer_size);
 
-		if (UNIV_UNLIKELY(!page_zip_decompress(page_zip, page,
+		if (UNIV_UNLIKELY(!page_zip_decompress(page_zip, block->frame,
 						       TRUE))) {
 
 			goto corrupt;
 		}
 	}
 
-	return(ptr + 8 + size + trailer_size);
+	return(const_cast<byte*>(ptr) + 8 + size + trailer_size);
 }
 #endif /* !UNIV_INNOCHECKSUM */
 

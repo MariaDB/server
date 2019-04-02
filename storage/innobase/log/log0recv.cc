@@ -1690,7 +1690,7 @@ parse_log:
 		break;
 	case MLOG_ZIP_PAGE_COMPRESS:
 		/* Allow anything in page_type when creating a page. */
-		ptr = page_zip_parse_compress(ptr, end_ptr, page, page_zip);
+		ptr = page_zip_parse_compress(ptr, end_ptr, block);
 		break;
 	case MLOG_ZIP_PAGE_COMPRESS_NO_DATA:
 		if (NULL != (ptr = mlog_parse_index(
