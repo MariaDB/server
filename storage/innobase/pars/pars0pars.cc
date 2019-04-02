@@ -2069,9 +2069,8 @@ pars_get_lex_chars(
 	size_t	max_size)	/*!< in: maximum number of characters which fit
 				in the buffer */
 {
-	size_t len = size_t(
-		pars_sym_tab_global->string_len
-		- pars_sym_tab_global->next_char_pos);
+	size_t len = pars_sym_tab_global->string_len
+		- pars_sym_tab_global->next_char_pos;
 	if (len == 0) {
 		return(0);
 	}
@@ -2081,7 +2080,7 @@ pars_get_lex_chars(
 	}
 
 	memcpy(buf, pars_sym_tab_global->sql_string
-	       + pars_sym_tab_global->next_char_pos, ulint(len));
+	       + pars_sym_tab_global->next_char_pos, len);
 
 	pars_sym_tab_global->next_char_pos += len;
 
