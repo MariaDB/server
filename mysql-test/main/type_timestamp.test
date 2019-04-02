@@ -816,5 +816,15 @@ SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT '2000-01-01 10:00:00' UNION SEL
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-18595 Assertion `0' failed in Item_cache_timestamp::val_datetime_packed / Predicant_to_list_comparator::cmp_arg
+--echo #
+
+CREATE TABLE t1 (t TIMESTAMP DEFAULT '1971-01-01 00:00:00', f INT);
+INSERT INTO t1 VALUES ('1978-05-25 22:25:03',1),('2000-01-01 00:00:00',2);
+SELECT * FROM t1 WHERE f IN (DEFAULT(t),1);
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
