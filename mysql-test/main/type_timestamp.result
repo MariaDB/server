@@ -1218,5 +1218,26 @@ NULL
 2018-10-14 15:31:02.00000
 DROP TABLE t1;
 #
+# MDEV-18240 Assertion `0' failed in Item_cache_timestamp::val_datetime_packed
+#
+CREATE TABLE t1 (c1 timestamp);
+SELECT MIN(t1.c1) AS k1 FROM t1 HAVING (k1 >= ALL(SELECT 'a' UNION SELECT 'r'));
+k1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'r'
+SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT 'a' UNION SELECT 'r');
+c1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'r'
+DROP TABLE t1;
+CREATE TABLE t1 (c1 timestamp);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00');
+SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT '2010-01-01 10:00:00' UNION SELECT '2001-01-01 10:00:01');
+c1
+SELECT * FROM t1 HAVING MIN(t1.c1) >= ALL(SELECT '2000-01-01 10:00:00' UNION SELECT '2000-01-01 10:00:01');
+c1
+2010-01-01 00:00:00
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

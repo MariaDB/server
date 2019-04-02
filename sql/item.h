@@ -6766,8 +6766,7 @@ public:
   }
   longlong val_datetime_packed(THD *thd)
   {
-    DBUG_ASSERT(0);
-    return 0;
+    return to_datetime(current_thd).to_packed();
   }
   longlong val_time_packed(THD *thd)
   {
