@@ -275,7 +275,6 @@ dict_mem_table_add_col(
 	dict_col_t*	col;
 	ulint		i;
 
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!heap == !name);
 

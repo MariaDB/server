@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1087,10 +1087,7 @@ trx_undo_rec_get_partial_row(
 	const byte*	end_ptr;
 	ulint		row_len;
 
-	ut_ad(index);
 	ut_ad(ptr);
-	ut_ad(row);
-	ut_ad(heap);
 	ut_ad(dict_index_is_clust(index));
 
 	row_len = dict_table_get_n_cols(index->table);

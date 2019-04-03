@@ -940,7 +940,6 @@ dict_index_get_nth_field_pos(
 	ulint			n_fields;
 	ulint			pos;
 
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	field2 = dict_index_get_nth_field(index2, n);
@@ -1037,8 +1036,6 @@ dict_table_col_in_clustered_key(
 	const dict_col_t*	col;
 	ulint			pos;
 	ulint			n_fields;
-
-	ut_ad(table);
 
 	col = dict_table_get_nth_col(table, n);
 
@@ -1214,7 +1211,6 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 {
-	ut_ad(table);
 	ut_ad(table->n_def == table->n_cols - DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!table->cached);
@@ -2024,8 +2020,7 @@ dict_table_change_id_in_cache(
 	dict_table_t*	table,	/*!< in/out: table object already in cache */
 	table_id_t	new_id)	/*!< in: new id to set */
 {
-	ut_ad(table);
-	ut_ad(mutex_own(&(dict_sys->mutex)));
+	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* Remove the table from the hash table of id's */
@@ -2051,7 +2046,6 @@ dict_table_remove_from_cache_low(
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
 
-	ut_ad(table);
 	ut_ad(dict_lru_validate());
 	ut_a(table->n_ref_count == 0);
 	ut_a(table->n_rec_locks == 0);
@@ -2496,8 +2490,7 @@ dict_index_add_to_cache(
 	ulint		n_ord;
 	ulint		i;
 
-	ut_ad(index);
-	ut_ad(mutex_own(&(dict_sys->mutex)));
+	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(index->n_def == index->n_fields);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(!dict_index_is_online_ddl(index));
@@ -5281,7 +5274,6 @@ dict_foreign_parse_drop_constraints(
 	const char*		id;
 	struct charset_info_st*	cs;
 
-	ut_a(trx);
 	ut_a(trx->mysql_thd);
 
 	cs = innobase_get_charset(trx->mysql_thd);
@@ -5454,9 +5446,8 @@ dict_index_check_search_tuple(
 	const dict_index_t*	index,	/*!< in: index tree */
 	const dtuple_t*		tuple)	/*!< in: tuple used in a search */
 {
-	ut_a(index);
-	ut_a(dtuple_get_n_fields_cmp(tuple)
-	     <= dict_index_get_n_unique_in_tree(index));
+	ut_ad(dtuple_get_n_fields_cmp(tuple)
+	      <= dict_index_get_n_unique_in_tree(index));
 	return(TRUE);
 }
 #endif /* UNIV_DEBUG */
@@ -7120,8 +7111,6 @@ dict_index_zip_success(
 /*===================*/
 	dict_index_t*	index)	/*!< in/out: index to be updated. */
 {
-	ut_ad(index);
-
 	ulint zip_threshold = zip_failure_threshold_pct;
 	if (!zip_threshold) {
 		/* Disabled by user. */
@@ -7143,8 +7132,6 @@ dict_index_zip_failure(
 /*===================*/
 	dict_index_t*	index)	/*!< in/out: index to be updated. */
 {
-	ut_ad(index);
-
 	ulint zip_threshold = zip_failure_threshold_pct;
 	if (!zip_threshold) {
 		/* Disabled by user. */
@@ -7171,8 +7158,6 @@ dict_index_zip_pad_optimal_page_size(
 	ulint	pad;
 	ulint	min_sz;
 	ulint	sz;
-
-	ut_ad(index);
 
 	if (!zip_failure_threshold_pct) {
 		/* Disabled by user. */

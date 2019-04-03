@@ -1418,9 +1418,6 @@ row_fts_merge_insert(
 	ulint			count_diag = 0;
 	ulint			space;
 
-	ut_ad(index);
-	ut_ad(table);
-
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
 
