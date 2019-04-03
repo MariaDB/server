@@ -491,8 +491,6 @@ row_ins_cascade_calc_update_vec(
 	doc_id_t	new_doc_id = FTS_NULL_DOC_ID;
 	ulint		prefix_col;
 
-	ut_a(node);
-	ut_a(foreign);
 	ut_a(cascade);
 	ut_a(table);
 	ut_a(index);
@@ -1092,10 +1090,6 @@ row_ins_foreign_check_on_constraint(
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 
 	DBUG_ENTER("row_ins_foreign_check_on_constraint");
-	ut_a(thr);
-	ut_a(foreign);
-	ut_a(pcur);
-	ut_a(mtr);
 
 	trx = thr_get_trx(thr);
 

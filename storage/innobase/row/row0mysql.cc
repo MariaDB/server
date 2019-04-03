@@ -3094,7 +3094,6 @@ row_mysql_lock_table(
 	dberr_t		err;
 	sel_node_t*	node;
 
-	ut_ad(trx);
 	ut_ad(mode == LOCK_X || mode == LOCK_S);
 
 	heap = mem_heap_create(512);

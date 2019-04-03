@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -78,9 +78,6 @@ dict_col_type_assert_equal(
 	const dict_col_t*	col,	/*!< in: column */
 	const dtype_t*		type)	/*!< in: data type */
 {
-	ut_ad(col);
-	ut_ad(type);
-
 	ut_ad(col->mtype == type->mtype);
 	ut_ad(col->prtype == type->prtype);
 	//ut_ad(col->len == type->len);
@@ -150,8 +147,6 @@ dict_col_get_no(
 /*============*/
 	const dict_col_t*	col)	/*!< in: column */
 {
-	ut_ad(col);
-
 	return(col->ind);
 }
 
@@ -166,8 +161,6 @@ dict_col_get_clust_pos(
 {
 	ulint	i;
 
-	ut_ad(col);
-	ut_ad(clust_index);
 	ut_ad(dict_index_is_clust(clust_index));
 
 	for (i = 0; i < clust_index->n_def; i++) {
@@ -193,8 +186,6 @@ dict_col_get_index_pos(
 {
 	ulint	i;
 
-	ut_ad(col);
-
 	for (i = 0; i < index->n_def; i++) {
 		const dict_field_t*	field = &index->fields[i];
 
@@ -216,7 +207,6 @@ dict_table_get_first_index(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	return(UT_LIST_GET_FIRST(((dict_table_t*) table)->indexes));
@@ -231,9 +221,7 @@ dict_table_get_last_index(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return(UT_LIST_GET_LAST((const_cast<dict_table_t*>(table))
 				->indexes));
 }
@@ -247,9 +235,7 @@ dict_table_get_next_index(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(UT_LIST_GET_NEXT(indexes, (dict_index_t*) index));
 }
 #endif /* UNIV_DEBUG */
@@ -264,7 +250,6 @@ dict_index_is_clust(
 	const dict_index_t*	index)	/*!< in: index */
 {
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(index->type & DICT_CLUSTERED);
 }
 
@@ -290,7 +275,6 @@ dict_index_is_unique(
 	const dict_index_t*	index)	/*!< in: index */
 {
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(index->type & DICT_UNIQUE);
 }
 
@@ -303,9 +287,7 @@ dict_index_is_spatial(
 /*==================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(index->type & DICT_SPATIAL);
 }
 
@@ -318,9 +300,7 @@ dict_index_is_ibuf(
 /*===============*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(index->type & DICT_IBUF);
 }
 
@@ -334,7 +314,6 @@ dict_index_is_sec_or_ibuf(
 	const dict_index_t*	index)	/*!< in: index */
 {
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return((index->type & (DICT_CLUSTERED | DICT_IBUF)) != DICT_CLUSTERED);
 }
 
@@ -350,8 +329,7 @@ dict_table_get_n_user_cols(
 	const dict_table_t*	table)	/*!< in: table */
 {
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	return(table->n_cols - dict_table_get_n_sys_cols(table));
+	return(table->n_cols - DATA_N_SYS_COLS);
 }
 
 /********************************************************************//**
@@ -365,7 +343,6 @@ dict_table_get_n_cols(
 	const dict_table_t*	table)	/*!< in: table */
 {
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return(table->n_cols);
 }
 
@@ -463,7 +440,6 @@ dict_table_get_nth_col(
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			pos)	/*!< in: position of column */
 {
-	ut_ad(table);
 	ut_ad(pos < table->n_def);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
@@ -523,10 +499,8 @@ dict_table_get_sys_col_no(
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 {
-	ut_ad(table);
-	ut_ad(sys < dict_table_get_n_sys_cols(table));
+	ut_ad(sys < DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return(table->n_cols - dict_table_get_n_sys_cols(table) + sys);
 }
 
@@ -557,8 +531,6 @@ dict_table_has_fts_index(
 				/* out: TRUE if table has an FTS index */
 	dict_table_t*   table)  /* in: table */
 {
-	ut_ad(table);
-
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS));
 }
 
@@ -894,7 +866,6 @@ dict_table_x_lock_indexes(
 {
 	dict_index_t*   index;
 
-	ut_a(table);
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	/* Loop through each index of the table and lock them */
@@ -936,7 +907,6 @@ dict_table_x_unlock_indexes(
 {
 	dict_index_t*   index;
 
-	ut_a(table);
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	for (index = dict_table_get_first_index(table);
@@ -958,9 +928,7 @@ dict_index_get_n_fields(
 					representation of index (in
 					the dictionary cache) */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
 	return(index->n_fields);
 }
 
@@ -977,10 +945,8 @@ dict_index_get_n_unique(
 	const dict_index_t*	index)	/*!< in: an internal representation
 					of index (in the dictionary cache) */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(index->cached);
-
 	return(index->n_uniq);
 }
 
@@ -996,7 +962,6 @@ dict_index_get_n_unique_in_tree(
 	const dict_index_t*	index)	/*!< in: an internal representation
 					of index (in the dictionary cache) */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(index->cached);
 
@@ -1060,7 +1025,6 @@ dict_index_get_nth_field(
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			pos)	/*!< in: position of field */
 {
-	ut_ad(index);
 	ut_ad(pos < index->n_def);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
@@ -1078,7 +1042,6 @@ dict_index_get_sys_col_pos(
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			type)	/*!< in: DATA_ROW_ID, ... */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(!dict_index_is_ibuf(index));
 
@@ -1102,8 +1065,6 @@ dict_field_get_col(
 /*===============*/
 	const dict_field_t*	field)	/*!< in: index field */
 {
-	ut_ad(field);
-
 	return(field->col);
 }
 
@@ -1208,7 +1169,6 @@ dict_index_get_page(
 /*================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->page);
@@ -1223,7 +1183,6 @@ dict_index_get_lock(
 /*================*/
 	dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(&(index->lock));
@@ -1449,9 +1408,7 @@ dict_table_is_corrupted(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
 	return(table->corrupted);
 }
 

@@ -1577,9 +1577,6 @@ row_fts_merge_insert(
 	trx_t*			trx;
 	byte			sys_buf[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
 
-	ut_ad(index);
-	ut_ad(table);
-
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
 
