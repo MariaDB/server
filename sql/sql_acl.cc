@@ -1150,6 +1150,16 @@ void acl_free(bool end)
 }
 
 
+static void fix_table_list(TABLE_LIST *tl, uint n)
+{
+  TABLE_LIST *end;
+  for (end= tl + n - 1; tl < end; tl++)
+  {
+    tl->next_local= tl->next_global= tl + 1;
+  }
+}
+
+
 /*
   Forget current user/db-level privileges and read new privileges
   from the privilege tables.
@@ -1191,11 +1201,7 @@ my_bool acl_reload(THD *thd)
   tables[3].init_one_table(C_STRING_WITH_LEN("mysql"),
                            C_STRING_WITH_LEN("proxies_priv"), 
                            "proxies_priv", TL_READ);
-  tables[0].next_local= tables[0].next_global= tables + 1;
-  tables[1].next_local= tables[1].next_global= tables + 2;
-  tables[2].next_local= tables[2].next_global= tables + 3;
-  tables[0].open_type= tables[1].open_type= tables[2].open_type= 
-  tables[3].open_type= OT_BASE_ONLY;
+  fix_table_list(tables, 4);
   tables[3].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
 
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
@@ -1921,6 +1927,7 @@ bool change_password(THD *thd, const char *host, const char *user,
     DBUG_RETURN(1);
 
   tables.init_one_table("mysql", 5, "user", 4, "user", TL_WRITE);
+  fix_table_list(&tables, 1);
 
 #ifdef HAVE_REPLICATION
   /*
@@ -2282,6 +2289,7 @@ static bool test_if_create_new_users(THD *thd)
     ulong db_access;
     tl.init_one_table(C_STRING_WITH_LEN("mysql"),
                       C_STRING_WITH_LEN("user"), "user", TL_WRITE);
+    fix_table_list(&tl, 1);
     create_new_users= 1;
 
     db_access=acl_get(sctx->host, sctx->ip,
@@ -3689,10 +3697,11 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   tables[2].init_one_table(C_STRING_WITH_LEN("mysql"),
                            C_STRING_WITH_LEN("columns_priv"),
                            "columns_priv", TL_WRITE);
-  tables[0].next_local= tables[0].next_global= tables+1;
   /* Don't open column table if we don't need it ! */
   if (column_priv || (revoke_grant && ((rights & COL_ACLS) || columns.elements)))
-    tables[1].next_local= tables[1].next_global= tables+2;
+    fix_table_list(tables, 3);
+  else
+    fix_table_list(tables, 2);
 
   /*
     This statement will be replicated as a statement, even when using
@@ -3930,7 +3939,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
                            C_STRING_WITH_LEN("user"), "user", TL_WRITE);
   tables[1].init_one_table(C_STRING_WITH_LEN("mysql"),
                            C_STRING_WITH_LEN("procs_priv"), "procs_priv", TL_WRITE);
-  tables[0].next_local= tables[0].next_global= tables+1;
+  fix_table_list(tables, 2);
 
   /*
     This statement will be replicated as a statement, even when using
@@ -4104,7 +4113,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
                              C_STRING_WITH_LEN("db"), 
                              "db", 
                              TL_WRITE);
-  tables[0].next_local= tables[0].next_global= tables+1;
+  fix_table_list(tables, 2);
 
   /*
     This statement will be replicated as a statement, even when using
@@ -4525,10 +4534,7 @@ my_bool grant_reload(THD *thd)
   tables[2].init_one_table(C_STRING_WITH_LEN("mysql"),
                            C_STRING_WITH_LEN("procs_priv"),
                            "procs_priv", TL_READ);
-
-  tables[0].next_local= tables[0].next_global= tables+1;
-  tables[1].next_local= tables[1].next_global= tables+2;
-  tables[0].open_type= tables[1].open_type= tables[2].open_type= OT_BASE_ONLY;
+  fix_table_list(tables, 3);
 
   /*
     Reload will work in the following manner:-
@@ -5864,29 +5870,24 @@ int open_grant_tables(THD *thd, TABLE_LIST *tables)
     DBUG_RETURN(-1);
   }
 
-  tables->init_one_table(C_STRING_WITH_LEN("mysql"),
-                         C_STRING_WITH_LEN("user"), "user", TL_WRITE);
-  (tables+1)->init_one_table(C_STRING_WITH_LEN("mysql"),
-                             C_STRING_WITH_LEN("db"), "db", TL_WRITE);
-  (tables+2)->init_one_table(C_STRING_WITH_LEN("mysql"),
-                             C_STRING_WITH_LEN("tables_priv"),
-                             "tables_priv", TL_WRITE);
-  (tables+3)->init_one_table(C_STRING_WITH_LEN("mysql"),
-                             C_STRING_WITH_LEN("columns_priv"),
-                             "columns_priv", TL_WRITE);
-  (tables+4)->init_one_table(C_STRING_WITH_LEN("mysql"),
-                             C_STRING_WITH_LEN("procs_priv"),
-                             "procs_priv", TL_WRITE);
-  (tables+5)->init_one_table(C_STRING_WITH_LEN("mysql"),
-                             C_STRING_WITH_LEN("proxies_priv"),
-                             "proxies_priv", TL_WRITE);
+  tables[0].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("user"), "user", TL_WRITE);
+  tables[1].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("db"), "db", TL_WRITE);
+  tables[2].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("tables_priv"),
+                           "tables_priv", TL_WRITE);
+  tables[3].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("columns_priv"),
+                           "columns_priv", TL_WRITE);
+  tables[4].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("procs_priv"),
+                           "procs_priv", TL_WRITE);
+  tables[5].init_one_table(C_STRING_WITH_LEN("mysql"),
+                           C_STRING_WITH_LEN("proxies_priv"),
+                           "proxies_priv", TL_WRITE);
   tables[5].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-
-  tables->next_local= tables->next_global= tables + 1;
-  (tables+1)->next_local= (tables+1)->next_global= tables + 2;
-  (tables+2)->next_local= (tables+2)->next_global= tables + 3;
-  (tables+3)->next_local= (tables+3)->next_global= tables + 4;
-  (tables+4)->next_local= (tables+4)->next_global= tables + 5;
+  fix_table_list(tables, 6);
 
 #ifdef HAVE_REPLICATION
   /*

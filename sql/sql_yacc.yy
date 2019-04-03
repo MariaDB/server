@@ -11159,14 +11159,14 @@ update:
           opt_low_priority opt_ignore join_table_list
           SET update_list
           {
-            LEX *lex= Lex;
-            if (lex->select_lex.table_list.elements > 1)
-              lex->sql_command= SQLCOM_UPDATE_MULTI;
-            else if (lex->select_lex.get_table_list()->derived)
+            SELECT_LEX *slex= &Lex->select_lex;
+            if (slex->table_list.elements > 1)
+              Lex->sql_command= SQLCOM_UPDATE_MULTI;
+            else if (slex->get_table_list()->derived)
             {
               /* it is single table update and it is update of derived table */
               my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
-                       lex->select_lex.get_table_list()->alias, "UPDATE");
+                       slex->get_table_list()->alias, "UPDATE");
               MYSQL_YYABORT;
             }
             /*
@@ -11174,7 +11174,7 @@ update:
               be too pessimistic. We will decrease lock level if possible in
               mysql_multi_update().
             */
-            Select->set_lock_for_tables($3);
+            slex->set_lock_for_tables($3);
           }
           where_clause opt_order_clause delete_limit_clause {}
         ;
@@ -13834,13 +13834,16 @@ table_lock:
           table_ident opt_table_alias lock_option
           {
             thr_lock_type lock_type= (thr_lock_type) $3;
-            bool lock_for_write= (lock_type >= TL_WRITE_ALLOW_WRITE);
-            if (!Select->add_table_to_list(thd, $1, $2, 0, lock_type,
-                                           (lock_for_write ?
-                                            lock_type == TL_WRITE_CONCURRENT_INSERT ?
-                                            MDL_SHARED_WRITE :
-                                            MDL_SHARED_NO_READ_WRITE :
-                                            MDL_SHARED_READ)))
+            bool lock_for_write= lock_type >= TL_WRITE_ALLOW_WRITE;
+            ulong table_options= 0;
+            enum_mdl_type mdl_type= !lock_for_write
+                                    ? MDL_SHARED_READ
+                                    : lock_type == TL_WRITE_CONCURRENT_INSERT
+                                      ? MDL_SHARED_WRITE
+                                      : MDL_SHARED_NO_READ_WRITE;
+
+            if (!Select->add_table_to_list(thd, $1, $2, table_options,
+                                           lock_type, mdl_type))
               MYSQL_YYABORT;
           }
         ;
