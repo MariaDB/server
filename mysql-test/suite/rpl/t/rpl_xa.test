@@ -1,46 +1,5 @@
 source include/have_innodb.inc;
 source include/master-slave.inc;
 
-create table t1 (a int, b int) engine=InnoDB;
-xa start 't';
-insert into t1 values(1, 2);
-xa end 't';
-xa prepare 't';
-xa commit 't';
-select * from t1;
-sync_slave_with_master;
-select * from t1;
-connection master;
-
-xa start 't';
-insert into t1 values(3, 4);
-xa end 't';
-xa prepare 't';
-xa rollback 't';
-select * from t1;
-sync_slave_with_master;
-select * from t1;
-
-connection master;
-SET pseudo_slave_mode=1;
-create table t2 (a int) engine=InnoDB;
-xa start 't';
-insert into t1 values (5, 6);
-xa end 't';
-xa prepare 't';
-xa start 's';
-insert into t2 values (0);
-xa end 's';
-xa prepare 's';
-xa commit 't';
-xa commit 's';
-SET pseudo_slave_mode=0;
-select * from t1;
-select * from t2;
-sync_slave_with_master;
-select * from t1;
-select * from t2;
-
-connection master;
-drop table t1, t2;
+source rpl_xa.inc;
 source include/rpl_end.inc;
