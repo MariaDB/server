@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -183,8 +183,6 @@ be less than 256 */
 				for shorter VARCHARs MySQL uses only 1 byte */
 #define	DATA_VIRTUAL	8192U	/* Virtual column */
 
-/** Get the number of system columns in a table. */
-#define dict_table_get_n_sys_cols(table) DATA_N_SYS_COLS
 /** Check whether locking is disabled (never). */
 #define dict_table_is_locking_disabled(table) false
 

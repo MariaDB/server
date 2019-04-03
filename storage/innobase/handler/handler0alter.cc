@@ -3939,7 +3939,7 @@ innobase_add_virtual_try(
 
 	n_v_col +=  ctx->num_to_add_vcol;
 
-	n_col -= dict_table_get_n_sys_cols(user_table);
+	n_col -= DATA_N_SYS_COLS;
 
 	n_v_col -= ctx->num_to_drop_vcol;
 
@@ -4173,7 +4173,7 @@ innobase_drop_virtual_try(
 
 	n_v_col -=  ctx->num_to_drop_vcol;
 
-	n_col -= dict_table_get_n_sys_cols(user_table);
+	n_col -= DATA_N_SYS_COLS;
 
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
 			+ ((user_table->flags & DICT_TF_COMPACT) << 31);
