@@ -1087,7 +1087,6 @@ trx_undo_rec_get_partial_row(
 	const byte*	end_ptr;
 	ulint		row_len;
 
-	ut_ad(ptr);
 	ut_ad(dict_index_is_clust(index));
 
 	row_len = dict_table_get_n_cols(index->table);
