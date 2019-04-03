@@ -270,7 +270,6 @@ class ha_federatedx: public handler
   */
   DYNAMIC_ARRAY results;
   bool position_called;
-  uint fetch_num; // stores the fetch num
   int remote_error_number;
   char remote_error_buf[FEDERATEDX_QUERY_BUFFER_SIZE];
   bool ignore_duplicates, replace_duplicates;

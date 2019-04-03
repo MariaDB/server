@@ -1681,7 +1681,6 @@ trx_undo_rec_get_partial_row(
 	bool		first_v_col = true;
 	bool		is_undo_log = true;
 
-	ut_ad(ptr);
 	ut_ad(dict_index_is_clust(index));
 
 	*row = dtuple_create_with_vcol(
