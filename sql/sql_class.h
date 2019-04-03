@@ -4565,7 +4565,6 @@ class select_insert :public select_result_interceptor {
 
 
 class select_create: public select_insert {
-  ORDER *group;
   TABLE_LIST *create_table;
   Table_specification_st *create_info;
   TABLE_LIST *select_tables;

@@ -68,15 +68,13 @@ class READ_INFO {
   File	file;
   uchar	*buffer,			/* Buffer for read text */
 	*end_of_buff;			/* Data in bufferts ends here */
-  uint	buff_length,			/* Length of buffert */
-	max_length;			/* Max length of row */
+  uint	buff_length;			/* Length of buffert */
   const uchar *field_term_ptr,*line_term_ptr;
   const char  *line_start_ptr,*line_start_end;
   uint	field_term_length,line_term_length,enclosed_length;
   int	field_term_char,line_term_char,enclosed_char,escape_char;
   int	*stack,*stack_pos;
   bool	found_end_of_line,start_of_line,eof;
-  NET *io_net;
   int level; /* for load xml */
 
 
