@@ -7,6 +7,8 @@
 # leave the cluster.
 #
 
+CALL mtr.add_suppression("WSREP: discarding established.*");
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
@@ -26,10 +28,10 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
-SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_1
-SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 #
 # Trigger CC . The transaction is aborted and we expect the SR tables to be cleaned up
@@ -50,7 +52,7 @@ SET SESSION wsrep_sync_wait = DEFAULT;
 INSERT INTO t1 VALUES (6);
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 # Restore cluster
 
@@ -68,7 +70,7 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --connection node_2b
 --source include/galera_wait_ready.inc
 SELECT * FROM mysql.wsrep_streaming_log;
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 # Repeat transaction to confirm no locks are left from previous transaction
 
@@ -81,11 +83,11 @@ INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 COMMIT;
 
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 --connection node_1
-SELECT COUNT(*) = 5 FROM t1;
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
 
