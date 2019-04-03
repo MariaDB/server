@@ -465,6 +465,7 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
  * (e.g. embedded) */
 
 #define WSREP(T)  (0)
+#define WSREP_NNULL(T) (0)
 #define WSREP_ON  (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
