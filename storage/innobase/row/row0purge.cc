@@ -1298,8 +1298,6 @@ row_purge_step(
 {
 	purge_node_t*	node;
 
-	ut_ad(thr);
-
 	node = static_cast<purge_node_t*>(thr->run_node);
 
 	node->start();

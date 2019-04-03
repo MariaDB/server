@@ -122,8 +122,6 @@ dtuple_set_n_fields(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		n_fields)	/*!< in: number of fields */
 {
-	ut_ad(tuple);
-
 	tuple->n_fields = n_fields;
 	tuple->n_fields_cmp = n_fields;
 }
