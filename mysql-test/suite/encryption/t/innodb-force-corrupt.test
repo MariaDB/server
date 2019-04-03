@@ -8,6 +8,7 @@
 -- source include/not_embedded.inc
 
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=\\d+, page number=[36]\\] in file .*test.t[123]\\.ibd looks corrupted; key_version=3221342974");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t[13]` is corrupted");
 
 SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
@@ -65,11 +66,11 @@ EOF
 
 --source include/start_mysqld.inc
 
---error ER_GET_ERRMSG
+--error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
 --error ER_GET_ERRMSG
 SELECT * FROM t2;
---error ER_GET_ERRMSG
+--error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t3;
 
 --source include/shutdown_mysqld.inc

@@ -1,4 +1,5 @@
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=\\d+, page number=[36]\\] in file .*test.t[123]\\.ibd looks corrupted; key_version=3221342974");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t[13]` is corrupted");
 SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 # Create and populate tables to be corrupted
@@ -14,10 +15,10 @@ COMMIT;
 # Backup tables before corrupting
 # Corrupt tables
 SELECT * FROM t1;
-ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
 SELECT * FROM t2;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
 SELECT * FROM t3;
-ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
+ERROR 42S02: Table 'test.t3' doesn't exist in engine
 # Restore the original tables
 DROP TABLE t1,t2,t3;

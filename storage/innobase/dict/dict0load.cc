@@ -1360,14 +1360,9 @@ dict_sys_tables_rec_read(
 /** Load and check each non-predefined tablespace mentioned in SYS_TABLES.
 Search SYS_TABLES and check each tablespace mentioned that has not
 already been added to the fil_system.  If it is valid, add it to the
-file_system list.  Perform extra validation on the table if recovery from
-the REDO log occurred.
-@param[in]	validate	Whether to do validation on the table.
+file_system list.
 @return the highest space ID found. */
-UNIV_INLINE
-ulint
-dict_check_sys_tables(
-	bool		validate)
+static ulint dict_check_sys_tables()
 {
 	ulint		max_space_id = 0;
 	btr_pcur_t	pcur;
@@ -1389,6 +1384,10 @@ dict_check_sys_tables(
 	ut_a(sys_tablespaces != NULL);
 	sys_datafiles = dict_table_get_low("SYS_DATAFILES");
 	ut_a(sys_datafiles != NULL);
+
+	const bool validate = recv_needed_recovery
+		&& !srv_safe_truncate
+		&& !srv_force_recovery;
 
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
 	     rec != NULL;
@@ -1420,15 +1419,23 @@ dict_check_sys_tables(
 					      &table_id, &space_id,
 					      &n_cols, &flags, &flags2)
 		    || space_id == TRX_SYS_SPACE) {
+next:
 			ut_free(table_name.m_name);
 			continue;
+		}
+
+		if (srv_safe_truncate
+		    && strstr(table_name.m_name, "/" TEMP_FILE_PREFIX "-")) {
+			/* This table will be dropped by
+			row_mysql_drop_garbage_tables().
+			We do not care if the file exists. */
+			goto next;
 		}
 
 		if (flags2 & DICT_TF2_DISCARDED) {
 			ib::info() << "Ignoring tablespace for " << table_name
 				<< " because the DISCARD flag is set .";
-			ut_free(table_name.m_name);
-			continue;
+			goto next;
 		}
 
 		/* For tables or partitions using .ibd files, the flag
@@ -1503,11 +1510,8 @@ space_id information in the data dictionary to what we find in the
 tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
 
-We also scan the biggest space id, and store it to fil_system.
-@param[in]	validate	true if recovery was needed */
-void
-dict_check_tablespaces_and_store_max_id(
-	bool	validate)
+We also scan the biggest space id, and store it to fil_system. */
+void dict_check_tablespaces_and_store_max_id()
 {
 	mtr_t	mtr;
 
@@ -1528,7 +1532,7 @@ dict_check_tablespaces_and_store_max_id(
 	/* Open all tablespaces referenced in SYS_TABLES.
 	This will update SYS_TABLESPACES and SYS_DATAFILES if it
 	finds any file-per-table tablespaces not already there. */
-	max_space_id = dict_check_sys_tables(validate);
+	max_space_id = dict_check_sys_tables();
 	fil_set_max_space_id_if_bigger(max_space_id);
 
 	mutex_exit(&dict_sys->mutex);
@@ -3063,8 +3067,31 @@ err_exit:
 
 			if (table->space
 			    && !fil_space_get_size(table->space)) {
+corrupted:
 				table->corrupted = true;
 				table->file_unreadable = true;
+			} else {
+				const page_id_t page_id(
+					table->space,
+					dict_table_get_first_index(table)
+					->page);
+				mtr.start();
+				buf_block_t* block = buf_page_get(
+					page_id,
+					dict_table_page_size(table),
+					RW_S_LATCH, &mtr);
+				const bool corrupted = !block
+					|| page_get_space_id(block->frame)
+					!= page_id.space()
+					|| page_get_page_no(block->frame)
+					!= page_id.page_no()
+					|| mach_read_from_2(FIL_PAGE_TYPE
+							    + block->frame)
+					!= FIL_PAGE_INDEX;
+				mtr.commit();
+				if (corrupted) {
+					goto corrupted;
+				}
 			}
 		}
 	} else {
