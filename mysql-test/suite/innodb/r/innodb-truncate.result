@@ -66,3 +66,16 @@ a
 1
 2
 DROP TABLE t1;
+call mtr.add_suppression('InnoDB: Error: in RENAME TABLE table `test`.`t3`');
+SET FOREIGN_KEY_CHECKS= OFF;
+CREATE TABLE t1 (f2 INT, f4 INT, KEY(f2), FOREIGN KEY (f4) REFERENCES t3 (f4)) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS= ON;
+CREATE TABLE t2 (f2 INT, FOREIGN KEY(f2) REFERENCES t1 (f2)) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT) ENGINE=InnoDB;
+ERROR HY000: Can't create table 'test.t3' (errno: 150)
+ALTER TABLE t1 RENAME TO t3;
+ERROR HY000: Error on rename of './test/t1' to './test/t3' (errno: 150)
+ALTER TABLE t1 FORCE;
+TRUNCATE TABLE t1;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `test`.`t3` (`f2`))
+DROP TABLE t2, t1;
