@@ -1021,6 +1021,15 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (!(variables.option_bits & OPTION_SQL_NOTES) &&
       (level == Sql_condition::WARN_LEVEL_NOTE))
     DBUG_RETURN(NULL);
+#ifdef WITH_WSREP
+  /*
+    Suppress warnings/errors if the wsrep THD is going to replay. The
+    deadlock/interrupted errors may be transitient and should not be
+    reported to the client.
+  */
+  if (wsrep_must_replay(this))
+    DBUG_RETURN(NULL);
+#endif /* WITH_WSREP */
 
   da->opt_clear_warning_info(query_id);
 
