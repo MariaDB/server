@@ -5838,10 +5838,10 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
   /* Ensure that all events in a GTID group are in the same cache */
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
-  
+
   /* Pre-conditions */
   DBUG_ASSERT(is_current_stmt_binlog_format_row());
-  DBUG_ASSERT(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open());
+  DBUG_ASSERT(WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open());
   DBUG_ASSERT(table->s->table_map_id != ULONG_MAX);
 
   Table_map_log_event
@@ -10769,7 +10769,7 @@ bool wsrep_stmt_rollback_is_safe(THD* thd)
          trx_cache->get_prev_position() < thd->wsrep_sr().bytes_certified()))
     {
       WSREP_DEBUG("statement rollback is not safe for streaming replication"
-                  " pre-stmt_pos: %llu, frag repl pos: %lu\n"
+                  " pre-stmt_pos: %llu, frag repl pos: %zu\n"
                   "Thread: %llu, SQL: %s",
                   trx_cache->get_prev_position(),
                   thd->wsrep_sr().bytes_certified(),

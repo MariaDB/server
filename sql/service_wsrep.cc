@@ -141,7 +141,7 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   DBUG_ASSERT(victim_thd);
   if (!victim_thd || !wsrep_on(bf_thd)) return;
 
-  WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %lu frags %lu conf %s",
+  WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_sr().fragments_certified(),

@@ -1663,10 +1663,10 @@ THD::~THD()
     THD is not deleted while they access it. The following mutex_lock
     ensures that no one else is using this THD and it's now safe to delete
   */
-  if (WSREP(this)) mysql_mutex_lock(&LOCK_thd_data);
+  if (WSREP_NNULL(this)) mysql_mutex_lock(&LOCK_thd_data);
   mysql_mutex_lock(&LOCK_thd_kill);
   mysql_mutex_unlock(&LOCK_thd_kill);
-  if (WSREP(this)) mysql_mutex_unlock(&LOCK_thd_data);
+  if (WSREP_NNULL(this)) mysql_mutex_unlock(&LOCK_thd_data);
 
   if (!free_connection_done)
     free_connection();
@@ -1858,7 +1858,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
-  if (WSREP(this)) mysql_mutex_assert_owner(&LOCK_thd_data);
+  if (WSREP_NNULL(this)) mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
@@ -6348,7 +6348,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             5. Error: Cannot modify table that uses a storage engine
                limited to row-logging when binlog_format = STATEMENT
           */
-	  if (IF_WSREP((!WSREP(this) ||
+	  if (IF_WSREP((!WSREP_NNULL(this) ||
 			wsrep_cs().mode() == wsrep::client_state::m_local),1))
 	  {
             my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
@@ -6700,8 +6700,9 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
                           uchar const *record)
 {
 
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
-           ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
+  DBUG_ASSERT(is_current_stmt_binlog_format_row());
+  DBUG_ASSERT((WSREP_NNULL(this) && wsrep_emulate_bin_log) ||
+              mysql_bin_log.is_open());
   /*
     Pack records into format for transfer. We are allocating more
     memory than needed, but that doesn't matter.
@@ -6741,8 +6742,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
                            const uchar *before_record,
                            const uchar *after_record)
 {
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
-            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
+  DBUG_ASSERT(is_current_stmt_binlog_format_row());
+  DBUG_ASSERT((WSREP_NNULL(this) && wsrep_emulate_bin_log) ||
+              mysql_bin_log.is_open());
 
   /**
     Save a reference to the original read bitmaps
@@ -6820,8 +6822,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 int THD::binlog_delete_row(TABLE* table, bool is_trans, 
                            uchar const *record)
 {
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
-            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
+  DBUG_ASSERT(is_current_stmt_binlog_format_row());
+  DBUG_ASSERT((WSREP_NNULL(this) && wsrep_emulate_bin_log) ||
+              mysql_bin_log.is_open());
   /**
     Save a reference to the original read bitmaps
     We will need this to restore the bitmaps at the end as
@@ -6952,7 +6955,7 @@ int THD::binlog_remove_pending_rows_event(bool clear_maps,
 {
   DBUG_ENTER("THD::binlog_remove_pending_rows_event");
 
-  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
+  if(!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -6975,7 +6978,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
     mode: it might be the case that we left row-based mode before
     flushing anything (e.g., if we have explicitly locked tables).
    */
-  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
+  if (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -7248,7 +7251,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
                        show_query_type(qtype), (int) query_len, query_arg));
 
   DBUG_ASSERT(query_arg);
-  DBUG_ASSERT(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open());
+  DBUG_ASSERT(WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open());
 
   /* If this is withing a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)

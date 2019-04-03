@@ -49,7 +49,7 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
                          " --primary %s", view->view_seqno().get() >= 0 ? "yes" : "no");
 
     cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off,
-                         " --index %ld", view->own_index());
+                         " --index %zd", view->own_index());
 
     const std::vector<wsrep::view::member>& members(view->members());
     if (members.size())

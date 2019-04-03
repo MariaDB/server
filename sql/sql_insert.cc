@@ -4599,7 +4599,7 @@ bool select_create::send_eof()
         wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
       }
       DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
-      WSREP_DEBUG("CTAS key append for trx: %lu thd %llu query %lld ",
+      WSREP_DEBUG("CTAS key append for trx: %" PRIu64 " thd %llu query %lld ",
                   thd->wsrep_trx_id(), thd->thread_id, thd->query_id);
 
       /*

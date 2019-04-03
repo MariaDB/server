@@ -7682,7 +7682,7 @@ void THD::reset_for_next_command(bool do_clear_error)
     use autoinc values passed in binlog events, not the values forced by
     the cluster.
   */
-  if (WSREP(this) && wsrep_thd_is_local(this) &&
+  if (WSREP_NNULL(this) && wsrep_thd_is_local(this) &&
       !slave_thread && wsrep_auto_increment_control)
   {
     variables.auto_increment_offset=
