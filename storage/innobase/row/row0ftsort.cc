@@ -1574,9 +1574,6 @@ row_fts_merge_insert(
 	dict_index_t*		aux_index;
 	trx_t*			trx;
 
-	ut_ad(index);
-	ut_ad(table);
-
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
 
