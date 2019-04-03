@@ -174,6 +174,7 @@ my @DEFAULT_SUITES= qw(
     binlog_encryption-
     csv-
     compat/oracle-
+    compat/mssql-
     encryption-
     federated-
     funcs_1-
