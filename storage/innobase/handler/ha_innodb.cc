@@ -13208,10 +13208,8 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 		err = row_drop_database_for_mysql(norm_name, trx,
 			&num_partitions);
 		norm_name[len] = 0;
-		if (num_partitions == 0
-		    && !row_is_mysql_tmp_table_name(norm_name)) {
-			table_name_t tbl_name;
-			tbl_name.m_name = norm_name;
+		table_name_t tbl_name(norm_name);
+		if (num_partitions == 0 && !tbl_name.is_temporary()) {
 			ib::error() << "Table " << tbl_name <<
 				" does not exist in the InnoDB"
 				" internal data dictionary though MariaDB is"

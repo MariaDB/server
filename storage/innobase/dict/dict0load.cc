@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -81,7 +81,7 @@ file_unreadable flag in the table object we return */
 static
 dict_table_t*
 dict_load_table_one(
-	table_name_t&		name,
+	const table_name_t&	name,
 	bool			cached,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables);
@@ -93,9 +93,8 @@ Do not load any columns or indexes.
 @param[out,own]	table	table, or NULL
 @return	error message
 @retval	NULL on success */
-static
-const char*
-dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
+static const char* dict_load_table_low(const table_name_t& name,
+				       const rec_t* rec, dict_table_t** table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
@@ -392,7 +391,6 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	ulint		len;
 	const char*	field;
 	const char*	err_msg = NULL;
-	table_name_t	table_name;
 
 	field = (const char*) rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
@@ -402,7 +400,7 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
 
 	/* Get the table name */
-	table_name.m_name = mem_heap_strdupl(heap, field, len);
+	table_name_t table_name(mem_heap_strdupl(heap, field, len));
 
 	/* If DICT_TABLE_LOAD_FROM_CACHE is set, first check
 	whether there is cached dict_table_t struct */
@@ -1397,7 +1395,6 @@ dict_check_sys_tables(
 	     rec = dict_getnext_system(&pcur, &mtr)) {
 		const byte*	field;
 		ulint		len;
-		table_name_t	table_name;
 		table_id_t	table_id;
 		ulint		space_id;
 		ulint		n_cols;
@@ -1413,7 +1410,8 @@ dict_check_sys_tables(
 		/* Copy the table name from rec */
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_TABLES__NAME, &len);
-		table_name.m_name = mem_strdupl((char*) field, len);
+
+		table_name_t table_name(mem_strdupl((char*) field, len));
 		DBUG_PRINT("dict_check_sys_tables",
 			   ("name: %p, '%s'", table_name.m_name,
 			    table_name.m_name));
@@ -2660,9 +2658,8 @@ Do not load any columns or indexes.
 @param[out,own]	table	table, or NULL
 @return	error message
 @retval	NULL on success */
-static
-const char*
-dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
+static const char* dict_load_table_low(const table_name_t& name,
+				       const rec_t* rec, dict_table_t** table)
 {
 	table_id_t	table_id;
 	ulint		space_id;
@@ -2792,32 +2789,22 @@ dict_load_table(
 	dict_names_t			fk_list;
 	dict_table_t*			result;
 	dict_names_t::iterator		i;
-	table_name_t			table_name;
 
 	DBUG_ENTER("dict_load_table");
 	DBUG_PRINT("dict_load_table", ("loading table: '%s'", name));
 
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	table_name.m_name = const_cast<char*>(name);
-
 	result = dict_table_check_if_in_cache_low(name);
 
 	if (!result) {
-		result = dict_load_table_one(table_name, cached, ignore_err,
-					     fk_list);
+		result = dict_load_table_one(const_cast<char*>(name),
+					     cached, ignore_err, fk_list);
 		while (!fk_list.empty()) {
-			table_name_t	fk_table_name;
-			dict_table_t*	fk_table;
-
-			fk_table_name.m_name =
-				const_cast<char*>(fk_list.front());
-			fk_table = dict_table_check_if_in_cache_low(
-				fk_table_name.m_name);
-			if (!fk_table) {
-				dict_load_table_one(fk_table_name, cached,
-						    ignore_err, fk_list);
-			}
+			if (!dict_table_check_if_in_cache_low(fk_list.front()))
+				dict_load_table_one(
+					const_cast<char*>(fk_list.front()),
+					cached, ignore_err, fk_list);
 			fk_list.pop_front();
 		}
 	}
@@ -2917,7 +2904,7 @@ file_unreadable flag in the table object we return */
 static
 dict_table_t*
 dict_load_table_one(
-	table_name_t&		name,
+	const table_name_t&	name,
 	bool			cached,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables)

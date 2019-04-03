@@ -559,6 +559,11 @@ struct table_name_t
 	/** The name in internal representation */
 	char*	m_name;
 
+	/** Default constructor */
+	table_name_t() {}
+	/** Constructor */
+	table_name_t(char* name) : m_name(name) {}
+
 	/** @return the end of the schema name */
 	const char* dbend() const
 	{
@@ -581,6 +586,9 @@ struct table_name_t
 	@return the partition name
 	@retval	NULL	if the table is not partitioned */
 	const char* part() const { return strstr(basename(), part_suffix); }
+
+	/** @return whether this is a temporary or intermediate table name */
+	inline bool is_temporary() const;
 };
 
 /** Data structure for a column in a table */
@@ -1401,6 +1409,13 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
+	/** Check if a table name contains the string "/#sql"
+	which denotes temporary or intermediate tables in MariaDB. */
+	static bool is_temporary_name(const char* name)
+	{
+		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
+	}
+
 	/** Id of the table. */
 	table_id_t				id;
 	/** Hash chain node. */
@@ -1769,6 +1784,11 @@ public:
 	columns */
 	dict_vcol_templ_t*			vc_templ;
 };
+
+inline bool table_name_t::is_temporary() const
+{
+	return dict_table_t::is_temporary_name(m_name);
+}
 
 inline bool dict_index_t::is_readable() const
 {
