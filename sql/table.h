@@ -1596,6 +1596,7 @@ public:
   void vers_update_fields();
   void vers_update_end();
   int vers_insert_history_row();
+  void vers_print(const char *, const char * suffix= "\n");
   void find_constraint_correlated_indexes();
   void clone_handler_for_update();
   void delete_update_handler();

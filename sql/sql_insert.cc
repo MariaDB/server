@@ -1661,8 +1661,11 @@ int TABLE::vers_insert_history_row()
   int cmp_res= row_start->cmp(row_start->ptr, row_end->ptr);
   if (cmp_res == 0 || (cmp_res > 0 && in_use->is_binlog()))
   {
+    DBUG_EXECUTE("vers", vers_print("History insert", " SKIPPED!\n"););
     return 0;
+  }
   if (cmp_res > 0) {
+    DBUG_EXECUTE("vers", vers_print("History insert", " WRONG!\n"););
     String start, end;
     vers_start_field()->val_str(&start);
     vers_end_field()->val_str(&end);
@@ -1673,6 +1676,7 @@ int TABLE::vers_insert_history_row()
     return ER_BAD_TABLE_ERROR;
   }
 
+  DBUG_EXECUTE("vers", vers_print("History insert"););
   return file->ha_write_row(record[0]);
 }
 

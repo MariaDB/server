@@ -8394,10 +8394,15 @@ void TABLE::vers_update_fields()
   bitmap_set_bit(write_set, vers_start_field()->field_index);
   bitmap_set_bit(write_set, vers_end_field()->field_index);
 
+  DBUG_EXECUTE("vers", vers_print("Update fields", ""););
+
   if (versioned(VERS_TIMESTAMP))
   {
     if (!vers_write)
+    {
+      DBUG_PRINT("vers", (" SKIPPED!\n"));
       return;
+    }
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                             in_use->query_start_sec_part()))
       DBUG_ASSERT(0);
@@ -8405,10 +8410,14 @@ void TABLE::vers_update_fields()
   else
   {
     if (!vers_write)
+    {
+      DBUG_PRINT("vers", (" SKIPPED!\n"));
       return;
+    }
   }
 
   vers_end_field()->set_max();
+  DBUG_EXECUTE("vers", vers_print(" to"););
   bitmap_set_bit(read_set, vers_end_field()->field_index);
 }
 
@@ -8416,8 +8425,10 @@ void TABLE::vers_update_fields()
 void TABLE::vers_update_end()
 {
   bitmap_set_bit(write_set, vers_end_field()->field_index);
+  DBUG_EXECUTE("vers", vers_print("Update row_end", ""););
   if (vers_end_field()->set_time())
     DBUG_ASSERT(0);
+  DBUG_EXECUTE("vers", vers_print(" to"););
 }
 
 /**
@@ -9072,6 +9083,26 @@ bool fk_modifies_child(enum_fk_option opt)
 {
   static bool can_write[]= { false, false, true, true, false, true };
   return can_write[opt];
+}
+
+void TABLE::vers_print(const char* prefix, const char* suffix)
+{
+  String start, end;
+  const char *t= "";
+  bitmap_set_bit(read_set, vers_start_field()->field_index);
+  bitmap_set_bit(read_set, vers_end_field()->field_index);
+  vers_start_field()->val_str(&start);
+  if (vers_end_field()->is_max())
+    end.set_ascii(C_STRING_WITH_LEN("MAX"));
+  else
+  {
+    vers_end_field()->val_str(&end);
+    t="\"";
+  }
+
+  DBUG_LOCK_FILE;
+  (void) fprintf(DBUG_FILE,"%s: (\"%s\", %s%s%s)%s", prefix, start.ptr(), t, end.ptr(), t, suffix);
+  DBUG_UNLOCK_FILE;
 }
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
