@@ -54,8 +54,6 @@ static const io_schemes_st federated_io_schemes[] =
   { "null", instantiate_io_null } /* must be last element */
 };
 
-const uint federated_io_schemes_count= array_elements(federated_io_schemes);
-
 federatedx_io::federatedx_io(FEDERATEDX_SERVER *aserver)
   : server(aserver), owner_ptr(0), txn_next(0), idle_next(0),
     active(FALSE), busy(FALSE), readonly(TRUE)
