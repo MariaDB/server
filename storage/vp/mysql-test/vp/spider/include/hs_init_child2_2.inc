@@ -1,0 +1,19 @@
+--source ../../../spider/include/init_handlersocket.inc
+let $CHILD2_2_HS_DROP_TABLES=
+  DROP TABLE IF EXISTS hs_r3 $STR_SEMICOLON
+  DROP TABLE IF EXISTS hs_r3_2;
+let $CHILD2_2_HS_CREATE_TABLES=
+  CREATE TABLE hs_r3 (
+    a INT DEFAULT 10,
+    b CHAR(1) DEFAULT 'c',
+    c DATETIME DEFAULT '1999-10-10 10:10:10',
+    PRIMARY KEY(a)
+  ) $CHILD2_2_ENGINE $CHILD2_2_CHARSET $STR_SEMICOLON
+  CREATE TABLE hs_r3_2 (
+    a INT DEFAULT 10,
+    d INT DEFAULT 11,
+    PRIMARY KEY(a)
+  ) $CHILD2_2_ENGINE $CHILD2_2_CHARSET;
+let $CHILD2_2_HS_SELECT_TABLES=
+  SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM hs_r3 ORDER BY a $STR_SEMICOLON
+  SELECT a, d FROM hs_r3_2 ORDER BY a;

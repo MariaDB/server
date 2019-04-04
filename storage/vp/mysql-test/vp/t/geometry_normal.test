@@ -1,0 +1,81 @@
+# This test tests for geometry
+if (!$USE_GEOMETRY_TEST)
+{
+  skip Please set 'USE_GEOMETRY_TEST=1' if you want to test for geometry;
+}
+
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+
+--echo
+--echo drop and create databases
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+SELECT 1;
+
+--echo
+--echo create table and insert
+--disable_warnings
+DROP TABLE IF EXISTS gm_l;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE gm_l (
+  a INT DEFAULT 0,
+  b GEOMETRY NOT NULL,
+  c GEOMETRY NOT NULL,
+  PRIMARY KEY(a),
+  SPATIAL INDEX sp_idx1(b),
+  SPATIAL INDEX sp_idx2(c)
+) ENGINE=MyISAM MASTER_1_CHARSET MASTER_1_COMMENT_GM_2_1;
+eval CREATE TABLE gm_l (
+  a INT DEFAULT 0,
+  b GEOMETRY NOT NULL,
+  c GEOMETRY NOT NULL,
+  PRIMARY KEY(a),
+  SPATIAL INDEX sp_idx1(b),
+  SPATIAL INDEX sp_idx2(c)
+) ENGINE=MyISAM $MASTER_1_CHARSET $MASTER_1_COMMENT_GM_2_1;
+--enable_query_log
+INSERT INTO gm_l (a,b,c) VALUES
+( 1, GeomFromText('Point(30000 15000)'), GeomFromText('Point(80000 15000)')),
+( 2, GeomFromText('Point(30000 16000)'), GeomFromText('Point(80000 16000)')),
+( 3, GeomFromText('Point(40000 15000)'), GeomFromText('Point(70000 15000)')),
+( 4, GeomFromText('Point(40000 16000)'), GeomFromText('Point(70000 16000)')),
+( 5, GeomFromText('Point(50000 15000)'), GeomFromText('Point(60000 15000)')),
+( 6, GeomFromText('Point(50000 16000)'), GeomFromText('Point(60000 16000)')),
+( 7, GeomFromText('Point(60000 15000)'), GeomFromText('Point(50000 15000)')),
+( 8, GeomFromText('Point(60000 16000)'), GeomFromText('Point(50000 16000)')),
+( 9, GeomFromText('Point(70000 15000)'), GeomFromText('Point(40000 15000)')),
+(10, GeomFromText('Point(70000 16000)'), GeomFromText('Point(40000 16000)')),
+(11, GeomFromText('Point(80000 15000)'), GeomFromText('Point(30000 15000)')),
+(12, GeomFromText('Point(80000 16000)'), GeomFromText('Point(30000 16000)'));
+
+--echo
+--echo geometry search
+SELECT AsText(b) FROM gm_l WHERE MBRContains(GeomFromText('Polygon((40000 15000,41000 15000,41000 16000,40000 16000,40000 15000))'),b);
+SELECT AsText(c) FROM gm_l WHERE MBRContains(GeomFromText('Point(40000 15000)'),c);
+SELECT AsText(c) FROM gm_l WHERE MBRWithin(GeomFromText('Point(40000 15000)'),b);
+SELECT AsText(c) FROM gm_l WHERE MBRDisjoint(GeomFromText('Point(40000 15000)'),b);
+SELECT AsText(c) FROM gm_l WHERE MBREqual(GeomFromText('Point(40000 15000)'),b);
+SELECT AsText(c) FROM gm_l WHERE MBRIntersects(GeomFromText('Point(40000 15000)'),b);
+SELECT AsText(c) FROM gm_l WHERE MBROverlaps(GeomFromText('Point(40000 15000)'),b);
+SELECT AsText(c) FROM gm_l WHERE MBRTouches(GeomFromText('Point(40000 15000)'),b);
+
+--echo
+--echo deinit
+--disable_warnings
+DROP DATABASE IF EXISTS auto_test_local;
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+--echo
+--echo end of test

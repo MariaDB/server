@@ -1,0 +1,70 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+
+create table and insert
+connection master_1;
+DROP TABLE IF EXISTS ft_l;
+CREATE TABLE ft_l (
+a INT DEFAULT 0,
+b TEXT,
+c TEXT,
+d TEXT,
+PRIMARY KEY(a),
+FULLTEXT INDEX ft_idx1(b),
+FULLTEXT INDEX ft_idx2(c)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_FT_2_1
+INSERT INTO ft_l (a,b,c,d) VALUES
+(1,'aaaa abcd dcba','bbbb bcde edcb','cccc cdef fedc'),
+(2,'bbbb bcde edcb','cccc cdef fedc','dddd defg gfed'),
+(3,'cccc cdef fedc','dddd defg gfed','eeee efgh hgfe'),
+(4,'dddd defg gfed','eeee efgh hgfe','ffff fghi ihgf'),
+(5,'eeee efgh hgfe','ffff fghi ihgf','gggg ghij jihg');
+
+fulltext search
+connection master_1;
+select a, b, c, d from ft_l where match(b) against('fedc');
+a	b	c	d
+3	cccc cdef fedc	dddd defg gfed	eeee efgh hgfe
+select a, b, c, d from ft_l where match(c) against('hgfe');
+a	b	c	d
+4	dddd defg gfed	eeee efgh hgfe	ffff fghi ihgf
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

@@ -1,0 +1,103 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+
+create table and insert
+connection master_1;
+DROP TABLE IF EXISTS gm_l;
+CREATE TABLE gm_l (
+a INT DEFAULT 0,
+b GEOMETRY NOT NULL,
+c GEOMETRY NOT NULL,
+PRIMARY KEY(a),
+SPATIAL INDEX sp_idx1(b),
+SPATIAL INDEX sp_idx2(c)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_GM_2_1
+INSERT INTO gm_l (a,b,c) VALUES
+( 1, GeomFromText('Point(30000 15000)'), GeomFromText('Point(80000 15000)')),
+( 2, GeomFromText('Point(30000 16000)'), GeomFromText('Point(80000 16000)')),
+( 3, GeomFromText('Point(40000 15000)'), GeomFromText('Point(70000 15000)')),
+( 4, GeomFromText('Point(40000 16000)'), GeomFromText('Point(70000 16000)')),
+( 5, GeomFromText('Point(50000 15000)'), GeomFromText('Point(60000 15000)')),
+( 6, GeomFromText('Point(50000 16000)'), GeomFromText('Point(60000 16000)')),
+( 7, GeomFromText('Point(60000 15000)'), GeomFromText('Point(50000 15000)')),
+( 8, GeomFromText('Point(60000 16000)'), GeomFromText('Point(50000 16000)')),
+( 9, GeomFromText('Point(70000 15000)'), GeomFromText('Point(40000 15000)')),
+(10, GeomFromText('Point(70000 16000)'), GeomFromText('Point(40000 16000)')),
+(11, GeomFromText('Point(80000 15000)'), GeomFromText('Point(30000 15000)')),
+(12, GeomFromText('Point(80000 16000)'), GeomFromText('Point(30000 16000)'));
+
+geometry search
+connection master_1;
+SELECT AsText(b) FROM gm_l WHERE MBRContains(GeomFromText('Polygon((40000 15000,41000 15000,41000 16000,40000 16000,40000 15000))'),b);
+AsText(b)
+POINT(40000 15000)
+POINT(40000 16000)
+SELECT AsText(c) FROM gm_l WHERE MBRContains(GeomFromText('Point(40000 15000)'),c);
+AsText(c)
+POINT(40000 15000)
+SELECT AsText(c) FROM gm_l WHERE MBRWithin(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(70000 15000)
+SELECT AsText(c) FROM gm_l WHERE MBRDisjoint(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(80000 15000)
+POINT(80000 16000)
+POINT(70000 16000)
+POINT(60000 15000)
+POINT(60000 16000)
+POINT(50000 15000)
+POINT(50000 16000)
+POINT(40000 15000)
+POINT(40000 16000)
+POINT(30000 15000)
+POINT(30000 16000)
+SELECT AsText(c) FROM gm_l WHERE MBREqual(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(70000 15000)
+SELECT AsText(c) FROM gm_l WHERE MBRIntersects(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(70000 15000)
+SELECT AsText(c) FROM gm_l WHERE MBROverlaps(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+SELECT AsText(c) FROM gm_l WHERE MBRTouches(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

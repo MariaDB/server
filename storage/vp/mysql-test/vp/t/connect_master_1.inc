@@ -1,0 +1,1 @@
+--connect (master_1, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK)

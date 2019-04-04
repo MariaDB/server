@@ -1,0 +1,195 @@
+# This test tests for fulltext searching
+if (!$USE_FULLTEXT_TEST)
+{
+  skip Please set 'USE_FULLTEXT_TEST=1' if you want to test for fulltext searching;
+}
+
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+if (!$HAVE_PARTITION)
+{
+  --disable_query_log
+  --disable_result_log
+  --source test_deinit.inc
+  --enable_result_log
+  --enable_query_log
+  --enable_warnings
+  skip Test requires partitioning;
+}
+
+--echo
+--echo drop and create databases
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  CREATE DATABASE auto_test_remote;
+  USE auto_test_remote;
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+  CREATE DATABASE auto_test_remote2;
+  USE auto_test_remote2;
+}
+--enable_warnings
+
+--echo
+--echo test select 1
+--connection master_1
+SELECT 1;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  SELECT 1;
+  --connection child2_2
+  SELECT 1;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo with partition test
+if ($HAVE_PARTITION)
+{
+  if ($USE_CHILD_GROUP2)
+  {
+    if (!$OUTPUT_CHILD_GROUP2)
+    {
+      --disable_query_log
+      --disable_result_log
+    }
+    --connection child2_2
+    if ($OUTPUT_CHILD_GROUP2)
+    {
+      --disable_query_log
+      echo CHILD2_2_DROP_FT_TABLES;
+      echo CHILD2_2_CREATE_FT_TABLES;
+    }
+    --disable_warnings
+    eval $CHILD2_2_DROP_FT_TABLES;
+    --enable_warnings
+    eval $CHILD2_2_CREATE_FT_TABLES;
+    if ($OUTPUT_CHILD_GROUP2)
+    {
+      --enable_query_log
+    }
+    if ($USE_GENERAL_LOG)
+    {
+      TRUNCATE TABLE mysql.general_log;
+    }
+    --connection child2_1
+    if ($OUTPUT_CHILD_GROUP2)
+    {
+      --disable_query_log
+      echo CHILD2_1_DROP_FT_TABLES2;
+      echo CHILD2_1_CREATE_FT_TABLES2;
+    }
+    --disable_warnings
+    eval $CHILD2_1_DROP_FT_TABLES2;
+    --enable_warnings
+    eval $CHILD2_1_CREATE_FT_TABLES2;
+    if ($OUTPUT_CHILD_GROUP2)
+    {
+      --enable_query_log
+    }
+    if ($USE_GENERAL_LOG)
+    {
+      TRUNCATE TABLE mysql.general_log;
+    }
+    if (!$OUTPUT_CHILD_GROUP2)
+    {
+      --enable_query_log
+      --enable_result_log
+    }
+  }
+  --connection master_1
+  --disable_query_log
+  echo CREATE TABLE ft_l2 (
+    a INT DEFAULT 0,
+    b TEXT,
+    c TEXT,
+    d TEXT,
+    PRIMARY KEY(a),
+    FULLTEXT INDEX ft_idx1(b),
+    FULLTEXT INDEX ft_idx2(c)
+  ) MASTER_1_ENGINE MASTER_1_COMMENT2_FT_P_2_1;
+  eval CREATE TABLE ft_l2 (
+    a INT DEFAULT 0,
+    b TEXT,
+    c TEXT,
+    d TEXT,
+    PRIMARY KEY(a),
+    FULLTEXT INDEX ft_idx1(b),
+    FULLTEXT INDEX ft_idx2(c)
+  ) $MASTER_1_ENGINE $MASTER_1_COMMENT2_FT_P_2_1;
+  INSERT INTO ft_l2 (a,b,c,d) VALUES
+  (1,'aaaa abcd dcba','bbbb bcde edcb','cccc cdef fedc'),
+  (2,'bbbb bcde edcb','cccc cdef fedc','dddd defg gfed'),
+  (3,'cccc cdef fedc','dddd defg gfed','eeee efgh hgfe'),
+  (4,'dddd defg gfed','eeee efgh hgfe','ffff fghi ihgf'),
+  (5,'eeee efgh hgfe','ffff fghi ihgf','gggg ghij jihg');
+  --enable_query_log
+  select a, b, c, d from ft_l2 where match(b) against('fedc');
+  select a, b, c, d from ft_l2 where match(c) against('hgfe');
+  if ($USE_CHILD_GROUP2)
+  {
+    if (!$OUTPUT_CHILD_GROUP2)
+    {
+      --disable_query_log
+      --disable_result_log
+    }
+    --connection child2_2
+    if ($USE_GENERAL_LOG)
+    {
+      SELECT argument FROM mysql.general_log WHERE argument LIKE '%handler %';
+    }
+    eval $CHILD2_2_SELECT_FT_TABLES;
+    --connection child2_1
+    if ($USE_GENERAL_LOG)
+    {
+      SELECT argument FROM mysql.general_log WHERE argument LIKE '%handler %';
+    }
+    eval $CHILD2_1_SELECT_FT_TABLES2;
+    if (!$OUTPUT_CHILD_GROUP2)
+    {
+      --enable_query_log
+      --enable_result_log
+    }
+  }
+}
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+}
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+--echo
+--echo end of test

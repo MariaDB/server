@@ -1,0 +1,141 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+
+drop and create databases
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+SELECT 1;
+1
+1
+CREATE TEMPORARY TABLE tmp_hs (
+a INT,
+b CHAR(1),
+c DATETIME,
+d INT,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE2 MASTER_1_CHARSET MASTER_1_HS_COMMENT_TMP
+
+handler with partition test
+CREATE TABLE hs_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+d INT,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_HS_COMMENT_P_2_1
+SELECT spider_direct_sql('P\t1\tauto_test_local\ths_l2\tPRIMARY\ta,b,c,d','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t+\t4\t1\ta\t2008-08-01 10:21:39\t101','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('P\t1\tauto_test_local\ths_l2\tPRIMARY\ta,b,c,d','','host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+SELECT spider_direct_sql('1\t+\t4\t1\ta\t2008-08-01 10:21:39\t101','','host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+SELECT spider_direct_sql('1\t+\t4\t2\tb\t2000-01-01 00:00:00\t102\n1\t+\t4\t3\te\t2007-06-04 20:03:11\t103\n1\t+\t4\t4\td\t2003-11-30 05:01:03\t104\n1\t+\t4\t5\tc\t2001-12-31 23:59:59\t105','','host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+
+handlersocket select test
+TRUNCATE tmp_hs;
+SELECT spider_direct_sql('P\t1\tauto_test_local\ths_l2\tPRIMARY\ta,b,c,d','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t2\t100000\t0','tmp_hs', 'host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0','tmp_hs', 'host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s'), d FROM tmp_hs ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')	d
+2	b	2000-01-01 00:00:00	102
+3	e	2007-06-04 20:03:11	103
+
+handlersocket update test
+SELECT spider_direct_sql('P\t1\tauto_test_local\ths_l2\tPRIMARY\ta,b,c,d','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\tU\t3\tq\t2011-09-06 19:40:00\t4','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\tU\t3\tq\t2011-09-06 19:40:00\t4','','host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	0
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s'), d FROM hs_l2 ORDER BY a LOCK IN SHARE MODE;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')	d
+1	a	2008-08-01 10:21:39	101
+2	b	2000-01-01 00:00:00	102
+3	q	2011-09-06 19:40:00	4
+4	d	2003-11-30 05:01:03	104
+5	c	2001-12-31 23:59:59	105
+
+handlersocket increment test
+SELECT spider_direct_sql('P\t1\tauto_test_local\ths_l2\tPRIMARY\ta,b,c,d','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\t+\t0\t0\t0\t51','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\t+\t0\t0\t0\t51','','host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	0
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s'), d FROM hs_l2 ORDER BY a LOCK IN SHARE MODE;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')	d
+1	a	2008-08-01 10:21:39	101
+2	b	2000-01-01 00:00:00	102
+3	q	2011-09-06 19:40:00	55
+4	d	2003-11-30 05:01:03	104
+5	c	2001-12-31 23:59:59	105
+
+handlersocket decrement test
+SELECT spider_direct_sql('P\t1\tauto_test_local\ths_l2\tPRIMARY\ta,b,c,d','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\t-\t0\t0\t0\t32','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\t-\t0\t0\t0\t32','','host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	0
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s'), d FROM hs_l2 ORDER BY a LOCK IN SHARE MODE;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')	d
+1	a	2008-08-01 10:21:39	101
+2	b	2000-01-01 00:00:00	102
+3	q	2011-09-06 19:40:00	23
+4	d	2003-11-30 05:01:03	104
+5	c	2001-12-31 23:59:59	105
+
+handlersocket delete test
+SELECT spider_direct_sql('P\t1\tauto_test_local\ths_l2\tPRIMARY\ta,b,c,d','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\tD','','host "localhost", port "MASTER_1_HSRPORT", access_mode "1"')
+SELECT spider_direct_sql('1\t=\t1\t3\t100000\t0\tD','','host "localhost", port "MASTER_1_HSWPORT", access_mode "2"')
+SHOW STATUS LIKE 'Spider_direct_delete';
+Variable_name	Value
+Spider_direct_delete	0
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s'), d FROM hs_l2 ORDER BY a LOCK IN SHARE MODE;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')	d
+1	a	2008-08-01 10:21:39	101
+2	b	2000-01-01 00:00:00	102
+4	d	2003-11-30 05:01:03	104
+5	c	2001-12-31 23:59:59	105
+
+deinit
+DROP DATABASE IF EXISTS auto_test_local;
+DROP DATABASE IF EXISTS auto_test_remote;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

@@ -1,0 +1,6 @@
+LIBRARY		ha_vp
+VERSION		1.0
+EXPORTS
+  vp_copy_tables
+  vp_copy_tables_init
+  vp_copy_tables_deinit

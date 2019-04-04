@@ -1,0 +1,92 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+
+with partition test
+connection master_1;
+CREATE TABLE gm_l2 (
+a INT DEFAULT 0,
+b GEOMETRY NOT NULL,
+c GEOMETRY NOT NULL,
+PRIMARY KEY(a),
+SPATIAL INDEX sp_idx1(b),
+SPATIAL INDEX sp_idx2(c)
+) MASTER_1_ENGINE MASTER_1_COMMENT2_GM_P_2_1
+SELECT AsText(b) FROM gm_l2 WHERE MBRContains(GeomFromText('Polygon((40000 15000,41000 15000,41000 16000,40000 16000,40000 15000))'),b);
+AsText(b)
+POINT(40000 15000)
+POINT(40000 16000)
+SELECT AsText(c) FROM gm_l2 WHERE MBRContains(GeomFromText('Point(40000 15000)'),c);
+AsText(c)
+POINT(40000 15000)
+SELECT AsText(c) FROM gm_l2 WHERE MBRWithin(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(70000 15000)
+SELECT AsText(c) FROM gm_l2 WHERE MBRDisjoint(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(80000 15000)
+POINT(80000 16000)
+POINT(70000 16000)
+POINT(60000 15000)
+POINT(60000 16000)
+POINT(50000 15000)
+POINT(50000 16000)
+POINT(40000 15000)
+POINT(40000 16000)
+POINT(30000 15000)
+POINT(30000 16000)
+SELECT AsText(c) FROM gm_l2 WHERE MBREqual(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(70000 15000)
+SELECT AsText(c) FROM gm_l2 WHERE MBRIntersects(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+POINT(70000 15000)
+SELECT AsText(c) FROM gm_l2 WHERE MBROverlaps(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+SELECT AsText(c) FROM gm_l2 WHERE MBRTouches(GeomFromText('Point(40000 15000)'),b);
+AsText(c)
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

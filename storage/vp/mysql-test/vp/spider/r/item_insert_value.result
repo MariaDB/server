@@ -1,0 +1,107 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote1;
+CREATE DATABASE auto_test_remote1;
+DROP DATABASE IF EXISTS auto_test_remote10;
+CREATE DATABASE auto_test_remote10;
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE `tbl_1` (
+`id` bigint(20) NOT NULL,
+`id_2` bigint(20) NOT NULL,
+`id_3` bigint(20) NOT NULL,
+`id_4` bigint(20) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "tbl_a", database "auto_test_remote1"';
+CREATE TABLE `tbl_4` (
+`id` bigint(20) NOT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "tbl_a", database "auto_test_remote10"';
+
+drop and create databases
+connection master_1;
+set @save_spider_direct_dup_insert= @@spider_direct_dup_insert;
+set spider_direct_dup_insert= 1;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+connection child2_1;
+SELECT 1;
+1
+1
+
+create table
+connection child2_1;
+CHILD2_1_DROP_TABLES
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+DROP TABLE IF EXISTS tbl_a;
+CREATE TABLE `tbl_a` (
+`id` bigint(20) NOT NULL,
+`id_2` bigint(20) NOT NULL,
+`id_3` bigint(20) NOT NULL,
+`id_4` bigint(20) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) MASTER_1_ENGINE VP_CHARSET MASTER_1_COMMENT_2_1
+
+insert test
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+insert into tbl_a (id, id_2, id_3, id_4) VALUES (1, 2, 3, 4), (2, 3, 4, 5);
+insert into tbl_a (id, id_2, id_3, id_4) VALUES (1, 3, 4, 5), (2, 4, 5, 6) ON DUPLICATE KEY UPDATE id_4 = VALUES(id_4);
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+argument
+insert into `auto_test_remote1`.`tbl_a`(`id`,`id_2`,`id_3`,`id_4`)values(1,2,3,4),(2,3,4,5)
+insert into `auto_test_remote10`.`tbl_a`(`id`)values(1),(2)
+insert high_priority into `auto_test_remote1`.`tbl_a`(`id`,`id_2`,`id_3`,`id_4`)values(1,3,4,5),(2,4,5,6) on duplicate key update `id_4` = values(`id_4`)
+insert high_priority ignore into `auto_test_remote10`.`tbl_a`(`id`)values(1),(2)
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %'
+SELECT id FROM `auto_test_remote1`.`tbl_a` ORDER BY id ;
+SELECT id FROM `auto_test_remote10`.`tbl_a` ORDER BY id;
+id
+1
+2
+id
+1
+2
+
+deinit
+connection master_1;
+set spider_direct_dup_insert= @save_spider_direct_dup_insert;
+connection child2_1;
+SET GLOBAL log_output = @old_log_output;
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote1;
+DROP DATABASE IF EXISTS auto_test_remote10;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

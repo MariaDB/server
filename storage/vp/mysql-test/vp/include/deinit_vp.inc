@@ -1,0 +1,2 @@
+DROP FUNCTION vp_copy_tables;
+UNINSTALL PLUGIN vp;
