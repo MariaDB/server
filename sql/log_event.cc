@@ -9349,7 +9349,7 @@ int XA_prepare_log_event::record_gtid(const rpl_gtid *gtid, uint64 sub_id,
 {
   int err;
   xa_states c_state= thd->transaction.xid_state.xa_state;
-  thd->transaction.xid_state.xa_state= XA_ACTIVE;
+  thd->transaction.xid_state.xa_state= XA_ACTIVE; // todo: test mysql one_phase
   err= rpl_global_gtid_slave_state->record_gtid(thd, gtid, sub_id, true,
                                                 false, out_hton);
   thd->transaction.xid_state.xa_state= c_state;
