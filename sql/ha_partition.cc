@@ -10997,14 +10997,15 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
 TABLE_LIST *ha_partition::get_next_global_for_child()
 {
   handler **file;
+  TABLE_LIST *tables= NULL;
   DBUG_ENTER("ha_partition::get_next_global_for_child");
   for (file= m_file; *file; file++)
   {
     TABLE_LIST *table_list;
     if ((table_list= (*file)->get_next_global_for_child()))
-      DBUG_RETURN(table_list);
+      tables= table_list;
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(tables);
 }
 
 
