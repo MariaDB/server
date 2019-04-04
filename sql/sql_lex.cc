@@ -2381,6 +2381,7 @@ void st_select_lex::init_query()
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
   parsing_place= NO_MATTER;
+  save_parsing_place= NO_MATTER;
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
   nest_level= 0;
   link_next= 0;

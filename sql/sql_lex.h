@@ -1165,6 +1165,7 @@ public:
   */
   uint hidden_bit_fields;
   enum_parsing_place parsing_place; /* where we are parsing expression */
+  enum_parsing_place save_parsing_place;
   enum_parsing_place context_analysis_place; /* where we are in prepare */
   bool with_sum_func;   /* sum function indicator */
 

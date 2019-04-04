@@ -12052,6 +12052,8 @@ use_partition:
           PARTITION_SYM '(' using_list ')' have_partitioning
           {
             $$= $3;
+            Select->parsing_place= Select->save_parsing_place;
+            Select->save_parsing_place= NO_MATTER;
           }
         ;
 
@@ -13347,13 +13349,17 @@ insert2:
         ;
 
 insert_table:
+          {
+            Select->save_parsing_place= Select->parsing_place;
+          }
           table_name_with_opt_use_partition
           {
             LEX *lex=Lex;
             //lex->field_list.empty();
             lex->many_values.empty();
             lex->insert_list=0;
-          };
+          }
+        ;
 
 insert_field_spec:
           insert_values {}
