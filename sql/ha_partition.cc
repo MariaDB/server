@@ -3492,6 +3492,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
 
   DBUG_ASSERT(table->s == table_share);
   ref_length= 0;
+  m_ref_buf= NULL;
+  m_ref_buf_length= 0;
   m_mode= mode;
   m_open_test_lock= test_if_locked;
   m_part_field_array= m_part_info->full_part_field_array;
@@ -3837,6 +3839,11 @@ int ha_partition::close(void)
     my_free(m_mrr_full_buffer);
     m_mrr_full_buffer= NULL;
     m_mrr_full_buffer_size= 0;
+  }
+  if (m_ref_buf)
+  {
+    my_free(m_ref_buf);
+    m_ref_buf= NULL;
   }
   file= m_file;
 
@@ -8940,13 +8947,29 @@ int ha_partition::extra(enum ha_extra_function operation)
 
     /* Recalculate lock count as each child may have different set of locks */
     num_locks= 0;
+    ref_length= 0;
     file= m_file;
     do
     {
       num_locks+= (*file)->lock_count();
+      set_if_bigger(ref_length, ((*file)->ref_length));
     } while (*(++file));
 
     m_num_locks= num_locks;
+    ref_length+= PARTITION_BYTES_IN_POS;
+    m_ref_length= ref_length;
+    if (m_ref_length > m_ref_buf_length)
+    {
+      if (m_ref_buf)
+        my_free(m_ref_buf);
+      if (!(m_ref_buf=
+        (uchar*) my_malloc(ALIGN_SIZE(m_ref_length) * 2, MYF(MY_WME))))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      m_ref_buf_length= m_ref_length;
+    }
+    ref= m_ref_buf;
+    dup_ref= ref + ALIGN_SIZE(m_ref_length);
+    DBUG_PRINT("info", ("partition ref_length: %u", ref_length));
     break;
   }
   case HA_EXTRA_IS_ATTACHED_CHILDREN:

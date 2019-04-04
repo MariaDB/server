@@ -389,6 +389,9 @@ private:
   /** This is one of the m_file-s that it guaranteed to be opened. */
   /**  It is set in open_read_partitions() */
   handler *m_file_sample;
+
+  uchar *m_ref_buf;
+  uint m_ref_buf_length;
 public:
   handler **get_child_handlers()
   {
