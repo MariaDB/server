@@ -1466,6 +1466,7 @@ public:
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);
     virtual TABLE_LIST *get_next_global_for_child();
+    virtual void check_and_set_bitmap_for_update(bool rnd);
 
   /*
     -------------------------------------------------------------------------
