@@ -3344,6 +3344,30 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
         goto end;
     }
   }
+
+  if (!tables->derived &&
+      is_infoschema_db(tables->db, tables->db_length))
+  {
+    /*
+      Check whether the information schema contains a table
+      whose name is tables->schema_table_name
+    */
+    ST_SCHEMA_TABLE *schema_table;
+    schema_table= find_schema_table(thd, tables->schema_table_name);
+    if (!schema_table ||
+        (schema_table->hidden &&
+         ((sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0 ||
+          /*
+            this check is used for show columns|keys from I_S hidden table
+          */
+          lex->sql_command == SQLCOM_SHOW_FIELDS ||
+          lex->sql_command == SQLCOM_SHOW_KEYS)))
+    {
+      my_error(ER_UNKNOWN_TABLE, MYF(0),
+               tables->schema_table_name, INFORMATION_SCHEMA_NAME.str);
+      DBUG_RETURN(1);
+    }
+  }
   /*
     If this TABLE_LIST object is a placeholder for an information_schema
     table, create a temporary table to represent the information_schema

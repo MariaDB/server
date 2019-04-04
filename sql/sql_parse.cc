@@ -8222,7 +8222,6 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   ptr->derived=	    table->sel;
   if (!ptr->derived && is_infoschema_db(ptr->db, ptr->db_length))
   {
-    ST_SCHEMA_TABLE *schema_table;
     if (ptr->updating &&
         /* Special cases which are processed by commands itself */
         lex->sql_command != SQLCOM_CHECK &&
@@ -8234,20 +8233,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                INFORMATION_SCHEMA_NAME.str);
       DBUG_RETURN(0);
     }
+    ST_SCHEMA_TABLE *schema_table;
     schema_table= find_schema_table(thd, ptr->table_name);
-    if (!schema_table ||
-        (schema_table->hidden && 
-         ((sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0 || 
-          /*
-            this check is used for show columns|keys from I_S hidden table
-          */
-          lex->sql_command == SQLCOM_SHOW_FIELDS ||
-          lex->sql_command == SQLCOM_SHOW_KEYS)))
-    {
-      my_error(ER_UNKNOWN_TABLE, MYF(0),
-               ptr->table_name, INFORMATION_SCHEMA_NAME.str);
-      DBUG_RETURN(0);
-    }
     ptr->schema_table_name= ptr->table_name;
     ptr->schema_table= schema_table;
   }
