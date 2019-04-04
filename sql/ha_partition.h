@@ -414,6 +414,8 @@ public:
   }
 
   virtual void return_record_by_parent();
+  virtual Field **get_full_part_fields();
+  virtual int choose_partition_from_column_value(uchar *buf);
 
   virtual bool vers_can_native(THD *thd)
   {

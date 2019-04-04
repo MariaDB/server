@@ -7726,6 +7726,29 @@ void ha_partition::return_record_by_parent()
 }
 
 
+Field **ha_partition::get_full_part_fields()
+{
+  DBUG_ENTER("ha_partition::get_full_part_fields");
+  DBUG_RETURN(m_part_info->full_part_field_array);
+}
+
+
+int ha_partition::choose_partition_from_column_value(uchar *buf)
+{
+  int error;
+  uint32 part_id;
+  DBUG_ENTER("ha_partition::choose_partition_from_column_value");
+
+  if ((error = get_part_for_buf(buf, m_rec0, m_part_info, &part_id)))
+    DBUG_RETURN(error);
+
+  DBUG_PRINT("info",("partition choose patition: %u", part_id));
+  bitmap_clear_all(&(m_part_info->read_partitions));
+  bitmap_set_bit(&(m_part_info->read_partitions), part_id);
+  DBUG_RETURN(0);
+}
+
+
 /**
   Add index_next/prev from partitions without exact match.
 

@@ -3912,6 +3912,8 @@ public:
   }
   virtual void set_part_info(partition_info *part_info) {return;}
   virtual void return_record_by_parent() { return; }
+  virtual Field **get_full_part_fields() { return NULL; }
+  virtual int choose_partition_from_column_value(uchar *buf) { return 0; }
 
   virtual ulong index_flags(uint idx, uint part, bool all_parts) const =0;
 
