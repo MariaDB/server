@@ -9070,7 +9070,7 @@ int ha_partition::extra(enum ha_extra_function operation)
     break;
   }
   }
-  DBUG_RETURN(1);
+  DBUG_RETURN(0);
 }
 
 
