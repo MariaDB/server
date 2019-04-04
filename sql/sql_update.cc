@@ -1305,6 +1305,9 @@ int mysql_multi_update_prepare(THD *thd)
         If table will be updated we should not downgrade lock for it and
         leave it as is.
       */
+      tl->updating= 1;
+      if (tl->belong_to_view)
+        tl->belong_to_view->updating= 1;
     }
     else
     {
@@ -1323,7 +1326,6 @@ int mysql_multi_update_prepare(THD *thd)
         tl->lock_type= read_lock_type_for_table(thd, lex, tl);
       else
         tl->set_lock_type(thd, read_lock_type_for_table(thd, lex, tl));
-      tl->updating= 0;
     }
   }
   for (tl= table_list; tl; tl= tl->next_local)

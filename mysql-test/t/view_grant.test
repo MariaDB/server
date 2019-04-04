@@ -240,12 +240,15 @@ create table mysqltest.t1 (a int, b int, primary key(a));
 insert into mysqltest.t1 values (10,2), (20,3), (30,4), (40,5), (50,10);
 create table mysqltest.t2 (x int);
 insert into mysqltest.t2 values (3), (4), (5), (6);
+create table mysqltest.t3 (x int);
+insert into mysqltest.t3 values (3), (4), (5), (6);
 create view mysqltest.v1 (a,c) as select a, b+1 from mysqltest.t1;
 create view mysqltest.v2 (a,c) as select a, b from mysqltest.t1;
 create view mysqltest.v3 (a,c) as select a, b+1 from mysqltest.t1;
 
 grant update (a) on mysqltest.v2 to mysqltest_1@localhost;
 grant update on mysqltest.v1 to mysqltest_1@localhost;
+grant update on mysqltest.t3 to mysqltest_1@localhost;
 grant select on mysqltest.* to mysqltest_1@localhost;
 
 connection user1;
@@ -260,6 +263,8 @@ update t2,v2 set v2.a=v2.a+v2.c where t2.x=v2.c;
 select * from t1;
 update v2 set a=a+c;
 select * from t1;
+# update a table, select only on view
+update t3,v3 set t3.x=t3.x+v3.c where t3.x=v3.c;
 # no rights on column
 --error ER_COLUMNACCESS_DENIED_ERROR
 update t2,v2 set v2.c=v2.a+v2.c where t2.x=v2.c;

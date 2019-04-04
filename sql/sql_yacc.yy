@@ -7676,14 +7676,14 @@ select_lock_type:
         | FOR_SYM UPDATE_SYM
           {
             LEX *lex=Lex;
-            lex->current_select->set_lock_for_tables(TL_WRITE);
+            lex->current_select->set_lock_for_tables(TL_WRITE, false);
             lex->safe_to_cache_query=0;
           }
         | LOCK_SYM IN_SYM SHARE_SYM MODE_SYM
           {
             LEX *lex=Lex;
             lex->current_select->
-              set_lock_for_tables(TL_READ_WITH_SHARED_LOCKS);
+              set_lock_for_tables(TL_READ_WITH_SHARED_LOCKS, false);
             lex->safe_to_cache_query=0;
           }
         ;
@@ -10966,7 +10966,7 @@ insert:
           insert_lock_option
           opt_ignore insert2
           {
-            Select->set_lock_for_tables($3);
+            Select->set_lock_for_tables($3, true);
             Lex->current_select= &Lex->select_lex;
           }
           insert_field_spec opt_insert_update
@@ -10983,7 +10983,7 @@ replace:
           }
           replace_lock_option insert2
           {
-            Select->set_lock_for_tables($3);
+            Select->set_lock_for_tables($3, true);
             Lex->current_select= &Lex->select_lex;
           }
           insert_field_spec
@@ -11174,7 +11174,7 @@ update:
               be too pessimistic. We will decrease lock level if possible in
               mysql_multi_update().
             */
-            slex->set_lock_for_tables($3);
+            slex->set_lock_for_tables($3, slex->table_list.elements == 1);
           }
           where_clause opt_order_clause delete_limit_clause {}
         ;
