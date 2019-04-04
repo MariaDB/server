@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -287,17 +287,6 @@ void
 row_unlock_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ibool		has_latches_on_recs);
-
-/*********************************************************************//**
-Checks if a table name contains the string "/#sql" which denotes temporary
-tables in MySQL.
-@return true if temporary table */
-bool
-row_is_mysql_tmp_table_name(
-/*========================*/
-	const char*	name) MY_ATTRIBUTE((warn_unused_result));
-				/*!< in: table name in the form
-				'database/tablename' */
 
 /*********************************************************************//**
 Creates an query graph node of 'update' type to be used in the MySQL

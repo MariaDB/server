@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -81,7 +81,7 @@ file_unreadable flag in the table object we return */
 static
 dict_table_t*
 dict_load_table_one(
-	table_name_t&		name,
+	const table_name_t&	name,
 	bool			cached,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables);
@@ -93,9 +93,8 @@ Do not load any columns or indexes.
 @param[out,own]	table		table, or NULL
 @return	error message
 @retval	NULL on success */
-static
-const char*
-dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
+static const char* dict_load_table_low(const table_name_t& name,
+				       const rec_t* rec, dict_table_t** table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
@@ -385,7 +384,6 @@ dict_process_sys_tables_rec_and_mtr_commit(
 {
 	ulint		len;
 	const char*	field;
-	table_name_t	table_name;
 
 	field = (const char*) rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
@@ -395,7 +393,7 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
 
 	/* Get the table name */
-	table_name.m_name = mem_heap_strdupl(heap, field, len);
+	table_name_t table_name(mem_heap_strdupl(heap, field, len));
 
 	if (cached) {
 		/* Commit before load the table again */
@@ -1339,14 +1337,9 @@ dict_sys_tables_rec_read(
 /** Load and check each non-predefined tablespace mentioned in SYS_TABLES.
 Search SYS_TABLES and check each tablespace mentioned that has not
 already been added to the fil_system.  If it is valid, add it to the
-file_system list.  Perform extra validation on the table if recovery from
-the REDO log occurred.
-@param[in]	validate	Whether to do validation on the table.
+file_system list.
 @return the highest space ID found. */
-UNIV_INLINE
-ulint
-dict_check_sys_tables(
-	bool		validate)
+static ulint dict_check_sys_tables()
 {
 	ulint		max_space_id = 0;
 	btr_pcur_t	pcur;
@@ -1374,7 +1367,6 @@ dict_check_sys_tables(
 	     rec = dict_getnext_system(&pcur, &mtr)) {
 		const byte*	field;
 		ulint		len;
-		table_name_t	table_name;
 		table_id_t	table_id;
 		ulint		space_id;
 		ulint		n_cols;
@@ -1390,7 +1382,8 @@ dict_check_sys_tables(
 		/* Copy the table name from rec */
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_TABLES__NAME, &len);
-		table_name.m_name = mem_strdupl((char*) field, len);
+
+		table_name_t table_name(mem_strdupl((char*) field, len));
 		DBUG_PRINT("dict_check_sys_tables",
 			   ("name: %p, '%s'", table_name.m_name,
 			    table_name.m_name));
@@ -1399,15 +1392,22 @@ dict_check_sys_tables(
 					      &table_id, &space_id,
 					      &n_cols, &flags, &flags2)
 		    || space_id == TRX_SYS_SPACE) {
+next:
 			ut_free(table_name.m_name);
 			continue;
+		}
+
+		if (strstr(table_name.m_name, "/" TEMP_FILE_PREFIX "-")) {
+			/* This table will be dropped by
+			row_mysql_drop_garbage_tables().
+			We do not care if the file exists. */
+			goto next;
 		}
 
 		if (flags2 & DICT_TF2_DISCARDED) {
 			ib::info() << "Ignoring tablespace for " << table_name
 				<< " because the DISCARD flag is set .";
-			ut_free(table_name.m_name);
-			continue;
+			goto next;
 		}
 
 		/* For tables or partitions using .ibd files, the flag
@@ -1446,7 +1446,7 @@ dict_check_sys_tables(
 
 		/* Check that the .ibd file exists. */
 		if (!fil_ibd_open(
-			    validate,
+			    false,
 			    !srv_read_only_mode && srv_log_file_size != 0,
 			    FIL_TYPE_TABLESPACE,
 			    space_id, dict_tf_to_fsp_flags(flags),
@@ -1478,11 +1478,8 @@ space_id information in the data dictionary to what we find in the
 tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
 
-We also scan the biggest space id, and store it to fil_system.
-@param[in]	validate	true if recovery was needed */
-void
-dict_check_tablespaces_and_store_max_id(
-	bool	validate)
+We also scan the biggest space id, and store it to fil_system. */
+void dict_check_tablespaces_and_store_max_id()
 {
 	mtr_t	mtr;
 
@@ -1503,7 +1500,7 @@ dict_check_tablespaces_and_store_max_id(
 	/* Open all tablespaces referenced in SYS_TABLES.
 	This will update SYS_TABLESPACES and SYS_DATAFILES if it
 	finds any file-per-table tablespaces not already there. */
-	max_space_id = dict_check_sys_tables(validate);
+	max_space_id = dict_check_sys_tables();
 	fil_set_max_space_id_if_bigger(max_space_id);
 
 	mutex_exit(&dict_sys->mutex);
@@ -2618,9 +2615,8 @@ Do not load any columns or indexes.
 @param[out,own]	table		table, or NULL
 @return	error message
 @retval	NULL on success */
-static
-const char*
-dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
+static const char* dict_load_table_low(const table_name_t& name,
+				       const rec_t* rec, dict_table_t** table)
 {
 	table_id_t	table_id;
 	ulint		space_id;
@@ -2750,32 +2746,22 @@ dict_load_table(
 	dict_names_t			fk_list;
 	dict_table_t*			result;
 	dict_names_t::iterator		i;
-	table_name_t			table_name;
 
 	DBUG_ENTER("dict_load_table");
 	DBUG_PRINT("dict_load_table", ("loading table: '%s'", name));
 
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	table_name.m_name = const_cast<char*>(name);
-
 	result = dict_table_check_if_in_cache_low(name);
 
 	if (!result) {
-		result = dict_load_table_one(table_name, cached, ignore_err,
-					     fk_list);
+		result = dict_load_table_one(const_cast<char*>(name),
+					     cached, ignore_err, fk_list);
 		while (!fk_list.empty()) {
-			table_name_t	fk_table_name;
-			dict_table_t*	fk_table;
-
-			fk_table_name.m_name =
-				const_cast<char*>(fk_list.front());
-			fk_table = dict_table_check_if_in_cache_low(
-				fk_table_name.m_name);
-			if (!fk_table) {
-				dict_load_table_one(fk_table_name, cached,
-						    ignore_err, fk_list);
-			}
+			if (!dict_table_check_if_in_cache_low(fk_list.front()))
+				dict_load_table_one(
+					const_cast<char*>(fk_list.front()),
+					cached, ignore_err, fk_list);
 			fk_list.pop_front();
 		}
 	}
@@ -2875,7 +2861,7 @@ file_unreadable flag in the table object we return */
 static
 dict_table_t*
 dict_load_table_one(
-	table_name_t&		name,
+	const table_name_t&	name,
 	bool			cached,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables)
@@ -3008,10 +2994,38 @@ err_exit:
 
 	if (err == DB_SUCCESS && cached && table->is_readable()) {
 		if (table->space && !fil_space_get_size(table->space_id)) {
+corrupted:
 			table->corrupted = true;
 			table->file_unreadable = true;
-		} else if (table->supports_instant()) {
-			err = btr_cur_instant_init(table);
+			err = DB_CORRUPTION;
+		} else {
+			const page_id_t page_id(
+				table->space->id,
+				dict_table_get_first_index(table)->page);
+			mtr.start();
+			buf_block_t* block = buf_page_get(
+				page_id,
+				dict_table_page_size(table),
+				RW_S_LATCH, &mtr);
+			const bool corrupted = !block
+				|| page_get_space_id(block->frame)
+				!= page_id.space()
+				|| page_get_page_no(block->frame)
+				!= page_id.page_no()
+				|| (mach_read_from_2(FIL_PAGE_TYPE
+						    + block->frame)
+				    != FIL_PAGE_INDEX
+				    && mach_read_from_2(FIL_PAGE_TYPE
+							+ block->frame)
+				    != FIL_PAGE_TYPE_INSTANT);
+			mtr.commit();
+			if (corrupted) {
+				goto corrupted;
+			}
+
+			if (table->supports_instant()) {
+				err = btr_cur_instant_init(table);
+			}
 		}
 	}
 

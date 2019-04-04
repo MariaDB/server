@@ -7,5 +7,3 @@ InnoDB		0 transactions not purged
 # xtrabackup backup
 FOUND 1 /Database page corruption detected.*/ in backup.log
 drop table t1;
-Warnings:
-Warning	192	Table test/t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id is not available.  Can't continue reading table.

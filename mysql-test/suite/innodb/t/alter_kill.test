@@ -18,6 +18,7 @@ call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and
 call mtr.add_suppression("InnoDB: Plugin initialization aborted*");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression("InnoDB: Table `test`\\.`bug16720368` is corrupted");
 -- enable_query_log
 
 -- echo #
@@ -50,6 +51,7 @@ open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 my $ps= $ENV{PAGE_SIZE};
 my $page;
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
 substr($page,4,4)=pack("N",0xc001cafe);
 my $polynomial = 0x82f63b78; # CRC-32C
@@ -57,7 +59,7 @@ my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
 		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
 substr($page,0,4)=$ck;
 substr($page,$ps-8,4)=$ck;
-sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
+sysseek(FILE, 3*$ps, 0) || die "Unable to rewind $file\n";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
@@ -65,40 +67,11 @@ EOF
 -- echo # Restart mysqld
 -- source include/start_mysqld.inc
 
--- echo # This will succeed after a clean shutdown, due to
--- echo # fil_open_single_table_tablespace(check_space_id=FALSE).
+--error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT COUNT(*) FROM bug16720368;
-
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+INSERT INTO bug16720368 VALUES(1);
 INSERT INTO bug16720368_1 VALUES(1);
-
---let $shutdown_timeout= 0
---source include/restart_mysqld.inc
-
--- echo # The table is unaccessible, because after a crash we will
--- echo # validate the tablespace header.
---error ER_NO_SUCH_TABLE_IN_ENGINE
-SELECT COUNT(*) FROM bug16720368;
---error ER_NO_SUCH_TABLE_IN_ENGINE
-INSERT INTO bug16720368 VALUES(0,1);
-
-let $restart_parameters = --innodb-force-recovery=3;
---let $shutdown_timeout= 0
---source include/restart_mysqld.inc
-
--- echo # The table is readable thanks to innodb-force-recovery.
-SELECT COUNT(*) FROM bug16720368;
-INSERT INTO bug16720368 VALUES(0,1);
-
--- echo # Shut down the server cleanly to hide the corruption.
-let $shutdown_timeout=;
-let $restart_parameters =;
--- source include/restart_mysqld.inc
-
--- echo # The table is accessible, because after a clean shutdown we will
--- echo # NOT validate the tablespace header.
--- echo # We can modify the existing pages, but we cannot allocate or free
--- echo # any pages, because that would hit the corruption on page 0.
-SELECT COUNT(*) FROM bug16720368;
 
 -- echo # Shut down the server to uncorrupt the data.
 -- source include/shutdown_mysqld.inc
@@ -111,19 +84,21 @@ open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 my $ps= $ENV{PAGE_SIZE};
 my $page;
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
-substr($page,4,4)=pack("N",0);
+substr($page,4,4)=pack("N",3);
 my $polynomial = 0x82f63b78; # CRC-32C
 my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
 		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
 substr($page,0,4)=$ck;
 substr($page,$ps-8,4)=$ck;
-sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
+sysseek(FILE, 3*$ps, 0) || die "Unable to rewind $file\n";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
 
 -- echo # Restart the server after uncorrupting the file.
+
 -- source include/start_mysqld.inc
 
 INSERT INTO bug16720368 VALUES(9,1);

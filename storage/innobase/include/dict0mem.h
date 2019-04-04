@@ -1504,6 +1504,13 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
+	/** Check if a table name contains the string "/#sql"
+	which denotes temporary or intermediate tables in MariaDB. */
+	static bool is_temporary_name(const char* name)
+	{
+		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
+	}
+
 	/** @return whether instant ADD COLUMN is in effect */
 	bool is_instant() const
 	{
@@ -1937,6 +1944,11 @@ public:
 inline void dict_index_t::set_modified(mtr_t& mtr) const
 {
 	mtr.set_named_space(table->space);
+}
+
+inline bool table_name_t::is_temporary() const
+{
+	return dict_table_t::is_temporary_name(m_name);
 }
 
 inline bool dict_index_t::is_readable() const { return table->is_readable(); }
