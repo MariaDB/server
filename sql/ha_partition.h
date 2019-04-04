@@ -1431,7 +1431,11 @@ public:
   */
     virtual const COND *cond_push(const COND *cond);
     virtual void cond_pop();
+    virtual int set_top_table_and_fields(TABLE *top_table,
+                                         Field **top_table_field,
+                                         uint top_table_fields);
     virtual void clear_top_table_fields();
+    virtual bool prune_partitions_for_child(THD *thd, Item *pprune_cond);
     virtual int info_push(uint info_type, void *info);
 
     private:

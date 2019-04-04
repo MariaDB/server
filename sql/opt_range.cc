@@ -3804,15 +3804,31 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
 {
   bool retval= FALSE;
   partition_info *part_info = table->part_info;
+  TABLE *base_table= table;
   DBUG_ENTER("prune_partitions");
+  DBUG_PRINT("info",("partition table: %p", table));
+  DBUG_PRINT("info",("partition table->file: %p", table->file));
 
   if (!part_info)
-    DBUG_RETURN(FALSE); /* not a partitioned table */
+  {
+    /* not a partitioned table */
+    retval= base_table->file->prune_partitions_for_child(thd, pprune_cond);
+    DBUG_RETURN(retval);
+  }
   
   if (!pprune_cond)
   {
     mark_all_partitions_as_used(part_info);
-    DBUG_RETURN(FALSE);
+    retval= base_table->file->prune_partitions_for_child(thd, pprune_cond);
+    DBUG_RETURN(retval);
+  }
+
+  /* get the oldest parent table */
+  while (table->pos_in_table_list->parent_l)
+  {
+    table= table->pos_in_table_list->parent_l->table;
+    DBUG_PRINT("info",("partition table: %p", table));
+    DBUG_PRINT("info",("partition table->file: %p", table->file));
   }
   
   PART_PRUNE_PARAM prune_param;
@@ -3831,7 +3847,8 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   {
     mark_all_partitions_as_used(part_info);
     free_root(&alloc,MYF(0));		// Return memory & allocator
-    DBUG_RETURN(FALSE);
+    retval= base_table->file->prune_partitions_for_child(thd, pprune_cond);
+    DBUG_RETURN(retval);
   }
 
   dbug_tmp_use_all_columns(table, old_sets, 
@@ -3861,19 +3878,28 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
 
   tree= pprune_cond->get_mm_tree(range_par, &pprune_cond);
   if (!tree)
+  {
+    DBUG_PRINT("info",("partition !tree"));
     goto all_used;
+  }
 
   if (tree->type == SEL_TREE::IMPOSSIBLE)
   {
+    DBUG_PRINT("info",("partition tree->type == SEL_TREE::IMPOSSIBLE"));
     retval= TRUE;
     goto end;
   }
 
   if (tree->type != SEL_TREE::KEY && tree->type != SEL_TREE::KEY_SMALLER)
+  {
+    DBUG_PRINT("info",("partition tree->type != SEL_TREE::KEY && tree->type !="
+                       " SEL_TREE::KEY_SMALLER"));
     goto all_used;
+  }
 
   if (tree->merges.is_empty())
   {
+    DBUG_PRINT("info",("partition tree->merges is empty"));
     /* Range analysis has produced a single list of intervals. */
     prune_param.arg_stack_end= prune_param.arg_stack;
     prune_param.cur_part_fields= 0;
@@ -3890,6 +3916,8 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   }
   else
   {
+    DBUG_PRINT("info",("partition tree->merges.elements: %u",
+      tree->merges.elements));
     if (tree->merges.elements == 1)
     {
       /* 
@@ -3963,6 +3991,8 @@ end:
     table->all_partitions_pruned_away= true;
     retval= TRUE;
   }
+  if (!retval)
+    retval= base_table->file->prune_partitions_for_child(thd, pprune_cond);
   DBUG_RETURN(retval);
 }
 
@@ -4661,6 +4691,7 @@ static bool fields_ok_for_partition_index(Field **pfield)
 
 static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
 {
+  DBUG_ENTER("create_partition_index_description");
   RANGE_OPT_PARAM *range_par= &(ppar->range_param);
   partition_info *part_info= ppar->part_info;
   uint used_part_fields, used_subpart_fields;
@@ -4703,14 +4734,14 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
                                                            total_parts)) ||
       !(ppar->is_subpart_keypart= (my_bool*)alloc_root(alloc, sizeof(my_bool)*
                                                            total_parts)))
-    return TRUE;
+    DBUG_RETURN(TRUE);
  
   if (ppar->subpart_fields)
   {
     my_bitmap_map *buf;
     uint32 bufsize= bitmap_buffer_size(ppar->part_info->num_subparts);
     if (!(buf= (my_bitmap_map*) alloc_root(alloc, bufsize)))
-      return TRUE;
+      DBUG_RETURN(TRUE);
     my_bitmap_init(&ppar->subparts_bitmap, buf, ppar->part_info->num_subparts,
                 FALSE);
   }
@@ -4731,6 +4762,8 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
                          key_part->length, key_part->store_length));
 
     key_part->field=        (*field);
+    DBUG_PRINT("info", ("key_part->field->field_name: %s",
+                         key_part->field->field_name.str));
     key_part->image_type =  Field::itRAW;
     /* 
       We set keypart flag to 0 here as the only HA_PART_KEY_SEG is checked
@@ -4759,12 +4792,12 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
   if (!(range_par->min_key= (uchar*)alloc_root(alloc,total_key_len)) ||
       !(range_par->max_key= (uchar*)alloc_root(alloc,total_key_len)))
   {
-    return true;
+    DBUG_RETURN(TRUE);
   }
 
   DBUG_EXECUTE("info", print_partitioning_index(range_par->key_parts,
                                                 range_par->key_parts_end););
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -8461,47 +8494,65 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
       (value_used_tables= value->used_tables()) &
       ~(param->prev_tables | param->read_tables))
     DBUG_RETURN(0);
-  for (; key_part != end ; key_part++)
+  handler *file= key_part->field->table->file;
+  DBUG_PRINT("info",("key_part->field->table->s->db: %s",
+    key_part->field->table->s->db.str));
+  DBUG_PRINT("info",("key_part->field->table->s->table_name: %s",
+    key_part->field->table->s->table_name.str));
+  DBUG_PRINT("info",("field->field_name: %s", field->field_name.str));
+  Field *child_field = file->field_exchange(field);
+  if (child_field)
   {
-    if (field->eq(key_part->field))
+    DBUG_PRINT("info",("child_field->field_name: %s",
+      child_field->field_name.str));
+    for (; key_part != end ; key_part++)
     {
-      SEL_ARG *sel_arg=0;
-      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,
-                                                              param->keys)))
-	DBUG_RETURN(0);				// OOM
-      if (!value || !(value_used_tables & ~param->read_tables))
+      DBUG_PRINT("info",("key_part->field->field_name: %s",
+        key_part->field->field_name.str));
+      DBUG_PRINT("info",("key_part->field->field_index: %u",
+        key_part->field->field_index));
+      if (child_field->eq(key_part->field))
       {
-        /*
-          We need to restore the runtime mem_root of the thread in this
-          function because it evaluates the value of its argument, while
-          the argument can be any, e.g. a subselect. The subselect
-          items, in turn, assume that all the memory allocated during
-          the evaluation has the same life span as the item itself.
-          TODO: opt_range.cc should not reset thd->mem_root at all.
-        */
-        MEM_ROOT *tmp_root= param->mem_root;
-        param->thd->mem_root= param->old_root;
-        sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
-        param->thd->mem_root= tmp_root;
+        DBUG_PRINT("info",("match field"));
+        SEL_ARG *sel_arg=0;
+        if (!tree &&
+            !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,
+                                                       param->keys)))
+          DBUG_RETURN(0);				// OOM
+        if (!value || !(value_used_tables & ~param->read_tables))
+        {
+          /*
+            We need to restore the runtime mem_root of the thread in this
+            function because it evaluates the value of its argument, while
+            the argument can be any, e.g. a subselect. The subselect
+            items, in turn, assume that all the memory allocated during
+            the evaluation has the same life span as the item itself.
+            TODO: opt_range.cc should not reset thd->mem_root at all.
+          */
+          MEM_ROOT *tmp_root= param->mem_root;
+          param->thd->mem_root= param->old_root;
+          sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
+          param->thd->mem_root= tmp_root;
 
-	if (!sel_arg)
-	  continue;
-	if (sel_arg->type == SEL_ARG::IMPOSSIBLE)
-	{
-	  tree->type=SEL_TREE::IMPOSSIBLE;
-	  DBUG_RETURN(tree);
-	}
+          if (!sel_arg)
+            continue;
+          if (sel_arg->type == SEL_ARG::IMPOSSIBLE)
+          {
+            tree->type=SEL_TREE::IMPOSSIBLE;
+            DBUG_RETURN(tree);
+          }
+        }
+        else
+        {
+          // This key may be used later
+          if (!(sel_arg= new SEL_ARG(SEL_ARG::MAYBE_KEY)))
+            DBUG_RETURN(0);			// OOM
+        }
+        sel_arg->part=(uchar) key_part->part;
+        sel_arg->max_part_no= sel_arg->part+1;
+        tree->keys[key_part->key]=sel_add(tree->keys[key_part->key],sel_arg);
+        tree->keys_map.set_bit(key_part->key);
       }
-      else
-      {
-	// This key may be used later
-	if (!(sel_arg= new SEL_ARG(SEL_ARG::MAYBE_KEY)))
-	  DBUG_RETURN(0);			// OOM
-      }
-      sel_arg->part=(uchar) key_part->part;
-      sel_arg->max_part_no= sel_arg->part+1;
-      tree->keys[key_part->key]=sel_add(tree->keys[key_part->key],sel_arg);
-      tree->keys_map.set_bit(key_part->key);
     }
   }
 
@@ -8574,6 +8625,7 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
       field->type_handler() == &type_handler_set)
     DBUG_RETURN(0);
 
+  DBUG_PRINT("info",("value: %p", value));
   /*
     TODO:
     Check if this was a function. This should have be optimized away

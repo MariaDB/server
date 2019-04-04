@@ -6989,6 +6989,93 @@ void handler::unlock_shared_ha_data()
     mysql_mutex_unlock(&table_share->LOCK_ha_data);
 }
 
+
+/**
+  Set pointers of the oldest parent table and fields to current handler.
+*/
+
+int handler::set_top_table_and_fields(TABLE *top_table,
+                                      Field **top_table_field,
+                                      uint top_table_fields)
+{
+  DBUG_ENTER("handler::set_top_table_and_fields");
+  DBUG_PRINT("info",("set_top_table_fields: %s",
+    set_top_table_fields ? "TRUE" : "FALSE"));
+  if (!set_top_table_fields)
+  {
+    set_top_table_fields= TRUE;
+    this->top_table= top_table;
+    this->top_table_field= top_table_field;
+    this->top_table_fields= top_table_fields;
+  }
+  DBUG_RETURN(0);
+}
+
+
+/**
+  Clear pointers of the oldest parent table and fields from current handler.
+*/
+
+void handler::clear_top_table_fields()
+{
+  DBUG_ENTER("handler::clear_top_table_fields");
+  DBUG_PRINT("info",("set_top_table_fields: %s",
+    set_top_table_fields ? "TRUE" : "FALSE"));
+  if (set_top_table_fields)
+  {
+    set_top_table_fields= FALSE;
+    top_table= NULL;
+    top_table_field= NULL;
+    top_table_fields= 0;
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  Get a pointer of the oldest parent field from field index of current handler.
+*/
+
+Field *handler::get_top_table_field(uint16 field_index)
+{
+  DBUG_ENTER("handler::get_top_table_field");
+  Field *field;
+  DBUG_PRINT("info",("set_top_table_fields: %s",
+    set_top_table_fields ? "TRUE" : "FALSE"));
+  if (set_top_table_fields)
+  {
+    field = top_table->field[field_index];
+  } else {
+    field = table->field[field_index];
+  }
+  DBUG_RETURN(field);
+}
+
+
+/**
+  Get a pointer of a field of current handler from a field pointer of the
+  oldest handler.
+*/
+
+Field *handler::field_exchange(Field *field)
+{
+  DBUG_ENTER("handler::field_exchange");
+  DBUG_PRINT("info",("set_top_table_fields: %s",
+    set_top_table_fields ? "TRUE" : "FALSE"));
+  if (set_top_table_fields)
+  {
+    if (field->table != top_table)
+      DBUG_RETURN(NULL);
+    if (!(field = top_table_field[field->field_index]))
+      DBUG_RETURN(NULL);
+  } else {
+    if (field->table != table)
+      DBUG_RETURN(NULL);
+  }
+  DBUG_RETURN(field);
+}
+
+
 /** @brief
   Dummy function which accept information about log files which is not need
   by handlers

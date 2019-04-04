@@ -4128,27 +4128,12 @@ public:
  */
  virtual int set_top_table_and_fields(TABLE *top_table,
                                       Field **top_table_field,
-                                      uint top_table_fields)
- {
-   if (!set_top_table_fields)
-   {
-     set_top_table_fields= TRUE;
-     this->top_table= top_table;
-     this->top_table_field= top_table_field;
-     this->top_table_fields= top_table_fields;
-   }
-   return 0;
- }
- virtual void clear_top_table_fields()
- {
-   if (set_top_table_fields)
-   {
-     set_top_table_fields= FALSE;
-     top_table= NULL;
-     top_table_field= NULL;
-     top_table_fields= 0;
-   }
- }
+                                      uint top_table_fields);
+ virtual void clear_top_table_fields();
+ virtual Field *get_top_table_field(uint16 field_index);
+ virtual Field *field_exchange(Field *field);
+ virtual bool prune_partitions_for_child(THD *thd, Item *pprune_cond)
+ { return FALSE; }
 
  /**
    Push down an index condition to the handler.

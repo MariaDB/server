@@ -11659,6 +11659,39 @@ int ha_partition::info_push(uint info_type, void *info)
 }
 
 
+int ha_partition::set_top_table_and_fields(
+  TABLE *top_table,
+  Field **top_table_field,
+  uint top_table_fields
+) {
+  int error;
+  handler **file, **file_err;
+  DBUG_ENTER("ha_partition::set_top_table_and_fields");
+  if (!set_top_table_fields)
+  {
+    for (file= m_file; *file; file++)
+    {
+      if ((error= (*file)->set_top_table_and_fields(top_table,
+                                                    top_table_field,
+                                                    top_table_fields)))
+      {
+        goto err;
+      }
+    }
+    this->top_table= top_table;
+    this->top_table_field= top_table_field;
+    this->top_table_fields= top_table_fields;
+    set_top_table_fields= TRUE;
+  }
+  DBUG_RETURN(0);
+
+err:
+  for (file_err= m_file; file_err < file; file_err++)
+    (*file_err)->clear_top_table_fields();
+  DBUG_RETURN(error);
+}
+
+
 void ha_partition::clear_top_table_fields()
 {
   handler **file;
@@ -11674,6 +11707,20 @@ void ha_partition::clear_top_table_fields()
       (*file)->clear_top_table_fields();
   }
   DBUG_VOID_RETURN;
+}
+
+
+bool ha_partition::prune_partitions_for_child(THD *thd, Item *pprune_cond)
+{
+  bool res= FALSE;
+  handler **file;
+  DBUG_ENTER("ha_partition::prune_partitions_for_child");
+
+  for (file= m_file; *file; file++)
+    if (bitmap_is_set(&(m_part_info->read_partitions), (file - m_file)))
+      if ((*file)->prune_partitions_for_child(thd, pprune_cond))
+        res= TRUE;
+  DBUG_RETURN(res);
 }
 
 
