@@ -167,7 +167,6 @@ class READ_INFO: public Load_data_param
   int	enclosed_char,escape_char;
   int	*stack,*stack_pos;
   bool	found_end_of_line,start_of_line,eof;
-  NET *io_net;
   int level; /* for load xml */
 
   bool getbyte(char *to)
