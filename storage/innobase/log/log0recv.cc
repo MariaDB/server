@@ -673,7 +673,7 @@ DECLARE_THREAD(recv_writer_thread)(
 
 		mutex_enter(&recv_sys->writer_mutex);
 
-		if (!recv_recovery_on) {
+		if (!recv_recovery_is_on()) {
 			mutex_exit(&recv_sys->writer_mutex);
 			break;
 		}
@@ -766,7 +766,7 @@ recv_sys_debug_free(void)
 
 	/* wake page cleaner up to progress */
 	if (!srv_read_only_mode) {
-		ut_ad(!recv_recovery_on);
+		ut_ad(!recv_recovery_is_on());
 		ut_ad(!recv_writer_thread_active);
 		os_event_reset(buf_flush_event);
 		os_event_set(recv_sys->flush_start);

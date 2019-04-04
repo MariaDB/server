@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1378,14 +1378,11 @@ synchronization objects!
 this lsn
 @return false if there was a flush batch of the same type running,
 which means that we could not start this flush batch */
-static
-bool
-log_preflush_pool_modified_pages(
-	lsn_t			new_oldest)
+static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 {
 	bool	success;
 
-	if (recv_recovery_on) {
+	if (recv_recovery_is_on()) {
 		/* If the recovery is running, we must first apply all
 		log records to their respective file pages to get the
 		right modify lsn values to these pages: otherwise, there
