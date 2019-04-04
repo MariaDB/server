@@ -1122,7 +1122,7 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
   if (table->table)
   {
     /* All MyISAMMRG children are plain MyISAM tables. */
-    DBUG_ASSERT(table->table->file->ht->db_type != DB_TYPE_MRG_MYISAM);
+    DBUG_ASSERT(!(table->table->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE));
 
     table= table->find_underlying_table(table->table);
     /*

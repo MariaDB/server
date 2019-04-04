@@ -1716,7 +1716,6 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 // MySQL compatibility. Unused.
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
 
-#define HTON_CAN_MERGE               (1 <<11) //Merge type table
 // Engine needs to access the main connect string in partitions
 #define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 <<12)
 
