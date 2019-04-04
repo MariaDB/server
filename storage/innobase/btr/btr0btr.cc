@@ -236,7 +236,7 @@ btr_root_block_get(
 				"Table %s in tablespace %lu is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
-				index->table->name, space);
+				index->table->name.m_name, space);
 		}
 
 		return NULL;

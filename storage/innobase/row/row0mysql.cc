@@ -1307,7 +1307,7 @@ row_mysql_get_table_status(
 					"Table %s in tablespace %lu encrypted."
 					"However key management plugin or used key_id is not found or"
 					" used encryption algorithm or method does not match.",
-					table->name, table->space);
+					table->name.m_name, table->space);
 			}
 
 			err = DB_DECRYPTION_FAILED;
@@ -1315,7 +1315,7 @@ row_mysql_get_table_status(
 			if (push_warning) {
 				ib_push_warning(trx, DB_CORRUPTION,
 					"Table %s in tablespace %lu corrupted.",
-					table->name, table->space);
+					table->name.m_name, table->space);
 			}
 
 			err = DB_CORRUPTION;

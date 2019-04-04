@@ -1254,7 +1254,7 @@ retry_page_get:
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
-				index->table->name);
+				index->table->name.m_name);
 			index->table->file_unreadable = true;
 		}
 
@@ -1367,7 +1367,7 @@ retry_page_get:
 						"Table %s is encrypted but encryption service or"
 						" used key_id is not available. "
 						" Can't continue reading table.",
-						index->table->name);
+						index->table->name.m_name);
 					index->table->file_unreadable = true;
 				}
 
@@ -1396,7 +1396,7 @@ retry_page_get:
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
-					index->table->name);
+					index->table->name.m_name);
 				index->table->file_unreadable = true;
 			}
 
@@ -2294,7 +2294,7 @@ btr_cur_open_at_index_side_func(
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
-					index->table->name);
+					index->table->name.m_name);
 				index->table->file_unreadable = true;
 			}
 
@@ -2654,7 +2654,7 @@ btr_cur_open_at_rnd_pos_func(
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
-					index->table->name);
+					index->table->name.m_name);
 				index->table->file_unreadable = true;
 			}
 
@@ -5585,7 +5585,7 @@ btr_estimate_n_rows_in_range_on_level(
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
-					index->table->name);
+					index->table->name.m_name);
 				index->table->file_unreadable = true;
 			}
 
