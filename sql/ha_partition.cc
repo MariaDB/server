@@ -7738,6 +7738,8 @@ int ha_partition::choose_partition_from_column_value(uchar *buf)
   int error;
   uint32 part_id;
   DBUG_ENTER("ha_partition::choose_partition_from_column_value");
+  DBUG_PRINT("info",("partition buf: %p", buf));
+  DBUG_PRINT("info",("partition m_rec0: %p", m_rec0));
 
   if ((error = get_part_for_buf(buf, m_rec0, m_part_info, &part_id)))
     DBUG_RETURN(error);
@@ -8184,11 +8186,17 @@ int ha_partition::info(uint flag)
     bool auto_inc_is_first_in_idx= (table_share->next_number_keypart == 0);
     DBUG_PRINT("info", ("HA_STATUS_AUTO"));
     if (!table->found_next_number_field)
+    {
       stats.auto_increment_value= 0;
+      DBUG_PRINT("info", ("HA_STATUS_AUTO 1 stats.auto_increment_value: %llu",
+        stats.auto_increment_value));
+    }
     else if (part_share->auto_inc_initialized)
     {
       lock_auto_increment();
       stats.auto_increment_value= part_share->next_auto_inc_val;
+      DBUG_PRINT("info", ("HA_STATUS_AUTO 2 stats.auto_increment_value: %llu",
+        stats.auto_increment_value));
       unlock_auto_increment();
     }
     else
@@ -8196,7 +8204,11 @@ int ha_partition::info(uint flag)
       lock_auto_increment();
       /* to avoid two concurrent initializations, check again when locked */
       if (part_share->auto_inc_initialized)
+      {
         stats.auto_increment_value= part_share->next_auto_inc_val;
+        DBUG_PRINT("info", ("HA_STATUS_AUTO 3 stats.auto_increment_value=%llu",
+          stats.auto_increment_value));
+      }
       else
       {
         /*
@@ -8220,6 +8232,8 @@ int ha_partition::info(uint flag)
 
         DBUG_ASSERT(auto_increment_value);
         stats.auto_increment_value= auto_increment_value;
+        DBUG_PRINT("info", ("HA_STATUS_AUTO 4 stats.auto_increment_value:"
+                            " %llu", stats.auto_increment_value));
         if (auto_inc_is_first_in_idx)
         {
           set_if_bigger(part_share->next_auto_inc_val,
@@ -9029,9 +9043,13 @@ int ha_partition::extra(enum ha_extra_function operation)
     DBUG_PRINT("info", ("partition ref_length: %u", ref_length));
     break;
   }
+  case HA_EXTRA_INIT_AFTER_ATTACH_CHILDREN:
+    m_rec0= table->record[0];
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_IS_ATTACHED_CHILDREN:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_DETACH_CHILDREN:
+    m_rec0= table->record[0];
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
