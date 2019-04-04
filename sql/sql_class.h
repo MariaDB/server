@@ -1296,7 +1296,6 @@ typedef struct st_xid_state {
     That can cause inconsistencies (shoud be fixed?).
   */
   bool is_binlogged;
-  bool registered_for_binlog;
 
   /**
     Check that XA transaction has an uncommitted work. Report an error

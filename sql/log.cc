@@ -1958,12 +1958,11 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
 static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 {
   /*
-    Mark the XA for binlogging.
-    Transactions with no binlog handler registered like readonly ones,
-    should not go to the binlog.
-    Real work is done in MYSQL_BIN_LOG::log_xa_prepare()
+    do nothing.
+    just pretend we can do 2pc, so that MySQL won't
+    switch to 1pc.
+    real work is done in MYSQL_BIN_LOG::log_xa_prepare()
   */
-  thd->transaction.xid_state.registered_for_binlog= true;
   return 0;
 }
 
