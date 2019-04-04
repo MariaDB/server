@@ -4088,14 +4088,15 @@ create_sp_error:
 	    my_error(ER_SP_BADSELECT, MYF(0), sp->m_qname.str);
 	    goto error;
 	  }
-          /*
-            If SERVER_MORE_RESULTS_EXISTS is not set,
-            then remember that it should be cleared
-          */
-	  bits_to_be_cleared= (~thd->server_status &
-                               SERVER_MORE_RESULTS_EXISTS);
-	  thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
 	}
+
+	/*
+	  If SERVER_MORE_RESULTS_EXISTS is not set,
+	  then remember that it should be cleared
+	*/
+	bits_to_be_cleared= (~thd->server_status &
+	                       SERVER_MORE_RESULTS_EXISTS);
+	thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
 
 	if (check_routine_access(thd, EXECUTE_ACL,
 				 sp->m_db.str, sp->m_name.str, TRUE, FALSE))

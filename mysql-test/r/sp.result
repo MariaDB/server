@@ -8106,3 +8106,19 @@ DROP PROCEDURE sp;
 DROP VIEW v1;
 DROP TABLE t1, t2;
 # End of 5.5 test
+CREATE PROCEDURE sp() ALTER TABLE non_existing_table OPTIMIZE PARTITION p0;
+CALL sp;
+Table	Op	Msg_type	Msg_text
+test.non_existing_table	optimize	Error	Table 'test.non_existing_table' doesn't exist
+test.non_existing_table	optimize	status	Operation failed
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() SHOW USER_STATISTICS;
+CALL sp;
+User	Total_connections	Concurrent_connections	Connected_time	Busy_time	Cpu_time	Bytes_received	Bytes_sent	Binlog_bytes_written	Rows_read	Rows_sent	Rows_deleted	Rows_inserted	Rows_updated	Select_commands	Update_commands	Other_commands	Commit_transactions	Rollback_transactions	Denied_connections	Lost_connections	Access_denied	Empty_queries
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
