@@ -1,0 +1,17 @@
+--source include/have_geometry.inc
+--let $TABLE_OPTION01=
+--let $TABLE_OPTION02=
+--let $TABLE_OPTION03=
+--let $TABLE_OPTION04=
+--let $TABLE_OPTION05=
+--let $TABLE_OPTION06=
+--let $TABLE_OPTION07=
+--let $TABLE_OPTION08=
+--let $TABLE_OPTION09=
+--let $TABLE_OPTION10=
+--let $TABLE_OPTION11=
+--let $TABLE_OPTION12=
+--let $TABLE_OPTION13=
+--let $TABLE_OPTION14=
+-- source include/gis_keys_with_table_options.inc
+-- source include/gis_generic_with_table_options.inc
