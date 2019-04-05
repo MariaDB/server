@@ -1047,18 +1047,39 @@ bool trans_xa_prepare(THD *thd)
              xa_state_names[thd->transaction.xid_state.xa_state]);
   else if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
-  else if (ha_prepare(thd))
-  {
-    xid_cache_delete(thd, &thd->transaction.xid_state);
-    thd->transaction.xid_state.xa_state= XA_NOTR;
-    my_error(ER_XA_RBROLLBACK, MYF(0));
-  }
   else
   {
-    res= 0;
-    thd->transaction.xid_state.xa_state= XA_PREPARED;
-    if (thd->variables.pseudo_slave_mode)
-      res= applier_reset_xa_trans(thd);
+    /*
+      Acquire metadata lock which will ensure that COMMIT is blocked
+      by active FLUSH TABLES WITH READ LOCK (and vice versa COMMIT in
+      progress blocks FTWRL).
+
+      We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
+    */
+    MDL_request mdl_request;
+    mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                     MDL_STATEMENT);
+    if (thd->mdl_context.acquire_lock(&mdl_request,
+                                      thd->variables.lock_wait_timeout) ||
+        ha_prepare(thd))
+    {
+      if (!mdl_request.ticket)
+        ha_rollback_trans(thd, TRUE);
+      thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+      thd->transaction.all.reset();
+      thd->server_status&=
+        ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+      xid_cache_delete(thd, &thd->transaction.xid_state);
+      thd->transaction.xid_state.xa_state= XA_NOTR;
+      my_error(ER_XA_RBROLLBACK, MYF(0));
+    }
+    else
+    {
+      res= 0;
+      thd->transaction.xid_state.xa_state= XA_PREPARED;
+      if (thd->variables.pseudo_slave_mode)
+        res= applier_reset_xa_trans(thd);
+    }
   }
 
   DBUG_RETURN(res);
@@ -1101,6 +1122,27 @@ bool trans_xa_commit(THD *thd)
     else
     {
       res= xa_trans_rolled_back(xs);
+      /*
+        Acquire metadata lock which will ensure that COMMIT is blocked
+        by active FLUSH TABLES WITH READ LOCK (and vice versa COMMIT in
+        progress blocks FTWRL).
+
+        We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
+      */
+      MDL_request mdl_request;
+      mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                       MDL_STATEMENT);
+      if (thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
+      {
+        /*
+          We can't rollback an XA transaction on lock failure due to
+          Innodb redo log and bin log update is involved in rollback.
+          Return error to user for a retry.
+        */
+        my_error(ER_XAER_RMERR, MYF(0));
+        DBUG_RETURN(true);
+      }
       ha_commit_or_rollback_by_xid(thd->lex->xid, !res);
       if((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
           xs->is_binlogged)
@@ -1139,13 +1181,18 @@ bool trans_xa_commit(THD *thd)
       We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
     */
     mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_TRANSACTION);
+                     MDL_STATEMENT);
 
     if (thd->mdl_context.acquire_lock(&mdl_request,
                                       thd->variables.lock_wait_timeout))
     {
-      ha_rollback_trans(thd, TRUE);
+      /*
+        We can't rollback an XA transaction on lock failure due to
+        Innodb redo log and bin log update is involved in rollback.
+        Return error to user for a retry.
+      */
       my_error(ER_XAER_RMERR, MYF(0));
+      DBUG_RETURN(true);
     }
     else
     {
@@ -1213,6 +1260,21 @@ bool trans_xa_rollback(THD *thd)
       my_error(ER_XAER_NOTA, MYF(0));
     else
     {
+      MDL_request mdl_request;
+      mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                       MDL_STATEMENT);
+      if (thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
+      {
+        /*
+          We can't rollback an XA transaction on lock failure due to
+          Innodb redo log and bin log update is involved in rollback.
+          Return error to user for a retry.
+        */
+        my_error(ER_XAER_RMERR, MYF(0));
+        DBUG_RETURN(true);
+      }
+
       xa_trans_rolled_back(xs);
       if (ha_commit_or_rollback_by_xid(thd->lex->xid, 0) == 0 &&
           xs->is_binlogged &&
@@ -1230,6 +1292,21 @@ bool trans_xa_rollback(THD *thd)
   {
     my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
     DBUG_RETURN(TRUE);
+  }
+
+  MDL_request mdl_request;
+  mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+      MDL_STATEMENT);
+  if (thd->mdl_context.acquire_lock(&mdl_request,
+        thd->variables.lock_wait_timeout))
+  {
+    /*
+       We can't rollback an XA transaction on lock failure due to
+       Innodb redo log and bin log update is involved in rollback.
+       Return error to user for a retry.
+       */
+    my_error(ER_XAER_RMERR, MYF(0));
+    DBUG_RETURN(true);
   }
 
   if(xa_state == XA_PREPARED && thd->transaction.xid_state.is_binlogged &&
