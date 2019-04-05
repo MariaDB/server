@@ -1017,4 +1017,25 @@ execute stmt1;
 deallocate prepare stmt1;
 drop view v3,v2,v1;
 drop table t1,t2,t3;
+create table t1 (id int not null, v1 varchar(10) not null);
+insert into t1 values (1,1),(2,2);
+create table t2 (log varchar(10) not null);
+create trigger t1_after_update after update on t1
+for each row insert into t2 values ('triggered');
+create user foo;
+grant select, insert, update, delete, create, drop, reload, index, alter, show databases, create temporary tables, lock tables, execute, create view, show view, create routine, alter routine, trigger on *.* to 'foo'@'%';
+set global read_only=1;
+create temporary table temp_t1 (id int not null, update_me varchar(10));
+insert into temp_t1 values (1,1),(2,2),(3,3);
+update temp_t1 left join t1 on temp_t1.id = t1.id set temp_t1.update_me = 'hello';
+set global read_only = 0;
+create table t3 (id int not null);
+insert t3 values (2);
+update t1 left join t3 on t1.id = t3.id set t1.v1 = 'hello';
+select * from t2;
+log
+triggered
+triggered
+drop table t1,t2, t3;
+drop user foo;
 end of 5.5 tests

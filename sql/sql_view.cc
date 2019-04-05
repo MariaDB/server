@@ -1511,6 +1511,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
         tbl->lock_type= table->lock_type;
         tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
+        tbl->updating= table->updating;
       }
       /*
         If the view is mergeable, we might want to

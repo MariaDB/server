@@ -4250,6 +4250,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
       table->table_name_length= stab->table_name_length;
       table->alias= table->table_name + table->table_name_length + 1;
       table->lock_type= stab->lock_type;
+      table->updating= stab->lock_type >= TL_WRITE_ALLOW_WRITE;
       table->cacheable_table= 1;
       table->prelocking_placeholder= 1;
       table->belong_to_view= belong_to_view;

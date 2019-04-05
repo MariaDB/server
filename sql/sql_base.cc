@@ -4484,7 +4484,7 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
   LEX *lex= thd->lex;
 
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      ! has_prelocking_list &&
+      ! has_prelocking_list && tables->updating &&
       tables->lock_type >= TL_WRITE_ALLOW_WRITE)
   {
     bool need_prelocking= FALSE;
