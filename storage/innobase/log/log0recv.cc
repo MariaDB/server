@@ -2527,6 +2527,15 @@ recv_report_corrupt_log(
 	return(true);
 }
 
+/** Report a MLOG_INDEX_LOAD operation.
+@param[in]	space_id	tablespace identifier */
+ATTRIBUTE_COLD static void recv_mlog_index_load(ulint space_id)
+{
+	if (log_optimized_ddl_op) {
+		log_optimized_ddl_op(space_id);
+	}
+}
+
 /** Parse log records from a buffer and optionally store them to a
 hash table to wait merging to file pages.
 @param[in]	checkpoint_lsn	the LSN of the latest checkpoint
@@ -2684,9 +2693,7 @@ loop:
 			/* fall through */
 		case MLOG_INDEX_LOAD:
 			if (type == MLOG_INDEX_LOAD) {
-				if (log_optimized_ddl_op) {
-					log_optimized_ddl_op(space);
-				}
+				recv_mlog_index_load(space);
 			}
 			/* fall through */
 		case MLOG_FILE_NAME:
@@ -2840,10 +2847,7 @@ corrupted_log:
 				break;
 #endif /* UNIV_LOG_LSN_DEBUG */
 			case MLOG_INDEX_LOAD:
-				/* Mariabackup FIXME: Report an error
-				when encountering MLOG_INDEX_LOAD on
-				--prepare or already on --backup. */
-				ut_a(srv_operation == SRV_OPERATION_NORMAL);
+				recv_mlog_index_load(space);
 				break;
 			case MLOG_FILE_NAME:
 			case MLOG_FILE_DELETE:
