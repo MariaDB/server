@@ -4630,7 +4630,7 @@ wait_table_again:
 					"Table %s is encrypted but encryption service or"
 					" used key_id is not available. "
 					" Can't continue reading table.",
-					prebuilt->table->name);
+					prebuilt->table->name.m_name);
 				index->table->file_unreadable = true;
 			}
 			rec = NULL;

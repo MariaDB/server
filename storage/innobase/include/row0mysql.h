@@ -290,17 +290,6 @@ row_unlock_for_mysql(
 	ibool		has_latches_on_recs);
 
 /*********************************************************************//**
-Checks if a table name contains the string "/#sql" which denotes temporary
-tables in MySQL.
-@return true if temporary table */
-bool
-row_is_mysql_tmp_table_name(
-/*========================*/
-	const char*	name) MY_ATTRIBUTE((warn_unused_result));
-				/*!< in: table name in the form
-				'database/tablename' */
-
-/*********************************************************************//**
 Creates an query graph node of 'update' type to be used in the MySQL
 interface.
 @return own: update node */

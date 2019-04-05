@@ -236,7 +236,7 @@ btr_root_block_get(
 			"Table %s in file %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			index->table->name,
+			index->table->name.m_name,
 			UT_LIST_GET_FIRST(index->table->space->chain)->name);
 
 		return NULL;
@@ -5014,13 +5014,6 @@ btr_validate_level(
 
 	block = btr_root_block_get(index, RW_SX_LATCH, &mtr);
 	page = buf_block_get_frame(block);
-
-#ifdef UNIV_DEBUG
-	if (dict_index_is_spatial(index)) {
-		fprintf(stderr, "Root page no: %lu\n",
-			(ulong) page_get_page_no(page));
-	}
-#endif
 
 	fil_space_t*		space	= index->table->space;
 	const ulint		zip_size = space->zip_size();
