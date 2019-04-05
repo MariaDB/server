@@ -144,3 +144,18 @@ connection default;
 disconnect con1;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;
+
+#
+# MDEV-18241 Downgrade from 10.4 to 10.3 crashes
+#
+call mtr.add_suppression("Table 'mysql.user' doesn't exist");
+rename table mysql.user to mysql.user1;
+create view mysql.user as select * from mysql.user1;
+--error ER_NO_SUCH_TABLE
+flush privileges;
+drop view mysql.user;
+create temporary table mysql.user select * from mysql.user1 limit 0;
+--error ER_NO_SUCH_TABLE
+flush privileges;
+drop temporary table mysql.user;
+rename table mysql.user1 to mysql.user;

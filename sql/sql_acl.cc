@@ -1155,8 +1155,12 @@ static void fix_table_list(TABLE_LIST *tl, uint n)
   TABLE_LIST *end;
   for (end= tl + n - 1; tl < end; tl++)
   {
+    tl->i_s_requested_object= OPEN_TABLE_ONLY;
+    tl->open_type= OT_BASE_ONLY;
     tl->next_local= tl->next_global= tl + 1;
   }
+  tl->i_s_requested_object= OPEN_TABLE_ONLY;
+  tl->open_type= OT_BASE_ONLY;
 }
 
 
