@@ -22,8 +22,17 @@
 ///////////////////////////////////////////////////////////////////////////
 
 static const size_t IN_ADDR_SIZE= 4;
+static const size_t IN_ADDR_MAX_CHAR_LENGTH= 15;
+
 static const size_t IN6_ADDR_SIZE= 16;
 static const size_t IN6_ADDR_NUM_WORDS= IN6_ADDR_SIZE / 2;
+
+/**
+  Non-abbreviated syntax is 8 groups, up to 4 digits each,
+  plus 7 delimiters between the groups.
+  Abbreviated syntax is even shorter.
+*/
+static const uint IN6_ADDR_MAX_CHAR_LENGTH= 8 * 4 + 7;
 
 static const char HEX_DIGITS[]= "0123456789abcdef";
 
@@ -143,7 +152,20 @@ class Inet4
 {
   char m_buffer[IN_ADDR_SIZE];
 protected:
-  bool str_to_ipv4(const char *str, size_t length, CHARSET_INFO *cs);
+  bool ascii_to_ipv4(const char *str, size_t length);
+  bool character_string_to_ipv4(const char *str, size_t str_length,
+                                CHARSET_INFO *cs)
+  {
+    if (cs->state & MY_CS_NONASCII)
+    {
+      char tmp[IN_ADDR_MAX_CHAR_LENGTH];
+      String_copier copier;
+      uint length= copier.well_formed_copy(&my_charset_latin1, tmp, sizeof(tmp),
+                                           cs, str, str_length);
+      return ascii_to_ipv4(tmp, length);
+    }
+    return ascii_to_ipv4(str, str_length);
+  }
   bool binary_to_ipv4(const char *str, size_t length)
   {
     if (length != sizeof(m_buffer))
@@ -180,7 +202,7 @@ class Inet4_null: public Inet4, public Null_flag
 public:
   // Initialize from a text representation
   Inet4_null(const char *str, size_t length, CHARSET_INFO *cs)
-   :Null_flag(str_to_ipv4(str, length, cs))
+   :Null_flag(character_string_to_ipv4(str, length, cs))
   { }
   Inet4_null(const String &str)
    :Inet4_null(str.ptr(), str.length(), str.charset())
@@ -222,7 +244,20 @@ class Inet6
   char m_buffer[IN6_ADDR_SIZE];
 protected:
   bool make_from_item(Item *item);
-  bool str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs);
+  bool ascii_to_ipv6(const char *str, size_t str_length);
+  bool character_string_to_ipv6(const char *str, size_t str_length,
+                                CHARSET_INFO *cs)
+  {
+    if (cs->state & MY_CS_NONASCII)
+    {
+      char tmp[IN6_ADDR_MAX_CHAR_LENGTH];
+      String_copier copier;
+      uint length= copier.well_formed_copy(&my_charset_latin1, tmp, sizeof(tmp),
+                                           cs, str, str_length);
+      return ascii_to_ipv6(tmp, length);
+    }
+    return ascii_to_ipv6(str, str_length);
+  }
   bool binary_to_ipv6(const char *str, size_t length)
   {
     if (length != sizeof(m_buffer))
@@ -264,7 +299,7 @@ class Inet6_null: public Inet6, public Null_flag
 public:
   // Initialize from a text representation
   Inet6_null(const char *str, size_t length, CHARSET_INFO *cs)
-   :Null_flag(str_to_ipv6(str, length, cs))
+   :Null_flag(character_string_to_ipv6(str, length, cs))
   { }
   Inet6_null(const String &str)
    :Inet6_null(str.ptr(), str.length(), str.charset())
@@ -343,20 +378,19 @@ bool Inet6::make_from_item(Item *item)
   IPv4-part differently on different platforms.
 */
 
-bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
+bool Inet4::ascii_to_ipv4(const char *str, size_t str_length)
 {
-  DBUG_ASSERT(cs->mbminlen == 1);
   if (str_length < 7)
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): "
                          "invalid IPv4 address: too short.",
                          (int) str_length, str));
     return true;
   }
 
-  if (str_length > 15)
+  if (str_length > IN_ADDR_MAX_CHAR_LENGTH)
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): "
                          "invalid IPv4 address: too long.",
                          (int) str_length, str));
     return true;
@@ -380,7 +414,7 @@ bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
 
       if (chars_in_group > 3)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "too many characters in a group.",
                              (int) str_length, str));
         return true;
@@ -390,7 +424,7 @@ bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
 
       if (byte_value > 255)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "invalid byte value.",
                              (int) str_length, str));
         return true;
@@ -400,7 +434,7 @@ bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
     {
       if (chars_in_group == 0)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "too few characters in a group.",
                              (int) str_length, str));
         return true;
@@ -414,14 +448,14 @@ bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
 
       if (dot_count > 3)
       {
-        DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                              "too many dots.", (int) str_length, str));
         return true;
       }
     }
     else
     {
-      DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+      DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                            "invalid character at pos %d.",
                            (int) str_length, str, (int) (p - str)));
       return true;
@@ -430,14 +464,14 @@ bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
 
   if (c == '.')
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                          "ending at '.'.", (int) str_length, str));
     return true;
   }
 
   if (dot_count != 3)
   {
-    DBUG_PRINT("error", ("str_to_ipv4(%.*s): invalid IPv4 address: "
+    DBUG_PRINT("error", ("ascii_to_ipv4(%.*s): invalid IPv4 address: "
                          "too few groups.",
                          (int) str_length, str));
     return true;
@@ -445,7 +479,7 @@ bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
 
   ipv4_bytes[3]= (unsigned char) byte_value;
 
-  DBUG_PRINT("info", ("str_to_ipv4(%.*s): valid IPv4 address: %d.%d.%d.%d",
+  DBUG_PRINT("info", ("ascii_to_ipv4(%.*s): valid IPv4 address: %d.%d.%d.%d",
                       (int) str_length, str,
                       ipv4_bytes[0], ipv4_bytes[1],
                       ipv4_bytes[2], ipv4_bytes[3]));
@@ -468,20 +502,18 @@ bool Inet4::str_to_ipv4(const char *str, size_t str_length, CHARSET_INFO *cs)
   IPv4-part differently on different platforms.
 */
 
-bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
+bool Inet6::ascii_to_ipv6(const char *str, size_t str_length)
 {
-  DBUG_ASSERT(cs->mbminlen == 1);
-
   if (str_length < 2)
   {
-    DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: too short.",
+    DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: too short.",
                          (int) str_length, str));
     return true;
   }
 
-  if (str_length > 8 * 4 + 7)
+  if (str_length > IN6_ADDR_MAX_CHAR_LENGTH)
   {
-    DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: too long.",
+    DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: too long.",
                          (int) str_length, str));
     return true;
   }
@@ -496,7 +528,7 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
 
     if (*p != ':')
     {
-      DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+      DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                            "can not start with ':x'.", (int) str_length, str));
       return true;
     }
@@ -522,7 +554,7 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
       {
         if (gap_ptr)
         {
-          DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+          DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                                "too many gaps(::).", (int) str_length, str));
           return true;
         }
@@ -533,14 +565,14 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
 
       if (!*p || p >= str_end)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "ending at ':'.", (int) str_length, str));
         return true;
       }
 
       if (dst + 2 > ipv6_bytes_end)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "too many groups (1).", (int) str_length, str));
         return true;
       }
@@ -556,15 +588,16 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
     {
       if (dst + IN_ADDR_SIZE > ipv6_bytes_end)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "unexpected IPv4-part.", (int) str_length, str));
         return true;
       }
 
-      Inet4_null tmp(group_start_ptr, (size_t) (str_end - group_start_ptr), cs);
+      Inet4_null tmp(group_start_ptr, (size_t) (str_end - group_start_ptr),
+                     &my_charset_latin1);
       if (tmp.is_null())
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "invalid IPv4-part.", (int) str_length, str));
         return true;
       }
@@ -581,7 +614,7 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
 
       if (!hdp)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "invalid character at pos %d.",
                              (int) str_length, str, (int) (p - str)));
         return true;
@@ -589,7 +622,7 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
 
       if (chars_in_group >= 4)
       {
-        DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+        DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "too many digits in group.",
                              (int) str_length, str));
         return true;
@@ -608,7 +641,7 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
   {
     if (dst + 2 > ipv6_bytes_end)
     {
-      DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+      DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                            "too many groups (2).", (int) str_length, str));
       return true;
     }
@@ -622,7 +655,7 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
   {
     if (dst == ipv6_bytes_end)
     {
-      DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+      DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                            "no room for a gap (::).", (int) str_length, str));
       return true;
     }
@@ -640,7 +673,7 @@ bool Inet6::str_to_ipv6(const char *str, size_t str_length, CHARSET_INFO *cs)
 
   if (dst < ipv6_bytes_end)
   {
-    DBUG_PRINT("error", ("str_to_ipv6(%.*s): invalid IPv6 address: "
+    DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                          "too few groups.", (int) str_length, str));
     return true;
   }
