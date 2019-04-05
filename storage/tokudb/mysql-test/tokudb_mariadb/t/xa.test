@@ -69,5 +69,6 @@ select * from t1;
 
 disconnect con1;
 connection default;
+xa rollback 'testb',0x2030405060,11;
 drop table t1;
 
