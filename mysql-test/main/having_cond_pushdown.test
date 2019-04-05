@@ -1301,3 +1301,20 @@ execute stmt1;
 deallocate prepare stmt1;
 
 DROP TABLE t1,t3;
+
+
+--echo #
+--echo # MDEV-19185: pushdown constant function with subquery
+--echo #
+
+CREATE TABLE t1 (pk INT, c1 VARCHAR(64));
+INSERT INTO t1 VALUES (1,'bbb'),(2,'aaa'),(3,'ccc');
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT pk
+FROM t1
+GROUP BY pk
+HAVING (1 NOT IN (SELECT COUNT(t1.c1) FROM (v1, t1)));
+
+DROP TABLE t1;
+DROP VIEW v1;

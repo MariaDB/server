@@ -9060,9 +9060,8 @@ bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   for (uint i= 0; i < arg_count; i++)
   {
-    if (args[i]->type() == Item::SUBSELECT_ITEM ||
-        (args[i]->type() == Item::FUNC_ITEM &&
-         ((Item_func *)args[i])->functype() == Item_func::UDF_FUNC))
+    if (args[i]->type() == Item::FUNC_ITEM &&
+        ((Item_func *)args[i])->functype() == Item_func::UDF_FUNC)
       return false;
     if (args[i]->const_item())
       continue;
