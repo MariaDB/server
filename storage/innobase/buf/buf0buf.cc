@@ -4211,12 +4211,15 @@ buf_page_get_gen(
 #ifdef UNIV_DEBUG
 	switch (mode) {
 	case BUF_EVICT_IF_IN_POOL:
-	case BUF_PEEK_IF_IN_POOL:
 		/* After DISCARD TABLESPACE, the tablespace would not exist,
 		but in IMPORT TABLESPACE, PageConverter::operator() must
 		replace any old pages, which were not evicted during DISCARD.
-		Similarly, btr_search_drop_page_hash_when_freed() must
-		remove any old pages. Skip the assertion on page_size. */
+		Skip the assertion on space_page_size. */
+		break;
+	case BUF_PEEK_IF_IN_POOL:
+	case BUF_GET_IF_IN_POOL:
+		/* The caller may pass a dummy page size,
+		because it does not really matter. */
 		break;
 	default:
 		ut_error;
@@ -4224,7 +4227,6 @@ buf_page_get_gen(
 		ut_ad(rw_latch == RW_NO_LATCH);
 		/* fall through */
 	case BUF_GET:
-	case BUF_GET_IF_IN_POOL:
 	case BUF_GET_IF_IN_POOL_OR_WATCH:
 	case BUF_GET_POSSIBLY_FREED:
 		bool			found;

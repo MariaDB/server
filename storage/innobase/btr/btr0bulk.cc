@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -664,10 +664,9 @@ PageBulk::latch()
 	/* In case the block is S-latched by page_cleaner. */
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
 				     __FILE__, __LINE__, &m_mtr)) {
-		page_id_t       page_id(dict_index_get_space(m_index), m_page_no);
-		page_size_t     page_size(dict_table_page_size(m_index->table));
-
-		m_block = buf_page_get_gen(page_id, page_size, RW_X_LATCH,
+		m_block = buf_page_get_gen(page_id_t(m_index->space,
+						     m_page_no),
+					   univ_page_size, RW_X_LATCH,
 					   m_block, BUF_GET_IF_IN_POOL,
 					   __FILE__, __LINE__, &m_mtr, &m_err);
 

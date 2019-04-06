@@ -2261,35 +2261,25 @@ void recv_apply_hashed_log_recs(bool last_batch)
 				continue;
 			}
 
-			const page_id_t		page_id(recv_addr->space,
-							recv_addr->page_no);
-			bool			found;
-			const page_size_t&	page_size
-				= fil_space_get_page_size(recv_addr->space,
-							  &found);
-
-			ut_ad(found);
+			const page_id_t page_id(recv_addr->space,
+						recv_addr->page_no);
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
 				mutex_exit(&recv_sys->mutex);
-
-				if (buf_page_peek(page_id)) {
-					mtr_t	mtr;
-					mtr.start();
-
-					buf_block_t* block = buf_page_get(
-						page_id, page_size,
-						RW_X_LATCH, &mtr);
-
+				mtr_t mtr;
+				mtr.start();
+				if (buf_block_t* block = buf_page_get_gen(
+					    page_id, univ_page_size,
+					    RW_X_LATCH, NULL,
+					    BUF_GET_IF_IN_POOL,
+					    __FILE__, __LINE__, &mtr, NULL)) {
 					buf_block_dbg_add_level(
 						block, SYNC_NO_ORDER_CHECK);
-
 					recv_recover_page(FALSE, block);
-					mtr.commit();
 				} else {
 					recv_read_in_area(page_id);
 				}
-
+				mtr.commit();
 				mutex_enter(&recv_sys->mutex);
 			}
 		}
