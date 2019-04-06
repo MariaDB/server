@@ -3605,32 +3605,45 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
                          3);
   int res= mysql_execute_command(thd);
 #ifdef WITH_WSREP
-  if ((thd->is_fatal_error || thd->killed_errno()) &&
-      (thd->wsrep_trx().state() == wsrep::transaction::s_executing))
+  if (WSREP(thd))
   {
-    /*
-      SP was killed, and it is not due to a wsrep conflict.
-      We skip after_statement hook at this point because
-      otherwise it clears the error, and cleans up the
-      whole transaction. For now we just return and finish
-      our handling once we are back to mysql_parse.
-     */
-    WSREP_DEBUG("Skipping after_command hook for killed SP");
-  }
-  else
-  {
-    (void) wsrep_after_statement(thd);
-    /*
-      Final wsrep error status for statement is known only after
-      wsrep_after_statement() call. If the error is set, override
-      error in thd diagnostics area and reset wsrep client_state error
-      so that the error does not get propagated via client-server protocol.
-    */
-    if (wsrep_current_error(thd))
+    if ((thd->is_fatal_error || thd->killed_errno()) &&
+        (thd->wsrep_trx().state() == wsrep::transaction::s_executing))
     {
-      wsrep_override_error(thd, wsrep_current_error(thd),
-                           wsrep_current_error_status(thd));
-      thd->wsrep_cs().reset_error();
+      /*
+        SP was killed, and it is not due to a wsrep conflict.
+        We skip after_statement hook at this point because
+        otherwise it clears the error, and cleans up the
+        whole transaction. For now we just return and finish
+        our handling once we are back to mysql_parse.
+      */
+      WSREP_DEBUG("Skipping after_command hook for killed SP");
+    }
+    else
+    {
+      const bool must_replay= wsrep_must_replay(thd);
+      (void) wsrep_after_statement(thd);
+      /*
+        Reset the return code to zero if the transaction was
+        replayed succesfully.
+      */
+      if (res && must_replay && !wsrep_current_error(thd))
+        res= 0;
+      /*
+        Final wsrep error status for statement is known only after
+        wsrep_after_statement() call. If the error is set, override
+        error in thd diagnostics area and reset wsrep client_state error
+        so that the error does not get propagated via client-server protocol.
+      */
+      if (wsrep_current_error(thd))
+      {
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        thd->wsrep_cs().reset_error();
+        /* Reset also thd->killed if it has been set during BF abort. */
+        if (thd->killed == KILL_QUERY)
+          thd->reset_killed();
+      }
     }
   }
 #endif /* WITH_WSREP */
