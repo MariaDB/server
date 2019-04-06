@@ -627,6 +627,9 @@ public:
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
 
+  bool marked_for_read() const;
+  bool marked_for_write_or_computed() const;
+
   /**
      Used by System Versioning.
    */
