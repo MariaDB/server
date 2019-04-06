@@ -1621,12 +1621,22 @@ bool JOIN::make_range_rowid_filters()
     filter_map.merge(tab->table->with_impossible_ranges);
     bool force_index_save= tab->table->force_index;
     tab->table->force_index= true;
-    (void) sel->test_quick_select(thd, filter_map, (table_map) 0,
-                                  (ha_rows) HA_POS_ERROR,
-                                  true, false, true, true);
+    int rc= sel->test_quick_select(thd, filter_map, (table_map) 0,
+                                   (ha_rows) HA_POS_ERROR,
+                                   true, false, true, true);
     tab->table->force_index= force_index_save;
     if (thd->is_error())
       goto no_filter;
+    /*
+      If SUBS_IN_TO_EXISTS strtrategy is chosen for the subquery then
+      additional conditions are injected into WHERE/ON/HAVING and it may
+      happen that the call of test_quick_select() discovers impossible range.
+    */
+    if (rc == -1)
+    {
+      const_table_map|= tab->table->map;
+      goto no_filter;
+    }
     DBUG_ASSERT(sel->quick);
     filter_container=
       tab->range_rowid_filter_info->create_container();
