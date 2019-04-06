@@ -1,0 +1,8 @@
+--source ../include/load_data_part_ddi0_init.inc
+--let COMMAND_BEFORE_LOAD_DATA= TRUNCATE tbl_a
+--let OPTION_LOCAL= LOCAL
+--let OPTION_WORD=
+--source load_data_part.inc
+--source ../include/load_data_part_ddi0_deinit.inc
+--echo
+--echo end of test
