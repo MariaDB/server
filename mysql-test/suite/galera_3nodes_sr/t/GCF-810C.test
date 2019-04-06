@@ -16,7 +16,7 @@
 #
 
 --connection node_3
-SET GLOBAL debug="d,crash_commit_cb_last_fragment_commit_success";
+SET GLOBAL debug_dbug="d,crash_commit_cb_last_fragment_commit_success";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
 
@@ -30,7 +30,7 @@ SET GLOBAL debug="d,crash_commit_cb_last_fragment_commit_success";
 #
 
 --connection node_3
-SET GLOBAL debug="d,crash_commit_cb_before_last_fragment_commit";
+SET GLOBAL debug_dbug="d,crash_commit_cb_before_last_fragment_commit";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
 
@@ -44,7 +44,7 @@ SET GLOBAL debug="d,crash_commit_cb_before_last_fragment_commit";
 #
 
 --connection node_3
-SET GLOBAL debug="d,crash_apply_cb_after_fragment_removal";
+SET GLOBAL debug_dbug="d,crash_apply_cb_after_fragment_removal";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
 
@@ -58,7 +58,7 @@ SET GLOBAL debug="d,crash_apply_cb_after_fragment_removal";
 #
 
 --connection node_3
-SET GLOBAL debug="d,crash_apply_cb_before_fragment_removal";
+SET GLOBAL debug_dbug="d,crash_apply_cb_before_fragment_removal";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes3.inc
 

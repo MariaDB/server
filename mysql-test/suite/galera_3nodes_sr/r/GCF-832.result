@@ -5,9 +5,7 @@ connection node_1;
 connection node_2;
 connection node_3;
 connection node_2;
-SET GLOBAL debug="d,crash_last_fragment_commit_after_fragment_removal";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
 CREATE TABLE t1 (f1 VARCHAR(30)) ENGINE=InnoDB;
 SET AUTOCOMMIT=OFF;
 SET SESSION wsrep_trx_fragment_size=1;
