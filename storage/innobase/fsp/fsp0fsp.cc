@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -588,13 +588,9 @@ xdes_get_offset(
 	       * FSP_EXTENT_SIZE);
 }
 
-/***********************************************************//**
-Inits a file page whose prior contents should be ignored. */
-static
-void
-fsp_init_file_page_low(
-/*===================*/
-	buf_block_t*	block)	/*!< in: pointer to a page */
+/** Initialize a file page whose prior contents should be ignored.
+@param[in,out]	block	buffer pool block */
+void fsp_apply_init_file_page(buf_block_t* block)
 {
 	page_t*		page	= buf_block_get_frame(block);
 
@@ -653,14 +649,10 @@ fsp_space_modify_check(
 /** Initialize a file page.
 @param[in,out]	block	file page
 @param[in,out]	mtr	mini-transaction */
-static
-void
-fsp_init_file_page(buf_block_t* block, mtr_t* mtr)
+static void fsp_init_file_page(buf_block_t* block, mtr_t* mtr)
 {
-	fsp_init_file_page_low(block);
-
-	mlog_write_initial_log_record(buf_block_get_frame(block),
-				      MLOG_INIT_FILE_PAGE2, mtr);
+	fsp_apply_init_file_page(block);
+	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
 }
 
 #ifdef UNIV_DEBUG
@@ -675,26 +667,6 @@ fsp_init_file_page(const fil_space_t* space, buf_block_t* block, mtr_t* mtr)
 #else /* UNIV_DEBUG */
 # define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
 #endif
-
-/***********************************************************//**
-Parses a redo log record of a file page init.
-@return end of log record or NULL */
-byte*
-fsp_parse_init_file_page(
-/*=====================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr MY_ATTRIBUTE((unused)), /*!< in: buffer end */
-	buf_block_t*	block)	/*!< in: block or NULL */
-{
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr != NULL);
-
-	if (block) {
-		fsp_init_file_page_low(block);
-	}
-
-	return(ptr);
-}
 
 /**********************************************************************//**
 Initializes the fsp system. */
