@@ -4482,22 +4482,6 @@ fil_file_readdir_next_file(
 	return(-1);
 }
 
-/*******************************************************************//**
-Report that a tablespace for a table was not found. */
-static
-void
-fil_report_missing_tablespace(
-/*===========================*/
-	const char*	name,			/*!< in: table name */
-	ulint		space_id)		/*!< in: table's space id */
-{
-	ib::error() << "Table " << name
-		<< " in the InnoDB data dictionary has tablespace id "
-		<< space_id << ","
-		" but tablespace with that id or name does not exist. Have"
-		" you deleted or moved .ibd files?";
-}
-
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)
 @param[in]	space_id	tablespace ID
@@ -4540,14 +4524,12 @@ memory cache. Note that if we have not done a crash recovery at the database
 startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	id		Tablespace ID
 @param[in]	name		Tablespace name used in fil_space_create().
-@param[in]	heap		Heap memory
 @param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
 bool
 fil_space_for_table_exists_in_mem(
 	ulint		id,
 	const char*	name,
-	mem_heap_t*	heap,
 	ulint		table_flags)
 {
 	fil_space_t*	space;

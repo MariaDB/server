@@ -1449,7 +1449,7 @@ next:
 		/* Now that we have the proper name for this tablespace,
 		look to see if it is already in the tablespace cache. */
 		if (fil_space_for_table_exists_in_mem(
-			    space_id, table_name.m_name, NULL, flags)) {
+			    space_id, table_name.m_name, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
@@ -2817,13 +2817,11 @@ dict_load_table(
 
 /** Opens a tablespace for dict_load_table_one()
 @param[in,out]	table		A table that refers to the tablespace to open
-@param[in]	heap		A memory heap
 @param[in]	ignore_err	Whether to ignore an error. */
 UNIV_INLINE
 void
 dict_load_tablespace(
 	dict_table_t*		table,
-	mem_heap_t*		heap,
 	dict_err_ignore_t	ignore_err)
 {
 	ut_ad(!dict_table_is_temporary(table));
@@ -2844,7 +2842,7 @@ dict_load_tablespace(
 
 	/* The tablespace may already be open. */
 	if (fil_space_for_table_exists_in_mem(
-		    table->space, space_name, heap, table->flags)) {
+		    table->space, space_name, table->flags)) {
 		return;
 	}
 
@@ -2994,7 +2992,7 @@ err_exit:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
-	dict_load_tablespace(table, heap, ignore_err);
+	dict_load_tablespace(table, ignore_err);
 
 	dict_load_columns(table, heap);
 
