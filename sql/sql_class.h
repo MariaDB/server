@@ -3457,6 +3457,7 @@ private:
         system_time.sec_part= 0;
       }
     }
+    DBUG_EXECUTE("time", print_system_time("Set system time"););;
   }
 
 public:
@@ -3493,6 +3494,24 @@ public:
     user_time= t;
     set_time();
   }
+  inline void print_start_time(const char *prefix)
+  {
+    char time_str[20];
+    get_date(time_str, GETDATE_DATE_TIME, start_time);
+    DBUG_LOCK_FILE;
+    (void) fprintf(DBUG_FILE, "0x%016lx %s: \"%s.%06lu\" (%lu)\n", (ulong) this,
+                   prefix, time_str, start_time_sec_part, start_time);
+    DBUG_UNLOCK_FILE;
+  }
+  inline void print_system_time(const char *prefix)
+  {
+    char time_str[20];
+    get_date(time_str, GETDATE_DATE_TIME, system_time.sec);
+    DBUG_LOCK_FILE;
+    (void) fprintf(DBUG_FILE, "0x%016lx %s: \"%s.%06lu\" (%lu)\n", (ulong) this,
+                   prefix, time_str, system_time.sec_part, system_time.sec);
+    DBUG_UNLOCK_FILE;
+  }
   /*
     this is only used by replication and BINLOG command.
     usecs > TIME_MAX_SECOND_PART means "was not in binlog"
@@ -3500,23 +3519,30 @@ public:
   inline void set_time(my_time_t t, ulong sec_part)
   {
     if (opt_secure_timestamp > (slave_thread ? SECTIME_REPL : SECTIME_SUPER))
+    {
       set_time();                 // note that BINLOG itself requires SUPER
+      DBUG_EXECUTE("time", print_start_time("Set time 1"););
+    }
     else
     {
       if (sec_part <= TIME_MAX_SECOND_PART)
       {
         start_time= system_time.sec= t;
         start_time_sec_part= system_time.sec_part= sec_part;
+        DBUG_EXECUTE("time", print_start_time("Set time 2"););
       }
       else if (t != system_time.sec)
       {
+        DBUG_EXECUTE("time", print_system_time("System time"););;
         start_time= system_time.sec= t;
         start_time_sec_part= system_time.sec_part= 0;
+        DBUG_EXECUTE("time", print_start_time("Set time 3"););
       }
       else
       {
         start_time= t;
         start_time_sec_part= ++system_time.sec_part;
+        DBUG_EXECUTE("time", print_start_time("Set time 4"););
       }
       user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
       PSI_CALL_set_thread_start_time(start_time);
