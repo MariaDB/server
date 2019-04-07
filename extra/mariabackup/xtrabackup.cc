@@ -2748,8 +2748,13 @@ static bool xtrabackup_copy_logfile(bool last = false)
 			my_sleep(1000);
 		}
 
-		start_lsn = (lsn == start_lsn)
-			? 0 : xtrabackup_copy_log(start_lsn, lsn, last);
+		if (lsn == start_lsn) {
+			start_lsn = 0;
+		} else {
+			mutex_enter(&recv_sys->mutex);
+			start_lsn = xtrabackup_copy_log(start_lsn, lsn, last);
+			mutex_exit(&recv_sys->mutex);
+		}
 
 		log_mutex_exit();
 

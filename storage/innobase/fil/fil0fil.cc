@@ -1271,9 +1271,7 @@ fil_space_free(
 			rw_lock_x_unlock(&space->latch);
 		}
 
-		bool	need_mutex = !recv_recovery_on;
-
-		if (need_mutex) {
+		if (!recv_recovery_is_on()) {
 			log_mutex_enter();
 		}
 
@@ -1284,7 +1282,7 @@ fil_space_free(
 			UT_LIST_REMOVE(fil_system.named_spaces, space);
 		}
 
-		if (need_mutex) {
+		if (!recv_recovery_is_on()) {
 			log_mutex_exit();
 		}
 
@@ -1343,9 +1341,8 @@ fil_space_create(
 	UT_LIST_INIT(space->chain, &fil_node_t::chain);
 
 	if ((purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT)
-	    && !recv_recovery_on
+	    && !recv_recovery_is_on()
 	    && id > fil_system.max_assigned_id) {
-
 		if (!fil_system.space_id_reuse_warned) {
 			fil_system.space_id_reuse_warned = true;
 
@@ -2905,7 +2902,7 @@ fil_rename_tablespace(
 	ut_ad(strchr(old_file_name, OS_PATH_SEPARATOR) != NULL);
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
 
-	if (!recv_recovery_on) {
+	if (!recv_recovery_is_on()) {
 		fil_name_write_rename(id, old_file_name, new_file_name);
 		log_mutex_enter();
 	}
@@ -2927,7 +2924,7 @@ fil_rename_tablespace(
 		node->name = new_file_name;
 	}
 
-	if (!recv_recovery_on) {
+	if (!recv_recovery_is_on()) {
 		log_mutex_exit();
 	}
 
@@ -3949,9 +3946,6 @@ memory cache. Note that if we have not done a crash recovery at the database
 startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	id		Tablespace ID
 @param[in]	name		Tablespace name used in fil_space_create().
-@param[in]	print_error_if_does_not_exist
-				Print detailed error information to the
-error log if a matching tablespace is not found from memory.
 @param[in]	table_flags	table flags
 @return the tablespace
 @retval	NULL	if no matching tablespace exists in the memory cache */
@@ -3959,7 +3953,6 @@ fil_space_t*
 fil_space_for_table_exists_in_mem(
 	ulint		id,
 	const char*	name,
-	bool		print_error_if_does_not_exist,
 	ulint		table_flags)
 {
 	const ulint	expected_flags = dict_tf_to_fsp_flags(table_flags);
@@ -3977,7 +3970,8 @@ fil_space_for_table_exists_in_mem(
 				<< ", but the tablespace"
 				" with that id has name " << space->name << "."
 				" Have you deleted or moved .ibd files?";
-			goto error_exit;
+			ib::info() << TROUBLESHOOT_DATADICT_MSG;
+			goto func_exit;
 		}
 
 		/* Adjust the flags that are in FSP_FLAGS_MEM_MASK.
@@ -3989,17 +3983,6 @@ fil_space_for_table_exists_in_mem(
 					     & ~FSP_FLAGS_MEM_MASK);
 		}
 		return space;
-	}
-
-	if (print_error_if_does_not_exist) {
-		ib::error() << "Table " << name
-			    << " in the InnoDB data dictionary"
-			" has tablespace id " << id
-			    << ", but tablespace with that id"
-			" or name does not exist. Have"
-			" you deleted or moved .ibd files?";
-error_exit:
-		ib::info() << TROUBLESHOOT_DATADICT_MSG;
 	}
 
 func_exit:

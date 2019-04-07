@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -186,13 +186,13 @@ buf_read_page_low(
 		thd_wait_end(NULL);
 	}
 
-	if (*err != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		if (*err == DB_TABLESPACE_TRUNCATED) {
 			/* Remove the page which is outside the
 			truncated tablespace bounds when recovering
 			from a crash happened during a truncation */
 			buf_read_page_handle_error(bpage);
-			if (recv_recovery_on) {
+			if (recv_recovery_is_on()) {
 				mutex_enter(&recv_sys->mutex);
 				ut_ad(recv_sys->n_addrs > 0);
 				recv_sys->n_addrs--;

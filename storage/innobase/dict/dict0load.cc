@@ -1422,7 +1422,7 @@ next:
 		look to see if it is already in the tablespace cache. */
 		if (const fil_space_t* space
 		    = fil_space_for_table_exists_in_mem(
-			    space_id, table_name.m_name, false, flags)) {
+			    space_id, table_name.m_name, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
@@ -2797,8 +2797,13 @@ dict_load_tablespace(
 
 	/* The tablespace may already be open. */
 	table->space = fil_space_for_table_exists_in_mem(
-		table->space_id, table->name.m_name, false, table->flags);
+		table->space_id, table->name.m_name, table->flags);
 	if (table->space) {
+		return;
+	}
+
+	if (ignore_err == DICT_ERR_IGNORE_DROP) {
+		table->file_unreadable = true;
 		return;
 	}
 
