@@ -6091,7 +6091,7 @@ drop_create_field:
             Key_part_spec *kp;
             if ((kp= part_it++))
               chkname= kp->field_name.str;
-            if (keyname == NULL)
+            if (chkname == NULL)
               continue;
           }
           if (key->type == chk_key->type &&
