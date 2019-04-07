@@ -4540,9 +4540,6 @@ memory cache. Note that if we have not done a crash recovery at the database
 startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	id		Tablespace ID
 @param[in]	name		Tablespace name used in fil_space_create().
-@param[in]	print_error_if_does_not_exist
-				Print detailed error information to the
-error log if a matching tablespace is not found from memory.
 @param[in]	heap		Heap memory
 @param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
@@ -4550,11 +4547,9 @@ bool
 fil_space_for_table_exists_in_mem(
 	ulint		id,
 	const char*	name,
-	bool		print_error_if_does_not_exist,
 	mem_heap_t*	heap,
 	ulint		table_flags)
 {
-	fil_space_t*	fnamespace;
 	fil_space_t*	space;
 
 	const ulint	expected_flags = dict_tf_to_fsp_flags(table_flags);
@@ -4568,58 +4563,10 @@ fil_space_for_table_exists_in_mem(
 	/* Look if there is a space with the same name; the name is the
 	directory path from the datadir to the file */
 
-	fnamespace = fil_space_get_by_name(name);
-	bool valid = space && !((space->flags ^ expected_flags)
-				& ~FSP_FLAGS_MEM_MASK);
+	const bool valid = space
+		&& !((space->flags ^ expected_flags) & ~FSP_FLAGS_MEM_MASK)
+		&& space == fil_space_get_by_name(name);
 
-	if (!space) {
-	} else if (!valid || space == fnamespace) {
-		/* Found with the same file name, or got a flag mismatch. */
-		goto func_exit;
-	}
-
-	if (!print_error_if_does_not_exist) {
-		valid = false;
-		goto func_exit;
-	}
-
-	if (space == NULL) {
-		if (fnamespace == NULL) {
-			if (print_error_if_does_not_exist) {
-				fil_report_missing_tablespace(name, id);
-			}
-		} else {
-			ib::error() << "Table " << name << " in InnoDB data"
-				" dictionary has tablespace id " << id
-				<< ", but a tablespace with that id does not"
-				" exist. There is a tablespace of name "
-				<< fnamespace->name << " and id "
-				<< fnamespace->id << ", though. Have you"
-				" deleted or moved .ibd files?";
-		}
-error_exit:
-		ib::info() << TROUBLESHOOT_DATADICT_MSG;
-		valid = false;
-		goto func_exit;
-	}
-
-	if (0 != strcmp(space->name, name)) {
-
-		ib::error() << "Table " << name << " in InnoDB data dictionary"
-			" has tablespace id " << id << ", but the tablespace"
-			" with that id has name " << space->name << "."
-			" Have you deleted or moved .ibd files?";
-
-		if (fnamespace != NULL) {
-			ib::error() << "There is a tablespace with the right"
-				" name: " << fnamespace->name << ", but its id"
-				" is " << fnamespace->id << ".";
-		}
-
-		goto error_exit;
-	}
-
-func_exit:
 	if (valid) {
 		/* Adjust the flags that are in FSP_FLAGS_MEM_MASK.
 		FSP_SPACE_FLAGS will not be written back here. */

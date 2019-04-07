@@ -2675,7 +2675,7 @@ row_mysql_drop_garbage_tables()
 			btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
 			if (dict_load_table(table_name, true,
-					    DICT_ERR_IGNORE_ALL)) {
+					    DICT_ERR_IGNORE_DROP)) {
 				row_drop_table_for_mysql(
 					table_name, trx,
 					SQLCOM_DROP_TABLE);
@@ -3231,7 +3231,7 @@ row_drop_single_table_tablespace(
 
 	/* If the tablespace is not in the cache, just delete the file. */
 	if (!fil_space_for_table_exists_in_mem(
-		    space_id, tablename, true, NULL, table_flags)) {
+		    space_id, tablename, NULL, table_flags)) {
 
 		/* Force a delete of any discarded or temporary files. */
 		fil_delete_file(filepath);

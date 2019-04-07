@@ -1162,9 +1162,6 @@ memory cache. Note that if we have not done a crash recovery at the database
 startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	id		Tablespace ID
 @param[in]	name		Tablespace name used in fil_space_create().
-@param[in]	print_error_if_does_not_exist
-				Print detailed error information to the
-error log if a matching tablespace is not found from memory.
 @param[in]	heap		Heap memory
 @param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
@@ -1172,7 +1169,6 @@ bool
 fil_space_for_table_exists_in_mem(
 	ulint		id,
 	const char*	name,
-	bool		print_error_if_does_not_exist,
 	mem_heap_t*	heap,
 	ulint		table_flags);
 
