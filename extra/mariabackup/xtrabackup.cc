@@ -221,8 +221,6 @@ const char *defaults_group = "mysqld";
 #define HA_INNOBASE_ROWS_IN_TABLE 10000 /* to get optimization right */
 #define HA_INNOBASE_RANGE_COUNT	  100
 
-ulong 	innobase_large_page_size = 0;
-
 /* The default values for the following, type long or longlong, start-up
 parameters are declared in mysqld.cc: */
 
@@ -247,7 +245,6 @@ affects Windows: */
 char*	innobase_unix_file_flush_method;
 
 my_bool innobase_use_doublewrite;
-my_bool innobase_use_large_pages;
 my_bool	innobase_file_per_table;
 my_bool innobase_locks_unsafe_for_binlog;
 my_bool innobase_rollback_on_timeout;
@@ -1919,8 +1916,6 @@ innodb_init_param(void)
 
 	srv_use_doublewrite_buf = (ibool) innobase_use_doublewrite;
 
-	os_use_large_pages = (ibool) innobase_use_large_pages;
-	os_large_page_size = (ulint) innobase_large_page_size;
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
 
 	srv_file_per_table = (my_bool) innobase_file_per_table;
