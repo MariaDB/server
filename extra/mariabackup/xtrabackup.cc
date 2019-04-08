@@ -4129,7 +4129,7 @@ reread_log_header:
 	}
 
 	const byte* buf = log_sys.checkpoint_buf;
-	checkpoint_lsn_start = log_sys.log.lsn;
+	checkpoint_lsn_start = log_sys.log.get_lsn();
 	checkpoint_no_start = log_sys.next_checkpoint_no;
 
 	log_header_read(max_cp_field);
@@ -4181,7 +4181,7 @@ reread_log_header:
 	stored correctly in the copy of the ib_logfile. The most significant
 	bits, which identify the start offset of the log block in the file,
 	we did choose freely, as LOG_FILE_HDR_SIZE. */
-	ut_ad(!((log_sys.log.lsn ^ checkpoint_lsn_start)
+	ut_ad(!((log_sys.log.get_lsn() ^ checkpoint_lsn_start)
 		& (OS_FILE_LOG_BLOCK_SIZE - 1)));
 	log_block_set_checksum(log_hdr,
 			       log_block_calc_checksum_crc32(log_hdr));

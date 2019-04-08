@@ -990,11 +990,12 @@ recv_find_max_checkpoint_0(ulint* max_field)
 			*max_field = field;
 			max_no = checkpoint_no;
 
-			log_sys.log.lsn = mach_read_from_8(
-				buf + LOG_CHECKPOINT_LSN);
-			log_sys.log.lsn_offset = static_cast<ib_uint64_t>(
-				mach_read_from_4(buf + OFFSET_HIGH32)) << 32
-				| mach_read_from_4(buf + OFFSET_LOW32);
+			log_sys.log.set_lsn(mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN));
+			log_sys.log.set_lsn_offset(
+				lsn_t(mach_read_from_4(buf + OFFSET_HIGH32))
+				<< 32
+				| mach_read_from_4(buf + OFFSET_LOW32));
 		}
 	}
 
@@ -1076,7 +1077,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 static dberr_t recv_log_recover_10_4()
 {
 	ut_ad(!log_sys.is_encrypted());
-	const lsn_t	lsn = log_sys.log.lsn;
+	const lsn_t	lsn = log_sys.log.get_lsn();
 	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
 	const ulint	page_no
 		= (ulint) (source_offset / univ_page_size.physical());
@@ -1202,10 +1203,10 @@ recv_find_max_checkpoint(ulint* max_field)
 		if (checkpoint_no >= max_no) {
 			*max_field = field;
 			max_no = checkpoint_no;
-			log_sys.log.lsn = mach_read_from_8(
-				buf + LOG_CHECKPOINT_LSN);
-			log_sys.log.lsn_offset = mach_read_from_8(
-				buf + LOG_CHECKPOINT_OFFSET);
+			log_sys.log.set_lsn(mach_read_from_8(
+				buf + LOG_CHECKPOINT_LSN));
+			log_sys.log.set_lsn_offset(mach_read_from_8(
+				buf + LOG_CHECKPOINT_OFFSET));
 			log_sys.next_checkpoint_no = checkpoint_no;
 		}
 	}
@@ -3713,8 +3714,8 @@ recv_reset_logs(
 
 	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
 
-	log_sys.log.lsn = log_sys.lsn;
-	log_sys.log.lsn_offset = LOG_FILE_HDR_SIZE;
+	log_sys.log.set_lsn(log_sys.lsn);
+	log_sys.log.set_lsn_offset(LOG_FILE_HDR_SIZE);
 
 	log_sys.buf_next_to_write = 0;
 	log_sys.write_lsn = log_sys.lsn;
