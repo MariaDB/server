@@ -108,7 +108,7 @@ struct fil_space_t {
 	ulint		redo_skipped_count;
 				/*!< reference count for operations who want
 				to skip redo log in the file space in order
-				to make fsp_space_modify_check pass. */
+				to make modify_check() pass. */
 #endif
 	fil_type_t	purpose;/*!< purpose */
 	UT_LIST_BASE_NODE_T(fil_node_t) chain;
@@ -208,6 +208,12 @@ struct fil_space_t {
 	fil_node_t* add(const char* name, pfs_os_file_t handle,
 			ulint size, bool is_raw, bool atomic_write,
 			ulint max_pages = ULINT_MAX);
+#ifdef UNIV_DEBUG
+	/** Assert that the mini-transaction is compatible with
+	updating an allocation bitmap page.
+	@param[in]	mtr	mini-transaction */
+	void modify_check(const mtr_t& mtr) const;
+#endif /* UNIV_DEBUG */
 };
 
 /** Value of fil_space_t::magic_n */

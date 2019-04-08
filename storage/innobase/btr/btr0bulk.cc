@@ -1037,7 +1037,7 @@ BtrBulk::finish(dberr_t	err)
 		root_page_bulk.copyIn(first_rec);
 
 		/* Remove last page. */
-		btr_page_free_low(m_index, last_block, m_root_level, false, &mtr);
+		btr_page_free(m_index, last_block, &mtr);
 
 		/* Do not flush the last page. */
 		last_block->page.flush_observer = NULL;

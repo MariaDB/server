@@ -671,16 +671,6 @@ btr_page_alloc(
 					the page */
 	MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
-Frees a file page used in an index tree. NOTE: cannot free field external
-storage pages because the page must contain info on its level. */
-void
-btr_page_free(
-/*==========*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
-/**************************************************************//**
 Creates a new index page (not the root, and also not
 used in page reorganization).  @see btr_page_empty(). */
 void
@@ -691,18 +681,16 @@ btr_page_create(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the B-tree level of the page */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Frees a file page used in an index tree. Can be used also to BLOB
-external storage pages. */
-void
-btr_page_free_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
-	ulint		level,	/*!< in: page level (ULINT_UNDEFINED=BLOB) */
-	bool		blob,   /*!< in: blob page */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull(1,2)));
+
+/** Free an index page.
+@param[in,out]	index	index tree
+@param[in,out]	block	block to be freed
+@param[in,out]	mtr	mini-transaction
+@param[in]	blob	whether this is freeing a BLOB page */
+MY_ATTRIBUTE((nonnull))
+void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
+		   bool blob = false);
+
 /**************************************************************//**
 Gets the root node of a tree and x- or s-latches it.
 @return root page, x- or s-latched */
