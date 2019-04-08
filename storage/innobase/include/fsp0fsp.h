@@ -490,6 +490,7 @@ fsp_reserve_free_extents(
 @param[in]	offset		page number
 @param[in]	ahi		whether we may need to drop the adaptive
 hash index
+@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page_func(
@@ -499,13 +500,14 @@ fseg_free_page_func(
 #ifdef BTR_CUR_HASH_ADAPT
 	bool		ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
+	bool		log,
 	mtr_t*		mtr);
 #ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_page(header, space, offset, ahi, mtr)	\
-	fseg_free_page_func(header, space, offset, ahi, mtr)
+# define fseg_free_page(header, space, offset, ahi, log, mtr)	\
+	fseg_free_page_func(header, space, offset, ahi, log, mtr)
 #else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_page(header, space, offset, ahi, mtr)	\
-	fseg_free_page_func(header, space, offset, mtr)
+# define fseg_free_page(header, space, offset, ahi, log, mtr)	\
+	fseg_free_page_func(header, space, offset, log, mtr)
 #endif /* BTR_CUR_HASH_ADAPT */
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace

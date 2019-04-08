@@ -1313,8 +1313,10 @@ fsp_alloc_free_page(
 The page is marked as free and clean.
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
+@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
-static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
+static void fsp_free_page(fil_space_t* space, page_no_t offset,
+			  bool log, mtr_t* mtr)
 {
 	fsp_header_t*	header;
 	xdes_t*		descr;
@@ -1366,6 +1368,17 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 		is already free, return without doing anything! */
 
 		return;
+	}
+
+	if (UNIV_UNLIKELY(!log)) {
+		/* The last page freed in BtrBulk::finish() must be
+		written with redo logging disabled for the page
+		itself. The modifications of the allocation data
+		structures are covered by redo log. */
+	} else if (byte* log_ptr = mlog_open(mtr, 11)) {
+		log_ptr = mlog_write_initial_log_record_low(
+			MLOG_INIT_FREE_PAGE, space->id, offset, log_ptr, mtr);
+		mlog_close(mtr, log_ptr);
 	}
 
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
@@ -1631,10 +1644,12 @@ fsp_alloc_seg_inode(
 /** Frees a file segment inode.
 @param[in,out]	space		tablespace
 @param[in,out]	inode		segment inode
+@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 static void fsp_free_seg_inode(
 	fil_space_t*		space,
 	fseg_inode_t*		inode,
+	bool			log,
 	mtr_t*			mtr)
 {
 	page_t*		page;
@@ -1673,7 +1688,7 @@ static void fsp_free_seg_inode(
 		flst_remove(space_header + FSP_SEG_INODES_FREE,
 			    page + FSEG_INODE_PAGE_NODE, mtr);
 
-		fsp_free_page(space, page_get_page_no(page), mtr);
+		fsp_free_page(space, page_get_page_no(page), log, mtr);
 	}
 }
 
@@ -1956,7 +1971,7 @@ fseg_create(
 		ut_ad(!has_done_reservation || block != NULL);
 
 		if (block == NULL) {
-			fsp_free_seg_inode(space, inode, mtr);
+			fsp_free_seg_inode(space, inode, true, mtr);
 			goto funct_exit;
 		}
 
@@ -2724,6 +2739,7 @@ fseg_mark_page_used(
 @param[in]	offset		page number
 @param[in]	ahi		whether we may need to drop the adaptive
 hash index
+@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 static
 void
@@ -2734,6 +2750,7 @@ fseg_free_page_low(
 #ifdef BTR_CUR_HASH_ADAPT
 	bool			ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
+	bool			log,
 	mtr_t*			mtr)
 {
 	xdes_t*	descr;
@@ -2787,7 +2804,7 @@ fseg_free_page_low(
 			}
 		}
 
-		fsp_free_page(space, offset, mtr);
+		fsp_free_page(space, offset, log, mtr);
 		return;
 	}
 
@@ -2842,8 +2859,8 @@ fseg_free_page_low(
 }
 
 #ifndef BTR_CUR_HASH_ADAPT
-# define fseg_free_page_low(inode, space, offset, ahi, mtr)	\
-	fseg_free_page_low(inode, space, offset, mtr)
+# define fseg_free_page_low(inode, space, offset, ahi, log, mtr)	\
+	fseg_free_page_low(inode, space, offset, log, mtr)
 #endif /* !BTR_CUR_HASH_ADAPT */
 
 /** Free a page in a file segment.
@@ -2852,6 +2869,7 @@ fseg_free_page_low(
 @param[in]	offset		page number
 @param[in]	ahi		whether we may need to drop the adaptive
 hash index
+@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page_func(
@@ -2861,6 +2879,7 @@ fseg_free_page_func(
 #ifdef BTR_CUR_HASH_ADAPT
 	bool		ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
+	bool		log,
 	mtr_t*		mtr)
 {
 	DBUG_ENTER("fseg_free_page");
@@ -2876,7 +2895,7 @@ fseg_free_page_func(
 				   &iblock);
 	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 
-	fseg_free_page_low(seg_inode, space, offset, ahi, mtr);
+	fseg_free_page_low(seg_inode, space, offset, ahi, log, mtr);
 
 	ut_d(buf_page_set_file_page_was_freed(page_id_t(space->id, offset)));
 
@@ -3066,7 +3085,7 @@ fseg_free_step_func(
 
 	if (n == ULINT_UNDEFINED) {
 		/* Freeing completed: free the segment inode */
-		fsp_free_seg_inode(space, inode, mtr);
+		fsp_free_seg_inode(space, inode, true, mtr);
 
 		DBUG_RETURN(TRUE);
 	}
@@ -3074,13 +3093,13 @@ fseg_free_step_func(
 	fseg_free_page_low(
 		inode, space,
 		fseg_get_nth_frag_page_no(inode, n, mtr),
-		ahi, mtr);
+		ahi, true, mtr);
 
 	n = fseg_find_last_used_frag_page_slot(inode, mtr);
 
 	if (n == ULINT_UNDEFINED) {
 		/* Freeing completed: free the segment inode */
-		fsp_free_seg_inode(space, inode, mtr);
+		fsp_free_seg_inode(space, inode, true, mtr);
 
 		DBUG_RETURN(TRUE);
 	}
@@ -3145,7 +3164,7 @@ fseg_free_step_not_header_func(
 		return(TRUE);
 	}
 
-	fseg_free_page_low(inode, space, page_no, ahi, mtr);
+	fseg_free_page_low(inode, space, page_no, ahi, true, mtr);
 
 	return(FALSE);
 }

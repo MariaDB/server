@@ -762,7 +762,7 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 					  : PAGE_HEADER + PAGE_BTR_SEG_TOP];
 	fseg_free_page(seg_header,
 		       index->table->space, block->page.id.page_no(),
-		       block->index != NULL, mtr);
+		       block->index != NULL, !block->page.flush_observer, mtr);
 
 	/* The page was marked free in the allocation bitmap, but it
 	should remain exclusively latched until mtr_t::commit() or until it
