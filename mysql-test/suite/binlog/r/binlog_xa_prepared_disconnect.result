@@ -1047,101 +1047,101 @@ master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t (a INT) ENGINE=innodb
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_0
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_0'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=0
 master-bin.000001	#	Query	#	#	XA END 'trx_0'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_0'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_1
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_1'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_1'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_1'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_2
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_2'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=2
 master-bin.000001	#	Query	#	#	XA END 'trx_2'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_2'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_3
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_3'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=3
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_3'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_3'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_4
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_4'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=4
 master-bin.000001	#	Query	#	#	XA END 'trx_4'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_4'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_5
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_5'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=5
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_5'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_5'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_6
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_6'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=6
 master-bin.000001	#	Query	#	#	XA END 'trx_6'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_6'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_7
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_7'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=7
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_7'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_7'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_8
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_8'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=8
 master-bin.000001	#	Query	#	#	XA END 'trx_8'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_8'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_9
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_9'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=9
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_9'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_9'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_10
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_10'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=10
 master-bin.000001	#	Query	#	#	XA END 'trx_10'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_10'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_11
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_11'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=11
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_11'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_11'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_12
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_12'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=12
 master-bin.000001	#	Query	#	#	XA END 'trx_12'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_12'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_13
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_13'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=13
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_13'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_13'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_14
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_14'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=14
 master-bin.000001	#	Query	#	#	XA END 'trx_14'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_14'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_15
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_15'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=15
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_15'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_15'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_16
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_16'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=16
 master-bin.000001	#	Query	#	#	XA END 'trx_16'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_16'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_17
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_17'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=17
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	XA END 'trx_17'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_17'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_18
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_18'
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=18
 master-bin.000001	#	Query	#	#	XA END 'trx_18'
 master-bin.000001	#	XA_prepare	#	#	XA PREPARE 'trx_18'
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID :trx_19
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-# XID:'trx_19'
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t SET a=19
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F

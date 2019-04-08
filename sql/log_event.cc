@@ -8115,8 +8115,9 @@ Gtid_log_event::pack_info(Protocol *protocol)
 
   if (flags2 & FL_PREPARED_XA)
   {
-    p= strmov(p, " XID :");
+    p= strmov(p, " XID:'");
     p= strnmov(p, xid.data, xid.bqual_length + xid.gtrid_length);
+    *(p++)= '\'';
   }
 
   protocol->store(buf, p-buf, &my_charset_bin);
