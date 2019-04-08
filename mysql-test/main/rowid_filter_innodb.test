@@ -43,5 +43,26 @@ eval explain format=json $q;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-19195: possible RORI-plan and possible plan with range filter
+--echo #             for not first joined table
+--echo #
+
+create table t1 (id int not null primary key) engine=innodb;
+insert into t1 values (2),(1);
+
+create table t2 (y int,x int,index (x),index (y)) engine=innodb;
+insert into t2 values
+  (4,1),(4,777),(2,1),(2,888),(111,1),(222,1),(333,345),(444,1),
+  (555,555),(666,1);
+
+let $q=
+select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
+
+eval $q;
+eval explain extended $q;
+
+drop table t1, t2;
+
 
 SET SESSION STORAGE_ENGINE=DEFAULT;

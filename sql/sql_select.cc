@@ -7815,6 +7815,10 @@ best_access_path(JOIN      *join,
           DBUG_ASSERT(tmp >= 0);
 	}
       }
+      else
+      {
+        best_filter= 0;
+      }
 
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
