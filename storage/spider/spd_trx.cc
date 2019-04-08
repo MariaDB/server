@@ -1689,7 +1689,6 @@ int spider_check_and_set_sql_mode(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
-  int wait_timeout;
   DBUG_ENTER("spider_check_and_set_sql_mode");
   spider_conn_queue_sql_mode(conn, thd->variables.sql_mode);
   DBUG_RETURN(0);
