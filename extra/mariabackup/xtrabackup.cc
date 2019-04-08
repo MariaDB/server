@@ -4003,9 +4003,7 @@ static bool xtrabackup_backup_low()
 
 /** Implement --backup
 @return	whether the operation succeeded */
-static
-bool
-xtrabackup_backup_func()
+static bool xtrabackup_backup_func()
 {
 	MY_STAT			 stat_info;
 	uint			 i;
@@ -4175,37 +4173,24 @@ fail:
 
 	log_mutex_enter();
 
+reread_log_header:
 	dberr_t err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS) {
-log_fail:
+		msg("Error: cannot read redo log header");
 		log_mutex_exit();
 		goto fail;
 	}
 
 	if (log_sys->log.format == 0) {
-old_format:
-		msg("Error: cannot process redo log"
-		    " before MariaDB 10.2.2");
+		msg("Error: cannot process redo log before MariaDB 10.2.2");
 		log_mutex_exit();
-		goto log_fail;
+		goto fail;
 	}
 
 	const byte* buf = log_sys->checkpoint_buf;
-
-reread_log_header:
 	checkpoint_lsn_start = log_sys->log.lsn;
 	checkpoint_no_start = log_sys->next_checkpoint_no;
-
-	err = recv_find_max_checkpoint(&max_cp_field);
-
-	if (err != DB_SUCCESS) {
-		goto log_fail;
-	}
-
-	if (log_sys->log.format == 0) {
-		goto old_format;
-	}
 
 	log_group_header_read(&log_sys->log, max_cp_field);
 
@@ -4253,6 +4238,12 @@ reread_log_header:
 	mach_write_to_8(log_hdr + LOG_CHECKPOINT_OFFSET,
 			(checkpoint_lsn_start & (OS_FILE_LOG_BLOCK_SIZE - 1))
 			| LOG_FILE_HDR_SIZE);
+	/* The least significant bits of LOG_CHECKPOINT_OFFSET must be
+	stored correctly in the copy of the ib_logfile. The most significant
+	bits, which identify the start offset of the log block in the file,
+	we did choose freely, as LOG_FILE_HDR_SIZE. */
+	ut_ad(!((log_sys->log.lsn ^ checkpoint_lsn_start)
+		& (OS_FILE_LOG_BLOCK_SIZE - 1)));
 	log_block_set_checksum(log_hdr,
 			       log_block_calc_checksum_crc32(log_hdr));
 	/* Write checkpoint page 1 and two empty log pages before the
