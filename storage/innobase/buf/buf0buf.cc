@@ -1592,7 +1592,7 @@ buf_chunk_init(
 
 	/* Round down to a multiple of page size,
 	although it already should be. */
-	mem_size = ut_2pow_round(mem_size, ulint(srv_page_size));
+	mem_size = ut_2pow_round<ulint>(mem_size, srv_page_size);
 
 	DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return(NULL););
 
@@ -1625,7 +1625,7 @@ buf_chunk_init(
 	chunk->blocks = (buf_block_t*) chunk->mem;
 
 	/* Align a pointer to the first frame.  Note that when
-	os_large_page_size is smaller than srv_page_size,
+	opt_large_page_size is smaller than srv_page_size,
 	we may allocate one fewer block than requested.  When
 	it is bigger, we may allocate more blocks than requested. */
 

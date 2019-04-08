@@ -105,7 +105,7 @@ struct fil_space_t {
 	bool		is_being_truncated;
 #ifdef UNIV_DEBUG
 	/** reference count for operations who want to skip redo log in the
-	file space in order to make fsp_space_modify_check pass. */
+	file space in order to make modify_check() pass. */
 	Atomic_counter<ulint> redo_skipped_count;
 #endif
 	fil_type_t	purpose;/*!< purpose */
@@ -198,6 +198,12 @@ struct fil_space_t {
 	fil_node_t* add(const char* name, pfs_os_file_t handle,
 			ulint size, bool is_raw, bool atomic_write,
 			ulint max_pages = ULINT_MAX);
+#ifdef UNIV_DEBUG
+	/** Assert that the mini-transaction is compatible with
+	updating an allocation bitmap page.
+	@param[in]	mtr	mini-transaction */
+	void modify_check(const mtr_t& mtr) const;
+#endif /* UNIV_DEBUG */
 
 	/** Try to reserve free extents.
 	@param[in]	n_free_now	current number of free extents

@@ -221,8 +221,6 @@ const char *defaults_group = "mysqld";
 #define HA_INNOBASE_ROWS_IN_TABLE 10000 /* to get optimization right */
 #define HA_INNOBASE_RANGE_COUNT	  100
 
-ulong 	innobase_large_page_size = 0;
-
 /* The default values for the following, type long or longlong, start-up
 parameters are declared in mysqld.cc: */
 
@@ -242,7 +240,6 @@ char*	innobase_data_home_dir;
 char*	innobase_data_file_path;
 
 my_bool innobase_use_doublewrite;
-my_bool innobase_use_large_pages;
 my_bool	innobase_file_per_table;
 my_bool innobase_locks_unsafe_for_binlog;
 my_bool innobase_rollback_on_timeout;
@@ -1917,8 +1914,6 @@ static bool innodb_init_param()
 
 	srv_use_doublewrite_buf = (ibool) innobase_use_doublewrite;
 
-	os_use_large_pages = (ibool) innobase_use_large_pages;
-	os_large_page_size = (ulint) innobase_large_page_size;
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
 
 	srv_file_per_table = (my_bool) innobase_file_per_table;
@@ -3999,9 +3994,7 @@ static bool xtrabackup_backup_low()
 
 /** Implement --backup
 @return	whether the operation succeeded */
-static
-bool
-xtrabackup_backup_func()
+static bool xtrabackup_backup_func()
 {
 	MY_STAT			 stat_info;
 	uint			 i;
@@ -4134,37 +4127,24 @@ fail:
 
 	log_mutex_enter();
 
+reread_log_header:
 	dberr_t err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS) {
-log_fail:
+		msg("Error: cannot read redo log header");
 		log_mutex_exit();
 		goto fail;
 	}
 
 	if (log_sys.log.format == 0) {
-old_format:
-		msg("Error: cannot process redo log"
-		    " before MariaDB 10.2.2");
+		msg("Error: cannot process redo log before MariaDB 10.2.2");
 		log_mutex_exit();
-		goto log_fail;
+		goto fail;
 	}
 
 	const byte* buf = log_sys.checkpoint_buf;
-
-reread_log_header:
-	checkpoint_lsn_start = log_sys.log.lsn;
+	checkpoint_lsn_start = log_sys.log.get_lsn();
 	checkpoint_no_start = log_sys.next_checkpoint_no;
-
-	err = recv_find_max_checkpoint(&max_cp_field);
-
-	if (err != DB_SUCCESS) {
-		goto log_fail;
-	}
-
-	if (log_sys.log.format == 0) {
-		goto old_format;
-	}
 
 	log_header_read(max_cp_field);
 
@@ -4211,6 +4191,12 @@ reread_log_header:
 	mach_write_to_8(log_hdr + LOG_CHECKPOINT_OFFSET,
 			(checkpoint_lsn_start & (OS_FILE_LOG_BLOCK_SIZE - 1))
 			| LOG_FILE_HDR_SIZE);
+	/* The least significant bits of LOG_CHECKPOINT_OFFSET must be
+	stored correctly in the copy of the ib_logfile. The most significant
+	bits, which identify the start offset of the log block in the file,
+	we did choose freely, as LOG_FILE_HDR_SIZE. */
+	ut_ad(!((log_sys.log.get_lsn() ^ checkpoint_lsn_start)
+		& (OS_FILE_LOG_BLOCK_SIZE - 1)));
 	log_block_set_checksum(log_hdr,
 			       log_block_calc_checksum_crc32(log_hdr));
 	/* Write checkpoint page 1 and two empty log pages before the

@@ -2,18 +2,14 @@
 # WL#6965: Truncate UNDO logs.
 #
 
+--source include/big_test.inc
 # With larger innodb_page_size, the undo log tablespaces do not grow enough.
 --source include/innodb_page_size_small.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_undo_tablespaces.inc
-
-# Valgrind would complain about memory leaks when we crash on purpose.
---source include/not_valgrind.inc
-# Embedded server does not support crashing
+# Tests with embedded server do not support restarting
 --source include/not_embedded.inc
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
 
 SET GLOBAL innodb_undo_logs = 4;
 SET GLOBAL innodb_undo_log_truncate = 1;
