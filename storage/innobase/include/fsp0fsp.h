@@ -631,6 +631,26 @@ fsp_descr_page(
 @param[in,out]	block	buffer pool block */
 void fsp_apply_init_file_page(buf_block_t* block);
 
+/** Initialize a file page.
+@param[in]	space	tablespace
+@param[in,out]	block	file page
+@param[in,out]	mtr	mini-transaction */
+inline void fsp_init_file_page(
+#ifdef UNIV_DEBUG
+	const fil_space_t* space,
+#endif
+	buf_block_t* block, mtr_t* mtr)
+{
+	ut_d(space->modify_check(*mtr));
+	ut_ad(space->id == block->page.id.space());
+	fsp_apply_init_file_page(block);
+	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
+}
+
+#ifndef UNIV_DEBUG
+# define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
+#endif
+
 #ifdef UNIV_BTR_PRINT
 /*******************************************************************//**
 Writes info of a segment. */

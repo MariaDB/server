@@ -16,6 +16,11 @@ IF(RPM)
     ENDIF()
   ENDMACRO()
 
+  # FindBoost.cmake doesn't leave any trace, do it here
+  IF (Boost_INCLUDE_DIR)
+    FIND_FILE(Boost_config_hpp boost/config.hpp PATHS ${Boost_INCLUDE_DIR})
+  ENDIF()
+
   GET_CMAKE_PROPERTY(ALL_VARS CACHE_VARIABLES)
   FOREACH (V ${ALL_VARS})
     GET_PROPERTY(H CACHE ${V} PROPERTY HELPSTRING)
