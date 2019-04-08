@@ -46,7 +46,7 @@ extern ulint	os_total_large_mem_allocated;
 extern my_bool	os_use_large_pages;
 
 /** Large page size. This may be a boot-time option on some platforms */
-extern uint	os_large_page_size;
+extern ulint	os_large_page_size;
 
 /** Converts the current process id to a number.
 @return process id as a number */
