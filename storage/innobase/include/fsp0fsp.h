@@ -508,24 +508,28 @@ fsp_reserve_free_extents(
 	mtr_t*		mtr,
 	ulint		n_pages = 2);
 
-/**********************************************************************//**
-Frees a single page of a segment. */
+/** Free a page in a file segment.
+@param[in,out]	seg_header	file segment header
+@param[in,out]	space		tablespace
+@param[in]	offset		page number
+@param[in]	ahi		whether we may need to drop the adaptive
+hash index
+@param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page_func(
-	fseg_header_t*	seg_header, /*!< in: segment header */
-	ulint		space_id, /*!< in: space id */
-	ulint		page,	/*!< in: page offset */
+	fseg_header_t*	seg_header,
+	fil_space_t*	space,
+	ulint		offset,
 #ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
+	bool		ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
+	mtr_t*		mtr);
 #ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, ahi, mtr)
+# define fseg_free_page(header, space, offset, ahi, mtr)	\
+	fseg_free_page_func(header, space, offset, ahi, mtr)
 #else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, mtr)
+# define fseg_free_page(header, space, offset, ahi, mtr)	\
+	fseg_free_page_func(header, space, offset, mtr)
 #endif /* BTR_CUR_HASH_ADAPT */
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace

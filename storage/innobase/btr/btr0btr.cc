@@ -750,8 +750,7 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 					  ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					  : PAGE_HEADER + PAGE_BTR_SEG_TOP];
 	fseg_free_page(seg_header,
-		       block->page.id.space(),
-		       block->page.id.page_no(),
+		       index->table->space, block->page.id.page_no(),
 		       block->index != NULL, mtr);
 
 	/* The page was marked free in the allocation bitmap, but it

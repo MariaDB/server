@@ -1360,7 +1360,7 @@ fsp_alloc_free_page(
 /** Frees a single page of a space.
 The page is marked as free and clean.
 @param[in,out]	space		tablespace
-@param[in]	page_id		page id
+@param[in]	offset		page number
 @param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction */
 static
@@ -2923,35 +2923,39 @@ fseg_free_page_low(
 	fseg_free_page_low(inode, space, offset, page_size, mtr)
 #endif /* !BTR_CUR_HASH_ADAPT */
 
-/**********************************************************************//**
-Frees a single page of a segment. */
+/** Free a page in a file segment.
+@param[in,out]	seg_header	file segment header
+@param[in,out]	space		tablespace
+@param[in]	offset		page number
+@param[in]	ahi		whether we may need to drop the adaptive
+hash index
+@param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page_func(
-	fseg_header_t*	seg_header, /*!< in: segment header */
-	ulint		space_id,/*!< in: space id */
-	ulint		page,	/*!< in: page offset */
+	fseg_header_t*	seg_header,
+	fil_space_t*	space,
+	ulint		offset,
 #ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
+	bool		ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	mtr_t*		mtr)
 {
 	DBUG_ENTER("fseg_free_page");
 	fseg_inode_t*		seg_inode;
 	buf_block_t*		iblock;
-	fil_space_t*		space = mtr_x_lock_space(space_id, mtr);
+	mtr_x_lock(&space->latch, mtr);
 	const page_size_t	page_size(space->flags);
 
-	DBUG_LOG("fseg_free_page", "space_id: " << space_id
-		 << ", page_no: " << page);
+	DBUG_LOG("fseg_free_page", "space_id: " << space->id
+		 << ", page_no: " << offset);
 
-	seg_inode = fseg_inode_get(seg_header, space_id, page_size, mtr,
+	seg_inode = fseg_inode_get(seg_header, space->id, page_size, mtr,
 				   &iblock);
 	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 
-	fseg_free_page_low(seg_inode, space, page, page_size, ahi, mtr);
+	fseg_free_page_low(seg_inode, space, offset, page_size, ahi, mtr);
 
-	ut_d(buf_page_set_file_page_was_freed(page_id_t(space_id, page)));
+	ut_d(buf_page_set_file_page_was_freed(page_id_t(space->id, offset)));
 
 	DBUG_VOID_RETURN;
 }
