@@ -8473,16 +8473,9 @@ void spider_free_tmp_dbton_handler(
 TABLE_LIST *spider_get_parent_table_list(
   ha_spider *spider
 ) {
-  TABLE *table = spider->get_table();
-  TABLE_LIST *table_list = table->pos_in_table_list;
+  TABLE *table = spider->get_top_table();
   DBUG_ENTER("spider_get_parent_table_list");
-  if (table_list)
-  {
-    while (table_list->parent_l)
-      table_list = table_list->parent_l;
-    DBUG_RETURN(table_list);
-  }
-  DBUG_RETURN(NULL);
+  DBUG_RETURN(table->pos_in_table_list);
 }
 
 List<Index_hint> *spider_get_index_hints(
