@@ -78,7 +78,10 @@ enum dict_err_ignore_t {
 					Silently load a missing
 					tablespace, and do not load
 					incomplete index definitions. */
-	DICT_ERR_IGNORE_ALL = 0xFFFF	/*!< ignore all errors */
+	/** ignore all errors above */
+	DICT_ERR_IGNORE_ALL = 15,
+	/** prepare to drop the table; do not attempt to load tablespace */
+	DICT_ERR_IGNORE_DROP = 31
 };
 
 /** Quiescing states for flushing tables to disk. */
