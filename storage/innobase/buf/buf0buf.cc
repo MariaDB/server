@@ -1568,12 +1568,12 @@ buf_chunk_init(
 
 	/* Round down to a multiple of page size,
 	although it already should be. */
-	mem_size = ut_2pow_round(mem_size, ulint(srv_page_size));
+	mem_size = ut_2pow_round<ulint>(mem_size, srv_page_size);
 	/* Reserve space for the block descriptors. */
-	mem_size += ut_2pow_round((mem_size >> srv_page_size_shift)
-				  * (sizeof *block)
-				  + (srv_page_size - 1),
-				  ulint(srv_page_size));
+	mem_size += ut_2pow_round<ulint>((mem_size >> srv_page_size_shift)
+					 * (sizeof *block)
+					 + (srv_page_size - 1),
+					 srv_page_size);
 
 	DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return(NULL););
 

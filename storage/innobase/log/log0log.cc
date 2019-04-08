@@ -897,8 +897,8 @@ log_buffer_switch()
 	ut_ad(log_write_mutex_own());
 
 	const byte*	old_buf = log_sys.buf;
-	ulint		area_end = ut_calc_align(
-		log_sys.buf_free, ulint(OS_FILE_LOG_BLOCK_SIZE));
+	ulong		area_end = ut_calc_align(
+		log_sys.buf_free, ulong(OS_FILE_LOG_BLOCK_SIZE));
 
 	if (log_sys.first_in_use) {
 		log_sys.first_in_use = false;
