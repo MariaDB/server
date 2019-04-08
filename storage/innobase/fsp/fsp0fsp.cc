@@ -955,7 +955,7 @@ fsp_try_extend_data_file(fil_space_t* space, fsp_header_t* header, mtr_t* mtr)
 	/* We ignore any fragments of a full megabyte when storing the size
 	to the space header */
 
-	space->size_in_header = ut_calc_align_down(
+	space->size_in_header = ut_2pow_round(
 		space->size, (1024 * 1024) / page_size.physical());
 
 	mlog_write_ulint(
