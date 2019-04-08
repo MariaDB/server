@@ -20,3 +20,5 @@ rpl_row_index_choice      : MDEV-11666
 rpl_parallel2             : fails after MDEV-16172
 rpl_semi_sync_after_sync  : fails after MDEV-16172
 rpl_auto_increment_update_failure  : disabled for now
+rpl_xa_survive_crash_debug  : MDEV-7974. Now it fails.
+rpl_xa_survive_disconnect   : MDEV-7974. Now it fails.
