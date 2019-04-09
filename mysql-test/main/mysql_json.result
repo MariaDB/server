@@ -10,4 +10,37 @@ Note	1051	Unknown table 'test.mysql_json'
 select * from test.mysql_json;
 t
 {"key1": "val1", "key2": "val2"}
+select * from test.t1;
+i	j
+0	NULL
+1	{"a": 2}
+2	[1, 2]
+3	{"a": "b", "c": "d", "ab": "abc", "bc": ["x", "y"]}
+4	["here", ["I", "am"], "!!!"]
+5	"scalar string"
+6	true
+7	false
+8	null
+9	-1
+10	1
+11	32767
+12	32768
+13	-32768
+14	-32769
+15	2147483647
+16	2147483648
+17	-2147483648
+18	-2147483649
+19	18446744073709551615
+20	1.8446744073709552e19
+21	3.14
+22	{}
+23	[]
+24	"2015-01-15 23:24:25.000000"
+25	"23:24:25.000000"
+27	"2015-01-15 23:24:25.000000"
+29	[]
+30	"base64:type16:yv4="
+31	"base64:type16:yv66vg=="
 drop table mysql_json;
+drop table t1;

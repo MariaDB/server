@@ -17,4 +17,12 @@ drop table if exists mysql_json;
 # Now can read 
 select * from test.mysql_json;
 
+# Create other table to test other data types
+--copy_file std_data/t1.frm $datadir/test/t1.frm
+--copy_file std_data/t1.MYI $datadir/test/t1.MYI
+--copy_file std_data/t1.MYD $datadir/test/t1.MYD
+
+select * from test.t1;
+
 drop table mysql_json;
+drop table t1;
