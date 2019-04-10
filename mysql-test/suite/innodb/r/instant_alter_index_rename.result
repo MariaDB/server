@@ -176,3 +176,7 @@ check table rename_column_and_index;
 Table	Op	Msg_type	Msg_text
 test.rename_column_and_index	check	status	OK
 drop table rename_column_and_index;
+create table t1 (f1 int, f2 int, f3 int) engine=heap;
+alter table t1 add foreign key f (f2) references xx(f2);
+alter table t1 add foreign key (f2) references t1(f2), add key (f3), add key (f1);
+drop table t1;

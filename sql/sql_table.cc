@@ -7048,6 +7048,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       KEY **drop_buffer= ha_alter_info->index_drop_buffer;
       const KEY *old_key= drop_buffer[j];
 
+      if (old_key->flags & HA_GENERATED_KEY)
+        continue;
+
       if (compare_keys_but_name(old_key, new_key, alter_info, table, new_pk,
                                 old_pk) != Compare_keys::Equal)
       {
