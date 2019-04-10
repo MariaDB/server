@@ -3517,15 +3517,18 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
     if (mysql_query(mysql, query_buff))
     {
-      /*
-        mysqldump is being run against old server, that does not support
-        SHOW CREATE TRIGGER statement. We should use SHOW TRIGGERS output.
+      if (ER_PARSE_ERROR == mysql_errno(mysql)) {
+	/*
+	  mysqldump is being run against old server, that does not support
+	  SHOW CREATE TRIGGER statement. We should use SHOW TRIGGERS output.
 
-        NOTE: the dump may be incorrect, as old SHOW TRIGGERS does not
-        provide all the necessary information to restore trigger properly.
-      */
-
-      dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
+	  NOTE: the dump may be incorrect, as old SHOW TRIGGERS does not
+	  provide all the necessary information to restore trigger properly.
+	*/
+        dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
+      } else {
+	maybe_die(EX_CONSCHECK, "%s failed: %s\n", query_buff, mysql_error(mysql));
+      }
     }
     else
     {
