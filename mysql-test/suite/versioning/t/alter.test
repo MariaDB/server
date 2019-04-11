@@ -517,5 +517,15 @@ alter table t1 drop column `row_start`, drop column `row_end`, drop system versi
 --error ER_CANT_DROP_FIELD_OR_KEY
 alter table t1 drop column `row_end`;
 
+--echo #
+--echo # MDEV-19127 Assertion `row_start_field' failed in vers_prepare_keys upon ALTER TABLE
+--echo #
+set system_versioning_alter_history=keep;
+create or replace table t1 (f1 int) with system versioning;
+alter table t1 add f2 int with system versioning, drop system versioning;
+create or replace table t1 (f1 int) with system versioning;
+--error ER_VERS_NOT_VERSIONED
+alter table t1 drop system versioning, add f2 int with system versioning;
+
 drop database test;
 create database test;
