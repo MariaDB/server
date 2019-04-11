@@ -83,6 +83,7 @@ extern struct wsrep_service_st {
   const char*                 (*wsrep_get_sr_table_name_func)();
   my_bool                     (*wsrep_get_debug_func)();
   void                        (*wsrep_commit_ordered_func)(MYSQL_THD thd);
+  my_bool                     (*wsrep_thd_is_applying_func)(const MYSQL_THD thd);
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -121,7 +122,8 @@ extern struct wsrep_service_st {
 #define wsrep_thd_skip_locking(T) wsrep_service->wsrep_thd_skip_locking_func(T)
 #define wsrep_get_sr_table_name() wsrep_service->wsrep_get_sr_table_name_func()
 #define wsrep_get_debug() wsrep_service->wsrep_get_debug_func()
-#define wsrep_commit_ordered(T) wsrep_service->wsrep_commit_ordered(T)
+#define wsrep_commit_ordered(T) wsrep_service->wsrep_commit_ordered_func(T)
+#define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
 
 #else
 
@@ -213,6 +215,7 @@ extern "C" const char* wsrep_get_sr_table_name();
 extern "C" my_bool wsrep_get_debug();
 
 extern "C" void wsrep_commit_ordered(MYSQL_THD thd);
+extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
 
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */
