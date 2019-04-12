@@ -1207,8 +1207,10 @@ The following specify which files/extra groups are read (specified before remain
  --slave-transaction-retry-errors=name 
  Tells the slave thread to retry transaction for
  replication when a query event returns an error from the
- provided list. Deadlock and elapsed lock wait timeout
- errors are automatically added to this list
+ provided list. Deadlock error, elapsed lock wait timeout,
+ net read error, net read timeout, net write error, net
+ write timeout, connect error and 2 types of lost
+ connection error are automatically added to this list
  --slave-transaction-retry-interval=# 
  Interval of the slave SQL thread will retry a transaction
  in case it failed with a deadlock or elapsed lock wait
@@ -1712,7 +1714,7 @@ slave-run-triggers-for-rbr NO
 slave-skip-errors OFF
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
-slave-transaction-retry-errors 1213,1205
+slave-transaction-retry-errors 1158,1159,1160,1161,1205,1213,1429,2013,12701
 slave-transaction-retry-interval 0
 slave-type-conversions 
 slow-launch-time 2
