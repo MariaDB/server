@@ -4,7 +4,7 @@
  alter table boundary_255
  modify b varchar(200) charset utf8mb3,
  algorithm=instant;
--ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
  alter table boundary_255
  modify c varchar(300) charset utf8mb3,
  algorithm=instant;
