@@ -1,7 +1,7 @@
 SET @start_value = @@global.table_open_cache ;
 SELECT @start_value;
 @start_value
-421
+2000
 '#--------------------FN_DYNVARS_001_01------------------------#'
 SET @@global.table_open_cache  = 99;
 SET @@global.table_open_cache  = DeFAULT;
@@ -108,4 +108,4 @@ ERROR 42S22: Unknown column 'table_open_cache' in 'field list'
 SET @@global.table_open_cache = @start_value;
 SELECT @@global.table_open_cache ;
 @@global.table_open_cache
-421
+2000
