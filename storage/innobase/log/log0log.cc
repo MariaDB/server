@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -193,10 +193,8 @@ void log_buffer_extend(ulong len)
 
 	log_sys.is_extending = true;
 
-	while (ut_calc_align_down(log_sys.buf_free,
-				  OS_FILE_LOG_BLOCK_SIZE)
-	       != ut_calc_align_down(log_sys.buf_next_to_write,
-				     OS_FILE_LOG_BLOCK_SIZE)) {
+	while ((log_sys.buf_free ^ log_sys.buf_next_to_write)
+	       & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
 		/* Buffer might have >1 blocks to write still. */
 		log_mutex_exit_all();
 
@@ -205,9 +203,8 @@ void log_buffer_extend(ulong len)
 		log_mutex_enter_all();
 	}
 
-	ulong move_start = ut_calc_align_down(
-		log_sys.buf_free,
-		OS_FILE_LOG_BLOCK_SIZE);
+	ulong move_start = ut_2pow_round(log_sys.buf_free,
+					 ulong(OS_FILE_LOG_BLOCK_SIZE));
 	ulong move_end = log_sys.buf_free;
 
 	/* store the last log block in buffer */
@@ -896,8 +893,8 @@ log_buffer_switch()
 	ut_ad(log_write_mutex_own());
 
 	const byte*	old_buf = log_sys.buf;
-	ulint		area_end = ut_calc_align(log_sys.buf_free,
-						 OS_FILE_LOG_BLOCK_SIZE);
+	ulong		area_end = ut_calc_align(
+		log_sys.buf_free, ulong(OS_FILE_LOG_BLOCK_SIZE));
 
 	if (log_sys.first_in_use) {
 		log_sys.first_in_use = false;
@@ -1031,8 +1028,9 @@ loop:
 	start_offset = log_sys.buf_next_to_write;
 	end_offset = log_sys.buf_free;
 
-	area_start = ut_calc_align_down(start_offset, OS_FILE_LOG_BLOCK_SIZE);
-	area_end = ut_calc_align(end_offset, OS_FILE_LOG_BLOCK_SIZE);
+	area_start = ut_2pow_round(start_offset,
+				   ulint(OS_FILE_LOG_BLOCK_SIZE));
+	area_end = ut_calc_align(end_offset, ulint(OS_FILE_LOG_BLOCK_SIZE));
 
 	ut_ad(area_end - area_start > 0);
 
@@ -1189,14 +1187,11 @@ synchronization objects!
 this lsn
 @return false if there was a flush batch of the same type running,
 which means that we could not start this flush batch */
-static
-bool
-log_preflush_pool_modified_pages(
-	lsn_t			new_oldest)
+static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 {
 	bool	success;
 
-	if (recv_recovery_on) {
+	if (recv_recovery_is_on()) {
 		/* If the recovery is running, we must first apply all
 		log records to their respective file pages to get the
 		right modify lsn values to these pages: otherwise, there

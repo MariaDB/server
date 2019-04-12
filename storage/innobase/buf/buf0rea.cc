@@ -186,7 +186,7 @@ buf_read_page_low(
 		thd_wait_end(NULL);
 	}
 
-	if (*err != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		if (IORequest::ignore_missing(type)
 		    || *err == DB_TABLESPACE_DELETED) {
 			buf_read_page_handle_error(bpage);

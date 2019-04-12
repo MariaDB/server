@@ -87,7 +87,7 @@ public:
 class Wsrep_replayer_service : public Wsrep_high_priority_service
 {
 public:
-  Wsrep_replayer_service(THD*);
+  Wsrep_replayer_service(THD* replayer_thd, THD* orig_thd);
   ~Wsrep_replayer_service();
   int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&);
   void after_apply() { }
@@ -99,6 +99,7 @@ public:
   /* Replayer should never be forced to exit */
   bool check_exit_status() const { return false; }
 private:
+  THD* m_orig_thd;
   struct da_shadow
   {
     enum Diagnostics_area::enum_diagnostics_status status;

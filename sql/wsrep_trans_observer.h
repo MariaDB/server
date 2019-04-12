@@ -56,6 +56,13 @@ static inline bool wsrep_must_abort(THD* thd)
 }
 
 /*
+  Return true if the transaction must be replayed.
+ */
+static inline bool wsrep_must_replay(THD* thd)
+{
+  return (thd->wsrep_trx().state() == wsrep::transaction::s_must_replay);
+}
+/*
   Return true if transaction has not been committed.
 
   Note that we don't require thd->LOCK_thd_data here. Calling this method

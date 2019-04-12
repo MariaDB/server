@@ -135,3 +135,6 @@ my_bool wsrep_get_debug()
 
 void wsrep_commit_ordered(THD* )
 { }
+
+my_bool wsrep_thd_is_applying(const THD*)
+{ return 0;}

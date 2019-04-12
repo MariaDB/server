@@ -519,83 +519,88 @@ bool Wsrep_applier_service::check_exit_status() const
                            Replayer service
 *****************************************************************************/
 
-Wsrep_replayer_service::Wsrep_replayer_service(THD* thd)
-  : Wsrep_high_priority_service(thd)
+Wsrep_replayer_service::Wsrep_replayer_service(THD* replayer_thd, THD* orig_thd)
+  : Wsrep_high_priority_service(replayer_thd)
+  , m_orig_thd(orig_thd)
   , m_da_shadow()
   , m_replay_status()
 {
   /* Response must not have been sent to client */
-  DBUG_ASSERT(!thd->get_stmt_da()->is_sent());
+  DBUG_ASSERT(!orig_thd->get_stmt_da()->is_sent());
   /* PS reprepare observer should have been removed already
      open_table() will fail if we have dangling observer here */
-  DBUG_ASSERT(!thd->m_reprepare_observer);
+  DBUG_ASSERT(!orig_thd->m_reprepare_observer);
   /* Replaying should happen always from after_statement() hook
      after rollback, which should guarantee that there are no
      transactional locks */
-  DBUG_ASSERT(!thd->mdl_context.has_transactional_locks());
+  DBUG_ASSERT(!orig_thd->mdl_context.has_transactional_locks());
 
   /* Make a shadow copy of diagnostics area and reset */
-  m_da_shadow.status= thd->get_stmt_da()->status();
+  m_da_shadow.status= orig_thd->get_stmt_da()->status();
   if (m_da_shadow.status == Diagnostics_area::DA_OK)
   {
-    m_da_shadow.affected_rows= thd->get_stmt_da()->affected_rows();
-    m_da_shadow.last_insert_id= thd->get_stmt_da()->last_insert_id();
-    strmake(m_da_shadow.message, thd->get_stmt_da()->message(),
+    m_da_shadow.affected_rows= orig_thd->get_stmt_da()->affected_rows();
+    m_da_shadow.last_insert_id= orig_thd->get_stmt_da()->last_insert_id();
+    strmake(m_da_shadow.message, orig_thd->get_stmt_da()->message(),
             sizeof(m_da_shadow.message) - 1);
   }
-  thd->get_stmt_da()->reset_diagnostics_area();
+  orig_thd->get_stmt_da()->reset_diagnostics_area();
 
   /* Release explicit locks */
-  if (thd->locked_tables_mode && thd->lock)
+  if (orig_thd->locked_tables_mode && orig_thd->lock)
   {
     WSREP_WARN("releasing table lock for replaying (%llu)",
-               thd->thread_id);
-    thd->locked_tables_list.unlock_locked_tables(thd);
-    thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+               orig_thd->thread_id);
+    orig_thd->locked_tables_list.unlock_locked_tables(orig_thd);
+    orig_thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
   }
 
+  thd_proc_info(orig_thd, "wsrep replaying trx");
+
   /*
-    Replaying will call MYSQL_START_STATEMENT when handling
-    BEGIN Query_log_event so end statement must be called before
-    replaying.
+    Swith execution context to replayer_thd and prepare it for
+    replay execution.
   */
-  MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
-  thd->m_statement_psi= NULL;
-  thd->m_digest= NULL;
-  thd_proc_info(thd, "wsrep replaying trx");
+  orig_thd->reset_globals();
+  replayer_thd->store_globals();
+  wsrep_open(replayer_thd);
+  wsrep_before_command(replayer_thd);
+  replayer_thd->wsrep_cs().clone_transaction_for_replay(orig_thd->wsrep_trx());
 }
 
 Wsrep_replayer_service::~Wsrep_replayer_service()
 {
-  THD* thd= m_thd;
-  DBUG_ASSERT(!thd->get_stmt_da()->is_sent());
-  DBUG_ASSERT(!thd->get_stmt_da()->is_set());
+  THD* replayer_thd= m_thd;
+  THD* orig_thd= m_orig_thd;
+
+  /* Store replay result/state to original thread wsrep client
+     state and switch execution context back to original. */
+  orig_thd->wsrep_cs().after_replay(replayer_thd->wsrep_trx());
+  wsrep_after_apply(replayer_thd);
+  wsrep_after_command_ignore_result(replayer_thd);
+  wsrep_close(replayer_thd);
+  replayer_thd->reset_globals();
+  orig_thd->store_globals();
+
+  DBUG_ASSERT(!orig_thd->get_stmt_da()->is_sent());
+  DBUG_ASSERT(!orig_thd->get_stmt_da()->is_set());
+
   if (m_replay_status == wsrep::provider::success)
   {
-    DBUG_ASSERT(thd->wsrep_cs().current_error() == wsrep::e_success);
-    thd->killed= NOT_KILLED;
-    if (m_da_shadow.status == Diagnostics_area::DA_OK)
-    {
-      my_ok(thd,
-            m_da_shadow.affected_rows,
-            m_da_shadow.last_insert_id,
-            m_da_shadow.message);
-    }
-    else
-    {
-      my_ok(thd);
-    }
+    DBUG_ASSERT(replayer_thd->wsrep_cs().current_error() == wsrep::e_success);
+    orig_thd->killed= NOT_KILLED;
+    my_ok(orig_thd, m_da_shadow.affected_rows, m_da_shadow.last_insert_id);
   }
   else if (m_replay_status == wsrep::provider::error_certification_failed)
   {
-    wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+    wsrep_override_error(orig_thd, ER_LOCK_DEADLOCK);
   }
   else
   {
     DBUG_ASSERT(0);
     WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
                 m_replay_status,
-                thd->db.str, WSREP_QUERY(thd));
+                orig_thd->db.str, WSREP_QUERY(orig_thd));
     unireg_abort(1);
   }
 }

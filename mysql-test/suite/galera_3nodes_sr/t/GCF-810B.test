@@ -15,7 +15,7 @@
 #
 
 --connection node_3
-SET GLOBAL debug="d,crash_apply_cb_before_append_frag";
+SET GLOBAL debug_dbug="d,crash_apply_cb_before_append_frag";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes2.inc
 
@@ -32,7 +32,7 @@ COMMIT;
 #
 
 --connection node_3
-SET GLOBAL debug="d,crash_apply_cb_after_append_frag";
+SET GLOBAL debug_dbug="d,crash_apply_cb_after_append_frag";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes2.inc
 

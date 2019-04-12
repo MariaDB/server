@@ -2090,8 +2090,9 @@ ibuf_remove_free_page(void)
 	the free list was so long that they cannot have taken the last
 	page from it. */
 
+	compile_time_assert(IBUF_SPACE_ID == 0);
 	fseg_free_page(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
-		       IBUF_SPACE_ID, page_no, false, &mtr);
+		       fil_system.sys_space, page_no, false, true, &mtr);
 
 	const page_id_t	page_id(IBUF_SPACE_ID, page_no);
 
