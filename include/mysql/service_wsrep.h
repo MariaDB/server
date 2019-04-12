@@ -164,7 +164,7 @@ extern struct wsrep_service_st {
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
 #define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
-#define wsrep_thd_is_applier(T) wsrep_service->wsrep_thd_is_applier(T)
+#define wsrep_thd_is_applier(T) wsrep_service->wsrep_thd_is_applier_func(T)
 
 #define wsrep_debug get_wsrep_debug()
 #define wsrep_log_conflicts get_wsrep_log_conflicts()
