@@ -7012,7 +7012,7 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_RENAME
   eng "Columns participating in a foreign key are renamed"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE
-  eng "Cannot change column type INPLACE"
+  eng "Cannot change column type"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_CHECK
   eng "Adding foreign keys needs foreign_key_checks=OFF"
