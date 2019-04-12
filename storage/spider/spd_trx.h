@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2014 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -94,6 +95,12 @@ int spider_check_and_set_autocommit(
 );
 
 int spider_check_and_set_sql_log_off(
+  THD *thd,
+  SPIDER_CONN *conn,
+  int *need_mon
+);
+
+int spider_check_and_set_wait_timeout(
   THD *thd,
   SPIDER_CONN *conn,
   int *need_mon
