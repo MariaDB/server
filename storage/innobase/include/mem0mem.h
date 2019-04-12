@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -77,7 +77,7 @@ is the maximum size for a single allocated buffer: */
 
 /** Space needed when allocating for a user a field of length N.
 The space is allocated only in multiples of UNIV_MEM_ALIGNMENT.  */
-#define MEM_SPACE_NEEDED(N) ut_calc_align((N), UNIV_MEM_ALIGNMENT)
+#define MEM_SPACE_NEEDED(N) UT_CALC_ALIGN((N), UNIV_MEM_ALIGNMENT)
 
 #ifdef UNIV_DEBUG
 /** Macro for memory heap creation.
@@ -348,8 +348,8 @@ struct mem_block_info_t {
 #define MEM_FREED_BLOCK_MAGIC_N	547711122
 
 /* Header size for a memory heap block */
-#define MEM_BLOCK_HEADER_SIZE	ut_calc_align(sizeof(mem_block_info_t),\
-							UNIV_MEM_ALIGNMENT)
+#define MEM_BLOCK_HEADER_SIZE	UT_CALC_ALIGN(sizeof(mem_block_info_t),\
+					      UNIV_MEM_ALIGNMENT)
 
 #include "mem0mem.ic"
 #endif

@@ -2772,7 +2772,7 @@ row_mysql_drop_garbage_tables()
 			btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
 			if (dict_load_table(table_name, true,
-					    DICT_ERR_IGNORE_ALL)) {
+					    DICT_ERR_IGNORE_DROP)) {
 				row_drop_table_for_mysql(table_name, trx,
 							 SQLCOM_DROP_TABLE);
 				trx_commit_for_mysql(trx);

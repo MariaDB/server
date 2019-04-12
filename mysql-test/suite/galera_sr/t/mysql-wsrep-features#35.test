@@ -9,7 +9,7 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 SELECT COUNT(*) = 0 FROM t1;
 SET SESSION wsrep_sync_wait = 0;
-SET GLOBAL debug = '+d,sync.wsrep_apply_cb';
+SET GLOBAL debug_dbug = '+d,sync.wsrep_apply_cb';
 
 --connection node_1
 SET SESSION wsrep_trx_fragment_size = 1;
@@ -34,7 +34,7 @@ SELECT COUNT(*) = 0 FROM t1;
 COMMIT;
 
 --connection node_2a
-SET GLOBAL debug = '';
+SET GLOBAL debug_dbug = '';
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
 --connection node_2

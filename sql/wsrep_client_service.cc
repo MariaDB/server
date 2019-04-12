@@ -250,20 +250,38 @@ void Wsrep_client_service::will_replay()
 
 enum wsrep::provider::status Wsrep_client_service::replay()
 {
+
   DBUG_ASSERT(m_thd == current_thd);
-  Wsrep_replayer_service replayer_service(m_thd);
-  wsrep::provider& provider(m_thd->wsrep_cs().provider());
-  mysql_mutex_lock(&m_thd->LOCK_thd_data);
-  m_thd->killed= NOT_KILLED;
-  mysql_mutex_unlock(&m_thd->LOCK_thd_data);
-  enum wsrep::provider::status ret=
-    provider.replay(m_thd->wsrep_trx().ws_handle(), &replayer_service);
-  replayer_service.replay_status(ret);
+  DBUG_ENTER("Wsrep_client_service::replay");
+
+  /*
+    Allocate separate THD for replaying to avoid tampering
+    original THD state during replication event applying.
+   */
+  THD *replayer_thd= new THD(true, true);
+  replayer_thd->thread_stack= m_thd->thread_stack;
+  replayer_thd->real_id= pthread_self();
+  replayer_thd->prior_thr_create_utime=
+      replayer_thd->start_utime= microsecond_interval_timer();
+  replayer_thd->set_command(COM_SLEEP);
+  replayer_thd->reset_for_next_command(true);
+
+  enum wsrep::provider::status ret;
+  {
+    Wsrep_replayer_service replayer_service(replayer_thd, m_thd);
+    wsrep::provider& provider(replayer_thd->wsrep_cs().provider());
+    ret= provider.replay(replayer_thd->wsrep_trx().ws_handle(),
+                         &replayer_service);
+    replayer_service.replay_status(ret);
+  }
+
+  delete replayer_thd;
+
   mysql_mutex_lock(&LOCK_wsrep_replaying);
   --wsrep_replaying;
   mysql_cond_broadcast(&COND_wsrep_replaying);
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
-  return ret;
+  DBUG_RETURN(ret);
 }
 
 void Wsrep_client_service::wait_for_replayers(wsrep::unique_lock<wsrep::mutex>& lock)

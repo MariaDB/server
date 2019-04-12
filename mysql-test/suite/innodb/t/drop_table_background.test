@@ -3,6 +3,8 @@
 # Embedded server does not support restarting
 --source include/not_embedded.inc
 
+let $MYSQLD_DATADIR=`select @@datadir`;
+
 CREATE TABLE t(c0 SERIAL, c1 INT, c2 INT, c3 INT, c4 INT,
 KEY(c1), KEY(c2), KEY(c2,c1),
 KEY(c3), KEY(c3,c1), KEY(c3,c2), KEY(c3,c2,c1),
@@ -32,7 +34,9 @@ CREATE TABLE target (PRIMARY KEY(c1)) ENGINE=InnoDB SELECT * FROM t;
 --error ER_NO_SUCH_TABLE
 SELECT * from target;
 DROP TABLE t;
---source include/restart_mysqld.inc
+--source include/shutdown_mysqld.inc
+--remove_files_wildcard $MYSQLD_DATADIR/test #sql-*.ibd
+--source include/start_mysqld.inc
 CREATE TABLE t (a INT) ENGINE=InnoDB;
 DROP TABLE t;
 --error ER_BAD_TABLE_ERROR

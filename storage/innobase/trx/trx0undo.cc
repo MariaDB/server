@@ -831,35 +831,30 @@ trx_undo_free_page(
 				undo log page; the caller must have reserved
 				the rollback segment mutex */
 {
-	page_t*		header_page;
-	page_t*		undo_page;
-	fil_addr_t	last_addr;
-	trx_rsegf_t*	rseg_header;
-	ulint		hist_size;
 	const ulint	space = rseg->space->id;
 
 	ut_a(hdr_page_no != page_no);
 	ut_ad(mutex_own(&(rseg->mutex)));
 
-	undo_page = trx_undo_page_get(page_id_t(space, page_no), mtr);
+	page_t*	undo_page = trx_undo_page_get(page_id_t(space, page_no), mtr);
+	page_t* header_page = trx_undo_page_get(page_id_t(space, hdr_page_no),
+						mtr);
 
-	header_page = trx_undo_page_get(page_id_t(space, hdr_page_no), mtr);
+	flst_remove(TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + header_page,
+		    TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE + undo_page, mtr);
 
-	flst_remove(header_page + TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST,
-		    undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE, mtr);
+	fseg_free_page(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER + header_page,
+		       rseg->space, page_no, false, true, mtr);
 
-	fseg_free_page(header_page + TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER,
-		       space, page_no, false, mtr);
-
-	last_addr = flst_get_last(header_page + TRX_UNDO_SEG_HDR
-				  + TRX_UNDO_PAGE_LIST, mtr);
+	const fil_addr_t last_addr = flst_get_last(
+		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + header_page, mtr);
 	rseg->curr_size--;
 
 	if (in_history) {
-		rseg_header = trx_rsegf_get(rseg->space, rseg->page_no, mtr);
-
-		hist_size = mtr_read_ulint(rseg_header + TRX_RSEG_HISTORY_SIZE,
-					   MLOG_4BYTES, mtr);
+		trx_rsegf_t* rseg_header = trx_rsegf_get(
+			rseg->space, rseg->page_no, mtr);
+		uint32_t hist_size = mach_read_from_4(
+			rseg_header + TRX_RSEG_HISTORY_SIZE);
 		ut_ad(hist_size > 0);
 		mlog_write_ulint(rseg_header + TRX_RSEG_HISTORY_SIZE,
 				 hist_size - 1, MLOG_4BYTES, mtr);

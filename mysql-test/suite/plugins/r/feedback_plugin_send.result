@@ -4,7 +4,7 @@ ACTIVE
 SELECT variable_value INTO @feedback_used FROM information_schema.feedback where variable_name = 'FEEDBACK used';
 SELECT variable_value = @feedback_used + 1 FROM information_schema.feedback where variable_name = 'FEEDBACK used';
 variable_value = @feedback_used + 1
-1
+0
 select * from information_schema.feedback where variable_name like 'feed%'
        and variable_name not like '%_uid' and variable_name not like 'FEEDBACK used'
        and variable_name not like '%debug%';
@@ -25,5 +25,6 @@ VARIABLE_VALUE>0	VARIABLE_NAME
 1	Collation used utf8_bin
 1	Collation used utf8_general_ci
 set global sql_mode=ONLY_FULL_GROUP_BY;
+# restart
 6: feedback plugin: report to 'http://mariadb.org/feedback_plugin/post' was sent
 6: feedback plugin: server replied 'ok'

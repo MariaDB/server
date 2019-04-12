@@ -16,7 +16,7 @@
 
 --connection node_2
 --enable_reconnect
-SET GLOBAL debug="d,crash_last_fragment_commit_before_fragment_removal";
+SET GLOBAL debug_dbug="d,crash_last_fragment_commit_before_fragment_removal";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 
@@ -39,7 +39,7 @@ COMMIT;
 #
 
 --connection node_2
-SET GLOBAL debug="d,crash_last_fragment_commit_after_fragment_removal";
+SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 
@@ -66,7 +66,7 @@ COMMIT;
 #
 
 # --connection node_2
-# SET GLOBAL debug="d,crash_last_fragment_commit_success";
+# SET GLOBAL debug_dbug="d,crash_last_fragment_commit_success";
 # --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 # --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 
@@ -84,7 +84,7 @@ COMMIT;
 #
 
 --connection node_2
-SET GLOBAL debug="d,crash_replicate_fragment_success";
+SET GLOBAL debug_dbug="d,crash_replicate_fragment_success";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 
@@ -102,7 +102,7 @@ COMMIT;
 #
 
 --connection node_2
-SET GLOBAL debug="d,crash_replicate_fragment_after_certify";
+SET GLOBAL debug_dbug="d,crash_replicate_fragment_after_certify";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 
@@ -120,7 +120,7 @@ COMMIT;
 #
 
 --connection node_2
-SET GLOBAL debug="d,crash_replicate_fragment_before_certify";
+SET GLOBAL debug_dbug="d,crash_replicate_fragment_before_certify";
 --source suite/galera_3nodes/include/galera_expect_node_crash.inc
 --source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes.inc
 

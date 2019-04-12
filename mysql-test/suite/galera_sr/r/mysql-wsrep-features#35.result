@@ -6,9 +6,7 @@ SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
 SET SESSION wsrep_sync_wait = 0;
-SET GLOBAL debug = '+d,sync.wsrep_apply_cb';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET GLOBAL debug_dbug = '+d,sync.wsrep_apply_cb';
 connection node_1;
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
@@ -29,9 +27,7 @@ INSERT INTO t1 VALUES (1);;
 connection node_1;
 COMMIT;
 connection node_2a;
-SET GLOBAL debug = '';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET GLOBAL debug_dbug = '';
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 connection node_2;
 Got one of the listed errors

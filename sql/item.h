@@ -5733,6 +5733,7 @@ public:
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
+  Item *remove_item_direct_ref() { return this; }
 };
 
 
