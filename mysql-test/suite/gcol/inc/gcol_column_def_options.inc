@@ -150,7 +150,6 @@ create table t2 (a int);
 alter table t1 add constraint foreign key fk(d) references t2(a);
 if ($support_virtual_foreign)
 {
---replace_regex /`#sql-.*`/`#sql-temporary`/
 --error ER_CANT_CREATE_TABLE
 alter table t1 add constraint foreign key fk(b) references t2(a);
 }

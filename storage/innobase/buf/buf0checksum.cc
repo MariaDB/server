@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -121,6 +121,10 @@ buf_checksum_algorithm_name(srv_checksum_algorithm_t algo)
 		return("none");
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return("strict_none");
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+		return("full_crc32");
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		return("strict_full_crc32");
 	}
 
 	ut_error;

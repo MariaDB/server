@@ -19,3 +19,4 @@ SELECT @@global.rocksdb_max_open_files;
 SELECT FLOOR(@@global.open_files_limit / 2) = @@global.rocksdb_max_open_files;
 FLOOR(@@global.open_files_limit / 2) = @@global.rocksdb_max_open_files
 1
+# restart

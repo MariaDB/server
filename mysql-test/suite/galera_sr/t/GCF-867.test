@@ -1,0 +1,42 @@
+#
+# Test many ongoing SR transactions
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+--disable_query_log
+
+--let $connections = 62
+
+--let $count = $connections
+while ($count)
+{
+--connect $count, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_trx_fragment_size = 1;
+SET SESSION wsrep_sync_wait = 0;
+--dec $count
+}
+
+
+--let $count = $connections
+while ($count)
+{
+--connection $count
+START TRANSACTION;
+--send_eval INSERT INTO t1 VALUES ($count)
+--dec $count
+}
+
+--let $count = $connections
+while ($count)
+{
+--connection $count
+--reap
+COMMIT;
+--dec $count
+}
+
+--enable_query_log
+DROP TABLE t1;

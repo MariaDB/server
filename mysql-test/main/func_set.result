@@ -172,8 +172,8 @@ INTERVAL( 9, 1, DATE_ADD( pk, INTERVAL pk MINUTE_SECOND ), 9, 8, 3, 5, 2, 1 )
 8
 8
 Warnings:
-Warning	1292	Incorrect datetime value: '10' for column 'pk' at row 1
-Warning	1292	Incorrect datetime value: '11' for column 'pk' at row 2
+Warning	1292	Incorrect datetime value: '10' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '11' for column `test`.`t1`.`pk` at row 2
 DROP TABLE t1;
 #
 # End of 5.3 tests

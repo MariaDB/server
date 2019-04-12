@@ -53,6 +53,7 @@
 #include <myisam.h>
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "sql_show.h"
+#include "opt_trace_context.h"
 
 #include "log_event.h"
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -349,13 +350,65 @@ static Sys_var_long Sys_pfs_connect_attrs_size(
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
+#ifdef WITH_WSREP
+
+/*
+  We need to keep the original values set by the user, as they will
+  be lost if wsrep_auto_increment_control set to 'ON':
+*/
+static bool update_auto_increment_increment (sys_var *self, THD *thd, enum_var_type type)
+{
+  if (type == OPT_GLOBAL)
+    global_system_variables.saved_auto_increment_increment=
+      global_system_variables.auto_increment_increment;
+  else
+    thd->variables.saved_auto_increment_increment=
+      thd->variables.auto_increment_increment;
+  return false;
+}
+
+#endif /* WITH_WSREP */
+
+static Sys_var_double Sys_analyze_sample_percentage(
+       "analyze_sample_percentage",
+       "Percentage of rows from the table ANALYZE TABLE will sample "
+       "to collect table statistics. Set to 0 to let MariaDB decide "
+       "what percentage of rows to sample.",
+       SESSION_VAR(sample_percentage),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100),
+       DEFAULT(100));
+
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
        "Auto-increment columns are incremented by this",
        SESSION_VAR(auto_increment_increment),
        CMD_LINE(OPT_ARG),
        VALID_RANGE(1, 65535), DEFAULT(1), BLOCK_SIZE(1),
+#ifdef WITH_WSREP
+       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_auto_increment_increment));
+#else
        NO_MUTEX_GUARD, IN_BINLOG);
+#endif /* WITH_WSREP */
+
+#ifdef WITH_WSREP
+
+/*
+  We need to keep the original values set by the user, as they will
+  be lost if wsrep_auto_increment_control set to 'ON':
+*/
+static bool update_auto_increment_offset (sys_var *self, THD *thd, enum_var_type type)
+{
+  if (type == OPT_GLOBAL)
+    global_system_variables.saved_auto_increment_offset=
+      global_system_variables.auto_increment_offset;
+  else
+    thd->variables.saved_auto_increment_offset=
+      thd->variables.auto_increment_offset;
+  return false;
+}
+
+#endif /* WITH_WSREP */
 
 static Sys_var_ulong Sys_auto_increment_offset(
        "auto_increment_offset",
@@ -364,7 +417,12 @@ static Sys_var_ulong Sys_auto_increment_offset(
        SESSION_VAR(auto_increment_offset),
        CMD_LINE(OPT_ARG),
        VALID_RANGE(1, 65535), DEFAULT(1), BLOCK_SIZE(1),
+#ifdef WITH_WSREP
+       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_auto_increment_offset));
+#else
        NO_MUTEX_GUARD, IN_BINLOG);
+#endif /* WITH_WSREP */
 
 static Sys_var_mybool Sys_automatic_sp_privileges(
        "automatic_sp_privileges",
@@ -473,7 +531,7 @@ bool check_has_super(sys_var *self, THD *thd, set_var *var)
 
 static Sys_var_bit Sys_core_file("core_file", "write a core-file on crashes",
           READ_ONLY GLOBAL_VAR(test_flags), NO_CMD_LINE,
-          TEST_CORE_ON_SIGNAL, DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+          TEST_CORE_ON_SIGNAL, DEFAULT(IF_WIN(TRUE,FALSE)), NO_MUTEX_GUARD, NOT_IN_BINLOG,
           0,0,0);
 
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
@@ -598,7 +656,7 @@ static Sys_var_mybool Sys_explicit_defaults_for_timestamp(
        "as NULL with DEFAULT NULL attribute, Without this option, "
        "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.",
        READ_ONLY GLOBAL_VAR(opt_explicit_defaults_for_timestamp),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(
@@ -1507,12 +1565,38 @@ static Sys_var_ulong Sys_max_connections(
        DEFAULT(MAX_CONNECTIONS_DEFAULT), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_max_connections));
 
+static Sys_var_uint Sys_default_password_lifetime(
+       "default_password_lifetime",
+       "This defines the global password expiration policy. 0 means "
+       "automatic password expiration is disabled. If the value is a "
+       "positive integer N, the passwords must be changed every N days. This "
+       "behavior can be overriden using the password expiration options in "
+       "ALTER USER.",
+       GLOBAL_VAR(default_password_lifetime), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_disconnect_on_expired_password(
+       "disconnect_on_expired_password",
+       "This variable controls how the server handles clients that are not "
+       "aware of the sandbox mode. If enabled, the server disconnects the "
+       "client, otherwise the server puts the client in a sandbox mode.",
+       GLOBAL_VAR(disconnect_on_expired_password), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static Sys_var_ulong Sys_max_connect_errors(
        "max_connect_errors",
        "If there is more than this number of interrupted connections from "
        "a host this host will be blocked from further connections",
        GLOBAL_VAR(max_connect_errors), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
+       BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_max_password_errors(
+       "max_password_errors",
+       "If there is more than this number of failed connect attempts "
+       "due to invalid password, user will be blocked from further connections until FLUSH_PRIVILEGES.",
+       GLOBAL_VAR(max_password_errors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, UINT_MAX), DEFAULT(UINT_MAX),
        BLOCK_SIZE(1));
 
 static Sys_var_uint Sys_max_digest_length(
@@ -2148,7 +2232,7 @@ static Sys_var_bit Sys_skip_parallel_replication(
        "retry for transactions that are likely to cause a conflict if "
        "replicated in parallel.",
        SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_SKIP_PARALLEL,
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       DEFAULT(FALSE));
 
 
 static bool
@@ -2244,7 +2328,9 @@ static Sys_var_ulong Sys_max_long_data_size(
        READ_ONLY GLOBAL_VAR(max_long_data_size),
        CMD_LINE(REQUIRED_ARG, OPT_MAX_LONG_DATA_SIZE),
        VALID_RANGE(1024, UINT_MAX32), DEFAULT(1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED("'@@max_allowed_packet'"));
 
 static PolyLock_mutex PLock_prepared_stmt_count(&LOCK_prepared_stmt_count);
 static Sys_var_uint Sys_max_prepared_stmt_count(
@@ -2510,6 +2596,8 @@ export const char *optimizer_switch_names[]=
   "condition_pushdown_for_derived",
   "split_materialized",
   "condition_pushdown_for_subquery",
+  "rowid_filter",
+  "condition_pushdown_from_having",
   "default", 
   NullS
 };
@@ -2529,8 +2617,25 @@ static Sys_var_flagset Sys_optimizer_switch(
        "Fine-tune the optimizer behavior",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_optimizer_switch));
+
+static Sys_var_flagset Sys_optimizer_trace(
+    "optimizer_trace",
+    "Controls tracing of the Optimizer:"
+    " optimizer_trace=option=val[,option=val...], where option is one of"
+    " {enabled}"
+    " and val is one of {on, off, default}",
+    SESSION_VAR(optimizer_trace), CMD_LINE(REQUIRED_ARG),
+    Opt_trace_context::flag_names, DEFAULT(Opt_trace_context::FLAG_DEFAULT));
+    // @see set_var::is_var_optimizer_trace()
+export sys_var *Sys_optimizer_trace_ptr = &Sys_optimizer_trace;
+
+static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
+    "optimizer_trace_max_mem_size",
+    "Maximum allowed size of an optimizer trace",
+    SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",
@@ -2694,7 +2799,7 @@ static Sys_var_uint Sys_eq_range_index_dive_limit(
        "ranges for the index is larger than or equal to this number. "
        "If set to 0, index dives are always used.",
        SESSION_VAR(eq_range_index_dive_limit), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(200),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_range_alloc_block_size(
@@ -2883,7 +2988,7 @@ static Sys_var_ulong Sys_query_cache_limit(
        "Don't cache results that are bigger than this",
        GLOBAL_VAR(query_cache_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_query_cache_limit));
 
 static bool fix_qcache_min_res_unit(sys_var *self, THD *thd, enum_var_type type)
@@ -3489,11 +3594,15 @@ static Sys_var_charptr Sys_system_time_zone(
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
+/*
+  If One use views with prepared statements this should be bigger than
+  table_open_cache (now we allow 2 times bigger value)
+*/
 static Sys_var_ulong Sys_table_def_size(
        "table_definition_cache",
        "The number of cached table definitions",
        GLOBAL_VAR(tdc_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(TABLE_DEF_CACHE_MIN, 512*1024),
+       VALID_RANGE(TABLE_DEF_CACHE_MIN, 2*1024*1024),
        DEFAULT(TABLE_DEF_CACHE_DEFAULT), BLOCK_SIZE(1));
 
 
@@ -3505,7 +3614,7 @@ static bool fix_table_open_cache(sys_var *, THD *, enum_var_type)
   return false;
 }
 
-
+/* Check the table_definition_cache comment if makes changes */
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
        GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),
@@ -3750,7 +3859,7 @@ static Sys_var_mybool Sys_timed_mutexes(
        "timed_mutexes",
        "Specify whether to time mutexes. Deprecated, has no effect.",
        GLOBAL_VAR(timed_mutexes), CMD_LINE(OPT_ARG), DEFAULT(0),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL), ON_UPDATE(NULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED(""));
 
 static Sys_var_charptr Sys_version(
@@ -5286,13 +5395,13 @@ static Sys_var_charptr Sys_wsrep_cluster_name(
        ON_CHECK(wsrep_cluster_name_check),
        ON_UPDATE(wsrep_cluster_name_update));
 
-static PolyLock_mutex PLock_wsrep_slave_threads(&LOCK_wsrep_slave_threads);
+static PolyLock_mutex PLock_wsrep_cluster_config(&LOCK_wsrep_cluster_config);
 static Sys_var_charptr Sys_wsrep_cluster_address (
        "wsrep_cluster_address", "Address to initially connect to cluster",
        PREALLOCATED GLOBAL_VAR(wsrep_cluster_address), 
        CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""),
-       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
+       &PLock_wsrep_cluster_config, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_address_check), 
        ON_UPDATE(wsrep_cluster_address_update));
 
@@ -5323,8 +5432,8 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        "wsrep_slave_threads", "Number of slave appliers to launch",
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
-       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
-       ON_CHECK(NULL),
+       &PLock_wsrep_cluster_config, NOT_IN_BINLOG,
+       ON_CHECK(0),
        ON_UPDATE(wsrep_slave_threads_update));
 
 static Sys_var_charptr Sys_wsrep_dbug_option(
@@ -5332,9 +5441,14 @@ static Sys_var_charptr Sys_wsrep_dbug_option(
        GLOBAL_VAR(wsrep_dbug_option),CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""));
 
-static Sys_var_mybool Sys_wsrep_debug(
-       "wsrep_debug", "To enable debug level logging",
-       GLOBAL_VAR(wsrep_debug), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+static const char *wsrep_debug_names[]=
+{ "NONE", "SERVER", "TRANSACTION", "STREAMING", "CLIENT", NullS };
+static Sys_var_enum Sys_wsrep_debug(
+       "wsrep_debug", "WSREP debug level logging",
+       GLOBAL_VAR(wsrep_debug), CMD_LINE(REQUIRED_ARG),
+       wsrep_debug_names, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(wsrep_debug_update));
 
 static Sys_var_mybool Sys_wsrep_convert_LOCK_to_trx(
        "wsrep_convert_LOCK_to_trx", "To convert locking sessions "
@@ -5348,11 +5462,54 @@ static Sys_var_ulong Sys_wsrep_retry_autocommit(
        SESSION_VAR(wsrep_retry_autocommit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 10000), DEFAULT(1), BLOCK_SIZE(1));
 
+static bool update_wsrep_auto_increment_control (sys_var *self, THD *thd, enum_var_type type)
+{
+  if (wsrep_auto_increment_control)
+  {
+    /*
+      The variables that control auto increment shall be calculated
+      automaticaly based on the size of the cluster. This usually done
+      within the wsrep_view_handler_cb callback. However, if the user
+      manually sets the value of wsrep_auto_increment_control to 'ON',
+      then we should to re-calculate these variables again (because
+      these values may be required before wsrep_view_handler_cb will
+      be re-invoked, which is rarely invoked if the cluster stays in
+      the stable state):
+    */
+    global_system_variables.auto_increment_increment=
+       wsrep_cluster_size ? wsrep_cluster_size : 1;
+    global_system_variables.auto_increment_offset=
+       wsrep_local_index >= 0 ? wsrep_local_index + 1 : 1;
+    thd->variables.auto_increment_increment=
+      global_system_variables.auto_increment_increment;
+    thd->variables.auto_increment_offset=
+      global_system_variables.auto_increment_offset;
+  }
+  else
+  {
+    /*
+      We must restore the last values of the variables that
+      are explicitly specified by the user:
+    */
+    global_system_variables.auto_increment_increment=
+      global_system_variables.saved_auto_increment_increment;
+    global_system_variables.auto_increment_offset=
+      global_system_variables.saved_auto_increment_offset;
+    thd->variables.auto_increment_increment=
+      thd->variables.saved_auto_increment_increment;
+    thd->variables.auto_increment_offset=
+      thd->variables.saved_auto_increment_offset;
+  }
+  return false;
+}
+
 static Sys_var_mybool Sys_wsrep_auto_increment_control(
        "wsrep_auto_increment_control", "To automatically control the "
        "assignment of autoincrement variables",
        GLOBAL_VAR(wsrep_auto_increment_control), 
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_wsrep_auto_increment_control));
 
 static Sys_var_mybool Sys_wsrep_drupal_282555_workaround(
        "wsrep_drupal_282555_workaround", "Enable a workaround to handle the "
@@ -5365,8 +5522,7 @@ static Sys_var_charptr sys_wsrep_sst_method(
        "wsrep_sst_method", "State snapshot transfer method",
        GLOBAL_VAR(wsrep_sst_method),CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(WSREP_SST_DEFAULT), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(wsrep_sst_method_check),
-       ON_UPDATE(wsrep_sst_method_update)); 
+       ON_CHECK(wsrep_sst_method_check));
 
 static Sys_var_charptr Sys_wsrep_sst_receive_address( 
        "wsrep_sst_receive_address", "Address where node is waiting for "
@@ -5436,6 +5592,19 @@ static Sys_var_mybool Sys_wsrep_certify_nonPK(
        "wsrep_certify_nonPK", "Certify tables with no primary key",
        GLOBAL_VAR(wsrep_certify_nonPK), 
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static const char *wsrep_certification_rules_names[]= { "strict", "optimized", NullS };
+static Sys_var_enum Sys_wsrep_certification_rules(
+       "wsrep_certification_rules",
+       "Certification rules to use in the cluster. Possible values are: "
+       "\"strict\": stricter rules that could result in more certification "
+       "failures. "
+       "\"optimized\": relaxed rules that allow more concurrency and "
+       "cause less certification failures.",
+       GLOBAL_VAR(wsrep_certification_rules), CMD_LINE(REQUIRED_ARG),
+       wsrep_certification_rules_names, DEFAULT(WSREP_CERTIFICATION_RULES_STRICT),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(0));
 
 static Sys_var_mybool Sys_wsrep_causal_reads(
        "wsrep_causal_reads", "Setting this variable is equivalent "
@@ -5507,9 +5676,10 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
 
 static Sys_var_mybool Sys_wsrep_load_data_splitting(
        "wsrep_load_data_splitting", "To commit LOAD DATA "
-       "transaction after every 10K rows inserted",
+       "transaction after every 10K rows inserted (deprecated)",
        GLOBAL_VAR(wsrep_load_data_splitting), 
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(0), DEPRECATED(""));
 
 static Sys_var_mybool Sys_wsrep_slave_FK_checks(
        "wsrep_slave_FK_checks", "Should slave thread do "
@@ -5527,19 +5697,53 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
        "wsrep_restart_slave", "Should MariaDB slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+static Sys_var_ulonglong Sys_wsrep_trx_fragment_size(
+      "wsrep_trx_fragment_size",
+      "Size of transaction fragments for streaming replication (measured in "
+      "units of 'wsrep_trx_fragment_unit')",
+      SESSION_VAR(wsrep_trx_fragment_size), CMD_LINE(REQUIRED_ARG),
+      VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG,
+      ON_CHECK(wsrep_trx_fragment_size_check),
+      ON_UPDATE(wsrep_trx_fragment_size_update));
+
+extern const char *wsrep_fragment_units[];
+
+static Sys_var_enum Sys_wsrep_trx_fragment_unit(
+      "wsrep_trx_fragment_unit",
+      "Unit for streaming replication transaction fragments' size: bytes, "
+      "rows, statements",
+      SESSION_VAR(wsrep_trx_fragment_unit), CMD_LINE(REQUIRED_ARG),
+      wsrep_fragment_units,
+      DEFAULT(WSREP_FRAG_BYTES),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG,
+      ON_CHECK(0),
+      ON_UPDATE(wsrep_trx_fragment_unit_update));
+
+extern const char *wsrep_SR_store_types[];
+static Sys_var_enum Sys_wsrep_SR_store(
+       "wsrep_SR_store", "Storage for streaming replication fragments",
+       READ_ONLY GLOBAL_VAR(wsrep_SR_store_type), CMD_LINE(REQUIRED_ARG),
+       wsrep_SR_store_types, DEFAULT(WSREP_SR_STORE_TABLE));
+
 static Sys_var_mybool Sys_wsrep_dirty_reads(
        "wsrep_dirty_reads",
        "Allow reads even when the node is not in the primary component.",
        SESSION_VAR(wsrep_dirty_reads), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       DEFAULT(FALSE));
+
+static Sys_var_uint Sys_wsrep_ignore_apply_errors (
+       "wsrep_ignore_apply_errors", "Ignore replication errors",
+       GLOBAL_VAR(wsrep_ignore_apply_errors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(WSREP_IGNORE_ERRORS_NONE, WSREP_IGNORE_ERRORS_MAX),
+       DEFAULT(7), BLOCK_SIZE(1));
 
 static Sys_var_uint Sys_wsrep_gtid_domain_id(
        "wsrep_gtid_domain_id", "When wsrep_gtid_mode is set, this value is "
        "used as gtid_domain_id for galera transactions and also copied to the "
        "joiner nodes during state transfer. It is ignored, otherwise.",
        GLOBAL_VAR(wsrep_gtid_domain_id), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG);
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_mybool Sys_wsrep_gtid_mode(
        "wsrep_gtid_mode", "Automatically update the (joiner) node's "
@@ -5570,7 +5774,7 @@ static Sys_var_ulong Sys_host_cache_size(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 65536),
        DEFAULT(HOST_CACHE_SIZE),
        BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_host_cache_size));
 
 vio_keepalive_opts opt_vio_keepalive;
@@ -5580,30 +5784,24 @@ static Sys_var_int Sys_keepalive_time(
        "Timeout, in milliseconds, with no activity until the first TCP keep-alive packet is sent."
        "If set to 0, system dependent default is used.",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.idle),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000),
-       DEFAULT(0),
-       BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000), DEFAULT(0),
+       BLOCK_SIZE(1));
 
 static Sys_var_int Sys_keepalive_interval(
        "tcp_keepalive_interval",
        "The interval, in seconds, between when successive keep-alive packets are sent if no acknowledgement is received."
        "If set to 0, system dependent default is used.",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.interval),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000),
-       DEFAULT(0),
-       BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000), DEFAULT(0),
+       BLOCK_SIZE(1));
 
 static Sys_var_int Sys_keepalive_probes(
        "tcp_keepalive_probes",
        "The number of unacknowledged probes to send before considering the connection dead and notifying the application layer."
        "If set to 0, system dependent default is used.",
        AUTO_SET GLOBAL_VAR(opt_vio_keepalive.probes),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000),
-       DEFAULT(0),
-       BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, INT_MAX32/1000), DEFAULT(0),
+       BLOCK_SIZE(1));
 
 
 static bool update_tcp_nodelay(sys_var *self, THD *thd,
@@ -5870,7 +6068,7 @@ static Sys_var_ulong Sys_histogram_size(
        "Number of bytes used for a histogram. "
        "If set to 0, no histograms are created by ANALYZE.",
        SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 255), DEFAULT(254), BLOCK_SIZE(1));
 
 extern const char *histogram_types[];
 static Sys_var_enum Sys_histogram_type(
@@ -5880,7 +6078,7 @@ static Sys_var_enum Sys_histogram_type(
        "SINGLE_PREC_HB - single precision height-balanced, "
        "DOUBLE_PREC_HB - double precision height-balanced.",
        SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
-       histogram_types, DEFAULT(0));
+       histogram_types, DEFAULT(1));
 
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",
@@ -6015,14 +6213,14 @@ static Sys_var_mybool Sys_mysql56_temporal_format(
        "mysql56_temporal_format",
        "Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME, DATETIME, TIMESTAMP columns.",
        GLOBAL_VAR(opt_mysql56_temporal_format),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static Sys_var_mybool Sys_strict_password_validation(
        "strict_password_validation",
        "When password validation plugins are enabled, reject passwords "
        "that cannot be validated (passwords specified as a hash)",
        GLOBAL_VAR(strict_password_validation),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 #ifdef HAVE_MMAP
 static Sys_var_ulong Sys_log_tc_size(
@@ -6049,8 +6247,7 @@ static Sys_var_sesvartrack Sys_track_session_sys_vars(
        "Track changes in registered system variables. ",
        CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
        DEFAULT("autocommit,character_set_client,character_set_connection,"
-       "character_set_results,time_zone"),
-       NO_MUTEX_GUARD);
+       "character_set_results,time_zone"));
 
 static bool update_session_track_schema(sys_var *self, THD *thd,
                                         enum_var_type type)
@@ -6133,3 +6330,10 @@ static Sys_var_enum Sys_secure_timestamp(
        "historical behavior, anyone can modify session timestamp",
        READ_ONLY GLOBAL_VAR(opt_secure_timestamp), CMD_LINE(REQUIRED_ARG),
        secure_timestamp_levels, DEFAULT(SECTIME_NO));
+
+static Sys_var_ulonglong Sys_max_rowid_filter_size(
+       "max_rowid_filter_size",
+       "The maximum size of the container of a rowid filter",
+       SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
+       BLOCK_SIZE(1));

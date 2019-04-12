@@ -5,6 +5,7 @@ create table foo (a bigint, b bigint);
 create table bar (a int);
 alter table foo drop column a;
 alter table bar add column b int, add column c int;
+# restart
 show create table foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (

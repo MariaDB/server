@@ -36,11 +36,6 @@
 #include "sql_select.h"
 #include "debug_sync.h"
 
-/// How to write record_ref.
-#define WRITE_REF(file,from) \
-if (my_b_write((file),(uchar*) (from),param->ref_length)) \
-  DBUG_RETURN(1);
-
 	/* functions defined in this file */
 
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
@@ -1072,8 +1067,9 @@ Type_handler_timestamp_common::make_sort_key(uchar *to, Item *item,
                                              const SORT_FIELD_ATTR *sort_field,
                                              Sort_param *param) const
 {
+  THD *thd= current_thd;
   uint binlen= my_timestamp_binary_length(item->decimals);
-  Timestamp_or_zero_datetime_native_null native(current_thd, item);
+  Timestamp_or_zero_datetime_native_null native(thd, item);
   if (native.is_null() || native.is_zero_datetime())
   {
     // NULL or '0000-00-00 00:00:00'
@@ -1081,9 +1077,19 @@ Type_handler_timestamp_common::make_sort_key(uchar *to, Item *item,
   }
   else
   {
-    DBUG_ASSERT(native.length() == binlen);
     if (item->maybe_null)
       *to++= 1;
+    if (native.length() != binlen)
+    {
+      /*
+        Some items can return native representation with a different
+        number of fractional digits, e.g.: GREATEST(ts_3, ts_4) can
+        return a value with 3 fractional digits, although its fractional
+        precision is 4. Re-pack with a proper precision now.
+      */
+      Timestamp(native).to_native(&native, item->datetime_precision(thd));
+    }
+    DBUG_ASSERT(native.length() == binlen);
     memcpy((char *) to, native.ptr(), binlen);
   }
 }

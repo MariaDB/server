@@ -714,6 +714,7 @@ void With_element::move_anchors_ahead()
     }
   }
   first_recursive= new_pos;
+  spec->first_select()->set_linkage(DERIVED_TABLE_TYPE);
 }
 
 
@@ -1115,6 +1116,7 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
     table= 0;
   }
   with= with_elem;
+  schema_table= NULL;
   if (!with_elem->is_referenced() || with_elem->is_recursive)
   {
     derived= with_elem->spec;

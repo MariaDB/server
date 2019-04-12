@@ -1,0 +1,10 @@
+call mtr.add_suppression("InnoDB: Table `test`.`t1` has an unreadable root page");
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT, c char(200)) ENGINE=InnoDB page_compressed=yes;
+insert into t1(b, c) values("mariadb", "mariabackup");
+InnoDB		0 transactions not purged
+# Corrupt the table
+# restart: --skip-innodb-buffer-pool-load-at-startup
+# xtrabackup backup
+FOUND 1 /Database page corruption detected.*/ in backup.log
+drop table t1;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,6 +43,7 @@ Created 9/17/2000 Heikki Tuuri
 extern ibool row_rollback_on_timeout;
 
 struct row_prebuilt_t;
+class ha_innobase;
 
 /*******************************************************************//**
 Frees the blob heap in prebuilt when no longer needed. */
@@ -287,17 +288,6 @@ void
 row_unlock_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ibool		has_latches_on_recs);
-
-/*********************************************************************//**
-Checks if a table name contains the string "/#sql" which denotes temporary
-tables in MySQL.
-@return true if temporary table */
-bool
-row_is_mysql_tmp_table_name(
-/*========================*/
-	const char*	name) MY_ATTRIBUTE((warn_unused_result));
-				/*!< in: table name in the form
-				'database/tablename' */
 
 /*********************************************************************//**
 Creates an query graph node of 'update' type to be used in the MySQL
@@ -788,10 +778,14 @@ struct row_prebuilt_t {
 					store it here so that we can return
 					it to MySQL */
 	/*----------------------*/
-	void*		idx_cond;	/*!< In ICP, pointer to a ha_innobase,
-					passed to innobase_index_cond().
-					NULL if index condition pushdown is
-					not used. */
+
+	/** Argument of handler_rowid_filter_check(),
+	or NULL if no PRIMARY KEY filter is pushed */
+	ha_innobase*	pk_filter;
+
+	/** Argument to handler_index_cond_check(),
+	or NULL if no index condition pushdown (ICP) is used. */
+	ha_innobase*	idx_cond;
 	ulint		idx_cond_n_cols;/*!< Number of fields in idx_cond_cols.
 					0 if and only if idx_cond == NULL. */
 	/*----------------------*/

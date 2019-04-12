@@ -76,8 +76,8 @@ keep the global wait array for the sake of diagnostics and also to avoid
 infinite wait The error_monitor thread scans the global wait array to signal
 any waiting threads who have missed the signal. */
 
-typedef SyncArrayMutex::MutexType WaitMutex;
-typedef BlockSyncArrayMutex::MutexType BlockWaitMutex;
+typedef TTASEventMutex<GenericPolicy> WaitMutex;
+typedef TTASEventMutex<BlockMutexPolicy> BlockWaitMutex;
 
 /** The latch types that use the sync array. */
 union sync_object_t {
@@ -499,7 +499,7 @@ sync_array_cell_print(
 		WaitMutex*	mutex = cell->latch.mutex;
 		const WaitMutex::MutexPolicy&	policy = mutex->policy();
 #ifdef UNIV_DEBUG
-		const char*	name = policy.get_enter_filename();
+		const char*	name = policy.context.get_enter_filename();
 		if (name == NULL) {
 			/* The mutex might have been released. */
 			name = "NULL";
@@ -518,7 +518,7 @@ sync_array_cell_print(
 			mutex->state()
 #ifdef UNIV_DEBUG
 			,name,
-			policy.get_enter_line()
+			policy.context.get_enter_line()
 #endif /* UNIV_DEBUG */
 			);
 		}
@@ -528,7 +528,7 @@ sync_array_cell_print(
 		const BlockWaitMutex::MutexPolicy&	policy =
 			mutex->policy();
 #ifdef UNIV_DEBUG
-		const char*	name = policy.get_enter_filename();
+		const char*	name = policy.context.get_enter_filename();
 		if (name == NULL) {
 			/* The mutex might have been released. */
 			name = "NULL";
@@ -546,7 +546,7 @@ sync_array_cell_print(
 			(ulong) mutex->state()
 #ifdef UNIV_DEBUG
 			,name,
-			(ulong) policy.get_enter_line()
+			(ulong) policy.context.get_enter_line()
 #endif /* UNIV_DEBUG */
 		       );
 	} else if (type == RW_LOCK_X
@@ -591,8 +591,8 @@ sync_array_cell_print(
 #endif
 				"\n",
 				rw_lock_get_reader_count(rwlock),
-				my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED),
-				my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED),
+				rwlock->waiters.load(std::memory_order_relaxed),
+				rwlock->lock_word.load(std::memory_order_relaxed),
 				innobase_basename(rwlock->last_x_file_name),
 				rwlock->last_x_line
 #if 0 /* JAN: TODO: FIX LATER */
@@ -738,7 +738,7 @@ sync_array_detect_deadlock(
 		const WaitMutex::MutexPolicy&	policy = mutex->policy();
 
 		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
-			thread = policy.get_thread_id();
+			thread = policy.context.get_thread_id();
 
 			/* Note that mutex->thread_id above may be
 			also OS_THREAD_ID_UNDEFINED, because the
@@ -753,7 +753,7 @@ sync_array_detect_deadlock(
 			if (ret) {
 				const char*	name;
 
-				name = policy.get_enter_filename();
+				name = policy.context.get_enter_filename();
 
 				if (name == NULL) {
 					/* The mutex might have been
@@ -765,7 +765,7 @@ sync_array_detect_deadlock(
 					<< "Mutex " << mutex << " owned by"
 					" thread " << os_thread_pf(thread)
 					<< " file " << name << " line "
-					<< policy.get_enter_line();
+					<< policy.context.get_enter_line();
 
 				sync_array_cell_print(stderr, cell);
 
@@ -785,7 +785,7 @@ sync_array_detect_deadlock(
 			mutex->policy();
 
 		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
-			thread = policy.get_thread_id();
+			thread = policy.context.get_thread_id();
 
 			/* Note that mutex->thread_id above may be
 			also OS_THREAD_ID_UNDEFINED, because the
@@ -800,7 +800,7 @@ sync_array_detect_deadlock(
 			if (ret) {
 				const char*	name;
 
-				name = policy.get_enter_filename();
+				name = policy.context.get_enter_filename();
 
 				if (name == NULL) {
 					/* The mutex might have been
@@ -812,7 +812,7 @@ sync_array_detect_deadlock(
 					<< "Mutex " << mutex << " owned by"
 					" thread " << os_thread_pf(thread)
 					<< " file " << name << " line "
-					<< policy.get_enter_line();
+					<< policy.context.get_enter_line();
 
 
 				return(true);
@@ -970,7 +970,7 @@ sync_array_print_long_waits_low(
 	ulint		i;
 
 	/* For huge tables, skip the check during CHECK TABLE etc... */
-	if (fatal_timeout > SRV_SEMAPHORE_WAIT_EXTENSION) {
+	if (btr_validate_index_running) {
 		return(false);
 	}
 
@@ -1379,9 +1379,9 @@ sync_arr_fill_sys_semphore_waits_table(
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG],
-						   my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED)));
+						   rwlock->waiters.load(std::memory_order_relaxed)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
-						   my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED)));
+						   rwlock->lock_word.load(std::memory_order_relaxed)));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
 						OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(rwlock->last_x_line, true));
 						fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();

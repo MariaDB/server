@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1287,7 +1287,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 	are possibly holding, we cannot s-latch the page, but must
 	(recursively) x-latch it, even though we are only reading. */
 
-	block = buf_page_get_gen(page_id, univ_page_size, RW_X_LATCH, NULL,
+	block = buf_page_get_gen(page_id, 0, RW_X_LATCH, NULL,
 				 BUF_PEEK_IF_IN_POOL, __FILE__, __LINE__,
 				 &mtr, &err);
 

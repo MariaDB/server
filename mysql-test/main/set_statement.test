@@ -1135,5 +1135,14 @@ create table t (a int);
 SET sql_mode=ORACLE;
 SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
 SET sql_mode=default;
+SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
 drop table t;
 
+
+--echo #
+--echo # MDEV-18358: Server crash when using SET STATEMENT max_statement_time
+--echo #
+SET sql_mode=ORACLE;
+SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
+SET sql_mode=default;
+SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';

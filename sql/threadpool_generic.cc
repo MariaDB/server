@@ -578,43 +578,24 @@ static void queue_put(thread_group_t *thread_group, native_event *ev, int cnt)
   Also, recalculate time when next timeout check should run.
 */
 
-static void timeout_check(pool_timer_t *timer)
+static my_bool timeout_check(THD *thd, pool_timer_t *timer)
 {
   DBUG_ENTER("timeout_check");
-  
-  mysql_mutex_lock(&LOCK_thread_count);
-  I_List_iterator<THD> it(threads);
-
-  /* Reset next timeout check, it will be recalculated in the loop below */
-  my_atomic_fas64((volatile int64*)&timer->next_timeout_check, ULONGLONG_MAX);
-
-  THD *thd;
-  while ((thd=it++))
+  if (thd->net.reading_or_writing == 1)
   {
-    if (thd->net.reading_or_writing != 1)
-      continue;
- 
-    TP_connection_generic *connection= (TP_connection_generic *)thd->event_scheduler.data;
-    if (!connection)
+    /*
+      Check if connection does not have scheduler data. This happens for example
+      if THD belongs to a different scheduler, that is listening to extra_port.
+    */
+    if (auto connection= (TP_connection_generic *) thd->event_scheduler.data)
     {
-      /* 
-        Connection does not have scheduler data. This happens for example
-        if THD belongs to a different scheduler, that is listening to extra_port.
-      */
-      continue;
-    }
-
-    if(connection->abs_wait_timeout < timer->current_microtime)
-    {
-      tp_timeout_handler(connection);
-    }
-    else 
-    {
-      set_next_timeout_check(connection->abs_wait_timeout);
+      if (connection->abs_wait_timeout < timer->current_microtime)
+        tp_timeout_handler(connection);
+      else
+        set_next_timeout_check(connection->abs_wait_timeout);
     }
   }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 
@@ -671,7 +652,12 @@ static void* timer_thread(void *param)
       
       /* Check if any client exceeded wait_timeout */
       if (timer->next_timeout_check <= timer->current_microtime)
-        timeout_check(timer);
+      {
+        /* Reset next timeout check, it will be recalculated below */
+        my_atomic_fas64((volatile int64*) &timer->next_timeout_check,
+                        ULONGLONG_MAX);
+        server_threads.iterate(timeout_check, timer);
+      }
     }
     mysql_mutex_unlock(&timer->mutex);
   }
@@ -1694,7 +1680,7 @@ int TP_pool_generic::set_pool_size(uint size)
       success= (group->pollfd != INVALID_HANDLE_VALUE);
       if(!success)
       {
-        sql_print_error("io_poll_create() failed, errno=%d\n", errno);
+        sql_print_error("io_poll_create() failed, errno=%d", errno);
       }
     }  
     mysql_mutex_unlock(&group->mutex);

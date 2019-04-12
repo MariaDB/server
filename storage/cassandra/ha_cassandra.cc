@@ -2360,7 +2360,7 @@ public:
 };
 
 
-int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
+int ha_cassandra::update_row(const uchar *old_data, const uchar *new_data)
 {
   DYNAMIC_COLUMN_VALUE *oldvals, *vals;
   LEX_STRING *oldnames, *names;

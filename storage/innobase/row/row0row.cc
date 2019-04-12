@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -151,7 +151,7 @@ static bool row_build_spatial_index_key(
 	temp_heap = mem_heap_create(1000);
 
 	dptr = btr_copy_externally_stored_field(
-		&dlen, dptr, ext ? ext->page_size : page_size_t(space->flags),
+		&dlen, dptr, ext ? ext->zip_size : space->zip_size(),
 		flen, temp_heap);
 
 write_mbr:
@@ -593,7 +593,7 @@ row_build_low(
 		row_log_table_delete(). */
 
 	} else if (j) {
-		*ext = row_ext_create(j, ext_cols, index->table->flags, row,
+		*ext = row_ext_create(j, ext_cols, *index->table, row,
 				      heap);
 	} else {
 		*ext = NULL;
@@ -1112,9 +1112,6 @@ row_build_row_ref_in_tuple(
 	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
-	ut_a(ref);
-	ut_a(index);
-	ut_a(rec);
 	ut_ad(!dict_index_is_clust(index));
 	ut_a(index->table);
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -726,6 +726,7 @@ fts_reset_get_doc(
 		memset(get_doc, 0x0, sizeof(*get_doc));
 
 		get_doc->index_cache = ind_cache;
+		get_doc->cache = cache;
 	}
 
 	ut_ad(ib_vector_size(cache->get_docs)
@@ -3243,15 +3244,10 @@ fts_fetch_doc_from_rec(
 					documents */
 {
 	dict_index_t*		index;
-	dict_table_t*		table;
 	const rec_t*		clust_rec;
-	ulint			num_field;
 	const dict_field_t*	ifield;
-	const dict_col_t*	col;
 	ulint			clust_pos;
-	ulint			i;
 	ulint			doc_len = 0;
-	ulint			processed_doc = 0;
 	st_mysql_ftparser*	parser;
 
 	if (!get_doc) {
@@ -3259,19 +3255,15 @@ fts_fetch_doc_from_rec(
 	}
 
 	index = get_doc->index_cache->index;
-	table = get_doc->index_cache->index->table;
 	parser = get_doc->index_cache->index->parser;
 
 	clust_rec = btr_pcur_get_rec(pcur);
 	ut_ad(!page_rec_is_comp(clust_rec)
 	      || rec_get_status(clust_rec) == REC_STATUS_ORDINARY);
 
-	num_field = dict_index_get_n_fields(index);
-
-	for (i = 0; i < num_field; i++) {
+	for (ulint i = 0; i < index->n_fields; i++) {
 		ifield = dict_index_get_nth_field(index, i);
-		col = dict_field_get_col(ifield);
-		clust_pos = dict_col_get_clust_pos(col, clust_index);
+		clust_pos = dict_col_get_clust_pos(ifield->col, clust_index);
 
 		if (!get_doc->index_cache->charset) {
 			get_doc->index_cache->charset = fts_get_charset(
@@ -3282,7 +3274,7 @@ fts_fetch_doc_from_rec(
 			doc->text.f_str =
 				btr_rec_copy_externally_stored_field(
 					clust_rec, offsets,
-					btr_pcur_get_block(pcur)->page.size,
+					btr_pcur_get_block(pcur)->zip_size(),
 					clust_pos, &doc->text.f_len,
 					static_cast<mem_heap_t*>(
 						doc->self_heap->arg));
@@ -3300,13 +3292,12 @@ fts_fetch_doc_from_rec(
 			continue;
 		}
 
-		if (processed_doc == 0) {
+		if (!doc_len) {
 			fts_tokenize_document(doc, NULL, parser);
 		} else {
 			fts_tokenize_document_next(doc, doc_len, NULL, parser);
 		}
 
-		processed_doc++;
 		doc_len += doc->text.f_len + 1;
 	}
 }
@@ -4769,12 +4760,12 @@ fts_tokenize_document(
 	ut_a(!doc->tokens);
 	ut_a(doc->charset);
 
-	doc->tokens = rbt_create_arg_cmp(
-		sizeof(fts_token_t), innobase_fts_text_cmp, (void*) doc->charset);
+	doc->tokens = rbt_create_arg_cmp(sizeof(fts_token_t),
+					 innobase_fts_text_cmp,
+					 (void*) doc->charset);
 
 	if (parser != NULL) {
 		fts_tokenize_param_t	fts_param;
-
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = 0;
 
@@ -7466,7 +7457,7 @@ fts_init_recover_doc(
 			doc.text.f_str = btr_copy_externally_stored_field(
 				&doc.text.f_len,
 				static_cast<byte*>(dfield_get_data(dfield)),
-				dict_table_page_size(table), len,
+				table->space->zip_size(), len,
 				static_cast<mem_heap_t*>(doc.self_heap->arg));
 		} else {
 			doc.text.f_str = static_cast<byte*>(

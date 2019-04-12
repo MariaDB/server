@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1182,6 +1182,8 @@ longlong Item_func_truth::val_int()
 
 bool Item_in_optimizer::is_top_level_item()
 {
+  if (invisible_mode())
+    return FALSE;
   return ((Item_in_subselect *)args[1])->is_top_level_item();
 }
 
@@ -1215,8 +1217,13 @@ bool Item_in_optimizer::eval_not_null_tables(void *opt_arg)
 
 void Item_in_optimizer::print(String *str, enum_query_type query_type)
 {
-   restore_first_argument();
-   Item_func::print(str, query_type);
+  if (query_type & QT_PARSABLE)
+    args[1]->print(str, query_type);
+  else
+  {
+     restore_first_argument();
+     Item_func::print(str, query_type);
+  }
 }
 
 
@@ -1232,8 +1239,7 @@ void Item_in_optimizer::print(String *str, enum_query_type query_type)
 
 void Item_in_optimizer::restore_first_argument()
 {
-  if (args[1]->type() == Item::SUBSELECT_ITEM &&
-      ((Item_subselect *)args[1])->is_in_predicate())
+  if (!invisible_mode())
   {
     args[0]= ((Item_in_subselect *)args[1])->left_expr;
   }
@@ -1250,8 +1256,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     it is args[0].
   */
   Item **ref0= args;
-  if (args[1]->type() == Item::SUBSELECT_ITEM &&
-      ((Item_subselect *)args[1])->is_in_predicate())
+  if (!invisible_mode())
   {
     /*
        left_expr->fix_fields() may cause left_expr to be substituted for
@@ -4765,7 +4770,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   List_iterator<Item> li(list);
   Item *item;
   uchar buff[sizeof(char*)];			// Max local vars in function
-  longlong is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
   not_null_tables_cache= 0;
   used_tables_and_const_cache_init();
 
@@ -4829,7 +4834,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
-      if (item->val_int() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && top_level())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -4881,7 +4886,7 @@ bool
 Item_cond::eval_not_null_tables(void *opt_arg)
 {
   Item *item;
-  longlong is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
   List_iterator<Item> li(list);
   not_null_tables_cache= (table_map) 0;
   and_tables_cache= ~(table_map) 0;
@@ -4891,7 +4896,7 @@ Item_cond::eval_not_null_tables(void *opt_arg)
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
-      if (item->val_int() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && top_level())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -5204,8 +5209,27 @@ Item *Item_cond::build_clone(THD *thd)
 }
 
 
+bool Item_cond::excl_dep_on_table(table_map tab_map)
+{
+  if (used_tables() & OUTER_REF_TABLE_BIT)
+    return false;
+  if (!(used_tables() & ~tab_map))
+    return true;
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (!item->excl_dep_on_table(tab_map))
+      return false;
+  }
+  return true;
+}
+
+
 bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
+  if (has_rand_bit())
+    return false;
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
@@ -7317,4 +7341,172 @@ Item_bool_rowready_func2* Le_creator::create(THD *thd, Item *a, Item *b) const
 Item_bool_rowready_func2* Le_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
   return new(thd->mem_root) Item_func_ge(thd, b, a);
+}
+
+
+bool
+Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
+{
+  Item_equal_fields_iterator it(*this);
+  Item *item;
+
+  while ((item=it++))
+  {
+    if (item->excl_dep_on_grouping_fields(sel))
+    {
+      set_extraction_flag(FULL_EXTRACTION_FL);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Transform multiple equality into list of equalities
+
+  @param thd         the thread handle
+  @param equalities  the list where created equalities are stored
+  @param checker     the checker callback function to be applied to the nodes
+                     of the tree of the object to check if multiple equality
+                     elements can be used to create equalities
+  @param arg         parameter to be passed to the checker
+
+  @details
+    How the method works on examples:
+
+    Example 1:
+    It takes MULT_EQ(x,a,b) and tries to create from its elements a set of
+    equalities {(x=a),(x=b)}.
+
+    Example 2:
+    It takes MULT_EQ(1,a,b) and tries to create from its elements a set of
+    equalities {(1=a),(1=b)}.
+
+    How it is done:
+
+    1. The method finds the left part of the equalities to be built. It will
+       be the same for all equalities. It is either:
+       a. A constant if there is any
+       b. A first element in the multiple equality that satisfies
+       checker function
+
+       For the example 1 the left element is field 'x'.
+       For the example 2 it is constant '1'.
+    
+    2. If the left element is found the rest elements of the multiple equality
+       are checked with the checker function if they can be right parts
+       of equalities.
+       If the element can be a right part of the equality, equality is built.
+       It is built with the left part element found at the step 1 and
+       the right part element found at this step (step 2).
+
+       Suppose for the example above that both 'a' and 'b' fields can be used
+       to build equalities:
+
+       Example 1:
+       for 'a' field (x=a) is built
+       for 'b' field (x=b) is built
+
+       Example 2:
+       for 'a' field (1=a) is built
+       for 'b' field (1=b) is built
+
+    3. As a result we get a set of equalities built with the elements of
+       this multiple equality. They are saved in the equality list.
+
+       Example 1:
+       {(x=a),(x=b)}
+
+       Example 2:
+       {(1=a),(1=b)}
+
+  @note
+    This method is called for condition pushdown into materialized
+    derived table/view, and IN subquery, and pushdown from HAVING into WHERE.
+    When it is called for pushdown from HAVING the empty checker is passed.
+    It happens because elements of this multiple equality don't need to be
+    checked if they can be used to build equalities. There are no elements
+    that can't be used to build equalities.
+
+  @retval true   if an error occurs
+  @retval false  otherwise
+*/
+
+bool Item_equal::create_pushable_equalities(THD *thd,
+                                            List<Item> *equalities,
+                                            Pushdown_checker checker,
+                                            uchar *arg)
+{
+  Item *item;
+  Item_equal_fields_iterator it(*this);
+  Item *left_item = get_const();
+  if (!left_item)
+  {
+    while ((item=it++))
+    {
+      left_item= item;
+      if (checker && !((item->*checker) (arg)))
+        continue;
+      break;
+    }
+  }
+  if (!left_item)
+    return false;
+
+  while ((item=it++))
+  {
+    if (checker && !((item->*checker) (arg)))
+      continue;
+    Item_func_eq *eq= 0;
+    Item *left_item_clone= left_item->build_clone(thd);
+    Item *right_item_clone= item->build_clone(thd);
+    if (left_item_clone && right_item_clone)
+    {
+      left_item_clone->set_item_equal(NULL);
+      right_item_clone->set_item_equal(NULL);
+      eq= new (thd->mem_root) Item_func_eq(thd,
+                                           right_item_clone,
+                                           left_item_clone);
+    }
+    if (eq && equalities->push_back(eq, thd->mem_root))
+      return true;
+  }
+  return false;
+}
+
+
+/**
+  Transform multiple equality into the AND condition of equalities.
+
+  Example:
+  MULT_EQ(x,a,b)
+  =>
+  (x=a) AND (x=b)
+
+  Equalities are built in Item_equal::create_pushable_equalities() method
+  using elements of this multiple equality. The result of this method is
+  saved in an equality list.
+  This method returns the condition where the elements of the equality list
+  are anded.
+*/
+
+Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
+{
+  List<Item> equalities;
+  if (create_pushable_equalities(thd, &equalities, 0, 0))
+    return 0;
+
+  switch (equalities.elements)
+  {
+  case 0:
+    return 0;
+  case 1:
+    return equalities.head();
+    break;
+  default:
+    return new (thd->mem_root) Item_cond_and(thd, equalities);
+    break;
+  }
 }

@@ -1873,5 +1873,5 @@ v CHAR(4) AS (c) VIRTUAL
 ) WITH SYSTEM VERSIONING PARTITION BY HASH(pk);
 INSERT INTO t1 (pk,c) VALUES (1,'foo'),(2,'bar');
 UPDATE t1 SET v = 'qux' WHERE pk = 2;
-ERROR HY000: The value specified for generated column 'v' in table 't1' ignored
+ERROR HY000: The value specified for generated column 'v' in table 't1' has been ignored
 DROP TABLE t1;

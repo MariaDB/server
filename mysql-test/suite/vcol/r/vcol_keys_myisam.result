@@ -376,3 +376,11 @@ repair table t1 extended;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
 drop table t1;
+create table t1 ( id int primary key,
+hexid  varchar(10) generated always as (hex(id)) stored,
+key (hexid)) engine=myisam;
+insert into t1 (id) select 100;
+select * from t1;
+id	hexid
+100	64
+drop table t1;

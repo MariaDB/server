@@ -57,6 +57,7 @@ for (my $d = $d1; $d < $d2 + 64; $d++) {
 close FILE;
 open(FILE, ">$ENV{MYSQLTEST_VARDIR}/log/start_mysqld.txt") || die;
 print FILE "--let \$restart_parameters=$restart\n" if $restart;
+print FILE "--let \$restart_noprint=2\n";
 print FILE "--source include/start_mysqld.inc\n";
 close FILE;
 open(FILE, "+<", "$ENV{'MYSQLD_DATADIR'}test/ibd4.ibd") or die;

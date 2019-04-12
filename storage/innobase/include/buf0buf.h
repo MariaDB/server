@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,7 +41,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
-#include "my_atomic.h"
 #include <ostream>
 
 // Forward declaration
@@ -489,15 +488,13 @@ be implemented at a higher level.  In other words, all possible
 accesses to a given page through this function must be protected by
 the same set of mutexes or latches.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size
 @return pointer to the block */
-buf_page_t*
-buf_page_get_zip(
-	const page_id_t		page_id,
-	const page_size_t&	page_size);
+buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 
 /** This is the general function used to get access to a database page.
 @param[in]	page_id		page id
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess		guessed block or NULL
 @param[in]	mode		BUF_GET, BUF_GET_IF_IN_POOL,
@@ -510,7 +507,7 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 buf_block_t*
 buf_page_get_gen(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	ulint			rw_latch,
 	buf_block_t*		guess,
 	ulint			mode,
@@ -519,18 +516,18 @@ buf_page_get_gen(
 	mtr_t*			mtr,
 	dberr_t*		err);
 
-/** Initializes a page to the buffer buf_pool. The page is usually not read
+/** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
 of the functions which perform to a block a state transition NOT_USED =>
 FILE_PAGE (the other is buf_page_get_gen).
 @param[in]	page_id		page id
-@param[in]	page_size	page size
-@param[in]	mtr		mini-transaction
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]	mtr		mini-transaction
 @return pointer to the block, page bufferfixed */
 buf_block_t*
 buf_page_create(
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	mtr_t*			mtr);
 
 /********************************************************************//**
@@ -666,37 +663,6 @@ buf_block_buf_fix_inc_func(
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 	MY_ATTRIBUTE((nonnull));
 
-/** Increments the bufferfix count.
-@param[in,out]	bpage	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_page_t*	bpage);
-
-/** Increments the bufferfix count.
-@param[in,out]	block	block to bufferfix
-@return the count */
-UNIV_INLINE
-ulint
-buf_block_fix(
-	buf_block_t*	block);
-
-/** Decrements the bufferfix count.
-@param[in,out]	bpage	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_page_t*	bpage);
-/** Decrements the bufferfix count.
-@param[in,out]	block	block to bufferunfix
-@return	the remaining buffer-fix count */
-UNIV_INLINE
-ulint
-buf_block_unfix(
-	buf_block_t*	block);
-
 # ifdef UNIV_DEBUG
 /** Increments the bufferfix count.
 @param[in,out]	b	block to bufferfix
@@ -711,6 +677,12 @@ buf_block_unfix(
 #  define buf_block_buf_fix_inc(b,f,l) buf_block_buf_fix_inc_func(b)
 # endif /* UNIV_DEBUG */
 #endif /* !UNIV_INNOCHECKSUM */
+
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	page_size	page frame size
+@return whether the page is all zeroes */
+bool buf_page_is_zeroes(const void* read_buf, size_t page_size);
 
 /** Checks if the page is in crc32 checksum format.
 @param[in]	read_buf		database page
@@ -748,36 +720,76 @@ buf_page_is_checksum_valid_none(
 	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-/** Checks if a page contains only zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page size
-@return true if page is filled with zeroes */
-bool
-buf_page_is_zeroes(
-	const byte*		read_buf,
-	const page_size_t&	page_size);
-
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
-@param[in]	page_size	page size
-@param[in]	space		tablespace
+@param[in]	fsp_flags	tablespace flags
 @return whether the page is corrupted */
 bool
 buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
-	const page_size_t&	page_size,
-#ifndef UNIV_INNOCHECKSUM
-	const fil_space_t* 	space = NULL)
-#else
-	const void* 	 	space = NULL)
-#endif
+	ulint			fsp_flags)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Read the key version from the page. In full crc32 format,
+key version is stored at {0-3th} bytes. In other format, it is
+stored in 26th position.
+@param[in]	read_buf	database page
+@param[in]	fsp_flags	tablespace flags
+@return key version of the page. */
+inline uint32_t buf_page_get_key_version(const byte* read_buf, ulint fsp_flags)
+{
+	return fil_space_t::full_crc32(fsp_flags)
+		? mach_read_from_4(read_buf + FIL_PAGE_FCRC32_KEY_VERSION)
+		: mach_read_from_4(read_buf
+				   + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+}
+
+/** Read the compression info from the page. In full crc32 format,
+compression info is at MSB of page type. In other format, it is
+stored in page type.
+@param[in]	read_buf	database page
+@param[in]	fsp_flags	tablespace flags
+@return true if page is compressed. */
+inline bool buf_page_is_compressed(const byte* read_buf, ulint fsp_flags)
+{
+	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
+	return fil_space_t::full_crc32(fsp_flags)
+		? !!(page_type & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)
+		: page_type == FIL_PAGE_PAGE_COMPRESSED;
+}
+
+/** Get the compressed or uncompressed size of a full_crc32 page.
+@param[in]	buf	page_compressed or uncompressed page
+@param[out]	comp	whether the page could be compressed
+@param[out]	cr	whether the page could be corrupted
+@return the payload size in the file page */
+inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
+{
+	uint t = mach_read_from_2(buf + FIL_PAGE_TYPE);
+	uint page_size = uint(srv_page_size);
+
+	if (!(t & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)) {
+		return page_size;
+	}
+
+	t &= ~(1U << FIL_PAGE_COMPRESS_FCRC32_MARKER);
+	t <<= 8;
+
+	if (t < page_size) {
+		page_size = t;
+		if (comp) {
+			*comp = true;
+		}
+	} else if (cr) {
+		*cr = true;
+	}
+
+	return page_size;
+}
 
 #ifndef UNIV_INNOCHECKSUM
-
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
 pointer pointing to a buffer frame containing a file page. */
@@ -838,10 +850,8 @@ buf_print(void);
 
 /** Dump a page to stderr.
 @param[in]	read_buf	database page
-@param[in]	page_size	page size */
-UNIV_INTERN
-void
-buf_page_print(const byte* read_buf, const page_size_t& page_size)
+@param[in]	zip_size	compressed page size, or 0 */
+void buf_page_print(const byte* read_buf, ulint zip_size = 0)
 	ATTRIBUTE_COLD __attribute__((nonnull));
 /********************************************************************//**
 Decompress a block.
@@ -1200,6 +1210,7 @@ and the lock released later.
 @param[out]	err			DB_SUCCESS or DB_TABLESPACE_DELETED
 @param[in]	mode			BUF_READ_IBUF_PAGES_ONLY, ...
 @param[in]	page_id			page id
+@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	unzip			whether the uncompressed page is
 					requested (for ROW_FORMAT=COMPRESSED)
 @return pointer to the block
@@ -1209,7 +1220,7 @@ buf_page_init_for_read(
 	dberr_t*		err,
 	ulint			mode,
 	const page_id_t		page_id,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	bool			unzip);
 
 /** Complete a read or write request of a file page to or from the buffer pool.
@@ -1420,6 +1431,15 @@ ulint
 buf_pool_size_align(
 	ulint	size);
 
+/** Verify that post encryption checksum match with the calculated checksum.
+This function should be called only if tablespace contains crypt data metadata.
+@param[in]	page		page frame
+@param[in]	fsp_flags	tablespace flags
+@return true if page is encrypted and OK, false otherwise */
+bool buf_page_verify_crypt_checksum(
+	const byte*	page,
+	ulint		fsp_flags);
+
 /** Calculate the checksum of a page from compressed table and update the
 page.
 @param[in,out]	page	page to update
@@ -1440,7 +1460,7 @@ a page is written to disk.
 (may be src_frame or an encrypted/compressed copy of it) */
 UNIV_INTERN
 byte*
-buf_page_encrypt_before_write(
+buf_page_encrypt(
 	fil_space_t*	space,
 	buf_page_t*	bpage,
 	byte*		src_frame);
@@ -1450,10 +1470,9 @@ buf_page_encrypt_before_write(
 NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
-typedef struct {
-private:
-	int32		reserved;	/*!< true if this slot is reserved
-					*/
+class buf_tmp_buffer_t {
+	/** whether this slot is reserved */
+	std::atomic<bool> reserved;
 public:
 	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
@@ -1469,18 +1488,16 @@ public:
 	/** Release the slot */
 	void release()
 	{
-		my_atomic_store32_explicit(&reserved, false,
-					   MY_MEMORY_ORDER_RELAXED);
+		reserved.store(false, std::memory_order_relaxed);
 	}
 
 	/** Acquire the slot
 	@return whether the slot was acquired */
 	bool acquire()
 	{
-		return !my_atomic_fas32_explicit(&reserved, true,
-						 MY_MEMORY_ORDER_RELAXED);
+		return !reserved.exchange(true, std::memory_order_relaxed);
 	}
-} buf_tmp_buffer_t;
+};
 
 /** The common buffer control block structure
 for compressed and uncompressed frames */
@@ -1500,12 +1517,12 @@ public:
 
 	/** Page id. Protected by buf_pool mutex. */
 	page_id_t	id;
-
-	/** Page size. Protected by buf_pool mutex. */
-	page_size_t	size;
+	buf_page_t*	hash;		/*!< node used in chaining to
+					buf_pool->page_hash or
+					buf_pool->zip_hash */
 
 	/** Count of how manyfold this block is currently bufferfixed. */
-	ib_uint32_t	buf_fix_count;
+	Atomic_counter<uint32_t>	buf_fix_count;
 
 	/** type of pending I/O operation; also protected by
 	buf_pool->mutex for writes only */
@@ -1547,9 +1564,6 @@ public:
 	buf_tmp_buffer_t* slot;		/*!< Slot for temporary memory
 					used for encryption/compression
 					or NULL */
-	buf_page_t*	hash;		/*!< node used in chaining to
-					buf_pool->page_hash or
-					buf_pool->zip_hash */
 #ifdef UNIV_DEBUG
 	ibool		in_page_hash;	/*!< TRUE if in buf_pool->page_hash */
 	ibool		in_zip_hash;	/*!< TRUE if in buf_pool->zip_hash */
@@ -1660,6 +1674,27 @@ public:
 					protected by buf_pool->zip_mutex
 					or buf_block_t::mutex. */
 # endif /* UNIV_DEBUG */
+
+  void fix() { buf_fix_count++; }
+  uint32_t unfix()
+  {
+    uint32_t count= buf_fix_count--;
+    ut_ad(count != 0);
+    return count - 1;
+  }
+
+  /** @return the physical size, in bytes */
+  ulint physical_size() const
+  {
+    return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : srv_page_size;
+  }
+
+  /** @return the ROW_FORMAT=COMPRESSED physical size, in bytes
+  @retval 0 if not compressed */
+  ulint zip_size() const
+  {
+    return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : 0;
+  }
 };
 
 /** The buffer control block structure */
@@ -1766,20 +1801,20 @@ struct buf_block_t{
 	/* @{ */
 
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	ulint		n_pointers;	/*!< used in debugging: the number of
+	Atomic_counter<ulint>
+			n_pointers;	/*!< used in debugging: the number of
 					pointers in the adaptive hash index
 					pointing to this frame;
 					protected by atomic memory access
 					or btr_search_own_all(). */
 #  define assert_block_ahi_empty(block)					\
-	ut_a(my_atomic_addlint(&(block)->n_pointers, 0) == 0)
+	ut_a((block)->n_pointers == 0)
 #  define assert_block_ahi_empty_on_init(block) do {			\
 	UNIV_MEM_VALID(&(block)->n_pointers, sizeof (block)->n_pointers); \
 	assert_block_ahi_empty(block);					\
 } while (0)
 #  define assert_block_ahi_valid(block)					\
-	ut_a((block)->index						\
-	     || my_atomic_loadlint(&(block)->n_pointers) == 0)
+	ut_a((block)->index || (block)->n_pointers == 0)
 # else /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 #  define assert_block_ahi_empty(block) /* nothing */
 #  define assert_block_ahi_empty_on_init(block) /* nothing */
@@ -1811,7 +1846,7 @@ struct buf_block_t{
 # ifdef UNIV_DEBUG
 	/** @name Debug fields */
 	/* @{ */
-	rw_lock_t	debug_latch;	/*!< in the debug version, each thread
+	rw_lock_t*	debug_latch;	/*!< in the debug version, each thread
 					which bufferfixes the block acquires
 					an s-latch here; so we can use the
 					debug utilities in sync0rw */
@@ -1823,6 +1858,16 @@ struct buf_block_t{
 					and accessed; we introduce this new
 					mutex in InnoDB-5.1 to relieve
 					contention on the buffer pool mutex */
+
+  void fix() { page.fix(); }
+  uint32_t unfix() { return page.unfix(); }
+
+  /** @return the physical size, in bytes */
+  ulint physical_size() const { return page.physical_size(); }
+
+  /** @return the ROW_FORMAT=COMPRESSED physical size, in bytes
+  @retval 0 if not compressed */
+  ulint zip_size() const { return page.zip_size(); }
 };
 
 /** Check if a buf_block_t object is in a valid state
@@ -2027,17 +2072,6 @@ struct buf_buddy_stat_t {
 	ib_uint64_t	relocated_usec;
 };
 
-/** @brief The temporary memory array structure.
-
-NOTE! The definition appears here only for other modules of this
-directory (buf) to see it. Do not use from outside! */
-
-typedef struct {
-	ulint		n_slots;	/*!< Total number of slots */
-	buf_tmp_buffer_t *slots;	/*!< Pointer to the slots in the
-					array */
-} buf_tmp_array_t;
-
 /** @brief The buffer pool structure.
 
 NOTE! The definition appears here only for other modules of this
@@ -2097,7 +2131,8 @@ struct buf_pool_t{
 					indexed by block->frame */
 	ulint		n_pend_reads;	/*!< number of pending read
 					operations */
-	ulint		n_pend_unzip;	/*!< number of pending decompressions */
+	Atomic_counter<ulint>
+			n_pend_unzip;	/*!< number of pending decompressions */
 
 	time_t		last_printout_time;
 					/*!< when buf_print_io was last time
@@ -2238,20 +2273,47 @@ struct buf_pool_t{
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 	UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
 					/*!< buddy free lists */
+#if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
+# error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"
+#endif
+	/* @} */
 
 	buf_page_t*			watch;
 					/*!< Sentinel records for buffer
 					pool watches. Protected by
 					buf_pool->mutex. */
 
-	buf_tmp_array_t*		tmp_arr;
-					/*!< Array for temporal memory
-					used in compression and encryption */
+	/** Temporary memory for page_compressed and encrypted I/O */
+	struct io_buf_t {
+		/** number of elements in slots[] */
+		const ulint n_slots;
+		/** array of slots */
+		buf_tmp_buffer_t* const slots;
 
-#if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
-# error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"
-#endif
-	/* @} */
+		io_buf_t() = delete;
+
+		/** Constructor */
+		explicit io_buf_t(ulint n_slots) :
+			n_slots(n_slots),
+			slots(static_cast<buf_tmp_buffer_t*>(
+				      ut_malloc_nokey(n_slots
+						      * sizeof *slots)))
+		{
+			memset((void*) slots, 0, n_slots * sizeof *slots);
+		}
+
+		~io_buf_t();
+
+		/** Reserve a buffer */
+		buf_tmp_buffer_t* reserve()
+		{
+			for (buf_tmp_buffer_t* s = slots, *e = slots + n_slots;
+			     s != e; s++) {
+				if (s->acquire()) return s;
+			}
+			return NULL;
+		}
+	} io_buf;
 };
 
 /** Print the given buf_pool_t object.

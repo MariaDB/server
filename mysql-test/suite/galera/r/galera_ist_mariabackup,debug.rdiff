@@ -1,6 +1,6 @@
---- r/galera_ist_mariabackup.result	2018-11-21 22:30:21.968817468 +0200
-+++ r/galera_ist_mariabackup.reject	2018-11-22 09:16:27.832601754 +0200
-@@ -285,3 +285,111 @@
+--- galera_ist_mariabackup.result	2018-12-11 13:33:56.728535840 +0100
++++ galera_ist_mariabackup.reject	2018-12-11 13:37:40.572535840 +0100
+@@ -290,3 +290,111 @@
  DROP TABLE t1;
  COMMIT;
  SET AUTOCOMMIT=ON;

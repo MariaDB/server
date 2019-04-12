@@ -247,11 +247,9 @@ drop table t1;
 #
 create table t1 (i int);
 insert into t1 values (1);
-analyze select * from t1 into @var;
+analyze select * into @var from t1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table t1;
 #
 # MDEV-6394: ANALYZE DELETE .. RETURNING fails with ERROR 2027 Malformed packet
@@ -283,12 +281,10 @@ drop table t1;
 #
 create table t1(a int);
 insert into t1 values (1),(2);
-analyze select a from t1 where a <2 into @var;
+analyze select a into @var from t1 where a <2 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-analyze select a from t1 into @var;
+analyze select a into @var from t1 ;
 ERROR 42000: Result consisted of more than one row
 analyze insert into t1 select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra

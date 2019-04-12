@@ -5,9 +5,11 @@ Setting root password
 Creating my.ini file
 Creation of the database was successful
 # Kill the server
+# restart: --datadir=MYSQLTEST_VARDIR/tmp/ddir --loose-innodb
 connect root,localhost,root,foo;
 SELECT @@datadir;
 @@datadir
 DATADIR/
 # Kill the server
 connection default;
+# restart

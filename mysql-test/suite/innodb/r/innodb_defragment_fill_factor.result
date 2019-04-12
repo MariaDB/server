@@ -12,6 +12,7 @@ INSERT INTO t1 (b) SELECT b from t1;
 INSERT INTO t1 (b) SELECT b from t1;
 INSERT INTO t1 (b) SELECT b from t1;
 SET GLOBAL innodb_fast_shutdown = 0;
+# restart
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
@@ -57,6 +58,7 @@ DROP TABLE t1;
 Testing table with small records
 CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(16), c VARCHAR(32), KEY SECOND(a,b,c)) ENGINE=INNODB;
 SET GLOBAL innodb_fast_shutdown = 0;
+# restart
 optimize table t2;
 Table	Op	Msg_type	Msg_text
 test.t2	optimize	status	OK

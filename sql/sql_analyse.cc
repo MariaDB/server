@@ -295,9 +295,9 @@ bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num)
 } // get_ev_num_info
 
 
-int free_string(String *s)
+int free_string(void* str, TREE_FREE, void*)
 {
-  s->free();
+  ((String*)str)->free();
   return 0;
 }
 
@@ -1233,4 +1233,3 @@ uint check_ulonglong(const char *str, uint length)
   while (*cmp && *cmp++ == *str++) ;
   return ((uchar) str[-1] <= (uchar) cmp[-1]) ? smaller : bigger;
 } /* check_ulonlong */
-

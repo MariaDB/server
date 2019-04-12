@@ -764,8 +764,7 @@ exit:
 }
 
 
-int mysql_create_db(THD *thd, const LEX_CSTRING *db,
-                    const DDL_options_st &options,
+int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
                     const Schema_specification_st *create_info)
 {
   /*
@@ -773,6 +772,9 @@ int mysql_create_db(THD *thd, const LEX_CSTRING *db,
     to it, we need to use a copy to make execution prepared statement- safe.
   */
   Schema_specification_st tmp(*create_info);
+  if (thd->slave_thread &&
+      slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+    options.add(DDL_options::OPT_IF_NOT_EXISTS);
   return mysql_create_db_internal(thd, db, options, &tmp, false);
 }
 
@@ -880,7 +882,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists, bool silen
       lock_db_routines(thd, dbnorm))
     goto exit;
 
-  if (!in_bootstrap && !rm_mysql_schema)
+  if (!rm_mysql_schema)
   {
     for (table= tables; table; table= table->next_local)
     {
@@ -1047,6 +1049,9 @@ exit:
 
 bool mysql_rm_db(THD *thd, const LEX_CSTRING *db, bool if_exists)
 {
+  if (thd->slave_thread &&
+      slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+    if_exists= true;
   return mysql_rm_db_internal(thd, db, if_exists, false);
 }
 
@@ -1084,8 +1089,12 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
     table_list->table_name= *table;
     table_list->open_type= OT_BASE_ONLY;
 
-    /* To be able to correctly look up the table in the table cache. */
-    if (lower_case_table_names)
+    /*
+      On the case-insensitive file systems table is opened
+      with the lowercased file name. So we should lowercase
+      as well to look up the cache properly.
+    */
+    if (lower_case_file_system)
       table_list->table_name.length= my_casedn_str(files_charset_info,
                                                    (char*) table_list->table_name.str);
 

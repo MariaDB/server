@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +30,7 @@ Created September 2006 Marko Makela
 #include "data0types.h"
 #include "mem0mem.h"
 #include "dict0types.h"
-#include "page0size.h"
+#include "fsp0types.h"
 #include "row0types.h"
 
 /********************************************************************//**
@@ -43,7 +44,7 @@ row_ext_create(
 				in the InnoDB table object, as reported by
 				dict_col_get_no(); NOT relative to the records
 				in the clustered index */
-	ulint		flags, /*!< in: table->flags */
+	const dict_table_t& table, /*!< in: table */
 	const dtuple_t*	tuple,	/*!< in: data tuple containing the field
 				references of the externally stored
 				columns; must be indexed by col_no;
@@ -91,9 +92,7 @@ struct row_ext_t{
 				REC_ANTELOPE_MAX_INDEX_COL_LEN or
 				REC_VERSION_56_MAX_INDEX_COL_LEN depending
 				on row format */
-	page_size_t	page_size;
-				/*!< page size of the externally stored
-				columns */
+	ulint		zip_size;/*!< ROW_FORMAT=COMPRESSED page size, or 0 */
 	ulint		len[1];	/*!< prefix lengths; 0 if not cached */
 };
 

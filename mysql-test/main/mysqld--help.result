@@ -15,6 +15,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
+ --analyze-sample-percentage=# 
+ Percentage of rows from the table ANALYZE TABLE will
+ sample to collect table statistics. Set to 0 to let
+ MariaDB decide what percentage of rows to sample.
  -a, --ansi          Use ANSI SQL syntax instead of MySQL syntax. This mode
  will also set transaction isolation level 'serializable'.
  --auto-increment-increment[=#] 
@@ -184,6 +188,12 @@ The following specify which files/extra groups are read (specified before remain
  --deadlock-timeout-short=# 
  Short timeout for the two-step deadlock detection (in
  microseconds)
+ --default-password-lifetime=# 
+ This defines the global password expiration policy. 0
+ means automatic password expiration is disabled. If the
+ value is a positive integer N, the passwords must be
+ changed every N days. This behavior can be overriden
+ using the password expiration options in ALTER USER.
  --default-regex-flags=name 
  Default flags for the regex library. Any combination of: 
  DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
@@ -220,6 +230,11 @@ The following specify which files/extra groups are read (specified before remain
  handling INSERT DELAYED. If the queue becomes full, any
  client that does INSERT DELAYED will wait until there is
  room in the queue again
+ --disconnect-on-expired-password 
+ This variable controls how the server handles clients
+ that are not aware of the sandbox mode. If enabled, the
+ server disconnects the client, otherwise the server puts
+ the client in a sandbox mode.
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
@@ -546,6 +561,10 @@ The following specify which files/extra groups are read (specified before remain
  The maximum BLOB length to send to server from
  mysql_send_long_data API. Deprecated option; use
  max_allowed_packet instead.
+ --max-password-errors=# 
+ If there is more than this number of failed connect
+ attempts due to invalid password, user will be blocked
+ from further connections until FLUSH_PRIVILEGES.
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
  --max-recursive-iterations[=#] 
@@ -555,6 +574,8 @@ The following specify which files/extra groups are read (specified before remain
  relay log will be rotated automatically when the size
  exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
+ --max-rowid-filter-size=# 
+ The maximum size of the container of a rowid filter
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
@@ -688,7 +709,14 @@ The following specify which files/extra groups are read (specified before remain
  optimize_join_buffer_size, table_elimination, 
  extended_keys, exists_to_in, orderby_uses_equalities, 
  condition_pushdown_for_derived, split_materialized, 
- condition_pushdown_for_subquery
+ condition_pushdown_for_subquery, rowid_filter, 
+ condition_pushdown_from_having
+ --optimizer-trace=name 
+ Controls tracing of the Optimizer:
+ optimizer_trace=option=val[,option=val...], where option
+ is one of {enabled} and val is one of {on, off, default}
+ --optimizer-trace-max-mem-size=# 
+ Maximum allowed size of an optimizer trace
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -1373,6 +1401,7 @@ The following specify which files/extra groups are read (specified before remain
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
 alter-algorithm DEFAULT
+analyze-sample-percentage 100
 auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
@@ -1410,6 +1439,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
+default-password-lifetime 0
 default-regex-flags 
 default-storage-engine myisam
 default-time-zone (No default value)
@@ -1419,12 +1449,13 @@ delay-key-write ON
 delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
+disconnect-on-expired-password FALSE
 div-precision-increment 4
 encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
-eq-range-index-dive-limit 0
+eq-range-index-dive-limit 200
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1450,8 +1481,8 @@ gtid-ignore-duplicates FALSE
 gtid-pos-auto-engines 
 gtid-strict-mode FALSE
 help TRUE
-histogram-size 0
-histogram-type SINGLE_PREC_HB
+histogram-size 254
+histogram-type DOUBLE_PREC_HB
 host-cache-size 279
 idle-readonly-transaction-timeout 0
 idle-transaction-timeout 0
@@ -1518,9 +1549,11 @@ max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 16777216
+max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824
+max-rowid-filter-size 131072
 max-seeks-for-key 18446744073709551615
 max-session-mem-used 9223372036854775807
 max-sort-length 1024
@@ -1557,7 +1590,9 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
+optimizer-trace 
+optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
 performance-schema FALSE
 performance-schema-accounts-size -1
@@ -1595,7 +1630,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 201
+performance-schema-max-statement-classes 202
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50

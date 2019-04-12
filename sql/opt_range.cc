@@ -119,6 +119,7 @@
 #include "sql_select.h"
 #include "sql_statistics.h"
 #include "uniques.h"
+#include "my_json_writer.h"
 
 #ifndef EXTRA_DEBUG
 #define test_rb_tree(A,B) {}
@@ -429,6 +430,18 @@ static int and_range_trees(RANGE_OPT_PARAM *param,
                            SEL_TREE *result);
 static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree);
 
+static void print_key_value(String *out, const KEY_PART_INFO *key_part,
+                            const uchar *key);
+
+static void append_range_all_keyparts(Json_writer_array *range_trace,
+                                      String *range_string,
+                                      String *range_so_far, const SEL_ARG *keypart,
+                                      const KEY_PART_INFO *key_parts);
+
+static
+void append_range(String *out, const KEY_PART_INFO *key_parts,
+                  const uchar *min_key, const uchar *max_key, const uint flag);
+
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -662,7 +675,7 @@ int SEL_IMERGE::or_sel_tree_with_checks(RANGE_OPT_PARAM *param,
 {
   bool was_ored= FALSE;
   *is_last_check_pass= is_first_check_pass;
-  SEL_TREE** or_tree = trees;
+  SEL_TREE** or_tree= trees;
   for (uint i= 0; i < n_trees; i++, or_tree++)
   {
     SEL_TREE *result= 0;
@@ -859,7 +872,7 @@ SEL_IMERGE::SEL_IMERGE(SEL_IMERGE *arg, uint cnt,
   trees_next= trees + (cnt ? cnt : arg->trees_next-arg->trees);
   trees_end= trees + elements;
 
-  for (SEL_TREE **tree = trees, **arg_tree= arg->trees; tree < trees_next; 
+  for (SEL_TREE **tree= trees, **arg_tree= arg->trees; tree < trees_next;
        tree++, arg_tree++)
   {
     if (!(*tree= new SEL_TREE(*arg_tree, TRUE, param)))
@@ -1344,14 +1357,12 @@ QUICK_RANGE_SELECT::~QUICK_RANGE_SELECT()
   - Use rowids from unique to run a disk-ordered sweep
 */
 
-QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param,
-                                                 TABLE *table)
+QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param, TABLE *table)
   :unique(NULL), pk_quick_select(NULL), thd(thd_param)
 {
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT");
   index= MAX_KEY;
   head= table;
-  bzero(&read_record, sizeof(read_record));
   init_sql_alloc(&alloc, "QUICK_INDEX_SORT_SELECT",
                  thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
@@ -1561,6 +1572,7 @@ failure:
   head->column_bitmaps_set(save_read_set, save_write_set);
   delete file;
   file= save_file;
+  free_file= false;
   DBUG_RETURN(1);
 }
 
@@ -2190,6 +2202,14 @@ public:
   static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) { /* Never called */ }
   virtual ~TABLE_READ_PLAN() {}               /* Remove gcc warning */
+  /**
+     Add basic info for this TABLE_READ_PLAN to the optimizer trace.
+
+     @param param        Parameters for range analysis of this table
+     @param trace_object The optimizer trace object the info is appended to
+  */
+  virtual void trace_basic_info(const PARAM *param,
+                                Json_writer_object *trace_object) const= 0;
 
 };
 
@@ -2231,7 +2251,33 @@ public:
     }
     DBUG_RETURN(quick);
   }
+  void trace_basic_info(const PARAM *param,
+                        Json_writer_object *trace_object) const;
 };
+
+void TRP_RANGE::trace_basic_info(const PARAM *param,
+                                 Json_writer_object *trace_object) const
+{
+  DBUG_ASSERT(param->using_real_indexes);
+  const uint keynr_in_table= param->real_keynr[key_idx];
+
+  const KEY &cur_key= param->table->key_info[keynr_in_table];
+  const KEY_PART_INFO *key_part= cur_key.key_part;
+
+  trace_object->add("type", "range_scan")
+               .add("index", cur_key.name)
+               .add("rows", records);
+
+  Json_writer_array trace_range(param->thd, "ranges");
+
+  // TRP_RANGE should not be created if there are no range intervals
+  DBUG_ASSERT(key);
+
+  String range_info;
+  range_info.length(0);
+  range_info.set_charset(system_charset_info);
+  append_range_all_keyparts(&trace_range, NULL, &range_info, key, key_part);
+}
 
 
 /* Plan for QUICK_ROR_INTERSECT_SELECT scan. */
@@ -2250,7 +2296,10 @@ public:
   struct st_ror_scan_info *cpk_scan;  /* Clustered PK scan, if there is one */
   bool is_covering; /* TRUE if no row retrieval phase is necessary */
   double index_scan_costs; /* SUM(cost(index_scan)) */
+  void trace_basic_info(const PARAM *param,
+                        Json_writer_object *trace_object) const;
 };
+
 
 
 /*
@@ -2268,8 +2317,22 @@ public:
                              MEM_ROOT *parent_alloc);
   TABLE_READ_PLAN **first_ror; /* array of ptrs to plans for merged scans */
   TABLE_READ_PLAN **last_ror;  /* end of the above array */
+  void trace_basic_info(const PARAM *param,
+                        Json_writer_object *trace_object) const;
 };
 
+void TRP_ROR_UNION::trace_basic_info(const PARAM *param,
+                                     Json_writer_object *trace_object) const
+{
+  THD *thd= param->thd;
+  trace_object->add("type", "index_roworder_union");
+  Json_writer_array smth_trace(thd, "union_of");
+  for (TABLE_READ_PLAN **current= first_ror; current != last_ror; current++)
+  {
+    Json_writer_object trp_info(thd);
+    (*current)->trace_basic_info(param, &trp_info);
+  }
+}
 
 /*
   Plan for QUICK_INDEX_INTERSECT_SELECT scan.
@@ -2287,9 +2350,25 @@ public:
   TRP_RANGE **range_scans; /* array of ptrs to plans of intersected scans */
   TRP_RANGE **range_scans_end; /* end of the array */
   /* keys whose scans are to be filtered by cpk conditions */
-  key_map filtered_scans;  
+  key_map filtered_scans;
+  void trace_basic_info(const PARAM *param,
+                        Json_writer_object *trace_object) const;
+
 };
 
+void TRP_INDEX_INTERSECT::trace_basic_info(const PARAM *param,
+                                       Json_writer_object *trace_object) const
+{
+  THD *thd= param->thd;
+  trace_object->add("type", "index_sort_intersect");
+  Json_writer_array smth_trace(thd, "index_sort_intersect_of");
+  for (TRP_RANGE **current= range_scans; current != range_scans_end;
+                                                          current++)
+  {
+    Json_writer_object trp_info(thd);
+    (*current)->trace_basic_info(param, &trp_info);
+  }
+}
 
 /*
   Plan for QUICK_INDEX_MERGE_SELECT scan.
@@ -2306,8 +2385,22 @@ public:
                              MEM_ROOT *parent_alloc);
   TRP_RANGE **range_scans; /* array of ptrs to plans of merged scans */
   TRP_RANGE **range_scans_end; /* end of the array */
+  void trace_basic_info(const PARAM *param,
+                        Json_writer_object *trace_object) const;
 };
 
+void TRP_INDEX_MERGE::trace_basic_info(const PARAM *param,
+                                       Json_writer_object *trace_object) const
+{
+  THD *thd= param->thd;
+  trace_object->add("type", "index_merge");
+  Json_writer_array smth_trace(thd, "index_merge_of");
+  for (TRP_RANGE **current= range_scans; current != range_scans_end; current++)
+  {
+    Json_writer_object trp_info(thd);
+    (*current)->trace_basic_info(param, &trp_info);
+  }
+}
 
 /*
   Plan for a QUICK_GROUP_MIN_MAX_SELECT scan. 
@@ -2359,7 +2452,49 @@ public:
   QUICK_SELECT_I *make_quick(PARAM *param, bool retrieve_full_rows,
                              MEM_ROOT *parent_alloc);
   void use_index_scan() { is_index_scan= TRUE; }
+  void trace_basic_info(const PARAM *param,
+                        Json_writer_object *trace_object) const;
 };
+
+
+void TRP_GROUP_MIN_MAX::trace_basic_info(const PARAM *param,
+                                Json_writer_object *trace_object) const
+{
+  THD *thd= param->thd;
+  trace_object->add("type", "index_group").add("index", index_info->name);
+
+  if (min_max_arg_part)
+    trace_object->add("min_max_arg", min_max_arg_part->field->field_name);
+  else
+    trace_object->add_null("min_max_arg");
+
+  trace_object->add("min_aggregate", have_min)
+               .add("max_aggregate", have_max)
+               .add("distinct_aggregate", have_agg_distinct)
+               .add("rows", records)
+               .add("cost", read_cost);
+
+  const KEY_PART_INFO *key_part= index_info->key_part;
+  {
+    Json_writer_array trace_keyparts(thd, "key_parts_used_for_access");
+    for (uint partno= 0; partno < used_key_parts; partno++)
+    {
+      const KEY_PART_INFO *cur_key_part= key_part + partno;
+      trace_keyparts.add(cur_key_part->field->field_name);
+    }
+  }
+
+  Json_writer_array trace_range(thd, "ranges");
+
+  // can have group quick without ranges
+  if (index_tree)
+  {
+    String range_info;
+    range_info.set_charset(system_charset_info);
+    append_range_all_keyparts(&trace_range, NULL, &range_info, index_tree,
+                              key_part);
+  }
+}
 
 
 typedef struct st_index_scan_info
@@ -2449,6 +2584,9 @@ static int fill_used_fields_bitmap(PARAM *param)
       limit             Query limit
       force_quick_range Prefer to use range (instead of full table scan) even
                         if it is more expensive.
+      remove_false_parts_of_where  Remove parts of OR-clauses for which range
+                                   analysis produced SEL_TREE(IMPOSSIBLE)
+      only_single_index_range_scan Evaluate only single index range scans
 
   NOTES
     Updates the following in the select parameter:
@@ -2507,7 +2645,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 				  table_map prev_tables,
 				  ha_rows limit, bool force_quick_range, 
                                   bool ordered_output,
-                                  bool remove_false_parts_of_where)
+                                  bool remove_false_parts_of_where,
+                                  bool only_single_index_range_scan)
 {
   uint idx;
   double scan_time;
@@ -2520,6 +2659,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   quick=0;
   needed_reg.clear_all();
   quick_keys.clear_all();
+  head->with_impossible_ranges.clear_all();
   DBUG_ASSERT(!head->is_filled_at_execution());
   if (keys_to_use.is_clear_all() || head->is_filled_at_execution())
     DBUG_RETURN(0);
@@ -2536,6 +2676,17 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   possible_keys.clear_all();
 
   DBUG_PRINT("info",("Time to scan table: %g", read_time));
+
+  Json_writer_object table_records(thd);
+  if (head->reginfo.join_tab)
+    table_records.add_table_name(head->reginfo.join_tab);
+  else
+    table_records.add_table_name(head);
+  Json_writer_object trace_range(thd, "range_analysis");
+  {
+    Json_writer_object table_rec(thd, "table_scan");
+    table_rec.add("rows", records).add("cost", read_time);
+  }
 
   keys_to_use.intersect(head->keys_in_use_for_query);
   if (!keys_to_use.is_clear_all())
@@ -2590,19 +2741,33 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     */
     key_info= head->key_info;
     uint max_key_len= 0;
+
+    Json_writer_array trace_idx(thd, "potential_range_indexes");
+
     for (idx=0 ; idx < head->s->keys ; idx++, key_info++)
     {
+      Json_writer_object trace_idx_details(thd);
+      trace_idx_details.add("index", key_info->name);
       KEY_PART_INFO *key_part_info;
       uint n_key_parts= head->actual_n_key_parts(key_info);
 
       if (!keys_to_use.is_set(idx))
-	continue;
+      {
+        trace_idx_details.add("usable", false)
+                         .add("cause", "not applicable");
+        continue;
+      }
       if (key_info->flags & HA_FULLTEXT)
-	continue;    // ToDo: ft-keys in non-ft ranges, if possible   SerG
+      {
+        trace_idx_details.add("usable", false).add("cause", "fulltext");
+        continue;    // ToDo: ft-keys in non-ft ranges, if possible   SerG
+      }
 
+      trace_idx_details.add("usable", true);
       param.key[param.keys]=key_parts;
       key_part_info= key_info->key_part;
       uint cur_key_len= 0;
+      Json_writer_array trace_keypart(thd, "key_parts");
       for (uint part= 0 ; part < n_key_parts ; 
            part++, key_parts++, key_part_info++)
      {
@@ -2617,11 +2782,14 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
           (key_info->flags & HA_SPATIAL) ? Field::itMBR : Field::itRAW;
         /* Only HA_PART_KEY_SEG is used */
         key_parts->flag=         (uint8) key_part_info->key_part_flag;
+        trace_keypart.add(key_parts->field->field_name);
       }
       param.real_keynr[param.keys++]=idx;
       if (cur_key_len > max_key_len)
         max_key_len= cur_key_len;
     }
+    trace_idx.end();
+
     param.key_parts_end=key_parts;
     param.alloced_sel_args= 0;
 
@@ -2639,26 +2807,42 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (!force_quick_range && !head->covering_keys.is_clear_all())
     {
       int key_for_use= find_shortest_key(head, &head->covering_keys);
-      double key_read_time= head->file->keyread_time(key_for_use, 1, records) +
-                            (double) records / TIME_FOR_COMPARE;
+      double key_read_time= head->file->key_scan_time(key_for_use) +
+                            (double) records / TIME_FOR_COMPARE_IDX;
       DBUG_PRINT("info",  ("'all'+'using index' scan will be using key %d, "
                            "read time %g", key_for_use, key_read_time));
+
+      Json_writer_object trace_cov(thd, "best_covering_index_scan");
+      bool chosen= FALSE;
       if (key_read_time < read_time)
+      {
         read_time= key_read_time;
+        chosen= TRUE;
+      }
+      trace_cov.add("index", head->key_info[key_for_use].name)
+               .add("cost", key_read_time).add("chosen", chosen);
+      if (!chosen)
+        trace_cov.add("cause", "cost");
     }
 
     TABLE_READ_PLAN *best_trp= NULL;
-    TRP_GROUP_MIN_MAX *group_trp;
+    TRP_GROUP_MIN_MAX *group_trp= NULL;
     double best_read_time= read_time;
 
     if (cond)
     {
-      if ((tree= cond->get_mm_tree(&param, &cond)))
+      {
+        Json_writer_array trace_range_summary(thd,
+                                           "setup_range_conditions");
+        tree= cond->get_mm_tree(&param, &cond);
+      }
+      if (tree)
       {
         if (tree->type == SEL_TREE::IMPOSSIBLE)
         {
           records=0L;                      /* Return -1 from this function. */
           read_time= (double) HA_POS_ERROR;
+          trace_range.add("impossible_range", true);
           goto free_mem;
         }
         /*
@@ -2666,7 +2850,10 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
           can construct a group-min-max quick select
         */
         if (tree->type != SEL_TREE::KEY && tree->type != SEL_TREE::KEY_SMALLER)
+        {
+          trace_range.add("range_scan_possible", false);
           tree= NULL;
+        }
       }
     }
 
@@ -2674,16 +2861,25 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       Try to construct a QUICK_GROUP_MIN_MAX_SELECT.
       Notice that it can be constructed no matter if there is a range tree.
     */
-    group_trp= get_best_group_min_max(&param, tree, best_read_time);
+    if (!only_single_index_range_scan)
+      group_trp= get_best_group_min_max(&param, tree, best_read_time);
     if (group_trp)
     {
       param.table->quick_condition_rows= MY_MIN(group_trp->records,
                                              head->stat_records());
+      Json_writer_object grp_summary(thd, "best_group_range_summary");
+
+      if (unlikely(thd->trace_started()))
+        group_trp->trace_basic_info(&param, &grp_summary);
+
       if (group_trp->read_cost < best_read_time)
       {
+        grp_summary.add("chosen", true);
         best_trp= group_trp;
         best_read_time= best_trp->read_cost;
       }
+      else
+        grp_summary.add("chosen", false).add("cause", "cost");
     }
 
     if (tree)
@@ -2696,7 +2892,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       TRP_ROR_INTERSECT *rori_trp;
       TRP_INDEX_INTERSECT *intersect_trp;
       bool can_build_covering= FALSE;
-      
+      Json_writer_object trace_range(thd, "analyzing_range_alternatives");
+
       remove_nonrange_trees(&param, tree);
 
       /* Get best 'range' plan and prepare data for making other plans */
@@ -2713,7 +2910,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         table deletes.
       */
       if ((thd->lex->sql_command != SQLCOM_DELETE) && 
-           optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE))
+           optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
+          !only_single_index_range_scan)
       {
         /*
           Get best non-covering ROR-intersection plan and prepare data for
@@ -2741,7 +2939,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       */
       if (param.table->covering_keys.is_clear_all() &&
           optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
-          optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_INTERSECT))
+          optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_INTERSECT) &&
+          !only_single_index_range_scan)
       {
         if ((intersect_trp= get_best_index_intersect(&param, tree,
                                                     best_read_time)))
@@ -2754,7 +2953,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       }
 
       if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
-          head->stat_records() != 0)
+          head->stat_records() != 0 && !only_single_index_range_scan)
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;
@@ -2763,6 +2962,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         DBUG_PRINT("info",("No range reads possible,"
                            " trying to construct index_merge"));
         List_iterator_fast<SEL_IMERGE> it(tree->merges);
+        Json_writer_array trace_idx_merge(thd, "analyzing_index_merge_union");
         while ((imerge= it++))
         {
           new_conj_trp= get_best_disjunct_quick(&param, imerge, best_read_time);
@@ -2797,6 +2997,19 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     possible_keys= param.possible_keys;
 
   free_mem:
+    if (unlikely(quick && best_trp && thd->trace_started()))
+    {
+      Json_writer_object trace_range_summary(thd,
+                                           "chosen_range_access_summary");
+      {
+        Json_writer_object trace_range_plan(thd, "range_access_plan");
+        best_trp->trace_basic_info(&param, &trace_range_plan);
+      }
+      trace_range_summary.add("rows_for_plan", quick->records)
+                         .add("cost_for_plan", quick->read_time)
+                         .add("chosen", true);
+    }
+
     free_root(&alloc,MYF(0));			// Return memory & allocator
     thd->mem_root= param.old_root;
     thd->no_errors=0;
@@ -2841,10 +3054,6 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 {
   Field **field_ptr;
   TABLE *table= param->table;
-  partition_info *part_info= NULL;
-  #ifdef WITH_PARTITION_STORAGE_ENGINE
-    part_info= table->part_info;
-  #endif
   uint parts= 0;
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
@@ -3063,6 +3272,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     estimate sources.
   */
 
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
+
   for (keynr= 0;  keynr < table->s->keys; keynr++)
   {
     if (table->quick_keys.is_set(keynr))
@@ -3112,6 +3324,10 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
             not yet been accounted for.
           */
           table->cond_selectivity*= quick_cond_selectivity;
+          Json_writer_object selectivity_for_index(thd);
+          selectivity_for_index.add("index_name", key_info->name)
+                               .add("selectivity_from_index",
+                                    quick_cond_selectivity);
           if (i != used_key_parts)
 	  {
             /*
@@ -3131,7 +3347,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
               */
               selectivity_mult= ((double)(i+1)) / i;
             }
-            table->cond_selectivity*= selectivity_mult;            
+            table->cond_selectivity*= selectivity_mult;
+            selectivity_for_index.add("selectivity_multiplier",
+                                      selectivity_mult);
           }
           /*
             We need to set selectivity for fields supported by indexes.
@@ -3152,12 +3370,14 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       }
     }
   }
+  selectivity_for_indexes.end();
    
   /* 
     Second step: calculate the selectivity of the range conditions not 
     supported by any index and selectivity of the range condition
     over the fields whose selectivity has not been set yet.
   */
+  Json_writer_array selectivity_for_columns(thd, "selectivity_for_columns");
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields) &&
@@ -3217,17 +3437,25 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       SEL_ARG *key= tree->keys[idx];
       if (key)
       {
+        Json_writer_object selectivity_for_column(thd);
+        selectivity_for_column.add("column_name", key->field->field_name);
         if (key->type == SEL_ARG::IMPOSSIBLE)
-	{
+        {
           rows= 0;
           table->reginfo.impossible_range= 1;
+          selectivity_for_column.add("selectivity_from_histogram", rows);
+          selectivity_for_column.add("cause", "impossible range");
           goto free_alloc;
         }          
         else
         {
           rows= records_in_column_ranges(&param, idx, key);
           if (rows != DBL_MAX)
+          {
             key->field->cond_selectivity= rows/table_records;
+            selectivity_for_column.add("selectivity_from_histogram",
+                                       key->field->cond_selectivity);
+          }
         }
       }
     }
@@ -3249,6 +3477,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     free_root(&alloc, MYF(0));
 
   }
+  selectivity_for_columns.end();
 
   if (quick && (quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
      quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE))
@@ -3323,7 +3552,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       table->cond_selectivity_sampling_explain= &dt->list;
     }
   }
-
+  trace_wrapper.add("cond_selectivity", table->cond_selectivity);
   DBUG_RETURN(FALSE);
 }
 
@@ -4793,7 +5022,9 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   double roru_index_costs;
   ha_rows roru_total_records;
   double roru_intersect_part= 1.0;
+  double limit_read_time= read_time;
   size_t n_child_scans;
+  THD *thd= param->thd;
   DBUG_ENTER("get_best_disjunct_quick");
   DBUG_PRINT("info", ("Full table scan cost: %g", read_time));
 
@@ -4819,6 +5050,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              sizeof(TRP_RANGE*)*
                                              n_child_scans)))
     DBUG_RETURN(NULL);
+  Json_writer_object trace_best_disjunct(thd);
+  Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
     analyze possibility of ROR scans. Also calculate some values needed by
@@ -4830,6 +5063,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   {
     DBUG_EXECUTE("info", print_sel_tree(param, *ptree, &(*ptree)->keys_map,
                                         "tree in SEL_IMERGE"););
+    Json_writer_object trace_idx(thd);
     if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE, read_time)))
     {
       /*
@@ -4841,8 +5075,11 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       imerge_too_expensive= TRUE;
     }
     if (imerge_too_expensive)
+    {
+      trace_idx.add("chosen", false).add("cause", "cost");
       continue;
-
+    }
+    const uint keynr_in_table= param->real_keynr[(*cur_child)->key_idx];
     imerge_cost += (*cur_child)->read_cost;
     all_scans_ror_able &= ((*ptree)->n_ror_scans > 0);
     all_scans_rors &= (*cur_child)->is_ror;
@@ -4855,9 +5092,16 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     }
     else
       non_cpk_scan_records += (*cur_child)->records;
+    trace_idx.add("index_to_merge",
+                  param->table->key_info[keynr_in_table].name)
+             .add("cumulated_cost", imerge_cost);
   }
 
+  to_merge.end();
+
   DBUG_PRINT("info", ("index_merge scans cost %g", imerge_cost));
+  trace_best_disjunct.add("cost_of_reading_ranges", imerge_cost);
+
   if (imerge_too_expensive || (imerge_cost > read_time) ||
       ((non_cpk_scan_records+cpk_scan_records >=
         param->table->stat_records()) &&
@@ -4869,6 +5113,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     */
     DBUG_PRINT("info", ("Sum of index_merge scans is more expensive than "
                         "full table scan, bailing out"));
+    trace_best_disjunct.add("chosen", false).add("cause", "cost");
     DBUG_RETURN(NULL);
   }
 
@@ -4881,6 +5126,9 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_UNION))
   {
     roru_read_plans= (TABLE_READ_PLAN**)range_scans;
+    trace_best_disjunct.add("use_roworder_union", true)
+                       .add("cause",
+                            "always cheaper than non roworder retrieval");
     goto skip_to_ror_scan;
   }
 
@@ -4890,16 +5138,26 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       Add one ROWID comparison for each row retrieved on non-CPK scan.  (it
       is done in QUICK_RANGE_SELECT::row_in_ranges)
      */
-    imerge_cost += non_cpk_scan_records / TIME_FOR_COMPARE_ROWID;
+    double rid_comp_cost= static_cast<double>(non_cpk_scan_records) /
+                                             TIME_FOR_COMPARE_ROWID;
+    imerge_cost+= rid_comp_cost;
+    trace_best_disjunct.add("cost_of_mapping_rowid_in_non_clustered_pk_scan",
+                            rid_comp_cost);
   }
 
   /* Calculate cost(rowid_to_row_scan) */
-  imerge_cost += get_sweep_read_cost(param, non_cpk_scan_records);
+  {
+    double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records);
+    imerge_cost+= sweep_cost;
+    trace_best_disjunct.add("cost_sort_rowid_and_read_disk", sweep_cost);
+  }
   DBUG_PRINT("info",("index_merge cost with rowid-to-row scan: %g",
                      imerge_cost));
   if (imerge_cost > read_time || 
       !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
   {
+    trace_best_disjunct.add("use_roworder_index_merge", true);
+    trace_best_disjunct.add("cause", "cost");
     goto build_ror_index_merge;
   }
 
@@ -4916,12 +5174,18 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     param->imerge_cost_buff_size= unique_calc_buff_size;
   }
 
-  imerge_cost +=
-    Unique::get_use_cost(param->imerge_cost_buff, (uint)non_cpk_scan_records,
-                         param->table->file->ref_length,
-                         (size_t)param->thd->variables.sortbuff_size,
-                         TIME_FOR_COMPARE_ROWID,
-                         FALSE, NULL);
+  {
+    const double dup_removal_cost= Unique::get_use_cost(
+                           param->imerge_cost_buff, (uint)non_cpk_scan_records,
+                           param->table->file->ref_length,
+                           (size_t)param->thd->variables.sortbuff_size,
+                           TIME_FOR_COMPARE_ROWID,
+                           FALSE, NULL);
+    imerge_cost+= dup_removal_cost;
+    trace_best_disjunct.add("cost_duplicate_removal", dup_removal_cost)
+                       .add("total_cost", imerge_cost);
+  }
+
   DBUG_PRINT("info",("index_merge total cost: %g (wanted: less then %g)",
                      imerge_cost, read_time));
   if (imerge_cost < read_time)
@@ -4939,7 +5203,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     if (imerge_trp)
     {
       TABLE_READ_PLAN *trp= merge_same_index_scans(param, imerge, imerge_trp,
-                                                   read_time);
+                                                   limit_read_time);
       if (trp != imerge_trp)
         DBUG_RETURN(trp);
     }
@@ -4964,11 +5228,16 @@ skip_to_ror_scan:
   roru_total_records= 0;
   cur_roru_plan= roru_read_plans;
 
+  Json_writer_array trace_analyze_ror(thd, "analyzing_roworder_scans");
+
   /* Find 'best' ROR scan for each of trees in disjunction */
   for (ptree= imerge->trees, cur_child= range_scans;
        ptree != imerge->trees_next;
        ptree++, cur_child++, cur_roru_plan++)
   {
+    Json_writer_object trp_info(thd);
+    if (unlikely(thd->trace_started()))
+      (*cur_child)->trace_basic_info(param, &trp_info);
     /*
       Assume the best ROR scan is the one that has cheapest full-row-retrieval
       scan cost.
@@ -5004,7 +5273,7 @@ skip_to_ror_scan:
     roru_intersect_part *= (*cur_roru_plan)->records /
                            param->table->stat_records();
   }
-
+  trace_analyze_ror.end();
   /*
     rows to retrieve=
       SUM(rows_in_scan_i) - table_rows * PROD(rows_in_scan_i / table_rows).
@@ -5030,11 +5299,14 @@ skip_to_ror_scan:
 
   DBUG_PRINT("info", ("ROR-union: cost %g, %zu members",
                       roru_total_cost, n_child_scans));
+  trace_best_disjunct.add("index_roworder_union_cost", roru_total_cost)
+                     .add("members", n_child_scans);
   TRP_ROR_UNION* roru;
   if (roru_total_cost < read_time)
   {
     if ((roru= new (param->mem_root) TRP_ROR_UNION))
     {
+      trace_best_disjunct.add("chosen", true);
       roru->first_ror= roru_read_plans;
       roru->last_ror= roru_read_plans + n_child_scans;
       roru->read_cost= roru_total_cost;
@@ -5042,7 +5314,9 @@ skip_to_ror_scan:
       DBUG_RETURN(roru);
     }
   }
-    DBUG_RETURN(imerge_trp);
+  else
+    trace_best_disjunct.add("chosen", false);
+  DBUG_RETURN(imerge_trp);
 }
 
 
@@ -5223,6 +5497,16 @@ typedef struct st_partial_index_intersect_info
   key_map filtered_scans;    /* scans to be filtered by cpk conditions       */
          
   MY_BITMAP *intersect_fields;     /* bitmap of fields used in intersection  */
+
+  void init()
+  {
+    common_info= NULL;
+    intersect_fields= NULL;
+    records_sent_to_unique= records= length= in_memory= use_cpk_filter= 0;
+    cost= index_read_cost= in_memory_cost= 0.0;
+    filtered_scans.init();
+    filtered_scans.clear_all();
+  }
 } PARTIAL_INDEX_INTERSECT_INFO;
 
 
@@ -5303,6 +5587,15 @@ ha_rows get_table_cardinality_for_index_intersect(TABLE *table)
   } 
 }
 
+static
+void print_keyparts(THD *thd, KEY *key, uint key_parts)
+{
+  KEY_PART_INFO *part= key->key_part;
+  Json_writer_array keyparts= Json_writer_array(thd, "keyparts");
+  for(uint i= 0; i < key_parts; i++, part++)
+    keyparts.add(part->field->field_name);
+}
+
   
 static
 ha_rows records_in_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
@@ -5355,12 +5648,12 @@ bool prepare_search_best_index_intersect(PARAM *param,
   INDEX_SCAN_INFO *cpk_scan= NULL;
   TABLE *table= param->table;
   uint n_index_scans= (uint)(tree->index_scans_end - tree->index_scans);
+  THD *thd= param->thd;
 
-  if (!n_index_scans)
+  if (n_index_scans <= 1)
     return 1;
 
-  bzero(init, sizeof(*init));
-  init->filtered_scans.init();
+  init->init();
   init->common_info= common;
   init->cost= cutoff_cost;
 
@@ -5372,9 +5665,6 @@ bool prepare_search_best_index_intersect(PARAM *param,
   common->cpk_scan= NULL;
   common->table_cardinality= 
     get_table_cardinality_for_index_intersect(table);
-
-  if (n_index_scans <= 1)
-    return TRUE;
 
   if (table->file->primary_key_is_clustered())
   {
@@ -5400,23 +5690,38 @@ bool prepare_search_best_index_intersect(PARAM *param,
   bzero(common->search_scans, sizeof(INDEX_SCAN_INFO *) * i);
 
   INDEX_SCAN_INFO **selected_index_scans= common->search_scans;
-    
+  Json_writer_array potential_idx_scans(thd, "potential_index_scans");
   for (i=0, index_scan= tree->index_scans; i < n_index_scans; i++, index_scan++)
   {
+    Json_writer_object idx_scan(thd);
     uint used_key_parts= (*index_scan)->used_key_parts;
     KEY *key_info= (*index_scan)->key_info;
+    idx_scan.add("index", key_info->name);
 
     if (*index_scan == cpk_scan)
+    {
+      idx_scan.add("chosen", "false")
+              .add("cause", "clustered index used for filtering");
       continue;
+    }
     if (cpk_scan && cpk_scan->used_key_parts >= used_key_parts &&
         same_index_prefix(cpk_scan->key_info, key_info, used_key_parts))
+    {
+      idx_scan.add("chosen", "false")
+              .add("cause", "clustered index used for filtering");
       continue;
+    }
 
-    cost= table->file->keyread_time((*index_scan)->keynr,
-                                    (*index_scan)->range_count,
-                                    (*index_scan)->records);
+    cost= table->quick_index_only_costs[(*index_scan)->keynr];
+
+    idx_scan.add("cost", cost);
+
     if (cost >= cutoff_cost)
+    {
+      idx_scan.add("chosen", false);
+      idx_scan.add("cause", "cost");
       continue;
+    }
    
     for (scan_ptr= selected_index_scans; *scan_ptr ; scan_ptr++)
     {
@@ -5433,10 +5738,20 @@ bool prepare_search_best_index_intersect(PARAM *param,
     }
     if (!*scan_ptr || cost < (*scan_ptr)->index_read_cost)
     {
+      idx_scan.add("chosen", true);
+      if (!*scan_ptr)
+        idx_scan.add("cause", "first occurence of index prefix");
+      else
+        idx_scan.add("cause", "better cost for same idx prefix");
       *scan_ptr= *index_scan;
       (*scan_ptr)->index_read_cost= cost;
     }
-  } 
+    else
+    {
+      idx_scan.add("chosen", false).add("cause", "cost");
+    }
+  }
+  potential_idx_scans.end();
 
   ha_rows records_in_scans= 0;
 
@@ -5446,6 +5761,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
       return TRUE;
     records_in_scans+= (*scan_ptr)->records;
   }
+
   n_search_scans= i;
 
   if (cpk_scan && create_fields_bitmap(param, &cpk_scan->used_fields))
@@ -5475,6 +5791,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   my_qsort(selected_index_scans, n_search_scans, sizeof(INDEX_SCAN_INFO *),
            (qsort_cmp) cmp_intersect_index_scan);
 
+  Json_writer_array selected_idx_scans(thd, "selected_index_scans");
   if (cpk_scan)
   {
     PARTIAL_INDEX_INTERSECT_INFO curr;
@@ -5487,16 +5804,36 @@ bool prepare_search_best_index_intersect(PARAM *param,
     curr.length= 1;
     for (scan_ptr=selected_index_scans; *scan_ptr; scan_ptr++)
     {
+      KEY *key_info= (*scan_ptr)->key_info;
       ha_rows scan_records= (*scan_ptr)->records;
       ha_rows records= records_in_index_intersect_extension(&curr, *scan_ptr);
       (*scan_ptr)->filtered_out= records >= scan_records ?
-                                   0 : scan_records-records; 
+                                   0 : scan_records-records;
+      if (thd->trace_started())
+      {
+        Json_writer_object selected_idx(thd);
+        selected_idx.add("index", key_info->name);
+        print_keyparts(thd, key_info, (*scan_ptr)->used_key_parts);
+        selected_idx.add("records", (*scan_ptr)->records)
+                    .add("filtered_records", (*scan_ptr)->filtered_out);
+      }
     }
   } 
   else
   {
     for (scan_ptr=selected_index_scans; *scan_ptr; scan_ptr++)
+    {
+      KEY *key_info= (*scan_ptr)->key_info;
       (*scan_ptr)->filtered_out= 0;
+      if (thd->trace_started())
+      {
+        Json_writer_object selected_idx(thd);
+        selected_idx.add("index", key_info->name);
+        print_keyparts(thd, key_info, (*scan_ptr)->used_key_parts);
+        selected_idx.add("records", (*scan_ptr)->records)
+                    .add("filtered_records", (*scan_ptr)->filtered_out);
+      }
+    }
   }
 
   return FALSE;
@@ -5953,9 +6290,11 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
   PARTIAL_INDEX_INTERSECT_INFO init;
   TRP_INDEX_INTERSECT *intersect_trp= NULL;
   TABLE *table= param->table;
-  
+  THD *thd= param->thd;
   
   DBUG_ENTER("get_best_index_intersect");
+
+  Json_writer_object trace_idx_interect(thd, "analyzing_sort_intersect");
 
   if (prepare_search_best_index_intersect(param, tree, &common, &init,
                                           read_time))
@@ -6018,11 +6357,15 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
       
   if ((intersect_trp= new (param->mem_root)TRP_INDEX_INTERSECT))
   {
+
     intersect_trp->read_cost= common.best_cost;
     intersect_trp->records= common.best_records;
     intersect_trp->range_scans= range_scans;
     intersect_trp->range_scans_end= cur_range;
     intersect_trp->filtered_scans= common.filtered_scans;
+    trace_idx_interect.add("rows", intersect_trp->records)
+                      .add("cost", intersect_trp->read_cost)
+                      .add("chosen",true);
   }
   DBUG_RETURN(intersect_trp);
 }
@@ -6031,6 +6374,46 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
 typedef struct st_ror_scan_info : INDEX_SCAN_INFO
 { 
 } ROR_SCAN_INFO;
+
+void TRP_ROR_INTERSECT::trace_basic_info(const PARAM *param,
+                                         Json_writer_object *trace_object) const
+{
+  THD *thd= param->thd;
+  trace_object->add("type", "index_roworder_intersect");
+  trace_object->add("rows", records);
+  trace_object->add("cost", read_cost);
+  trace_object->add("covering", is_covering);
+  trace_object->add("clustered_pk_scan", cpk_scan != NULL);
+
+  Json_writer_array smth_trace(thd, "intersect_of");
+  for (ROR_SCAN_INFO **cur_scan= first_scan; cur_scan != last_scan;
+                                                         cur_scan++)
+  {
+    const KEY &cur_key= param->table->key_info[(*cur_scan)->keynr];
+    const KEY_PART_INFO *key_part= cur_key.key_part;
+
+    Json_writer_object trace_isect_idx(thd);
+    trace_isect_idx.add("type", "range_scan");
+    trace_isect_idx.add("index", cur_key.name);
+    trace_isect_idx.add("rows", (*cur_scan)->records);
+
+    Json_writer_array trace_range(thd, "ranges");
+    for (const SEL_ARG *current= (*cur_scan)->sel_arg->first(); current;
+                                                 current= current->next)
+    {
+      String range_info;
+      range_info.set_charset(system_charset_info);
+      for (const SEL_ARG *part= current; part;
+           part= part->next_key_part ? part->next_key_part : nullptr)
+      {
+        const KEY_PART_INFO *cur_key_part= key_part + part->part;
+        append_range(&range_info, cur_key_part, part->min_value,
+                     part->max_value, part->min_flag | part->max_flag);
+      }
+      trace_range.add(range_info.ptr(), range_info.length());
+    }
+  }
+}
 
 
 /*
@@ -6417,7 +6800,9 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
 */
 
 static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
-                              ROR_SCAN_INFO* ror_scan, bool is_cpk_scan)
+                              ROR_SCAN_INFO* ror_scan,
+                              Json_writer_object *trace_costs,
+                              bool is_cpk_scan)
 {
   double selectivity_mult= 1.0;
 
@@ -6444,13 +6829,16 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
       each record of every scan. Assuming 1/TIME_FOR_COMPARE_ROWID
       per check this gives us:
     */
-    info->index_scan_costs += rows2double(info->index_records) / 
+    const double idx_cost= rows2double(info->index_records) /
                               TIME_FOR_COMPARE_ROWID;
+    info->index_scan_costs+= idx_cost;
+    trace_costs->add("index_scan_cost", idx_cost);
   }
   else
   {
     info->index_records += info->param->quick_rows[ror_scan->keynr];
     info->index_scan_costs += ror_scan->index_read_cost;
+    trace_costs->add("index_scan_cost", ror_scan->index_read_cost);
     bitmap_union(&info->covered_fields, &ror_scan->covered_fields);
     if (!info->is_covering && bitmap_is_subset(&info->param->needed_fields,
                                                &info->covered_fields))
@@ -6461,13 +6849,19 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
   }
 
   info->total_cost= info->index_scan_costs;
+  trace_costs->add("cumulated_index_scan_cost", info->index_scan_costs);
   DBUG_PRINT("info", ("info->total_cost: %g", info->total_cost));
   if (!info->is_covering)
   {
-    info->total_cost += 
-      get_sweep_read_cost(info->param, double2rows(info->out_rows));
+    double sweep_cost= get_sweep_read_cost(info->param,
+                                          double2rows(info->out_rows));
+    info->total_cost+= sweep_cost;
+    trace_costs->add("disk_sweep_cost", sweep_cost);
     DBUG_PRINT("info", ("info->total_cost= %g", info->total_cost));
   }
+  else
+    trace_costs->add("disk_sweep_cost", static_cast<longlong>(0));
+
   DBUG_PRINT("info", ("New out_rows: %g", info->out_rows));
   DBUG_PRINT("info", ("New cost: %g, %scovering", info->total_cost,
                       info->is_covering?"" : "non-"));
@@ -6547,10 +6941,16 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   uint idx;
   double min_cost= DBL_MAX;
   DBUG_ENTER("get_best_ror_intersect");
+  THD *thd= param->thd;
+  Json_writer_object trace_ror(thd, "analyzing_roworder_intersect");
 
   if ((tree->n_ror_scans < 2) || !param->table->stat_records() ||
       !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT))
-    DBUG_RETURN(NULL);
+    {
+      if (tree->n_ror_scans < 2)
+        trace_ror.add("cause", "too few roworder scans");
+      DBUG_RETURN(NULL);
+    }
 
   /*
     Step1: Collect ROR-able SEL_ARGs and create ROR_SCAN_INFO for each of 
@@ -6625,15 +7025,27 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   ROR_SCAN_INFO **intersect_scans_best;
   cur_ror_scan= tree->ror_scans;
   intersect_scans_best= intersect_scans;
+  Json_writer_array trace_isect_idx(thd, "intersecting_indexes");
   while (cur_ror_scan != tree->ror_scans_end && !intersect->is_covering)
   {
+    Json_writer_object trace_idx(thd);
+    trace_idx.add("index",
+                 param->table->key_info[(*cur_ror_scan)->keynr].name);
+
     /* S= S + first(R);  R= R - first(R); */
-    if (!ror_intersect_add(intersect, *cur_ror_scan, FALSE))
+    if (!ror_intersect_add(intersect, *cur_ror_scan, &trace_idx, FALSE))
     {
+      trace_idx.add("usable", false)
+               .add("cause", "does not reduce cost of intersect");
       cur_ror_scan++;
       continue;
     }
     
+    trace_idx.add("cumulative_total_cost", intersect->total_cost)
+             .add("usable", true)
+             .add("matching_rows_now", intersect->out_rows)
+             .add("intersect_covering_with_this_index", intersect->is_covering);
+
     *(intersect_scans_end++)= *(cur_ror_scan++);
 
     if (intersect->total_cost < min_cost)
@@ -6642,12 +7054,21 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
       ror_intersect_cpy(intersect_best, intersect);
       intersect_scans_best= intersect_scans_end;
       min_cost = intersect->total_cost;
+      trace_idx.add("chosen", true);
+    }
+    else
+    {
+      trace_idx.add("chosen", false)
+               .add("cause", "does not reduce cost");
     }
   }
+  trace_isect_idx.end();
 
   if (intersect_scans_best == intersect_scans)
   {
     DBUG_PRINT("info", ("None of scans increase selectivity"));
+    trace_ror.add("chosen", false)
+             .add("cause","does not increase selectivity");
     DBUG_RETURN(NULL);
   }
     
@@ -6665,16 +7086,31 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     Check if we should add a CPK scan. If the obtained ROR-intersection is 
     covering, it doesn't make sense to add CPK scan.
   */
+  Json_writer_object trace_cpk(thd, "clustered_pk");
   if (cpk_scan && !intersect->is_covering)
   {
-    if (ror_intersect_add(intersect, cpk_scan, TRUE) && 
+    if (ror_intersect_add(intersect, cpk_scan, &trace_cpk, TRUE) &&
         (intersect->total_cost < min_cost))
+    {
+      trace_cpk.add("clustered_pk_scan_added_to_intersect", true)
+               .add("cumulated_cost", intersect->total_cost);
       intersect_best= intersect; //just set pointer here
+    }
     else
+    {
+      trace_cpk.add("clustered_pk_added_to_intersect", false)
+               .add("cause", "cost");
       cpk_scan= 0; // Don't use cpk_scan
+    }
   }
   else
+  {
+    trace_cpk.add("clustered_pk_added_to_intersect", false)
+             .add("cause", cpk_scan ? "roworder is covering"
+                                    : "no clustered pk index");
     cpk_scan= 0;                                // Don't use cpk_scan
+  }
+  trace_cpk.end();
 
   /* Ok, return ROR-intersect plan if we have found one */
   TRP_ROR_INTERSECT *trp= NULL;
@@ -6701,6 +7137,17 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     DBUG_PRINT("info", ("Returning non-covering ROR-intersect plan:"
                         "cost %g, records %lu",
                         trp->read_cost, (ulong) trp->records));
+    trace_ror.add("rows", trp->records)
+             .add("cost", trp->read_cost)
+             .add("covering", trp->is_covering)
+             .add("chosen", true);
+  }
+  else
+  {
+    trace_ror.add("chosen", false)
+             .add("cause", (read_time > min_cost)
+                            ? "too few indexes to merge"
+                            : "cost");
   }
   DBUG_RETURN(trp);
 }
@@ -6888,6 +7335,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
           UNINIT_VAR(best_buf_size);             /* protected by key_to_read */
   TRP_RANGE* read_plan= NULL;
   DBUG_ENTER("get_key_scans_params");
+  THD *thd= param->thd;
   /*
     Note that there may be trees that have type SEL_TREE::KEY but contain no
     key reads at all, e.g. tree for expression "key1 is not null" where key1
@@ -6895,6 +7343,8 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
   */
   DBUG_EXECUTE("info", print_sel_tree(param, tree, &tree->keys_map,
                                       "tree scans"););
+  Json_writer_array range_scan_alt(thd, "range_scan_alternatives");
+
   tree->ror_scans_map.clear_all();
   tree->n_ror_scans= 0;
   tree->index_scans= 0;
@@ -6923,6 +7373,9 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       bool read_index_only= index_read_must_be_used ? TRUE :
                             (bool) param->table->covering_keys.is_set(keynr);
 
+      Json_writer_object trace_idx(thd);
+      trace_idx.add("index", param->table->key_info[keynr].name);
+
       found_records= check_quick_select(param, idx, read_index_only, key,
                                         update_tbl_stats, &mrr_flags,
                                         &buf_size, &cost);
@@ -6931,6 +7384,14 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
           (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
 						     sizeof(INDEX_SCAN_INFO))))
       {
+        Json_writer_array trace_range(thd, "ranges");
+
+        const KEY &cur_key= param->table->key_info[keynr];
+        const KEY_PART_INFO *key_part= cur_key.key_part;
+
+        String range_info;
+        range_info.set_charset(system_charset_info);
+
         index_scan->idx= idx;
         index_scan->keynr= keynr;
         index_scan->key_info= &param->table->key_info[keynr];
@@ -6939,6 +7400,17 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         index_scan->records= found_records;
         index_scan->sel_arg= key;
         *tree->index_scans_end++= index_scan;
+
+        if (unlikely(thd->trace_started()))
+          append_range_all_keyparts(&trace_range, NULL, &range_info, key,
+                                    key_part);
+        trace_range.end();
+
+        trace_idx.add("rowid_ordered", param->is_ror_scan)
+                 .add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL))
+                 .add("index_only", read_index_only)
+                 .add("rows", found_records)
+                 .add("cost", cost.total_cost());
       }        
       if ((found_records != HA_POS_ERROR) && param->is_ror_scan)
       {
@@ -6954,6 +7426,18 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         best_idx= idx;
         best_mrr_flags= mrr_flags;
         best_buf_size=  buf_size;
+        trace_idx.add("chosen", true);
+      }
+      else
+      {
+        trace_idx.add("chosen", false);
+        if (found_records == HA_POS_ERROR)
+          if (key->type == SEL_ARG::Type::MAYBE_KEY)
+            trace_idx.add("cause", "depends on unread values");
+          else
+            trace_idx.add("cause", "unknown");
+        else
+          trace_idx.add("cause", "cost");
       }
     }
   }
@@ -7058,10 +7542,11 @@ QUICK_SELECT_I *TRP_ROR_INTERSECT::make_quick(PARAM *param,
                                              "creating ROR-intersect",
                                              first_scan, last_scan););
     alloc= parent_alloc? parent_alloc: &quick_intrsect->alloc;
-    for (; first_scan != last_scan;++first_scan)
+    for (ROR_SCAN_INFO **curr_scan= first_scan; curr_scan != last_scan;
+                                                          ++curr_scan)
     {
-      if (!(quick= get_quick_select(param, (*first_scan)->idx,
-                                    (*first_scan)->sel_arg,
+      if (!(quick= get_quick_select(param, (*curr_scan)->idx,
+                                    (*curr_scan)->sel_arg,
                                     HA_MRR_USE_DEFAULT_IMPL | HA_MRR_SORTED,
                                     0, alloc)) ||
           quick_intrsect->push_quick_back(alloc, quick))
@@ -8559,6 +9044,7 @@ int and_range_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree1, SEL_TREE *tree2,
       if (key && key->type == SEL_ARG::IMPOSSIBLE)
       {
 	result->type= SEL_TREE::IMPOSSIBLE;
+        param->table->with_impossible_ranges.set_bit(param->real_keynr[key_no]);
         DBUG_RETURN(1);
       }
       result_keys.set_bit(key_no);
@@ -10602,6 +11088,10 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
         MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
       param->table->quick_costs[keynr]= cost->total_cost();
+      if (keynr == param->table->s->primary_key && pk_is_clustered)
+	param->table->quick_index_only_costs[keynr]= 0;
+      else
+        param->table->quick_index_only_costs[keynr]= cost->index_only_cost();
     }
   }
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
@@ -12587,16 +13077,27 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
 
   DBUG_ENTER("get_best_group_min_max");
 
+  Json_writer_object trace_group(thd, "group_index_range");
+  const char* cause= NULL;
+
   /* Perform few 'cheap' tests whether this access method is applicable. */
-  if (!join)
-    DBUG_RETURN(NULL);        /* This is not a select statement. */
-  if ((join->table_count != 1) ||  /* The query must reference one table. */
-      (join->select_lex->olap == ROLLUP_TYPE)) /* Check (B3) for ROLLUP */
+  if (!join) /* This is not a select statement. */
+    cause= "no join";
+  else if (join->table_count != 1)  /* The query must reference one table. */
+    cause= "not single_table";
+  else if (join->select_lex->olap == ROLLUP_TYPE) /* Check (B3) for ROLLUP */
+    cause= "rollup";
+  else if (table->s->keys == 0) /* There are no indexes to use. */
+    cause= "no index";
+  else if (join->conds && join->conds->used_tables()
+          & OUTER_REF_TABLE_BIT) /* Cannot execute with correlated conditions. */
+    cause= "correlated conditions";
+
+  if (cause)
+  {
+    trace_group.add("chosen", false).add("cause", cause);
     DBUG_RETURN(NULL);
-  if (table->s->keys == 0)        /* There are no indexes to use. */
-    DBUG_RETURN(NULL);
-  if (join->conds && join->conds->used_tables() & OUTER_REF_TABLE_BIT)
-    DBUG_RETURN(NULL); /* Cannot execute with correlated conditions. */
+  }
 
   /* Check (SA1,SA4) and store the only MIN/MAX argument - the C attribute.*/
   List_iterator<Item> select_items_it(join->fields_list);
@@ -12605,7 +13106,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   if ((!join->group_list) && /* Neither GROUP BY nor a DISTINCT query. */
       (!join->select_distinct) &&
       !is_agg_distinct)
+  {
+    trace_group.add("chosen", false).add("cause","no group by or distinct");
     DBUG_RETURN(NULL);
+  }
   /* Analyze the query in more detail. */
 
   if (join->sum_funcs[0])
@@ -12624,7 +13128,11 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
                 min_max_item->sum_func() == Item_sum::AVG_DISTINCT_FUNC))
         continue;
       else
+      {
+        trace_group.add("chosen", false)
+                   .add("cause", "not applicable aggregate function");
         DBUG_RETURN(NULL);
+      }
 
       /* The argument of MIN/MAX. */
       Item *expr= min_max_item->get_arg(0)->real_item();
@@ -12633,26 +13141,41 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         if (! min_max_arg_item)
           min_max_arg_item= (Item_field*) expr;
         else if (! min_max_arg_item->eq(expr, 1))
+        {
+          trace_group.add("chosen", false)
+                     .add("cause", "arguments different in min max function");
           DBUG_RETURN(NULL);
+        }
       }
       else
+      {
+        trace_group.add("chosen", false)
+                   .add("cause", "no field item in min max function");
         DBUG_RETURN(NULL);
+      }
     }
   }
 
   /* Check (SA7). */
   if (is_agg_distinct && (have_max || have_min))
   {
+    trace_group.add("chosen", false)
+               .add("cause", "have both agg distinct and min max");
     DBUG_RETURN(NULL);
   }
 
   /* Check (SA5). */
   if (join->select_distinct)
   {
+    trace_group.add("distinct_query", true);
     while ((item= select_items_it++))
     {
       if (item->real_item()->type() != Item::FIELD_ITEM)
+      {
+        trace_group.add("chosen", false)
+                   .add("cause", "distinct field is expression");
         DBUG_RETURN(NULL);
+      }
     }
   }
 
@@ -12661,7 +13184,11 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   for (tmp_group= join->group_list; tmp_group; tmp_group= tmp_group->next)
   {
     if ((*tmp_group->item)->real_item()->type() != Item::FIELD_ITEM)
+    {
+      trace_group.add("chosen", false)
+                 .add("cause", "group field is expression");
       DBUG_RETURN(NULL);
+    }
     elements_in_group++;
   }
 
@@ -12683,10 +13210,16 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   ha_rows cur_quick_prefix_records= 0;
 
   // We go through allowed indexes
+  Json_writer_array trace_indexes(thd, "potential_group_range_indexes");
+
   for (uint cur_param_idx= 0; cur_param_idx < param->keys ; ++cur_param_idx)
   {
     const uint cur_index= param->real_keynr[cur_param_idx];
     KEY *const cur_index_info= &table->key_info[cur_index];
+
+    Json_writer_object trace_idx(thd);
+    trace_idx.add("index", cur_index_info->name);
+
     KEY_PART_INFO *cur_part;
     KEY_PART_INFO *end_part; /* Last part for loops. */
     /* Last index part. */
@@ -12711,7 +13244,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     */
     if (!table->covering_keys.is_set(cur_index) ||
         !table->keys_in_use_for_group_by.is_set(cur_index))
-      continue;
+    {
+      cause= "not covering";
+      goto next_index;
+    }
     
     /*
       This function is called on the precondition that the index is covering.
@@ -12719,7 +13255,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       these are duplicates. The GROUP BY list cannot be a prefix of the index.
     */
     if (elements_in_group > table->actual_n_key_parts(cur_index_info))
-      continue;
+    {
+      cause= "group key parts greater than index key parts";
+      goto next_index;
+    }
     
     /*
       Unless extended keys can be used for cur_index:
@@ -12745,9 +13284,14 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         */
         if (bitmap_is_set(table->read_set, cur_field->field_index) &&
             !cur_field->part_of_key_not_clustered.is_set(cur_index))
+        {
+          cause= "not covering";
           goto next_index;                  // Field was not part of key
+        }
       }
     }
+
+    trace_idx.add("covering", true);
 
     max_key_part= 0;
     used_key_parts_map.clear_all();
@@ -12779,7 +13323,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
           used_key_parts_map.set_bit(max_key_part);
         }
         else
+        {
+          cause= "group attribute not prefix in index";
           goto next_index;
+        }
       }
     }
     /*
@@ -12808,7 +13355,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
 
         /* not doing loose index scan for derived tables */
         if (!item_field->field)
+        {
+          cause= "derived table";
           goto next_index;
+        }
 
         /* Find the order of the key part in the index. */
         key_part_nr= get_field_keypart(cur_index_info, item_field->field);
@@ -12820,7 +13370,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
           continue;
         if (key_part_nr < 1 ||
             (!is_agg_distinct && key_part_nr > join->fields_list.elements))
+        {
+          cause= "select attribute not prefix in index";
           goto next_index;
+        }
         cur_part= cur_index_info->key_part + key_part_nr - 1;
         cur_group_prefix_len+= cur_part->store_length;
         used_key_parts_map.set_bit(key_part_nr);
@@ -12845,7 +13398,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     {
       key_part_nr= get_field_keypart(cur_index_info, min_max_arg_item->field);
       if (key_part_nr <= cur_group_key_parts)
+      {
+        cause= "aggregate column not suffix in idx";
         goto next_index;
+      }
       min_max_arg_part= cur_index_info->key_part + key_part_nr - 1;
     }
 
@@ -12856,6 +13412,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     if (cur_index_info->flags & HA_NOSAME && 
         cur_group_key_parts == cur_index_info->user_defined_key_parts)
     {
+      cause= "using unique index";
       goto next_index;
     }
 
@@ -12895,7 +13452,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
                                     last_part, thd, cur_key_infix, 
                                     &cur_key_infix_len,
                                     &first_non_infix_part))
+        {
+          cause= "nonconst equality gap attribute";
           goto next_index;
+        }
       }
       else if (min_max_arg_part &&
                (min_max_arg_part - first_non_group_part > 0))
@@ -12904,6 +13464,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
           There is a gap but no range tree, thus no predicates at all for the
           non-group keyparts.
         */
+        cause= "no nongroup keypart predicate";
         goto next_index;
       }
       else if (first_non_group_part && join->conds)
@@ -12927,7 +13488,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         /* Check if cur_part is referenced in the WHERE clause. */
         if (join->conds->walk(&Item::find_item_in_field_list_processor, 0,
                               key_part_range))
+        {
+          cause= "keypart reference from where clause";
           goto next_index;
+        }
       }
     }
 
@@ -12942,7 +13506,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       for (; cur_part != last_part; cur_part++)
       {
         if (bitmap_is_set(table->read_set, cur_part->field->field_index))
+        {
+          cause= "keypart after infix in query";
           goto next_index;
+        }
       }
     }
 
@@ -12959,6 +13526,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
                                   index_range_tree, &cur_range) ||
           (cur_range && cur_range->type != SEL_ARG::KEY_RANGE))
       {
+        cause= "minmax keypart in disjunctive query";
         goto next_index;
       }
     }
@@ -12981,6 +13549,17 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
                                                    cur_index_tree, TRUE,
                                                    &mrr_flags, &mrr_bufsize,
                                                    &dummy_cost);
+      if (unlikely(cur_index_tree && thd->trace_started()))
+      {
+        Json_writer_array trace_range(thd, "ranges");
+
+        const KEY_PART_INFO *key_part= cur_index_info->key_part;
+
+        String range_info;
+        range_info.set_charset(system_charset_info);
+        append_range_all_keyparts(&trace_range, NULL, &range_info,
+                                  cur_index_tree, key_part);
+      }
     }
     cost_group_min_max(table, cur_index_info, cur_used_key_parts,
                        cur_group_key_parts, tree, cur_index_tree,
@@ -12991,6 +13570,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       Do not compare doubles directly because they may have different
       representations (64 vs. 80 bits).
     */
+    trace_idx.add("rows", cur_records).add("cost", cur_read_cost);
+
     if (cur_read_cost < best_read_cost - (DBL_EPSILON * cur_read_cost))
     {
       index_info= cur_index_info;
@@ -13008,8 +13589,16 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       used_key_parts= cur_used_key_parts;
     }
 
-  next_index:;
+  next_index:
+    if (cause)
+    {
+      trace_idx.add("usable", false).add("cause", cause);
+      cause= NULL;
+    }
   }
+
+  trace_indexes.end();
+
   if (!index_info) /* No usable index found. */
     DBUG_RETURN(NULL);
 
@@ -13020,14 +13609,22 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
                                       (index_info->flags & HA_SPATIAL) ?
                                       Field::itMBR : Field::itRAW,
                                       &has_min_max_fld, &has_other_fld))
+  {
+    trace_group.add("usable", false)
+               .add("cause", "unsupported predicate on agg attribute");
     DBUG_RETURN(NULL);
+  }
 
   /*
     Check (SA6) if clustered key is used
   */
   if (is_agg_distinct && index == table->s->primary_key &&
       table->file->primary_key_is_clustered())
+  {
+    trace_group.add("usable", false)
+               .add("cause", "index is clustered");
     DBUG_RETURN(NULL);
+  }
 
   /* The query passes all tests, so construct a new TRP object. */
   read_plan= new (param->mem_root)
@@ -13048,6 +13645,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     read_plan->records=   best_records;
     if (read_time < best_read_cost && is_agg_distinct)
     {
+      trace_group.add("index_scan", true);
       read_plan->read_cost= 0;
       read_plan->use_index_scan();
     }
@@ -13656,7 +14254,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     1/double(2*TIME_FOR_COMPARE); 
 
   const double cpu_cost= num_groups *
-                         (tree_traversal_cost + 1/double(TIME_FOR_COMPARE));
+                         (tree_traversal_cost + 1/double(TIME_FOR_COMPARE_IDX));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;
@@ -15005,7 +15603,6 @@ static void print_quick(QUICK_SELECT_I *quick, const key_map *needed_reg)
   DBUG_VOID_RETURN;
 }
 
-
 void QUICK_RANGE_SELECT::dbug_dump(int indent, bool verbose)
 {
   /* purecov: begin inspected */
@@ -15133,3 +15730,178 @@ void QUICK_GROUP_MIN_MAX_SELECT::dbug_dump(int indent, bool verbose)
 }
 
 #endif /* !DBUG_OFF */
+static
+void append_range(String *out, const KEY_PART_INFO *key_part,
+                  const uchar *min_key, const uchar *max_key, const uint flag)
+{
+  if (out->length() > 0)
+    out->append(STRING_WITH_LEN(" AND "));
+
+  if (flag & GEOM_FLAG)
+  {
+    /*
+      The flags of GEOM ranges do not work the same way as for other
+      range types, so printing "col < some_geom" doesn't make sense.
+      Just print the column name, not operator.
+    */
+    out->append(key_part->field->field_name);
+    out->append(STRING_WITH_LEN(" "));
+    print_key_value(out, key_part, min_key);
+    return;
+  }
+
+  if (!(flag & NO_MIN_RANGE))
+  {
+    print_key_value(out, key_part, min_key);
+    if (flag & NEAR_MIN)
+      out->append(STRING_WITH_LEN(" < "));
+    else
+      out->append(STRING_WITH_LEN(" <= "));
+  }
+
+  out->append(key_part->field->field_name);
+
+  if (!(flag & NO_MAX_RANGE))
+  {
+    if (flag & NEAR_MAX)
+      out->append(STRING_WITH_LEN(" < "));
+    else
+      out->append(STRING_WITH_LEN(" <= "));
+    print_key_value(out, key_part, max_key);
+  }
+}
+
+/*
+
+  Add ranges to the trace
+  For ex:
+    query: select * from t1 where a=2 ;
+    and we have an index on a , so we create a range
+      2 <= a <= 2
+    this is added to the trace
+*/
+
+static void append_range_all_keyparts(Json_writer_array *range_trace,
+                                      String *range_string,
+                                      String *range_so_far, const SEL_ARG *keypart,
+                                      const KEY_PART_INFO *key_parts)
+{
+
+  DBUG_ASSERT(keypart);
+  DBUG_ASSERT(keypart && keypart != &null_element);
+
+  // Navigate to first interval in red-black tree
+  const KEY_PART_INFO *cur_key_part= key_parts + keypart->part;
+  const SEL_ARG *keypart_range= keypart->first();
+  const size_t save_range_so_far_length= range_so_far->length();
+
+
+  while (keypart_range)
+  {
+    // Append the current range predicate to the range String
+    switch (keypart->type)
+    {
+      case SEL_ARG::Type::KEY_RANGE:
+        append_range(range_so_far, cur_key_part, keypart_range->min_value,
+                     keypart_range->max_value,
+                     keypart_range->min_flag | keypart_range->max_flag);
+        break;
+      case SEL_ARG::Type::MAYBE_KEY:
+        range_so_far->append("MAYBE_KEY");
+        break;
+      case SEL_ARG::Type::IMPOSSIBLE:
+        range_so_far->append("IMPOSSIBLE");
+        break;
+      default:
+        DBUG_ASSERT(false);
+        break;
+    }
+
+    if (keypart_range->next_key_part &&
+        keypart_range->next_key_part->part ==
+              keypart_range->part + 1 &&
+        keypart_range->is_singlepoint())
+    {
+      append_range_all_keyparts(range_trace, range_string, range_so_far,
+                                keypart_range->next_key_part, key_parts);
+    }
+    else
+      range_trace->add(range_so_far->c_ptr_safe(), range_so_far->length());
+    keypart_range= keypart_range->next;
+    range_so_far->length(save_range_so_far_length);
+  }
+}
+
+/**
+  Print a key to a string
+
+  @param[out] out          String the key is appended to
+  @param[in]  key_part     Index components description
+  @param[in]  key          Key tuple
+*/
+static void print_key_value(String *out, const KEY_PART_INFO *key_part,
+                            const uchar *key)
+{
+  Field *field= key_part->field;
+
+  if (field->flags & BLOB_FLAG)
+  {
+    // Byte 0 of a nullable key is the null-byte. If set, key is NULL.
+    if (field->real_maybe_null() && *key)
+      out->append(STRING_WITH_LEN("NULL"));
+    else
+      (field->type() == MYSQL_TYPE_GEOMETRY)
+          ? out->append(STRING_WITH_LEN("unprintable_geometry_value"))
+          : out->append(STRING_WITH_LEN("unprintable_blob_value"));
+    return;
+  }
+
+  uint store_length= key_part->store_length;
+
+  if (field->real_maybe_null())
+  {
+    /*
+      Byte 0 of key is the null-byte. If set, key is NULL.
+      Otherwise, print the key value starting immediately after the
+      null-byte
+    */
+    if (*key)
+    {
+      out->append(STRING_WITH_LEN("NULL"));
+      return;
+    }
+    key++;  // Skip null byte
+    store_length--;
+  }
+
+  /*
+    Binary data cannot be converted to UTF8 which is what the
+    optimizer trace expects. If the column is binary, the hex
+    representation is printed to the trace instead.
+  */
+  if (field->flags & BINARY_FLAG)
+  {
+    out->append("0x");
+    for (uint i = 0; i < store_length; i++)
+    {
+      out->append(_dig_vec_lower[*(key + i) >> 4]);
+      out->append(_dig_vec_lower[*(key + i) & 0x0F]);
+    }
+    return;
+  }
+
+  StringBuffer<128> tmp(system_charset_info);
+  TABLE *table= field->table;
+  my_bitmap_map *old_sets[2];
+
+  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+
+  field->set_key_image(key, key_part->length);
+  if (field->type() == MYSQL_TYPE_BIT)
+    (void)field->val_int_as_str(&tmp, 1);  // may change tmp's charset
+  else
+    field->val_str(&tmp);  // may change tmp's charset
+  out->append(tmp.ptr(), tmp.length(), tmp.charset());
+
+  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+}

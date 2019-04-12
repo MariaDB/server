@@ -769,7 +769,8 @@ ulong ha_myisam::index_flags(uint inx, uint part, bool all_parts) const
   else 
   {
     flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
-          HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN;
+           HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN |
+           HA_DO_RANGE_FILTER_PUSHDOWN;
   }
   return flags;
 }
@@ -959,14 +960,18 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
     ulong new_vreclength= file->s->vreclength;
     for (Field **vf= table->vfield; *vf; vf++)
     {
-      uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
-      set_if_bigger(new_vreclength, vf_end);
-      indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      if (!(*vf)->stored_in_db())
+      {
+        uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
+        set_if_bigger(new_vreclength, vf_end);
+        indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      }
     }
     if (!indexed_vcols)
       return;
     file->s->vreclength= new_vreclength;
   }
+  DBUG_ASSERT(file->s->base.reclength < file->s->vreclength);
   param->fix_record= compute_vcols;
   table->use_all_columns();
 }
@@ -1880,6 +1885,9 @@ int ha_myisam::index_init(uint idx, bool sorted)
   active_index=idx;
   if (pushed_idx_cond_keyno == idx)
     mi_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter)
+    mi_set_rowid_filter_func(file, handler_rowid_filter_check,
+                             handler_rowid_filter_is_active, this);
   return 0; 
 }
 
@@ -1891,6 +1899,7 @@ int ha_myisam::index_end()
   //pushed_idx_cond_keyno= MAX_KEY;
   mi_set_index_cond_func(file, NULL, 0);
   in_range_check_pushed_down= FALSE;
+  mi_set_rowid_filter_func(file, NULL, NULL, 0);
   ds_mrr.dsmrr_close();
 #if !defined(DBUG_OFF) && defined(SQL_SELECT_FIXED_FOR_UPDATE)
   file->update&= ~HA_STATE_AKTIV;               // Forget active row
@@ -1926,6 +1935,9 @@ int ha_myisam::index_read_idx_map(uchar *buf, uint index, const uchar *key,
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
     mi_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter)
+    mi_set_rowid_filter_func(file, handler_rowid_filter_check,
+                             handler_rowid_filter_is_active, this);
   res= mi_rkey(file, buf, index, key, keypart_map, find_flag);
   mi_set_index_cond_func(file, NULL, 0);
   return res;
@@ -2591,6 +2603,14 @@ Item *ha_myisam::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
   return NULL;
 }
 
+bool ha_myisam::rowid_filter_push(Rowid_filter* rowid_filter)
+{
+  pushed_rowid_filter= rowid_filter;
+  mi_set_rowid_filter_func(file, handler_rowid_filter_check,
+			   handler_rowid_filter_is_active, this);
+  return false;
+}
+
 struct st_mysql_storage_engine myisam_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2681,7 +2701,7 @@ my_bool ha_myisam::register_query_cache_table(THD *thd, const char *table_name,
 
       If the table size is unknown the SELECT statement can't be cached.
 
-      When concurrent inserts are disabled at table open, mi_open()
+      When concurrent inserts are disabled at table open, mi_ondopen()
       does not assign a get_status() function. In this case the local
       ("current") status is never updated. We would wrongly think that
       we cannot cache the statement.

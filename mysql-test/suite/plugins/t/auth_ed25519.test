@@ -29,6 +29,10 @@ let $pwd=`select ed25519_password("secret")`;
 eval create user test1@localhost identified via ed25519 using '$pwd';
 show grants for test1@localhost;
 drop user test1@localhost;
+--error ER_PASSWD_LENGTH
+create user test1@localhost identified via ed25519 using 'foo';
+--error ER_PASSWD_LENGTH
+create user test1@localhost identified via ed25519 using '>>>1234567890123456789012345678901234567890';
 create user test1@localhost identified via ed25519 using password('foo');
 show grants for test1@localhost;
 select ed25519_password('foo');

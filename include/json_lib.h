@@ -425,10 +425,11 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
 
 int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs);
 
-int json_get_object_by_key(const char *js, size_t js_len,
-                           const char *key, size_t key_len,
-                           enum json_value_types *value_type,
-                           const char **value_start, size_t *value_len);
+int json_locate_key(const char *js, const char *js_end,
+                    const char *kname,
+                    const char **key_start, const char **key_end,
+                    int *comma_pos);
+
 #ifdef  __cplusplus
 }
 #endif

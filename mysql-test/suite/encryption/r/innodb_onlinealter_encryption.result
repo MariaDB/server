@@ -40,6 +40,7 @@ NOT FOUND /author/ in t5.ibd
 NOT FOUND /mangled/ in t6.ibd
 # t7 ... on expecting NOT FOUND
 NOT FOUND /mysql/ in t7.ibd
+# restart
 SET GLOBAL innodb_file_per_table = ON;
 ALTER TABLE t1 ADD COLUMN b int default 2;
 ALTER TABLE t2 ADD COLUMN b int default 2;
@@ -134,5 +135,6 @@ NOT FOUND /author/ in t5.ibd
 NOT FOUND /mangled/ in t6.ibd
 # t7 ... on expecting NOT FOUND
 NOT FOUND /mysql/ in t7.ibd
+# restart
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3, t4, t5, t6, t7;

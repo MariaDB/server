@@ -127,7 +127,7 @@ public:
 	@param[in]	fsp_flags	tablespace flags */
 	void set_flags(ulint fsp_flags)
 	{
-		ut_ad(fsp_flags_is_valid(fsp_flags, false));
+		ut_ad(fil_space_t::is_valid_flags(fsp_flags, false));
 		m_flags = fsp_flags;
 	}
 

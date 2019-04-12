@@ -27,6 +27,7 @@
 #include "m_ctype.h"                            /* my_charset_bin */
 #include <my_sys.h>              /* alloc_root, my_free, my_realloc */
 #include "m_string.h"                           /* TRASH */
+#include "sql_list.h"
 
 class String;
 typedef struct st_io_cache IO_CACHE;
@@ -165,7 +166,7 @@ public:
   A storage for String.
   Should be eventually derived from LEX_STRING.
 */
-class Static_binary_string
+class Static_binary_string : public Sql_alloc
 {
 protected:
   char *Ptr;
@@ -181,24 +182,6 @@ public:
   {
     DBUG_ASSERT(length_arg < UINT_MAX32);
   }
-
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
-  { return (void*) alloc_root(mem_root, size); }
-  static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
-  { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr_arg, size_t size)
-  {
-    (void) ptr_arg;
-    (void) size;
-    TRASH_FREE(ptr_arg, size);
-  }
-  static void operator delete(void *, MEM_ROOT *)
-  { /* never called */ }
-  static void operator delete[](void *ptr, size_t size)
-  { TRASH_FREE(ptr, size); }
-  static void operator delete[](void *, MEM_ROOT *)
-  { /* never called */ }
-
   inline uint32 length() const { return str_length;}
   inline char& operator [] (size_t i) const { return Ptr[i]; }
   inline void length(size_t len) { str_length=(uint32)len ; }

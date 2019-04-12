@@ -1,0 +1,37 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 5;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (1);;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (2);;
+connection node_2;
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+connection node_1;
+COMMIT;
+connection node_1a;
+ROLLBACK;
+connection node_2;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+connection node_1;
+DROP TABLE t1;
+connection node_2;

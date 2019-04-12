@@ -3715,8 +3715,8 @@ NULL	NULL	1
 -00:00:01	-1	5
 00:17:58	1758	25
 Warnings:
-Warning	1292	Incorrect time value: '-1.7976931348623e308' for column 'my_double' at row 2
-Warning	1292	Incorrect time value: '1.7976931348623e308' for column 'my_double' at row 3
+Warning	1292	Incorrect time value: '-1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 2
+Warning	1292	Incorrect time value: '1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 3
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as time) AS `CAST(my_double AS TIME)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3731,8 +3731,8 @@ NULL	NULL	1
 -00:00:01	-1	5
 00:17:58	1758	25
 Warnings:
-Warning	1292	Incorrect time value: '-1.7976931348623e308' for column 'my_double' at row 1
-Warning	1292	Incorrect time value: '1.7976931348623e308' for column 'my_double' at row 1
+Warning	1292	Incorrect time value: '-1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 1
+Warning	1292	Incorrect time value: '1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 1
 DROP VIEW v1;
 
 
@@ -3749,8 +3749,8 @@ NULL	NULL	1
 -00:00:01	-1	5
 00:17:58	1758	24
 Warnings:
-Warning	1292	Incorrect time value: '-9223372036854775808' for column 'my_bigint' at row 2
-Warning	1292	Incorrect time value: '9223372036854775807' for column 'my_bigint' at row 3
+Warning	1292	Incorrect time value: '-9223372036854775808' for column `test`.`t1_values`.`my_bigint` at row 2
+Warning	1292	Incorrect time value: '9223372036854775807' for column `test`.`t1_values`.`my_bigint` at row 3
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_bigint` as time) AS `CAST(my_bigint AS TIME)`,`t1_values`.`my_bigint` AS `my_bigint`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3765,8 +3765,8 @@ NULL	NULL	1
 -00:00:01	-1	5
 00:17:58	1758	24
 Warnings:
-Warning	1292	Incorrect time value: '-9223372036854775808' for column 'my_bigint' at row 1
-Warning	1292	Incorrect time value: '9223372036854775807' for column 'my_bigint' at row 1
+Warning	1292	Incorrect time value: '-9223372036854775808' for column `test`.`t1_values`.`my_bigint` at row 1
+Warning	1292	Incorrect time value: '9223372036854775807' for column `test`.`t1_values`.`my_bigint` at row 1
 DROP VIEW v1;
 
 
@@ -4061,10 +4061,10 @@ NULL	1.7976931348623e308	3
 NULL	-1	5
 NULL	200506271758	19
 Warnings:
-Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column 'my_double' at row 2
-Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column 'my_double' at row 3
-Warning	1292	Incorrect datetime value: '-1' for column 'my_double' at row 5
-Warning	1292	Incorrect datetime value: '200506271758' for column 'my_double' at row 19
+Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 2
+Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 3
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_double` at row 5
+Warning	1292	Incorrect datetime value: '200506271758' for column `test`.`t1_values`.`my_double` at row 19
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as datetime) AS `CAST(my_double AS DATETIME)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -4079,10 +4079,10 @@ NULL	1.7976931348623e308	3
 NULL	-1	5
 NULL	200506271758	19
 Warnings:
-Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column 'my_double' at row 1
-Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column 'my_double' at row 1
-Warning	1292	Incorrect datetime value: '-1' for column 'my_double' at row 1
-Warning	1292	Incorrect datetime value: '200506271758' for column 'my_double' at row 1
+Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 1
+Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 1
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_double` at row 1
+Warning	1292	Incorrect datetime value: '200506271758' for column `test`.`t1_values`.`my_double` at row 1
 DROP VIEW v1;
 
 
@@ -4099,10 +4099,10 @@ NULL	9223372036854775807	3
 NULL	-1	5
 NULL	200506271758	18
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 2
-Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 3
-Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 5
-Warning	1292	Incorrect datetime value: '200506271758' for column 'my_bigint' at row 18
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column `test`.`t1_values`.`my_bigint` at row 2
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column `test`.`t1_values`.`my_bigint` at row 3
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_bigint` at row 5
+Warning	1292	Incorrect datetime value: '200506271758' for column `test`.`t1_values`.`my_bigint` at row 18
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_bigint` as datetime) AS `CAST(my_bigint AS DATETIME)`,`t1_values`.`my_bigint` AS `my_bigint`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -4117,10 +4117,10 @@ NULL	9223372036854775807	3
 NULL	-1	5
 NULL	200506271758	18
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 1
-Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 1
-Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 1
-Warning	1292	Incorrect datetime value: '200506271758' for column 'my_bigint' at row 1
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column `test`.`t1_values`.`my_bigint` at row 1
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column `test`.`t1_values`.`my_bigint` at row 1
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_bigint` at row 1
+Warning	1292	Incorrect datetime value: '200506271758' for column `test`.`t1_values`.`my_bigint` at row 1
 DROP VIEW v1;
 
 
@@ -4421,9 +4421,9 @@ NULL	1.7976931348623e308	3
 NULL	-1	5
 2005-06-27	20050627	13
 Warnings:
-Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column 'my_double' at row 2
-Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column 'my_double' at row 3
-Warning	1292	Incorrect datetime value: '-1' for column 'my_double' at row 5
+Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 2
+Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 3
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_double` at row 5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as date) AS `CAST(my_double AS DATE)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -4438,9 +4438,9 @@ NULL	1.7976931348623e308	3
 NULL	-1	5
 2005-06-27	20050627	13
 Warnings:
-Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column 'my_double' at row 1
-Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column 'my_double' at row 1
-Warning	1292	Incorrect datetime value: '-1' for column 'my_double' at row 1
+Warning	1292	Incorrect datetime value: '-1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 1
+Warning	1292	Incorrect datetime value: '1.7976931348623e308' for column `test`.`t1_values`.`my_double` at row 1
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_double` at row 1
 DROP VIEW v1;
 
 
@@ -4457,9 +4457,9 @@ NULL	9223372036854775807	3
 NULL	-1	5
 2005-06-27	20050627	12
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 2
-Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 3
-Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 5
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column `test`.`t1_values`.`my_bigint` at row 2
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column `test`.`t1_values`.`my_bigint` at row 3
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_bigint` at row 5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_bigint` as date) AS `CAST(my_bigint AS DATE)`,`t1_values`.`my_bigint` AS `my_bigint`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -4474,9 +4474,9 @@ NULL	9223372036854775807	3
 NULL	-1	5
 2005-06-27	20050627	12
 Warnings:
-Warning	1292	Incorrect datetime value: '-9223372036854775808' for column 'my_bigint' at row 1
-Warning	1292	Incorrect datetime value: '9223372036854775807' for column 'my_bigint' at row 1
-Warning	1292	Incorrect datetime value: '-1' for column 'my_bigint' at row 1
+Warning	1292	Incorrect datetime value: '-9223372036854775808' for column `test`.`t1_values`.`my_bigint` at row 1
+Warning	1292	Incorrect datetime value: '9223372036854775807' for column `test`.`t1_values`.`my_bigint` at row 1
+Warning	1292	Incorrect datetime value: '-1' for column `test`.`t1_values`.`my_bigint` at row 1
 DROP VIEW v1;
 
 

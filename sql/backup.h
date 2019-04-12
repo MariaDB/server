@@ -28,4 +28,7 @@ bool run_backup_stage(THD *thd, backup_stages stage);
 bool backup_end(THD *thd);
 void backup_set_alter_copy_lock(THD *thd, TABLE *altered_table);
 bool backup_reset_alter_copy_lock(THD *thd);
+
+bool backup_lock(THD *thd, TABLE_LIST *table);
+void backup_unlock(THD *thd);
 #endif /* BACKUP_INCLUDED */

@@ -15,12 +15,13 @@ ALTER TABLE child ROW_FORMAT=DYNAMIC, ALGORITHM=COPY;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR s1';
 SET DEBUG_SYNC='now SIGNAL s2 WAIT_FOR s1';
+# restart
 disconnect con1;
 show tables;
 Tables_in_bug
 parent
 alter table parent row_format=dynamic;
 Warnings:
-Warning	1088	InnoDB: Could not add foreign key constraints.
+Warning	1088	failed to load FOREIGN KEY constraints
 drop table parent;
 drop database bug;

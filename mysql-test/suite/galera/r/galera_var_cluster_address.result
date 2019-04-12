@@ -1,7 +1,11 @@
+connection node_2;
+connection node_1;
 connection node_1;
 connection node_2;
 connection node_2;
 SET GLOBAL wsrep_cluster_address = 'foo://';
+SHOW STATUS;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET SESSION wsrep_sync_wait=0;
 SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
 COUNT(*) > 0
@@ -11,7 +15,7 @@ Variable_name	Value
 wsrep_ready	OFF
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
-wsrep_cluster_status	non-Primary
+wsrep_cluster_status	Disconnected
 SHOW STATUS LIKE 'wsrep_local_state';
 Variable_name	Value
 wsrep_local_state	0
@@ -39,7 +43,7 @@ CALL mtr.add_suppression("Failed to initialize backend using 'foo");
 CALL mtr.add_suppression("Failed to open channel 'my_wsrep_cluster' at 'foo");
 CALL mtr.add_suppression("gcs connect failed: Socket type not supported");
 CALL mtr.add_suppression("wsrep::connect\\(\\) failed: 7");
-CALL mtr.add_suppression("gcs_caused\\(\\) returned -103 \\(Software caused connection abort\\)");
+CALL mtr.add_suppression("gcs_caused\\(\\) returned -[0-9]+ \\(Software caused connection abort\\)");
 CALL mtr.add_suppression("failed to open gcomm backend connection: 110: failed to reach primary view: 110");
 CALL mtr.add_suppression("Failed to open backend connection: -110 \\(Connection timed out\\)");
 CALL mtr.add_suppression("gcs connect failed: Connection timed out");

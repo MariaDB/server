@@ -434,7 +434,7 @@ drop table t1;
 #
 create table t1 (a int);
 create or replace table t1 (a int default b, b int default a);
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 show create table t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 #
@@ -451,16 +451,16 @@ create or replace table t1 (a varchar(128) default @@version);
 create or replace table t1 (a int not null, b int as (a));
 create or replace table t1 (a int not null, b int default (a+1));
 create or replace table t1 (a int default a);
-ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 create or replace table t1 (a int default b, b int default (1+1));
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
-ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
+ERROR 01000: Expression for field `b` is referring to uninitialized field `c`
 CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 #
 # Allow defaults to refer to not default fields
 #
@@ -519,7 +519,7 @@ Got one of the listed errors
 CREATE TABLE t1 (a INT DEFAULT(?));
 Got one of the listed errors
 CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
 ERROR HY000: Function or expression 'name_const()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT COUNT(*));
@@ -3369,7 +3369,7 @@ a	b	t
 4	5	5 the value of the DEFAULT(a), that is b
 drop table t1;
 create table t1 (col1 int default(-(default(col1))));
-ERROR 01000: Expression for field `col1` is refering to uninitialized field `col1`
+ERROR 01000: Expression for field `col1` is referring to uninitialized field `col1`
 create table t1 (col int default (yearweek((exp(710)))));
 ERROR 22003: DOUBLE value is out of range in 'exp(710)'
 #

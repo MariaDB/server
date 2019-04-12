@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,7 +34,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "mach0data.h"
 #include "dict0dict.h"
 #include "fts0priv.h"
-#include "ut0crc32.h"
 #include "lock0lock.h"
 #include "sync0sync.h"
 #include "row0row.h"
@@ -81,10 +80,6 @@ const char table_name_t::part_suffix[4]
 #else
 = "#P#";
 #endif
-
-/** An interger randomly initialized at startup used to make a temporary
-table name as unuique as possible. */
-static ib_uint32_t	dict_temp_file_num;
 
 /** Display an identifier.
 @param[in,out]	s	output stream
@@ -308,7 +303,6 @@ dict_mem_table_add_col(
 	dict_col_t*	col;
 	ulint		i;
 
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!heap == !name);
 
@@ -483,7 +477,8 @@ dict_mem_table_col_rename_low(
 	ut_ad(to_len <= NAME_LEN);
 
 	char from[NAME_LEN + 1];
-	strncpy(from, s, NAME_LEN + 1);
+	strncpy(from, s, sizeof from - 1);
+	from[sizeof from - 1] = '\0';
 
 	if (from_len == to_len) {
 		/* The easy case: simply replace the column name in
@@ -1088,14 +1083,7 @@ dict_mem_index_free(
 	mem_heap_free(index->heap);
 }
 
-/** Create a temporary tablename like "#sql-ibtid-inc where
-  tid = the Table ID
-  inc = a randomly initialized number that is incremented for each file
-The table ID is a 64 bit integer, can use up to 20 digits, and is
-initialized at bootstrap. The second number is 32 bits, can use up to 10
-digits, and is initialized at startup to a randomly distributed number.
-It is hoped that the combination of these two numbers will provide a
-reasonably unique temporary file name.
+/** Create a temporary tablename like "#sql-ibNNN".
 @param[in]	heap	A memory heap
 @param[in]	dbtab	Table name in the form database/table name
 @param[in]	id	Table id
@@ -1112,33 +1100,13 @@ dict_mem_create_temporary_tablename(
 	ut_ad(dbend);
 	size_t		dblen   = size_t(dbend - dbtab) + 1;
 
-	/* Increment a randomly initialized  number for each temp file. */
-	my_atomic_add32((int32*) &dict_temp_file_num, 1);
-
-	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20 + 1 + 10);
+	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20);
 	name = static_cast<char*>(mem_heap_alloc(heap, size));
 	memcpy(name, dbtab, dblen);
 	snprintf(name + dblen, size - dblen,
-		    TEMP_FILE_PREFIX_INNODB UINT64PF "-" UINT32PF,
-		    id, dict_temp_file_num);
+		 TEMP_FILE_PREFIX_INNODB UINT64PF, id);
 
 	return(name);
-}
-
-/** Initialize dict memory variables */
-void
-dict_mem_init(void)
-{
-	/* Initialize a randomly distributed temporary file number */
-	ib_uint32_t	now = static_cast<ib_uint32_t>(ut_time());
-
-	const byte*	buf = reinterpret_cast<const byte*>(&now);
-
-	dict_temp_file_num = ut_crc32(buf, sizeof(now));
-
-	DBUG_PRINT("dict_mem_init",
-		   ("Starting Temporary file number is " UINT32PF,
-		   dict_temp_file_num));
 }
 
 /** Validate the search order in the foreign key set.

@@ -78,7 +78,10 @@ enum dict_err_ignore_t {
 					Silently load a missing
 					tablespace, and do not load
 					incomplete index definitions. */
-	DICT_ERR_IGNORE_ALL = 0xFFFF	/*!< ignore all errors */
+	/** ignore all errors above */
+	DICT_ERR_IGNORE_ALL = 15,
+	/** prepare to drop the table; do not attempt to load tablespace */
+	DICT_ERR_IGNORE_DROP = 31
 };
 
 /** Quiescing states for flushing tables to disk. */
@@ -106,6 +109,11 @@ struct table_name_t
 	/** The name in internal representation */
 	char*	m_name;
 
+	/** Default constructor */
+	table_name_t() {}
+	/** Constructor */
+	table_name_t(char* name) : m_name(name) {}
+
 	/** @return the end of the schema name */
 	const char* dbend() const
 	{
@@ -128,6 +136,9 @@ struct table_name_t
 	@return the partition name
 	@retval	NULL	if the table is not partitioned */
 	const char* part() const { return strstr(basename(), part_suffix); }
+
+	/** @return whether this is a temporary or intermediate table name */
+	inline bool is_temporary() const;
 };
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG

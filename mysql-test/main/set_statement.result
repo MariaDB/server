@@ -1231,4 +1231,14 @@ SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
 Table	Op	Msg_type	Msg_text
 test.t	optimize	status	Table is already up to date
 SET sql_mode=default;
+SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	status	Table is already up to date
 drop table t;
+#
+# MDEV-18358: Server crash when using SET STATEMENT max_statement_time
+#
+SET sql_mode=ORACLE;
+SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
+SET sql_mode=default;
+SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';

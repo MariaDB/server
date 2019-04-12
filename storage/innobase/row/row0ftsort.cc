@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -97,7 +97,7 @@ row_merge_create_fts_sort_index(
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
 	field->col->mtype = charset == &my_charset_latin1
 		? DATA_VARCHAR : DATA_VARMYSQL;
@@ -112,7 +112,7 @@ row_merge_create_fts_sort_index(
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
 	*opt_doc_id_size = FALSE;
 
@@ -146,21 +146,16 @@ row_merge_create_fts_sort_index(
 
 	field->col->prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
 
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
-
 	/* The third field is on the word's position in the original doc */
 	field = dict_index_get_nth_field(new_index, 2);
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
 	field->col->len = 4 ;
 	field->fixed_len = 4;
 	field->col->prtype = DATA_NOT_NULL;
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
 
 	return(new_index);
 }
@@ -808,7 +803,7 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
 
-	const page_size_t&	page_size = dict_table_page_size(table);
+	const ulint zip_size = table->space->zip_size();
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
 
@@ -838,7 +833,7 @@ loop:
 				doc.text.f_str =
 					btr_copy_externally_stored_field(
 						&doc.text.f_len, data,
-						page_size, data_len, blob_heap);
+						zip_size, data_len, blob_heap);
 			} else {
 				doc.text.f_str = data;
 				doc.text.f_len = data_len;
@@ -905,7 +900,7 @@ loop:
 			goto func_exit;
 		}
 
-		UNIV_MEM_INVALID(block[t_ctx.buf_used][0], srv_sort_buf_size);
+		UNIV_MEM_INVALID(block[t_ctx.buf_used], srv_sort_buf_size);
 		buf[t_ctx.buf_used] = row_merge_buf_empty(buf[t_ctx.buf_used]);
 		mycount[t_ctx.buf_used] += t_ctx.rows_added[t_ctx.buf_used];
 		t_ctx.rows_added[t_ctx.buf_used] = 0;
@@ -999,12 +994,11 @@ exit:
 					goto func_exit;
 				}
 
-				UNIV_MEM_INVALID(block[i][0],
-						 srv_sort_buf_size);
+				UNIV_MEM_INVALID(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
-					UNIV_MEM_INVALID(crypt_block[i][0],
-						 srv_sort_buf_size);
+					UNIV_MEM_INVALID(crypt_block[i],
+							 srv_sort_buf_size);
 				}
 			}
 
@@ -1580,9 +1574,6 @@ row_fts_merge_insert(
 	dict_index_t*		aux_index;
 	trx_t*			trx;
 
-	ut_ad(index);
-	ut_ad(table);
-
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
 
@@ -1681,7 +1672,7 @@ row_fts_merge_insert(
 	/* Create bulk load instance */
 	ins_ctx.btr_bulk = UT_NEW_NOKEY(
 		BtrBulk(aux_index, trx, psort_info[0].psort_common->trx
-			->flush_observer));
+			->get_flush_observer()));
 
 	/* Create tuple for insert */
 	ins_ctx.tuple = dtuple_create(heap, dict_index_get_n_fields(aux_index));
@@ -1813,6 +1804,10 @@ exit:
 
 	if (fts_enable_diag_print) {
 		ib::info() << "InnoDB_FTS: inserted " << count << " records";
+	}
+
+	if (psort_info[0].psort_common->trx->get_flush_observer()) {
+		row_merge_write_redo(aux_index);
 	}
 
 	return(error);

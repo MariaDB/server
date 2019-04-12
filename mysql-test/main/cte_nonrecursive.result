@@ -1659,3 +1659,17 @@ a
 2
 drop view v1;
 drop table t1,t2;
+#
+# MDEV-19112: CTE usage when information_schema is set as default db
+#
+with t as (select 1 as t ) select * from t;
+t
+1
+use information_schema;
+with t as (select 1 as t) select * from t;
+t
+1
+with columns as (select 1 as t) select * from columns;
+t
+1
+use test;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,17 +70,6 @@ typedef std::set<
 	table_id_t,
 	std::less<table_id_t>,
 	ut_allocator<table_id_t> >	table_id_set;
-
-/** Set flush observer for the transaction
-@param[in/out]	trx		transaction struct
-@param[in]	observer	flush observer */
-void
-trx_set_flush_observer(
-	trx_t*		trx,
-	FlushObserver*	observer)
-{
-	trx->flush_observer = observer;
-}
 
 /*************************************************************//**
 Set detailed error message for the transaction. */
@@ -172,7 +161,7 @@ trx_init(
 
 	trx->lock.table_cached = 0;
 
-	trx->flush_observer = NULL;
+	ut_ad(trx->get_flush_observer() == NULL);
 }
 
 /** For managing the life-cycle of the trx_t instance that we get
@@ -870,6 +859,21 @@ static trx_rseg_t* trx_assign_rseg_low()
 	return(rseg);
 }
 
+/** Set the innodb_log_optimize_ddl page flush observer
+@param[in,out]	space	tablespace
+@param[in,out]	stage	performance_schema accounting */
+void trx_t::set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage)
+{
+	flush_observer = UT_NEW_NOKEY(FlushObserver(space, this, stage));
+}
+
+/** Remove the flush observer */
+void trx_t::remove_flush_observer()
+{
+	UT_DELETE(flush_observer);
+	flush_observer = NULL;
+}
+
 /** Assign a rollback segment for modifying temporary tables.
 @return the assigned rollback segment */
 trx_rseg_t*
@@ -1441,11 +1445,8 @@ trx_commit_in_memory(
 
 	trx_mutex_enter(trx);
 	trx->dict_operation = TRX_DICT_OP_NONE;
-
 #ifdef WITH_WSREP
-	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
-		trx->lock.was_chosen_as_deadlock_victim = FALSE;
-	}
+	trx->lock.was_chosen_as_wsrep_victim = FALSE;
 #endif
 
 	DBUG_LOG("trx", "Commit in memory: " << trx);
@@ -1458,7 +1459,9 @@ trx_commit_in_memory(
 	trx_mutex_exit(trx);
 
 	ut_a(trx->error_state == DB_SUCCESS);
-	srv_wake_purge_thread_if_not_active();
+	if (!srv_read_only_mode) {
+		srv_wake_purge_thread_if_not_active();
+	}
 }
 
 /** Commit a transaction and a mini-transaction.
@@ -1569,6 +1572,16 @@ trx_commit(
 	}
 
 	trx_commit_low(trx, mtr);
+#ifdef WITH_WSREP
+	/* Serialization history has been written and the
+	   transaction is committed in memory, which makes
+	   this commit ordered. Release commit order critical
+	   section. */
+	if (wsrep_on(trx->mysql_thd))
+	{
+		wsrep_commit_ordered(trx->mysql_thd);
+	}
+#endif /* WITH_WSREP */
 }
 
 /****************************************************************//**
@@ -2148,6 +2161,12 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_PREPARED) &&
         arg->xid->eq(reinterpret_cast<XID*>(trx->xid)))
     {
+#ifdef WITH_WSREP
+      /* The commit of a prepared recovered Galera
+      transaction needs a valid trx->xid for
+      invoking trx_sys_update_wsrep_checkpoint(). */
+      if (!wsrep_is_wsrep_xid(trx->xid))
+#endif /* WITH_WSREP */
       /* Invalidate the XID, so that subsequent calls will not find it. */
       trx->xid->null();
       arg->trx= trx;

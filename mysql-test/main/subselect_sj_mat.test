@@ -55,6 +55,7 @@ create index it3i3 on t3i (c1, c2);
 insert into t1i select * from t1;
 insert into t2i select * from t2;
 insert into t3i select * from t3;
+analyze table t1,t2,t3,t1i,t2i,t3i;
 
 # force the use of materialization
 set @@optimizer_switch='materialization=on,in_to_exists=off,firstmatch=off';
@@ -108,16 +109,24 @@ select * from t1i where (a1, a2) in (select b1, min(b2) from t2i where b1 > '0' 
 select * from t1i where (a1, a2) in (select b1, min(b2) from t2i where b1 > '0' group by b1);
 
 # BUG#31639: Wrong plan for uncorrelated subquery when loose scan is applicable.
+create table t2i_c like t2i;
+insert into t2i_c select * from t2i;
+insert into t2i_c select * from t2i;
+insert into t2i_c select * from t2i;
+insert into t2i_c select * from t2i;
+analyze table t2i_c;
+show create table t2i_c;
 explain extended
-select * from t1 where (a1, a2) in (select b1, max(b2) from t2i group by b1);
-select * from t1 where (a1, a2) in (select b1, max(b2) from t2i group by b1);
+select * from t1 where (a1, a2) in (select b1, max(b2) from t2i_c group by b1);
+select * from t1 where (a1, a2) in (select b1, max(b2) from t2i_c group by b1);
 
-prepare st1 from "explain select * from t1 where (a1, a2) in (select b1, max(b2) from t2i group by b1)";
+prepare st1 from "explain select * from t1 where (a1, a2) in (select b1, max(b2) from t2i_c group by b1)";
 execute st1;
 execute st1;
-prepare st2 from "select * from t1 where (a1, a2) in (select b1, max(b2) from t2i group by b1)";
+prepare st2 from "select * from t1 where (a1, a2) in (select b1, max(b2) from t2i_c group by b1)";
 execute st2;
 execute st2;
+drop table t2i_c;
 
 explain extended
 select * from t1 where (a1, a2) in (select b1, min(b2) from t2i where b1 > '0' group by b1);
@@ -1570,7 +1579,9 @@ INSERT INTO t2 values(1),(2);
 EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
 flush status;
 CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+--disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
+--enable_ps_protocol
 DROP TABLE t1,t2,t3;
 
 --echo # 

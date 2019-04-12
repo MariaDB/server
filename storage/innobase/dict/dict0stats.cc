@@ -1505,7 +1505,7 @@ dict_stats_analyze_index_below_cur(
 	page_id_t		page_id(index->table->space_id,
 					btr_node_ptr_get_child_page_no(
 						rec, offsets_rec));
-	const page_size_t	page_size(index->table->space->flags);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/* assume no external pages by default - in case we quit from this
 	function without analyzing any leaf pages */
@@ -1518,7 +1518,7 @@ dict_stats_analyze_index_below_cur(
 
 		dberr_t err = DB_SUCCESS;
 
-		block = buf_page_get_gen(page_id, page_size, RW_S_LATCH,
+		block = buf_page_get_gen(page_id, zip_size, RW_S_LATCH,
 					 NULL /* no guessed block */,
 					 BUF_GET, __FILE__, __LINE__, &mtr, &err);
 
@@ -3840,7 +3840,6 @@ dict_stats_rename_table(
 	return(ret);
 }
 
-#ifdef MYSQL_RENAME_INDEX
 /*********************************************************************//**
 Renames an index in InnoDB persistent stats storage.
 This function creates its own transaction and commits it.
@@ -3897,7 +3896,6 @@ dict_stats_rename_index(
 
 	return(ret);
 }
-#endif /* MYSQL_RENAME_INDEX */
 
 /* tests @{ */
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS

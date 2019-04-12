@@ -24,7 +24,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "init.h"
-#include "mysqld.h"                             // abort_loop, ...
+#include "mysqld.h"
 #include "my_time.h"                            // my_init_time
 #include "unireg.h"                             // SPECIAL_SAME_DB_NAME
 #include <m_ctype.h>
@@ -34,8 +34,6 @@ void unireg_init(ulong options)
   DBUG_ENTER("unireg_init");
 
   error_handler_hook = my_message_stderr;
-  abort_loop=0;
-
   my_disable_async_io=1;		/* aioread is only in shared library */
   wild_many='%'; wild_one='_'; wild_prefix='\\'; /* Change to sql syntax */
 

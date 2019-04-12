@@ -569,10 +569,10 @@ struct rw_lock_t
 #endif /* UNIV_DEBUG */
 {
 	/** Holds the state of the lock. */
-	int32_t	lock_word;
+	std::atomic<int32_t>	lock_word;
 
 	/** 1: there are waiters */
-	int32_t	waiters;
+	std::atomic<int32_t>	waiters;
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
@@ -642,7 +642,6 @@ struct rw_lock_t
 	}
 
 	virtual std::string to_string() const;
-	virtual std::string locked_from() const;
 
 	/** For checking memory corruption. */
 	ulint		magic_n;

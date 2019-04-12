@@ -101,6 +101,14 @@ connect  fail_con,localhost,test,zorro,;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
 flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'test'@'localhost' IDENTIFIED BY PASSWORD '2f27438961437573'
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'test'@'localhost' IDENTIFIED BY PASSWORD '2f27438961437573'
 connect  con10,localhost,test,gambling2,;
 connect  con5,localhost,test,gambling2,mysql;
 set password="";

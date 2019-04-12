@@ -42,7 +42,7 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
 #else
-# define MEM_UNDEFINED(a,len) ((void) 0)
+# define MEM_UNDEFINED(a,len) ((void) (a), (void) (len))
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
@@ -51,7 +51,7 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 #if !defined(DBUG_OFF) || defined(TRASH_FREED_MEMORY)
 #define TRASH_FILL(A,B,C) do { const size_t trash_tmp= (B); MEM_UNDEFINED(A, trash_tmp); memset(A, C, trash_tmp); } while (0)
 #else
-#define TRASH_FILL(A,B,C) do { const size_t trash_tmp __attribute__((unused))= (B); MEM_UNDEFINED(A,trash_tmp); } while (0)
+#define TRASH_FILL(A,B,C) do { MEM_UNDEFINED((A), (B)); } while (0)
 #endif
 
 #define TRASH_ALLOC(A,B) do { TRASH_FILL(A,B,0xA5); MEM_UNDEFINED(A,B); } while(0)

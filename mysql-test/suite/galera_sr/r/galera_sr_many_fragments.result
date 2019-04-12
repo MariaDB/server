@@ -1,0 +1,33 @@
+connection node_2;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(512)) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 512) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+connection node_2;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 10000 FROM t1;
+COUNT(*) = 10000
+1
+connection node_1;
+ROLLBACK;
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT10M';
+SET SESSION wsrep_sync_wait = 7;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+COUNT(*) = 0
+1
+COUNT(*) = 0
+1

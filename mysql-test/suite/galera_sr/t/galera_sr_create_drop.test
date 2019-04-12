@@ -1,0 +1,33 @@
+#
+# Verify that CREATE/DROP DDLs work when streaming replication is on.
+#
+
+--source include/galera_cluster.inc
+
+SET SESSION wsrep_trx_fragment_size=1;
+
+#
+# CREATE/DROP TABLE succeeds and the change is propagated to node_2.
+#
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+--connection node_2
+SHOW CREATE TABLE t1;
+--connection node_1
+DROP TABLE t1;
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t1;
+
+#
+# CREATE/DROP DATABASE succeeds and the change is propagated to node_2.
+#
+CREATE DATABASE mdev_18587;
+--connection node_2
+SHOW DATABASES LIKE 'mdev_18587';
+--connection node_1
+DROP DATABASE mdev_18587;
+--connection node_2
+SHOW DATABASES LIKE 'mdev_18587';
+--connection node_1
+
+SET SESSION wsrep_trx_fragment_size=DEFAULT;

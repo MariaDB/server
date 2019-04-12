@@ -1211,7 +1211,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
       min_key->flag != HA_READ_KEY_EXACT ||
       max_key->flag != HA_READ_AFTER_KEY)
   {
-    if (min_key->length == key->key_part[0].store_length && !key->key_part[0].field->is_null()) /* ensure select * from x where latch is null is consistent with no latch */
+    if (min_key && min_key->length == key->key_part[0].store_length && !key->key_part[0].field->is_null()) /* ensure select * from x where latch is null is consistent with no latch */
     {
       // If latch is not null and equals 0, return # nodes
 

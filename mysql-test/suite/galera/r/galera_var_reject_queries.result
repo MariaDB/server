@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER);
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1;

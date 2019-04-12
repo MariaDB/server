@@ -715,6 +715,12 @@ bool Item_subselect::exec()
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed);
 
+  DBUG_EXECUTE_IF("Item_subselect",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                  ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %s",
+                  Item::Print(this,
+                              enum_query_type(QT_TO_SYSTEM_CHARSET |
+                                              QT_WITHOUT_INTRODUCERS)).ptr()););
   /*
     Do not execute subselect in case of a fatal error
     or if the query has been killed.
@@ -1084,7 +1090,7 @@ void Item_maxmin_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   null_value= 0;
   was_values= 0;
   make_const();
@@ -1102,7 +1108,7 @@ void Item_singlerow_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   reset();
   make_const();
 }
@@ -3272,7 +3278,8 @@ out:
 
 void Item_in_subselect::print(String *str, enum_query_type query_type)
 {
-  if (test_strategy(SUBS_IN_TO_EXISTS))
+  if (test_strategy(SUBS_IN_TO_EXISTS) &&
+      !(query_type & QT_PARSABLE))
     str->append(STRING_WITH_LEN("<exists>"));
   else
   {
@@ -3499,7 +3506,8 @@ Item_allany_subselect::select_transformer(JOIN *join)
 
 void Item_allany_subselect::print(String *str, enum_query_type query_type)
 {
-  if (test_strategy(SUBS_IN_TO_EXISTS))
+  if (test_strategy(SUBS_IN_TO_EXISTS) &&
+      !(query_type & QT_PARSABLE))
     str->append(STRING_WITH_LEN("<exists>"));
   else
   {

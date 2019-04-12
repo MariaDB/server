@@ -55,6 +55,7 @@ NOT FOUND /AaAaAaAa/ in innodb_page_compressed7.ibd
 NOT FOUND /AaAaAaAa/ in innodb_page_compressed8.ibd
 # innodb_page_compressed9 page compressed expected NOT FOUND
 NOT FOUND /AaAaAaAa/ in innodb_page_compressed9.ibd
+# restart
 select count(*) from innodb_page_compressed1;
 count(*)
 10000

@@ -57,6 +57,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`),
   KEY `kc` (`c`)
 ) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+# restart
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -117,6 +118,7 @@ SHOW INDEX IN t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	PRIMARY	1	a	A	0	NULL	NULL		LSMTREE		
 t1	0	kc	1	c	A	0	NULL	NULL	YES	LSMTREE		
+# restart
 INSERT INTO t1 (b,c) VALUES (1,2);
 INSERT INTO t1 (b,c) VALUES (3,4);
 INSERT INTO t1 (b,c) VALUES (5,6);

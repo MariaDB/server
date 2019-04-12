@@ -7,6 +7,13 @@ call mtr.add_suppression("Deadlock found when trying to get lock; try restarting
 set global default_storage_engine='innodb';
 set session default_storage_engine='innodb';
 
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings
@@ -38,6 +45,9 @@ INSERT INTO t1 VALUES (0, 'Mod Zero'), (1, 'One'), (2, 'Two'), (3, 'Three'),
 (20, '0'), (21, '1'), (22, '2'), (23, '3'),
 (4, '4'), (5, '5'), (6, '6'), (7, '7'), (8, '8'), (9, '9');
 INSERT INTO t1 SELECT a + 30, b FROM t1 WHERE a >= 0;
+INSERT INTO t1 SELECT a + 60, b FROM t1 WHERE a >= 0;
+INSERT INTO t1 SELECT a + 120, b FROM t1 WHERE a >= 0;
+INSERT INTO t1 SELECT a + 240, b FROM t1 WHERE a >= 0;
 ANALYZE TABLE t1;
 EXPLAIN SELECT b FROM t1 WHERE b between 'L' and 'N' AND a > -100;
 DROP TABLE t1;
@@ -655,6 +665,25 @@ OPTIMIZE TABLE t1;
 SET SESSION sql_mode = @old_mode;
 DROP TABLE t1;
 
+
+--echo #
+--echo # Bug#57985 "ONLINE/FAST ALTER PARTITION can fail and leave the
+--echo #            table unusable".
+--echo #
+CREATE TABLE t1 (a bigint not null, b int not null, PRIMARY KEY (a))
+  ENGINE = InnoDB PARTITION BY KEY(a) PARTITIONS 2;
+INSERT INTO t1 values (0,1), (1,2);
+--echo # The below ALTER should fail. It should leave the
+--echo # table in its original, non-corrupted, usable state.
+--error ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF
+ALTER TABLE t1 ADD UNIQUE KEY (b);
+--echo # The below statements should succeed, as ALTER should
+--echo # have left table intact.
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # Bug#57985 "ONLINE/FAST ALTER PARTITION can fail and leave the
 --echo #            table unusable".
@@ -772,8 +801,10 @@ insert into t1 select 10+A.a + 10*B.a + 100*C.a + 1000*D.a,
 
 # This should show index_merge, using intersect
 --replace_column 9 #
+set statement optimizer_switch='rowid_filter=off' for
 explain select * from t1 where a=1 and b=2 and  pk between 1 and 999999 ;
 # 794 rows in output
+set statement optimizer_switch='rowid_filter=off' for
 create temporary table t3 as
 select * from t1 where a=1 and b=2 and  pk between 1 and 999 ;
 select count(*) from t3;
@@ -1048,6 +1079,30 @@ database_name = 'test_jfg';
 
 DROP DATABASE test_jfg;
 
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
+#
+# MDEV-17755 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) || (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))' failed in Field_bit::val_int upon SELECT with JOIN, partitions, indexed virtual column
+#
+create table t1 (a int) engine=innodb;
+create table t2 (
+  b int,
+  c int,
+  d bit not null default 0,
+  v bit as (d) virtual,
+  key (b,v)
+) engine=innodb partition by hash (b);
+insert into t1 values (1),(2);
+insert into t2 (b,c,d) values (1,1,0),(2,2,0);
+explain select t1.* from t1 join t2 on (v = a);
+select t1.* from t1 join t2 on (v = a);
+drop table t1, t2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
 --echo #
 --echo # MDEV-16241 Assertion `inited==RND' failed in handler::ha_rnd_end()
 --echo #
@@ -1057,3 +1112,7 @@ PARTITION BY SYSTEM_TIME (PARTITION p1 HISTORY, PARTITION pn CURRENT);
 INSERT INTO t1 VALUES (1, 7, 8, 9), (2, NULL, NULL, NULL), (3, NULL, NULL, NULL);
 SELECT COUNT(*) FROM t1 WHERE x IS NULL AND y IS NULL AND z IS NULL;
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,31 +56,6 @@ that we MUST not hold any synchonization objects when performing the
 check.
 If you make a change in this module make sure that no codepath is
 introduced where a call to log_free_check() is bypassed. */
-
-/** Create a purge node to a query graph.
-@param[in]	parent	parent node, i.e., a thr node
-@param[in]	heap	memory heap where created
-@return own: purge node */
-purge_node_t*
-row_purge_node_create(
-	que_thr_t*	parent,
-	mem_heap_t*	heap)
-{
-	purge_node_t*	node;
-
-	ut_ad(parent != NULL);
-	ut_ad(heap != NULL);
-
-	node = static_cast<purge_node_t*>(
-		mem_heap_zalloc(heap, sizeof(*node)));
-
-	node->common.type = QUE_NODE_PURGE;
-	node->common.parent = parent;
-	node->done = TRUE;
-	node->heap = mem_heap_create(256);
-
-	return(node);
-}
 
 /***********************************************************//**
 Repositions the pcur in the purge node on the clustered index record,
@@ -992,7 +967,7 @@ skip_secondaries:
 
 			block = buf_page_get(
 				page_id_t(rseg->space->id, page_no),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 
 			buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
@@ -1056,6 +1031,11 @@ row_purge_parse_undo_rec(
 		return false;
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
+		/* These records do not store any transaction identifier.
+
+		FIXME: Update SYS_TABLES.ID on both DISCARD TABLESPACE
+		and IMPORT TABLESPACE to get rid of the repeated lookups! */
+		node->trx_id = TRX_ID_MAX;
 		break;
 	default:
 #ifdef UNIV_DEBUG
@@ -1070,6 +1050,10 @@ row_purge_parse_undo_rec(
 		break;
 	}
 
+	if (node->is_skipped(table_id)) {
+		return false;
+	}
+
 	/* Prevent DROP TABLE etc. from running when we are doing the purge
 	for this row */
 
@@ -1079,6 +1063,8 @@ try_again:
 	node->table = dict_table_open_on_id(
 		table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
+	trx_id_t trx_id = TRX_ID_MAX;
+
 	if (node->table == NULL) {
 		/* The table has been dropped: no need to do purge */
 		goto err_exit;
@@ -1087,7 +1073,7 @@ try_again:
 	ut_ad(!node->table->is_temporary());
 
 	if (!fil_table_accessible(node->table)) {
-		goto close_exit;
+		goto inaccessible;
 	}
 
 	switch (type) {
@@ -1123,11 +1109,18 @@ try_again:
 		/* The table was corrupt in the data dictionary.
 		dict_set_corrupted() works on an index, and
 		we do not have an index to call it with. */
-close_exit:
+inaccessible:
+		DBUG_ASSERT(table_id == node->table->id);
+		trx_id = node->table->def_trx_id;
+		if (!trx_id) {
+			trx_id = TRX_ID_MAX;
+		}
+
 		dict_table_close(node->table, FALSE, FALSE);
 		node->table = NULL;
 err_exit:
 		rw_lock_s_unlock(dict_operation_lock);
+		node->skip(table_id, trx_id);
 		return(false);
 	}
 
@@ -1287,25 +1280,11 @@ row_purge_end(
 /*==========*/
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	purge_node_t*	node;
-
 	ut_ad(thr);
 
-	node = static_cast<purge_node_t*>(thr->run_node);
-
-	ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
-
-	thr->run_node = que_node_get_parent(node);
-
-	node->undo_recs = NULL;
-
-	node->done = TRUE;
-
-	node->vcol_info.reset();
+	thr->run_node = static_cast<purge_node_t*>(thr->run_node)->end();
 
 	ut_a(thr->run_node != NULL);
-
-	mem_heap_empty(node->heap);
 }
 
 /***********************************************************//**
@@ -1319,22 +1298,9 @@ row_purge_step(
 {
 	purge_node_t*	node;
 
-	ut_ad(thr);
-
 	node = static_cast<purge_node_t*>(thr->run_node);
 
-	node->table = NULL;
-	node->row = NULL;
-	node->ref = NULL;
-	node->index = NULL;
-	node->update = NULL;
-	node->found_clust = FALSE;
-	node->rec_type = ULINT_UNDEFINED;
-	node->cmpl_info = ULINT_UNDEFINED;
-
-	ut_a(!node->done);
-
-	ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
+	node->start();
 
 	if (!(node->undo_recs == NULL || ib_vector_is_empty(node->undo_recs))) {
 		trx_purge_rec_t*purge_rec;

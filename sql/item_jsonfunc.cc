@@ -674,11 +674,11 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
 
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
-      *tmp_paths= (String *) alloc_root(root, sizeof(String) * n_paths);
+
+      *tmp_paths= new (root) String[n_paths];
       if (*paths == 0 || *tmp_paths == 0)
         return 1;
 
-      bzero(*tmp_paths, sizeof(String) * n_paths);
       for (uint c_path=0; c_path < n_paths; c_path++)
         (*tmp_paths)[c_path].set_charset(&my_charset_utf8_general_ci);
     }
@@ -1483,9 +1483,10 @@ bool Item_func_json_array::fix_length_and_dec()
 
   if (arg_count == 0)
   {
-    collation.set(&my_charset_utf8_general_ci,
+    THD* thd= current_thd;
+    collation.set(thd->variables.collation_connection,
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-    tmp_val.set_charset(&my_charset_utf8_general_ci);
+    tmp_val.set_charset(thd->variables.collation_connection);
     max_length= 2;
     return FALSE;
   }

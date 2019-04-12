@@ -1,9 +1,18 @@
 #
 # This test checks that innodb_disallow_writes works as expected
 #
+# Note that we need to enable binlog for this test: If the commit
+# to InnoDB is done in one phase, the transaction is committed in
+# memory before it is persisted to disk. This means that the
+# innodb_disallow_writes=ON may not prevent transaction to
+# become visible to other readers. On the other hand, if the
+# commit is two phase (as it is with binlog), the transaction
+# will be blocked in prepare phase.
+#
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_log_bin.inc
 
 # Open a separate connection to be used to run SHOW PROCESSLIST
 --let $galera_connection_name = node_1a

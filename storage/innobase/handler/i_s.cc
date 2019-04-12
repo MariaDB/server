@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -5978,7 +5978,7 @@ i_s_dict_fill_sys_tables(
 	ulint			compact = DICT_TF_GET_COMPACT(table->flags);
 	ulint			atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(
 								table->flags);
-	const page_size_t&	page_size = dict_tf_get_page_size(table->flags);
+	const ulint zip_size = dict_tf_get_zip_size(table->flags);
 	const char*		row_format;
 
 	if (!compact) {
@@ -6007,10 +6007,7 @@ i_s_dict_fill_sys_tables(
 
 	OK(field_store_string(fields[SYS_TABLES_ROW_FORMAT], row_format));
 
-	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(
-				page_size.is_compressed()
-				? page_size.physical()
-				: 0, true));
+	OK(fields[SYS_TABLES_ZIP_PAGE_SIZE]->store(zip_size, true));
 
 	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE],
 			      table->space_id ? "Single" : "System"));
@@ -7967,7 +7964,9 @@ i_s_dict_fill_sys_tablespaces(
 
 	DBUG_ENTER("i_s_dict_fill_sys_tablespaces");
 
-	if (is_system_tablespace(space)) {
+	if (fil_space_t::full_crc32(flags)) {
+		row_format = NULL;
+	} else if (is_system_tablespace(space)) {
 		row_format = "Compact, Redundant or Dynamic";
 	} else if (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 		row_format = "Compressed";
@@ -7991,7 +7990,7 @@ i_s_dict_fill_sys_tablespaces(
 			      is_system_tablespace(space)
 			      ? "System" : "Single"));
 
-	ulint cflags = fsp_flags_is_valid(flags, space)
+	ulint cflags = fil_space_t::is_valid_flags(flags, space)
 		? flags : fsp_flags_convert_from_101(flags);
 	if (cflags == ULINT_UNDEFINED) {
 		fields[SYS_TABLESPACES_PAGE_SIZE]->set_null();
@@ -8003,13 +8002,11 @@ i_s_dict_fill_sys_tablespaces(
 		DBUG_RETURN(0);
 	}
 
-	const page_size_t page_size(cflags);
-
 	OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(
-		   page_size.logical(), true));
+		   fil_space_t::logical_size(cflags), true));
 
 	OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
-		   page_size.physical(), true));
+		   fil_space_t::physical_size(cflags), true));
 
 	char*	filepath = NULL;
 	if (FSP_FLAGS_HAS_DATA_DIR(cflags)) {
@@ -8700,7 +8697,7 @@ static ST_FIELD_INFO	innodb_tablespaces_scrubbing_fields_info[] =
 
 #define TABLESPACES_SCRUBBING_COMPRESSED	2
 	{STRUCT_FLD(field_name,		"COMPRESSED"),
-	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
 	 STRUCT_FLD(value,		0),
 	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
@@ -8752,14 +8749,14 @@ static ST_FIELD_INFO	innodb_tablespaces_scrubbing_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING 9
-	{STRUCT_FLD(field_name,		"ROTATING_OR_FLUSHING"),
-	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
+#define TABLESPACES_SCRUBBING_ON_SSD	8
+	{STRUCT_FLD(field_name,		"ON_SSD"),
+	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
 	 STRUCT_FLD(value,		0),
 	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+	 STRUCT_FLD(old_name,           ""),
+	 STRUCT_FLD(open_method,        SKIP_OPEN_TABLE)},
 
 	END_OF_ST_FIELD_INFO
 };
@@ -8832,6 +8829,8 @@ i_s_dict_fill_tablespaces_scrubbing(
 		}
 	}
 
+	OK(fields[TABLESPACES_SCRUBBING_ON_SSD]->store(!space->is_rotational(),
+						       true));
 	OK(schema_table_store_record(thd, table_to_fill));
 
 	DBUG_RETURN(0);
@@ -9033,10 +9032,12 @@ i_s_innodb_mutexes_fill_table(
 		}
 
 		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(mutex->cline, true));
+		OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+				      innobase_basename(mutex->cfile_name)));
+		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
 		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
+		OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait, true));
+		fields[MUTEXES_OS_WAITS]->set_notnull();
 		OK(schema_table_store_record(thd, tables->table));
 	}
 
@@ -9057,43 +9058,58 @@ i_s_innodb_mutexes_fill_table(
 	mutex_exit(&mutex_list_mutex);
 #endif /* JAN_TODO_FIXME */
 
-	mutex_enter(&rw_lock_list_mutex);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&rw_lock_list_mutex); }
+			~Locking() { mutex_exit(&rw_lock_list_mutex); }
+		} locking;
 
-	for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
-	     lock = UT_LIST_GET_NEXT(list, lock)) {
-		if (lock->count_os_wait == 0) {
-			continue;
+		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
+		     lock = UT_LIST_GET_NEXT(list, lock)) {
+			if (lock->count_os_wait == 0) {
+				continue;
+			}
+
+			if (buf_pool_is_block_lock(lock)) {
+				block_lock = lock;
+				block_lock_oswait_count += lock->count_os_wait;
+				continue;
+			}
+
+			//OK(field_store_string(fields[MUTEXES_NAME],
+			//			lock->lock_name));
+			OK(field_store_string(
+				   fields[MUTEXES_CREATE_FILE],
+				   innobase_basename(lock->cfile_name)));
+			OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline,
+							      true));
+			fields[MUTEXES_CREATE_LINE]->set_notnull();
+			OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait,
+							   true));
+			fields[MUTEXES_OS_WAITS]->set_notnull();
+			OK(schema_table_store_record(thd, tables->table));
 		}
 
-		if (buf_pool_is_block_lock(lock)) {
-			block_lock = lock;
-			block_lock_oswait_count += lock->count_os_wait;
-			continue;
+		if (block_lock) {
+			char buf1[IO_SIZE];
+
+			snprintf(buf1, sizeof buf1, "combined %s",
+				 innobase_basename(block_lock->cfile_name));
+
+			//OK(field_store_string(fields[MUTEXES_NAME],
+			//			block_lock->lock_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      buf1));
+			OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline,
+							      true));
+			fields[MUTEXES_CREATE_LINE]->set_notnull();
+			OK(fields[MUTEXES_OS_WAITS]->store(
+				   block_lock_oswait_count, true));
+			fields[MUTEXES_OS_WAITS]->set_notnull();
+			OK(schema_table_store_record(thd, tables->table));
 		}
-
-		//OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
-		OK(schema_table_store_record(thd, tables->table));
 	}
-
-	if (block_lock) {
-		char buf1[IO_SIZE];
-
-		snprintf(buf1, sizeof buf1, "combined %s",
-			 innobase_basename(block_lock->cfile_name));
-
-		//OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
 
 	DBUG_RETURN(0);
 }

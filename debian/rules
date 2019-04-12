@@ -114,11 +114,6 @@ override_dh_auto_install:
 	dh_testdir
 	dh_testroot
 
-	# If libthrift-dev was available (manually installed, as it is
-	# not in Debian) and ha_cassandra.so was thus built, create package,
-	# otherwise skip it.
-	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+20d" debian/control
-
 ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.4.mariadb.service

@@ -68,6 +68,7 @@ i
 1
 2
 # Now restart server
+# restart
 # Done restarting server
 # Reset setting that were lost in restart
 SET @@global.rpl_semi_sync_master_timeout = 60000;
@@ -141,6 +142,7 @@ i
 2
 3
 # Now restart server
+# restart
 # Done restarting server
 # Reset setting that were lost in restart
 SET @@global.rpl_semi_sync_master_timeout = 60000;

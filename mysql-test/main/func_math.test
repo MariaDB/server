@@ -597,6 +597,37 @@ DROP TABLE t1;
 SELECT STDDEV_POP(ROUND(0,@A:=2009)) FROM (SELECT 1 UNION SELECT 2) fake_table;
 
 --echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-17643 Assertion `nr >= 0.0' failed in Item_sum_std::val_real()
+--echo #
+
+CREATE TABLE t1 ( pk int NOT NULL, i1 int NOT NULL, d1 date NOT NULL, t1 time);
+INSERT INTO t1 VALUES (7,9,'2007-08-15','03:55:02'),(8,7,'1993-06-05','04:17:51'),(9,7,'2034-07-01','17:31:12'),(10,0,'1998-08-24','08:09:27');
+SELECT DISTINCT  STDDEV_SAMP(EXPORT_SET(t1, -1379790335835635712, (i1 + 'o'), (MD5(d1)))) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(128));
+INSERT INTO t1 VALUES ('1e310');
+INSERT INTO t1 VALUES ('-1e310');
+INSERT INTO t1 VALUES ('0');
+SELECT STDDEV_SAMP(a) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (1.7e+308);
+INSERT INTO t1 VALUES (-1.7e+308);
+INSERT INTO t1 VALUES (0);
+SELECT STDDEV_SAMP(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
 --echo # Start of 10.2 tests
 --echo #
 
@@ -897,3 +928,36 @@ LOAD DATA INFILE '../../std_data/loaddata_utf8.dat' INTO TABLE t1 CHARACTER SET 
 SELECT HEX(a), CRC32(a) from t1;
 DROP TABLE t1;
 SET NAMES default;
+
+--echo #
+--echo # MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (d DECIMAL(43,0) UNSIGNED);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT
+  NULL DIV d AS d_null,
+  '' DIV d AS d_empty_string,
+  X'32' DIV d AS d_hex_string2,
+  X'3232' DIV d AS d_hex_string4,
+  TIME(0) DIV d AS d_time,
+  CURRENT_DATE DIV d AS d_date,
+  CURRENT_TIMESTAMP DIV d AS d_datetime
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-18150 Assertion `decimals_to_set <= 38' failed in Item_func_round::fix_length_and_dec_decimal
+--echo #
+
+CREATE TABLE t1 (i INT(23));
+SELECT ROUND( i, 18446744073709551594 ) AS f FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

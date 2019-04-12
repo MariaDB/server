@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 BIGINT UNSIGNED PRIMARY KEY, f2 VARCHAR(5)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES
 (18446744073709551615, 'max')
@@ -24,6 +26,6 @@ COMMIT;
 SET AUTOCOMMIT=ON;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SET AUTOCOMMIT=ON;
 DROP TABLE t1;

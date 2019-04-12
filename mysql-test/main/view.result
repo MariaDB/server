@@ -1280,10 +1280,10 @@ load data infile '../../std_data/loaddata3.dat' ignore into table v1 fields term
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
-Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
+Warning	1366	Incorrect integer value: 'error      ' for column `test`.`t1`.`a` at row 3
 Warning	1369	CHECK OPTION failed `test`.`v1`
 Note	1265	Data truncated for column 'a' at row 3
-Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 4
+Warning	1366	Incorrect integer value: 'wrong end  ' for column `test`.`t1`.`a` at row 4
 Warning	1369	CHECK OPTION failed `test`.`v1`
 select * from t1 order by a,b;
 a	b
@@ -4395,7 +4395,8 @@ DROP VIEW v1,v2;
 DROP TABLE t1;
 CREATE TABLE t1 (a varchar(10), KEY (a)) ;
 INSERT INTO t1 VALUES
-('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM');
+('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'), ('MM'),
+('AA'), ('DD'), ('CC'), ('GG');
 CREATE VIEW v1 AS SELECT * FROM t1;
 # t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
@@ -4624,7 +4625,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or <cache>(NULL is null)) having trigcond(NULL is null))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or 1) having trigcond(NULL is null))))
 SELECT * FROM t1, t2
 WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
 WHERE t4.a >= t1.a);
@@ -4640,7 +4641,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'v1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or <cache>(NULL is null)) having trigcond(NULL is null))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or 1) having trigcond(NULL is null))))
 SELECT * FROM v1, t2
 WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
 WHERE t4.a >= v1.a);
@@ -6705,6 +6706,20 @@ testcase
 drop view v1;
 drop table t1;
 #
+# MDEV-18502: Server crash in find_field_in_tables upon 2nd execution of SP which causes ER_WRONG_GROUP_FIELD
+#
+CREATE TABLE t1 (id INT, f VARCHAR(1));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+CREATE PROCEDURE sp() SELECT f AS f1, MAX(id) AS f2 FROM v1 GROUP BY f1, f2 ORDER BY f1;
+CALL sp;
+ERROR 42000: Can't group on 'f2'
+CALL sp;
+ERROR 42000: Can't group on 'f2'
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #
@@ -6715,6 +6730,28 @@ drop table t1;
 #
 ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IF NOT EXISTS v1 AS SELECT 1' at line 1
+#
+# MDEV-18605: Loss of column aliases by using view and group
+#
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1;
+INSERT INTO t1 (id, foo) VALUES (1,1),(2,2);
+SELECT v.id, v.foo AS bar  FROM v1 v
+WHERE id = 2;
+id	bar
+2	2
+SELECT v.id, v.foo AS bar  FROM v1 v
+GROUP BY v.id;
+id	bar
+1	1
+2	2
+SELECT v.id, v.foo AS bar  FROM v1 v
+WHERE id = 2
+GROUP BY v.id;
+id	bar
+2	2
+Drop View v1;
+Drop table t1;
 #
 # End of 10.3 tests
 #

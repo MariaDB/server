@@ -39,6 +39,7 @@ ERROR HY000: Lost connection to MySQL server during query
 disconnect con1;
 connection default;
 FOUND 1 /Wrote log record for ibuf update in place operation/ in my_restart.err
+# restart
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

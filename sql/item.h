@@ -151,8 +151,9 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 
 #define NO_EXTRACTION_FL              (1 << 6)
 #define FULL_EXTRACTION_FL            (1 << 7)
-#define SUBSTITUTION_FL               (1 << 8)
-#define EXTRACTION_MASK               (NO_EXTRACTION_FL | FULL_EXTRACTION_FL)
+#define DELETION_FL                   (1 << 8)
+#define SUBSTITUTION_FL               (1 << 9)
+#define EXTRACTION_MASK (NO_EXTRACTION_FL | FULL_EXTRACTION_FL | DELETION_FL)
 
 extern const char *item_empty_name;
 
@@ -524,7 +525,7 @@ class Rewritable_query_parameter
     Value of 0 means that this object doesn't have to be replaced
     (for example SP variables in control statements)
   */
-  uint pos_in_query;
+  my_ptrdiff_t pos_in_query;
 
   /*
     Byte length of parameter name in the statement.  This is not
@@ -945,7 +946,7 @@ public:
   void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
   void set_name_no_truncate(THD *thd, const char *str, uint length,
                             CHARSET_INFO *cs);
-  void init_make_send_field(Send_field *tmp_field,enum enum_field_types type);
+  void init_make_send_field(Send_field *tmp_field, const Type_handler *h);
   virtual void cleanup();
   virtual void make_send_field(THD *thd, Send_field *field);
 
@@ -1249,20 +1250,6 @@ public:
     unsigned_flag to check the sign of the item.
   */
   inline ulonglong val_uint() { return (ulonglong) val_int(); }
-  /*
-    Adjust the result of val_int() to an unsigned number:
-    - NULL value is converted to 0. The caller can check "null_value"
-      to distinguish between 0 and NULL when necessary.
-    - Negative numbers are converted to 0.
-    - Positive numbers bigger than upper_bound are converted to upper_bound.
-    - Other numbers are returned as is.
-  */
-  ulonglong val_uint_from_val_int(ulonglong upper_bound)
-  {
-    longlong nr= val_int();
-    return (null_value || (nr < 0 && !unsigned_flag)) ? 0 :
-           (ulonglong) nr > upper_bound ? upper_bound : (ulonglong) nr;
-  }
 
   /*
     Return string representation of this item object.
@@ -1311,7 +1298,6 @@ public:
    /*
      The default implementation for the Items that do not need native format:
      - Item_basic_value
-     - Item_ident_for_show
      - Item_copy
      - Item_exists_subselect
      - Item_sum_field
@@ -1463,6 +1449,13 @@ public:
   }
   virtual String *val_raw(String*) { return 0; }
 
+  bool eval_const_cond()
+  {
+    DBUG_ASSERT(const_item());
+    DBUG_ASSERT(!is_expensive());
+    return val_bool();
+  }
+
   /*
     save_val() is method of val_* family which stores value in the given
     field.
@@ -1501,6 +1494,7 @@ public:
   virtual const char *full_name() const { return name.str ? name.str : "???"; }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name.str : NULL; }
+  const TABLE_SHARE *field_table_or_null();
 
   /*
     *result* family of methods is analog of *val* family (see above) but
@@ -1658,6 +1652,16 @@ public:
                      LOWEST_PRECEDENCE);
   }
   virtual void print(String *str, enum_query_type query_type);
+
+  class Print: public String
+  {
+  public:
+    Print(Item *item, enum_query_type type)
+    {
+      item->print(this, type);
+    }
+  };
+
   void print_item_w_name(String *str, enum_query_type query_type);
   void print_value(String *str);
 
@@ -1721,12 +1725,7 @@ public:
     return Time(thd, this, Time::Options_cmp(thd)).to_packed();
   }
   longlong val_datetime_packed_result(THD *thd);
-  longlong val_time_packed_result(THD *thd)
-  {
-    MYSQL_TIME ltime;
-    return get_date_result(thd, &ltime, Time::Options_cmp(thd)) ? 0 :
-           pack_time(&ltime);
-  }
+  longlong val_time_packed_result(THD *thd);
 
   virtual bool get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return get_date(thd, ltime,fuzzydate); }
@@ -1871,9 +1870,11 @@ public:
     Not to be used for AND/OR formulas.
   */
   virtual bool excl_dep_on_table(table_map tab_map) { return false; }
-  /* 
+  /*
     TRUE if the expression depends only on grouping fields of sel
-    or can be converted to such an exression using equalities.
+    or can be converted to such an expression using equalities.
+    It also checks if the expression doesn't contain stored procedures,
+    subqueries or randomly generated elements.
     Not to be used for AND/OR formulas.
   */
   virtual bool excl_dep_on_grouping_fields(st_select_lex *sel)
@@ -1975,6 +1976,12 @@ public:
   virtual bool check_valid_arguments_processor(void *arg) { return 0; }
   virtual bool update_vcol_processor(void *arg) { return 0; }
   virtual bool set_fields_as_dependent_processor(void *arg) { return 0; }
+  /*
+    Find if some of the key parts of table keys (the reference on table is
+    passed as an argument) participate in the expression.
+    If there is some, sets a bit for this key in the proper key map.
+  */
+  virtual bool check_index_dependence(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   virtual Item *get_copy(THD *thd)=0;
@@ -2074,6 +2081,10 @@ public:
   virtual Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg)
   { return this; }
   virtual Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg)
+  { return this; }
+  virtual Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
+  { return this; }
+  virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
   { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
@@ -2255,6 +2266,11 @@ public:
   */
   virtual void under_not(Item_func_not * upper
                          __attribute__((unused))) {};
+  /*
+    If Item_field is wrapped in Item_direct_wrep remove this Item_direct_ref
+    wrapper.
+  */
+  virtual Item *remove_item_direct_ref() { return this; }
 	
 
   void register_in(THD *thd);	 
@@ -2281,7 +2297,6 @@ public:
   {
     return excl_dep_on_in_subq_left_part((Item_in_subselect *)arg);
   }
-  Item *get_corresponding_field_in_insubq(Item_in_subselect *subq_pred);
   Item *build_pushable_cond(THD *thd,
                             Pushdown_checker checker,
                             uchar *arg);
@@ -2295,10 +2310,7 @@ public:
   /*
     Checks if this item consists in the left part of arg IN subquery predicate
   */
-  bool pushable_equality_checker_for_subquery(uchar *arg)
-  {
-    return get_corresponding_field_in_insubq((Item_in_subselect *)arg);
-  }
+  bool pushable_equality_checker_for_subquery(uchar *arg);
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -2476,17 +2488,7 @@ protected:
     }
     return true;
   }
-  bool excl_dep_on_grouping_fields(st_select_lex *sel)
-  {
-    for (uint i= 0; i < arg_count; i++)
-    {
-      if (args[i]->const_item())
-        continue;
-      if (!args[i]->excl_dep_on_grouping_fields(sel))
-        return false;
-    }
-    return true;
-  }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool eq(const Item_args *other, bool binary_cmp) const
   {
     for (uint i= 0; i < arg_count ; i++)
@@ -3221,45 +3223,6 @@ public:
 };
 
 
-class Item_ident_for_show :public Item
-{
-public:
-  Field *field;
-  const char *db_name;
-  const char *table_name;
-
-  Item_ident_for_show(THD *thd, Field *par_field, const char *db_arg,
-                      const char *table_name_arg):
-    Item(thd), field(par_field), db_name(db_arg), table_name(table_name_arg)
-  {
-    Type_std_attributes::set(par_field->type_std_attributes());
-  }
-  enum Type type() const { return FIELD_ITEM; }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param)
-  {
-    DBUG_ASSERT(0);
-    return 0;
-  }
-  double val_real() { return field->val_real(); }
-  longlong val_int() { return field->val_int(); }
-  String *val_str(String *str) { return field->val_str(str); }
-  my_decimal *val_decimal(my_decimal *dec) { return field->val_decimal(dec); }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  {
-    return field->get_date(ltime, fuzzydate);
-  }
-  void make_send_field(THD *thd, Send_field *tmp_field);
-  const Type_handler *type_handler() const
-  {
-    const Type_handler *handler= field->type_handler();
-    return handler->type_handler_for_item_field();
-  }
-  Item* get_copy(THD *thd)
-  { return get_item_copy<Item_ident_for_show>(thd, this); }
-};
-
-
 class Item_field :public Item_ident,
                   public Load_data_outvar
 {
@@ -3477,6 +3440,7 @@ public:
     DBUG_ASSERT(field_type() == MYSQL_TYPE_GEOMETRY);
     return field->get_geometry_type();
   }
+  bool check_index_dependence(void *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
@@ -5217,6 +5181,7 @@ public:
   Item *get_tmp_table_item(THD *thd);
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   table_map used_tables() const;		
   void update_used_tables(); 
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
@@ -5366,6 +5331,13 @@ public:
   }
   bool with_sum_func() const { return m_with_sum_func; }
   With_sum_func_cache* get_with_sum_func_cache() { return this; }
+  Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
+  { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
+  Item *remove_item_direct_ref()
+  {
+    *ref= (*ref)->remove_item_direct_ref();
+    return this;
+  }
 };
 
 
@@ -5410,6 +5382,8 @@ public:
   virtual Ref_Type ref_type() { return DIRECT_REF; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_direct_ref>(thd, this); }
+  Item *remove_item_direct_ref()
+  { return (*ref)->remove_item_direct_ref(); }
 };
 
 
@@ -5757,6 +5731,9 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
+  Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
+  { return this; }
+  Item *remove_item_direct_ref() { return this; }
 };
 
 
@@ -6031,6 +6008,7 @@ public:
 class Item_copy_timestamp: public Item_copy
 {
   Timestamp_or_zero_datetime m_value;
+  bool sane() const { return !null_value || m_value.is_zero_datetime(); }
 public:
   Item_copy_timestamp(THD *thd, Item *arg): Item_copy(thd, arg) { }
   const Type_handler *type_handler() const { return &type_handler_timestamp2; }
@@ -6043,34 +6021,47 @@ public:
   }
   int save_in_field(Field *field, bool no_conversions)
   {
+    DBUG_ASSERT(sane());
+    if (null_value)
+      return set_field_to_null(field);
     Timestamp_or_zero_datetime_native native(m_value, decimals);
     return native.save_in_field(field, decimals);
   }
   longlong val_int()
   {
-    return m_value.to_datetime(current_thd).to_longlong();
+    DBUG_ASSERT(sane());
+    return null_value ? 0 :
+           m_value.to_datetime(current_thd).to_longlong();
   }
   double val_real()
   {
-    return m_value.to_datetime(current_thd).to_double();
+    DBUG_ASSERT(sane());
+    return null_value ? 0e0 :
+           m_value.to_datetime(current_thd).to_double();
   }
   String *val_str(String *to)
   {
-    return m_value.to_datetime(current_thd).to_string(to, decimals);
+    DBUG_ASSERT(sane());
+    return null_value ? NULL :
+           m_value.to_datetime(current_thd).to_string(to, decimals);
   }
   my_decimal *val_decimal(my_decimal *to)
   {
-    return m_value.to_datetime(current_thd).to_decimal(to);
+    DBUG_ASSERT(sane());
+    return null_value ? NULL :
+           m_value.to_datetime(current_thd).to_decimal(to);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
+    DBUG_ASSERT(sane());
     bool res= m_value.to_TIME(thd, ltime, fuzzydate);
     DBUG_ASSERT(!res);
-    return res;
+    return null_value || res;
   }
   bool val_native(THD *thd, Native *to)
   {
-    return m_value.to_native(to, decimals);
+    DBUG_ASSERT(sane());
+    return null_value || m_value.to_native(to, decimals);
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_copy_timestamp>(thd, this); }
@@ -6755,8 +6746,7 @@ public:
   }
   longlong val_datetime_packed(THD *thd)
   {
-    DBUG_ASSERT(0);
-    return 0;
+    return to_datetime(current_thd).to_packed();
   }
   longlong val_time_packed(THD *thd)
   {
@@ -6802,7 +6792,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
   {
-    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode, NULL);
+    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode,
+                                         NULL, NULL);
   }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);

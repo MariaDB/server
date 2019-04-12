@@ -79,6 +79,7 @@ count(*)
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
 5000
+# restart
 update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;

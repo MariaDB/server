@@ -321,3 +321,30 @@ select * from t13 union select * from t234 intersect select * from t12;
 drop table t12,t13,t234;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-18701: Wrong result from query that uses INTERSECT after UNION ALL
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (1), (7), (3), (2), (7), (4);
+create table t2 (a int);
+insert into t2 values (4), (5), (9), (1), (8), (9);
+create table t3 (a int);
+insert into t3 values (8), (1), (8), (2), (3), (7), (2);
+
+
+select * from t1 where a > 4
+union all 
+select * from t2 where a < 5
+intersect
+select * from t3 where a < 5;
+
+explain extended
+select * from t1 where a > 4
+union all 
+select * from t2 where a < 5
+intersect
+select * from t3 where a < 5;
+
+drop table t1,t2,t3;

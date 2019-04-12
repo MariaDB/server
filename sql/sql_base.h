@@ -352,13 +352,6 @@ inline void setup_table_map(TABLE *table, TABLE_LIST *table_list, uint tablenr)
   table->force_index= table_list->force_index;
   table->force_index_order= table->force_index_group= 0;
   table->covering_keys= table->s->keys_for_keyread;
-  TABLE_LIST *orig= table_list->select_lex ?
-    table_list->select_lex->master_unit()->derived : 0;
-  if (!orig || !orig->is_merged_derived())
-  {
-    /* Tables merged from derived were set up already.*/
-    table->covering_keys= table->s->keys_for_keyread;
-  }
 }
 
 inline TABLE_LIST *find_table_in_global_list(TABLE_LIST *table,

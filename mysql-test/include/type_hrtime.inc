@@ -55,6 +55,12 @@ select * from t1;
 delete from t1 where a < 20110101;
 select * from t1;
 
+if ($type == time)
+{
+delete from t1 where a is not null;
+select * from t1;
+}
+
 #
 # create ... select
 #

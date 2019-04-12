@@ -327,6 +327,11 @@ public:
     return this;
   }
 
+  bool has_rand_bit()
+  {
+    return used_tables() & RAND_TABLE_BIT;
+  }
+
   bool excl_dep_on_table(table_map tab_map)
   {
     if (used_tables() & OUTER_REF_TABLE_BIT)
@@ -337,6 +342,8 @@ public:
 
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   {
+    if (has_rand_bit() || with_subquery())
+      return false;
     return Item_args::excl_dep_on_grouping_fields(sel);
   }
 
@@ -1019,6 +1026,19 @@ public:
 };
 
 
+class Item_func_hash: public Item_int_func
+{
+public:
+  Item_func_hash(THD *thd, List<Item> &item): Item_int_func(thd, item)
+  {}
+  longlong val_int();
+  bool fix_length_and_dec();
+  const Type_handler *type_handler() const { return &type_handler_long; }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_hash>(thd, this); }
+  const char *func_name() const { return "<hash>"; }
+};
+
 class Item_longlong_func: public Item_int_func
 {
 public:
@@ -1195,7 +1215,8 @@ public:
   my_decimal *val_decimal(my_decimal*);
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
   {
-    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode, NULL);
+    return decimal_to_datetime_with_warn(thd, VDec(this).ptr(), to, mode,
+                                         NULL, NULL);
   }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec_generic() {}
@@ -2312,6 +2333,8 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  { return false; }
 };
 
 
@@ -2639,7 +2662,6 @@ class Item_func_set_user_var :public Item_func_user_var
        user variable it the first connection context).
   */
   my_thread_id entry_thread_id;
-  char buffer[MAX_FIELD_WIDTH];
   String value;
   my_decimal decimal_buff;
   bool null_item;
@@ -3209,6 +3231,8 @@ public:
     not_null_tables_cache= 0;
     return 0;
   }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  { return false; }
 };
 
 
@@ -3413,8 +3437,11 @@ Item *get_system_var(THD *thd, enum_var_type var_type,
 extern bool check_reserved_words(const LEX_CSTRING *name);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
-bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
+
+bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
+                 Item_result type, CHARSET_INFO *cs,
+                 bool unsigned_arg);
 
 #endif /* ITEM_FUNC_INCLUDED */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -358,7 +358,7 @@ buf_buddy_alloc_zip(
 
 	if (buf) {
 		/* Trash the page other than the BUF_BUDDY_STAMP_NONFREE. */
-		UNIV_MEM_TRASH(buf, ~i, BUF_BUDDY_STAMP_OFFSET);
+		UNIV_MEM_TRASH((void*) buf, ~i, BUF_BUDDY_STAMP_OFFSET);
 		UNIV_MEM_TRASH(BUF_BUDDY_STAMP_OFFSET + 4
 			       + buf->stamp.bytes, ~i,
 			       (BUF_BUDDY_LOW << i)
@@ -493,7 +493,6 @@ buf_buddy_alloc_low(
 {
 	buf_block_t*	block;
 
-	ut_ad(lru);
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(!mutex_own(&buf_pool->zip_mutex));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));

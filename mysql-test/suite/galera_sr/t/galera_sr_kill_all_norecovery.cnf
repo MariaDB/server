@@ -1,0 +1,8 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;pc.recovery=false'
+auto_increment_offset=1
+
+[mysqld.2]
+auto_increment_offset=2

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -612,7 +612,13 @@ rec_init_offsets(
 	ulint	i	= 0;
 	ulint	offs;
 
-	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
+	/* This assertion was relaxed for the btr_cur_open_at_index_side()
+	call in btr_cur_instant_init_low(). We cannot invoke
+	index->is_instant(), because the same assertion would fail there
+	until btr_cur_instant_init_low() has invoked
+	dict_table_t::deserialise_columns(). */
+	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable)
+	      || index->in_instant_init);
 	ut_d(offsets[2] = ulint(rec));
 	ut_d(offsets[3] = ulint(index));
 
@@ -822,10 +828,6 @@ rec_get_offsets_func(
 	ulint	size;
 	bool	alter_metadata = false;
 
-	ut_ad(rec);
-	ut_ad(index);
-	ut_ad(heap);
-
 	if (dict_table_is_comp(index->table)) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
@@ -955,9 +957,6 @@ rec_get_offsets_reverse(
 	ulint		null_mask;
 	ulint		n_node_ptr_field;
 
-	ut_ad(extra);
-	ut_ad(index);
-	ut_ad(offsets);
 	ut_ad(dict_table_is_comp(index->table));
 	ut_ad(!index->is_instant());
 
@@ -1066,8 +1065,6 @@ rec_get_nth_field_offs_old(
 	ulint	os;
 	ulint	next_os;
 
-	ut_ad(len);
-	ut_a(rec);
 	ut_a(n < rec_get_n_fields_old(rec));
 
 	if (rec_get_1byte_offs_flag(rec)) {
@@ -2176,7 +2173,6 @@ rec_validate(
 	ulint		len_sum		= 0;
 	ulint		i;
 
-	ut_a(rec);
 	n_fields = rec_offs_n_fields(offsets);
 
 	if ((n_fields == 0) || (n_fields > REC_MAX_N_FIELDS)) {
@@ -2233,8 +2229,6 @@ rec_print_old(
 	ulint		len;
 	ulint		n;
 	ulint		i;
-
-	ut_ad(rec);
 
 	n = rec_get_n_fields_old(rec);
 
@@ -2409,8 +2403,6 @@ rec_print_mbr_rec(
 	const rec_t*	rec,	/*!< in: physical record */
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
-	ut_ad(rec);
-	ut_ad(offsets);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(!rec_offs_any_default(offsets));
 
@@ -2479,8 +2471,6 @@ rec_print_new(
 	const rec_t*	rec,	/*!< in: physical record */
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
-	ut_ad(rec);
-	ut_ad(offsets);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
 #ifdef UNIV_DEBUG
@@ -2514,8 +2504,6 @@ rec_print(
 	const rec_t*		rec,	/*!< in: physical record */
 	const dict_index_t*	index)	/*!< in: record descriptor */
 {
-	ut_ad(index);
-
 	if (!dict_table_is_comp(index->table)) {
 		rec_print_old(file, rec);
 		return;

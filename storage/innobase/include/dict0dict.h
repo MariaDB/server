@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "data0data.h"
 #include "dict0mem.h"
 #include "fsp0fsp.h"
-#include <atomic>
 #include <deque>
 
 extern bool innodb_table_stats_not_found;
@@ -802,10 +801,9 @@ dict_table_get_sys_col(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #else /* UNIV_DEBUG */
-#define dict_table_get_nth_col(table, pos)				\
-	(&(table)->cols[pos])
-#define dict_table_get_sys_col(table, sys)				\
-	(&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS])
+#define dict_table_get_nth_col(table, pos)	(&(table)->cols[pos])
+#define dict_table_get_sys_col(table, sys)	\
+	&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS]
 /* Get nth virtual columns */
 #define dict_table_get_nth_v_col(table, pos)	(&(table)->v_cols[pos])
 #endif /* UNIV_DEBUG */
@@ -888,25 +886,33 @@ ulint
 dict_tf_to_fsp_flags(ulint table_flags)
 	MY_ATTRIBUTE((const));
 
-/** Extract the page size from table flags.
+
+/** Extract the ROW_FORMAT=COMPRESSED page size from table flags.
 @param[in]	flags	flags
-@return compressed page size, or 0 if not compressed */
-UNIV_INLINE
-const page_size_t
-dict_tf_get_page_size(
-	ulint	flags)
-MY_ATTRIBUTE((const));
+@return ROW_FORMAT=COMPRESSED page size
+@retval	0 if not compressed */
+inline ulint dict_tf_get_zip_size(ulint flags)
+{
+	flags &= DICT_TF_MASK_ZIP_SSIZE;
+	return flags
+		? (UNIV_ZIP_SIZE_MIN >> 1)
+		<< (FSP_FLAGS_GET_ZIP_SSIZE(flags >> DICT_TF_POS_ZIP_SSIZE
+					    << FSP_FLAGS_POS_ZIP_SSIZE))
+		: 0;
+}
 
 /** Determine the extent size (in pages) for the given table
 @param[in]	table	the table whose extent size is being
 			calculated.
 @return extent size in pages (256, 128 or 64) */
-ulint
-dict_table_extent_size(
-	const dict_table_t*	table);
+inline ulint dict_table_extent_size(const dict_table_t* table)
+{
+	if (ulint zip_size = table->space->zip_size()) {
+		return (1ULL << 20) / zip_size;
+	}
 
-/** Get the table page size. */
-#define dict_table_page_size(table) page_size_t(table->space->flags)
+	return FSP_EXTENT_SIZE;
+}
 
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
@@ -1156,21 +1162,6 @@ dict_index_get_nth_col_or_prefix_pos(
 	ulint*			prefix_col_pos) /*!< out: col num if prefix
 						*/
 	__attribute__((warn_unused_result));
-
-/********************************************************************//**
-Returns TRUE if the index contains a column or a prefix of that column.
-@param[in]	index		index
-@param[in]	n		column number
-@param[in]	is_virtual	whether it is a virtual col
-@return TRUE if contains the column or its prefix */
-bool
-dict_index_contains_col_or_prefix(
-/*==============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			n,	/*!< in: column number */
-	bool			is_virtual)
-					/*!< in: whether it is a virtual col */
-	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Looks for a matching field in an index. The column has to be the same. The
 column in index must be complete, or must contain a prefix longer than the
@@ -1439,31 +1430,21 @@ dict_tables_have_same_db(
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed=true)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 		MY_ATTRIBUTE((warn_unused_result));
 
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 inline
 const dict_index_t*
-dict_table_get_index_on_name(
-	const dict_table_t*	table,
-	const char*		name,
-	bool			committed=true)
+dict_table_get_index_on_name(const dict_table_t* table, const char* name)
 {
-	return(dict_table_get_index_on_name(
-		       const_cast<dict_table_t*>(table), name, committed));
+	return dict_table_get_index_on_name(const_cast<dict_table_t*>(table),
+					    name);
 }
 
 /***************************************************************

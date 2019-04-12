@@ -676,7 +676,7 @@ static void rocksdb_set_rocksdb_info_log_level(
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
   rocksdb_info_log_level = *static_cast<const uint64_t *>(save);
   rocksdb_db_options->info_log->SetInfoLogLevel(
-      static_cast<const rocksdb::InfoLogLevel>(rocksdb_info_log_level));
+      static_cast<rocksdb::InfoLogLevel>(rocksdb_info_log_level));
   RDB_MUTEX_UNLOCK_CHECK(rdb_sysvars_mutex);
 }
 
@@ -3750,26 +3750,37 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
          - For a COMMIT statement that finishes a multi-statement transaction
          - For a statement that has its own transaction
       */
-
-      //  First, commit without syncing. This establishes the commit order
-      tx->set_sync(false);
-      bool tx_had_writes = tx->get_write_count()? true : false ;
-      if (tx->commit()) {
-        DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
-      }
-      thd_wakeup_subsequent_commits(thd, 0);
-
-      if (tx_had_writes && rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+      if (thd->slave_thread)
       {
-        rocksdb::Status s= rdb->FlushWAL(true);
-        if (!s.ok())
-          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        // An attempt to make parallel slave performant (not fully successful,
+        // see MDEV-15372):
+
+        //  First, commit without syncing. This establishes the commit order
+        tx->set_sync(false);
+        bool tx_had_writes = tx->get_write_count()? true : false ;
+        if (tx->commit()) {
+          DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
+        }
+        thd_wakeup_subsequent_commits(thd, 0);
+
+        if (tx_had_writes && rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+        {
+          rocksdb::Status s= rdb->FlushWAL(true);
+          if (!s.ok())
+            DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        }
+      }
+      else
+      {
+        /* Not a slave thread */
+        if (tx->commit()) {
+          DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
+        }
       }
     } else {
       /*
         We get here when committing a statement within a transaction.
       */
-      tx->make_stmt_savepoint_permanent();
       tx->make_stmt_savepoint_permanent();
     }
 
@@ -10754,6 +10765,11 @@ int ha_rocksdb::info(uint flag) {
         // Cached data is still valid, so use it instead
         stats.records += m_table_handler->m_mtcache_count;
         stats.data_file_length += m_table_handler->m_mtcache_size;
+      }
+
+      // Do like InnoDB does. stats.records=0 confuses the optimizer
+      if (stats.records == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
+        stats.records++;
       }
 
       if (rocksdb_debug_optimizer_n_rows > 0)

@@ -566,7 +566,7 @@ public:
       FALSE  Otherwise
   */
 
-  bool is_singlepoint()
+  bool is_singlepoint() const
   {
     /*
       Check for NEAR_MIN ("strictly less") and NO_MIN_RANGE (-inf < field)
@@ -1645,7 +1645,8 @@ class SQL_SELECT :public Sql_alloc {
   {
     key_map tmp;
     tmp.set_all();
-    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE, FALSE) < 0;
+    return test_quick_select(thd, tmp, 0, limit, force_quick_range,
+                             FALSE, FALSE, FALSE) < 0;
   }
   /* 
     RETURN
@@ -1662,7 +1663,8 @@ class SQL_SELECT :public Sql_alloc {
   }
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
-                        bool ordered_output, bool remove_false_parts_of_where);
+                        bool ordered_output, bool remove_false_parts_of_where,
+                        bool only_single_index_range_scan);
 };
 
 

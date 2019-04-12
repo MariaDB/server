@@ -71,18 +71,6 @@ bool check_reserved_words(const LEX_CSTRING *name)
 
 
 /**
-  @return
-    TRUE if item is a constant
-*/
-
-bool
-eval_const_cond(COND *cond)
-{
-  return ((Item_func*) cond)->val_int() ? TRUE : FALSE;
-}
-
-
-/**
    Test if the sum of arguments overflows the ulonglong range.
 */
 static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
@@ -1615,13 +1603,9 @@ longlong Item_func_int_div::val_int()
 
 bool Item_func_int_div::fix_length_and_dec()
 {
-  Item_result argtype= args[0]->result_type();
-  /* use precision ony for the data type it is applicable for and valid */
-  uint32 char_length= args[0]->max_char_length() -
-                      (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
-                       args[0]->decimals : 0);
-  fix_char_length(char_length > MY_INT64_NUM_DECIMAL_DIGITS ?
-                  MY_INT64_NUM_DECIMAL_DIGITS : char_length);
+  uint32 prec= args[0]->decimal_int_part();
+  set_if_smaller(prec, MY_INT64_NUM_DECIMAL_DIGITS);
+  fix_char_length(prec);
   maybe_null=1;
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
   return false;
@@ -1717,6 +1701,46 @@ bool Item_func_mod::fix_length_and_dec()
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
   DBUG_RETURN(FALSE);
 }
+
+static void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
+{
+  CHARSET_INFO *cs;
+  uchar l[4];
+  int4store(l, str->length());
+  cs= str->charset();
+  cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+  cs= str->charset();
+  cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+}
+
+longlong  Item_func_hash::val_int()
+{
+  DBUG_EXECUTE_IF("same_long_unique_hash", return 9;);
+  unsigned_flag= true;
+  ulong nr1= 1,nr2= 4;
+  String * str;
+  for(uint i= 0;i<arg_count;i++)
+  {
+    str = args[i]->val_str();
+    if(args[i]->null_value)
+    {
+      null_value= 1;
+      return 0;
+    }
+   calc_hash_for_unique(nr1, nr2, str);
+  }
+  null_value= 0;
+  return   (longlong)nr1;
+}
+
+
+bool Item_func_hash::fix_length_and_dec()
+{
+  decimals= 0;
+  max_length= 8;
+  return false;
+}
+
 
 
 double Item_func_neg::real_op()
@@ -2276,11 +2300,11 @@ void Item_func_round::fix_arg_decimal()
 {
   if (args[1]->const_item())
   {
-    uint dec= (uint) args[1]->val_uint_from_val_int(DECIMAL_MAX_SCALE);
+    Longlong_hybrid dec= args[1]->to_longlong_hybrid();
     if (args[1]->null_value)
       fix_length_and_dec_double(NOT_FIXED_DEC);
     else
-      fix_length_and_dec_decimal(dec);
+      fix_length_and_dec_decimal(dec.to_uint(DECIMAL_MAX_SCALE));
   }
   else
   {
@@ -2296,8 +2320,9 @@ void Item_func_round::fix_arg_double()
 {
   if (args[1]->const_item())
   {
-    uint dec= (uint) args[1]->val_uint_from_val_int(NOT_FIXED_DEC);
-    fix_length_and_dec_double(args[1]->null_value ? NOT_FIXED_DEC : dec);
+    Longlong_hybrid dec= args[1]->to_longlong_hybrid();
+    fix_length_and_dec_double(args[1]->null_value ? NOT_FIXED_DEC :
+                              dec.to_uint(NOT_FIXED_DEC));
   }
   else
     fix_length_and_dec_double(args[0]->decimals);
@@ -2308,17 +2333,14 @@ void Item_func_round::fix_arg_int()
 {
   if (args[1]->const_item())
   {
-    longlong val1= args[1]->val_int();
-    bool val1_is_negative= val1 < 0 && !args[1]->unsigned_flag;
-    uint decimals_to_set= val1_is_negative ?
-                          0 : (uint) MY_MIN(val1, DECIMAL_MAX_SCALE);
+    Longlong_hybrid val1= args[1]->to_longlong_hybrid();
     if (args[1]->null_value)
       fix_length_and_dec_double(NOT_FIXED_DEC);
-    else if ((!decimals_to_set && truncate) ||
+    else if ((!val1.to_uint(DECIMAL_MAX_SCALE) && truncate) ||
              args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS)
     {
       // Length can increase in some cases: ROUND(9,-1) -> 10
-      int length_can_increase= MY_TEST(!truncate && val1_is_negative);
+      int length_can_increase= MY_TEST(!truncate && val1.neg());
       max_length= args[0]->max_length + length_can_increase;
       // Here we can keep INT_RESULT
       unsigned_flag= args[0]->unsigned_flag;
@@ -2326,7 +2348,7 @@ void Item_func_round::fix_arg_int()
       set_handler(type_handler_long_or_longlong());
     }
     else
-      fix_length_and_dec_decimal(decimals_to_set);
+      fix_length_and_dec_decimal(val1.to_uint(DECIMAL_MAX_SCALE));
   }
   else
     fix_length_and_dec_double(args[0]->decimals);
@@ -2457,7 +2479,7 @@ void Item_func_rand::seed_random(Item *arg)
   THD *thd= current_thd;
   if (WSREP(thd))
   {
-    if (thd->wsrep_exec_mode==REPL_RECV)
+    if (wsrep_thd_is_applying(thd))
       tmp= thd->wsrep_rand;
     else
       tmp= thd->wsrep_rand= (uint32) arg->val_int();
@@ -3169,6 +3191,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	func->maybe_null=1;
       if (with_sum_func_cache)
         with_sum_func_cache->join_with_sum_func(item);
+      func->with_window_func= func->with_window_func ||
+                              item->with_window_func;
       func->with_field= func->with_field || item->with_field;
       func->with_param= func->with_param || item->with_param;
       func->With_subquery_cache::join(item);
@@ -4481,7 +4505,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
     true    failure
 */
 
-static bool
+bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
             Item_result type, CHARSET_INFO *cs,
             bool unsigned_arg)
@@ -6334,17 +6358,17 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
 
   if (m_sp->agg_type() == GROUP_AGGREGATE)
   {
-    List<Item> list;
-    list.empty();
-    for (uint i=0; i < arg_count; i++)
-      list.push_back(*(args+i));
-
     Item_sum_sp *item_sp;
     Query_arena *arena, backup;
     arena= thd->activate_stmt_arena_if_needed(&backup);
 
     if (arg_count)
+    {
+      List<Item> list;
+      for (uint i= 0; i < arg_count; i++)
+        list.push_back(args[i]);
       item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp, list);
+    }
     else
       item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp);
 
@@ -6358,7 +6382,6 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     if (err)
       DBUG_RETURN(TRUE);
 
-    list.empty();
     DBUG_RETURN(FALSE);
   }
 

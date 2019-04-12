@@ -24,9 +24,6 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
-#include "wsrep_mysqld.h"
-#include "wsrep_thd.h"
-
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
 
@@ -782,7 +779,7 @@ void MDL_map::destroy()
 {
   delete m_backup_lock;
 
-  DBUG_ASSERT(!my_atomic_load32(&m_locks.count));
+  DBUG_ASSERT(!lf_hash_size(&m_locks));
   lf_hash_destroy(&m_locks);
 }
 
@@ -1218,10 +1215,9 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
       wsrep_thd_is_BF(ticket->get_ctx()->get_thd(), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
-    Ticket_iterator itg(ticket->get_lock()->m_granted);
 
     DBUG_ASSERT(WSREP_ON);
-    MDL_ticket *waiting, *granted;
+    MDL_ticket *waiting;
     MDL_ticket *prev=NULL;
     bool added= false;
 
@@ -1240,20 +1236,8 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     }
 
     /* Otherwise, insert the ticket at the back of the waiting list. */
-    if (!added) m_list.push_back(ticket);
-
-    while ((granted= itg++))
-    {
-      if (granted->get_ctx() != ticket->get_ctx() &&
-          granted->is_incompatible_when_granted(ticket->get_type()))
-      {
-        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted,
-                                       &ticket->get_lock()->key))
-        {
-          WSREP_DEBUG("MDL victim killed at add_ticket");
-        }
-      }
-    }
+    if (!added)
+      m_list.push_back(ticket);
   }
   else
 #endif /* WITH_WSREP */
@@ -1709,6 +1693,12 @@ MDL_lock::MDL_backup_lock::m_waiting_incompatible[MDL_BACKUP_END]=
   Check if request for the metadata lock can be satisfied given its
   current state.
 
+  New lock request can be satisfied iff:
+  - There are no incompatible types of satisfied requests
+    in other contexts
+  - There are no waiting requests which have higher priority
+    than this request when priority was not ignored.
+
   @param  type_arg             The requested lock type.
   @param  requestor_ctx        The MDL context of the requestor.
   @param  ignore_lock_priority Ignore lock priority.
@@ -1726,78 +1716,72 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
                          MDL_context *requestor_ctx,
                          bool ignore_lock_priority) const
 {
-  bool can_grant= FALSE;
   bitmap_t waiting_incompat_map= incompatible_waiting_types_bitmap()[type_arg];
   bitmap_t granted_incompat_map= incompatible_granted_types_bitmap()[type_arg];
-  bool  wsrep_can_grant= TRUE;
 
-  /*
-    New lock request can be satisfied iff:
-    - There are no incompatible types of satisfied requests
-    in other contexts
-    - There are no waiting requests which have higher priority
-    than this request when priority was not ignored.
-  */
-  if (ignore_lock_priority || !(m_waiting.bitmap() & waiting_incompat_map))
-  {
-    if (! (m_granted.bitmap() & granted_incompat_map))
-      can_grant= TRUE;
-    else
-    {
-      Ticket_iterator it(m_granted);
-      MDL_ticket *ticket;
-
-      /* Check that the incompatible lock belongs to some other context. */
-      while ((ticket= it++))
-      {
-        if (ticket->get_ctx() != requestor_ctx &&
-            ticket->is_incompatible_when_granted(type_arg))
-        {
 #ifdef WITH_WSREP
-          if (wsrep_thd_is_BF(requestor_ctx->get_thd(),false) &&
-              key.mdl_namespace() == MDL_key::BACKUP)
-          {
-            WSREP_DEBUG("global lock granted for BF: %lu %s",
-                        thd_get_thread_id(requestor_ctx->get_thd()),
-                        wsrep_thd_query(requestor_ctx->get_thd()));
-            can_grant = true;
-          }
-          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket, &key))
-          {
-            wsrep_can_grant= FALSE;
-            if (wsrep_log_conflicts)
-            {
-              MDL_lock * lock = ticket->get_lock();
-              WSREP_INFO(
-                         "MDL conflict db=%s table=%s ticket=%d solved by %s",
-                         lock->key.db_name(), lock->key.name(), ticket->get_type(),
-                         "abort" );
-            }
-          }
-          else
-            can_grant= TRUE;
-          /* Continue loop */
-#else
-          break;
-#endif /* WITH_WSREP */
-        }
-      }
-      if ((ticket == NULL) && wsrep_can_grant)
-        can_grant= TRUE; /* Incompatible locks are our own. */
-    }
-  }
-  else
+  /*
+    Approve lock request in BACKUP namespace for BF threads.
+    We should get rid of this code and forbid FTWRL/BACKUP statements
+    when wsrep is active.
+  */
+  if ((wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
+       wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
+      key.mdl_namespace() == MDL_key::BACKUP)
   {
-    if (wsrep_thd_is_BF(requestor_ctx->get_thd(), false) &&
-	key.mdl_namespace() == MDL_key::BACKUP)
+    bool waiting_incompatible= m_waiting.bitmap() & waiting_incompat_map;
+    bool granted_incompatible= m_granted.bitmap() & granted_incompat_map;
+    if (waiting_incompatible || granted_incompatible)
     {
-      WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
+      WSREP_DEBUG("global lock granted for BF%s: %lu %s",
+                  waiting_incompatible ? " (waiting queue)" : "",
                   thd_get_thread_id(requestor_ctx->get_thd()),
                   wsrep_thd_query(requestor_ctx->get_thd()));
-      can_grant = true;
     }
+    return true;
   }
-  return can_grant;
+#endif /* WITH_WSREP */
+
+  if (!ignore_lock_priority && (m_waiting.bitmap() & waiting_incompat_map))
+    return false;
+
+  if (m_granted.bitmap() & granted_incompat_map)
+  {
+    Ticket_iterator it(m_granted);
+    bool can_grant= true;
+
+    /* Check that the incompatible lock belongs to some other context. */
+    while (auto ticket= it++)
+    {
+      if (ticket->get_ctx() != requestor_ctx &&
+          ticket->is_incompatible_when_granted(type_arg))
+      {
+        can_grant= false;
+#ifdef WITH_WSREP
+        /*
+          non WSREP threads must report conflict immediately
+          note: RSU processing wsrep threads, have wsrep_on==OFF
+        */
+        if (WSREP(requestor_ctx->get_thd()) ||
+            requestor_ctx->get_thd()->wsrep_cs().mode() ==
+            wsrep::client_state::m_rsu)
+        {
+          wsrep_handle_mdl_conflict(requestor_ctx, ticket, &key);
+          if (wsrep_log_conflicts)
+          {
+            auto key= ticket->get_key();
+            WSREP_INFO("MDL conflict db=%s table=%s ticket=%d solved by abort",
+                       key->db_name(), key->name(), ticket->get_type());
+          }
+          continue;
+        }
+#endif /* WITH_WSREP */
+        break;
+      }
+    }
+    return can_grant;
+  }
+  return true;
 }
 
 

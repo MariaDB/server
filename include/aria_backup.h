@@ -15,6 +15,8 @@
 
 /* Interfaces for doing backups of Aria tables */
 
+C_MODE_START
+
 typedef struct st_aria_table_capabilities
 {
   my_off_t header_size;
@@ -32,3 +34,4 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
                     uchar *buffer);
 int aria_read_data(File dfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
                    uchar *buffer, size_t *bytes_read);
+C_MODE_END

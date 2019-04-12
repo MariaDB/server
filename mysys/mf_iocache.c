@@ -115,12 +115,15 @@ init_functions(IO_CACHE* info)
     DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
     info->read_function = info->share ? _my_b_cache_read_r : _my_b_cache_read;
     info->write_function = info->share ? _my_b_cache_write_r : _my_b_cache_write;
-    info->myflags&= ~MY_FULL_IO;
     break;
   case TYPE_NOT_SET:
     DBUG_ASSERT(0);
     break;
   }
+  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
+    info->myflags|= MY_FULL_IO;
+  else
+    info->myflags&= ~MY_FULL_IO;
 }
 
 
@@ -297,10 +300,6 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   }
   info->inited=info->aio_result.pending=0;
 #endif
-  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
-    info->myflags|= MY_FULL_IO;
-  else
-    info->myflags&= ~MY_FULL_IO;
   DBUG_RETURN(0);
 }						/* init_io_cache */
 
@@ -469,8 +468,6 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
     {
       info->read_end=info->write_pos;
       info->end_of_file=my_b_tell(info);
-      /* Ensure we will read all data */
-      info->myflags|= MY_FULL_IO;
       /*
         Trigger a new seek only if we have a valid
         file handle.
@@ -485,7 +482,6 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
 	info->seek_not_done=1;
       }
       info->end_of_file = ~(my_off_t) 0;
-      info->myflags&= ~MY_FULL_IO;
     }
     pos=info->request_pos+(seek_offset-info->pos_in_file);
     if (type == WRITE_CACHE)
@@ -500,10 +496,17 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
   {
     /*
       If we change from WRITE_CACHE to READ_CACHE, assume that everything
-      after the current positions should be ignored
+      after the current positions should be ignored. In other cases we
+      update end_of_file as it may have changed since last init.
     */
-    if (info->type == WRITE_CACHE && type == READ_CACHE)
-      info->end_of_file=my_b_tell(info);
+    if (type == READ_CACHE)
+    {
+      if (info->type == WRITE_CACHE)
+	info->end_of_file= my_b_tell(info);
+      else
+	info->end_of_file= mysql_file_seek(info->file, 0L, MY_SEEK_END,
+					   MYF(0));
+    }
     /* flush cache if we want to reuse it */
     if (!clear_cache && my_b_flush_io_cache(info,1))
       DBUG_RETURN(1);

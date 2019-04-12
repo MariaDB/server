@@ -26,9 +26,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define BTR_DEFRAGMENT_MAX_N_PAGES	32
 
 /** stats in btr_defragment */
-extern ulint btr_defragment_compression_failures;
-extern ulint btr_defragment_failures;
-extern ulint btr_defragment_count;
+extern Atomic_counter<ulint> btr_defragment_compression_failures;
+extern Atomic_counter<ulint> btr_defragment_failures;
+extern Atomic_counter<ulint> btr_defragment_count;
 
 /** Item in the work queue for btr_degrament_thread. */
 struct btr_defragment_item_t

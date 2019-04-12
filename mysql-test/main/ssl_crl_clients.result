@@ -1,7 +1,13 @@
 # Test clients with and without CRL lists
 ############ Test mysql ##############
 # Test mysql connecting to a server with a certificate revoked by -crl
+ERROR 2026 (HY000): SSL connection error: certificate revoked
 # Test mysql connecting to a server with a certificate revoked by -crlpath
+ERROR 2026 (HY000): SSL connection error: certificate revoked
 ############ Test mysqladmin ##############
 # Test mysqladmin connecting to a server with a certificate revoked by -crl
+mysqladmin: connect to server at 'localhost' failed
+error: 'SSL connection error: certificate revoked'
 # Test mysqladmin connecting to a server with a certificate revoked by -crlpath
+mysqladmin: connect to server at 'localhost' failed
+error: 'SSL connection error: certificate revoked'

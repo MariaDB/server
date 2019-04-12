@@ -33,3 +33,4 @@ max_data_length	0
 index_length	0
 ALTER TABLE mysql.innodb_index_stats_ RENAME TO mysql.innodb_index_stats;
 DROP TABLE test_ps_fetch_corrupted;
+# restart

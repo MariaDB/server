@@ -192,6 +192,7 @@ static char TMPDIR[FN_REFLEN];
 static char global_subst_from[200];
 static char global_subst_to[200];
 static char *global_subst= NULL;
+static char *read_command_buf= NULL;
 static MEM_ROOT require_file_root;
 static const my_bool my_true= 1;
 static const my_bool my_false= 0;
@@ -1531,6 +1532,7 @@ void free_used_memory()
   free_defaults(default_argv);
   free_root(&require_file_root, MYF(0));
   free_re();
+  my_free(read_command_buf);
 #ifdef _WIN32
   free_tmp_sh_file();
   free_win_path_patterns();
@@ -4018,63 +4020,6 @@ void do_mkdir(struct st_command *command)
 }
 
 
-/*
-   Remove directory recursively.
-*/
-static int rmtree(const char *dir)
-{
-  char path[FN_REFLEN];
-  char sep[]={ FN_LIBCHAR, 0 };
-  int err=0;
-
-  MY_DIR *dir_info= my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
-  if (!dir_info)
-    return 1;
-
-  for (uint i= 0; i < dir_info->number_of_files; i++)
-  {
-    FILEINFO *file= dir_info->dir_entry + i;
-    /* Skip "." and ".." */
-    if (!strcmp(file->name, ".") || !strcmp(file->name, ".."))
-      continue;
-
-    strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
-
-    if (!MY_S_ISDIR(file->mystat->st_mode))
-    {
-      err= my_delete(path, 0);
-#ifdef _WIN32
-      /*
-        On Windows, check and possible reset readonly attribute.
-        my_delete(), or DeleteFile does not remove theses files.
-      */
-      if (err)
-      {
-        DWORD attr= GetFileAttributes(path);
-        if (attr != INVALID_FILE_ATTRIBUTES &&
-           (attr & FILE_ATTRIBUTE_READONLY))
-        {
-          SetFileAttributes(path, attr &~ FILE_ATTRIBUTE_READONLY);
-          err= my_delete(path, 0);
-        }
-      }
-#endif
-    }
-    else
-      err= rmtree(path);
-
-    if(err)
-      break;
-  }
-
-  my_dirend(dir_info);
-
-  if (!err)
-   err= rmdir(dir);
-
-  return err;
-}
-
 
 /*
   SYNOPSIS
@@ -4102,7 +4047,7 @@ void do_rmdir(struct st_command *command)
     DBUG_VOID_RETURN;
 
   DBUG_PRINT("info", ("removing directory: %s", ds_dirname.str));
-  if (rmtree(ds_dirname.str))
+  if (my_rmtree(ds_dirname.str, MYF(0)))
     handle_command_error(command, 1, errno);
 
   dynstr_free(&ds_dirname);
@@ -5963,6 +5908,7 @@ void do_connect(struct st_command *command)
   int read_timeout= 0;
   int write_timeout= 0;
   int connect_timeout= 0;
+  char *csname=0;
   struct st_connection* con_slot;
 
   static DYNAMIC_STRING ds_connection_name;
@@ -6065,6 +6011,11 @@ void do_connect(struct st_command *command)
     {
       connect_timeout= atoi(con_options + sizeof("connect_timeout=")-1);
     }
+    else if (strncasecmp(con_options, "CHARSET=",
+      sizeof("CHARSET=") - 1) == 0)
+    {
+      csname= strdup(con_options + sizeof("CHARSET=") - 1);
+    }
     else
       die("Illegal option to connect: %.*s", 
           (int) (end - con_options), con_options);
@@ -6100,9 +6051,8 @@ void do_connect(struct st_command *command)
 #endif
   if (opt_compress || con_compress)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
-  mysql_options(con_slot->mysql, MYSQL_OPT_LOCAL_INFILE, 0);
   mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_NAME,
-                charset_info->csname);
+                csname?csname: charset_info->csname);
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
@@ -6184,6 +6134,11 @@ void do_connect(struct st_command *command)
     if (con_slot == next_con)
       next_con++; /* if we used the next_con slot, advance the pointer */
   }
+  else // Failed to connect. Free the memory.
+  {
+    mysql_close(con_slot->mysql);
+    con_slot->mysql= NULL;
+  }
 
   dynstr_free(&ds_connection_name);
   dynstr_free(&ds_host);
@@ -6194,6 +6149,7 @@ void do_connect(struct st_command *command)
   dynstr_free(&ds_sock);
   dynstr_free(&ds_options);
   dynstr_free(&ds_default_auth);
+  free(csname);
   DBUG_VOID_RETURN;
 }
 
@@ -6598,7 +6554,6 @@ static inline bool is_escape_char(char c, char in_string)
 
 */
 
-static char *read_command_buf= NULL;
 static size_t read_command_buflen= 0;
 static const size_t max_multibyte_length= 6;
 
@@ -8312,6 +8267,12 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   DBUG_ENTER("run_query_stmt");
   DBUG_PRINT("query", ("'%-.60s'", query));
 
+  if (!mysql)
+  {
+    handle_no_active_connection(command, cn, ds);
+    DBUG_VOID_RETURN;
+  }
+
   /*
     Init a new stmt if it's not already one created for this connection
   */
@@ -8849,18 +8810,56 @@ void init_re(void)
   */
   const char *ps_re_str =
     "^("
-    "[[:space:]]*REPLACE[[:space:]]|"
-    "[[:space:]]*INSERT[[:space:]]|"
-    "[[:space:]]*UPDATE[[:space:]]|"
-    "[[:space:]]*DELETE[[:space:]]|"
-    "[[:space:]]*SELECT[[:space:]]|"
+    "[[:space:]]*ALTER[[:space:]]+SEQUENCE[[:space:]]|"
+    "[[:space:]]*ALTER[[:space:]]+TABLE[[:space:]]|"
+    "[[:space:]]*ALTER[[:space:]]+USER[[:space:]]|"
+    "[[:space:]]*ANALYZE[[:space:]]|"
+    "[[:space:]]*ASSIGN[[:space:]]|"
+    //"[[:space:]]*CALL[[:space:]]|" // XXX run_query_stmt doesn't read multiple result sets
+    "[[:space:]]*CHANGE[[:space:]]|"
+    "[[:space:]]*CHECKSUM[[:space:]]|"
+    "[[:space:]]*COMMIT[[:space:]]|"
+    "[[:space:]]*COMPOUND[[:space:]]|"
+    "[[:space:]]*CREATE[[:space:]]+DATABASE[[:space:]]|"
+    "[[:space:]]*CREATE[[:space:]]+INDEX[[:space:]]|"
+    "[[:space:]]*CREATE[[:space:]]+ROLE[[:space:]]|"
+    "[[:space:]]*CREATE[[:space:]]+SEQUENCE[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+TABLE[[:space:]]|"
+    "[[:space:]]*CREATE[[:space:]]+USER[[:space:]]|"
+    "[[:space:]]*CREATE[[:space:]]+VIEW[[:space:]]|"
+    "[[:space:]]*DELETE[[:space:]]|"
     "[[:space:]]*DO[[:space:]]|"
+    "[[:space:]]*DROP[[:space:]]+DATABASE[[:space:]]|"
+    "[[:space:]]*DROP[[:space:]]+INDEX[[:space:]]|"
+    "[[:space:]]*DROP[[:space:]]+ROLE[[:space:]]|"
+    "[[:space:]]*DROP[[:space:]]+SEQUENCE[[:space:]]|"
+    "[[:space:]]*DROP[[:space:]]+TABLE[[:space:]]|"
+    "[[:space:]]*DROP[[:space:]]+USER[[:space:]]|"
+    "[[:space:]]*DROP[[:space:]]+VIEW[[:space:]]|"
+    "[[:space:]]*FLUSH[[:space:]]|"
+    "[[:space:]]*GRANT[[:space:]]|"
     "[[:space:]]*HANDLER[[:space:]]+.*[[:space:]]+READ[[:space:]]|"
+    "[[:space:]]*INSERT[[:space:]]|"
+    "[[:space:]]*INSTALL[[:space:]]+|"
+    "[[:space:]]*KILL[[:space:]]|"
+    "[[:space:]]*OPTIMIZE[[:space:]]|"
+    "[[:space:]]*PRELOAD[[:space:]]|"
+    "[[:space:]]*RENAME[[:space:]]+TABLE[[:space:]]|"
+    "[[:space:]]*RENAME[[:space:]]+USER[[:space:]]|"
+    "[[:space:]]*REPAIR[[:space:]]|"
+    "[[:space:]]*REPLACE[[:space:]]|"
+    "[[:space:]]*RESET[[:space:]]|"
+    "[[:space:]]*REVOKE[[:space:]]|"
+    "[[:space:]]*ROLLBACK[[:space:]]|"
+    "[[:space:]]*SELECT[[:space:]]|"
     "[[:space:]]*SET[[:space:]]+OPTION[[:space:]]|"
-    "[[:space:]]*DELETE[[:space:]]+MULTI[[:space:]]|"
-    "[[:space:]]*UPDATE[[:space:]]+MULTI[[:space:]]|"
-    "[[:space:]]*INSERT[[:space:]]+SELECT[[:space:]])";
+    "[[:space:]]*SHOW[[:space:]]|"
+    "[[:space:]]*SHUTDOWN[[:space:]]|"
+    "[[:space:]]*SLAVE[[:space:]]|"
+    "[[:space:]]*TRUNCATE[[:space:]]|"
+    "[[:space:]]*UNINSTALL[[:space:]]+|"
+    "[[:space:]]*UPDATE[[:space:]]"
+    ")";
 
   /*
     Filter for queries that can be run using the
@@ -9284,7 +9283,6 @@ int main(int argc, char **argv)
                   (void *) &opt_connect_timeout);
   if (opt_compress)
     mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
-  mysql_options(con->mysql, MYSQL_OPT_LOCAL_INFILE, 0);
   mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
                 charset_info->csname);
   if (opt_charsets_dir)

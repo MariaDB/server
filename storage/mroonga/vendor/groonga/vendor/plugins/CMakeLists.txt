@@ -15,11 +15,12 @@
 
 file(GLOB
   PLUGIN_CMAKE_LISTS_LIST
+  RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeLists.txt")
 if(PLUGIN_CMAKE_LISTS_LIST)
   foreach(PLUGIN_CMAKE_LISTS "${PLUGIN_CMAKE_LISTS_LIST}")
     string(REGEX REPLACE
-      "(^${CMAKE_CURRENT_SOURCE_DIR}/+|/+CMakeLists\\.txt$)" ""
+      "(/+CMakeLists\\.txt$)" ""
       PLUGIN_DIR
       "${PLUGIN_CMAKE_LISTS}")
     add_subdirectory("${PLUGIN_DIR}")

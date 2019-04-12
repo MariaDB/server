@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -654,9 +654,19 @@ static bool srv_undo_tablespace_open(const char* name, ulint space_id,
 
 	fil_set_max_space_id_if_bigger(space_id);
 
-	fil_space_t* space = fil_space_create(
-		undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
-		FIL_TYPE_TABLESPACE, NULL);
+	ulint fsp_flags;
+	switch (srv_checksum_algorithm) {
+	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+		fsp_flags = (FSP_FLAGS_FCRC32_MASK_MARKER
+			     | FSP_FLAGS_FCRC32_PAGE_SSIZE());
+		break;
+	default:
+		fsp_flags = FSP_FLAGS_PAGE_SSIZE();
+	}
+
+	fil_space_t* space = fil_space_create(undo_name, space_id, fsp_flags,
+					      FIL_TYPE_TABLESPACE, NULL);
 
 	ut_a(fil_validate());
 	ut_a(space);
@@ -1626,6 +1636,10 @@ dberr_t srv_start(bool create_new_db)
 				break;
 			}
 
+			if (stat_info.type != OS_FILE_TYPE_FILE) {
+				break;
+			}
+
 			if (!srv_file_check_mode(logfilename)) {
 				return(srv_init_abort(DB_ERROR));
 			}
@@ -1883,7 +1897,7 @@ files_checked:
 				/* New data file(s) were added */
 				mtr.start();
 				buf_block_t* block = buf_page_get(
-					page_id_t(0, 0), univ_page_size,
+					page_id_t(0, 0), 0,
 					RW_SX_LATCH, &mtr);
 				ulint size = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
@@ -1907,8 +1921,7 @@ files_checked:
 #ifdef UNIV_DEBUG
 		{
 			mtr.start();
-			buf_block_t* block = buf_page_get(page_id_t(0, 0),
-							  univ_page_size,
+			buf_block_t* block = buf_page_get(page_id_t(0, 0), 0,
 							  RW_S_LATCH, &mtr);
 			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
 					       + block->frame)
@@ -2071,24 +2084,24 @@ files_checked:
 			block = buf_page_get(
 				page_id_t(IBUF_SPACE_ID,
 					  FSP_IBUF_HEADER_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			/* Already MySQL 3.23.53 initialized
 			FSP_IBUF_TREE_ROOT_PAGE_NO to
 			FIL_PAGE_INDEX. No need to reset that one. */
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_TRX_SYS,
 					     &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE,
 					  FSP_FIRST_RSEG_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			block = buf_page_get(
 				page_id_t(TRX_SYS_SPACE, FSP_DICT_HDR_PAGE_NO),
-				univ_page_size, RW_X_LATCH, &mtr);
+				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			mtr.commit();
 		}
@@ -2123,19 +2136,8 @@ files_checked:
 			every table in the InnoDB data dictionary that has
 			an .ibd file.
 
-			We also determine the maximum tablespace id used.
-
-			The 'validate' flag indicates that when a tablespace
-			is opened, we also read the header page and validate
-			the contents to the data dictionary. This is time
-			consuming, especially for databases with lots of ibd
-			files.  So only do it after a crash and not forcing
-			recovery.  Open rw transactions at this point is not
-			a good reason to validate. */
-			bool validate = recv_needed_recovery
-				&& srv_force_recovery == 0;
-
-			dict_check_tablespaces_and_store_max_id(validate);
+			We also determine the maximum tablespace id used. */
+			dict_check_tablespaces_and_store_max_id();
 		}
 
 		if (err != DB_SUCCESS) {
@@ -2186,6 +2188,7 @@ files_checked:
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
 		lock_sys.timeout_thread_active = true;
 
+		DBUG_EXECUTE_IF("innodb_skip_monitors", goto skip_monitors;);
 		/* Create the thread which warns of long semaphore waits */
 		srv_error_monitor_active = true;
 		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
@@ -2202,6 +2205,9 @@ files_checked:
 		srv_start_state |= SRV_START_STATE_LOCK_SYS
 			| SRV_START_STATE_MONITOR;
 
+#ifndef DBUG_OFF
+skip_monitors:
+#endif
 		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
 		      || !purge_sys.enabled());
 
@@ -2328,7 +2334,7 @@ files_checked:
 		  Create the dump/load thread only when not running with
 		  --wsrep-recover.
 		*/
-		if (!wsrep_recovery) {
+		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 
 		/* Create the buffer pool dump/load thread */
@@ -2416,9 +2422,7 @@ void srv_shutdown_bg_undo_sources()
 /** Shut down InnoDB. */
 void innodb_shutdown()
 {
-	ut_ad(!my_atomic_loadptr_explicit(reinterpret_cast<void**>
-					  (&srv_running),
-					  MY_MEMORY_ORDER_RELAXED));
+	ut_ad(!srv_running.load(std::memory_order_relaxed));
 	ut_ad(!srv_undo_sources);
 
 	switch (srv_operation) {

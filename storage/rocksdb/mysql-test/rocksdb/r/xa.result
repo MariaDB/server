@@ -18,6 +18,7 @@ XA PREPARE 'xa2';
 connection default;
 SELECT * FROM t1;
 a
+# restart
 connect  con3,localhost,root,,test;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data

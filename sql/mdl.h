@@ -553,6 +553,16 @@ public:
     DBUG_ASSERT(ticket == NULL);
     type= type_arg;
   }
+  void move_from(MDL_request &from)
+  {
+    type= from.type;
+    duration= from.duration;
+    ticket= from.ticket;
+    next_in_list= from.next_in_list;
+    prev_in_list= from.prev_in_list;
+    key.mdl_key_init(&from.key);
+    from.ticket=  NULL; // that's what "move" means
+  }
 
   /**
     Is this a request for a lock which allow data to be updated?

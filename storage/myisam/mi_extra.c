@@ -263,6 +263,8 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     share->deleting= TRUE;
     share->global_changed= FALSE;     /* force writing changed flag */
     _mi_mark_file_changed(info);
+    if (share->temporary)
+      break;
     /* fall through */
   case HA_EXTRA_PREPARE_FOR_RENAME:
     DBUG_ASSERT(!share->temporary);
@@ -421,6 +423,16 @@ void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t func,
 {
   info->index_cond_func= func;
   info->index_cond_func_arg= func_arg;
+}
+
+void mi_set_rowid_filter_func(MI_INFO *info,
+                              rowid_filter_func_t check_func,
+                              rowid_filter_func_t is_active_func,
+                              void *func_arg)
+{
+  info->rowid_filter_func= check_func;
+  info->rowid_filter_is_active_func= is_active_func;
+  info->rowid_filter_func_arg= func_arg;
 }
 
 /*

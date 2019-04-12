@@ -63,4 +63,7 @@ connection default;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 CREATE TABLE u(a SERIAL) ENGINE=INNODB;
 FLUSH TABLES;
+# restart
+# restart
+# restart
 DROP TABLE t,u;

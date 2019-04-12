@@ -643,6 +643,9 @@ ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
                  MODIFY authentication_string TEXT NOT NULL;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user ADD password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL after password_expired;
+ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
+ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL;
 ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
@@ -667,35 +670,19 @@ SHOW WARNINGS;
 # Convering the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
 
-# fix bad data when upgrading from unfixed InnoDB (MDEV-13360)
-set @str="delete from innodb_index_stats where length(table_name) > 64";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
-set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
-prepare stmt from @str;
-execute stmt;
+DELIMITER //
+if @have_innodb then
+  # fix bad data when upgrading from unfixed InnoDB (MDEV-13360)
+  delete from innodb_index_stats where length(table_name) > 64;
+  delete from innodb_table_stats where length(table_name) > 64;
 
-# update table_name and timestamp fields in the innodb stat tables
-set @str="alter table mysql.innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199)";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
+  # update table_name and timestamp fields in the innodb stat tables
+  alter table innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
+  alter table innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
 
-set @str="alter table mysql.innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199)";
-set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
-prepare stmt from @str;
-execute stmt;
-
-set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
-prepare stmt from @str;
-execute stmt;
-
-SET @innodb_index_stats_fk= (select count(*) from information_schema.referential_constraints where constraint_schema='mysql' and table_name = 'innodb_index_stats' and referenced_table_name = 'innodb_table_stats' and constraint_name = 'innodb_index_stats_ibfk_1');
-SET @str=IF(@innodb_index_stats_fk > 0 and @have_innodb > 0, "ALTER TABLE mysql.innodb_index_stats DROP FOREIGN KEY `innodb_index_stats_ibfk_1`", "SET @dummy = 0");
-PREPARE stmt FROM @str;
-EXECUTE stmt;
-DROP PREPARE stmt; 
+  alter table innodb_index_stats drop foreign key if exists innodb_index_stats_ibfk_1;
+end if //
+DELIMITER ;
 
 # MDEV-4332 longer user names
 alter table user         modify User         char(80)  binary not null default '';
@@ -760,7 +747,7 @@ ALTER TABLE column_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
 
 DELIMITER //
-IF 'BASE TABLE' = (select table_type from information_schema.tables where table_name='user') THEN
+IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN
   CREATE TABLE IF NOT EXISTS global_priv (Host char(60) binary DEFAULT '', User char(80) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
   SELECT Host, User, JSON_COMPACT(JSON_OBJECT('access',
                              1*('Y'=Select_priv)+
@@ -803,7 +790,10 @@ IF 'BASE TABLE' = (select table_type from information_schema.tables where table_
                     'max_user_connections', max_user_connections,
                     'max_statement_time', max_statement_time,
                     'plugin', if(plugin>'',plugin,if(length(password)=16,'mysql_old_password','mysql_native_password')),
-                    'authentication_string', if(plugin>'',authentication_string,password),
+                    'authentication_string', if(plugin>'' and authentication_string>'',authentication_string,password),
+                    'password_last_changed', if(password_expired='Y', 0, UNIX_TIMESTAMP(password_last_changed)),
+                    'password_lifetime', ifnull(password_lifetime, -1),
+                    'account_locked', 'Y'=account_locked,
                     'default_role', default_role,
                     'is_role', 'Y'=is_role)) as Priv
   FROM user;

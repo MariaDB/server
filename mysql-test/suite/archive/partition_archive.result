@@ -30,7 +30,7 @@ partition by list (a)
 (partition p0 values in (1), partition p1 values in (2));
 insert into t1 values (1), (2);
 create index inx on t1 (a);
-ERROR HY000: Can't create table `db99`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Can't create table `db99`.`t1` (errno: 140 "Wrong create options")
 alter table t1 add partition (partition p2 values in (3));
 alter table t1 drop partition p2;
 use test;
@@ -141,7 +141,7 @@ t1	CREATE TABLE `t1` (
  PARTITION BY HASH (`fld1`)
 PARTITIONS 5
 ALTER TABLE t1 ENGINE= ARCHIVE;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 #After the patch, the ENGINE is correctly displayed as MyISAM
 SHOW CREATE TABLE t1;
 Table	Create Table

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -62,7 +62,11 @@
 #include <io.h>
 #endif
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
 #include "wsrep_thd.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
+
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -846,12 +850,16 @@ void close_thread_tables(THD *thd)
   DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||
               (thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
 
-  /* Detach MERGE children after every statement. Even under LOCK TABLES. */
   for (table= thd->open_tables; table; table= table->next)
   {
+    if (table->update_handler)
+      table->delete_update_handler();
+
     /* Table might be in use by some outer statement. */
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
+
+    /* Detach MERGE children after every statement. Even under LOCK TABLES. */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES ||
         table->query_id == thd->query_id)
     {
@@ -3575,6 +3583,29 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
         goto end;
     }
   }
+
+  if (!tables->derived && is_infoschema_db(&tables->db))
+  {
+    /*
+      Check whether the information schema contains a table
+      whose name is tables->schema_table_name
+    */
+    ST_SCHEMA_TABLE *schema_table;
+    schema_table= find_schema_table(thd, &tables->schema_table_name);
+    if (!schema_table ||
+        (schema_table->hidden &&
+         ((sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0 ||
+          /*
+            this check is used for show columns|keys from I_S hidden table
+          */
+          lex->sql_command == SQLCOM_SHOW_FIELDS ||
+          lex->sql_command == SQLCOM_SHOW_KEYS)))
+    {
+      my_error(ER_UNKNOWN_TABLE, MYF(0),
+               tables->schema_table_name.str, INFORMATION_SCHEMA_NAME.str);
+      DBUG_RETURN(1);
+    }
+  }
   /*
     If this TABLE_LIST object is a placeholder for an information_schema
     table, create a temporary table to represent the information_schema
@@ -4410,13 +4441,14 @@ restart:
     }
   }
 
+#ifdef WITH_WSREP
   if (WSREP_ON                                         &&
       wsrep_replicate_myisam                           &&
       (*start)                                         &&
       (*start)->table                                  &&
       (*start)->table->file->ht == myisam_hton         &&
-      wsrep_thd_exec_mode(thd) == LOCAL_STATE          &&
-      !is_stat_table(&(*start)->db, &(*start)->alias)    &&
+      wsrep_thd_is_local(thd)                          &&
+      !is_stat_table(&(*start)->db, &(*start)->alias)  &&
       thd->get_command() != COM_STMT_PREPARE           &&
       ((thd->lex->sql_command == SQLCOM_INSERT         ||
         thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
@@ -4427,8 +4459,12 @@ restart:
         thd->lex->sql_command == SQLCOM_LOAD           ||
         thd->lex->sql_command == SQLCOM_DELETE)))
   {
-    WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
+      wsrep_before_rollback(thd, true);
+      wsrep_after_rollback(thd, true);
+      wsrep_after_statement(thd);
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
+#endif /* WITH_WSREP */
 
 error:
 #ifdef WITH_WSREP
@@ -8426,12 +8462,12 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   if (!update && table_arg->default_field &&
       table_arg->update_default_fields(0, ignore_errors))
     goto err;
+  if (table_arg->versioned() && !only_unvers_fields)
+    table_arg->vers_update_fields();
   /* Update virtual fields */
   if (table_arg->vfield &&
       table_arg->update_virtual_fields(table_arg->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
-  if (table_arg->versioned() && !only_unvers_fields)
-    table_arg->vers_update_fields();
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   DBUG_RETURN(thd->is_error());
@@ -8685,11 +8721,11 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     goto err;
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;
+  if (table->versioned())
+    table->vers_update_fields();
   if (table->vfield &&
       table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
-  if (table->versioned())
-    table->vers_update_fields();
   thd->abort_on_warning= abort_on_warning_saved;
   DBUG_RETURN(thd->is_error());
 

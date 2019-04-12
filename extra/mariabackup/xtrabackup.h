@@ -28,11 +28,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 struct xb_delta_info_t
 {
-	xb_delta_info_t(page_size_t page_size, ulint space_id)
-	: page_size(page_size), space_id(space_id) {}
+	xb_delta_info_t(ulint page_size, ulint zip_size, ulint space_id)
+	: page_size(page_size), zip_size(zip_size), space_id(space_id) {}
 
-	page_size_t	page_size;
-	ulint		space_id;
+	ulint	page_size;
+	ulint	zip_size;
+	ulint	space_id;
 };
 
 /* value of the --incremental option */
@@ -71,7 +72,7 @@ extern char		*xtrabackup_databases_file;
 extern char		*xtrabackup_tables_exclude;
 extern char		*xtrabackup_databases_exclude;
 
-extern ibool		xtrabackup_compress;
+extern uint		xtrabackup_compress;
 
 extern my_bool		xtrabackup_backup;
 extern my_bool		xtrabackup_prepare;
@@ -86,14 +87,10 @@ extern int		xtrabackup_parallel;
 
 extern my_bool		xb_close_files;
 extern const char	*xtrabackup_compress_alg;
-#ifdef __cplusplus
-extern "C"{
-#endif
-  extern uint		xtrabackup_compress_threads;
-  extern ulonglong	xtrabackup_compress_chunk_size;
-#ifdef __cplusplus
-}
-#endif
+
+extern uint		xtrabackup_compress_threads;
+extern ulonglong	xtrabackup_compress_chunk_size;
+
 extern my_bool		xtrabackup_export;
 extern char		*xtrabackup_extra_lsndir;
 extern ulint		xtrabackup_log_copy_interval;
@@ -111,6 +108,8 @@ extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
 extern my_bool		opt_decompress;
 extern my_bool		opt_remove_original;
+extern my_bool		opt_extended_validation;
+extern my_bool		opt_encrypted_backup;
 extern my_bool		opt_lock_ddl_per_table;
 
 extern char		*opt_incremental_history_name;
@@ -142,7 +141,7 @@ extern uint		opt_safe_slave_backup_timeout;
 
 extern const char	*opt_history;
 
-enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_LOCKLESS, BINLOG_INFO_ON,
+enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
 
 extern ulong opt_binlog_info;

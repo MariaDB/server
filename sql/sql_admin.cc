@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2018, MariaDB
+   Copyright (c) 2011, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -452,8 +452,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
-  thd->prepare_logs_for_admin_command();
-
   field_list.push_back(item= new (thd->mem_root)
                        Item_empty_string(thd, "Table",
                                          NAME_CHAR_LEN * 2), thd->mem_root);
@@ -568,7 +566,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           if (!table->table->part_info)
           {
             my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
-            goto err2;
+            thd->resume_subsequent_commits(suspended_wfc);
+            DBUG_RETURN(TRUE);
           }
           if (set_part_state(alter_info, table->table->part_info, PART_ADMIN))
           {
@@ -1221,9 +1220,6 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-err2:
-#endif
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }
@@ -1402,8 +1398,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log&= !MY_TEST(thd->variables.log_slow_disabled_statements &
-                                  LOG_SLOW_DISABLE_ADMIN);
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,

@@ -119,6 +119,7 @@ BEGIN;
 INSERT INTO t1 SELECT * from t2;
 BEGIN;
 UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e;
+# restart
 UPDATE t1 SET a=@f,b=@f,c=@f,d=@f,e=@f,f=@f,g=@f,h=@f,i=@f,j=@f,
 k=@f,l=@f,m=@f,n=@f,o=@f,p=@f,q=@f,r=@f,s=@f,t=@f,u=@f,
 v=@f,w=@f,x=@b,y=@f,z=@f,

@@ -10,6 +10,7 @@ t	CREATE TABLE `t` (
   `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `a` (`a`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1
+# restart
 SELECT * FROM t;
 ERROR 42S02: Table 'test.t' doesn't exist in engine
 TRUNCATE TABLE t;

@@ -150,13 +150,11 @@ a	b	c
 2	20	200
 1	100	100
 1	10	100
-explain select * from foo where a>=4;
+explain select * from foo where a>=5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	foo	range	a	a	4	NULL	NULL;	Using where
-select * from foo where a>=4;
+select * from foo where a>=5;
 a	b	c
-4	40	400
-4	400	400
 5	50	500
 5	500	500
 6	60	600

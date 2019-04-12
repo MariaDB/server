@@ -1,21 +1,3 @@
-#ifndef MESSAGE_INCLUDED
-#define MESSAGE_INCLUDED
-/* Copyright (c) 2008, 2009 Sun Microsystems, Inc.
-   Use is subject to license terms.
-
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; version 2 of the License.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
-
 /*
   To change or add messages mysqld writes to the Windows error log, run
    mc.exe message.mc
@@ -24,10 +6,8 @@
   mc.exe can be installed with Windows SDK, some Visual Studio distributions 
   do not include it.
 */
-
-
 //
-//  Values are 32 bit values layed out as follows:
+//  Values are 32 bit values laid out as follows:
 //
 //   3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1
 //   1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
@@ -67,11 +47,8 @@
 //
 // MessageText:
 //
-//  %1For more information, see Help and Support Center at http://www.mysql.com.
-//  
-//  
+// %1
+// 
 //
 #define MSG_DEFAULT                      0xC0000064L
-
-#endif /* MESSAGE_INCLUDED */
 

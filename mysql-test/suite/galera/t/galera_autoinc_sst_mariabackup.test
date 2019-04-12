@@ -5,8 +5,11 @@
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 --source include/have_mariabackup.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
 
 --connection node_1
 --let $connection_id = `SELECT CONNECTION_ID()`
@@ -29,11 +32,11 @@ END|
 DELIMITER ;|
 
 --send CALL p1();
---sleep 2
+--sleep 1
 
 --connection node_2
 --send CALL p1();
---sleep 2
+--sleep 1
 
 # Kill and restart node #2
 
@@ -41,10 +44,8 @@ DELIMITER ;|
 --connection node_2a
 --source include/kill_galera.inc
 
---sleep 10
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 --source include/start_mysqld.inc
---sleep 25
---source include/wait_until_connected_again.inc
 
 INSERT INTO t1 VALUES (DEFAULT);
 
@@ -55,7 +56,6 @@ INSERT INTO t1 VALUES (DEFAULT);
 --disable_query_log
 --eval KILL CONNECTION $connection_id
 --enable_query_log
-
 INSERT INTO t1 VALUES (DEFAULT);
 
 --connection node_1
@@ -67,8 +67,6 @@ INSERT INTO t1 VALUES (DEFAULT);
 # CR_SERVER_LOST
 --error 2013,2006
 --reap
-
---sleep 10
 
 # Confirm that the count is correct and that the cluster is intact
 
@@ -94,3 +92,7 @@ DROP TABLE t1;
 
 CALL mtr.add_suppression("gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
 CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
+
+--let $node_1=node_1a
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc

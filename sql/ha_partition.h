@@ -412,6 +412,22 @@ public:
 
   virtual void return_record_by_parent();
 
+  virtual bool vers_can_native(THD *thd)
+  {
+    if (thd->lex->part_info)
+    {
+      // PARTITION BY SYSTEM_TIME is not supported for now
+      return thd->lex->part_info->part_type != VERSIONING_PARTITION;
+    }
+    else
+    {
+      bool can= true;
+      for (uint i= 0; i < m_tot_parts && can; i++)
+        can= can && m_file[i]->vers_can_native(thd);
+      return can;
+    }
+  }
+
   /*
     -------------------------------------------------------------------------
     MODULE create/delete handler object
@@ -911,6 +927,10 @@ public:
     Called in test_quick_select to determine if indexes should be used.
   */
   virtual double scan_time();
+
+  virtual double key_scan_time(uint inx);
+
+  virtual double keyread_time(uint inx, uint ranges, ha_rows rows);
 
   /*
     The next method will never be called if you do not implement indexes.

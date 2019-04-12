@@ -518,6 +518,12 @@ public:
     empty();
   }
   T *elem(uint n) { return (T*) base_list::elem(n); }
+  // Create a new list with one element
+  static List<T> *make(MEM_ROOT *mem_root, T *first)
+  {
+    List<T> *res= new (mem_root) List<T>;
+    return res == NULL || res->push_back(first, mem_root) ? NULL : res;
+  }
 };
 
 

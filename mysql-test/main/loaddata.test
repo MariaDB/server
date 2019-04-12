@@ -677,6 +677,51 @@ LOAD DATA INFILE '../../std_data/loaddata/mdev-11631.txt' INTO TABLE t1 CHARACTE
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-15744: Assertion `derived->table' failed in mysql_derived_merge_for_insert
+--echo #
+
+create table t1 (a int, b int);
+CREATE OR REPLACE VIEW t2 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t2;
+LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE v2
+     FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n';
+select * from v2;
+select * from t2;
+DROP VIEW IF EXISTS v2,t2;
+DROP TABLE IF EXISTS t1;
+
+--echo #
+--echo # MDEV-15950: LOAD DATA INTO compex_view crashed
+--echo #
+create table t1 (a int, b int);
+create table t0 (x int, y int);
+CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1,t0;
+CREATE VIEW v2 AS SELECT * FROM v1;
+
+--error ER_WRONG_USAGE
+LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE v1
+FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n';
+
+--error ER_WRONG_USAGE
+LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE v2
+FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n';
+
+DROP VIEW IF EXISTS v2,v1;
+DROP TABLE IF EXISTS t1,t0;
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (a), UNIQUE(b));
+INSERT INTO t1 VALUES (1,1);
+CREATE TABLE t2 (c INT);
+CREATE VIEW v AS SELECT t1.* FROM t1 JOIN t2;
+SELECT a, b INTO OUTFILE '15645.data' FROM t1;
+--error ER_WRONG_USAGE
+LOAD DATA INFILE '15645.data' IGNORE INTO TABLE v (a,b);
+--error ER_WRONG_USAGE
+LOAD DATA INFILE '15645.data' REPLACE INTO TABLE v (a,b);
+drop table t1,t2;
+drop view v;
+
 
 --echo #
 --echo # MDEV-15497 Wrong empty value in a GEOMETRY column on LOAD DATA

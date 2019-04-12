@@ -877,3 +877,12 @@ UNLOCK TABLES;
 
 # Cleanup
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-18982: INSERT using explicit patition pruning with column list
+--echo #
+
+create table t1 (a int) partition by hash(a);
+insert into t1 partition (p0) (a) values (1);
+select * from t1;
+drop table t1;

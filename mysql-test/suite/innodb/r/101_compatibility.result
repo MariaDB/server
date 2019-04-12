@@ -26,6 +26,7 @@ INSERT INTO tdd VALUES(1);
 INSERT INTO tp VALUES(1);
 INSERT INTO ti VALUES(1);
 # Kill the server
+# restart
 CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
 Table	Op	Msg_type	Msg_text
 test.tr	check	status	OK
@@ -35,6 +36,7 @@ test.tz	check	status	OK
 test.tdd	check	status	OK
 test.tp	check	status	OK
 test.ti	check	status	OK
+# restart: --innodb-read-only
 CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
 Table	Op	Msg_type	Msg_text
 test.tr	check	status	OK
@@ -44,4 +46,5 @@ test.tz	check	status	OK
 test.tdd	check	status	OK
 test.tp	check	status	OK
 test.ti	check	status	OK
+# restart
 DROP TABLE tr,tc,td,tz,tdd,tp,ti;

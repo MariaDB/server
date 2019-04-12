@@ -26,21 +26,29 @@ SET GLOBAL innodb_checksum_algorithm = 'strict_none';
 SELECT @@global.innodb_checksum_algorithm;
 @@global.innodb_checksum_algorithm
 strict_none
+SET GLOBAL innodb_checksum_algorithm = 'full_crc32';
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+full_crc32
+SET GLOBAL innodb_checksum_algorithm = 'strict_full_crc32';
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_full_crc32
 SET GLOBAL innodb_checksum_algorithm = '';
 ERROR 42000: Variable 'innodb_checksum_algorithm' can't be set to the value of ''
 SELECT @@global.innodb_checksum_algorithm;
 @@global.innodb_checksum_algorithm
-strict_none
+strict_full_crc32
 SET GLOBAL innodb_checksum_algorithm = 'foobar';
 ERROR 42000: Variable 'innodb_checksum_algorithm' can't be set to the value of 'foobar'
 SELECT @@global.innodb_checksum_algorithm;
 @@global.innodb_checksum_algorithm
-strict_none
+strict_full_crc32
 SET GLOBAL innodb_checksum_algorithm = 123;
 ERROR 42000: Variable 'innodb_checksum_algorithm' can't be set to the value of '123'
 SELECT @@global.innodb_checksum_algorithm;
 @@global.innodb_checksum_algorithm
-strict_none
+strict_full_crc32
 SET GLOBAL innodb_checksum_algorithm = @orig;
 SELECT @@global.innodb_checksum_algorithm;
 @@global.innodb_checksum_algorithm

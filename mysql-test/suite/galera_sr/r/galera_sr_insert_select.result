@@ -1,0 +1,18 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 CHAR(255)) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) SELECT REPEAT('a', 255) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+connection node_2;
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+connection node_1;
+COMMIT;
+connection node_2;
+connection node_1;
+DROP TABLE t1;
+DROP TABLE ten;

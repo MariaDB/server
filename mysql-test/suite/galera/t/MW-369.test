@@ -24,7 +24,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
---source suite/galera/include/galera_have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
 
 CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
 CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
@@ -243,4 +243,102 @@ SELECT * FROM c;
 
 DROP TABLE c;
 DROP TABLE p;
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+#
+# Test F Outline:
+# ===============
+#
+# Test two concurrent INSERTs on the child table.
+#
+# The pf table will originally have row (1)
+# The cf table will originally be empty
+#
+# A new row (10, 1) pointing to parent row (1) is inserted from
+# connection node_2. A transaction which tries to INSERT another child
+# row (20, 1), pointing to the same parent, is run from connection node_1.
+#
+# Expected Outcome:
+# =================
+# Both INSERTs should succeed since they don't modify the common parent
+# key.
+#
+# At the end of the test:
+#    parent table should have row (1)
+#    child table should have rows (10, 1), (20, 1)
+
+--connection node_1
+
+CREATE TABLE pf (f1 INTEGER PRIMARY KEY) ENGINE=INNODB;
+CREATE TABLE cf (
+  f1 INTEGER PRIMARY KEY,
+  p_id INTEGER,
+  CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES pf (f1)
+);
+
+INSERT INTO pf VALUES (1);
+
+# This is run on node1:
+--let $mw_369_parent_query = INSERT INTO cf (f1, p_id) VALUES (10, 1)
+# This is run on node2:
+--let $mw_369_child_query = INSERT INTO cf (f1, p_id) VALUES (20, 1)
+--source MW-369.inc
+
+--connection node_1
+--reap
+
+--connection node_2
+SELECT * FROM pf;
+SELECT * FROM cf;
+
+DROP TABLE cf;
+DROP TABLE pf;
+
+#
+# Test G Outline:
+# ===============
+#
+# This test is similar to test B where a existing
+# child table row is updated concurrently from another node
+# with a transaction which updates the parent table, except
+# that here the child table row is inserted, not updated.
+#
+# The pg table will originally have rows (1, 0), (2, 0).
+# The cg table will originally be empty
+#
+# Expected outcome:
+# ================
+#
+# Both UPDATE and INSERT should succeed since they are done to separate tables
+# and UPDATE to parent row does not touch the foreign key referenced by the
+# child row INSERT. The parent table shall contain rows (1, 1), (2, 0).
+# The child table shall contain row (1, 1, 0) which points to parent table
+# row (1, 0).
+#
+
+--connection node_1
+CREATE TABLE pg (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE cg (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                 f2 INTEGER,
+                 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES pg (f1))  ;
+
+INSERT INTO pg VALUES (1, 0);
+INSERT INTO pg VALUES (2, 0);
+
+--let mw_369_parent_query = UPDATE pg SET f2 = 1 WHERE f1 = 1
+--let $mw_369_child_query = INSERT INTO cg VALUES (1, 1, 0)
+--source MW-369.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+--connection node_2
+SELECT * FROM pg;
+SELECT * FROM cg;
+
+DROP TABLE cg;
+DROP TABLE pg;
 

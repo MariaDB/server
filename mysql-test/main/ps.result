@@ -4663,7 +4663,7 @@ EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING (SELECT 1);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
 CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
 EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
-ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 DROP FUNCTION f1;
 #
 # DDL
@@ -5165,13 +5165,13 @@ DECLARE a DATETIME;
 CALL p1(a);
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 PREPARE stmt FROM 'CALL p1(?)';
@@ -5179,7 +5179,7 @@ EXECUTE stmt  USING a;
 DEALLOCATE PREPARE stmt;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
 DROP PROCEDURE p1;
 #
 # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters

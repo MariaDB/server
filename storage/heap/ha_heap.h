@@ -51,7 +51,7 @@ public:
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
             HA_CAN_SQL_HANDLER | HA_CAN_ONLINE_BACKUPS |
             HA_REC_NOT_IN_SEQ | HA_CAN_INSERT_DELAYED | HA_NO_TRANSACTIONS |
-            HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT);
+            HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_HASH_KEYS);
   }
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {

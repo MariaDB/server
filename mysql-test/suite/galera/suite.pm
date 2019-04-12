@@ -9,9 +9,9 @@ return "Not run for embedded server" if $::opt_embedded_server;
 return "WSREP is not compiled in" unless defined $::mysqld_variables{'wsrep-on'};
 
 my ($provider) = grep { -f $_ } $ENV{WSREP_PROVIDER},
-                                "/usr/lib64/galera-3/libgalera_smm.so",
+                                "/usr/lib64/galera-4/libgalera_smm.so",
                                 "/usr/lib64/galera/libgalera_smm.so",
-                                "/usr/lib/galera-3/libgalera_smm.so",
+                                "/usr/lib/galera-4/libgalera_smm.so",
                                 "/usr/lib/galera/libgalera_smm.so";
 
 return "No wsrep provider library" unless -f $provider;
@@ -77,10 +77,13 @@ push @::global_suppressions,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(JOINED\). Message ignored.|,
      qr|WSREP: Unsupported protocol downgrade: incremental data collection disabled. Expect abort.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
+     qr(WSREP: Last Applied Action message in non-primary configuration from member [0-9]*),
      qr(WSREP: discarding established .*),
      qr|WSREP: .*core_handle_uuid_msg.*|,
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0. WSREP_SYNC_WAIT_BEFORE_READ is on),
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
+     qr|Query apply failed:*|,
+     qr(WSREP: Ignoring error*),
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
    );

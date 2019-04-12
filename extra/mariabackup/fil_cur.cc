@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 #include "fil_cur.h"
 #include "fil0crypt.h"
+#include "fil0pagecompress.h"
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
@@ -146,7 +147,8 @@ xb_fil_cur_open(
 
 	cursor->space_id = node->space->id;
 
-	strncpy(cursor->abs_path, node->name, sizeof(cursor->abs_path));
+	strncpy(cursor->abs_path, node->name, (sizeof cursor->abs_path) - 1);
+	cursor->abs_path[(sizeof cursor->abs_path) - 1] = '\0';
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system
@@ -154,7 +156,8 @@ xb_fil_cur_open(
 	We want to make "local" copies for the backup. */
 	strncpy(cursor->rel_path,
 		xb_get_relative_path(cursor->abs_path, cursor->is_system()),
-		sizeof(cursor->rel_path));
+		(sizeof cursor->rel_path) - 1);
+	cursor->rel_path[(sizeof cursor->rel_path) - 1] = '\0';
 
 	/* In the backup mode we should already have a tablespace handle created
 	by fil_ibd_load() unless it is a system
@@ -172,9 +175,8 @@ xb_fil_cur_open(
 			/* The following call prints an error message */
 			os_file_get_last_error(TRUE);
 
-			msg("[%02u] mariabackup: error: cannot open "
-			    "tablespace %s\n",
-			    thread_n, cursor->abs_path);
+			msg(thread_n, "mariabackup: error: cannot open "
+			    "tablespace %s", cursor->abs_path);
 
 			return(XB_FIL_CUR_SKIP);
 		}
@@ -215,8 +217,8 @@ xb_fil_cur_open(
 		cursor->statinfo.st_size = (ulonglong)max_file_size;
 	}
 	if (err) {
-		msg("[%02u] mariabackup: error: cannot fstat %s\n",
-		    thread_n, cursor->abs_path);
+		msg(thread_n, "mariabackup: error: cannot fstat %s",
+		    cursor->abs_path);
 
 		xb_fil_cur_close(cursor);
 
@@ -231,11 +233,11 @@ xb_fil_cur_open(
 
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
-	const page_size_t page_size(node->space->flags);
-	cursor->page_size = page_size;
+	cursor->page_size = node->space->physical_size();
+	cursor->zip_size = node->space->zip_size();
 
 	/* Allocate read buffer */
-	cursor->buf_size = XB_FIL_CUR_PAGES * page_size.physical();
+	cursor->buf_size = XB_FIL_CUR_PAGES * cursor->page_size;
 	cursor->orig_buf = static_cast<byte *>
 		(malloc(cursor->buf_size + srv_page_size));
 	cursor->buf = static_cast<byte *>
@@ -250,24 +252,129 @@ xb_fil_cur_open(
 	if (!node->space->crypt_data
 	    && os_file_read(IORequestRead,
 			    node->handle, cursor->buf, 0,
-			    page_size.physical())) {
+			    cursor->page_size)) {
 		mutex_enter(&fil_system.mutex);
 		if (!node->space->crypt_data) {
-			node->space->crypt_data
-				= fil_space_read_crypt_data(page_size,
-							    cursor->buf);
+			node->space->crypt_data = fil_space_read_crypt_data(
+				node->space->zip_size(), cursor->buf);
 		}
 		mutex_exit(&fil_system.mutex);
 	}
 
 	cursor->space_size = (ulint)(cursor->statinfo.st_size
-				     / page_size.physical());
+				     / cursor->page_size);
 
 	cursor->read_filter = read_filter;
 	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor,
 				  node->space->id);
 
 	return(XB_FIL_CUR_SUCCESS);
+}
+
+static bool page_is_corrupted(const byte *page, ulint page_no,
+			      const xb_fil_cur_t *cursor,
+			      const fil_space_t *space)
+{
+	byte tmp_frame[UNIV_PAGE_SIZE_MAX];
+	byte tmp_page[UNIV_PAGE_SIZE_MAX];
+	const ulint page_size = cursor->page_size;
+	ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
+
+	/* We ignore the doublewrite buffer pages.*/
+	if (cursor->space_id == TRX_SYS_SPACE
+	    && page_no >= FSP_EXTENT_SIZE
+	    && page_no < FSP_EXTENT_SIZE * 3) {
+		return false;
+	}
+
+	/* Validate page number. */
+	if (mach_read_from_4(page + FIL_PAGE_OFFSET) != page_no
+	    && cursor->space_id != TRX_SYS_SPACE) {
+		/* On pages that are not all zero, the
+		page number must match.
+
+		There may be a mismatch on tablespace ID,
+		because files may be renamed during backup.
+		We disable the page number check
+		on the system tablespace, because it may consist
+		of multiple files, and here we count the pages
+		from the start of each file.)
+
+		The first 38 and last 8 bytes are never encrypted. */
+		const ulint* p = reinterpret_cast<const ulint*>(page);
+		const ulint* const end = reinterpret_cast<const ulint*>(
+			page + page_size);
+		do {
+			if (*p++) {
+				return true;
+			}
+		} while (p != end);
+
+		/* Whole zero page is valid. */
+		return false;
+	}
+
+	if (space->full_crc32()) {
+		return buf_page_is_corrupted(true, page, space->flags);
+	}
+
+	/* Validate encrypted pages. The first page is never encrypted.
+	In the system tablespace, the first page would be written with
+	FIL_PAGE_FILE_FLUSH_LSN at shutdown, and if the LSN exceeds
+	4,294,967,295, the mach_read_from_4() below would wrongly
+	interpret the page as encrypted. We prevent that by checking
+	page_no first. */
+	if (page_no
+	    && mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+	    && (opt_encrypted_backup
+		|| (space->crypt_data
+		    && space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED))) {
+
+		if (!fil_space_verify_crypt_checksum(page, space->zip_size()))
+			return true;
+
+		/* Compressed encrypted need to be decrypted
+		and decompressed for verification. */
+		if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+		    && !opt_extended_validation)
+			return false;
+
+		memcpy(tmp_page, page, page_size);
+
+		bool decrypted = false;
+		if (!space->crypt_data
+		    || space->crypt_data->type == CRYPT_SCHEME_UNENCRYPTED
+		    || !fil_space_decrypt(space, tmp_frame, tmp_page,
+					  &decrypted)) {
+			return true;
+		}
+
+		if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+			return buf_page_is_corrupted(true, tmp_page,
+						     space->flags);
+		}
+	}
+
+	if (page_type == FIL_PAGE_PAGE_COMPRESSED) {
+		memcpy(tmp_page, page, page_size);
+	}
+
+	if (page_type == FIL_PAGE_PAGE_COMPRESSED
+	    || page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		ulint decomp = fil_page_decompress(tmp_frame, tmp_page,
+						   space->flags);
+		page_type = mach_read_from_2(tmp_page + FIL_PAGE_TYPE);
+
+		return (!decomp
+			|| (decomp != srv_page_size
+			    && cursor->zip_size)
+			|| page_type == FIL_PAGE_PAGE_COMPRESSED
+			|| page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+			|| buf_page_is_corrupted(true, tmp_page,
+						 space->flags));
+	}
+
+	return buf_page_is_corrupted(true, page, space->flags);
 }
 
 /************************************************************************
@@ -288,9 +395,7 @@ xb_fil_cur_read(
 	xb_fil_cur_result_t	ret;
 	ib_int64_t		offset;
 	ib_int64_t		to_read;
-	byte			tmp_frame[UNIV_PAGE_SIZE_MAX];
-	byte			tmp_page[UNIV_PAGE_SIZE_MAX];
-	const ulint		page_size = cursor->page_size.physical();
+	const ulint		page_size = cursor->page_size;
 	xb_ad(!cursor->is_system() || page_size == srv_page_size);
 
 	cursor->read_filter->get_next_batch(&cursor->read_filter_ctxt,
@@ -310,14 +415,8 @@ xb_fil_cur_read(
 	    && offset + to_read == cursor->statinfo.st_size) {
 
 		if (to_read < (ib_int64_t) page_size) {
-			msg("[%02u] mariabackup: Warning: junk at the end of "
-			    "%s:\n", cursor->thread_n, cursor->abs_path);
-			msg("[%02u] mariabackup: Warning: offset = %llu, "
-			    "to_read = %llu\n",
-			    cursor->thread_n,
-			    (unsigned long long) offset,
-			    (unsigned long long) to_read);
-
+			msg(cursor->thread_n, "Warning: junk at the end of "
+			    "%s, offset = %llu, to_read = %llu",cursor->abs_path, (ulonglong) offset, (ulonglong) to_read);
 			return(XB_FIL_CUR_EOF);
 		}
 
@@ -327,7 +426,7 @@ xb_fil_cur_read(
 
 	xb_a((to_read & (page_size - 1)) == 0);
 
-	npages = (ulint) (to_read / cursor->page_size.physical());
+	npages = (ulint) (to_read / page_size);
 
 	retry_count = 10;
 	ret = XB_FIL_CUR_SUCCESS;
@@ -344,7 +443,7 @@ read_retry:
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
 	cursor->buf_offset = offset;
-	cursor->buf_page_no = (ulint)(offset / cursor->page_size.physical());
+	cursor->buf_page_no = (ulint)(offset / page_size);
 
 	if (!os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
 			  (ulint) to_read)) {
@@ -357,53 +456,26 @@ read_retry:
 	     page += page_size, i++) {
 		ulint page_no = cursor->buf_page_no + i;
 
-                if (cursor->space_id == TRX_SYS_SPACE &&
-                    page_no >= FSP_EXTENT_SIZE &&
-                    page_no < FSP_EXTENT_SIZE * 3) {
-                        /* We ignore the doublewrite buffer pages */
-                } else if (fil_space_verify_crypt_checksum(
-                                   page, cursor->page_size,
-				   space->id, page_no)) {
-			ut_ad(mach_read_from_4(page + FIL_PAGE_SPACE_ID)
-			      == space->id);
+		if (page_is_corrupted(page, page_no, cursor, space)){
+			retry_count--;
 
-			bool decrypted = false;
-
-			memcpy(tmp_page, page, page_size);
-
-			if (!fil_space_decrypt(space, tmp_frame,
-					       tmp_page, &decrypted)
-			    || buf_page_is_corrupted(true, tmp_page,
-						     cursor->page_size,
-						     space)) {
-				goto corrupted;
+			if (retry_count == 0) {
+				msg(cursor->thread_n,
+				    "Error: failed to read page after "
+				    "10 retries. File %s seems to be "
+				    "corrupted.", cursor->abs_path);
+				ret = XB_FIL_CUR_ERROR;
+				ut_print_buf(stderr, page, page_size);
+				break;
 			}
-		} else if (buf_page_is_corrupted(true, page, cursor->page_size,
-						 space)) {
-corrupted:
-                        retry_count--;
-                        if (retry_count == 0) {
-                                msg("[%02u] mariabackup: "
-                                    "Error: failed to read page after "
-                                    "10 retries. File %s seems to be "
-                                    "corrupted.\n", cursor->thread_n,
-                                    cursor->abs_path);
-                                ret = XB_FIL_CUR_ERROR;
-                                break;
-                        }
-
-                        if (retry_count == 9) {
-                                msg("[%02u] mariabackup: "
-                                    "Database page corruption detected at page "
-                                    ULINTPF ", retrying...\n",
-                                    cursor->thread_n, page_no);
-                        }
-
-                        os_thread_sleep(100000);
-                        goto read_retry;
-                }
-                cursor->buf_read += page_size;
-                cursor->buf_npages++;
+			msg(cursor->thread_n, "Database page corruption detected at page "
+			    ULINTPF ", retrying...", 
+			    page_no);
+			os_thread_sleep(100000);
+			goto read_retry;
+		}
+		cursor->buf_read += page_size;
+		cursor->buf_npages++;
 	}
 
 	posix_fadvise(cursor->file, offset, to_read, POSIX_FADV_DONTNEED);

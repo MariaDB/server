@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 CREATE TABLE t2 (id INT) ENGINE=InnoDB;
@@ -66,4 +68,6 @@ mysqld-bin.000003	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN f2 INTEGER
 DROP TABLE t1;
 DROP TABLE t2;
 connection node_1;
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
