@@ -3946,7 +3946,7 @@ static int init_common_variables()
   DBUG_PRINT("info",("%s  Ver %s for %s on %s\n",my_progname,
 		     server_version, SYSTEM_TYPE,MACHINE_TYPE));
 
-#ifdef HAVE_LINUX_LARGE_PAGES
+#ifdef HAVE_LARGE_PAGE_OPTION
   /* Initialize large page size */
   if (opt_large_pages)
   {
@@ -3961,7 +3961,7 @@ static int init_common_variables()
     else
       SYSVAR_AUTOSIZE(opt_large_pages, 0);
   }
-#endif /* HAVE_LINUX_LARGE_PAGES */
+#endif /* HAVE_LARGE_PAGE_OPTION */
 #ifdef HAVE_SOLARIS_LARGE_PAGES
 #define LARGE_PAGESIZE (4*1024*1024)  /* 4MB */
 #define SUPER_LARGE_PAGESIZE (256*1024*1024)  /* 256MB */

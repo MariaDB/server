@@ -242,9 +242,12 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
 
-#ifdef HAVE_LINUX_LARGE_PAGES
+#ifdef HAVE_LARGE_PAGE_OPTION
 extern my_bool my_use_large_pages;
 extern uint    my_large_page_size;
+#else
+#define my_use_large_pages 0
+#define my_large_page_size 0
 #endif
 
 /* charsets */
