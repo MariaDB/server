@@ -59,6 +59,10 @@ public:
     spider_string *str,
     bool sql_log_off
   );
+  int append_wait_timeout(
+    spider_string *str,
+    int wait_timeout
+  );
   int append_time_zone(
     spider_string *str,
     Time_zone *time_zone
@@ -378,6 +382,11 @@ public:
   bool set_sql_log_off_in_bulk_sql();
   int set_sql_log_off(
     bool sql_log_off,
+    int *need_mon
+  );
+  bool set_wait_timeout_in_bulk_sql();
+  int set_wait_timeout(
+    int wait_timeout,
     int *need_mon
   );
   bool set_time_zone_in_bulk_sql();

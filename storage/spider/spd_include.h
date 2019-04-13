@@ -260,7 +260,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           257
+#define SPIDER_MEM_CALC_LIST_NUM           265
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -449,6 +449,7 @@ typedef struct st_spider_conn
   bool               disable_reconnect;
   int                autocommit;
   int                sql_log_off;
+  int                wait_timeout;
   THD                *thd;
   void               *another_ha_first;
   void               *another_ha_last;
@@ -555,6 +556,7 @@ typedef struct st_spider_conn
   bool               queued_ping;
   bool               queued_trx_isolation;
   bool               queued_semi_trx_isolation;
+  bool               queued_wait_timeout;
   bool               queued_autocommit;
   bool               queued_sql_log_off;
   bool               queued_time_zone;
@@ -567,6 +569,7 @@ typedef struct st_spider_conn
   int                queued_ping_link_idx;
   int                queued_trx_isolation_val;
   int                queued_semi_trx_isolation_val;
+  int                queued_wait_timeout_val;
   bool               queued_autocommit_val;
   bool               queued_sql_log_off_val;
   Time_zone          *queued_time_zone_val;

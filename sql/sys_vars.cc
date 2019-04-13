@@ -5223,8 +5223,10 @@ static Sys_var_ulonglong Sys_read_binlog_speed_limit(
 static Sys_var_charptr Sys_slave_transaction_retry_errors(
        "slave_transaction_retry_errors", "Tells the slave thread to retry "
        "transaction for replication when a query event returns an error from "
-       "the provided list. Deadlock and elapsed lock wait timeout errors are "
-       "automatically added to this list",
+       "the provided list. Deadlock error, elapsed lock wait timeout, "
+       "net read error, net read timeout, net write error, net write timeout, "
+       "connect error and 2 types of lost connection error are automatically "
+       "added to this list",
        READ_ONLY GLOBAL_VAR(opt_slave_transaction_retry_errors), CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(0));
 
