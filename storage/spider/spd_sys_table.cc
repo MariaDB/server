@@ -2427,6 +2427,7 @@ int spider_get_sys_tables_static_link_id(
 ) {
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_tables_static_link_id");
+  *static_link_id = NULL;
   if (
     !table->field[24]->is_null() &&
     (*static_link_id = get_field(mem_root, table->field[24]))
