@@ -245,7 +245,12 @@ if test -n "$srcdir"
 then
   if test -z "$builddir"
   then
-    builddir="$srcdir"
+    if test -x "$dirname0/extra/my_print_defaults"
+    then
+      builddir="$dirname0"
+    else
+      builddir="$srcdir"
+    fi
   fi
   print_defaults="$builddir/extra/my_print_defaults"
 elif test -n "$basedir"
