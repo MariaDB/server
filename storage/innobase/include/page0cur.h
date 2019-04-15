@@ -27,15 +27,12 @@ Created 10/4/1994 Heikki Tuuri
 #ifndef page0cur_h
 #define page0cur_h
 
-#include "univ.i"
-
 #include "buf0types.h"
 #include "page0page.h"
 #include "rem0rec.h"
 #include "data0data.h"
 #include "mtr0mtr.h"
 #include "gis0type.h"
-
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**

@@ -1423,7 +1423,7 @@ SELECT * FROM t1 INNER JOIN t2 ON code=id
 WHERE id='a12' AND (LENGTH(code)=5 OR code < 'a00');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	12	const	1	100.00	Using index
-1	SIMPLE	t1	ref	code	code	13	const	3	100.00	Using where; Using index
+1	SIMPLE	t1	ref	code	code	13	const	4	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t1`.`code` AS `code`,'a12' AS `id` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`code` = 'a12' and octet_length(`test`.`t1`.`code`) = 5
 DROP TABLE t1,t2;
@@ -3164,6 +3164,77 @@ drop table t1,t2;
 select md5(_filename "a"), sha(_filename "a");
 md5(_filename "a")	sha(_filename "a")
 0cc175b9c0f1b6a831c399e269772661	86f7e437faa5a7fce15d1ddcb9eaeaea377667b8
+#
+# MDEV-18881 Assertion `0' failed in make_sortkey upon SELECT with GROUP BY after LOAD DATA
+#
+CREATE TABLE t1 (a BIT(22), b CHAR(8) NOT NULL, c CHAR(8));
+INSERT INTO t1 VALUES (0xA4B,'foo','qux');
+INSERT INTO t1 VALUES (0x8F5,'bar','foobar');
+INSERT INTO t1 VALUES (0x0, '', NULL);
+INSERT INTO t1 VALUES (0x4B, 'foo','qux');
+INSERT INTO t1 VALUES (0x8F5, 'bar', 'foobar');
+SET SESSION SQL_MODE= '';
+SELECT GROUP_CONCAT(c) AS f FROM t1 GROUP BY LPAD('foo', 20, b);
+f
+NULL
+foobar,foobar
+qux,qux
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
+CREATE TABLE t1 AS SELECT
+LPAD('a',10,' '),
+RPAD('a',10,' '),
+LPAD('a',10,'  '),
+RPAD('a',10,'  '),
+LPAD('a',10,NULL),
+RPAD('a',10,NULL),
+LPAD('a',10,''),
+RPAD('a',10,''),
+LPAD('a',10,RAND()),
+RPAD('a',10,RAND());
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `LPAD('a',10,' ')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,' ')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,'  ')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,'  ')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,RAND())` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,RAND())` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET SESSION SQL_MODE= '';
+CREATE TABLE t1 AS SELECT
+LPAD('a',10,' '),
+RPAD('a',10,' '),
+LPAD('a',10,'  '),
+RPAD('a',10,'  '),
+LPAD('a',10,NULL),
+RPAD('a',10,NULL),
+LPAD('a',10,''),
+RPAD('a',10,''),
+LPAD('a',10,RAND()),
+RPAD('a',10,RAND());
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `LPAD('a',10,' ')` varchar(10) NOT NULL,
+  `RPAD('a',10,' ')` varchar(10) NOT NULL,
+  `LPAD('a',10,'  ')` varchar(10) NOT NULL,
+  `RPAD('a',10,'  ')` varchar(10) NOT NULL,
+  `LPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,NULL)` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,'')` varchar(10) DEFAULT NULL,
+  `LPAD('a',10,RAND())` varchar(10) DEFAULT NULL,
+  `RPAD('a',10,RAND())` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
 #
 # End of 5.5 tests
 #
@@ -4960,4 +5031,16 @@ NULL
 DROP TABLE t1;
 #
 # End of 10.3 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-18205 Assertion `str_length < len' failed in Binary_string::realloc_raw
+#
+SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' ), ENCODE('text','pass') ) AS f;
+f
+2019-01-01 00:00:00F}^i
+#
+# End of 10.4 tests
 #

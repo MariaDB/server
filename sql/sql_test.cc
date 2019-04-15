@@ -24,6 +24,7 @@
 #include "sql_show.h" // calc_sum_of_all_status
 #include "sql_select.h"
 #include "keycaches.h"
+#include "my_json_writer.h"
 #include <hash.h>
 #include <thr_alarm.h>
 #if defined(HAVE_MALLINFO) && defined(HAVE_MALLOC_H)
@@ -35,6 +36,8 @@
 #ifdef HAVE_EVENT_SCHEDULER
 #include "events.h"
 #endif
+
+#define FT_KEYPART   (MAX_FIELDS+10)
 
 static const char *lock_descriptions[] =
 {
@@ -225,8 +228,6 @@ TEST_join(JOIN *join)
 }
 
 
-#define FT_KEYPART   (MAX_FIELDS+10)
-
 static void print_keyuse(KEYUSE *keyuse)
 {
   char buff[256];
@@ -262,7 +263,6 @@ void print_keyuse_array(DYNAMIC_ARRAY *keyuse_array)
     print_keyuse((KEYUSE*)dynamic_array_ptr(keyuse_array, i));
   DBUG_UNLOCK_FILE;
 }
-
 
 /* 
   Print the current state during query optimization.
@@ -654,4 +654,25 @@ Memory allocated by threads:             %s\n",
 #endif
   puts("");
   fflush(stdout);
+}
+
+void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
+{
+  Json_writer_object wrapper(thd);
+  Json_writer_array trace_key_uses(thd, "ref_optimizer_key_uses");
+  for(uint i=0; i < keyuse_array->elements; i++)
+  {
+    KEYUSE *keyuse= (KEYUSE*)dynamic_array_ptr(keyuse_array, i);
+    Json_writer_object keyuse_elem(thd);
+    keyuse_elem.add_table_name(keyuse->table->reginfo.join_tab);
+    keyuse_elem.add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
+                                        (keyuse->is_for_hash_join() ?
+                                        keyuse->table->field[keyuse->keypart]
+                                                     ->field_name.str :
+                                        keyuse->table->key_info[keyuse->key]
+                                          .key_part[keyuse->keypart]
+                                          .field->field_name.str));
+    keyuse_elem.add("equals",keyuse->val);
+    keyuse_elem.add("null_rejecting",keyuse->null_rejecting);
+  }
 }

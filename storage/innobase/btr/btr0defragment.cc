@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2018, MariaDB Corporation.
+Copyright (C) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -63,14 +63,14 @@ UNIV_INTERN mysql_pfs_key_t	btr_defragment_mutex_key;
 
 /* Number of compression failures caused by defragmentation since server
 start. */
-ulint btr_defragment_compression_failures = 0;
+Atomic_counter<ulint> btr_defragment_compression_failures;
 /* Number of btr_defragment_n_pages calls that altered page but didn't
 manage to release any page. */
-ulint btr_defragment_failures = 0;
+Atomic_counter<ulint> btr_defragment_failures;
 /* Total number of btr_defragment_n_pages calls that altered page.
 The difference between btr_defragment_count and btr_defragment_failures shows
 the amount of effort wasted. */
-ulint btr_defragment_count = 0;
+Atomic_counter<ulint> btr_defragment_count;
 
 /******************************************************************//**
 Constructor for btr_defragment_item_t. */
@@ -166,8 +166,8 @@ btr_defragment_add_index(
 	mtr_start(&mtr);
 	// Load index rood page.
 	buf_block_t* block = btr_block_get(
-		page_id_t(index->table->space->id, index->page),
-		page_size_t(index->table->space->flags),
+		page_id_t(index->table->space_id, index->page),
+		index->table->space->zip_size(),
 		RW_NO_LATCH, index, &mtr);
 	page_t* page = NULL;
 
@@ -181,7 +181,8 @@ btr_defragment_add_index(
 		return NULL;
 	}
 
-	ut_ad(page_is_root(page));
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
 
 	if (page_is_leaf(page)) {
 		// Index root is a leaf page, no need to defragment.
@@ -314,7 +315,7 @@ btr_defragment_save_defrag_stats_if_needed(
 	dict_index_t*	index)	/*!< in: index */
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
-	    && index->table->space->id != 0 // do not track system tables
+	    && index->table->space_id != 0 // do not track system tables
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);
@@ -376,7 +377,7 @@ btr_defragment_merge_pages(
 	dict_index_t*	index,		/*!< in: index tree */
 	buf_block_t*	from_block,	/*!< in: origin of merge */
 	buf_block_t*	to_block,	/*!< in: destination of merge */
-	const page_size_t	page_size,	/*!< in: page size of the block */
+	ulint		zip_size,	/*!< in: ROW_FORMAT=COMPRESSED size */
 	ulint		reserved_space,	/*!< in: space reserved for future
 					insert to avoid immediate page split */
 	ulint*		max_data_size,	/*!< in/out: max data size to
@@ -404,7 +405,7 @@ btr_defragment_merge_pages(
 
 	// Estimate how many records can be moved from the from_page to
 	// the to_page.
-	if (page_size.is_compressed()) {
+	if (zip_size) {
 		ulint page_diff = srv_page_size - *max_data_size;
 		max_ins_size_to_use = (max_ins_size_to_use > page_diff)
 			       ? max_ins_size_to_use - page_diff : 0;
@@ -448,8 +449,7 @@ btr_defragment_merge_pages(
 		// n_recs_to_move number of records to to_page. We try to reduce
 		// the targeted data size on the to_page by
 		// BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE and try again.
-		my_atomic_addlint(
-			&btr_defragment_compression_failures, 1);
+		btr_defragment_compression_failures++;
 		max_ins_size_to_use =
 			move_size > BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE
 			? move_size - BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE
@@ -473,7 +473,7 @@ btr_defragment_merge_pages(
 	// Set ibuf free bits if necessary.
 	if (!dict_index_is_clust(index)
 	    && page_is_leaf(to_page)) {
-		if (page_size.is_compressed()) {
+		if (zip_size) {
 			ibuf_reset_free_bits(to_block);
 		} else {
 			ibuf_update_free_bits_if_full(
@@ -482,6 +482,7 @@ btr_defragment_merge_pages(
 				ULINT_UNDEFINED);
 		}
 	}
+	btr_cur_t parent;
 	if (n_recs_to_move == n_recs) {
 		/* The whole page is merged with the previous page,
 		free it. */
@@ -489,9 +490,10 @@ btr_defragment_merge_pages(
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
 		btr_level_list_remove(
-			index->table->space->id,
-			page_size, from_page, index, mtr);
-		btr_node_ptr_delete(index, from_block, mtr);
+			index->table->space_id,
+			zip_size, from_page, index, mtr);
+		btr_page_get_father(index, from_block, mtr, &parent);
+		btr_cur_node_ptr_delete(&parent, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
 		"btr_defragment_n_pages"); */
 		btr_page_free(index, from_block, mtr);
@@ -509,7 +511,9 @@ btr_defragment_merge_pages(
 			lock_update_split_and_merge(to_block,
 						    orig_pred,
 						    from_block);
-			btr_node_ptr_delete(index, from_block, mtr);
+			// FIXME: reuse the node_ptr!
+			btr_page_get_father(index, from_block, mtr, &parent);
+			btr_cur_node_ptr_delete(&parent, mtr);
 			rec = page_rec_get_next(
 				page_get_infimum_rec(from_page));
 			node_ptr = dict_index_build_node_ptr(
@@ -564,7 +568,7 @@ btr_defragment_n_pages(
 		return NULL;
 	}
 
-	if (!index->table->space || !index->table->space->id) {
+	if (!index->table->space || !index->table->space_id) {
 		/* Ignore space 0. */
 		return NULL;
 	}
@@ -574,7 +578,7 @@ btr_defragment_n_pages(
 	}
 
 	first_page = buf_block_get_frame(block);
-	const page_size_t page_size(index->table->space->flags);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/* 1. Load the pages and calculate the total data size. */
 	blocks[0] = block;
@@ -589,8 +593,8 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		blocks[i] = btr_block_get(page_id_t(index->table->space->id,
-						    page_no), page_size,
+		blocks[i] = btr_block_get(page_id_t(index->table->space_id,
+						    page_no), zip_size,
 					  RW_X_LATCH, index, mtr);
 	}
 
@@ -616,7 +620,7 @@ btr_defragment_n_pages(
 	optimal_page_size = page_get_free_space_of_empty(
 		page_is_comp(first_page));
 	// For compressed pages, we take compression failures into account.
-	if (page_size.is_compressed()) {
+	if (zip_size) {
 		ulint size = 0;
 		uint i = 0;
 		// We estimate the optimal data size of the index use samples of
@@ -659,7 +663,7 @@ btr_defragment_n_pages(
 	// Start from the second page.
 	for (uint i = 1; i < n_pages; i ++) {
 		buf_block_t* new_block = btr_defragment_merge_pages(
-			index, blocks[i], current_block, page_size,
+			index, blocks[i], current_block, zip_size,
 			reserved_space, &max_data_size, heap, mtr);
 		if (new_block != current_block) {
 			n_defragmented ++;
@@ -668,11 +672,9 @@ btr_defragment_n_pages(
 	}
 	mem_heap_free(heap);
 	n_defragmented ++;
-	my_atomic_addlint(
-		&btr_defragment_count, 1);
+	btr_defragment_count++;
 	if (n_pages == n_defragmented) {
-		my_atomic_addlint(
-			&btr_defragment_failures, 1);
+		btr_defragment_failures++;
 	} else {
 		index->stat_defrag_n_pages_freed += (n_pages - n_defragmented);
 	}

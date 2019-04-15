@@ -1,5 +1,0 @@
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
-INSERT INTO t1 (b) VALUES ('corrupt me');
-INSERT INTO t1 (b) VALUES ('corrupt me');
-# Run innochecksum on t1
-DROP TABLE t1;

@@ -26,14 +26,12 @@ select * from t1;
 --error ER_READ_ONLY_MODE
 insert into t1 values(2, 3);
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 alter table t1 add f3 int not null, algorithm=copy;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t1 add f3 int not null, algorithm=inplace;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 drop index idx on t1;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
@@ -66,14 +64,12 @@ select * from t2;
 --error ER_READ_ONLY_MODE
 insert into t2 values(2, 3);
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 alter table t2 add f3 int not null, algorithm=copy;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t2 add f3 int not null, algorithm=inplace;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 drop index idx on t2;
 

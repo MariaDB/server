@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_2;
+SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
+CREATE TABLE t1 (f1 VARCHAR(30)) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+COMMIT;
+ERROR HY000: Lost connection to MySQL server during query
+# restart
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+DROP TABLE t1;

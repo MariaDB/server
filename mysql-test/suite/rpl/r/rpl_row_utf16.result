@@ -15,10 +15,6 @@ hex(c1)	006100620063
 c1	ola
 hex(c1)	006F006C0061
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TABLE t1;
 include/rpl_end.inc

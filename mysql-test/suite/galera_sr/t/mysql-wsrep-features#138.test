@@ -1,0 +1,25 @@
+# SR: two identical transactions have different value for the WSREP_FLAG_PA_UNSAFE flag
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+
+--connection node_2
+SELECT flags FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+ROLLBACK;
+INSERT INTO t1 VALUES (3),(4);
+
+--connection node_2
+SELECT flags FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+ROLLBACK;
+DROP TABLE t1;

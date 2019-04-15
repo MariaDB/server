@@ -871,14 +871,6 @@ size_t my_strnxfrm_mb_nopad(CHARSET_INFO *,
 			    uchar *dst, size_t dstlen, uint nweights,
 			    const uchar *src, size_t srclen, uint flags);
 
-size_t my_strnxfrm_unicode(CHARSET_INFO *,
-                           uchar *dst, size_t dstlen, uint nweights,
-                           const uchar *src, size_t srclen, uint flags);
-
-size_t my_strnxfrm_unicode_nopad(CHARSET_INFO *,
-				 uchar *dst, size_t dstlen, uint nweights,
-				 const uchar *src, size_t srclen, uint flags);
-
 size_t  my_strnxfrmlen_unicode(CHARSET_INFO *, size_t); 
 
 size_t my_strnxfrm_unicode_full_bin(CHARSET_INFO *,

@@ -714,6 +714,7 @@ void With_element::move_anchors_ahead()
     }
   }
   first_recursive= new_pos;
+  spec->first_select()->set_linkage(DERIVED_TABLE_TYPE);
 }
 
 
@@ -1115,6 +1116,7 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
     table= 0;
   }
   with= with_elem;
+  schema_table= NULL;
   if (!with_elem->is_referenced() || with_elem->is_recursive)
   {
     derived= with_elem->spec;
@@ -1286,7 +1288,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
       With_element *with_elem= unit->with_element;
       if (encountered & with_elem->get_elem_map())
         unrestricted|= with_elem->mutually_recursive;
-      else
+      else if (with_elem ==this)
         encountered|= with_elem->get_elem_map();
     }
   } 

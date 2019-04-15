@@ -7606,8 +7606,8 @@ static void test_explain_bug()
   verify_prepare_field(result, 7, "ref", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", NAME_CHAR_LEN * HA_MAX_KEY_SEG, 0);
 
-  verify_prepare_field(result, 8, "rows", "", MYSQL_TYPE_LONGLONG,
-                       "", "", "", 10, 0);
+  verify_prepare_field(result, 8, "rows", "", MYSQL_TYPE_VAR_STRING,
+                       "", "", "", NAME_CHAR_LEN, 0);
 
   verify_prepare_field(result, 9, "Extra", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", 255, 0);
@@ -8397,6 +8397,50 @@ static void test_list_fields()
 }
 
 
+static void test_list_fields_blob()
+{
+  MYSQL_RES *result;
+  int rc;
+  myheader("test_list_fields_blob");
+
+  rc= mysql_query(mysql, "drop table if exists t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "create table t1(c1 tinyblob, c2 blob, c3 mediumblob, c4 longblob)");
+  myquery(rc);
+
+  result= mysql_list_fields(mysql, "t1", NULL);
+  mytest(result);
+
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 0);
+
+  /*
+    All BLOB variant Fields are displayed as MYSQL_TYPE_BLOB in
+    the result set metadata. Note, some Items display the exact
+    BLOB type. This inconsistency should be fixed eventually.
+  */
+  verify_prepare_field(result, 0, "c1", "c1", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 255, NULL);
+
+  verify_prepare_field(result, 1, "c2", "c2", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 65535, NULL);
+
+  verify_prepare_field(result, 2, "c3", "c3", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 16777215, NULL);
+
+  verify_prepare_field(result, 3, "c4", "c4", MYSQL_TYPE_BLOB,
+                       "t1", "t1",
+                       current_db, 4294967295ULL, NULL);
+
+  mysql_free_result(result);
+  myquery(mysql_query(mysql, "drop table t1"));
+}
+
+
 static void test_list_fields_default()
 {
   int rc, i;
@@ -8467,6 +8511,43 @@ static void test_list_fields_default()
 }
 
 
+/**
+  Note, this test covers MDEV-18408 and MDEV-18685
+*/
+
+static void test_mdev18408()
+{
+  MYSQL_RES *result;
+  int rc;
+  myheader("test_mdev18408s");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP VIEW IF EXISTS v1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (c1 TIMESTAMP NULL DEFAULT NULL)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE VIEW v1 AS SELECT c1 FROM t1");
+  myquery(rc);
+
+  result= mysql_list_fields(mysql, "v1", NULL);
+  mytest(result);
+
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 0);
+
+  verify_prepare_field(result, 0, "c1", "c1", MYSQL_TYPE_TIMESTAMP,
+                       "v1", "v1",  current_db, 19, 0);
+
+  mysql_free_result(result);
+  myquery(mysql_query(mysql, "DROP VIEW v1"));
+  myquery(mysql_query(mysql, "DROP TABLE t1"));
+}
+
+
 static void test_bug19671()
 {
   MYSQL_RES *result;
@@ -8493,7 +8574,7 @@ static void test_bug19671()
   DIE_UNLESS(rc == 0);
 
   verify_prepare_field(result, 0, "f1", "f1", MYSQL_TYPE_LONG,
-                       "v1", "v1", current_db, 11, "0");
+                       "v1", "v1", current_db, 11, NULL);
 
   mysql_free_result(result);
   myquery(mysql_query(mysql, "drop view v1"));
@@ -18503,6 +18584,7 @@ static void test_bug42373()
   DIE_UNLESS(rc == 1);
 
   mysql_stmt_close(stmt);
+  mysql_close(&con);
 
   /* Now try with a multi-statement. */
   DIE_UNLESS(mysql_client_init(&con));
@@ -18965,8 +19047,6 @@ static void test_progress_reporting()
 
 
   conn= client_connect(CLIENT_PROGRESS_OBSOLETE, MYSQL_PROTOCOL_TCP, 0);
-  if (!(conn->server_capabilities & CLIENT_PROGRESS_OBSOLETE))
-    return;
   DIE_UNLESS(conn->client_flag & CLIENT_PROGRESS_OBSOLETE);
 
   mysql_options(conn, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
@@ -19674,8 +19754,8 @@ static void test_big_packet()
                            opt_password, current_db, opt_port,
                            opt_unix_socket, 0)))
   {
-    mysql_close(mysql_local);
     fprintf(stderr, "\n connection failed(%s)", mysql_error(mysql_local));
+    mysql_close(mysql_local);
     exit(1);
   }
 
@@ -20166,6 +20246,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     printf("%.*s %.*s\n", (int)addrlen, row[0], (int)addrlen, normalized_addr);
     DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
     DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
+    mysql_free_result(result);
     mysql_close(m);
   }
   sprintf(query,"DROP USER 'u'@'%s'",normalized_addr);
@@ -20204,6 +20285,7 @@ static void test_proxy_header_localhost()
   mytest(result);
   row = mysql_fetch_row(result);
   DIE_UNLESS(strcmp(row[0], "localhost") == 0);
+  mysql_free_result(result);
   mysql_close(m);
   rc = mysql_query(mysql,  "DROP USER 'u'@'localhost'");
   myquery(rc);
@@ -20301,12 +20383,73 @@ static void test_bulk_autoinc()
   {
     DIE_IF(atoi(row[0]) != id[i++]);
   }
+  mysql_free_result(result);
   rc= mysql_query(mysql, "DROP TABLE ai_field_value");
   myquery(rc);
 }
 
-#endif
+static void test_bulk_delete()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  MYSQL_ROW  row;
+  char       indicator[]= {0, 0, 0};
+  my_bool   error[1];
+  int        i, id[]= {1, 2, 4}, count= sizeof(id)/sizeof(id[0]);
+  MYSQL_RES *result;
 
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1),(2),(3),(4)");
+  myquery(rc);
+  verify_affected_rows(4);
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, "DELETE FROM t1 where id=?", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[0].is_null = NULL;
+  bind[0].length = NULL;
+  bind[0].error = error;
+  bind[0].u.indicator= indicator;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  verify_affected_rows(3);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT id FROM t1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    i++;
+    DIE_IF(atoi(row[0]) != 3);
+  }
+  DIE_IF(i != 1);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+#endif
 
 static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
 {
@@ -20357,6 +20500,7 @@ static void test_explain_meta()
     mct_close_log();
     DIE("num_fields != 1");
   }
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN SELECT 1");
@@ -20373,6 +20517,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json SELECT 1");
@@ -20389,6 +20534,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20406,6 +20552,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json SELECT 1");
@@ -20422,6 +20569,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "CREATE TABLE t1 (a int)");
@@ -20441,6 +20589,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json INSERT INTO t1 values(1)");
@@ -20457,6 +20606,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20474,6 +20624,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json INSERT INTO t1 values(1)");
@@ -20490,6 +20641,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20507,6 +20659,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json  UPDATE t1 set a=2");
@@ -20523,6 +20676,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20540,6 +20694,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json UPDATE t1 set a=2");
@@ -20556,6 +20711,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20573,6 +20729,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json DELETE FROM t1");
@@ -20589,6 +20746,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20606,6 +20764,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json DELETE FROM t1");
@@ -20622,6 +20781,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "DROP TABLE t1");
@@ -20727,6 +20887,7 @@ static struct my_tests_st my_tests[]= {
   { "test_fetch_column", test_fetch_column },
   { "test_mem_overun", test_mem_overun },
   { "test_list_fields", test_list_fields },
+  { "test_list_fields_blob", test_list_fields_blob },
   { "test_list_fields_default", test_list_fields_default },
   { "test_free_result", test_free_result },
   { "test_free_store_result", test_free_store_result },
@@ -20915,8 +21076,10 @@ static struct my_tests_st my_tests[]= {
 #ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
   { "test_bulk_autoinc", test_bulk_autoinc},
+  { "test_bulk_delete", test_bulk_delete },
 #endif
   { "test_explain_meta", test_explain_meta },
+  { "test_mdev18408", test_mdev18408 },
   { 0, 0 }
 };
 

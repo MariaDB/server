@@ -27,7 +27,6 @@ Created 10/10/1995 Heikki Tuuri
 #ifndef srv0start_h
 #define srv0start_h
 
-#include "univ.i"
 #include "log0log.h"
 #include "ut0byte.h"
 

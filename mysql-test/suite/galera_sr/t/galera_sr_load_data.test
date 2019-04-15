@@ -1,0 +1,49 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test Streaming Replication + LOAD DATA
+#
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+SET SESSION wsrep_trx_fragment_size = 512;
+
+# Create a file for LOAD DATA with 20K entries
+--perl
+open(FILE, ">", "$ENV{'MYSQLTEST_VARDIR'}/tmp/galera_sr_load_data.csv") or die;
+foreach  my $i (1..20000) {
+	print FILE "$i\n";
+}
+EOF
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+# Record wsrep_last_committed as it was before LOAD DATA
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_1
+--disable_query_log
+--disable_warnings
+set global wsrep_load_data_splitting=ON;
+--enable_warnings
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/galera_sr_load_data.csv' INTO TABLE t1;
+--enable_query_log
+
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+SELECT COUNT(*) = 20000 FROM t1;
+# LOAD-ing 20K rows causes 3 commits to be registered
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before = 3 AS wsrep_last_committed_diff
+--enable_query_log
+
+--connection node_1
+--disable_query_log
+--disable_warnings
+set global wsrep_load_data_splitting=OFF;
+--enable_warnings
+--enable_query_log
+
+DROP TABLE t1;

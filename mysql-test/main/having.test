@@ -890,3 +890,23 @@ SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t)
 DROP TABLE t1;
 DROP FUNCTION next_seq_value;
 DROP TABLE series;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-18681: AND formula in HAVING with several occurances
+--echo #             of the same field f in different conjuncts + f=constant
+--echo #
+
+CREATE TABLE t1 (pk int, f varchar(1));
+INSERT INTO t1 VALUES (2,'x'), (7,'y');
+CREATE TABLE t2 (pk int);
+INSERT INTO t2 VALUES (2), (3);
+
+SELECT t.f
+FROM (SELECT t1.* FROM (t1 JOIN t2 ON (t2.pk = t1.pk))) t
+HAVING t.f != 112 AND t.f = 'x' AND t.f != 'a';
+
+DROP TABLE t1,t2;
+
+--echo # End of 10.4 tests

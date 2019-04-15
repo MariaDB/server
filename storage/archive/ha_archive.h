@@ -108,7 +108,7 @@ public:
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_CAN_BIT_FIELD |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
             HA_STATS_RECORDS_IS_EXACT | HA_CAN_EXPORT |
-            HA_HAS_RECORDS | HA_CAN_REPAIR |
+            HA_HAS_RECORDS | HA_CAN_REPAIR | HA_SLOW_RND_POS |
             HA_FILE_BASED | HA_CAN_INSERT_DELAYED | HA_CAN_GEOMETRY);
   }
   ulong index_flags(uint idx, uint part, bool all_parts) const
@@ -148,6 +148,7 @@ public:
   int read_data_header(azio_stream *file_to_read);
   void position(const uchar *record);
   int info(uint);
+  int extra(enum ha_extra_function operation);
   void update_create_info(HA_CREATE_INFO *create_info);
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);

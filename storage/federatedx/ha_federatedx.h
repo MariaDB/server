@@ -1,3 +1,5 @@
+#ifndef HA_FEDERATEDX_INCLUDED
+#define HA_FEDERATEDX_INCLUDED
 /*
 Copyright (c) 2008, Patrick Galbraith
 All rights reserved.
@@ -272,7 +274,6 @@ class ha_federatedx: public handler
   */
   DYNAMIC_ARRAY results;
   bool position_called;
-  uint fetch_num; // stores the fetch num
   int remote_error_number;
   char remote_error_buf[FEDERATEDX_QUERY_BUFFER_SIZE];
   bool ignore_duplicates, replace_duplicates;
@@ -333,7 +334,7 @@ public:
     return (HA_PRIMARY_KEY_IN_READ_INDEX | HA_FILE_BASED
             | HA_REC_NOT_IN_SEQ | HA_AUTO_PART_KEY | HA_CAN_INDEX_BLOBS |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE | HA_CAN_REPAIR |
-            HA_PRIMARY_KEY_REQUIRED_FOR_DELETE |
+            HA_PRIMARY_KEY_REQUIRED_FOR_DELETE | HA_CAN_ONLINE_BACKUPS |
             HA_PARTIAL_COLUMN_READ | HA_NULL_IN_KEY);
   }
   /*
@@ -445,6 +446,9 @@ public:
   int external_lock(THD *thd, int lock_type);
   int reset(void);
   int free_result(void);
+
+  friend class ha_federatedx_derived_handler;
+  friend class ha_federatedx_select_handler;
 };
 
 extern const char ident_quote_char;              // Character for quoting
@@ -460,3 +464,7 @@ extern federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
                                            FEDERATEDX_SERVER *server);
 extern federatedx_io *instantiate_io_null(MEM_ROOT *server_root,
                                           FEDERATEDX_SERVER *server);
+
+#include "federatedx_pushdown.h"
+
+#endif /* HA_FEDERATEDX_INCLUDED */

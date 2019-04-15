@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 BIT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (NULL),(0),(b'1');
 connection node_2;
@@ -28,6 +30,6 @@ connection node_1;
 COMMIT;
 connection node_2;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 DROP TABLE t1;
 DROP TABLE t2;

@@ -182,6 +182,7 @@ storage/maria/ma_sp_test
 storage/maria/ma_test1
 storage/maria/ma_test2
 storage/maria/ma_test3
+storage/maria/test_ma_backup
 storage/myisam/mi_test1
 storage/myisam/mi_test2
 storage/myisam/mi_test3
@@ -192,9 +193,11 @@ storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
 storage/rocksdb/ldb
+storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb
-storage/rocksdb/sst_dump
+storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/rdb_source_revision.h
+storage/rocksdb/sst_dump
 storage/tokudb/PerconaFT/buildheader/db.h
 storage/tokudb/PerconaFT/buildheader/make_tdb
 storage/tokudb/PerconaFT/buildheader/runcat.sh
@@ -262,6 +265,7 @@ storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
 storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
+zlib/zconf.h
 xxx/*
 yyy/*
 zzz/*
@@ -512,3 +516,10 @@ compile_commands.json
 .editorconfig
 .kateconfig
 *.kdev4
+
+# Visual Studio Code workspace
+.vscode/
+
+# Clion && other JetBrains ides
+.idea
+

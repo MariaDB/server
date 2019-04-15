@@ -962,7 +962,8 @@ static int handle_request_for_tables(char *tables, size_t length,
     puts(query);
   if (mysql_real_query(sock, query, (ulong)query_length))
   {
-    sprintf(message, "when executing '%s%s... %s'", op, tab_view, options);
+    my_snprintf(message, sizeof(message), "when executing '%s%s... %s'",
+                op, tab_view, options);
     DBerror(sock, message);
     my_free(query);
     DBUG_RETURN(1);

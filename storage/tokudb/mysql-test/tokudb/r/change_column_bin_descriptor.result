@@ -33,8 +33,4 @@ HEX(b)
 68000000
 6B000000
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE t, ti;

@@ -10,6 +10,7 @@ call mtr.add_suppression("Column family 'rev:cf2' not found");
 set global rocksdb_compact_cf = 'cf1';
 set global rocksdb_compact_cf = 'rev:cf2';
 set global rocksdb_signal_drop_index_thread = 1;
+# restart
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -38,10 +39,12 @@ DELETE FROM t1;
 DELETE FROM t2;
 DELETE FROM t3;
 DELETE FROM t4;
+# restart
 DELETE FROM t1;
 DELETE FROM t4;
 DELETE FROM t1;
 DELETE FROM t4;
+# restart
 CREATE TABLE t5 (
 a int not null,
 b int not null,

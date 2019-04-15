@@ -10,6 +10,8 @@ INSERT INTO t2 values(2);
 
 CREATE TABLE t3(i int) ENGINE INNODB;
 CREATE TABLE t4(i int) ENGINE INNODB;
+CREATE TABLE t5(i int) ENGINE INNODB;
+INSERT INTO t5 VALUES(5);
 
 CREATE TABLE a(a int)    ENGINE INNODB;
 INSERT INTO a values(1);
@@ -28,6 +30,7 @@ INSERT INTO b1 VALUES('b1');
 --let after_copy_test_t3=BEGIN NOT ATOMIC RENAME TABLE test.t3 TO test.t3_tmp; INSERT INTO test.t3_tmp VALUES(3); RENAME TABLE test.t3_tmp TO test.t3; END
 --let before_copy_test_t4=RENAME TABLE test.t4 TO test.t4_tmp
 --let after_copy_test_t4=RENAME TABLE test.t4_tmp TO test.t4
+--let after_copy_test_t5=BEGIN NOT ATOMIC RENAME TABLE test.t5 TO test.t6; CREATE TABLE test.t5(i int) ENGINE INNODB; END
 
 # Test circular renames
 --let before_copy_test_b=RENAME TABLE test.a to test.tmp, test.b to test.a, test.tmp to test.b
@@ -81,6 +84,10 @@ SELECT * FROM a1;
 SELECT * FROM b1;
 
 DROP TABLE a,b,a1,b1;
+SELECT * from t5;
+DROP TABLE t5;
+SELECT * from t6;
+DROP TABLE t6;
 rmdir $targetdir;
 
 

@@ -55,6 +55,7 @@ ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'));
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -483,6 +484,7 @@ ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'));
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -900,6 +902,7 @@ ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'));
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
+test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;

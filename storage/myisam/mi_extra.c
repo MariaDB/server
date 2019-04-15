@@ -263,6 +263,8 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     share->deleting= TRUE;
     share->global_changed= FALSE;     /* force writing changed flag */
     _mi_mark_file_changed(info);
+    if (share->temporary)
+      break;
     /* fall through */
   case HA_EXTRA_PREPARE_FOR_RENAME:
     DBUG_ASSERT(!share->temporary);
@@ -332,7 +334,11 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     if (!share->temporary)
       flush_key_blocks(share->key_cache, share->kfile, &share->dirty_part_map,
                        FLUSH_KEEP);
+    mysql_mutex_lock(&share->intern_lock);
+    /* Tell mi_lock_database() that we locked the intern_lock mutex */
+    info->intern_lock_locked= 1;
     _mi_decrement_open_count(info);
+    info->intern_lock_locked= 0;
     if (share->not_flushed)
     {
       share->not_flushed=0;
@@ -349,6 +355,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     }
     if (share->base.blobs)
       mi_alloc_rec_buff(info, -1, &info->rec_buff);
+    mysql_mutex_unlock(&share->intern_lock);
     break;
   case HA_EXTRA_NORMAL:				/* Theese isn't in use */
     info->quick_mode=0;
@@ -416,6 +423,16 @@ void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t func,
 {
   info->index_cond_func= func;
   info->index_cond_func_arg= func_arg;
+}
+
+void mi_set_rowid_filter_func(MI_INFO *info,
+                              rowid_filter_func_t check_func,
+                              rowid_filter_func_t is_active_func,
+                              void *func_arg)
+{
+  info->rowid_filter_func= check_func;
+  info->rowid_filter_is_active_func= is_active_func;
+  info->rowid_filter_func_arg= func_arg;
 }
 
 /*

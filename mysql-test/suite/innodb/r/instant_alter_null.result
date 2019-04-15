@@ -1,0 +1,56 @@
+create table t (a int NOT NULL) engine=innodb row_format=   compressed;
+alter table t modify a int NULL, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+drop table t;
+create table t (a int NOT NULL) engine=innodb row_format=   dynamic;
+alter table t modify a int NULL, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+drop table t;
+create table t (a int NOT NULL) engine=innodb row_format=   compact;
+alter table t modify a int NULL, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+drop table t;
+create table t (
+id int primary key,
+a int NOT NULL default 0,
+b int NOT NULL default 0,
+c int NOT NULL default 0,
+index idx (a,b,c)
+) engine=innodb row_format=redundant;
+insert into t (id, a) values (0, NULL);
+ERROR 23000: Column 'a' cannot be null
+insert into t (id, b) values (0, NULL);
+ERROR 23000: Column 'b' cannot be null
+insert into t (id, c) values (0, NULL);
+ERROR 23000: Column 'c' cannot be null
+insert into t values (1,1,1,1);
+set @id = (select table_id from information_schema.innodb_sys_tables
+where name = 'test/t');
+select * from information_schema.innodb_sys_columns where table_id=@id;
+TABLE_ID	NAME	POS	MTYPE	PRTYPE	LEN
+TABLE_ID	id	0	6	1283	4
+TABLE_ID	a	1	6	1283	4
+TABLE_ID	b	2	6	1283	4
+TABLE_ID	c	3	6	1283	4
+alter table t modify a int NULL, algorithm=instant;
+insert into t values (2, NULL, 2, 2);
+alter table t modify b int NULL, algorithm=nocopy;
+insert into t values (3, NULL, NULL, 3);
+alter table t modify c int NULL, algorithm=inplace;
+insert into t values (4, NULL, NULL, NULL);
+select * from information_schema.innodb_sys_columns where table_id=@id;
+TABLE_ID	NAME	POS	MTYPE	PRTYPE	LEN
+TABLE_ID	id	0	6	1283	4
+TABLE_ID	a	1	6	1027	4
+TABLE_ID	b	2	6	1027	4
+TABLE_ID	c	3	6	1027	4
+select * from t;
+id	a	b	c
+4	NULL	NULL	NULL
+3	NULL	NULL	3
+2	NULL	2	2
+1	1	1	1
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;

@@ -29,9 +29,7 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "ut0byte.h"
 #include "ut0mutex.h"
-#include "ut0new.h"
 
-#include <queue>
 #include <vector>
 
 /** printf(3) format used for printing DB_TRX_ID and other system fields */

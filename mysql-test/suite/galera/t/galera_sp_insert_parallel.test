@@ -1,0 +1,55 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+
+
+DELIMITER |;
+CREATE PROCEDURE proc_insert()
+BEGIN
+  DECLARE i INT;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+
+  SET i = 0;
+  WHILE i < 1000 DO
+    INSERT IGNORE INTO t1 (f1, f2)
+      VALUES (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15)),
+             (FLOOR(1 + RAND() * 65535), FLOOR(1 + RAND() * 15));
+    SET i = i + 1;
+
+  END WHILE;
+END|
+DELIMITER ;|
+
+--connection node_1
+SELECT 0;
+SET SESSION wsrep_sync_wait = 0;
+--send CALL proc_insert
+--connection node_2
+SELECT 0;
+SET SESSION wsrep_sync_wait = 0;
+--send CALL proc_insert
+
+--connection node_1
+--error 0,ER_LOCK_DEADLOCK,ER_QUERY_INTERRUPTED
+--disable_warnings
+--reap
+--enable_warnings
+SET SESSION wsrep_sync_wait = default;
+--connection node_2
+--error 0,ER_LOCK_DEADLOCK,ER_QUERY_INTERRUPTED
+--disable_warnings
+--reap
+--enable_warnings
+SET SESSION wsrep_sync_wait = default;
+
+--connection node_1
+DROP PROCEDURE proc_insert;
+DROP TABLE t1;

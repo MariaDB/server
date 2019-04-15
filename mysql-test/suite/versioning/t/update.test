@@ -11,10 +11,10 @@ eval create table t1(
   with system versioning;
 
 insert into t1(x, y) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000), (6, 6000), (7, 7000), (8, 8000), (9, 9000);
-select x, y from t1;
+select x, y from t1 order by x, y;
 update t1 set y = y + 1 where x > 7;
-select x, y from t1;
-select x, y from t1 for system_time all;
+select x, y from t1 order by x, y;
+select x, y from t1 for system_time all order by sys_trx_end, x, y;
 drop table t1;
 
 replace_result $sys_datatype_expl SYS_DATATYPE;
@@ -56,7 +56,7 @@ update t1 set y= y + 1 where x > 4;
 commit;
 
 replace_result $sys_datatype_max MAXVAL;
-eval select x, y, sys_trx_end = $sys_datatype_max as current from t1 for system_time all;
+eval select x, y, sys_trx_end = $sys_datatype_max as current from t1 for system_time all order by sys_trx_end, x, y;
 
 drop table t1;
 
@@ -95,8 +95,8 @@ with system versioning;
 insert into t1(x, y) values (1, 1000), (3, 3000), (4, 4000), (5, 5000);
 insert into t1(x, y) values(3, 3000) on duplicate key update y = y+1;
 insert into t1(x, y) values(4, 4444) on duplicate key update y = y+1;
-select x, y from t1 for system_time all;
-select x, y from t1;
+select x, y from t1 for system_time all order by sys_trx_end, x, y;
+select x, y from t1 order by x, y;
 drop table t1;
 
 replace_result $sys_datatype_expl SYS_DATATYPE;
@@ -111,10 +111,10 @@ create table t2 like t1;
 insert into t1(x, y) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000), (6, 6000), (7, 7000), (8, 8000), (9, 9000);
 insert into t2(x, y) values (1, 1010), (2, 2010), (3, 3010), (4, 4010), (5, 5010), (6, 6010), (7, 7010), (8, 8010), (9, 9010);
 update t1, t2 set t1.y = t1.x + t1.y, t2.y = t2.x + t2.y where t1.x > 7 and t2.x < 7;
-select x, y from t1 for system_time all;
-select x, y from t1;
-select x, y from t2 for system_time all;
-select x, y from t2;
+select x, y from t1 for system_time all order by sys_trx_end, x, y;
+select x, y from t1 order by x, y;
+select x, y from t2 for system_time all order by sys_trx_end, x, y;
+select x, y from t2 order by x, y;
 drop table t1;
 drop table t2;
 

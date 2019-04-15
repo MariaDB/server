@@ -176,21 +176,6 @@ public:
     DBUG_ASSERT(ev->col_val_array);
     return ev->col_val_array[idx];
   }
-
-  bool find_engine_flag(uint32 flag)
-  {
-    if (ha_check_storage_engine_flag(engine_type, flag))
-      return true;
-
-    List_iterator_fast<partition_element> it(subpartitions);
-    while (partition_element *element= it++)
-    {
-      if (element->find_engine_flag(flag))
-        return true;
-    }
-
-    return false;
-  }
 };
 
 #endif /* PARTITION_ELEMENT_INCLUDED */

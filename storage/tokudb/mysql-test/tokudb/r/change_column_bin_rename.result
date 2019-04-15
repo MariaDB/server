@@ -536,10 +536,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(2);
 ALTER TABLE t CHANGE COLUMN a b BINARY(2);
 ALTER TABLE t CHANGE COLUMN b a BINARY(2);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(3);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -1066,10 +1062,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(3);
 ALTER TABLE t CHANGE COLUMN a b BINARY(3);
 ALTER TABLE t CHANGE COLUMN b a BINARY(3);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(4);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -1596,10 +1588,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(4);
 ALTER TABLE t CHANGE COLUMN a b BINARY(4);
 ALTER TABLE t CHANGE COLUMN b a BINARY(4);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(5);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -2124,10 +2112,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(5);
 ALTER TABLE t CHANGE COLUMN a b BINARY(5);
 ALTER TABLE t CHANGE COLUMN b a BINARY(5);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(6);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -2650,10 +2634,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(6);
 ALTER TABLE t CHANGE COLUMN a b BINARY(6);
 ALTER TABLE t CHANGE COLUMN b a BINARY(6);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(7);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -3176,10 +3156,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(7);
 ALTER TABLE t CHANGE COLUMN a b BINARY(7);
 ALTER TABLE t CHANGE COLUMN b a BINARY(7);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(8);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -3702,10 +3678,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(8);
 ALTER TABLE t CHANGE COLUMN a b BINARY(8);
 ALTER TABLE t CHANGE COLUMN b a BINARY(8);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(9);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -4242,10 +4214,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(16);
 ALTER TABLE t CHANGE COLUMN a b BINARY(16);
 ALTER TABLE t CHANGE COLUMN b a BINARY(16);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(17);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -4796,10 +4764,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(31);
 ALTER TABLE t CHANGE COLUMN a b BINARY(31);
 ALTER TABLE t CHANGE COLUMN b a BINARY(31);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(32);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -5322,10 +5286,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(32);
 ALTER TABLE t CHANGE COLUMN a b BINARY(32);
 ALTER TABLE t CHANGE COLUMN b a BINARY(32);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(33);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -5908,10 +5868,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(63);
 ALTER TABLE t CHANGE COLUMN a b BINARY(63);
 ALTER TABLE t CHANGE COLUMN b a BINARY(63);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(64);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -6434,10 +6390,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(64);
 ALTER TABLE t CHANGE COLUMN a b BINARY(64);
 ALTER TABLE t CHANGE COLUMN b a BINARY(64);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(65);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -7084,10 +7036,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(127);
 ALTER TABLE t CHANGE COLUMN a b BINARY(127);
 ALTER TABLE t CHANGE COLUMN b a BINARY(127);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(128);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -7610,10 +7558,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(128);
 ALTER TABLE t CHANGE COLUMN a b BINARY(128);
 ALTER TABLE t CHANGE COLUMN b a BINARY(128);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(129);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -8386,10 +8330,6 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(254);
 ALTER TABLE t CHANGE COLUMN a b BINARY(254);
 ALTER TABLE t CHANGE COLUMN b a BINARY(254);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 ALTER TABLE t CHANGE COLUMN a b BINARY(255);
 ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
@@ -8912,9 +8852,5 @@ ALTER TABLE ti CHANGE COLUMN b a BINARY(255);
 ALTER TABLE t CHANGE COLUMN a b BINARY(255);
 ALTER TABLE t CHANGE COLUMN b a BINARY(255);
 include/diff_tables.inc [test.t, test.ti]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;

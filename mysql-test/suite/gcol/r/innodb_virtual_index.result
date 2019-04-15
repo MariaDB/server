@@ -135,7 +135,7 @@ key (d)
 insert into t(a) values ((select d from s for update));
 insert into s(c) values ('');
 Warnings:
-Warning	1366	Incorrect integer value: '' for column 'c' at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`s`.`c` at row 1
 SET sql_mode = default;
 drop table if exists t,s;
 #
@@ -206,4 +206,56 @@ t1	CREATE TABLE `t1` (
   `col2` char(21) GENERATED ALWAYS AS (`col1` * `col1`) VIRTUAL,
   KEY `n` (`col2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+DROP TABLE t1;
+#
+# Bug #27968952  INNODB CRASH/CORRUPTION WITH TEXT PREFIX INDEXES
+#
+CREATE TABLE t1(
+a INT NOT NULL UNIQUE,
+b INT NOT NULL,
+c TEXT GENERATED ALWAYS AS (a <> b) VIRTUAL,
+d TEXT NOT NULL,
+UNIQUE KEY (c(1)), KEY(d(1))
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET @t = REPEAT('t',@@innodb_page_size);
+INSERT INTO t1 (a,b,d) VALUES (1,0,@t), (0,0,@t);
+UPDATE t1 SET b = a;
+ERROR 23000: Duplicate entry '0' for key 'c'
+REPLACE INTO t1 SET a = 0, b = 1, d = 'd';
+SELECT * FROM t1;
+a	b	c	d
+0	1	1	d
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+CREATE TABLE t1(
+a VARCHAR(1000) GENERATED ALWAYS AS ('1') VIRTUAL,
+b VARCHAR(1000) NOT NULL,
+c VARCHAR(1000) GENERATED ALWAYS AS (b) STORED,
+KEY (b(1)),
+KEY (a(1))
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+INSERT INTO t1(b) VALUES(REPEAT('b',1000));
+DELETE FROM t1;
+DROP TABLE t1;
+#
+# Bug #22990029 GCOLS: INCORRECT BEHAVIOR
+# AFTER DATA INSERTED WITH IGNORE KEYWORD
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, vb DATE AS(b) VIRTUAL, KEY(vb))
+ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (a,b) VALUES(1,20190132);
+Warnings:
+Warning	1265	Data truncated for column 'vb' at row 1
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 (a,b) VALUES(1,20190123);
+ERROR 22007: Incorrect date value: '20190132' for column `test`.`t1`.`vb` at row 1
+SELECT * FROM t1;
+a	b	vb
+ROLLBACK;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 DROP TABLE t1;

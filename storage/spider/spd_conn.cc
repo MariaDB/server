@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -148,6 +149,7 @@ int spider_reset_conn_setted_parameter(
   DBUG_ENTER("spider_reset_conn_setted_parameter");
   conn->autocommit = spider_param_remote_autocommit();
   conn->sql_log_off = spider_param_remote_sql_log_off();
+  conn->wait_timeout = spider_param_remote_wait_timeout(thd);
   if (thd && spider_param_remote_time_zone())
   {
     int tz_length = strlen(spider_param_remote_time_zone());
@@ -1428,6 +1430,20 @@ void spider_conn_queue_sql_log_off(
   DBUG_VOID_RETURN;
 }
 
+void spider_conn_queue_wait_timeout(
+  SPIDER_CONN *conn,
+  int wait_timeout
+) {
+  DBUG_ENTER("spider_conn_queue_wait_timeout");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  if (wait_timeout > 0)
+  {
+    conn->queued_wait_timeout = TRUE;
+    conn->queued_wait_timeout_val = wait_timeout;
+  }
+  DBUG_VOID_RETURN;
+}
+
 void spider_conn_queue_time_zone(
   SPIDER_CONN *conn,
   Time_zone *time_zone
@@ -1439,9 +1455,10 @@ void spider_conn_queue_time_zone(
   DBUG_VOID_RETURN;
 }
 
-void spider_conn_queue_UTC_time_zone(SPIDER_CONN *conn)
-{
-  DBUG_ENTER("spider_conn_queue_time_zone");
+void spider_conn_queue_UTC_time_zone(
+  SPIDER_CONN *conn
+) {
+  DBUG_ENTER("spider_conn_queue_UTC_time_zone");
   DBUG_PRINT("info", ("spider conn=%p", conn));
   spider_conn_queue_time_zone(conn, UTC);
   DBUG_VOID_RETURN;
@@ -1482,6 +1499,7 @@ void spider_conn_clear_queue(
   conn->queued_semi_trx_isolation = FALSE;
   conn->queued_autocommit = FALSE;
   conn->queued_sql_log_off = FALSE;
+  conn->queued_wait_timeout = FALSE;
   conn->queued_time_zone = FALSE;
   conn->queued_trx_start = FALSE;
   conn->queued_xa_start = FALSE;
@@ -2086,6 +2104,7 @@ void spider_bg_all_conn_break(
 #endif
     if (spider->quick_targets[roop_count])
     {
+      spider_db_free_one_quick_result((SPIDER_RESULT *) result_list->current);
       DBUG_ASSERT(spider->quick_targets[roop_count] == conn->quick_target);
       DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
       conn->quick_target = NULL;

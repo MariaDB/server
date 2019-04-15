@@ -9,6 +9,11 @@ t int, check (t>32) # table constraint
 ) ENGINE=myisam;
 SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	mysql
+CONSTRAINT_NAME	Priv
+TABLE_NAME	global_priv
+CHECK_CLAUSE	json_valid(`Priv`)
+CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CONSTRAINT_1
 TABLE_NAME	t0
@@ -16,6 +21,11 @@ CHECK_CLAUSE	`t` > 32
 ALTER TABLE t0
 ADD CONSTRAINT CHK_t0_t CHECK(t<100);
 SELECT * from information_schema.check_constraints order by check_clause;
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	mysql
+CONSTRAINT_NAME	Priv
+TABLE_NAME	global_priv
+CHECK_CLAUSE	json_valid(`Priv`)
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CHK_t0_t
@@ -30,6 +40,11 @@ ALTER TABLE t0
 DROP CONSTRAINT CHK_t0_t;
 SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	mysql
+CONSTRAINT_NAME	Priv
+TABLE_NAME	global_priv
+CHECK_CLAUSE	json_valid(`Priv`)
+CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CONSTRAINT_1
 TABLE_NAME	t0
@@ -39,6 +54,11 @@ CREATE TABLE t1
 tt int, CONSTRAINT CHK_tt CHECK(tt<100) # table constraint
 ) ENGINE=InnoDB;
 SELECT * from information_schema.check_constraints order by check_clause;
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	mysql
+CONSTRAINT_NAME	Priv
+TABLE_NAME	global_priv
+CHECK_CLAUSE	json_valid(`Priv`)
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CHK_tt
@@ -57,6 +77,11 @@ CHECK_CLAUSE	`t` > 32
 ALTER TABLE t1
 DROP CONSTRAINT CHK_tt;
 SELECT * from information_schema.check_constraints order by check_clause;
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	mysql
+CONSTRAINT_NAME	Priv
+TABLE_NAME	global_priv
+CHECK_CLAUSE	json_valid(`Priv`)
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	t
@@ -81,6 +106,11 @@ CONSTRAINT_NAME	name
 TABLE_NAME	t2
 CHECK_CLAUSE	char_length(`name`) > 2
 CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	mysql
+CONSTRAINT_NAME	Priv
+TABLE_NAME	global_priv
+CHECK_CLAUSE	json_valid(`Priv`)
+CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CHK_dates
 TABLE_NAME	t2
@@ -103,6 +133,11 @@ CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	name
 TABLE_NAME	t2
 CHECK_CLAUSE	char_length(`name`) > 2
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	mysql
+CONSTRAINT_NAME	Priv
+TABLE_NAME	global_priv
+CHECK_CLAUSE	json_valid(`Priv`)
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CHK_dates
@@ -132,6 +167,7 @@ CONSTRAINT b check (b>10) # table constraint
 select * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_NAME	CHECK_CLAUSE
 def	test	name	t2	char_length(`name`) > 2
+def	mysql	Priv	global_priv	json_valid(`Priv`)
 def	test	b	t3	`b` > 0
 def	test	b	t3	`b` > 10
 def	test	CHK_dates	t2	`start_date` is null

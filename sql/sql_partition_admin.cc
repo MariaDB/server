@@ -1,6 +1,6 @@
 /* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
    Copyright (c) 2014, SkySQL Ab.
-   Copyright (c) 2016, MariaDB Corporation
+   Copyright (c) 2016, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -96,10 +96,9 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   DBUG_ASSERT(!create_info.data_file_name && !create_info.index_file_name);
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
 
-  thd->prepare_logs_for_admin_command();
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
 #ifdef WITH_WSREP
- error:
+ wsrep_error_label:
   /* handle errors in TO_ISOLATION here */
   DBUG_RETURN(true);
 #endif /* WITH_WSREP */
@@ -193,8 +192,8 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
   DBUG_ENTER("compare_table_with_partition");
 
   bool metadata_equal= false;
-  memset(&part_create_info, 0, sizeof(HA_CREATE_INFO));
-  memset(&table_create_info, 0, sizeof(HA_CREATE_INFO));
+  part_create_info.init();
+  table_create_info.init();
 
   update_create_info_from_table(&table_create_info, table);
   /* get the current auto_increment value */

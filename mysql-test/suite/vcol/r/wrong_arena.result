@@ -7,9 +7,9 @@ d int as ((a,a) in ((1,1),(2,1),(NULL,1))),   # cmp_item_datetime
 e int as ((a,1) in ((1,1),(2,1),(NULL,1)))    # cmp_item_row::alloc_comparators()
 );
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '2'
-Warning	1292	Incorrect datetime value: '3'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+Warning	1292	Truncated incorrect datetime value: '3'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -20,21 +20,21 @@ t1	CREATE TABLE `t1` (
   `e` int(11) GENERATED ALWAYS AS ((`a`,1) in ((1,1),(2,1),(NULL,1))) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '2'
-Warning	1292	Incorrect datetime value: '3'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+Warning	1292	Truncated incorrect datetime value: '3'
 connect con1, localhost, root;
 insert t1 (a) values ('2010-10-10 10:10:10');
 select * from t1;
 a	b	c	d	e
 2010-10-10 10:10:10	1	0	0	NULL
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '2'
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '2'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
 disconnect con1;
 connection default;
 select * from t1;
@@ -50,14 +50,14 @@ select * from t1;
 a	b
 2010-10-10 10:10:10	0000-00-00 00:00:00
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
 disconnect con1;
 connection default;
 select * from t1;
 a	b
 2010-10-10 10:10:10	0000-00-00 00:00:00
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
 drop table t1;
 create table t1 (
 id int  not null ,

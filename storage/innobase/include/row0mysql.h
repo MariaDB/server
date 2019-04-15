@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,25 +28,22 @@ Created 9/17/2000 Heikki Tuuri
 #ifndef row0mysql_h
 #define row0mysql_h
 
-#include "ha_prototypes.h"
-#include "sql_list.h"
-#include "sql_cmd.h"
-
-#include "data0data.h"
 #include "que0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "row0types.h"
-#include "btr0pcur.h"
-#include "trx0types.h"
-#include "fil0crypt.h"
+#include "btr0types.h"
+#include "lock0types.h"
+#include "fil0fil.h"
+#include "fts0fts.h"
+#include "gis0type.h"
 
-// Forward declaration
-struct SysIndexCallback;
+#include "sql_list.h"
+#include "sql_cmd.h"
 
 extern ibool row_rollback_on_timeout;
 
 struct row_prebuilt_t;
+class ha_innobase;
 
 /*******************************************************************//**
 Frees the blob heap in prebuilt when no longer needed. */
@@ -293,17 +290,6 @@ row_unlock_for_mysql(
 	ibool		has_latches_on_recs);
 
 /*********************************************************************//**
-Checks if a table name contains the string "/#sql" which denotes temporary
-tables in MySQL.
-@return true if temporary table */
-bool
-row_is_mysql_tmp_table_name(
-/*========================*/
-	const char*	name) MY_ATTRIBUTE((warn_unused_result));
-				/*!< in: table name in the form
-				'database/tablename' */
-
-/*********************************************************************//**
 Creates an query graph node of 'update' type to be used in the MySQL
 interface.
 @return own: update node */
@@ -374,9 +360,8 @@ row_create_table_for_mysql(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
-Does an index creation operation for MySQL. TODO: currently failure
-to create an index results in dropping the whole table! This is no problem
-currently as all indexes must be created at the same time as the table.
+Create an index when creating a table.
+On failure, the caller must drop the table!
 @return error number or DB_SUCCESS */
 dberr_t
 row_create_index_for_mysql(
@@ -391,35 +376,6 @@ row_create_index_for_mysql(
 					then checked for not being too
 					large. */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Scans a table create SQL string and adds to the data dictionary
-the foreign key constraints declared in the string. This function
-should be called after the indexes for a table have been created.
-Each foreign key constraint must be accompanied with indexes in
-bot participating tables. The indexes are allowed to contain more
-fields than mentioned in the constraint.
-
-@param[in]	trx		transaction (NULL if not adding to dictionary)
-@param[in]	sql_string	table create statement where
-				foreign keys are declared like:
-				FOREIGN KEY (a, b) REFERENCES table2(c, d),
-				table2 can be written also with the database
-				name before it: test.table2; the default
-				database id the database of parameter name
-@param[in]	sql_length	length of sql_string
-@param[in]	name		table full name in normalized form
-@param[in]	reject_fks	whether to fail with DB_CANNOT_ADD_CONSTRAINT
-				if any foreign keys are found
-@return error code or DB_SUCCESS */
-dberr_t
-row_table_add_foreign_constraints(
-	trx_t*			trx,
-	const char*		sql_string,
-	size_t			sql_length,
-	const char*		name,
-	bool			reject_fks)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /*********************************************************************//**
 The master thread in srv0srv.cc calls this regularly to drop tables which
 we must drop in background after queries to them have ended. Such lazy
@@ -517,7 +473,9 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		commit)		/*!< in: whether to commit trx */
+	bool		commit,		/*!< in: whether to commit trx */
+	bool		use_fk)		/*!< in: whether to parse and enforce
+					FOREIGN KEY constraints */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
@@ -820,10 +778,14 @@ struct row_prebuilt_t {
 					store it here so that we can return
 					it to MySQL */
 	/*----------------------*/
-	void*		idx_cond;	/*!< In ICP, pointer to a ha_innobase,
-					passed to innobase_index_cond().
-					NULL if index condition pushdown is
-					not used. */
+
+	/** Argument of handler_rowid_filter_check(),
+	or NULL if no PRIMARY KEY filter is pushed */
+	ha_innobase*	pk_filter;
+
+	/** Argument to handler_index_cond_check(),
+	or NULL if no index condition pushdown (ICP) is used. */
+	ha_innobase*	idx_cond;
 	ulint		idx_cond_n_cols;/*!< Number of fields in idx_cond_cols.
 					0 if and only if idx_cond == NULL. */
 	/*----------------------*/

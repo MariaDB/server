@@ -338,7 +338,7 @@ DECLARE var BIT(10);
 SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
 END;
 $$
-ERROR HY000: Transaction system versioning for `t2` is not supported
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 #
 # String literals resolve to TIMESTAMP
 #
@@ -350,19 +350,17 @@ x
 #
 # HEX hybrids resolve to TRANSACTION
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0x60);
-x
-1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0x60);
-ERROR HY000: Transaction system versioning for `t2` is not supported
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 #
 # BIT literals resolve to TRANSACTION
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'1100000');
-x
-1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'1100000');
-ERROR HY000: Transaction system versioning for `t2` is not supported
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 DROP TABLE t1, t2;
 #
 # MDEV-16094 Crash when using AS OF with a stored function
@@ -386,7 +384,7 @@ PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
 SELECT * FROM tts FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
 SELECT * FROM tts FOR SYSTEM_TIME AS OF ftx();
-ERROR HY000: Transaction system versioning for `tts` is not supported
+ERROR HY000: Transaction-precise system versioning for `tts` is not supported
 SELECT * FROM ttx FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
 SELECT * FROM ttx FOR SYSTEM_TIME AS OF ftx();

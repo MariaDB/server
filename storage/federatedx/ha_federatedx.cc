@@ -319,6 +319,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sql_analyse.h"                        // append_escaped()
 #include "sql_show.h"                           // append_identifier()
 #include "tztime.h"                             // my_tz_find()
+#include "sql_select.h"
 
 #ifdef I_AM_PARANOID
 #define MIN_PORT 1023
@@ -401,6 +402,12 @@ static void init_federated_psi_keys(void)
 #define init_federated_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
 
+handlerton* federatedx_hton;
+
+static derived_handler*
+create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived);
+static select_handler*
+create_federatedx_select_handler(THD* thd, SELECT_LEX *sel);
 
 /*
   Initialize the federatedx handler.
@@ -418,7 +425,7 @@ int federatedx_db_init(void *p)
 {
   DBUG_ENTER("federatedx_db_init");
   init_federated_psi_keys();
-  handlerton *federatedx_hton= (handlerton *)p;
+  federatedx_hton= (handlerton *)p;
   federatedx_hton->state= SHOW_OPTION_YES;
   /* Needed to work with old .frm files */
   federatedx_hton->db_type= DB_TYPE_FEDERATED_DB;
@@ -432,6 +439,8 @@ int federatedx_db_init(void *p)
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
+  federatedx_hton->create_derived= create_federatedx_derived_handler;
+  federatedx_hton->create_select= create_federatedx_select_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
@@ -3672,6 +3681,13 @@ err1:
 struct st_mysql_storage_engine federatedx_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+my_bool use_pushdown;
+static MYSQL_SYSVAR_BOOL(pushdown, use_pushdown, 0,
+  "Use query fragments pushdown capabilities", NULL, NULL, FALSE);
+static struct st_mysql_sys_var* sysvars[]= { MYSQL_SYSVAR(pushdown), NULL };
+
+#include "federatedx_pushdown.cc"
+
 maria_declare_plugin(federatedx)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -3684,8 +3700,9 @@ maria_declare_plugin(federatedx)
   federatedx_done, /* Plugin Deinit */
   0x0201 /* 2.1 */,
   NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
+  sysvars,                    /* system variables                */
   "2.1",                      /* string version */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
+

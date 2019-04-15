@@ -1,0 +1,39 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (6),(7),(8),(9),(10),(1);
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL debug_dbug = 'd,sync.wsrep_apply_cb';
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);;
+connection node_1;
+INSERT INTO t1 SELECT * FROM t2;;
+connection node_1a;
+INSERT INTO t1 VALUES (6), (7), (8), (9), (10);
+COMMIT;
+connection node_1;
+Got one of the listed errors
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 1;
+SET GLOBAL debug_dbug = '';
+SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
+SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
+SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
+SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
+SELECT COUNT(*) = 10 FROM t1;
+COUNT(*) = 10
+1
+DROP TABLE t1;
+DROP TABLE t2;
+SET DEBUG_SYNC = RESET;

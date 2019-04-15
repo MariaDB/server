@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,12 +25,10 @@ process control primitives
 Created 9/30/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "os0proc.h"
-#include "srv0srv.h"
-#include "ut0mem.h"
-#include "ut0byte.h"
+#include "univ.i"
+#ifdef HAVE_LINUX_LARGE_PAGES
+# include "mysqld.h"
+#endif
 
 /* FreeBSD for example has only MAP_ANON, Linux has MAP_ANONYMOUS and
 MAP_ANON but MAP_ANON is marked as deprecated */
@@ -41,13 +40,7 @@ MAP_ANON but MAP_ANON is marked as deprecated */
 
 /** The total amount of memory currently allocated from the operating
 system with os_mem_alloc_large(). */
-ulint	os_total_large_mem_allocated = 0;
-
-/** Whether to use large pages in the buffer pool */
-my_bool	os_use_large_pages;
-
-/** Large page size. This may be a boot-time option on some platforms */
-uint	os_large_page_size;
+Atomic_counter<ulint>	os_total_large_mem_allocated;
 
 /** Converts the current process id to a number.
 @return process id as a number */
@@ -71,18 +64,18 @@ os_mem_alloc_large(
 {
 	void*	ptr;
 	ulint	size;
-#if defined HAVE_LINUX_LARGE_PAGES && defined UNIV_LINUX
+#ifdef HAVE_LINUX_LARGE_PAGES
 	int shmid;
 	struct shmid_ds buf;
 
-	if (!os_use_large_pages || !os_large_page_size) {
+	if (!my_use_large_pages || !opt_large_page_size) {
 		goto skip;
 	}
 
-	/* Align block size to os_large_page_size */
-	ut_ad(ut_is_2pow(os_large_page_size));
-	size = ut_2pow_round(*n + (os_large_page_size - 1),
-			     os_large_page_size);
+	/* Align block size to opt_large_page_size */
+	ut_ad(ut_is_2pow(opt_large_page_size));
+	size = ut_2pow_round(*n + opt_large_page_size - 1,
+			     ulint(opt_large_page_size));
 
 	shmid = shmget(IPC_PRIVATE, (size_t) size, SHM_HUGETLB | SHM_R | SHM_W);
 	if (shmid < 0) {
@@ -105,16 +98,14 @@ os_mem_alloc_large(
 
 	if (ptr) {
 		*n = size;
-		my_atomic_addlint(
-			&os_total_large_mem_allocated, size);
-
+		os_total_large_mem_allocated += size;
 		UNIV_MEM_ALLOC(ptr, size);
 		return(ptr);
 	}
 
 	ib::warn() << "Using conventional memory pool";
 skip:
-#endif /* HAVE_LINUX_LARGE_PAGES && UNIV_LINUX */
+#endif /* HAVE_LINUX_LARGE_PAGES */
 
 #ifdef _WIN32
 	SYSTEM_INFO	system_info;
@@ -122,18 +113,15 @@ skip:
 
 	/* Align block size to system page size */
 	ut_ad(ut_is_2pow(system_info.dwPageSize));
-	/* system_info.dwPageSize is only 32-bit. Casting to ulint is required
-	on 64-bit Windows. */
-	size = *n = ut_2pow_round(*n + (system_info.dwPageSize - 1),
-				  (ulint) system_info.dwPageSize);
+	size = *n = ut_2pow_round<ulint>(*n + (system_info.dwPageSize - 1),
+					 system_info.dwPageSize);
 	ptr = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE,
 			   PAGE_READWRITE);
 	if (!ptr) {
 		ib::info() << "VirtualAlloc(" << size << " bytes) failed;"
 			" Windows error " << GetLastError();
 	} else {
-		my_atomic_addlint(
-			&os_total_large_mem_allocated, size);
+		os_total_large_mem_allocated += size;
 		UNIV_MEM_ALLOC(ptr, size);
 	}
 #else
@@ -148,8 +136,7 @@ skip:
 			" errno " << errno;
 		ptr = NULL;
 	} else {
-		my_atomic_addlint(
-			&os_total_large_mem_allocated, size);
+		os_total_large_mem_allocated += size;
 		UNIV_MEM_ALLOC(ptr, size);
 	}
 #endif
@@ -166,14 +153,12 @@ os_mem_free_large(
 {
 	ut_a(os_total_large_mem_allocated >= size);
 
-#if defined HAVE_LINUX_LARGE_PAGES && defined UNIV_LINUX
-	if (os_use_large_pages && os_large_page_size && !shmdt(ptr)) {
-		my_atomic_addlint(
-			&os_total_large_mem_allocated, -size);
-		UNIV_MEM_FREE(ptr, size);
+#ifdef HAVE_LINUX_LARGE_PAGES
+	if (my_use_large_pages && opt_large_page_size && !shmdt(ptr)) {
+		os_total_large_mem_allocated -= size;
 		return;
 	}
-#endif /* HAVE_LINUX_LARGE_PAGES && UNIV_LINUX */
+#endif /* HAVE_LINUX_LARGE_PAGES */
 #ifdef _WIN32
 	/* When RELEASE memory, the size parameter must be 0.
 	Do not use MEM_RELEASE with MEM_DECOMMIT. */
@@ -181,9 +166,7 @@ os_mem_free_large(
 		ib::error() << "VirtualFree(" << ptr << ", " << size
 			<< ") failed; Windows error " << GetLastError();
 	} else {
-		my_atomic_addlint(
-			&os_total_large_mem_allocated, -lint(size));
-		UNIV_MEM_FREE(ptr, size);
+		os_total_large_mem_allocated -= size;
 	}
 #elif !defined OS_MAP_ANON
 	ut_free(ptr);
@@ -196,9 +179,7 @@ os_mem_free_large(
 		ib::error() << "munmap(" << ptr << ", " << size << ") failed;"
 			" errno " << errno;
 	} else {
-		my_atomic_addlint(
-			&os_total_large_mem_allocated, -size);
-		UNIV_MEM_FREE(ptr, size);
+		os_total_large_mem_allocated -= size;
 	}
 #endif
 }

@@ -2377,31 +2377,8 @@ ER_TABLE_NOT_LOCKED
         spa "Tabla '%-.192s' no fue trabada con LOCK TABLES"
         swe "Tabell '%-.192s' är inte låst med LOCK TABLES"
         ukr "Таблицю '%-.192s' не було блоковано з LOCK TABLES"
-ER_BLOB_CANT_HAVE_DEFAULT 42000 
-        cze "Blob položka '%-.192s' nemůže mít defaultní hodnotu"
-        dan "BLOB feltet '%-.192s' kan ikke have en standard værdi"
-        nla "Blob veld '%-.192s' can geen standaardwaarde bevatten"
-        eng "BLOB/TEXT column '%-.192s' can't have a default value"
-        est "BLOB-tüüpi tulp '%-.192s' ei saa omada vaikeväärtust"
-        fre "BLOB '%-.192s' ne peut avoir de valeur par défaut"
-        ger "BLOB/TEXT-Feld '%-.192s' darf keinen Vorgabewert (DEFAULT) haben"
-        greek "Τα Blob πεδία '%-.192s' δεν μπορούν να έχουν προκαθορισμένες τιμές (default value)"
-        hindi "BLOB/TEXT कॉलम '%-.192s' का डिफ़ॉल्ट मान नहीं हो सकता"
-        hun "A(z) '%-.192s' blob objektumnak nem lehet alapertelmezett erteke"
-        ita "Il campo BLOB '%-.192s' non puo` avere un valore di default"
-        jpn "BLOB/TEXT 列 '%-.192s' にはデフォルト値を指定できません。"
-        kor "BLOB 칼럼 '%-.192s' 는 디폴트 값을 가질 수 없습니다."
-        nor "Blob feltet '%-.192s' kan ikke ha en standard verdi"
-        norwegian-ny "Blob feltet '%-.192s' kan ikkje ha ein standard verdi"
-        pol "Pole typu blob '%-.192s' nie może mieć domy?lnej warto?ci"
-        por "Coluna BLOB '%-.192s' não pode ter um valor padrão (default)"
-        rum "Coloana BLOB '%-.192s' nu poate avea o valoare default"
-        rus "Невозможно указывать значение по умолчанию для столбца BLOB '%-.192s'"
-        serbian "BLOB kolona '%-.192s' ne može imati default vrednost"
-        slo "Pole BLOB '%-.192s' nemôže mať implicitnú hodnotu"
-        spa "Campo Blob '%-.192s' no puede tener valores patron"
-        swe "BLOB fält '%-.192s' kan inte ha ett DEFAULT-värde"
-        ukr "Стовбець BLOB '%-.192s' не може мати значення по замовчуванню"
+ER_UNUSED_17
+        eng "You should never see it"
 ER_WRONG_DB_NAME 42000 
         cze "Nepřípustné jméno databáze '%-.100s'"
         dan "Ugyldigt database navn '%-.100s'"
@@ -5449,8 +5426,8 @@ ER_DIVISION_BY_ZERO 22012
         ger "Division durch 0"
         hindi "0 से विभाजन"
 ER_TRUNCATED_WRONG_VALUE_FOR_FIELD  22007
-        eng "Incorrect %-.32s value: '%-.128s' for column '%.192s' at row %lu"
-        ger "Falscher %-.32s-Wert: '%-.128s' für Feld '%.192s' in Zeile %lu"
+        eng "Incorrect %-.32s value: '%-.128s' for column `%.192s`.`%.192s`.`%.192s` at row %lu"
+        ger "Falscher %-.32s-Wert: '%-.128s' für Feld '`%.192s`.`%.192s`.`%.192s` in Zeile %lu"
 ER_ILLEGAL_VALUE_FOR_TYPE 22007 
         eng "Illegal %s '%-.192s' value found during parsing"
         ger "Nicht zulässiger %s-Wert '%-.192s' beim Parsen gefunden"
@@ -5838,10 +5815,10 @@ ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR
         eng "Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed"
         ger "Konstante oder Random-Ausdrücke in (Unter-)Partitionsfunktionen sind nicht erlaubt"
         swe "Konstanta uttryck eller slumpmässiga uttryck är inte tillåtna (sub)partitioneringsfunktioner"
-ER_NO_CONST_EXPR_IN_RANGE_OR_LIST_ERROR
-        eng "Expression in RANGE/LIST VALUES must be constant"
-        ger "Ausdrücke in RANGE/LIST VALUES müssen konstant sein"
-        swe "Uttryck i RANGE/LIST VALUES måste vara ett konstant uttryck"
+ER_NOT_CONSTANT_EXPRESSION
+        eng "Expression in %s must be constant"
+        ger "Ausdrücke in %s müssen konstant sein"
+        swe "Uttryck i %s måste vara ett konstant uttryck"
 ER_FIELD_NOT_FOUND_PART_ERROR
         eng "Field in list of fields for partition function not found in table"
         ger "Felder in der Feldliste der Partitionierungsfunktion wurden in der Tabelle nicht gefunden"
@@ -6570,7 +6547,7 @@ ER_ACCESS_DENIED_NO_PASSWORD_ERROR 28000
         ukr "Доступ заборонено для користувача: '%s'@'%s'"
 
 ER_SET_PASSWORD_AUTH_PLUGIN
-        eng "SET PASSWORD has no significance for users authenticating via plugins"
+        eng "SET PASSWORD is ignored for users authenticating via %s plugin"
 
 ER_GRANT_PLUGIN_USER_EXISTS
         eng "GRANT with IDENTIFIED WITH is illegal because the user %-.*s already exists"
@@ -6942,6 +6919,7 @@ ER_NOT_VALID_PASSWORD
 ER_MUST_CHANGE_PASSWORD
   eng "You must SET PASSWORD before executing this statement"
   bgn "Трябва първо да си смените паролата със SET PASSWORD за да можете да изпълните тази команда"
+  rum "Trebuie sa iti schimbi parola folosind SET PASSWORD inainte de a executa aceasta comanda"
 
 ER_FK_NO_INDEX_CHILD
         eng "Failed to add the foreign key constaint. Missing index for constraint '%s' in the foreign table '%s'"
@@ -7034,7 +7012,7 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_RENAME
   eng "Columns participating in a foreign key are renamed"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE
-  eng "Cannot change column type INPLACE"
+  eng "Cannot change column type"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_CHECK
   eng "Adding foreign keys needs foreign_key_checks=OFF"
@@ -7094,6 +7072,7 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
 ER_MUST_CHANGE_PASSWORD_LOGIN
   eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
   bgn "Паролата ви е изтекла. За да влезете трябва да я смените използвайки клиент който поддрържа такива пароли"
+  rum "Parola ta a expirat. Pentru a te loga, trebuie sa o schimbi folosind un client ce suporta parole expirate"
 
 ER_ROW_IN_WRONG_PARTITION
   eng "Found a row in wrong partition %s"
@@ -7175,7 +7154,7 @@ ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
   eng "Cannot define foreign key with %s clause on a generated column"
 ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
-  eng "The value specified for generated column '%s' in table '%s' ignored"
+  eng "The value specified for generated column '%s' in table '%s' has been ignored"
 ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
   eng "This is not yet supported for generated columns"
 ER_UNUSED_20
@@ -7623,7 +7602,7 @@ ER_ERROR_EVALUATING_EXPRESSION
 ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
-        eng "Expression for field %`-.64s is refering to uninitialized field %`s"
+        eng "Expression for field %`-.64s is referring to uninitialized field %`s"
 ER_PARTITION_DEFAULT_ERROR
         eng "Only one DEFAULT partition allowed"
         ukr "Припустимо мати тільки один DEFAULT розділ" 
@@ -7809,7 +7788,7 @@ ER_ARGUMENT_OUT_OF_RANGE
 ER_WRONG_TYPE_OF_ARGUMENT
         eng "%s function only accepts arguments that can be converted to numerical types"
 ER_NOT_AGGREGATE_FUNCTION
-        eng "Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)"
+        eng "Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context"
 ER_INVALID_AGGREGATE_FUNCTION
         eng "Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function"
 ER_INVALID_VALUE_TO_LIMIT
@@ -7827,7 +7806,7 @@ ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %s for system-versioned table %`s"
 
 ER_VERS_ENGINE_UNSUPPORTED
-        eng "Transaction system versioning for %`s is not supported"
+        eng "Transaction-precise system versioning for %`s is not supported"
 
 ER_UNUSED_23
         eng "You should never see it"
@@ -7907,8 +7886,8 @@ ER_UNUSED_24
 ER_VERS_TEMPORARY
 	eng "TEMPORARY tables do not support system versioning"
 
-ER_VERS_NOT_SUPPORTED
-        eng "%s is not supported for %s system-versioned tables"
+ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+        eng "Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE
@@ -7921,3 +7900,34 @@ ER_KEY_DOESNT_SUPPORT
         eng "%s index %`s does not support this operation"
 ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 	eng "Changing table options requires the table to be rebuilt"
+ER_BACKUP_LOCK_IS_ACTIVE
+        eng "Can't execute the command as you have a BACKUP STAGE active"
+ER_BACKUP_NOT_RUNNING
+        eng "You must start backup with \"BACKUP STAGE START\""
+ER_BACKUP_WRONG_STAGE
+        eng "Backup stage '%s' is same or before current backup stage '%s'"
+ER_BACKUP_STAGE_FAILED
+        eng "Backup stage '%s' failed"
+ER_BACKUP_UNKNOWN_STAGE
+        eng "Unknown backup stage: '%s'. Stage should be one of START, FLUSH, BLOCK_DDL, BLOCK_COMMIT or END"
+ER_USER_IS_BLOCKED
+        eng "User is blocked because of too many credential errors; unblock with 'FLUSH PRIVILEGES'"
+ER_ACCOUNT_HAS_BEEN_LOCKED
+        eng "Access denied, this account is locked"
+        rum "Acces refuzat, acest cont este blocat"
+ER_PERIOD_TEMPORARY_NOT_ALLOWED
+        eng "Application-time period table cannot be temporary"
+ER_PERIOD_TYPES_MISMATCH
+        eng "Fields of PERIOD FOR %`s have different types"
+ER_MORE_THAN_ONE_PERIOD
+        eng "Cannot specify more than one application-time period"
+ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+        eng "Period field %`s cannot be %s"
+ER_PERIOD_NOT_FOUND
+        eng "Period %`s is not found in table"
+ER_PERIOD_COLUMNS_UPDATED
+        eng "Column %`s used in period %`s specified in update SET list"
+ER_PERIOD_CONSTRAINT_DROP
+        eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
+ER_TOO_LONG_KEYPART 42000 S1009
+        eng "Specified key part was too long; max key part length is %u bytes"

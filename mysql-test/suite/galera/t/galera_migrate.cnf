@@ -29,11 +29,13 @@ wsrep_sync_wait = 15
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+log-slave-updates
 
 [mysqld.4]
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+log-slave-updates
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

@@ -536,17 +536,17 @@ a	b
 select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 a	b
 1	3
+1	1
 3	1
 2	2
-1	1
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using temporary
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
 drop table t1,t2;
 create table t1 (a int, b int);
 insert into t1 values (1, 4),(10, 40),(1, 4),(10, 43),(1, 4),(10, 41),(1, 4),(10, 43),(1, 4);
@@ -1330,6 +1330,7 @@ INSERT INTO t1 SELECT a + 64,b FROM t1;
 INSERT INTO t1 SELECT a + 128,b FROM t1 limit 16;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT a FROM t1 WHERE a < 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2429,7 +2430,12 @@ a int,
 b varchar(1),
 KEY (b,a)
 );
-INSERT INTO t1 VALUES (1,NULL),(0,'a'),(1,NULL),(0,'a');
+INSERT INTO t1 VALUES
+(1,NULL),(0,'a'),(1,NULL),(0,'a'), (1,'a'),(0,'a'),(2,'a'),(1,'a');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 
 EXPLAIN SELECT SQL_BUFFER_RESULT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2749,6 +2755,7 @@ create table t2 (c int, col1 int, key(c));
 insert into t2 select t1.a, 100000 from t1;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 explain 
 select 
@@ -2830,6 +2837,16 @@ create table t1 (a int,b int) ;
 insert into t1 values(-126,7),(1,1),(0,0),(-1,1),(351,65534);
 select distinct 1 from t1 group by a,b with rollup limit 1;
 1
+1
+drop table t1;
+CREATE TABLE t1 ( pk int, i1 int, v1 varchar(1));
+explain
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
 1
 drop table t1;
 #

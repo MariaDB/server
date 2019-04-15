@@ -24,8 +24,4 @@ SELECT * FROM t1i WHERE 'bar' NOT IN ( SELECT t1_1.a FROM t1i AS t1_1, t1i AS t1
 SELECT * FROM t2i;
 a
 include/diff_tables.inc [t2,t2i]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table t1,t2,t1i,t2i;

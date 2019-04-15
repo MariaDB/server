@@ -187,7 +187,7 @@ Warnings:
 Warning	1265	Data truncated for column 'i' at row 513
 explain select * from t1 where i=2 or i is null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i	i	4	const	7	Using index
+1	SIMPLE	t1	ref	i	i	4	const	8	Using index
 select count(*) from t1 where i=2 or i is null;
 count(*)
 9
@@ -515,9 +515,9 @@ NULLIF(TIMESTAMP'2001-01-01 00:00:00',1e0),
 NULLIF(TIMESTAMP'2001-01-01 00:00:00','2001-01-01'),
 NULLIF(TIMESTAMP'2001-01-01 00:00:00',TIME'00:00:00');
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '1.0'
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1.0'
+Warning	1292	Truncated incorrect datetime value: '1'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -536,9 +536,9 @@ NULLIF(DATE'2001-01-01',1e0),
 NULLIF(DATE'2001-01-01','2001-01-01'),
 NULLIF(DATE'2001-01-01',TIME'00:00:00');
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '1.0'
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1.0'
+Warning	1292	Truncated incorrect datetime value: '1'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1640,8 +1640,8 @@ CASE WHEN TIMESTAMP'2001-01-01 00:00:00'=1 THEN NULL
 ELSE TIMESTAMP'2001-01-01 00:00:00'
   END AS b;
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
 DROP TABLE t1;
 #
 # MDEV-8785 Wrong results for EXPLAIN EXTENDED...WHERE NULLIF(latin1_col, _utf8'a' COLLATE utf8_bin) IS NOT NULL

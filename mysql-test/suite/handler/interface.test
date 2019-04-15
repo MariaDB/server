@@ -179,12 +179,13 @@ handler t1 open;
 handler t1 read first;
 connect (flush,localhost,root,,);
 connection flush;
-send flush tables;
+flush tables;
+send flush table t1;
 connect (waiter,localhost,root,,);
 connection waiter;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for table flush";
+  where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
 connection default;
 handler t2 open;
@@ -282,6 +283,7 @@ handler t1 read a first;
 handler t1 read a next;
 flush tables;
 handler t1 read a next;
+flush tables t1;
 handler t1 read a next;
 flush tables with read lock;
 handler t1 read a next;

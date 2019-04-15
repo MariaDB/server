@@ -217,7 +217,7 @@ a	b	a	b
 insert into t1 select (A.a + 10 * B.a),1 from t0 A, t0 B;
 explain extended select * from t1 where a in (select pk from t10 where pk<3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t10	range	PRIMARY	PRIMARY	4	NULL	4	100.00	Using where; Using index
+1	PRIMARY	t10	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where; Using index
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	103	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t10` join `test`.`t1` where `test`.`t1`.`a` = `test`.`t10`.`pk` and `test`.`t10`.`pk` < 3
@@ -742,7 +742,7 @@ SELECT int_key FROM ot1
 WHERE int_nokey IN (SELECT it2.int_key
 FROM it1 LEFT JOIN it2 ON it2.datetime_key);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	11	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	10	
 1	PRIMARY	ot1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	MATERIALIZED	it1	index	NULL	int_key	4	NULL	2	Using index
 2	MATERIALIZED	it2	ALL	int_key,datetime_key	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
@@ -3093,9 +3093,11 @@ set optimizer_switch= @tmp_mdev6859;
 set @tmp_mdev12675=@@optimizer_switch;
 set optimizer_switch=default;
 create table t1 (a int) engine=myisam;
-insert into t1  values (5),(3),(2),(7),(2),(5),(1);
+insert into t1  values (3),(2),(7),(2),(1);
 create table t2 (b int, index idx(b)) engine=myisam;
-insert into t2 values (2),(3),(2),(1),(3),(4);
+insert into t2 values (2),(3),(2),(1),(3),(4),(1),(2),(1),(2);
+insert into t2 select b+10 from t2;
+insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
@@ -3109,20 +3111,22 @@ insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain
 select a from t1, t2 where b between 1 and 2 and a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	Using where
-1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	256	Using index; FirstMatch(t1)
-1	PRIMARY	t2	range	idx	idx	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1462	Using index; FirstMatch(t1)
+1	PRIMARY	t2	range	idx	idx	5	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
 explain 
 select a from t1 join t2 on b between 1 and 2 and a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	Using where
-1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	256	Using index; FirstMatch(t1)
-1	PRIMARY	t2	range	idx	idx	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ref	idx	idx	5	test.t1.a	1462	Using index; FirstMatch(t1)
+1	PRIMARY	t2	range	idx	idx	5	NULL	5	Using where; Using index; Using join buffer (flat, BNL join)
 drop table t1,t2;
 set optimizer_switch= @tmp_mdev12675;
 #
@@ -3204,6 +3208,13 @@ EXECUTE stmt;
 a
 drop view v3;
 drop table t1,t2,t3;
+#
+# MDEV-18896: IN subquery in WHERE of a table-less query used for INSERT
+#
+create table t1 (a1 varchar(25));
+create table t2 (a2 varchar(25)) ;
+insert into t1 select 'xxx' from dual where 'xxx' in (select a2 from t2);
+drop table t1,t2;
 # End of 5.5 test
 set optimizer_switch=@subselect_sj_tmp;
 #
@@ -3412,7 +3423,7 @@ EXPLAIN
 SELECT a FROM t1 t WHERE a IN (SELECT b FROM t1, t2 WHERE b = a)
 GROUP BY a HAVING a != 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	index	idx_a	idx_a	4	NULL	3	Using index
+1	PRIMARY	t	range	idx_a	idx_a	4	NULL	3	Using where; Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t1	ref	idx_a	idx_a	4	test.t2.b	2	Using index
@@ -3426,7 +3437,7 @@ EXPLAIN
 SELECT a FROM t1 t WHERE a IN (SELECT b FROM t1, t2 WHERE b = a)
 GROUP BY a HAVING a != 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	index	idx_a	idx_a	4	NULL	3	Using index
+1	PRIMARY	t	range	idx_a	idx_a	4	NULL	3	Using where; Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t1	ref	idx_a	idx_a	4	test.t2.b	2	Using index

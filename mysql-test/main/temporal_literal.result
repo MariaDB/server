@@ -294,17 +294,17 @@ SELECT TIMESTAMP'2001-00-00 00:00:00.9999999';
 TIMESTAMP'2001-00-00 00:00:00.9999999'
 2001-00-00 00:00:00.999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2001-00-00 00:00:00.9999999'
+Note	1292	Truncated incorrect DATETIME value: '2001-00-00 00:00:00.9999999'
 SELECT TIMESTAMP'2001-00-01 00:00:00.9999999';
 TIMESTAMP'2001-00-01 00:00:00.9999999'
 2001-00-01 00:00:00.999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2001-00-01 00:00:00.9999999'
+Note	1292	Truncated incorrect DATETIME value: '2001-00-01 00:00:00.9999999'
 SELECT TIMESTAMP'2001-01-00 00:00:00.9999999';
 TIMESTAMP'2001-01-00 00:00:00.9999999'
 2001-01-00 00:00:00.999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2001-01-00 00:00:00.9999999'
+Note	1292	Truncated incorrect DATETIME value: '2001-01-00 00:00:00.9999999'
 #
 # String literal with bad dates and nanoseconds to DATETIME(N)
 #
@@ -416,7 +416,7 @@ SELECT TIME'10:10:10.1234567';
 TIME'10:10:10.1234567'
 10:10:10.123456
 Warnings:
-Note	1292	Truncated incorrect time value: '10:10:10.1234567'
+Note	1292	Truncated incorrect TIME value: '10:10:10.1234567'
 SELECT TIME('10:10:10.1234567');
 TIME('10:10:10.1234567')
 10:10:10.123456
@@ -440,7 +440,7 @@ SELECT TIMESTAMP'2001-01-01 10:10:10.1234567';
 TIMESTAMP'2001-01-01 10:10:10.1234567'
 2001-01-01 10:10:10.123456
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2001-01-01 10:10:10.1234567'
+Note	1292	Truncated incorrect DATETIME value: '2001-01-01 10:10:10.1234567'
 SELECT TIMESTAMP('2001-01-01 10:10:10.1234567');
 TIMESTAMP('2001-01-01 10:10:10.1234567')
 2001-01-01 10:10:10.123456
@@ -463,7 +463,7 @@ Warning	1292	Truncated incorrect datetime value: '2001-01-01 10:10:10.1234567xyz
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES (TIME'10:20:30.1234567');
 Warnings:
-Note	1292	Truncated incorrect time value: '10:20:30.1234567'
+Note	1292	Truncated incorrect TIME value: '10:20:30.1234567'
 INSERT INTO t1 VALUES (TIME('10:20:30.1234567'));
 Warnings:
 Note	1292	Truncated incorrect time value: '10:20:30.1234567'

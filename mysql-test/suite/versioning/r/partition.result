@@ -1,6 +1,10 @@
 set system_versioning_alter_history=keep;
 # Check conventional partitioning on temporal tables
-create table t1 (x int)
+create or replace table t1 (
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
 with system versioning
 partition by range columns (x) (
 partition p0 values less than (100),
@@ -34,7 +38,13 @@ select * from t1 partition (p1) for system_time all;
 x
 300
 # Engine change native <-> non-native versioning prohibited
-create or replace table t1 (i int) engine=DEFAULT_ENGINE with system versioning partition by hash(i);
+create or replace table t1 (
+i int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
+engine=DEFAULT_ENGINE
+with system versioning partition by hash(i);
 alter table t1 engine=NON_DEFAULT_ENGINE;
 ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change to/from native system versioning engine is not supported.
 ## CREATE TABLE
@@ -334,14 +344,21 @@ select * from t1 partition (p1sp0);
 x
 select * from t1 partition (p1sp1);
 x
-create or replace table t1 (a bigint)
+create or replace table t1 (
+a bigint,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
 with system versioning
 partition by range (a)
 (partition p0 values less than (20) engine innodb,
 partition p1 values less than maxvalue engine innodb);
 insert into t1 values (1);
 create or replace table t1 (
-f_int1 integer default 0
+f_int1 integer default 0,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end)
 ) with system versioning
 partition by range(f_int1)
 subpartition by hash(f_int1)
@@ -350,7 +367,11 @@ subpartition by hash(f_int1)
 subpartition subpart12 storage engine = 'innodb'));
 insert into t1 values (1);
 create or replace table t1 (i int) engine=innodb partition by key(i);
-alter table t1 add system versioning;
+alter table t1
+add column row_start SYS_DATATYPE as row start invisible,
+add column row_end SYS_DATATYPE as row end invisible,
+add period for system_time(row_start, row_end),
+add system versioning;
 insert into t1 values();
 # MDEV-14722 Assertion in ha_commit_trans for sub-statement
 create or replace table t1 (i int) with system versioning
@@ -435,7 +456,7 @@ partition_name	partition_ordinal_position	partition_method	timediff(partition_de
 p0	1	SYSTEM_TIME	00:00:00.000000
 pn	2	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 alter table t1 add partition (partition p1 history, partition p2 history);
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
@@ -444,7 +465,7 @@ p1	2	SYSTEM_TIME	01:00:00.000000
 p2	3	SYSTEM_TIME	02:00:00.000000
 pn	4	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 alter table t1 drop partition p0;
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
@@ -452,7 +473,7 @@ p1	1	SYSTEM_TIME	01:00:00.000000
 p2	2	SYSTEM_TIME	02:00:00.000000
 pn	3	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 alter table t1 drop partition p2;
 ERROR HY000: Can only drop oldest partitions when rotating by INTERVAL
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
@@ -461,7 +482,7 @@ p1	1	SYSTEM_TIME	01:00:00.000000
 p2	2	SYSTEM_TIME	02:00:00.000000
 pn	3	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Truncated incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT'
 #
 # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
 #

@@ -1094,3 +1094,33 @@ DEALLOCATE PREPARE stmt;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-17995 INET6_NTOA(ucs2_input) erroneously returns NULL
+--echo #
+
+SELECT HEX(INET6_ATON('1::1')), HEX(INET6_ATON(CONVERT('1::1' USING ucs2)));
+
+--echo #
+--echo # MDEV-19184 Crash in IS_IPV6(_ucs2 0x0031)
+--echo #
+
+SET NAMES utf8;
+SELECT IS_IPV6(_ucs2 0x0031);
+SELECT IS_IPV4(_ucs2 0x0031);
+
+SELECT IS_IPV6(_ucs2 0x003A003A);
+SELECT IS_IPV4(_ucs2 0x00310030002E0030002E0030002E0031);
+
+SET NAMES utf8, collation_connection=ucs2_bin;
+SELECT IS_IPV6('::');
+SELECT IS_IPV4('10.0.0.1');
+SET NAMES utf8;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/big_test.inc
+let $restart_noprint=2;
 
 --echo #
 --echo # Bug Bug #27304661 MYSQL CRASH DOING SYNC INDEX ]

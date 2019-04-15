@@ -1,0 +1,9 @@
+call mtr.add_suppression("InnoDB: Table `test`.`t1` has an unreadable root page");
+call mtr.add_suppression("InnoDB: Encrypted page .* in file .*test.t1\\.ibd looks corrupted; key_version=1");
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT, c char(200)) ENGINE=InnoDB page_compressed=yes encrypted=yes;
+insert into t1(b, c) values("mariadb", "mariabackup");
+# Corrupt the table
+# restart
+# xtrabackup backup
+FOUND 1 /Database page corruption detected.*/ in backup.log
+drop table t1;

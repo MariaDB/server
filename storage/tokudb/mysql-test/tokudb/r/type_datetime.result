@@ -218,7 +218,7 @@ insert into t1 set dt='2007-03-23 13:49:38',da=dt;
 Warnings:
 Note	1265	Data truncated for column 'da' at row 1
 insert into t1 values ('2007-03-32','2007-03-23 13:49:38');
-ERROR 22007: Incorrect date value: '2007-03-32' for column 'da' at row 1
+ERROR 22007: Incorrect date value: '2007-03-32' for column `test`.`t1`.`da` at row 1
 select * from t1;
 da	dt
 1962-03-03	1962-03-03 00:00:00
@@ -401,7 +401,7 @@ if(@bug28261 = f1, '', @bug28261:= f1)
 2001-01-01
 2002-02-02
 Warnings:
-Warning	1292	Incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
 select if(@bug28261 = f1, '', @bug28261:= f1) from t1;
 if(@bug28261 = f1, '', @bug28261:= f1)
 2001-01-01
@@ -425,11 +425,11 @@ f1
 2001-01-01 00:00:00
 2002-02-02 00:00:00
 Warnings:
-Warning	1292	Incorrect datetime value: '2002010'
+Warning	1292	Truncated incorrect datetime value: '2002010'
 select * from t1 where f1 between 20020101 and 2007010100000;
 f1
 Warnings:
-Warning	1292	Incorrect datetime value: '2007010100000'
+Warning	1292	Truncated incorrect datetime value: '2007010100000'
 drop table t1;
 #
 # Bug#27216: functions with parameters of different date types may
@@ -500,7 +500,7 @@ f1
 45:44:44
 15:44:44
 Warnings:
-Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
 drop table t1;
 create table t1 (a tinyint);
 insert into t1 values (), (), ();
@@ -586,7 +586,7 @@ insert into t1 set dt='2007-03-23 13:49:38',da=dt;
 Warnings:
 Note	1265	Data truncated for column 'da' at row 1
 insert into t1 values ('2007-03-32','2007-03-23 13:49:38');
-ERROR 22007: Incorrect date value: '2007-03-32' for column 'da' at row 1
+ERROR 22007: Incorrect date value: '2007-03-32' for column `test`.`t1`.`da` at row 1
 select * from t1;
 da	dt
 1962-03-03	1962-03-03 00:00:00

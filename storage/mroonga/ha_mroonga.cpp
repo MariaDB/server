@@ -2856,6 +2856,7 @@ ulonglong ha_mroonga::wrapper_table_flags() const
 #ifdef HA_CAN_VIRTUAL_COLUMNS
   table_flags |= HA_CAN_VIRTUAL_COLUMNS;
 #endif
+  table_flags |= HA_CAN_HASH_KEYS;
   DBUG_RETURN(table_flags);
 }
 
@@ -2891,6 +2892,7 @@ ulonglong ha_mroonga::storage_table_flags() const
 #ifdef HA_CAN_VIRTUAL_COLUMNS
   flags |= HA_CAN_VIRTUAL_COLUMNS;
 #endif
+  flags |= HA_CAN_HASH_KEYS;
   DBUG_RETURN(flags);
 }
 
@@ -3001,9 +3003,9 @@ int ha_mroonga::create_share_for_create() const
   TABLE_LIST *table_list = MRN_LEX_GET_TABLE_LIST(lex);
   MRN_DBUG_ENTER_METHOD();
   wrap_handler_for_create = NULL;
-  memset(&table_for_create, 0, sizeof(TABLE));
+  table_for_create.reset();
+  table_share_for_create.reset();
   memset(&share_for_create, 0, sizeof(MRN_SHARE));
-  memset(&table_share_for_create, 0, sizeof(TABLE_SHARE));
   if (table_share) {
     table_share_for_create.comment = table_share->comment;
     table_share_for_create.connect_string = table_share->connect_string;
@@ -4733,11 +4735,8 @@ int ha_mroonga::storage_open_columns(void)
 
   if (table_share->blob_fields)
   {
-    if (blob_buffers)
-    {
-      ::delete [] blob_buffers;
-    }
-    if (!(blob_buffers = ::new String[n_columns]))
+    DBUG_ASSERT(!blob_buffers);
+    if (!(blob_buffers = new (&table->mem_root) String[n_columns]))
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -10576,7 +10575,7 @@ int ha_mroonga::generic_store_bulk_time(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_time *time_field = (Field_time *)field;
   MYSQL_TIME mysql_time;
-  time_field->get_time(&mysql_time);
+  time_field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10596,7 +10595,7 @@ int ha_mroonga::generic_store_bulk_datetime(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_datetime *datetime_field = (Field_datetime *)field;
   MYSQL_TIME mysql_time;
-  datetime_field->get_time(&mysql_time);
+  datetime_field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10657,7 +10656,7 @@ int ha_mroonga::generic_store_bulk_datetime2(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_datetimef *datetimef_field = (Field_datetimef *)field;
   MYSQL_TIME mysql_time;
-  datetimef_field->get_time(&mysql_time);
+  datetimef_field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10682,7 +10681,7 @@ int ha_mroonga::generic_store_bulk_time2(Field *field, grn_obj *buf)
   int error = 0;
   bool truncated = false;
   MYSQL_TIME mysql_time;
-  field->get_time(&mysql_time);
+  field->get_date(&mysql_time, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_time,
                                                              &truncated);
@@ -10707,7 +10706,7 @@ int ha_mroonga::generic_store_bulk_new_date(Field *field, grn_obj *buf)
   bool truncated = false;
   Field_newdate *newdate_field = (Field_newdate *)field;
   MYSQL_TIME mysql_date;
-  newdate_field->get_time(&mysql_date);
+  newdate_field->get_date(&mysql_date, Time::Options(current_thd));
   mrn::TimeConverter time_converter;
   long long int time = time_converter.mysql_time_to_grn_time(&mysql_date,
                                                              &truncated);
@@ -11617,14 +11616,14 @@ int ha_mroonga::storage_encode_key_timestamp(Field *field, const uchar *key,
   } else {
     Field_timestamp_hires *timestamp_hires_field =
       (Field_timestamp_hires *)field;
-    uint fuzzy_date = 0;
     uchar *ptr_backup = field->ptr;
     uchar *null_ptr_backup = field->null_ptr;
     TABLE *table_backup = field->table;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
     field->table = table;
-    timestamp_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
+    Temporal::Options opt(TIME_CONV_NONE, current_thd);
+    timestamp_hires_field->get_date(&mysql_time, opt);
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     field->table = table_backup;
@@ -11675,12 +11674,12 @@ int ha_mroonga::storage_encode_key_time(Field *field, const uchar *key,
     mysql_time.time_type = MYSQL_TIMESTAMP_TIME;
   } else {
     Field_time_hires *time_hires_field = (Field_time_hires *)field;
-    uint fuzzy_date = 0;
     uchar *ptr_backup = field->ptr;
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    time_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
+    Temporal::Options opt(TIME_CONV_NONE, current_thd);
+    time_hires_field->get_date(&mysql_time, opt);
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
   }
@@ -11749,12 +11748,12 @@ int ha_mroonga::storage_encode_key_datetime(Field *field, const uchar *key,
   if (field->decimals() > 0) {
     Field_datetime_hires *datetime_hires_field = (Field_datetime_hires *)field;
     MYSQL_TIME mysql_time;
-    uint fuzzy_date = 0;
     uchar *ptr_backup = field->ptr;
     uchar *null_ptr_backup = field->null_ptr;
     field->ptr = (uchar *)key;
     field->null_ptr = (uchar *)(key - 1);
-    datetime_hires_field->get_date(&mysql_time, date_mode_t(fuzzy_date));
+    Temporal::Options opt(TIME_CONV_NONE, current_thd);
+    datetime_hires_field->get_date(&mysql_time, opt);
     field->ptr = ptr_backup;
     field->null_ptr = null_ptr_backup;
     mrn::TimeConverter time_converter;
@@ -11824,7 +11823,8 @@ int ha_mroonga::storage_encode_key_timestamp2(Field *field, const uchar *key,
 #endif
 
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
-int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
+int ha_mroonga::storage_encode_key_datetime2(Field *field, bool is_null,
+                                             const uchar *key,
                                              uchar *buf, uint *size)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -11832,7 +11832,7 @@ int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
   bool truncated = false;
 
   Field_datetimef *datetime2_field = (Field_datetimef *)field;
-  longlong packed_time =
+  longlong packed_time = is_null ? 0 :
     my_datetime_packed_from_binary(key, datetime2_field->decimals());
   MYSQL_TIME mysql_time;
   TIME_from_longlong_datetime_packed(&mysql_time, packed_time);
@@ -11960,6 +11960,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
   MRN_DBUG_ENTER_METHOD();
   int error;
   bool truncated = false;
+  bool is_null = false;
   const uchar *ptr = key;
 
   error = mrn_change_encoding(ctx, field->charset());
@@ -11967,6 +11968,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
     DBUG_RETURN(error);
 
   if (field->null_bit) {
+    is_null = *ptr;
     ptr += 1;
   }
 
@@ -12064,7 +12066,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
   case MYSQL_TYPE_DATETIME2:
-    error = storage_encode_key_datetime2(field, ptr, buf, size);
+    error = storage_encode_key_datetime2(field, is_null, ptr, buf, size);
     break;
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_TIME2
@@ -14536,6 +14538,7 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
         ALTER_COLUMN_NULLABLE |
         ALTER_COLUMN_NOT_NULLABLE |
         ALTER_COLUMN_STORAGE_TYPE |
+        ALTER_ADD_STORED_GENERATED_COLUMN |
         ALTER_COLUMN_COLUMN_FORMAT
       )
     )
@@ -14565,8 +14568,8 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
   ) {
     DBUG_RETURN(HA_ALTER_ERROR);
   }
-  memcpy(wrap_altered_table, altered_table, sizeof(TABLE));
-  memcpy(wrap_altered_table_share, altered_table->s, sizeof(TABLE_SHARE));
+  *wrap_altered_table= *altered_table;
+  *wrap_altered_table_share= *altered_table->s;
   mrn_init_sql_alloc(ha_thd(), &(wrap_altered_table_share->mem_root));
 
   n_keys = ha_alter_info->index_drop_count;
@@ -14654,7 +14657,6 @@ enum_alter_inplace_result ha_mroonga::storage_check_if_supported_inplace_alter(
     ALTER_DROP_UNIQUE_INDEX |
     MRN_ALTER_INPLACE_INFO_ADD_VIRTUAL_COLUMN |
     MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN |
-    MRN_ALTER_INPLACE_INFO_ADD_STORED_GENERATED_COLUMN |
     ALTER_DROP_COLUMN |
     ALTER_COLUMN_NAME;
   if (ha_alter_info->handler_flags & explicitly_unsupported_flags) {

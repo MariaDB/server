@@ -67,8 +67,10 @@ a
 01:02:03.4567
 select extract(microsecond from a + interval 100 microsecond) from t1 where a>'2010-11-12 01:02:03.456';
 extract(microsecond from a + interval 100 microsecond)
+456800
 select a from t1 where a>'2010-11-12 01:02:03.456' group by a;
 a
+01:02:03.4567
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -113,6 +115,11 @@ a
 01:02:13.3332
 NULL
 delete from t1 where a < 20110101;
+select * from t1;
+a
+01:02:13.3332
+NULL
+delete from t1 where a is not null;
 select * from t1;
 a
 NULL

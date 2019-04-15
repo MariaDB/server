@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,12 +37,14 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0purge.h"
 #include "trx0rseg.h"
 #include "row0row.h"
-#include "fsp0sysspace.h"
 #include "row0mysql.h"
 
-/** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
+/** The search tuple corresponding to TRX_UNDO_INSERT_METADATA. */
 const dtuple_t trx_undo_metadata = {
-	REC_INFO_METADATA, 0, 0,
+	/* This also works for REC_INFO_METADATA_ALTER, because the
+	delete-mark (REC_INFO_DELETED_FLAG) is ignored when searching. */
+	REC_INFO_METADATA_ADD,
+	0, 0,
 	NULL, 0, NULL,
 	UT_LIST_NODE_T(dtuple_t)()
 #ifdef UNIV_DEBUG
@@ -506,7 +508,7 @@ trx_undo_page_report_insert(
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
 	if (UNIV_UNLIKELY(clust_entry->info_bits != 0)) {
-		ut_ad(clust_entry->info_bits == REC_INFO_METADATA);
+		ut_ad(clust_entry->is_metadata());
 		ut_ad(index->is_instant());
 		ut_ad(undo_block->frame[first_free + 2]
 		      == TRX_UNDO_INSERT_REC);
@@ -716,7 +718,7 @@ trx_undo_rec_skip_row_ref(
 log of an update or delete marking of a clustered index record.
 @param[out]	ext_buf		buffer to hold the prefix data and BLOB pointer
 @param[in]	prefix_len	prefix size to store in the undo log
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	field		an externally stored column
 @param[in,out]	len		input: length of field; output: used length of
 ext_buf
@@ -726,13 +728,13 @@ byte*
 trx_undo_page_fetch_ext(
 	byte*			ext_buf,
 	ulint			prefix_len,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	const byte*		field,
 	ulint*			len)
 {
 	/* Fetch the BLOB. */
 	ulint	ext_len = btr_copy_externally_stored_field_prefix(
-		ext_buf, prefix_len, page_size, field, *len);
+		ext_buf, prefix_len, zip_size, field, *len);
 	/* BLOBs should always be nonempty. */
 	ut_a(ext_len);
 	/* Append the BLOB pointer to the prefix. */
@@ -750,7 +752,7 @@ available
 				size, or NULL when should not fetch a longer
 				prefix
 @param[in]	prefix_len	prefix size to store in the undo log
-@param[in]	page_size	page size
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	field		the locally stored part of the externally
 stored column
 @param[in,out]	len		length of field, in bytes
@@ -763,7 +765,7 @@ trx_undo_page_report_modify_ext(
 	byte*			ptr,
 	byte*			ext_buf,
 	ulint			prefix_len,
-	const page_size_t&	page_size,
+	ulint			zip_size,
 	const byte**		field,
 	ulint*			len,
 	spatial_status_t	spatial_status)
@@ -805,7 +807,7 @@ trx_undo_page_report_modify_ext(
 		ptr += mach_write_compressed(ptr, *len);
 
 		*field = trx_undo_page_fetch_ext(ext_buf, prefix_len,
-						 page_size, *field, len);
+						 zip_size, *field, len);
 
 		ptr += mach_write_compressed(ptr, *len + spatial_len);
 	} else {
@@ -818,7 +820,7 @@ trx_undo_page_report_modify_ext(
 
 /** Get MBR from a Geometry column stored externally
 @param[out]	mbr		MBR to fill
-@param[in]	pagesize	table pagesize
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	field		field contain the geometry data
 @param[in,out]	len		length of field, in bytes
 */
@@ -826,17 +828,17 @@ static
 void
 trx_undo_get_mbr_from_ext(
 /*======================*/
-	double*			mbr,
-	const page_size_t&      page_size,
-	const byte*             field,
-	ulint*			len)
+	double*		mbr,
+	ulint		zip_size,
+	const byte*	field,
+	ulint*		len)
 {
 	uchar*		dptr = NULL;
 	ulint		dlen;
 	mem_heap_t*	heap = mem_heap_create(100);
 
 	dptr = btr_copy_externally_stored_field(
-		&dlen, field, page_size, *len, heap);
+		&dlen, field, zip_size, *len, heap);
 
 	if (dlen <= GEO_DATA_HEADER_SIZE) {
 		for (uint i = 0; i < SPDIMS; ++i) {
@@ -920,9 +922,9 @@ trx_undo_page_report_modify(
 	/* Store first some general parameters to the undo log */
 
 	if (!update) {
-		ut_ad(!rec_get_deleted_flag(rec, dict_table_is_comp(table)));
+		ut_ad(!rec_is_delete_marked(rec, dict_table_is_comp(table)));
 		type_cmpl = TRX_UNDO_DEL_MARK_REC;
-	} else if (rec_get_deleted_flag(rec, dict_table_is_comp(table))) {
+	} else if (rec_is_delete_marked(rec, dict_table_is_comp(table))) {
 		/* In delete-marked records, DB_TRX_ID must
 		always refer to an existing update_undo log record. */
 		ut_ad(row_get_rec_trx_id(rec, index, offsets));
@@ -951,9 +953,7 @@ trx_undo_page_report_modify(
 	*ptr++ = (byte) rec_get_info_bits(rec, dict_table_is_comp(table));
 
 	/* Store the values of the system columns */
-	field = rec_get_nth_field(rec, offsets,
-				  dict_index_get_sys_col_pos(
-					  index, DATA_TRX_ID), &flen);
+	field = rec_get_nth_field(rec, offsets, index->db_trx_id(), &flen);
 	ut_ad(flen == DATA_TRX_ID_LEN);
 
 	trx_id = trx_read_trx_id(field);
@@ -967,9 +967,7 @@ trx_undo_page_report_modify(
 	}
 	ptr += mach_u64_write_compressed(ptr, trx_id);
 
-	field = rec_get_nth_field(rec, offsets,
-				  dict_index_get_sys_col_pos(
-					  index, DATA_ROLL_PTR), &flen);
+	field = rec_get_nth_field(rec, offsets, index->db_roll_ptr(), &flen);
 	ut_ad(flen == DATA_ROLL_PTR_LEN);
 	ut_ad(memcmp(field, field_ref_zero, DATA_ROLL_PTR_LEN));
 
@@ -1036,20 +1034,35 @@ trx_undo_page_report_modify(
 			}
 		}
 
+		i = 0;
+
+		if (UNIV_UNLIKELY(update->is_alter_metadata())) {
+			ut_ad(update->n_fields >= 1);
+			ut_ad(!upd_fld_is_virtual_col(&update->fields[0]));
+			ut_ad(update->fields[0].field_no
+			      == index->first_user_field());
+			ut_ad(!dfield_is_ext(&update->fields[0].new_val));
+			ut_ad(!dfield_is_null(&update->fields[0].new_val));
+			/* The instant ADD COLUMN metadata record does not
+			contain the BLOB. Do not write anything for it. */
+			i = !rec_is_alter_metadata(rec, *index);
+			n_updated -= i;
+		}
+
 		ptr += mach_write_compressed(ptr, n_updated);
 
-		for (i = 0; i < upd_get_n_fields(update); i++) {
+		for (; i < upd_get_n_fields(update); i++) {
+			if (trx_undo_left(undo_block, ptr) < 5) {
+				return 0;
+			}
+
 			upd_field_t*	fld = upd_get_nth_field(update, i);
 
 			bool	is_virtual = upd_fld_is_virtual_col(fld);
 			ulint	max_v_log_len = 0;
 
-			ulint	pos = fld->field_no;
-
-			/* Write field number to undo log */
-			if (trx_undo_left(undo_block, ptr) < 5) {
-				return(0);
-			}
+			ulint pos = fld->field_no;
+			const dict_col_t* col = NULL;
 
 			if (is_virtual) {
 				/* Skip the non-indexed column, during
@@ -1062,13 +1075,13 @@ trx_undo_page_report_modify(
 
 				/* add REC_MAX_N_FIELDS to mark this
 				is a virtual col */
-				pos += REC_MAX_N_FIELDS;
-			}
+				ptr += mach_write_compressed(
+					ptr, pos + REC_MAX_N_FIELDS);
 
-			ptr += mach_write_compressed(ptr, pos);
+				if (trx_undo_left(undo_block, ptr) < 15) {
+					return 0;
+				}
 
-			/* Save the old value of field */
-			if (is_virtual) {
 				ut_ad(fld->field_no < table->n_v_def);
 
 				ptr = trx_undo_log_v_idx(undo_block, table,
@@ -1093,36 +1106,87 @@ trx_undo_page_report_modify(
 					flen = ut_min(
 						flen, max_v_log_len);
 				}
+
+				goto store_len;
+			}
+
+			if (UNIV_UNLIKELY(update->is_metadata())) {
+				ut_ad(pos >= index->first_user_field());
+				ut_ad(rec_is_metadata(rec, *index));
+
+				if (rec_is_alter_metadata(rec, *index)) {
+					ut_ad(update->is_alter_metadata());
+
+					field = rec_offs_n_fields(offsets)
+						> pos
+						&& !rec_offs_nth_default(
+							offsets, pos)
+						? rec_get_nth_field(
+							rec, offsets,
+							pos, &flen)
+						: index->instant_field_value(
+							pos - 1, &flen);
+
+					if (pos == index->first_user_field()) {
+						ut_ad(rec_offs_nth_extern(
+							offsets, pos));
+						ut_ad(flen == FIELD_REF_SIZE);
+						goto write_field;
+					}
+					col = dict_index_get_nth_col(index,
+								     pos - 1);
+				} else if (!update->is_alter_metadata()) {
+					goto get_field;
+				} else {
+					/* We are converting an ADD COLUMN
+					metadata record to an ALTER TABLE
+					metadata record, with BLOB. Subtract
+					the missing metadata BLOB field. */
+					ut_ad(pos > index->first_user_field());
+					--pos;
+					goto get_field;
+				}
 			} else {
+get_field:
+				col = dict_index_get_nth_col(index, pos);
 				field = rec_get_nth_cfield(
 					rec, index, offsets, pos, &flen);
 			}
+write_field:
+			/* Write field number to undo log */
+			ptr += mach_write_compressed(ptr, pos);
 
 			if (trx_undo_left(undo_block, ptr) < 15) {
-				return(0);
+				return 0;
 			}
 
-			if (!is_virtual && rec_offs_nth_extern(offsets, pos)) {
-				const dict_col_t*	col
-					= dict_index_get_nth_col(index, pos);
-				ulint			prefix_len
-					= dict_max_field_len_store_undo(
-						table, col);
+			if (rec_offs_n_fields(offsets) > pos
+			    && rec_offs_nth_extern(offsets, pos)) {
+				ut_ad(col || pos == index->first_user_field());
+				ut_ad(col || update->is_alter_metadata());
+				ut_ad(col
+				      || rec_is_alter_metadata(rec, *index));
+				ulint prefix_len = col
+					? dict_max_field_len_store_undo(
+						table, col)
+					: 0;
 
 				ut_ad(prefix_len + BTR_EXTERN_FIELD_REF_SIZE
 				      <= sizeof ext_buf);
 
 				ptr = trx_undo_page_report_modify_ext(
 					ptr,
-					col->ord_part
+					col
+					&& col->ord_part
 					&& !ignore_prefix
 					&& flen < REC_ANTELOPE_MAX_INDEX_COL_LEN
 					? ext_buf : NULL, prefix_len,
-					dict_table_page_size(table),
+					table->space->zip_size(),
 					&field, &flen, SPATIAL_UNKNOWN);
 
 				*type_cmpl_ptr |= TRX_UNDO_UPD_EXTERN;
 			} else {
+store_len:
 				ptr += mach_write_compressed(ptr, flen);
 			}
 
@@ -1271,6 +1335,8 @@ trx_undo_page_report_modify(
 							table, col);
 
 					ut_a(prefix_len < sizeof ext_buf);
+					const ulint zip_size
+						= table->space->zip_size();
 
 					/* If there is a spatial index on it,
 					log its MBR */
@@ -1279,9 +1345,7 @@ trx_undo_page_report_modify(
 								col->mtype));
 
 						trx_undo_get_mbr_from_ext(
-							mbr,
-							dict_table_page_size(
-								table),
+							mbr, zip_size,
 							field, &flen);
 					}
 
@@ -1290,7 +1354,7 @@ trx_undo_page_report_modify(
 						flen < REC_ANTELOPE_MAX_INDEX_COL_LEN
 						&& !ignore_prefix
 						? ext_buf : NULL, prefix_len,
-						dict_table_page_size(table),
+						zip_size,
 						&field, &flen,
 						spatial_status);
 				} else {
@@ -1484,7 +1548,6 @@ trx_undo_update_rec_get_update(
 	upd_t*		update;
 	ulint		n_fields;
 	byte*		buf;
-	ulint		i;
 	bool		first_v_col = true;
 	bool		is_undo_log = true;
 	ulint		n_skip_field = 0;
@@ -1497,7 +1560,7 @@ trx_undo_update_rec_get_update(
 		n_fields = 0;
 	}
 
-	update = upd_create(n_fields + 2, heap);
+	*upd = update = upd_create(n_fields + 2, heap);
 
 	update->info_bits = info_bits;
 
@@ -1509,9 +1572,7 @@ trx_undo_update_rec_get_update(
 
 	mach_write_to_6(buf, trx_id);
 
-	upd_field_set_field_no(upd_field,
-			       dict_index_get_sys_col_pos(index, DATA_TRX_ID),
-			       index);
+	upd_field_set_field_no(upd_field, index->db_trx_id(), index);
 	dfield_set_data(&(upd_field->new_val), buf, DATA_TRX_ID_LEN);
 
 	upd_field = upd_get_nth_field(update, n_fields + 1);
@@ -1520,25 +1581,20 @@ trx_undo_update_rec_get_update(
 
 	trx_write_roll_ptr(buf, roll_ptr);
 
-	upd_field_set_field_no(
-		upd_field, dict_index_get_sys_col_pos(index, DATA_ROLL_PTR),
-		index);
+	upd_field_set_field_no(upd_field, index->db_roll_ptr(), index);
 	dfield_set_data(&(upd_field->new_val), buf, DATA_ROLL_PTR_LEN);
 
 	/* Store then the updated ordinary columns to the update vector */
 
-	for (i = 0; i < n_fields; i++) {
-
+	for (ulint i = 0; i < n_fields; i++) {
 		const byte*	field;
 		ulint		len;
-		ulint		field_no;
 		ulint		orig_len;
-		bool		is_virtual;
 
 		upd_field = upd_get_nth_field(update, i);
-		field_no = mach_read_next_compressed(&ptr);
+		ulint field_no = mach_read_next_compressed(&ptr);
 
-		is_virtual = (field_no >= REC_MAX_N_FIELDS);
+		const bool is_virtual = (field_no >= REC_MAX_N_FIELDS);
 
 		if (is_virtual) {
 			/* If new version, we need to check index list to figure
@@ -1561,15 +1617,63 @@ trx_undo_update_rec_get_update(
 			}
 
 			upd_field_set_v_field_no(upd_field, field_no, index);
+		} else if (UNIV_UNLIKELY((update->info_bits
+					  & ~REC_INFO_DELETED_FLAG)
+					 == REC_INFO_MIN_REC_FLAG)) {
+			ut_ad(type == TRX_UNDO_UPD_EXIST_REC);
+			const ulint uf = index->first_user_field();
+			ut_ad(field_no >= uf);
+
+			if (update->info_bits != REC_INFO_MIN_REC_FLAG) {
+				/* Generic instant ALTER TABLE */
+				if (field_no == uf) {
+					upd_field->new_val.type
+						.metadata_blob_init();
+				} else if (field_no >= index->n_fields) {
+					/* This is reachable during
+					purge if the table was emptied
+					and converted to the canonical
+					format on a later ALTER TABLE.
+					In this case,
+					row_purge_upd_exist_or_extern()
+					would only be interested in
+					freeing any BLOBs that were
+					updated, that is, the metadata
+					BLOB above.  Other BLOBs in
+					the metadata record are never
+					updated; they are for the
+					initial DEFAULT values of the
+					instantly added columns, and
+					they will never change.
+
+					Note: if the table becomes
+					empty during ROLLBACK or is
+					empty during subsequent ALTER
+					TABLE, and btr_page_empty() is
+					called to re-create the root
+					page without the metadata
+					record, in that case we should
+					only free the latest version
+					of BLOBs in the record,
+					which purge would never touch. */
+					field_no = REC_MAX_N_FIELDS;
+					n_skip_field++;
+				} else {
+					dict_col_copy_type(
+						dict_index_get_nth_col(
+							index, field_no - 1),
+						&upd_field->new_val.type);
+				}
+			} else {
+				/* Instant ADD COLUMN...LAST */
+				dict_col_copy_type(
+					dict_index_get_nth_col(index,
+							       field_no),
+					&upd_field->new_val.type);
+			}
+			upd_field->field_no = field_no;
 		} else if (field_no < index->n_fields) {
 			upd_field_set_field_no(upd_field, field_no, index);
-		} else if (update->info_bits == REC_INFO_MIN_REC_FLAG
-			   && index->is_instant()) {
-			/* This must be a rollback of a subsequent
-			instant ADD COLUMN operation. This will be
-			detected and handled by btr_cur_trim(). */
-			upd_field->field_no = field_no;
-			upd_field->orig_len = 0;
 		} else {
 			ib::error() << "Trying to access update undo rec"
 				" field " << field_no
@@ -1602,6 +1706,12 @@ trx_undo_update_rec_get_update(
 			dfield_set_ext(&upd_field->new_val);
 		}
 
+		ut_ad(update->info_bits != (REC_INFO_DELETED_FLAG
+					    | REC_INFO_MIN_REC_FLAG)
+		      || field_no != index->first_user_field()
+		      || (upd_field->new_val.ext
+			  && upd_field->new_val.len == FIELD_REF_SIZE));
+
 		if (is_virtual) {
 			upd_field->old_v_val = static_cast<dfield_t*>(
 				mem_heap_alloc(
@@ -1619,31 +1729,23 @@ trx_undo_update_rec_get_update(
 		}
 	}
 
-	/* In rare scenario, we could have skipped virtual column (as they
-	are dropped. We will regenerate a update vector and skip them */
-	if (n_skip_field > 0) {
-		ulint	n = 0;
-		ut_ad(n_skip_field <= n_fields);
+	/* We may have to skip dropped indexed virtual columns.
+	Also, we may have to trim the update vector of a metadata record
+	if dict_index_t::clear_instant_alter() was invoked on the table
+	later, and the number of fields no longer matches. */
 
-		upd_t*	new_update = upd_create(
-			n_fields + 2 - n_skip_field, heap);
+	if (n_skip_field) {
+		upd_field_t* d = upd_get_nth_field(update, 0);
+		const upd_field_t* const end = d + n_fields + 2;
 
-		for (i = 0; i < n_fields + 2; i++) {
-			upd_field = upd_get_nth_field(update, i);
-
-			if (upd_field->field_no == REC_MAX_N_FIELDS) {
-				continue;
+		for (const upd_field_t* s = d; s != end; s++) {
+			if (s->field_no != REC_MAX_N_FIELDS) {
+				*d++ = *s;
 			}
-
-			upd_field_t*	new_upd_field
-				 = upd_get_nth_field(new_update, n);
-			*new_upd_field = *upd_field;
-			n++;
 		}
-		ut_ad(n == n_fields + 2 - n_skip_field);
-		*upd = new_update;
-	} else {
-		*upd = update;
+
+		ut_ad(d + n_skip_field == end);
+		update->n_fields = d - upd_get_nth_field(update, 0);
 	}
 
 	return(const_cast<byte*>(ptr));
@@ -1677,11 +1779,7 @@ trx_undo_rec_get_partial_row(
 	bool		first_v_col = true;
 	bool		is_undo_log = true;
 
-	ut_ad(index);
-	ut_ad(ptr);
-	ut_ad(row);
-	ut_ad(heap);
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 
 	*row = dtuple_create_with_vcol(
 		heap, dict_table_get_n_cols(index->table),
@@ -1702,8 +1800,11 @@ trx_undo_rec_get_partial_row(
 		if (uf->old_v_val) {
 			continue;
 		}
-		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
-		*dtuple_get_nth_field(*row, c) = uf->new_val;
+		const dict_col_t& c = *dict_index_get_nth_col(index,
+							      uf->field_no);
+		if (!c.is_dropped()) {
+			*dtuple_get_nth_field(*row, c.ind) = uf->new_val;
+		}
 	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
@@ -1714,7 +1815,6 @@ trx_undo_rec_get_partial_row(
 		const byte*	field;
 		ulint		field_no;
 		const dict_col_t* col;
-		ulint		col_no;
 		ulint		len;
 		ulint		orig_len;
 		bool		is_virtual;
@@ -1742,15 +1842,18 @@ trx_undo_rec_get_partial_row(
 			dict_v_col_t* vcol = dict_table_get_nth_v_col(
 						index->table, field_no);
 			col = &vcol->m_col;
-			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_v_field(*row, vcol->v_pos);
 			dict_col_copy_type(
 				&vcol->m_col,
 				dfield_get_type(dfield));
 		} else {
 			col = dict_index_get_nth_col(index, field_no);
-			col_no = dict_col_get_no(col);
-			dfield = dtuple_get_nth_field(*row, col_no);
+
+			if (col->is_dropped()) {
+				continue;
+			}
+
+			dfield = dtuple_get_nth_field(*row, col->ind);
 			ut_ad(dfield->type.mtype == DATA_MISSING
 			      || dict_col_type_assert_equal(col,
 							    &dfield->type));
@@ -1758,9 +1861,7 @@ trx_undo_rec_get_partial_row(
 			      || dfield->len == len
 			      || (len != UNIV_SQL_NULL
 				  && len >= UNIV_EXTERN_STORAGE_FIELD));
-			dict_col_copy_type(
-				dict_table_get_nth_col(index->table, col_no),
-				dfield_get_type(dfield));
+			dict_col_copy_type(col, dfield_get_type(dfield));
 		}
 
 		dfield_set_data(dfield, field, len);
@@ -1897,8 +1998,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 @param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed
 @return	DB_SUCCESS or error code */
-dberr_t
-trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 {
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id);

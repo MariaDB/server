@@ -219,4 +219,28 @@ select 1 union select 1 union select 1;
 ((select 1) union (select 1) union (select 1));
 1
 1
+#
+# MDEV-16357: union in brackets with tail
+#             union with tail in brackets
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES(1),(2),(3),(4);
+CREATE TABLE t2 (a int);
+INSERT INTO t2 VALUES (4),(5),(6),(7);
+(SELECT a FROM t1  UNION SELECT a FROM t2) LIMIT 1;
+a
+1
+(SELECT a FROM t1  UNION SELECT a FROM t2) ORDER BY a DESC;
+a
+7
+6
+5
+4
+3
+2
+1
+(SELECT a FROM t1  UNION SELECT a FROM t2 LIMIT 1);
+a
+1
+DROP TABLE t1,t2;
 # End of 10.4 tests

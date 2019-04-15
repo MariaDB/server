@@ -116,6 +116,7 @@ void *my_malloc(size_t size, myf my_flags)
                       MY_TEST(my_flags & MY_THREAD_SPECIFIC));
     update_malloc_size(size + MALLOC_PREFIX_SIZE,
                        MY_TEST(my_flags & MY_THREAD_SPECIFIC));
+    TRASH_ALLOC(point, size);
     DBUG_EXECUTE_IF("simulate_out_of_memory",
                     {
                       /* my_free() handles memory accounting */

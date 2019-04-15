@@ -1,0 +1,46 @@
+#
+# Test lock taken
+#
+BACKUP LOCK test.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
+BACKUP UNLOCK;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+BACKUP LOCK t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
+BACKUP UNLOCK;
+BACKUP LOCK non_existing.t1;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_HIGH_PRIO	Table metadata lock	non_existing	t1
+BACKUP UNLOCK;
+#
+# Test that backup lock protects against ddl
+#
+connect  con1,localhost,root,,;
+connection default;
+create table t1 (a int) engine=innodb;
+insert into t1 values (1);
+backup lock t1;
+select * from t1;
+a
+1
+connection con1;
+drop table t1;
+connection default;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+select * from t1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+backup unlock;
+connection con1;
+connection default;
+disconnect con1;
+show tables;
+Tables_in_test

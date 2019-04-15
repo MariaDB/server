@@ -33,4 +33,5 @@ set global innodb_fast_shutdown=0;
 ERROR 42000: Variable 'innodb_fast_shutdown' can't be set to the value of '0'
 kill ID;
 ERROR 70100: Connection was killed
+# restart
 drop table t1;

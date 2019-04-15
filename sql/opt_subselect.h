@@ -26,10 +26,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join);
 bool convert_join_subqueries_to_semijoins(JOIN *join);
 int pull_out_semijoin_tables(JOIN *join);
 bool optimize_semijoin_nests(JOIN *join, table_map all_table_map);
-Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
-                                           COND_EQUAL **cond_eq,
-                                           List<Item> &new_conds,
-                                           Item::cond_result *cond_value);
 bool setup_degenerate_jtbm_semi_joins(JOIN *join,
                                       List<TABLE_LIST> *join_list,
                                       List<Item> &eq_list);
@@ -303,6 +299,7 @@ public:
       pos->loosescan_picker.loosescan_parts= best_max_loose_keypart + 1;
       pos->use_join_buffer= FALSE;
       pos->table=           tab;
+      pos->range_rowid_filter_info= tab->range_rowid_filter_info;
       // todo need ref_depend_map ?
       DBUG_PRINT("info", ("Produced a LooseScan plan, key %s, %s",
                           tab->table->key_info[best_loose_scan_key].name.str,

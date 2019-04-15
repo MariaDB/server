@@ -1,0 +1,95 @@
+--source include/have_debug.inc
+
+#
+# MDEV-371 Unique indexes for blobs
+#
+
+--echo #In this test case we will check what will happen in the case of hash collision
+
+SET debug_dbug="d,same_long_unique_hash";
+create table t1(a blob unique);
+
+FLUSH STATUS;
+insert into t1 values('xyz');
+insert into t1 values('abc');
+insert into t1 values('sachin');
+--error ER_DUP_ENTRY
+insert into t1 values('sachin');
+insert into t1 values('maria');
+--error ER_DUP_ENTRY
+insert into t1 values('maria');
+drop table t1;
+SHOW STATUS LIKE 'handler_read_next';
+
+SET debug_dbug="";
+create table t1(a blob unique);
+FLUSH STATUS;
+
+insert into t1 values('xyz');
+insert into t1 values('abc');
+insert into t1 values('sachin');
+--error ER_DUP_ENTRY
+insert into t1 values('sachin');
+insert into t1 values('maria');
+--error ER_DUP_ENTRY
+insert into t1 values('maria');
+drop table t1;
+SHOW STATUS LIKE 'handler_read_next';
+
+SET debug_dbug="d,same_long_unique_hash";
+create table t1(a blob unique, b blob unique);
+
+insert into t1 values('xyz', 11);
+insert into t1 values('abc', 22);
+insert into t1 values('sachin', 1);
+--error ER_DUP_ENTRY
+insert into t1 values('sachin', 4);
+insert into t1 values('maria', 2);
+--error ER_DUP_ENTRY
+insert into t1 values('maria', 3);
+drop table t1;
+
+create table t1(a blob , b blob , unique(a,b));
+
+insert into t1 values('xyz', 11);
+insert into t1 values('abc', 22);
+insert into t1 values('sachin', 1);
+--error ER_DUP_ENTRY
+insert into t1 values('sachin', 1);
+insert into t1 values('maria', 2);
+--error ER_DUP_ENTRY
+insert into t1 values('maria', 2);
+drop table t1;
+
+--echo ##Internal State of long unique tables
+SET debug_dbug="d,print_long_unique_internal_state";
+create table t1 ( a blob unique);
+SET debug_dbug="";
+drop table t1;
+
+SET debug_dbug="d,print_long_unique_internal_state";
+create table t1 ( a blob unique, b blob unique , c blob  unique);
+SET debug_dbug="";
+drop table t1;
+
+SET debug_dbug="d,print_long_unique_internal_state";
+create table t1 ( a blob , b blob , c blob , d blob , unique (a,b), unique(c, d));
+SET debug_dbug="";
+drop table t1;
+
+SET debug_dbug="d,print_long_unique_internal_state";
+create table t1(a int primary key, b blob unique , c blob unique not null);
+SET debug_dbug="";
+drop table t1;
+
+--echo ##Using hash
+SET debug_dbug="d,print_long_unique_internal_state";
+create table t1(a int ,b int , c int,  unique(a, b, c) using hash);
+SET debug_dbug="";
+drop table t1;
+
+--echo ##Using hash but with memory engine so no long unique column
+SET debug_dbug="d,print_long_unique_internal_state";
+create table t1(a int ,b int , c int,  unique(a, b, c) using hash) engine=memory;
+SET debug_dbug="";
+drop table t1;

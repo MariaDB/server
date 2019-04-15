@@ -384,7 +384,9 @@ protected:
   Item **orig_args, *tmp_orig_args[2];
   
   static size_t ram_limitation(THD *thd);
-
+public:
+  // Methods used by ColumnStore
+  Item **get_orig_args() const { return orig_args; }
 public:  
 
   void mark_as_sum_func();
@@ -720,33 +722,24 @@ public:
 
 class Item_sum_num :public Item_sum
 {
-protected:
-  /*
-   val_xxx() functions may be called several times during the execution of a 
-   query. Derived classes that require extensive calculation in val_xxx()
-   maintain cache of aggregate value. This variable governs the validity of 
-   that cache.
-  */
-  bool is_evaluated;
 public:
-  Item_sum_num(THD *thd): Item_sum(thd), is_evaluated(FALSE) {}
+  Item_sum_num(THD *thd): Item_sum(thd) {}
   Item_sum_num(THD *thd, Item *item_par):
-    Item_sum(thd, item_par), is_evaluated(FALSE) {}
+    Item_sum(thd, item_par) {}
   Item_sum_num(THD *thd, Item *a, Item* b):
-    Item_sum(thd, a, b), is_evaluated(FALSE) {}
+    Item_sum(thd, a, b) {}
   Item_sum_num(THD *thd, List<Item> &list):
-    Item_sum(thd, list), is_evaluated(FALSE) {}
+    Item_sum(thd, list) {}
   Item_sum_num(THD *thd, Item_sum_num *item):
-    Item_sum(thd, item),is_evaluated(item->is_evaluated) {}
+    Item_sum(thd, item) {}
   bool fix_fields(THD *, Item **);
   longlong val_int() { return val_int_from_real();  /* Real as default */ }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
-  void reset_field();
 };
 
 
@@ -971,18 +964,38 @@ But, this falls prey to catastrophic cancellation.  Instead, use the recurrence 
 
 */
 
+class Stddev
+{
+  double m_m;
+  double m_s;
+  ulonglong m_count;
+public:
+  Stddev() :m_m(0), m_s(0), m_count(0) { }
+  Stddev(double nr) :m_m(nr), m_s(0.0), m_count(1) { }
+  Stddev(const uchar *);
+  void to_binary(uchar *) const;
+  void recurrence_next(double nr);
+  double result(bool is_simple_variance);
+  ulonglong count() const { return m_count; }
+  static uint32 binary_size()
+  {
+    return (uint32) (sizeof(double) * 2 + sizeof(ulonglong));
+  };
+};
+
+
+
 class Item_sum_variance : public Item_sum_num
 {
+  Stddev m_stddev;
   bool fix_length_and_dec();
 
 public:
-  double recurrence_m, recurrence_s;    /* Used in recurrence relation. */
-  ulonglong count;
   uint sample;
   uint prec_increment;
 
   Item_sum_variance(THD *thd, Item *item_par, uint sample_arg):
-    Item_sum_num(thd, item_par), count(0),
+    Item_sum_num(thd, item_par),
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
@@ -1004,7 +1017,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_double; }
   void cleanup()
   {
-    count= 0;
+    m_stddev= Stddev();
     Item_sum_num::cleanup();
   }
   Item *get_copy(THD *thd)
@@ -1070,6 +1083,7 @@ protected:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   void reset_field();
   String *val_str(String *);
+  bool val_native(THD *thd, Native *);
   const Type_handler *real_type_handler() const
   {
     return get_arg(0)->real_type_handler();
@@ -1405,7 +1419,7 @@ public:
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -1561,13 +1575,15 @@ public:
 
   void clear();
   bool add();
+  bool supports_removal() const;
+  void remove();
   void reset_field() {};
   void update_field() {};
   void cleanup();
   virtual void print(String *str, enum_query_type query_type);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date(thd, this, ltime, fuzzydate);
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
 };
 
@@ -1700,6 +1716,7 @@ class Item_sum_udf_float :public Item_sum_num
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
   void clear() {}
   bool add() { return 0; }  
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
@@ -1718,6 +1735,7 @@ public:
   double val_real() { DBUG_ASSERT(fixed == 1); return 0; }
   void clear() {}
   bool add() { return 0; }  
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
@@ -1736,6 +1754,7 @@ class Item_sum_udf_decimal :public Item_sum_num
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
   void clear() {}
   bool add() { return 0; }
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
@@ -1757,6 +1776,7 @@ public:
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   void clear() {}
   bool add() { return 0; }  
+  void reset_field() { DBUG_ASSERT(0); };
   void update_field() {}
 };
 
@@ -1825,6 +1845,14 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+public:
+  // Methods used by ColumnStore
+  bool get_distinct() const { return distinct; }
+  uint get_count_field() const { return arg_count_field; }
+  uint get_order_field() const { return arg_count_order; }
+  const String* get_separator() const { return separator; }
+  ORDER** get_order() const { return order; }
+
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,

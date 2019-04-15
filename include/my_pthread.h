@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -189,7 +189,19 @@ extern int my_pthread_create_detached;
 int sigwait(sigset_t *set, int *sig);
 #endif
 
-#define my_sigwait(A,B) sigwait((A),(B))
+static inline int my_sigwait(sigset_t *set, int *sig, int *code)
+{
+#ifdef HAVE_SIGWAITINFO
+  siginfo_t siginfo;
+  *sig= sigwaitinfo(set, &siginfo);
+  *code= siginfo.si_code;
+  return *sig < 0 ?  errno : 0;
+#else
+#define SI_KERNEL 128
+  *code= 0;
+  return sigwait(set, sig);
+#endif
+}
 
 #if defined(HAVE_SIGTHREADMASK) && !defined(HAVE_PTHREAD_SIGMASK)
 #define pthread_sigmask(A,B,C) sigthreadmask((A),(B),(C))
@@ -691,7 +703,11 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#define DEFAULT_THREAD_STACK	(292*1024L)
+#ifdef __SANITIZE_ADDRESS__
+#define DEFAULT_THREAD_STACK	(383*1024L) /* 392192 */
+#else
+#define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
+#endif
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0

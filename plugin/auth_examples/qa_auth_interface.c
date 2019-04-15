@@ -136,7 +136,8 @@ static struct st_mysql_auth qa_auth_test_handler=
 {
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   "qa_auth_interface", /* requires test_plugin client's plugin */
-  qa_auth_interface
+  qa_auth_interface,
+  NULL, NULL /* no PASSWORD() */
 };
 
 mysql_declare_plugin(test_plugin)

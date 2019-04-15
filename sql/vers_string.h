@@ -58,6 +58,12 @@ class Lex_cstring : public LEX_CSTRING
     str= _str;
     length= _len;
   }
+  Lex_cstring(const char *start, const char *end)
+  {
+    DBUG_ASSERT(start <= end);
+    str= start;
+    length= end - start;
+  }
   void set(const char *_str, size_t _len)
   {
     str= _str;
@@ -96,9 +102,5 @@ public:
 
 typedef Lex_cstring_with_compare<Compare_identifiers> Lex_ident;
 typedef Lex_cstring_with_compare<Compare_table_names> Lex_table_name;
-
-#define XSTRING_WITH_LEN(X) (X).ptr(), (X).length()
-#define DB_WITH_LEN(X) (X).db.str, (X).db.length
-#define TABLE_NAME_WITH_LEN(X) (X).table_name.str, (X).table_name.length
 
 #endif // VERS_STRING_INCLUDED

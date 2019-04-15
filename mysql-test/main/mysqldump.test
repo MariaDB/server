@@ -707,7 +707,7 @@ drop table t1;
 --echo # Bug#15328 Segmentation fault occurred if my.cnf is invalid for escape sequence
 --echo #
 
---exec $MYSQL_MY_PRINT_DEFAULTS --config-file=$MYSQL_TEST_DIR/std_data/bug15328.cnf mysqldump
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQL_TEST_DIR/std_data/bug15328.cnf mysqldump
 
 --echo #
 --echo # Bug#19025 mysqldump doesn't correctly dump "auto_increment = [int]"
@@ -1810,7 +1810,7 @@ show create event ee1;
 
 ## prove three works (with spaces and tabs on the end)
 # start with one from the previous restore
-create event ee2 on schedule at '2018-12-31 21:01:23' do set @a=5;	      
+create event ee2 on schedule at '2030-12-31 21:01:22' do set @a=5;	      
 create event ee3 on schedule at '2030-12-31 22:01:23' do set @a=5;    		
 show events;
 --exec $MYSQL_DUMP --events second > $MYSQLTEST_VARDIR/tmp/bug16853-2.sql

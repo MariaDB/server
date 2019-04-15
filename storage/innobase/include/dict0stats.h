@@ -27,8 +27,6 @@ Created Jan 06, 2010 Vasil Dimov
 #ifndef dict0stats_h
 #define dict0stats_h
 
-#include "univ.i"
-
 #include "dict0types.h"
 #include "trx0types.h"
 
@@ -189,7 +187,6 @@ dict_stats_rename_table(
 	char*		errstr,		/*!< out: error string if != DB_SUCCESS
 					is returned */
 	size_t		errstr_sz);	/*!< in: errstr size */
-#ifdef MYSQL_RENAME_INDEX
 /*********************************************************************//**
 Renames an index in InnoDB persistent stats storage.
 This function creates its own transaction and commits it.
@@ -203,7 +200,6 @@ dict_stats_rename_index(
 	const char*		old_index_name,	/*!< in: old index name */
 	const char*		new_index_name)	/*!< in: new index name */
 	__attribute__((warn_unused_result));
-#endif /* MYSQL_RENAME_INDEX */
 
 /** Save an individual index's statistic into the persistent statistics
 storage.

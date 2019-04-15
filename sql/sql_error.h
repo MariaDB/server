@@ -814,10 +814,47 @@ private:
 extern char *err_conv(char *buff, uint to_length, const char *from,
                       uint from_length, CHARSET_INFO *from_cs);
 
-class ErrConv
+class ErrBuff
 {
 protected:
   mutable char err_buffer[MYSQL_ERRMSG_SIZE];
+public:
+  ErrBuff()
+  {
+    err_buffer[0]= '\0';
+  }
+  const char *ptr() const { return err_buffer; }
+  const char *set_longlong(const Longlong_hybrid &nr) const
+  {
+    return nr.is_unsigned() ? ullstr(nr.value(), err_buffer) :
+                              llstr(nr.value(), err_buffer);
+  }
+  const char *set_double(double nr) const
+  {
+    my_gcvt(nr, MY_GCVT_ARG_DOUBLE, sizeof(err_buffer), err_buffer, 0);
+    return err_buffer;
+  }
+  const char *set_decimal(const decimal_t *d) const
+  {
+    int len= sizeof(err_buffer);
+    decimal2string(d, err_buffer, &len, 0, 0, ' ');
+    return err_buffer;
+  }
+  const char *set_str(const char *str, size_t len, CHARSET_INFO *cs) const
+  {
+    DBUG_ASSERT(len < UINT_MAX32);
+    return err_conv(err_buffer, (uint) sizeof(err_buffer), str, (uint) len, cs);
+  }
+  const char *set_mysql_time(const MYSQL_TIME *ltime) const
+  {
+    my_TIME_to_str(ltime, err_buffer, AUTO_SEC_PART_DIGITS);
+    return err_buffer;
+  }
+};
+
+
+class ErrConv: public ErrBuff
+{
 public:
   ErrConv() {}
   virtual ~ErrConv() {}
@@ -838,8 +875,7 @@ public:
     : ErrConv(), str(s->ptr()), len(s->length()), cs(s->charset()) {}
   const char *ptr() const
   {
-    DBUG_ASSERT(len < UINT_MAX32);
-    return err_conv(err_buffer, (uint) sizeof(err_buffer), str, (uint) len, cs);
+    return set_str(str, len, cs);
   }
 };
 
@@ -850,8 +886,7 @@ public:
    : ErrConv(), Longlong_hybrid(nr) { }
   const char *ptr() const
   {
-    return m_unsigned ? ullstr(m_value, err_buffer) :
-                         llstr(m_value, err_buffer);
+    return set_longlong(static_cast<Longlong_hybrid>(*this));
   }
 };
 
@@ -862,8 +897,7 @@ public:
   ErrConvDouble(double num_arg) : ErrConv(), num(num_arg) {}
   const char *ptr() const
   {
-    my_gcvt(num, MY_GCVT_ARG_DOUBLE, sizeof(err_buffer), err_buffer, 0);
-    return err_buffer;
+    return set_double(num);
   }
 };
 
@@ -874,8 +908,7 @@ public:
   ErrConvTime(const MYSQL_TIME *ltime_arg) : ErrConv(), ltime(ltime_arg) {}
   const char *ptr() const
   {
-    my_TIME_to_str(ltime, err_buffer, AUTO_SEC_PART_DIGITS);
-    return err_buffer;
+    return set_mysql_time(ltime);
   }
 };
 
@@ -886,9 +919,7 @@ public:
   ErrConvDecimal(const decimal_t *d_arg) : ErrConv(), d(d_arg) {}
   const char *ptr() const
   {
-    int len= sizeof(err_buffer);
-    decimal2string(d, err_buffer, &len, 0, 0, ' ');
-    return err_buffer;
+    return set_decimal(d);
   }
 };
 

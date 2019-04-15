@@ -118,14 +118,28 @@ void Item::push_note_converted_to_positive_complement(THD *thd)
 longlong Item::val_datetime_packed_result(THD *thd)
 {
   MYSQL_TIME ltime, tmp;
-  if (get_date_result(thd, &ltime, Datetime::comparison_flags_for_get_date()))
+  if (get_date_result(thd, &ltime, Datetime::Options_cmp(thd)))
     return 0;
   if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
     return pack_time(&ltime);
-  if ((null_value= time_to_datetime_with_warn(thd, &ltime,
-                                              &tmp, date_mode_t(0))))
+  if ((null_value= time_to_datetime_with_warn(thd, &ltime, &tmp,
+                                              TIME_CONV_NONE)))
     return 0;
   return pack_time(&tmp);
+}
+
+
+longlong Item::val_time_packed_result(THD *thd)
+{
+  MYSQL_TIME ltime;
+  if (get_date_result(thd, &ltime, Time::Options_cmp(thd)))
+    return 0;
+  if (ltime.time_type == MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  int warn= 0;
+  Time tmp(&warn, &ltime, 0);
+  DBUG_ASSERT(tmp.is_valid_time());
+  return tmp.to_packed();
 }
 
 
@@ -305,7 +319,7 @@ int Item::save_date_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
   THD *thd= field->table->in_use;
-  if (get_date(thd, &ltime, sql_mode_for_dates(thd)))
+  if (get_date(thd, &ltime, Datetime::Options(thd)))
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -371,6 +385,15 @@ Item::Item(THD *thd):
     if (place == SELECT_LIST || place == IN_HAVING)
       thd->lex->current_select->select_n_having_items++;
   }
+}
+
+
+const TABLE_SHARE *Item::field_table_or_null()
+{
+  if (real_item()->type() != Item::FIELD_ITEM)
+    return NULL;
+
+  return ((Item_field *) this)->field->table->s;
 }
 
 
@@ -814,7 +837,7 @@ bool Item_field::register_field_in_write_map(void *arg)
 }
 
 /**
-  Check that we are not refering to any not yet initialized fields
+  Check that we are not referring to any not yet initialized fields
 
   Fields are initialized in this order:
   - All fields that have default value as a constant are initialized first.
@@ -1277,60 +1300,30 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 bool Item::get_date_from_int(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   Longlong_hybrid value(val_int(), unsigned_flag);
-  if (null_value || int_to_datetime_with_warn(thd, value,
-                                              ltime, fuzzydate,
-                                              field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
+  return null_value || int_to_datetime_with_warn(thd, value,
+                                                 ltime, fuzzydate,
+                                                 field_table_or_null(),
+                                                 field_name_or_null());
 }
 
 
 bool Item::get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   double value= val_real();
-  if (null_value || double_to_datetime_with_warn(thd, value, ltime, fuzzydate,
-                                                 field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
+  return null_value || double_to_datetime_with_warn(thd, value,
+                                                    ltime, fuzzydate,
+                                                    field_table_or_null(),
+                                                    field_name_or_null());
 }
 
 
-bool Item::get_date_from_string(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+bool Item::get_date_from_string(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 {
-  char buff[40];
-  String tmp(buff,sizeof(buff), &my_charset_bin),*res;
-  if (!(res=val_str(&tmp)) ||
-      str_to_datetime_with_warn(thd, res->charset(), res->ptr(), res->length(),
-                                ltime, fuzzydate))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
-}
-
-
-bool Item::make_zero_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
-{
-  /*
-    if the item was not null and convertion failed, we return a zero date
-    if allowed, otherwise - null.
-  */
-  bzero((char*) ltime,sizeof(*ltime));
-  if (fuzzydate & TIME_TIME_ONLY)
-  {
-    /*
-      In the following scenario:
-      - The caller expected to get a TIME value
-      - Item returned a not NULL string or numeric value
-      - But then conversion from string or number to TIME failed
-      we need to change the default time_type from MYSQL_TIMESTAMP_DATE
-      (which was set in bzero) to MYSQL_TIMESTAMP_TIME and therefore
-      return TIME'00:00:00' rather than DATE'0000-00-00'.
-      If we don't do this, methods like Item::get_time_with_conversion()
-      will erroneously subtract CURRENT_DATE from '0000-00-00 00:00:00'
-      and return TIME'-838:59:59' instead of TIME'00:00:00' as a result.
-    */
-    ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  }
-  return !(fuzzydate & TIME_FUZZY_DATES);
+  StringBuffer<40> tmp;
+  Temporal::Warn_push warn(thd, field_table_or_null(), field_name_or_null(),
+                           to, mode);
+  Temporal_hybrid *t= new(to) Temporal_hybrid(thd, &warn, val_str(&tmp), mode);
+  return !t->is_valid_temporal();
 }
 
 
@@ -1556,6 +1549,12 @@ String *Item_sp_variable::val_str(String *sp)
     res->mark_as_const();
 
   return &str_value;
+}
+
+
+bool Item_sp_variable::val_native(THD *thd, Native *to)
+{
+  return val_native_from_item(thd, this_item(), to);
 }
 
 
@@ -1967,7 +1966,12 @@ bool Item_name_const::is_null()
 Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   Item_fixed_hybrid(thd), value_item(val), name_item(name_arg)
 {
+  StringBuffer<128> name_buffer;
+  String *name_str;
   Item::maybe_null= TRUE;
+  if (name_item->basic_const_item() &&
+      (name_str= name_item->val_str(&name_buffer))) // Can't have a NULL name
+    set_name(thd, name_str->ptr(), name_str->length(), name_str->charset());
 }
 
 
@@ -2003,24 +2007,13 @@ Item::Type Item_name_const::type() const
 
 bool Item_name_const::fix_fields(THD *thd, Item **ref)
 {
-  char buf[128];
-  String *item_name;
-  String s(buf, sizeof(buf), &my_charset_bin);
-  s.length(0);
-
   if (value_item->fix_fields_if_needed(thd, &value_item) ||
       name_item->fix_fields_if_needed(thd, &name_item) ||
       !value_item->const_item() ||
-      !name_item->const_item() ||
-      !(item_name= name_item->val_str(&s))) // Can't have a NULL name 
+      !name_item->const_item())
   {
     my_error(ER_RESERVED_SYNTAX, MYF(0), "NAME_CONST");
     return TRUE;
-  }
-  if (is_autogenerated_name)
-  {
-    set_name(thd, item_name->c_ptr(), (uint) item_name->length(),
-             system_charset_info);
   }
   if (value_item->collation.derivation == DERIVATION_NUMERIC)
     collation.set_numeric();
@@ -2147,7 +2140,6 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     }
 
     if (unlikely((!(used_tables() & ~PARAM_TABLE_BIT) ||
-                  type() == SUBSELECT_ITEM ||
                   (type() == REF_ITEM &&
                    ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF))))
         return;
@@ -2850,18 +2842,6 @@ Item* Item_ref::build_clone(THD *thd)
 }
 
 
-void Item_ident_for_show::make_send_field(THD *thd, Send_field *tmp_field)
-{
-  tmp_field->table_name= tmp_field->org_table_name= table_name;
-  tmp_field->db_name= db_name;
-  tmp_field->col_name= tmp_field->org_col_name= field->field_name;
-  tmp_field->length=field->field_length;
-  tmp_field->type=field->type();
-  tmp_field->flags= field->table->maybe_null ? 
-    (field->flags & ~NOT_NULL_FLAG) : field->flags;
-  tmp_field->decimals= field->decimals();
-}
-
 /**********************************************/
 
 Item_field::Item_field(THD *thd, Field *f)
@@ -3208,6 +3188,18 @@ bool Item_field::get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyd
     return (null_value= 1);
   }
   return (null_value= 0);
+}
+
+
+bool Item_field::val_native(THD *thd, Native *to)
+{
+  return val_native_from_field(field, to);
+}
+
+
+bool Item_field::val_native_result(THD *thd, Native *to)
+{
+  return val_native_from_field(result_field, to);
 }
 
 
@@ -3735,7 +3727,7 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 
 bool Item_null::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  make_zero_date(ltime, fuzzydate);
+  set_zero_time(ltime, MYSQL_TIMESTAMP_NONE);
   return (null_value= true);
 }
 
@@ -4004,7 +3996,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
   {
     ErrConvTime str(&value.time);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, time_type, 0);
+                                 &str, time_type, 0, 0);
     set_zero_time(&value.time, time_type);
   }
   maybe_null= 0;
@@ -4261,7 +4253,7 @@ bool Item_param::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
     *res= value.time;
     return 0;
   }
-  return type_handler()->Item_get_date(thd, this, res, fuzzydate);
+  return type_handler()->Item_get_date_with_warn(thd, this, res, fuzzydate);
 }
 
 
@@ -4702,7 +4694,7 @@ void
 Item_param::set_out_param_info(Send_field *info)
 {
   m_out_param_info= info;
-  set_handler_by_field_type(m_out_param_info->type);
+  set_handler(m_out_param_info->type_handler());
 }
 
 
@@ -4743,16 +4735,7 @@ void Item_param::make_send_field(THD *thd, Send_field *field)
     OUT-parameter info to fill out the names.
   */
 
-  field->db_name= m_out_param_info->db_name;
-  field->table_name= m_out_param_info->table_name;
-  field->org_table_name= m_out_param_info->org_table_name;
-  field->col_name= m_out_param_info->col_name;
-  field->org_col_name= m_out_param_info->org_col_name;
-
-  field->length= m_out_param_info->length;
-  field->flags= m_out_param_info->flags;
-  field->decimals= m_out_param_info->decimals;
-  field->type= m_out_param_info->type;
+  *field= *m_out_param_info;
 }
 
 bool Item_param::append_for_log(THD *thd, String *str)
@@ -4873,6 +4856,12 @@ String* Item_ref_null_helper::val_str(String* s)
   String* tmp= (*ref)->str_result(s);
   owner->was_null|= null_value= (*ref)->null_value;
   return tmp;
+}
+
+
+bool Item_ref_null_helper::val_native(THD *thd, Native *to)
+{
+  return (owner->was_null|= val_native_from_item(thd, *ref, to));
 }
 
 
@@ -6124,7 +6113,7 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 
 
 void Item::init_make_send_field(Send_field *tmp_field,
-                                enum enum_field_types field_type_arg)
+                                const Type_handler *h)
 {
   tmp_field->db_name=		"";
   tmp_field->org_table_name=	"";
@@ -6134,7 +6123,7 @@ void Item::init_make_send_field(Send_field *tmp_field,
   tmp_field->flags=             (maybe_null ? 0 : NOT_NULL_FLAG) | 
                                 (my_binary_compare(charset_for_protocol()) ?
                                  BINARY_FLAG : 0);
-  tmp_field->type=              field_type_arg;
+  tmp_field->set_handler(h);
   tmp_field->length=max_length;
   tmp_field->decimals=decimals;
   if (unsigned_flag)
@@ -6143,13 +6132,13 @@ void Item::init_make_send_field(Send_field *tmp_field,
 
 void Item::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_send_field(tmp_field, field_type());
+  init_make_send_field(tmp_field, type_handler());
 }
 
 
 void Item_empty_string::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_send_field(tmp_field, string_type_handler()->field_type());
+  init_make_send_field(tmp_field, string_type_handler());
 }
 
 
@@ -7204,8 +7193,9 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     Build condition extractable from this condition for pushdown
 
   @param thd      the thread handle
-  @param checker  the checker callback function to be applied to the
-                  equal items of multiple equality items
+  @param checker  the checker callback function to be applied to the nodes
+                  of the tree of the object to check if multiple equality
+                  elements can be used to create equalities
   @param arg      parameter to be passed to the checker
 
   @details
@@ -7302,57 +7292,23 @@ Item *Item::build_pushable_cond(THD *thd,
   }
   else if (is_multiple_equality)
   {
+    List<Item> equalities;
     Item *new_cond= NULL;
-    int i= 0;
-    Item_equal *item_equal= (Item_equal *) this;
-    Item *left_item = item_equal->get_const();
-    Item_equal_fields_iterator it(*item_equal);
-    Item *item;
-    Item *right_item;
-    if (!left_item)
-    {
-      while ((item=it++))
-      {
-        left_item= ((item->*checker) (arg)) ? item : NULL;
-        if (left_item)
-          break;
-      }
-    }
-    if (!left_item)
+    if (((Item_equal *)this)->create_pushable_equalities(thd, &equalities,
+                                                         checker, arg) ||
+        (equalities.elements == 0))
       return 0;
-    while ((item=it++))
+
+    switch (equalities.elements)
     {
-      right_item= ((item->*checker) (arg)) ? item : NULL;
-      if (!right_item)
-        continue;
-      Item_func_eq *eq= 0;
-      Item *left_item_clone= left_item->build_clone(thd);
-      Item *right_item_clone= item->build_clone(thd);
-      if (left_item_clone && right_item_clone)
-      {
-        left_item_clone->set_item_equal(NULL);
-        right_item_clone->set_item_equal(NULL);
-        eq= new (thd->mem_root) Item_func_eq(thd, right_item_clone,
-                                             left_item_clone);
-      }
-      if (eq)
-      {
-        i++;
-        switch (i)
-        {
-        case 1:
-          new_cond= eq;
-          break;
-        case 2:
-          new_cond= new (thd->mem_root) Item_cond_and(thd, new_cond, eq);
-          break;
-        default:
-          if (((Item_cond_and*)new_cond)->argument_list()->push_back(eq,
-                                                                thd->mem_root))
-            return 0;
-          break;
-        }
-      }
+    case 0:
+      return 0;
+    case 1:
+      new_cond= equalities.head();
+      break;
+    default:
+      new_cond= new (thd->mem_root) Item_cond_and(thd, equalities);
+      break;
     }
     if (new_cond && new_cond->fix_fields(thd, &new_cond))
       return 0;
@@ -7408,13 +7364,21 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
     return this;
   if (!item_equal && used_tables() != tab_map)
     return this;
-  return get_field_item_for_having(thd, this, sel);
+  Item *item= get_field_item_for_having(thd, this, sel);
+  if (item)
+    item->marker|= SUBSTITUTION_FL;
+  return item;
 }
 
 
 Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
                                                                  uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+  {
+    this->marker|= SUBSTITUTION_FL;
+    return this;
+  }
   st_select_lex *sel= (st_select_lex *)arg;
   table_map tab_map= sel->master_unit()->derived->table->map;
   if ((item_equal && !(item_equal->used_tables() & tab_map)) ||
@@ -7465,13 +7429,20 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   st_select_lex *sel= (st_select_lex *)arg;
   Item *producing_item= find_producing_item(this, sel);
   if (producing_item)
-    return producing_item->build_clone(thd);
+  {
+    Item *producing_clone= producing_item->build_clone(thd);
+    if (producing_clone)
+      producing_clone->marker|= SUBSTITUTION_FL;
+    return producing_clone;
+  }
   return this;
 }
 
 Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
                                                                 uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+    return (*ref);
   if (item_equal)
   {
     st_select_lex *sel= (st_select_lex *)arg;
@@ -7482,47 +7453,19 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
   return (*ref);
 }
 
-static
-Field_pair *find_matching_grouping_field(Item *item,
-					 st_select_lex *sel)
-{
-  DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
-              (item->type() == Item::REF_ITEM &&
-               ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
-  List_iterator<Field_pair> li(sel->grouping_tmp_fields);
-  Field_pair *gr_field;
-  Item_field *field_item= (Item_field *) (item->real_item());
-  while ((gr_field= li++))
-  {
-    if (field_item->field == gr_field->field)
-      return gr_field;
-  }
-  Item_equal *item_equal= item->get_item_equal();
-  if (item_equal)
-  {
-    Item_equal_fields_iterator it(*item_equal);
-    Item *equal_item;
-    while ((equal_item= it++))
-    {
-      field_item= (Item_field *) (equal_item->real_item());
-      li.rewind();
-      while ((gr_field= li++))
-      {
-        if (field_item->field == gr_field->field)
-	  return gr_field;
-      }
-    }
-  }
-  return NULL;
-}
-    
 
 Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
 {
   st_select_lex *sel= (st_select_lex *)arg;
-  Field_pair *gr_field= find_matching_grouping_field(this, sel);
+  Field_pair *gr_field= find_matching_field_pair(this, sel->grouping_tmp_fields);
   if (gr_field)
-    return gr_field->corresponding_item->build_clone(thd);
+  {
+    Item *producing_clone=
+      gr_field->corresponding_item->build_clone(thd);
+    if (producing_clone)
+      producing_clone->marker|= SUBSTITUTION_FL;
+    return producing_clone;
+  }
   return this;
 }
 
@@ -7531,10 +7474,16 @@ Item *
 Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
                                                            uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+  {
+    this->marker|= SUBSTITUTION_FL;
+    return this;
+  }
   if (!item_equal)
     return this;
   st_select_lex *sel= (st_select_lex *)arg;
-  Field_pair *gr_field= find_matching_grouping_field(this, sel);
+  Field_pair *gr_field= find_matching_field_pair(this,
+                                                 sel->grouping_tmp_fields);
   return gr_field->corresponding_item->build_clone(thd);
 }
 
@@ -8042,7 +7991,9 @@ void Item_ref::print(String *str, enum_query_type query_type)
 {
   if (ref)
   {
-    if ((*ref)->type() != Item::CACHE_ITEM && ref_type() != VIEW_REF &&
+    if ((*ref)->type() != Item::CACHE_ITEM &&
+        (*ref)->type() != Item::WINDOW_FUNC_ITEM &&
+        ref_type() != VIEW_REF &&
         !table_name && name.str && alias_name_used)
     {
       THD *thd= current_thd;
@@ -8107,6 +8058,14 @@ String *Item_ref::str_result(String* str)
     return result_field->val_str(str, &str_value);
   }
   return val_str(str);
+}
+
+
+bool Item_ref::val_native_result(THD *thd, Native *to)
+{
+  return result_field ?
+         val_native_from_field(result_field, to) :
+         val_native(thd, to);
 }
 
 
@@ -8201,6 +8160,12 @@ bool Item_ref::is_null()
 bool Item_ref::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   return (null_value=(*ref)->get_date_result(thd, ltime, fuzzydate));
+}
+
+
+bool Item_ref::val_native(THD *thd, Native *to)
+{
+  return val_native_from_item(thd, *ref, to);
 }
 
 
@@ -8338,6 +8303,12 @@ bool Item_direct_ref::is_null()
 bool Item_direct_ref::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   return (null_value=(*ref)->get_date(thd, ltime, fuzzydate));
+}
+
+
+bool Item_direct_ref::val_native(THD *thd, Native *to)
+{
+  return val_native_from_item(thd, *ref, to);
 }
 
 
@@ -8627,6 +8598,28 @@ String *Item_cache_wrapper::val_str(String* str)
     DBUG_RETURN(NULL);
   DBUG_RETURN(expr_value->val_str(str));
 }
+
+
+/**
+  Get the native value of the possibly cached item
+*/
+
+bool Item_cache_wrapper::val_native(THD *thd, Native* to)
+{
+  Item *cached_value;
+  DBUG_ENTER("Item_cache_wrapper::val_native");
+  if (!expr_cache)
+    DBUG_RETURN(val_native_from_item(thd, orig_item, to));
+
+  if ((cached_value= check_cache()))
+    DBUG_RETURN(val_native_from_item(thd, cached_value, to));
+
+  cache();
+  if ((null_value= expr_value->null_value))
+    DBUG_RETURN(true);
+  DBUG_RETURN(expr_value->val_native(thd, to));
+}
+
 
 
 /**
@@ -8967,6 +8960,19 @@ Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
 }
 
 
+Item *Item_ref::propagate_equal_fields(THD *thd, const Context &ctx,
+                                       COND_EQUAL *cond)
+{
+  Item *field_item= real_item();
+  if (field_item->type() != FIELD_ITEM)
+    return this;
+  Item *item= field_item->propagate_equal_fields(thd, ctx, cond);
+  if (item != field_item)
+    return item;
+  return this;
+}
+
+
 /**
   Replace an Item_direct_view_ref for an equal Item_field evaluated earlier
   (if any).
@@ -9009,6 +9015,20 @@ Item *Item_direct_view_ref::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
+bool Item_field::excl_dep_on_table(table_map tab_map)
+{
+  return used_tables() == tab_map ||
+         (item_equal && (item_equal->used_tables() & tab_map));
+}
+
+
+bool
+Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
+{
+  return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
+}
+
+
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
@@ -9024,14 +9044,31 @@ bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
   return (*ref)->excl_dep_on_table(tab_map);
 }
 
+
 bool Item_direct_view_ref::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   if (item_equal)
   {
     DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
-    return find_matching_grouping_field(this, sel) != NULL;
+    return (find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL);
   }    
   return (*ref)->excl_dep_on_grouping_fields(sel);
+}
+
+
+bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
+{
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (args[i]->type() == Item::FUNC_ITEM &&
+        ((Item_func *)args[i])->functype() == Item_func::UDF_FUNC)
+      return false;
+    if (args[i]->const_item())
+      continue;
+    if (!args[i]->excl_dep_on_grouping_fields(sel))
+      return false;
+  }
+  return true;
 }
 
 
@@ -9054,8 +9091,23 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     fixed= 1;
     return FALSE;
   }
+
+  /*
+    DEFAULT() do not need table field so should not ask handler to bring
+    field value (mark column for read)
+  */
+  enum_column_usage save_column_usage= thd->column_usage;
+  /*
+    Fields which has defult value could be read, so it is better hide system
+    invisible columns.
+  */
+  thd->column_usage= COLUMNS_WRITE;
   if (arg->fix_fields_if_needed(thd, &arg))
+  {
+    thd->column_usage= save_column_usage;
     goto error;
+  }
+  thd->column_usage= save_column_usage;
 
   real_arg= arg->real_item();
   if (real_arg->type() != FIELD_ITEM)
@@ -9075,15 +9127,19 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     goto error;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
-  IF_DBUG_ASSERT(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+  // If non-constant default value expression
   if (def_field->default_value && def_field->default_value->flags)
   {
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)
       goto error;
+    /*
+      Even if DEFAULT() do not read tables fields, the default value
+      expression can do it.
+    */
     fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (should_mark_column(thd->column_usage))
-      def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
+      def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
   else
@@ -9107,6 +9163,12 @@ void Item_default_value::print(String *str, enum_query_type query_type)
     return;
   }
   str->append(STRING_WITH_LEN("default("));
+  /*
+    We take DEFAULT from a field so do not need it value in case of const
+    tables but its name so we set QT_NO_DATA_EXPANSION (as we print for
+    table definition, also we do not need table and database name)
+  */
+  query_type= (enum_query_type) (query_type | QT_NO_DATA_EXPANSION);
   arg->print(str, query_type);
   str->append(')');
 }
@@ -9714,7 +9776,8 @@ bool Item_cache_temporal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzz
 int Item_cache_temporal::save_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
-  if (get_date(field->get_thd(), &ltime, date_mode_t(0)))
+  // This is a temporal type. No nanoseconds, so round mode is not important.
+  if (get_date(field->get_thd(), &ltime, TIME_CONV_NONE | TIME_FRAC_NONE))
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   int error= field->store_time_dec(&ltime, decimals);
@@ -9774,6 +9837,62 @@ Item *Item_cache_time::make_literal(THD *thd)
   unpack_time(val_time_packed(thd), &ltime, MYSQL_TIMESTAMP_TIME);
   return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals);
 }
+
+
+int Item_cache_timestamp::save_in_field(Field *field, bool no_conversions)
+{
+  if (!has_value())
+    return set_field_to_null_with_conversions(field, no_conversions);
+  return m_native.save_in_field(field, decimals);
+}
+
+
+bool Item_cache_timestamp::val_native(THD *thd, Native *to)
+{
+  if (!has_value())
+  {
+    null_value= true;
+    return true;
+  }
+  return null_value= to->copy(m_native);
+}
+
+
+Datetime Item_cache_timestamp::to_datetime(THD *thd)
+{
+  DBUG_ASSERT(is_fixed() == 1);
+  if (!has_value())
+  {
+    null_value= true;
+    return Datetime();
+  }
+  return Datetime(thd, Timestamp_or_zero_datetime(m_native).tv());
+}
+
+
+bool Item_cache_timestamp::get_date(THD *thd, MYSQL_TIME *ltime,
+                                    date_mode_t fuzzydate)
+{
+  if (!has_value())
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
+    return true;
+  }
+  Timestamp_or_zero_datetime tm(m_native);
+  return (null_value= tm.to_TIME(thd, ltime, fuzzydate));
+}
+
+
+bool Item_cache_timestamp::cache_value()
+{
+  if (!example)
+    return false;
+  value_cached= true;
+  null_value= example->val_native_with_conversion_result(current_thd, &m_native,
+                                                         type_handler());
+  return true;
+}
+
 
 bool Item_cache_real::cache_value()
 {
@@ -10295,20 +10414,12 @@ const char *dbug_print_unit(SELECT_LEX_UNIT *un)
     return "Couldn't fit into buffer";
 }
 
+const char *dbug_print(Item *x)            { return dbug_print_item(x);   }
+const char *dbug_print(SELECT_LEX *x)      { return dbug_print_select(x); }
+const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
 
 #endif /*DBUG_OFF*/
 
-bool Item_field::excl_dep_on_table(table_map tab_map)
-{
-  return used_tables() == tab_map || 
-         (item_equal && (item_equal->used_tables() & tab_map)); 
-}
-
-bool
-Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
-{
-  return find_matching_grouping_field(this, sel) != NULL;
-}
 
 
 void Item::register_in(THD *thd)

@@ -11,6 +11,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 SELECT * from target;
 ERROR 42S02: Table 'test.target' doesn't exist
 DROP TABLE t;
+# restart
 CREATE TABLE t (a INT) ENGINE=InnoDB;
 DROP TABLE t;
 DROP TABLE target;

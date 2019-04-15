@@ -1,0 +1,14 @@
+[crypt]
+innodb_encrypt_tables=ON
+plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+loose-file-key-management
+loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+file-key-management-encryption-algorithm=aes_cbc
+
+[clear]
+innodb_encrypt_tables=OFF
+plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+loose-file-key-management
+loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+file-key-management-encryption-algorithm=aes_cbc
+

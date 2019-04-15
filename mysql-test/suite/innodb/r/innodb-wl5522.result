@@ -36,6 +36,7 @@ t1.frm
 t1.ibd
 t2.frm
 t2.ibd
+# restart
 FLUSH TABLE t1, t2 FOR EXPORT;
 # List before copying files
 db.opt
@@ -61,6 +62,7 @@ a	b	c
 1462	Devotion	asdfuihknaskdf
 1461	Cavalry	..asdasdfaeraf
 # Restarting server
+# restart
 # Done restarting server
 # List before t1 DISCARD
 db.opt
@@ -117,7 +119,8 @@ t2.frm
 ALTER TABLE t2 IMPORT TABLESPACE;
 ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
 ALTER TABLE t2 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x*, .ibd file contains 0x*.)
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
 DROP TABLE t2;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;

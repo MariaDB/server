@@ -15,10 +15,9 @@ CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 SELECT plugin,authentication_string FROM mysql.user WHERE User='plug';
 
 --echo ## test plugin auth
---disable_query_log
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 --error ER_ACCESS_DENIED_ERROR : this should fail : no grant
 connect(plug_con,localhost,plug,plug_dest);
---enable_query_log
 
 GRANT PROXY ON plug_dest TO plug;
 --echo test proxies_priv columns
@@ -28,8 +27,6 @@ SELECT * FROM mysql.proxies_priv WHERE user !='root';
 SHOW CREATE TABLE mysql.proxies_priv;
 
 connect(plug_con,localhost,plug,plug_dest);
-
-connection plug_con;
 select USER(),CURRENT_USER();
 
 --echo ## test SET PASSWORD
@@ -40,22 +37,18 @@ connection default;
 disconnect plug_con;
 
 --echo ## test bad credentials
---disable_query_log
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 --error ER_ACCESS_DENIED_ERROR
 connect(plug_con,localhost,plug,bad_credentials);
---enable_query_log
 
---echo ## test bad default plugin : should get CR_AUTH_PLUGIN_CANNOT_LOAD
---disable_result_log
---disable_query_log
---error 2059
+--echo ## test bad default plugin : nothing bad happens, as that plugin was't required by the server
 connect(plug_con_wrongp,localhost,plug,plug_dest,,,,,wrong_plugin_name);
---enable_query_log
---enable_result_log
+select USER(),CURRENT_USER();
+connection default;
+disconnect plug_con_wrongp;
 
 --echo ## test correct default plugin
 connect(plug_con_rightp,localhost,plug,plug_dest,,,,,auth_test_plugin);
-connection plug_con_rightp;
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_con_rightp;
@@ -72,7 +65,6 @@ CREATE USER `Ÿ` IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 GRANT PROXY ON plug_dest TO `Ÿ`;
 
 connect(non_ascii,localhost,Ÿ,plug_dest);
-connection non_ascii;
 select USER(),CURRENT_USER();
 
 connection default;
@@ -90,7 +82,6 @@ GRANT ALL PRIVILEGES ON test_grant_db.* TO new_grant_user
 GRANT PROXY ON plug_dest TO new_grant_user;  
 
 connect(plug_con_grant,localhost,new_grant_user,plug_dest);
-connection plug_con_grant;
 select USER(),CURRENT_USER();
 USE test_grant_db;
 CREATE TABLE t1 (a INT);
@@ -108,7 +99,6 @@ GRANT ALL PRIVILEGES ON test_grant_db.* TO new_grant_user
 connect(plug_con_grant_deny,localhost,new_grant_user,plug_dest);
 
 connect(plug_con_grant,localhost,new_grant_user,new_password);
-connection plug_con_grant;
 select USER(),CURRENT_USER();
 USE test_grant_db;
 CREATE TABLE t1 (a INT);
@@ -166,8 +156,6 @@ GRANT ALL SELECT,PROXY ON grant_plug_dest TO grant_plug;
 REVOKE PROXY ON grant_plug_dest FROM grant_plug;
 
 connect(grant_plug_dest_con,localhost,grant_plug_dest,grant_plug_dest_passwd);
-connection grant_plug_dest_con;
---echo in grant_plug_dest_con
 
 --echo ## testing what an ordinary user can grant 
 --echo this should fail : no rights to grant all
@@ -209,7 +197,6 @@ REVOKE PROXY ON grant_plug_dest@localhost FROM grant_plug;
 GRANT PROXY ON grant_plug_dest TO grant_plug@localhost;
 
 connection default;
---echo in default connection
 disconnect grant_plug_dest_con;
 
 --echo # test what root can grant
@@ -226,14 +213,11 @@ GRANT PROXY ON ''@'%%' TO proxy_admin IDENTIFIED BY 'test'
 GRANT USAGE on *.* TO proxy_admin;
 
 connect (proxy_admin_con,localhost,proxy_admin,test);
-connection proxy_admin_con;
---echo in proxy_admin_con;
 
 --echo should work : proxy_admin has proxy to ''@'%%'
 GRANT PROXY ON future_user TO grant_plug;
 
 connection default;
---echo in default connection
 disconnect proxy_admin_con;
 
 SHOW GRANTS FOR grant_plug;
@@ -275,11 +259,8 @@ SET LOCAL proxy_user = 'test';
 SELECT @@LOCAL.proxy_user;
 
 connect(plug_con,localhost,plug,plug_dest);
-connection plug_con;
---echo # in connection plug_con
 SELECT @@LOCAL.proxy_user;
 connection default;
---echo # in connection default
 disconnect plug_con;
 
 --echo ## cleanup
@@ -304,11 +285,8 @@ SET LOCAL external_user = 'test';
 SELECT @@LOCAL.external_user;
 
 connect(plug_con,localhost,plug,plug_dest);
-connection plug_con;
---echo # in connection plug_con
 SELECT @@LOCAL.external_user;
 connection default;
---echo # in connection default
 disconnect plug_con;
 
 --echo ## cleanup
@@ -382,7 +360,6 @@ REVOKE PROXY ON u2@localhost FROM u1@localhost;
 
 --echo # go try graning proxy on itself, so that it will need the table
 connect(proxy_granter_con,localhost,u2,);
-connection proxy_granter_con;
 
 --error ER_NO_SUCH_TABLE
 GRANT PROXY ON u2@localhost TO u1@localhost;
@@ -438,12 +415,15 @@ connect(cleartext_fail_con,localhost,uplain,cleartext_test2);
 --enable_query_log
 
 connect(cleartext_con,localhost,uplain,cleartext_test);
-connection cleartext_con;
 select USER(),CURRENT_USER();
 
 connection default;
 disconnect cleartext_con;
 DROP USER uplain@localhost;
+
+# prepare for two tests that use mysql.user table
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
 
 --echo #
 --echo # Bug #59038 : mysql.user.authentication_string column 
@@ -502,7 +482,6 @@ SELECT IS_NULLABLE, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE
   TABLE_SCHEMA='mysql'
 ORDER BY COLUMN_NAME;
 
-
 --echo #
 --echo # Bug #11936829: diff. between mysql.user (authentication_string) 
 --echo #   in fresh and upgraded 5.5.11
@@ -524,7 +503,8 @@ SELECT IS_NULLABLE, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
   ORDER BY COLUMN_NAME;
 let $datadir= `select @@datadir`;
 remove_file $datadir/mysql_upgrade_info;
-
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
 
 --echo #
 --echo # Bug # 11766641: 59792: BIN/MYSQL -UUNKNOWN -PUNKNOWN 
@@ -567,7 +547,6 @@ CREATE USER bug12818542_dest@localhost
 GRANT PROXY ON bug12818542_dest@localhost TO bug12818542@localhost;
 
 connect(bug12818542_con,localhost,bug12818542,bug12818542_dest);
-connection bug12818542_con;
 SELECT USER(),CURRENT_USER();
 
 SET PASSWORD = PASSWORD('bruhaha');
@@ -576,7 +555,6 @@ connection default;
 disconnect bug12818542_con;
 
 connect(bug12818542_con2,localhost,bug12818542,bug12818542_dest);
-connection bug12818542_con2;
 SELECT USER(),CURRENT_USER();
 
 connection default;

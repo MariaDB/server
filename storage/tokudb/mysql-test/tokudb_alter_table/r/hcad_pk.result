@@ -9,10 +9,6 @@ insert into bar select * from foo;
 alter table foo add column d int default 20;
 alter table bar add column d int default 20;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 a	b	c	d
 -1	-1	-1	20
@@ -29,10 +25,6 @@ a	b	c	d
 alter table foo drop column d;
 alter table bar drop column d;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 a	b	c
 -1	-1	-1
@@ -51,10 +43,6 @@ a	b	c
 alter table foo add column d int default 20 first;
 alter table bar add column d int default 20 first;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 d	a	b	c
 20	-1	-1	-1
@@ -75,10 +63,6 @@ d	a	b	c
 alter table foo drop column d;
 alter table bar drop column d;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 a	b	c
 -1	-1	-1
@@ -108,10 +92,6 @@ insert into bar select * from foo;
 alter table foo add column d int default 20;
 alter table bar add column d int default 20;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 a	b	c	d
 -1	-1	-1	20
@@ -128,10 +108,6 @@ a	b	c	d
 alter table foo drop column d;
 alter table bar drop column d;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 a	b	c
 -1	-1	-1
@@ -150,10 +126,6 @@ a	b	c
 alter table foo add column d int default 20 first;
 alter table bar add column d int default 20 first;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 d	a	b	c
 20	-1	-1	-1
@@ -174,10 +146,6 @@ d	a	b	c
 alter table foo drop column d;
 alter table bar drop column d;
 include/diff_tables.inc [test.foo, test.bar]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from foo;
 a	b	c
 -1	-1	-1

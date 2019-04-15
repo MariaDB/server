@@ -53,7 +53,7 @@ Variable_name	Value
 system_versioning_asof	1900-01-01 00:00:00.000000
 set global system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
 Warnings:
-Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+Note	1292	Truncated incorrect DATETIME value: '1911-11-11 11:11:11.1111119'
 show global variables like 'system_versioning_asof';
 Variable_name	Value
 system_versioning_asof	1911-11-11 11:11:11.111111
@@ -80,7 +80,7 @@ Variable_name	Value
 system_versioning_asof	1900-01-01 00:00:00.000000
 set system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
 Warnings:
-Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+Note	1292	Truncated incorrect DATETIME value: '1911-11-11 11:11:11.1111119'
 show variables like 'system_versioning_asof';
 Variable_name	Value
 system_versioning_asof	1911-11-11 11:11:11.111111
@@ -130,3 +130,14 @@ show status like "Feature_system_versioning";
 Variable_name	Value
 Feature_system_versioning	2
 drop table t;
+#
+# MDEV-16991 Rounding vs truncation for TIME, DATETIME, TIMESTAMP
+#
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+SET @@global.system_versioning_asof= timestamp'2001-12-31 23:59:59.9999999';
+Warnings:
+Note	1292	Truncated incorrect DATETIME value: '2001-12-31 23:59:59.9999999'
+SELECT @@global.system_versioning_asof;
+@@global.system_versioning_asof
+2002-01-01 00:00:00.000000
+SET @@global.system_versioning_asof= DEFAULT;

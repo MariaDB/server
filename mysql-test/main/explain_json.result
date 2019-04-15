@@ -373,7 +373,7 @@ EXPLAIN
         "attached_condition": "tbl2.b < 5"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "1Kb",
       "join_type": "BNL",
       "attached_condition": "tbl2.a = tbl1.a"
     }
@@ -640,7 +640,7 @@ EXPLAIN
         "filtered": 100
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "1Kb",
       "join_type": "BNL"
     }
   }
@@ -674,7 +674,7 @@ EXPLAIN
         "first_match": "t2"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "141",
       "join_type": "BNL",
       "attached_condition": "t1.b = t2.b and t1.a = t2.a"
     }
@@ -711,7 +711,7 @@ EXPLAIN
           "filtered": 100
         },
         "buffer_type": "flat",
-        "buffer_size": "256Kb",
+        "buffer_size": "206",
         "join_type": "BNL",
         "attached_condition": "t1.b = t2.b and t1.a = t2.a"
       }
@@ -739,7 +739,7 @@ EXPLAIN
       "key": "a",
       "key_length": "5",
       "used_key_parts": ["a"],
-      "rows": 1,
+      "rows": 2,
       "filtered": 100,
       "index_condition": "t1.a < 3",
       "mrr_type": "Rowid-ordered scan"
@@ -825,7 +825,7 @@ EXPLAIN
               "filtered": 100
             },
             "buffer_type": "flat",
-            "buffer_size": "256Kb",
+            "buffer_size": "65",
             "join_type": "BNL",
             "attached_condition": "t2.b <> outer_t1.a"
           }
@@ -876,7 +876,7 @@ EXPLAIN
               "filtered": 100
             },
             "buffer_type": "flat",
-            "buffer_size": "256Kb",
+            "buffer_size": "1Kb",
             "join_type": "BNL",
             "attached_condition": "tbl2.b = tbl1.b"
           }
@@ -1029,6 +1029,7 @@ create index idx_t1_1 on t1 (a1,a2,b,c);
 create index idx_t1_2 on t1 (a1,a2,b);
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 explain select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1491,7 +1492,7 @@ EXPLAIN
         "index_condition_bka": "t4.b + 1 <= t3.b + 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "400",
       "join_type": "BKA",
       "mrr_type": "Rowid-ordered scan"
     }
@@ -1534,7 +1535,7 @@ ANALYZE
         "index_condition_bka": "t4.b + 1 <= t3.b + 1"
       },
       "buffer_type": "flat",
-      "buffer_size": "256Kb",
+      "buffer_size": "400",
       "join_type": "BKA",
       "mrr_type": "Rowid-ordered scan",
       "r_filtered": 100

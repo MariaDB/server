@@ -715,6 +715,12 @@ bool Item_subselect::exec()
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed);
 
+  DBUG_EXECUTE_IF("Item_subselect",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                  ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %s",
+                  Item::Print(this,
+                              enum_query_type(QT_TO_SYSTEM_CHARSET |
+                                              QT_WITHOUT_INTRODUCERS)).ptr()););
   /*
     Do not execute subselect in case of a fatal error
     or if the query has been killed.
@@ -1084,7 +1090,7 @@ void Item_maxmin_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   null_value= 0;
   was_values= 0;
   make_const();
@@ -1102,7 +1108,7 @@ void Item_singlerow_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
+  value= get_cache(thd);
   reset();
   make_const();
 }
@@ -1348,6 +1354,24 @@ String *Item_singlerow_subselect::val_str(String *str)
   {
     reset();
     return 0;
+  }
+}
+
+
+bool Item_singlerow_subselect::val_native(THD *thd, Native *to)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_native(thd, to);
+  if (!exec() && !value->null_value)
+  {
+    null_value= false;
+    return value->val_native(thd, to);
+  }
+  else
+  {
+    reset();
+    return true;
   }
 }
 
@@ -1991,8 +2015,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                  print_where(item, "rewrite with MIN/MAX", QT_ORDINARY););
 
     save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|=
-        (nesting_map)1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
     /*
       Item_sum_(max|min) can't substitute other item => we can use 0 as
       reference, also Item_sum_(max|min) can't be fixed after creation, so
@@ -3255,7 +3278,8 @@ out:
 
 void Item_in_subselect::print(String *str, enum_query_type query_type)
 {
-  if (test_strategy(SUBS_IN_TO_EXISTS))
+  if (test_strategy(SUBS_IN_TO_EXISTS) &&
+      !(query_type & QT_PARSABLE))
     str->append(STRING_WITH_LEN("<exists>"));
   else
   {
@@ -3482,7 +3506,8 @@ Item_allany_subselect::select_transformer(JOIN *join)
 
 void Item_allany_subselect::print(String *str, enum_query_type query_type)
 {
-  if (test_strategy(SUBS_IN_TO_EXISTS))
+  if (test_strategy(SUBS_IN_TO_EXISTS) &&
+      !(query_type & QT_PARSABLE))
     str->append(STRING_WITH_LEN("<exists>"));
   else
   {
@@ -5796,7 +5821,7 @@ int
 Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
 {
   uchar *rowid_a, *rowid_b;
-  int __attribute__((unused)) error;
+  int error;
   int cmp_res;
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
@@ -5893,7 +5918,7 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
   uchar *cur_rowid= row_num_to_rowid + row_num * rowid_length;
-  int __attribute__((unused)) error;
+  int error;
   int cmp_res;
 
   if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid))))

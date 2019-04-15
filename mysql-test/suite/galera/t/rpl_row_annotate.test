@@ -3,11 +3,15 @@
 
 --echo # On node_2
 --connection node_2
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
 
 --echo # On node_1
 --connection node_1
+SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
+SET GLOBAL wsrep_on=ON;
 CREATE TABLE t1(i INT)ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 DELETE FROM t1 WHERE i = 1;
@@ -38,5 +42,4 @@ let $start_pos= `select @binlog_start_pos`;
 # Cleanup
 DROP TABLE t1;
 
---source include/galera_end.inc
 --echo # End of test

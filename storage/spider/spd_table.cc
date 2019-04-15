@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -128,6 +128,7 @@ extern long spider_conn_mutex_id;
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
+extern SPIDER_DBTON spider_dbton_mariadb;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 extern SPIDER_DBTON spider_dbton_handlersocket;
 #endif
@@ -1721,8 +1722,7 @@ int st_spider_param_string_parse::print_param_error()
       if ((share->param_name = spider_get_string_between_quote( \
         start_ptr, TRUE, &connect_string_parse))) \
         share->SPIDER_PARAM_STR_LEN(param_name) = strlen(share->param_name); \
-      else \
-      { \
+      else { \
         error_num = connect_string_parse.print_param_error(); \
         goto error; \
       } \
@@ -2046,6 +2046,7 @@ int spider_parse_connect_info(
   share->priority = -1;
   share->quick_mode = -1;
   share->quick_page_size = -1;
+  share->quick_page_byte = -1;
   share->low_mem_read = -1;
   share->table_count_mode = -1;
   share->select_column_mode = -1;
@@ -2291,6 +2292,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("qch", query_cache, 0, 2);
           SPIDER_PARAM_INT_WITH_MAX("qcs", query_cache_sync, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("qmd", quick_mode, 0, 3);
+          SPIDER_PARAM_LONGLONG("qpb", quick_page_byte, 0);
           SPIDER_PARAM_LONGLONG("qps", quick_page_size, 0);
           SPIDER_PARAM_INT_WITH_MAX("rom", read_only_mode, 0, 1);
           SPIDER_PARAM_DOUBLE("rrt", read_rate, 0);
@@ -2460,6 +2462,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("internal_offset", internal_offset, 0);
           SPIDER_PARAM_INT_WITH_MAX("reset_sql_alloc", reset_sql_alloc, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
+          SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
           SPIDER_PARAM_LONGLONG("quick_page_size", quick_page_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
           SPIDER_PARAM_LONGLONG("bgs_second_read", bgs_second_read, 0);
@@ -3825,9 +3828,11 @@ int spider_set_connect_info_default(
   if (share->priority == -1)
     share->priority = 1000000;
   if (share->quick_mode == -1)
-    share->quick_mode = 0;
+    share->quick_mode = 3;
   if (share->quick_page_size == -1)
-    share->quick_page_size = 100;
+    share->quick_page_size = 1024;
+  if (share->quick_page_byte == -1)
+    share->quick_page_byte = 10485760;
   if (share->low_mem_read == -1)
     share->low_mem_read = 1;
   if (share->table_count_mode == -1)
@@ -5219,15 +5224,20 @@ SPIDER_SHARE *spider_get_share(
       }
       if (!share->link_status_init)
       {
-        if (
-          (
-            table_share->tmp_table == NO_TMP_TABLE &&
-            sql_command != SQLCOM_DROP_TABLE &&
-            sql_command != SQLCOM_SHOW_CREATE
-          ) ||
-          /* for alter change link status */
-          sql_command == SQLCOM_ALTER_TABLE
-        ) {
+        /*
+          The link statuses need to be refreshed from the spider_tables table
+          if the operation:
+          - Is not a DROP TABLE on a permanent table; or
+          - Is an ALTER TABLE.
+
+          Note that SHOW CREATE TABLE is not excluded, because the commands
+          that follow it require up-to-date link statuses.
+        */
+        if ((table_share->tmp_table == NO_TMP_TABLE &&
+             sql_command != SQLCOM_DROP_TABLE) ||
+            /* for alter change link status */
+            sql_command == SQLCOM_ALTER_TABLE)
+        {
           SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
           init_mem_root = TRUE;
           if (
@@ -6271,7 +6281,7 @@ int spider_open_all_tables(
   }
 
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
+  memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   memset(&tmp_connect_info, 0,
     sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT);
   memset(tmp_connect_info_length, 0,
@@ -6405,7 +6415,7 @@ int spider_open_all_tables(
         free_root(&mem_root, MYF(0));
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
-      memcpy(share, &tmp_share, sizeof(*share));
+      memcpy((void*)share, &tmp_share, sizeof(*share));
       spider_set_tmp_share_pointer(share, connect_info,
         connect_info_length, long_info, longlong_info);
       memcpy(connect_info, &tmp_connect_info, sizeof(char *) *
@@ -7353,15 +7363,22 @@ int spider_db_init(
 #endif
 
   spider_dbton_mysql.dbton_id = dbton_id;
+  spider_dbton_mysql.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_mysql;
+  ++dbton_id;
+  spider_dbton_mariadb.dbton_id = dbton_id;
+  spider_dbton_mariadb.db_util->dbton_id = dbton_id;
+  spider_dbton[dbton_id] = spider_dbton_mariadb;
   ++dbton_id;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   spider_dbton_handlersocket.dbton_id = dbton_id;
+  spider_dbton_handlersocket.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_handlersocket;
   ++dbton_id;
 #endif
 #ifdef HAVE_ORACLE_OCI
   spider_dbton_oracle.dbton_id = dbton_id;
+  spider_dbton_oracle.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_oracle;
   ++dbton_id;
 #endif
@@ -7667,7 +7684,7 @@ int spider_get_sts(
   int sts_sync_level,
   uint flag
 ) {
-  int get_type;
+  int get_type __attribute__ ((unused));
   int error_num = 0;
   bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_sts");
@@ -7824,7 +7841,7 @@ int spider_get_crd(
 #endif
   int crd_sync_level
 ) {
-  int get_type;
+  int get_type __attribute__ ((unused));
   int error_num = 0;
   bool need_to_get = TRUE;
   DBUG_ENTER("spider_get_crd");
@@ -7993,6 +8010,8 @@ void spider_set_result_list_param(
     spider_param_quick_mode(thd, share->quick_mode);
   result_list->quick_page_size =
     spider_param_quick_page_size(thd, share->quick_page_size);
+  result_list->quick_page_byte =
+    spider_param_quick_page_byte(thd, share->quick_page_byte);
   result_list->low_mem_read =
     spider_param_low_mem_read(thd, share->low_mem_read);
   DBUG_VOID_RETURN;
@@ -8454,16 +8473,9 @@ void spider_free_tmp_dbton_handler(
 TABLE_LIST *spider_get_parent_table_list(
   ha_spider *spider
 ) {
-  TABLE *table = spider->get_table();
-  TABLE_LIST *table_list = table->pos_in_table_list;
+  TABLE *table = spider->get_top_table();
   DBUG_ENTER("spider_get_parent_table_list");
-  if (table_list)
-  {
-    while (table_list->parent_l)
-      table_list = table_list->parent_l;
-    DBUG_RETURN(table_list);
-  }
-  DBUG_RETURN(NULL);
+  DBUG_RETURN(table->pos_in_table_list);
 }
 
 List<Index_hint> *spider_get_index_hints(
@@ -8965,7 +8977,9 @@ bool spider_check_direct_order_limit(
 int spider_set_direct_limit_offset(
   ha_spider *spider
 ) {
+#ifndef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
   THD *thd = spider->trx->thd;
+#endif
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
@@ -9037,7 +9051,11 @@ int spider_set_direct_limit_offset(
     DBUG_RETURN(FALSE);
 
   // ignore condition like 1=1
+#ifdef SPIDER_has_Item_with_subquery
   if (select_lex->where && select_lex->where->with_subquery())
+#else
+  if (select_lex->where && select_lex->where->with_subselect)
+#endif
     DBUG_RETURN(FALSE);
 
   if (
@@ -9048,14 +9066,8 @@ int spider_set_direct_limit_offset(
   )
     DBUG_RETURN(FALSE);
 
-  /*
-    TODO: following comment is wrong or the check is wrong (correct
-    check for derived table will be something like select_lex->linkage,
-    if they need only top level it is better to check nested level and do
-      not loose UNIONS & Co
-  */
   // must not be derived table
-  if (thd->lex->first_select_lex() != select_lex)
+  if (SPIDER_get_linkage(select_lex) == DERIVED_TABLE_TYPE)
     DBUG_RETURN(FALSE);
 
   spider->direct_select_offset = offset_limit;
@@ -9234,7 +9246,7 @@ int spider_discover_table_structure(
 #endif
   Open_tables_backup open_tables_backup;
   TABLE *table_tables;
-  uint str_len;
+  uint str_len __attribute__ ((unused));
   char buf[MAX_FIELD_WIDTH];
   spider_string str(buf, sizeof(buf), system_charset_info);
   DBUG_ENTER("spider_discover_table_structure");
@@ -9497,7 +9509,8 @@ int spider_discover_table_structure(
   uint collatelen = strlen(table_charset->name);
   if (str.reserve(SPIDER_SQL_CLOSE_PAREN_LEN + SPIDER_SQL_DEFAULT_CHARSET_LEN +
     csnamelen + SPIDER_SQL_COLLATE_LEN + collatelen +
-    SPIDER_SQL_CONNECTION_LEN + SPIDER_SQL_VALUE_QUOTE_LEN
+    SPIDER_SQL_CONNECTION_LEN + SPIDER_SQL_VALUE_QUOTE_LEN +
+    (share->comment.length * 2)
   )) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
@@ -9510,7 +9523,8 @@ int spider_discover_table_structure(
   str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str.append_escape_string(share->comment.str, share->comment.length);
   if (str.reserve(SPIDER_SQL_CONNECTION_LEN +
-    (SPIDER_SQL_VALUE_QUOTE_LEN * 2)))
+    (SPIDER_SQL_VALUE_QUOTE_LEN * 2) +
+    (share->connect_string.length * 2)))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }

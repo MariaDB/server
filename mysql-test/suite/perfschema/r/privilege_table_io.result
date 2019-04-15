@@ -1,3 +1,4 @@
+# restart
 drop table if exists test.marker;
 create table test.marker(a int);
 update performance_schema.setup_consumers set enabled='NO';
@@ -95,11 +96,11 @@ where event_name like 'wait/io/table/%'
   and object_schema in ("test", "mysql")
 order by thread_id, event_id;
 event_name	short_source	object_type	object_schema	pretty_name	operation	number_of_bytes
-wait/io/table/sql/handler	handler.cc:	TABLE	mysql	user	fetch	NULL
-wait/io/table/sql/handler	handler.cc:	TABLE	mysql	user	fetch	NULL
-wait/io/table/sql/handler	handler.cc:	TABLE	mysql	user	fetch	NULL
-wait/io/table/sql/handler	handler.cc:	TABLE	mysql	user	fetch	NULL
-wait/io/table/sql/handler	handler.cc:	TABLE	mysql	user	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	global_priv	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	global_priv	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	global_priv	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	global_priv	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	global_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	db	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	db	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	db	fetch	NULL
@@ -110,6 +111,8 @@ wait/io/table/sql/handler	handler.cc:	TABLE	mysql	roles_mapping	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	tables_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	procs_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	servers	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	table_stats	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	column_stats	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	test	marker	insert	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	test	marker	insert	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	test	marker	insert	NULL

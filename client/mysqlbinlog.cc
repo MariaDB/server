@@ -83,6 +83,7 @@ ulong mysqld_net_retry_count = 10L;
 ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
 ulonglong test_flags = 0;
+ulong opt_binlog_rows_event_max_encoded_size= MAX_MAX_ALLOWED_PACKET;
 static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
@@ -849,8 +850,14 @@ write_event_header_and_base64(Log_event *ev, FILE *result_file,
   DBUG_ENTER("write_event_header_and_base64");
 
   /* Write header and base64 output to cache */
-  if (ev->print_header(head, print_event_info, FALSE) ||
-      ev->print_base64(body, print_event_info, FALSE))
+  if (ev->print_header(head, print_event_info, FALSE))
+    DBUG_RETURN(ERROR_STOP);
+
+  DBUG_ASSERT(print_event_info->base64_output_mode == BASE64_OUTPUT_ALWAYS);
+
+  if (ev->print_base64(body, print_event_info,
+                       print_event_info->base64_output_mode !=
+                       BASE64_OUTPUT_DECODE_ROWS))
     DBUG_RETURN(ERROR_STOP);
 
   /* Read data from cache and write to result file */
@@ -886,12 +893,13 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
             type_str);
     return 1;
   }
+
   return ev->print(result_file, print_event_info);
 }
 
 
 static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
-                            ulong table_id, bool is_stmt_end)
+                            ulonglong table_id, bool is_stmt_end)
 {
   Table_map_log_event *ignored_map= 
     print_event_info->m_table_map_ignored.get_table(table_id);
@@ -1598,7 +1606,7 @@ static struct my_option my_options[] =
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"disable-log-bin", 'D', "Disable binary log. This is useful, if you "
-    "enabled --to-last-log and are sending the output to the same MySQL server. "
+    "enabled --to-last-log and are sending the output to the same MariaDB server. "
     "This way you could avoid an endless loop. You would also like to use it "
     "when restoring after a crash to avoid duplication of the statements you "
     "already have. NOTE: you will need a SUPER privilege to use this option.",
@@ -1643,7 +1651,7 @@ static struct my_option my_options[] =
   {"protocol", OPT_MYSQL_PROTOCOL,
    "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"read-from-remote-server", 'R', "Read binary logs from a MySQL server.",
+  {"read-from-remote-server", 'R', "Read binary logs from a MariaDB server.",
    &remote_opt, &remote_opt, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
   {"raw", 0, "Requires -R. Output raw binlog data instead of SQL "
@@ -1696,7 +1704,7 @@ static struct my_option my_options[] =
   {"start-datetime", OPT_START_DATETIME,
    "Start reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
-   "in the local time zone, in any format accepted by the MySQL server "
+   "in the local time zone, in any format accepted by the MariaDB server "
    "for DATETIME and TIMESTAMP types, for example: 2004-12-25 11:25:56 "
    "(you should probably use quotes for your shell to set it properly).",
    &start_datetime_str, &start_datetime_str,
@@ -1714,7 +1722,7 @@ static struct my_option my_options[] =
   {"stop-datetime", OPT_STOP_DATETIME,
    "Stop reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
-   "in the local time zone, in any format accepted by the MySQL server "
+   "in the local time zone, in any format accepted by the MariaDB server "
    "for DATETIME and TIMESTAMP types, for example: 2004-12-25 11:25:56 "
    "(you should probably use quotes for your shell to set it properly).",
    &stop_datetime_str, &stop_datetime_str,
@@ -1738,7 +1746,7 @@ static struct my_option my_options[] =
    0, 0, 0, 0, 0, 0},
   {"to-last-log", 't', "Requires -R. Will not stop at the end of the \
 requested binlog but rather continue printing until the end of the last \
-binlog of the MySQL server. If you send the output to the same MySQL server, \
+binlog of the MariaDB server. If you send the output to the same MariaDB server, \
 that may lead to an endless loop.",
    &to_last_remote_log, &to_last_remote_log, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1760,6 +1768,15 @@ that may lead to an endless loop.",
    "This value must be a multiple of 256.",
    &opt_binlog_rows_event_max_size, &opt_binlog_rows_event_max_size, 0,
    GET_ULONG, REQUIRED_ARG, UINT_MAX,  256, ULONG_MAX,  0, 256,  0},
+#ifndef DBUG_OFF
+  {"debug-binlog-row-event-max-encoded-size", 0,
+   "The maximum size of base64-encoded rows-event in one BINLOG pseudo-query "
+   "instance. When the computed actual size exceeds the limit "
+   "the BINLOG's argument string is fragmented in two.",
+   &opt_binlog_rows_event_max_encoded_size,
+   &opt_binlog_rows_event_max_encoded_size, 0,
+   GET_ULONG, REQUIRED_ARG, UINT_MAX/4,  256, ULONG_MAX,  0, 256,  0},
+#endif
   {"verify-binlog-checksum", 'c', "Verify checksum binlog events.",
    (uchar**) &opt_verify_binlog_checksum, (uchar**) &opt_verify_binlog_checksum,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1875,7 +1892,7 @@ static void usage()
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("\
-Dumps a MySQL binary log in a format usable for viewing or for piping to\n\
+Dumps a MariaDB binary log in a format usable for viewing or for piping to\n\
 the mysql command line client.\n\n");
   printf("Usage: %s [options] log-files\n", my_progname);
   print_defaults("my",load_groups);
@@ -1893,7 +1910,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
   uint dummy_in_dst_time_gap;
   
   /* We require a total specification (date AND time) */
-  if (str_to_datetime(str, (uint) strlen(str), &l_time, 0, &status) ||
+  if (str_to_datetime_or_date(str, (uint) strlen(str), &l_time, 0, &status) ||
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);
@@ -2281,7 +2298,7 @@ static Exit_status check_master_version()
     break;
   default:
     error("Could not find server version: "
-          "Master reported unrecognized MySQL version '%s'.", row[0]);
+          "Master reported unrecognized MariaDB version '%s'.", row[0]);
     goto err;
   }
   if (!glob_description_event || !glob_description_event->is_valid())
@@ -3198,17 +3215,24 @@ err:
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
 }
 
+uint e_key_get_latest_version_func(uint) { return 1; }
+uint e_key_get_func(uint, uint, uchar*, uint*) { return 1; }
+uint e_ctx_size_func(uint, uint) { return 1; }
+int e_ctx_init_func(void *, const uchar*, uint, const uchar*, uint,
+                    int, uint, uint) { return 1; }
+int e_ctx_update_func(void *, const uchar*, uint, uchar*, uint*) { return 1; }
+int e_ctx_finish_func(void *, uchar*, uint*) { return 1; }
+uint e_encrypted_length_func(uint, uint, uint) { return 1; }
 
-uint dummy1() { return 1; }
 struct encryption_service_st encryption_handler=
 {
-  (uint(*)(uint))dummy1,
-  (uint(*)(uint, uint, uchar*, uint*))dummy1,
-  (uint(*)(uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, const uchar*, uint, int, uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, uchar*, uint*))dummy1,
-  (int (*)(void*, uchar*, uint*))dummy1,
-  (uint (*)(uint, uint, uint))dummy1
+  e_key_get_latest_version_func,
+  e_key_get_func,
+  e_ctx_size_func,
+  e_ctx_init_func,
+  e_ctx_update_func,
+  e_ctx_finish_func,
+  e_encrypted_length_func
 };
 
 /*

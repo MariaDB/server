@@ -101,6 +101,6 @@ xb_rstream_result_t xb_stream_read_chunk(xb_rstream_t *stream,
 
 int xb_stream_read_done(xb_rstream_t *stream);
 
-int xb_stream_validate_checksum(xb_rstream_chunk_t *chunk);
+xb_rstream_result_t xb_stream_validate_checksum(xb_rstream_chunk_t *chunk);
 
 #endif

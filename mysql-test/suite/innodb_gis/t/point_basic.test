@@ -772,24 +772,18 @@ ALTER TABLE child ADD SPATIAL INDEX idx2(p ASC);
 SHOW CREATE TABLE parent;
 SHOW CREATE TABLE child;
 
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 
 ALTER TABLE parent DROP INDEX idx1;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error ER_CANNOT_ADD_FOREIGN,ER_CANT_CREATE_TABLE
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 
 ALTER TABLE child DROP INDEX idx2;
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error ER_CANNOT_ADD_FOREIGN,ER_CANT_CREATE_TABLE
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 show warnings;
 
 DROP TABLE child, parent;

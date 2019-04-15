@@ -6,10 +6,12 @@ UPDATE t1 set a=2;
 XA END 'x';
 XA PREPARE 'x';
 connection default;
+# restart: --innodb-force-recovery=2
 disconnect con1;
 connect  con1,localhost,root;
 SELECT * FROM t1 LOCK IN SHARE MODE;
 connection default;
+# restart
 disconnect con1;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t1;

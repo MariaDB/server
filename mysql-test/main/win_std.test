@@ -80,9 +80,11 @@ select std(b) over (order by a rows between current row and 0 following)
 from t2;
 
 --echo # Only peers frame.
+--sorted_result
 select a, b, std(b) over (order by a range between 0 preceding and 0 preceding)
 from t2;
 
+--sorted_result
 select a, b, std(b) over (order by a range between 0 preceding and current row)
 from t2;
 
@@ -90,9 +92,11 @@ from t2;
 select a, b, std(b) over (order by a range between current row and 0 preceding)
 from t2;
 
+--sorted_result
 select a, b, std(b) over (order by a range between current row and 0 following)
 from t2;
 
+--sorted_result
 select a, b, std(b) over (order by a range between 0 following and 0 following)
 from t2;
 

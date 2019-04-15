@@ -217,8 +217,6 @@ public:
   {
     return check_result(mask, decimal_round(this, to, (int) scale, mode));
   }
-  bool to_datetime_with_warn(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate,
-                             const char *field_name);
   int to_binary(uchar *bin, int prec, int scale,
                 uint mask= E_DEC_FATAL_ERROR) const;
 #endif
@@ -364,7 +362,8 @@ inline bool str_set_decimal(const my_decimal *val, String *str,
 }
 
 
-bool my_decimal2seconds(const my_decimal *d, ulonglong *sec, ulong *microsec);
+bool my_decimal2seconds(const my_decimal *d, ulonglong *sec,
+                        ulong *microsec, ulong *nanosec);
 
 my_decimal *seconds2my_decimal(bool sign, ulonglong sec, ulong microsec,
                                my_decimal *d);

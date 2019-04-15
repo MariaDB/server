@@ -1386,7 +1386,7 @@ uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)
 
   if (pWrite & MA_STATE_INFO_WRITE_LOCK)
     mysql_mutex_lock(&share->intern_lock);
-  else if (maria_multi_threaded)
+  else if (maria_multi_threaded && !share->temporary)
     mysql_mutex_assert_owner(&share->intern_lock);
   if (share->base.born_transactional && translog_status == TRANSLOG_OK &&
       !maria_in_recovery)

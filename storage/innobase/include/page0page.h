@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,24 +26,15 @@ Created 2/2/1994 Heikki Tuuri
 #ifndef page0page_h
 #define page0page_h
 
-#include "univ.i"
-
 #include "page0types.h"
-#ifndef UNIV_INNOCHECKSUM
+#include "fsp0fsp.h"
 #include "fil0fil.h"
 #include "buf0buf.h"
-#include "data0data.h"
-#include "dict0dict.h"
 #include "rem0rec.h"
-#endif /* !UNIV_INNOCHECKSUM*/
-#include "fsp0fsp.h"
 #ifndef UNIV_INNOCHECKSUM
+#include "dict0dict.h"
+#include "data0data.h"
 #include "mtr0mtr.h"
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE
-#endif
 
 /*			PAGE HEADER
 			===========
@@ -51,6 +42,8 @@ Created 2/2/1994 Heikki Tuuri
 Index page header starts at the first offset left free by the FIL-module */
 
 typedef	byte		page_header_t;
+#else
+# include "mach0data.h"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #define	PAGE_HEADER	FSEG_PAGE_DATA	/* index page header starts at this
@@ -734,9 +727,7 @@ page_rec_get_heap_no(
 /** Determine whether a page has any siblings.
 @param[in]	page	page frame
 @return true if the page has any siblings */
-inline
-bool
-page_has_siblings(const page_t* page)
+inline bool page_has_siblings(const page_t* page)
 {
 	compile_time_assert(!(FIL_PAGE_PREV % 8));
 	compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
@@ -745,22 +736,10 @@ page_has_siblings(const page_t* page)
 		!= ~uint64_t(0);
 }
 
-/** Determine whether a page is an index root page.
-@param[in]	page	page frame
-@return true if the page is a root page of an index */
-inline
-bool
-page_is_root(const page_t* page)
-{
-	return fil_page_index_page_check(page) && !page_has_siblings(page);
-}
-
 /** Determine whether a page has a predecessor.
 @param[in]	page	page frame
 @return true if the page has a predecessor */
-inline
-bool
-page_has_prev(const page_t* page)
+inline bool page_has_prev(const page_t* page)
 {
 	return *reinterpret_cast<const uint32_t*>(page + FIL_PAGE_PREV)
 		!= FIL_NULL;
@@ -769,9 +748,7 @@ page_has_prev(const page_t* page)
 /** Determine whether a page has a successor.
 @param[in]	page	page frame
 @return true if the page has a successor */
-inline
-bool
-page_has_next(const page_t* page)
+inline bool page_has_next(const page_t* page)
 {
 	return *reinterpret_cast<const uint32_t*>(page + FIL_PAGE_NEXT)
 		!= FIL_NULL;
@@ -1025,13 +1002,6 @@ page_get_direction(const page_t* page)
 inline
 uint16_t
 page_get_instant(const page_t* page);
-/** Assign the PAGE_INSTANT field.
-@param[in,out]	page	clustered index root page
-@param[in]	n	original number of clustered index fields
-@param[in,out]	mtr	mini-transaction */
-inline
-void
-page_set_instant(page_t* page, unsigned n, mtr_t* mtr);
 
 /**********************************************************//**
 Create an uncompressed B-tree index page.
@@ -1348,22 +1318,6 @@ page_find_rec_with_heap_no(
 const rec_t*
 page_find_rec_max_not_deleted(
 	const page_t*	page);
-
-/** Issue a warning when the checksum that is stored in the page is valid,
-but different than the global setting innodb_checksum_algorithm.
-@param[in]	current_algo	current checksum algorithm
-@param[in]	page_checksum	page valid checksum
-@param[in]	page_id		page identifier */
-void
-page_warn_strict_checksum(
-	srv_checksum_algorithm_t	curr_algo,
-	srv_checksum_algorithm_t	page_checksum,
-	const page_id_t&		page_id);
-
-#ifdef UNIV_MATERIALIZE
-#undef UNIV_INLINE
-#define UNIV_INLINE  UNIV_INLINE_ORIGINAL
-#endif
 
 #endif /* !UNIV_INNOCHECKSUM */
 

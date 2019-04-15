@@ -221,10 +221,6 @@ SET sql_mode = DEFAULT;
 connection slave;
 ## assertion: master and slave tables are in sync
 include/diff_tables.inc [master:t1,slave:t1]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 DROP TRIGGER tr1;
 DROP TABLE t1;

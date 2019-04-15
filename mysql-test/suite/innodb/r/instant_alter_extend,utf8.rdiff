@@ -1,0 +1,29 @@
+--- instant_alter_convert.result
++++ instant_alter_convert,utf8.result
+@@ -37,7 +37,7 @@
+ test.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	200
++a	13	2100FE	600
+ # CHAR enlargement
+ alter table t modify a char(220), algorithm=instant;
+ select count(a) from t where a = @bigval;
+@@ -51,7 +51,7 @@
+ test.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	220
++a	13	2100FE	660
+ # Convert from VARCHAR to a bigger CHAR
+ alter table t modify a varchar(200), algorithm=instant;
+ ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+@@ -72,7 +72,7 @@
+ test.t	check	status	OK
+ call check_table('t');
+ name	mtype	prtype	len
+-a	2	800FE	255
++a	13	2100FE	765
+ # BINARY/VARBINARY test
+ create or replace table t (a varbinary(300));
+ alter table t modify a binary(255), algorithm=instant;

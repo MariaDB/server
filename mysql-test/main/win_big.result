@@ -38,10 +38,6 @@ where variable_name like 'Sort_merge_passes';
 variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
 SORT_MERGE_PASSES	WITH PASSES
 include/diff_tables.inc [t21, t22]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table t21, t22;
 #################################################################
 # Try many cursors
@@ -76,10 +72,6 @@ where variable_name like 'Sort_merge_passes';
 variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
 SORT_MERGE_PASSES	WITH PASSES
 include/diff_tables.inc [t21, t22]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table t21, t22;
 #################################################################
 # Try having cursors pointing at different IO_CACHE pages
@@ -113,10 +105,6 @@ where variable_name like 'Sort_merge_passes';
 variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
 SORT_MERGE_PASSES	WITH PASSES
 include/diff_tables.inc [t21, t22]
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop table t21, t22;
 #################################################################
 drop table t10;

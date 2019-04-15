@@ -6,6 +6,7 @@ SET DEBUG_SYNC='before_trx_state_committed_in_memory SIGNAL c WAIT_FOR ever';
 TRUNCATE TABLE t1;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR c';
+# restart
 disconnect wait;
 SELECT COUNT(*) FROM t1;
 COUNT(*)

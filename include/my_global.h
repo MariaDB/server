@@ -981,7 +981,6 @@ typedef unsigned long my_off_t;
   TODO Convert these to use Bitmap class.
  */
 typedef ulonglong table_map;          /* Used for table bits in join */
-typedef ulong nesting_map;  /* Used for flags of nesting constructs */
 
 /* often used type names - opaque declarations */
 typedef const struct charset_info_st CHARSET_INFO;
@@ -1069,7 +1068,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 static inline char *dlerror(void)
 {
   static char win_errormsg[2048];
-  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
     0, GetLastError(), 0, win_errormsg, 2048, NULL);
   return win_errormsg;
 }

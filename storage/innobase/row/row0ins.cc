@@ -24,11 +24,8 @@ Insert into a table
 Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0ins.h"
 #include "dict0dict.h"
-#include "dict0boot.h"
 #include "trx0rec.h"
 #include "trx0undo.h"
 #include "btr0btr.h"
@@ -38,7 +35,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "que0que.h"
 #include "row0upd.h"
 #include "row0sel.h"
-#include "row0row.h"
 #include "row0log.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
@@ -48,8 +44,9 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
-#include "m_string.h"
-#include "gis0geo.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif /* WITH_WSREP */
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -334,7 +331,7 @@ row_ins_clust_index_entry_by_modify(
 {
 	const rec_t*	rec;
 	upd_t*		update;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	btr_cur_t*	cursor	= btr_pcur_get_btr_cur(pcur);
 	TABLE*		mysql_table = NULL;
 	ut_ad(dict_index_is_clust(cursor->index));
@@ -357,7 +354,11 @@ row_ins_clust_index_entry_by_modify(
 
 	update = row_upd_build_difference_binary(
 		cursor->index, entry, rec, NULL, true,
-		thr_get_trx(thr), heap, mysql_table);
+		thr_get_trx(thr), heap, mysql_table, &err);
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
+
 	if (mode != BTR_MODIFY_TREE) {
 		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
 		      == BTR_MODIFY_LEAF);
@@ -490,8 +491,6 @@ row_ins_cascade_calc_update_vec(
 	doc_id_t	new_doc_id = FTS_NULL_DOC_ID;
 	ulint		prefix_col;
 
-	ut_a(node);
-	ut_a(foreign);
 	ut_a(cascade);
 	ut_a(table);
 	ut_a(index);
@@ -953,7 +952,7 @@ row_ins_foreign_fill_virtual(
 	upd_field_t*	upd_field;
 	dict_vcol_set*	v_cols = foreign->v_cols;
 	update->old_vrow = row_build(
-		ROW_COPY_POINTERS, index, rec,
+		ROW_COPY_DATA, index, rec,
 		offsets, index->table, NULL, NULL,
 		&ext, cascade->heap);
 	n_diff = update->n_fields;
@@ -968,11 +967,11 @@ row_ins_foreign_fill_virtual(
 
 	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
                                            &mysql_table,
-                                           &record, &vcol_storage))
-        {
+                                           &record, &vcol_storage)) {
+		if (v_heap) mem_heap_free(v_heap);
 		*err = DB_OUT_OF_MEMORY;
-                goto func_exit;
-        }
+		goto func_exit;
+	}
 
 	for (ulint i = 0; i < n_v_fld; i++) {
 
@@ -1049,7 +1048,7 @@ dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
 			       ibool		referenced,
-			       ibool            shared);
+			       Wsrep_service_key_type	key_type);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1088,10 +1087,6 @@ row_ins_foreign_check_on_constraint(
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 
 	DBUG_ENTER("row_ins_foreign_check_on_constraint");
-	ut_a(thr);
-	ut_a(foreign);
-	ut_a(pcur);
-	ut_a(mtr);
 
 	trx = thr_get_trx(thr);
 
@@ -1276,8 +1271,10 @@ row_ins_foreign_check_on_constraint(
 	}
 
 	if (table->fts) {
-		doc_id = fts_get_doc_id_from_rec(table, clust_rec,
-						 clust_index, tmp_heap);
+		doc_id = fts_get_doc_id_from_rec(
+			clust_rec, clust_index,
+			rec_get_offsets(clust_rec, clust_index, NULL, true,
+					ULINT_UNDEFINED, &tmp_heap));
 	}
 
 	if (node->is_delete
@@ -1409,9 +1406,9 @@ row_ins_foreign_check_on_constraint(
 	if (table->versioned() && cascade->is_delete != PLAIN_DELETE
 	    && cascade->update->affects_versioned()) {
 		ut_ad(!cascade->historical_heap);
-		cascade->historical_heap = mem_heap_create(128);
+		cascade->historical_heap = mem_heap_create(srv_page_size);
 		cascade->historical_row = row_build(
-			ROW_COPY_POINTERS, clust_index, clust_rec, NULL, table,
+			ROW_COPY_DATA, clust_index, clust_rec, NULL, table,
 			NULL, NULL, NULL, cascade->historical_heap);
 	}
 
@@ -1434,7 +1431,7 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, FALSE);
+				       FALSE, WSREP_SERVICE_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1815,7 +1812,10 @@ row_ins_check_foreign_constraint(
 						rec,
 						check_index,
 						check_ref,
-						(upd_node) ? TRUE : FALSE);
+						(upd_node != NULL
+						 && wsrep_protocol_version < 4)
+						? WSREP_SERVICE_KEY_SHARED
+						: WSREP_SERVICE_KEY_REFERENCE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
@@ -1916,9 +1916,12 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		if (check_table->to_be_dropped
-		    || trx->error_state == DB_LOCK_WAIT_TIMEOUT) {
+		err = trx->error_state;
+		if (err != DB_SUCCESS) {
+		} else if (check_table->to_be_dropped) {
 			err = DB_LOCK_WAIT_TIMEOUT;
+		} else {
+			err = DB_LOCK_WAIT;
 		}
 
 		check_table->dec_fk_checks();
@@ -2338,10 +2341,10 @@ row_ins_duplicate_error_in_clust(
 						  true,
 						  ULINT_UNDEFINED, &heap);
 
-			ulint lock_type;
-
-			lock_type =
+			ulint lock_type =
 				trx->isolation_level <= TRX_ISO_READ_COMMITTED
+				|| (trx->mysql_thd
+				    && !thd_rpl_stmt_based(trx->mysql_thd))
 				? LOCK_REC_NOT_GAP : LOCK_ORDINARY;
 
 			/* We set a lock on the possible duplicate: this
@@ -2381,10 +2384,7 @@ row_ins_duplicate_error_in_clust(
 
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
-duplicate:
-				trx->error_info = cursor->index;
-				err = DB_DUPLICATE_KEY;
-				goto func_exit;
+				goto duplicate;
 			}
 		}
 	}
@@ -2427,7 +2427,10 @@ duplicate:
 
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
-				goto duplicate;
+duplicate:
+				trx->error_info = cursor->index;
+				err = DB_DUPLICATE_KEY;
+				goto func_exit;
 			}
 		}
 
@@ -2594,25 +2597,32 @@ row_ins_clust_index_entry_low(
 	} else {
 		index->set_modified(mtr);
 
-		if (mode == BTR_MODIFY_LEAF
-		    && dict_index_is_online_ddl(index)) {
-			mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
-		}
+		if (UNIV_UNLIKELY(entry->is_metadata())) {
+			ut_ad(index->is_instant());
+			ut_ad(!dict_index_is_online_ddl(index));
+			ut_ad(mode == BTR_MODIFY_TREE);
+		} else {
+			if (mode == BTR_MODIFY_LEAF
+			    && dict_index_is_online_ddl(index)) {
+				mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
+				mtr_s_lock(dict_index_get_lock(index), &mtr);
+			}
 
-		if (unsigned ai = index->table->persistent_autoinc) {
-			/* Prepare to persist the AUTO_INCREMENT value
-			from the index entry to PAGE_ROOT_AUTO_INC. */
-			const dfield_t* dfield = dtuple_get_nth_field(
-				entry, ai - 1);
-			auto_inc = dfield_is_null(dfield)
-				? 0
-				: row_parse_int(static_cast<const byte*>(
+			if (unsigned ai = index->table->persistent_autoinc) {
+				/* Prepare to persist the AUTO_INCREMENT value
+				from the index entry to PAGE_ROOT_AUTO_INC. */
+				const dfield_t* dfield = dtuple_get_nth_field(
+					entry, ai - 1);
+				if (!dfield_is_null(dfield)) {
+					auto_inc = row_parse_int(
+						static_cast<const byte*>(
 							dfield->data),
 						dfield->len,
 						dfield->type.mtype,
 						dfield->type.prtype
 						& DATA_UNSIGNED);
+				}
+			}
 		}
 	}
 
@@ -2642,7 +2652,7 @@ row_ins_clust_index_entry_low(
 #endif /* UNIV_DEBUG */
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
-		ut_ad(entry->info_bits == REC_INFO_METADATA);
+		ut_ad(entry->is_metadata());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
@@ -2650,28 +2660,18 @@ row_ins_clust_index_entry_low(
 
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
-		switch (rec_get_info_bits(rec, page_rec_is_comp(rec))
-			& (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)) {
-		case REC_INFO_MIN_REC_FLAG:
+		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
+		    & REC_INFO_MIN_REC_FLAG) {
 			thr_get_trx(thr)->error_info = index;
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
-		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* The metadata record never carries the delete-mark
-			in MariaDB Server 10.3.
-			If a table loses its 'instantness', it happens
-			by the rollback of this first-time insert, or
-			by a call to btr_page_empty() on the root page
-			when the table becomes empty. */
-			err = DB_CORRUPTION;
-			goto err_exit;
-		default:
-			ut_ad(!row_ins_must_modify_rec(cursor));
-			goto do_insert;
 		}
+
+		ut_ad(!row_ins_must_modify_rec(cursor));
+		goto do_insert;
 	}
 
-	if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
+	if (rec_is_metadata(btr_cur_get_rec(cursor), *index)) {
 		goto do_insert;
 	}
 
@@ -2992,7 +2992,7 @@ row_ins_sec_index_entry_low(
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
-				index->table->name);
+				index->table->name.m_name);
 			index->table->file_unreadable = true;
 		}
 		goto func_exit;
@@ -3082,9 +3082,11 @@ row_ins_sec_index_entry_low(
 	if (!(flags & BTR_NO_LOCKING_FLAG)
 	    && dict_index_is_unique(index)
 	    && thr_get_trx(thr)->duplicates
-	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ) {
+	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ
+	    && thd_rpl_stmt_based(thr_get_trx(thr)->mysql_thd)) {
 
-		/* When using the REPLACE statement or ON DUPLICATE clause, a
+		/* In statement-based replication, when replicating a
+		REPLACE statement or ON DUPLICATE KEY UPDATE clause, a
 		gap lock is taken on the position of the to-be-inserted record,
 		to avoid other concurrent transactions from inserting the same
 		record. */
@@ -3230,9 +3232,27 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
+#ifdef WITH_WSREP
+	const bool skip_locking
+		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
+	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
+		: (index->table->is_temporary() || skip_locking)
+		? BTR_NO_LOCKING_FLAG : 0;
+#ifdef UNIV_DEBUG
+	if (skip_locking && strcmp(wsrep_get_sr_table_name(),
+                                   index->table->name.m_name)) {
+		WSREP_ERROR("Record locking is disabled in this thread, "
+			    "but the table being modified is not "
+			    "`%s`: `%s`.", wsrep_get_sr_table_name(),
+			    index->table->name.m_name);
+		ut_error;
+	}
+#endif /* UNIV_DEBUG */
+#else
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
+#endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
 
 	/* Try first optimistic descent to the B-tree */
@@ -3455,6 +3475,24 @@ row_ins_index_entry_set_vals(
 			ut_ad(dtuple_get_n_fields(row)
 			      == dict_table_get_n_cols(index->table));
 			row_field = dtuple_get_nth_v_field(row, v_col->v_pos);
+		} else if (col->is_dropped()) {
+			ut_ad(index->is_primary());
+
+			if (!(col->prtype & DATA_NOT_NULL)) {
+				field->data = NULL;
+				field->len = UNIV_SQL_NULL;
+				field->type.prtype = DATA_BINARY_TYPE;
+			} else {
+				ut_ad(col->len <= sizeof field_ref_zero);
+				ut_ad(ind_field->fixed_len <= col->len);
+				dfield_set_data(field, field_ref_zero,
+						ind_field->fixed_len);
+				field->type.prtype = DATA_NOT_NULL;
+			}
+
+			field->type.mtype = col->len
+				? DATA_FIXBINARY : DATA_BINARY;
+			continue;
 		} else {
 			row_field = dtuple_get_nth_field(
 				row, ind_field->col->ind);
@@ -3464,7 +3502,7 @@ row_ins_index_entry_set_vals(
 
 		/* Check column prefix indexes */
 		if (ind_field != NULL && ind_field->prefix_len > 0
-		    && dfield_get_len(row_field) != UNIV_SQL_NULL) {
+		    && len != UNIV_SQL_NULL) {
 
 			const	dict_col_t*	col
 				= dict_field_get_col(ind_field);
@@ -3518,7 +3556,8 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->row));
 
-	err = row_ins_index_entry_set_vals(node->index, node->entry, node->row);
+	err = row_ins_index_entry_set_vals(node->index, node->entry,
+					   node->row);
 
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);
@@ -3635,14 +3674,15 @@ row_ins(
 	ins_node_t*	node,	/*!< in: row insert node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	dberr_t	err;
-
 	DBUG_ENTER("row_ins");
 
 	DBUG_PRINT("row_ins", ("table: %s", node->table->name.m_name));
 
+	trx_t* trx = thr_get_trx(thr);
+
 	if (node->duplicate) {
-		thr_get_trx(thr)->error_state = DB_DUPLICATE_KEY;
+		ut_ad(thd_rpl_stmt_based(trx->mysql_thd));
+		trx->error_state = DB_DUPLICATE_KEY;
 	}
 
 	if (node->state == INS_NODE_ALLOC_ROW_ID) {
@@ -3668,7 +3708,7 @@ row_ins(
 
 	while (node->index != NULL) {
 		if (node->index->type != DICT_FTS) {
-			err = row_ins_index_entry_step(node, thr);
+			dberr_t err = row_ins_index_entry_step(node, thr);
 
 			switch (err) {
 			case DB_SUCCESS:
@@ -3681,9 +3721,11 @@ row_ins(
 			case DB_DUPLICATE_KEY:
 				ut_ad(dict_index_is_unique(node->index));
 
-				if (thr_get_trx(thr)->isolation_level
+				if (trx->isolation_level
 				    >= TRX_ISO_REPEATABLE_READ
-				    && thr_get_trx(thr)->duplicates) {
+				    && trx->duplicates
+				    && !node->table->is_temporary()
+				    && thd_rpl_stmt_based(trx->mysql_thd)) {
 
 					/* When we are in REPLACE statement or
 					INSERT ..  ON DUPLICATE UPDATE
@@ -3746,7 +3788,7 @@ row_ins(
 						/* Save 1st dup error. Ignore
 						subsequent dup errors. */
 						node->duplicate = node->index;
-						thr_get_trx(thr)->error_state
+						trx->error_state
 							= DB_DUPLICATE_KEY;
 					}
 					break;
@@ -3755,18 +3797,6 @@ row_ins(
 			default:
 				DBUG_RETURN(err);
 			}
-		}
-
-		if (node->duplicate && node->table->is_temporary()) {
-			ut_ad(thr_get_trx(thr)->error_state
-			      == DB_DUPLICATE_KEY);
-			/* For TEMPORARY TABLE, we won't lock anything,
-			so we can simply break here instead of requiring
-			GAP locks for other unique secondary indexes,
-			pretending we have consumed all indexes. */
-			node->index = NULL;
-			node->entry = NULL;
-			break;
 		}
 
 		node->index = dict_table_get_next_index(node->index);
@@ -3787,6 +3817,7 @@ row_ins(
 		insertion will take place.  These gap locks are needed
 		only for unique indexes.  So skipping non-unique indexes. */
 		if (node->duplicate) {
+			ut_ad(thd_rpl_stmt_based(trx->mysql_thd));
 			while (node->index
 			       && !dict_index_is_unique(node->index)) {
 
@@ -3795,13 +3826,13 @@ row_ins(
 				node->entry = UT_LIST_GET_NEXT(tuple_list,
 							       node->entry);
 			}
-			thr_get_trx(thr)->error_state = DB_DUPLICATE_KEY;
+			trx->error_state = DB_DUPLICATE_KEY;
 		}
 	}
 
 	ut_ad(node->entry == NULL);
 
-	thr_get_trx(thr)->error_info = node->duplicate;
+	trx->error_info = node->duplicate;
 	node->state = INS_NODE_ALLOC_ROW_ID;
 
 	DBUG_RETURN(node->duplicate ? DB_DUPLICATE_KEY : DB_SUCCESS);

@@ -68,6 +68,7 @@ class Arg_comparator: public Sql_alloc
     if (val1 == val2) return 0;
     return 1;
   }
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> m_native1, m_native2;
 public:
   /* Allow owner function to use string buffers. */
   String value1, value2;
@@ -89,6 +90,7 @@ public:
   bool set_cmp_func_string();
   bool set_cmp_func_time();
   bool set_cmp_func_datetime();
+  bool set_cmp_func_native();
   bool set_cmp_func_int();
   bool set_cmp_func_real();
   bool set_cmp_func_decimal();
@@ -121,6 +123,8 @@ public:
   int compare_e_datetime();
   int compare_time();
   int compare_e_time();
+  int compare_native();
+  int compare_e_native();
   int compare_json_str_basic(Item *j, Item *s);
   int compare_json_str();
   int compare_str_json();
@@ -935,6 +939,7 @@ public:
   longlong val_int_cmp_string();
   longlong val_int_cmp_datetime();
   longlong val_int_cmp_time();
+  longlong val_int_cmp_native();
   longlong val_int_cmp_int();
   longlong val_int_cmp_real();
   longlong val_int_cmp_decimal();
@@ -1013,6 +1018,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
     if (aggregate_for_result(func_name(), args, arg_count, true))
@@ -1092,6 +1098,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
@@ -1127,7 +1134,7 @@ public:
 
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    Datetime dt(thd, find_item(), fuzzydate);
+    Datetime_truncation_not_needed dt(thd, find_item(), fuzzydate);
     return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
   }
   bool time_op(THD *thd, MYSQL_TIME *ltime)
@@ -1149,6 +1156,11 @@ public:
   String *str_op(String *str)
   {
     return val_str_from_item(find_item(), str);
+  }
+  bool native_op(THD *thd, Native *to)
+  {
+    return val_native_with_conversion_from_item(thd, find_item(), to,
+                                                type_handler());
   }
 };
 
@@ -1249,6 +1261,7 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
+  bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec();
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   const char *func_name() const { return "nullif"; }
@@ -1409,6 +1422,19 @@ public:
   const Type_handler *type_handler() const { return &type_handler_longlong; }
 
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
+};
+
+
+class in_timestamp :public in_vector
+{
+  Timestamp_or_zero_datetime tmp;
+public:
+  in_timestamp(THD *thd, uint elements);
+  void set(uint pos,Item *item);
+  uchar *get_value(Item *item);
+  Item* create_item(THD *thd);
+  void value_to_item(uint pos, Item *item);
+  const Type_handler *type_handler() const { return &type_handler_timestamp2; }
 };
 
 
@@ -1665,6 +1691,20 @@ public:
   int cmp(Item *arg);
   cmp_item *make_same();
 };
+
+
+class cmp_item_timestamp: public cmp_item_scalar
+{
+  Timestamp_or_zero_datetime_native m_native;
+public:
+  cmp_item_timestamp() :cmp_item_scalar() { }
+  void store_value(Item *item);
+  int cmp_not_null(const Value *val);
+  int cmp(Item *arg);
+  int compare(cmp_item *ci);
+  cmp_item *make_same();
+};
+
 
 class cmp_item_real : public cmp_item_scalar
 {
@@ -2132,6 +2172,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to);
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
@@ -2287,7 +2328,7 @@ class Item_func_in :public Item_func_opt_neg,
   {
     for (uint i= 0; i < nitems; i++)
     {
-      if (!items[i]->const_item())
+      if (!items[i]->const_item() || items[i]->is_expensive())
         return false;
     }
     return true;
@@ -2642,6 +2683,9 @@ public:
     Item_bool_func2(thd, a, b), canDoTurboBM(FALSE), pattern(0), pattern_len(0),
     bmGs(0), bmBc(0), escape_item(escape_arg),
     escape_used_in_parsing(escape_used), use_sampling(0), negated(0) {}
+
+  bool get_negated() const { return negated; } // Used by ColumnStore
+
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   void print(String *str, enum_query_type query_type);
@@ -2966,6 +3010,7 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd);
+  bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 
@@ -3154,9 +3199,14 @@ public:
     return used_tables() & tab_map;
   }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
-
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
+  bool create_pushable_equalities(THD *thd, List<Item> *equalities,
+                                  Pushdown_checker checker, uchar *arg);
+  /* Return the number of elements in this multiple equality */
+  uint elements_count() { return equal_items.elements; }
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(void *arg);
+  Item *multiple_equality_transformer(THD *thd, uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(THD *thd, COND *cond,
@@ -3191,6 +3241,10 @@ public:
       current_level.empty();
     else
       current_level= cond_equal.current_level;
+  }
+  bool is_empty()
+  {
+    return (current_level.elements == 0);
   }
 };
 

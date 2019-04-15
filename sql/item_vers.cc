@@ -61,10 +61,7 @@ Item_func_trt_ts::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
 
   null_value= !trt.query(trx_id);
   if (null_value)
-  {
-    my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
     return true;
-  }
 
   return trt[trt_field]->get_date(res, fuzzydate);
 }
@@ -142,7 +139,9 @@ Item_func_trt_id::val_int()
   else
   {
     MYSQL_TIME commit_ts;
-    if (args[0]->get_date(current_thd, &commit_ts, date_mode_t(0)))
+    THD *thd= current_thd;
+    Datetime::Options opt(TIME_CONV_NONE, thd);
+    if (args[0]->get_date(thd, &commit_ts, opt))
     {
       null_value= true;
       return 0;

@@ -48,6 +48,7 @@ ADD INDEX(a,b,c), ADD INDEX(a,c,b), ADD INDEX(a,c,d), ADD INDEX(a,d,c),
 ADD INDEX(a,b,d), ADD INDEX(a,d,b), ADD INDEX(b,c,d), ADD INDEX(b,d,c),
 ALGORITHM=COPY;
 ERROR HY000: Lost connection to MySQL server during query
+# restart: --innodb-force-recovery=3
 #sql-temporary.frm
 #sql-temporary.ibd
 FTS_INDEX_1.ibd
@@ -116,6 +117,7 @@ t1	CREATE TABLE `t1` (
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+# restart: --innodb-read-only
 #sql-temporary.frm
 #sql-temporary.ibd
 FTS_INDEX_1.ibd
@@ -184,6 +186,7 @@ t1	CREATE TABLE `t1` (
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+# restart
 #sql-temporary.frm
 FTS_INDEX_1.ibd
 FTS_INDEX_2.ibd

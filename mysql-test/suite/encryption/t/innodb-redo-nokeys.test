@@ -11,7 +11,6 @@ call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE faile
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[0-9]+, page number=[0-9]+\\] in file '.*test.t[1-4]\\.ibd' cannot be decrypted\\.");
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 
---echo # Restart mysqld --file-key-management-filename=keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
 
@@ -61,13 +60,11 @@ let $cleanup= drop table t1,t2,t3,t4;
 --let CLEANUP_IF_CHECKPOINT= $cleanup;
 --source ../../suite/innodb/include/no_checkpoint_end.inc
 
---echo # restart
 -- source include/start_mysqld.inc
 #
 # In above server does start but InnoDB refuses to start
 # thus we need to restart server with correct key file
 #
---echo # Restart mysqld --file-key-management-filename=keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
 

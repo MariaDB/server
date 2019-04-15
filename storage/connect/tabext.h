@@ -1,7 +1,7 @@
 /*************** Tabext H Declares Source Code File (.H) ***************/
-/*  Name: TABEXT.H  Version 1.0                                        */
+/*  Name: TABEXT.H  Version 1.1                                        */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2019  */
 /*                                                                     */
 /*  This is the EXTDEF, TABEXT and EXTCOL classes definitions.         */
 /***********************************************************************/
@@ -130,6 +130,7 @@ protected:
 	virtual bool MakeSQL(PGLOBAL g, bool cnt);
 	//virtual bool MakeInsert(PGLOBAL g);
 	virtual bool MakeCommand(PGLOBAL g);
+	void RemoveConst(PGLOBAL g, char *stmt);
 	int Decode(PCSZ utf, char *buf, size_t n);
 
 	// Members

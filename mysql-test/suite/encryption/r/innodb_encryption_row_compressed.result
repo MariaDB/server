@@ -15,6 +15,7 @@ insert into innodb_compressed1 values (10, 20, 'private', 'evenmoreprivate');
 insert into innodb_compressed2 select * from innodb_compressed1;
 insert into innodb_compressed3 select * from innodb_compressed1;
 insert into innodb_compressed4 select * from innodb_compressed1;
+# restart
 # t1 yes on expecting NOT FOUND
 NOT FOUND /private/ in innodb_compressed1.ibd
 # t2 yes on expecting NOT FOUND
@@ -95,6 +96,7 @@ NOT FOUND /private/ in innodb_compressed2.ibd
 NOT FOUND /private/ in innodb_compressed3.ibd
 # t4 yes on expecting NOT FOUND
 NOT FOUND /private/ in innodb_compressed4.ibd
+# restart
 select * from innodb_compressed1 where d = 40;
 c1	d	a	b
 3	40	private	evenmoreprivate

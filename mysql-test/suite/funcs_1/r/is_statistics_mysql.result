@@ -22,6 +22,8 @@ def	mysql	db	1	mysql	User	1	User	A	#CARD#	NULL	NULL		BTREE
 def	mysql	event	0	mysql	PRIMARY	1	db	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	event	0	mysql	PRIMARY	2	name	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	func	0	mysql	PRIMARY	1	name	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	global_priv	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	global_priv	0	mysql	PRIMARY	2	User	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	gtid_slave_pos	0	mysql	PRIMARY	1	domain_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	gtid_slave_pos	0	mysql	PRIMARY	2	sub_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	help_category	0	mysql	name	1	name	A	#CARD#	NULL	NULL		BTREE		
@@ -80,8 +82,6 @@ def	mysql	transaction_registry	0	mysql	commit_id	1	commit_id	A	#CARD#	NULL	NULL	
 def	mysql	transaction_registry	1	mysql	commit_timestamp	1	commit_timestamp	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	transaction_registry	1	mysql	commit_timestamp	2	transaction_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	transaction_registry	0	mysql	PRIMARY	1	transaction_id	A	#CARD#	NULL	NULL		BTREE		
-def	mysql	user	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE		
-def	mysql	user	0	mysql	PRIMARY	2	User	A	#CARD#	NULL	NULL		BTREE		
 connect  testuser1,localhost,testuser1,,db_datadict;
 SELECT * FROM information_schema.statistics
 WHERE table_schema = 'mysql'

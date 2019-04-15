@@ -1,0 +1,161 @@
+--source have_federatedx.inc
+--source include/federated.inc
+
+connection default;
+
+set global federated_pushdown=1;
+
+connection slave;
+
+DROP TABLE IF EXISTS federated.t1;
+
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t1 VALUES
+  (3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+
+DROP TABLE IF EXISTS federated.t2;
+
+CREATE TABLE federated.t2 (
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t2 VALUES
+  ('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
+
+
+connection master;
+
+DROP TABLE IF EXISTS federated.t1;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+DROP TABLE IF EXISTS federated.t2;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t2 (
+  name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
+
+SELECT * FROM federated.t1;
+
+SELECT id FROM federated.t1 WHERE id < 5;
+
+SELECT count(*), name FROM federated.t1 WHERE id < 5 GROUP BY name;
+
+SELECT * FROM federated.t1, federated.t2
+  WHERE federated.t1.name = federated.t2.name;
+
+SELECT * FROM federated.t1 LEFT JOIN federated.t2
+              ON federated.t1.name = federated.t2.name
+  WHERE federated.t1.id > 1;
+
+SELECT * FROM federated.t1
+  WHERE id IN (SELECT count(*) FROM federated.t2 GROUP BY name);
+
+EXPLAIN
+SELECT id FROM federated.t1 WHERE id < 5;
+ 
+EXPLAIN EXTENDED
+SELECT id FROM federated.t1 WHERE id < 5;
+
+EXPLAIN FORMAT=JSON
+SELECT id FROM federated.t1 WHERE id < 5;
+
+ANALYZE
+SELECT id FROM federated.t1 WHERE id < 5;
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT id FROM federated.t1 WHERE id < 5;
+
+CREATE TABLE federated.t3 (
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t3 VALUES
+  ('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
+
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN FORMAT=JSON
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+ANALYZE
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+                    WHERE id IN (SELECT count(*)
+                                 FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+                    WHERE id IN (SELECT count(*)
+                                 FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+                    WHERE id IN (SELECT count(*)
+                                 FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+
+SELECT t.id, federated.t3.name
+FROM federated.t3,
+     ( SELECT * FROM federated.t1 WHERE id < 3
+       UNION
+       SELECT * FROM federated.t1 WHERE id >= 5) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN
+SELECT t.id, federated.t3.name
+FROM federated.t3,
+     ( SELECT * FROM federated.t1 WHERE id < 3
+       UNION
+       SELECT * FROM federated.t1 WHERE id >= 5) t
+WHERE federated.t3.name=t.name;
+
+
+DROP TABLE federated.t1, federated.t2, federated.t3;
+
+connection slave;
+DROP TABLE federated.t1, federated.t2;
+
+connection default;
+
+set global federated_pushdown=0;
+
+source include/federated_cleanup.inc;
+

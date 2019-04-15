@@ -1,0 +1,42 @@
+--source include/have_innodb.inc
+--source include/have_perfschema.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+select count_star into @init_count from performance_schema.events_waits_summary_global_by_event_name WHERE event_name LIKE '%wait%io%file%innodb%innodb_temp_file%';
+connect (ddl, localhost, root,,);
+update performance_schema.setup_instruments set enabled='yes';
+update performance_schema.setup_consumers set enabled='yes';
+CREATE TABLE t1 (a serial, b varchar(255)) ENGINE=InnoDB;
+
+BEGIN;
+let $n=247;
+--disable_query_log
+while ($n) {
+dec $n;
+INSERT INTO t1 SELECT NULL, REPEAT('b',255);
+}
+--enable_query_log
+COMMIT;
+
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL go WAIT_FOR gone';
+send ALTER TABLE t1 ADD INDEX(b), ALGORITHM=INPLACE;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR go';
+
+select count_star into @final_count from performance_schema.events_waits_summary_global_by_event_name WHERE event_name LIKE '%wait%io%file%innodb%innodb_temp_file%';
+
+SELECT @final_count - @init_count;
+
+#--exec lsof -p `pidof mysqld`
+SET DEBUG_SYNC = 'now SIGNAL gone';
+
+connection ddl;
+reap;
+disconnect ddl;
+
+connection default;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;

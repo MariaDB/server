@@ -210,7 +210,7 @@ drop table t1,t3,t4;
 create database mysqltest2;
 
 drop table if exists test.t1,mysqltest2.t2;
-create table test.t1 (i int);
+create table test.t1 (i int) engine=myisam;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
@@ -249,6 +249,26 @@ create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 select * from information_schema.metadata_lock_info;
 create table t1 (i int);
 drop table t1;
+
+create table test.t1 (i int) engine=innodb;
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+unlock tables;
+drop table test.t1,mysqltest2.t2;
+
+create table test.t1 (i int) engine=aria transactional=1 checksum=1;
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+unlock tables;
+drop table t1;
+
+create table test.t1 (i int);
 drop database mysqltest2;
 
 --echo #
@@ -453,14 +473,14 @@ CREATE TABLE t3(a INT);
 LOCK TABLE t2 WRITE;
 SELECT * FROM t2;
 # drops t2
---error ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
-CREATE OR REPLACE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TEMPORARY TABLE t1(c INT DEFAULT '');
 # make sure we didn't leave locked tables mode
 --error ER_TABLE_NOT_LOCKED
 SELECT * FROM t3;
 # drops t1
---error ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
-CREATE OR REPLACE TEMPORARY TABLE t2(a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
 # make sure we didn't leave locked tables mode
 --error ER_TABLE_NOT_LOCKED
 SELECT * FROM t3;

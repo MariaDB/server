@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -145,7 +145,7 @@ rtr_pcur_getnext_from_path(
 						| MTR_MEMO_X_LOCK));
 	}
 
-	const page_size_t	page_size(index->table->space->flags);
+	const ulint zip_size = index->table->space->zip_size();
 
 	/* Pop each node/page to be searched from "path" structure
 	and do a search on it. Please note, any pages that are in
@@ -268,8 +268,8 @@ rtr_pcur_getnext_from_path(
 		dberr_t err = DB_SUCCESS;
 
 		block = buf_page_get_gen(
-			page_id_t(index->table->space->id,
-				  next_rec.page_no), page_size,
+			page_id_t(index->table->space_id,
+				  next_rec.page_no), zip_size,
 			rw_latch, NULL, BUF_GET, __FILE__, __LINE__, mtr, &err);
 
 		if (block == NULL) {
@@ -298,7 +298,7 @@ rtr_pcur_getnext_from_path(
 			    && mode != PAGE_CUR_RTREE_LOCATE) {
 				ut_ad(rtr_info->thr);
 				lock_place_prdt_page_lock(
-					index->table->space->id,
+					index->table->space_id,
 					next_page_no, index,
 					rtr_info->thr);
 			}
@@ -389,8 +389,7 @@ rtr_pcur_getnext_from_path(
 		if (mode != PAGE_CUR_RTREE_INSERT
 		    && mode != PAGE_CUR_RTREE_LOCATE
 		    && mode >= PAGE_CUR_CONTAIN
-		    && btr_cur->rtr_info->need_prdt_lock
-		    && found) {
+		    && btr_cur->rtr_info->need_prdt_lock) {
 			lock_prdt_t	prdt;
 
 			trx_t*		trx = thr_get_trx(
@@ -423,9 +422,9 @@ rtr_pcur_getnext_from_path(
 
 					btr_cur_latch_leaves(
 						block,
-						page_id_t(index->table->space->id,
+						page_id_t(index->table->space_id,
 							  block->page.id.page_no()),
-						page_size, BTR_MODIFY_TREE,
+						zip_size, BTR_MODIFY_TREE,
 						btr_cur, mtr);
 				}
 
@@ -773,7 +772,7 @@ rtr_page_get_father_node_ptr(
 		error << ". You should dump + drop + reimport the table to"
 			" fix the corruption. If the crash happens at"
 			" database startup, see "
-			"https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/"
+			"https://mariadb.com/kb/en/library/innodb-recovery-modes/"
 			" about forcing"
 			" recovery. Then dump + drop + reimport.";
 	}
@@ -1345,8 +1344,7 @@ rtr_cur_restore_position(
 	page_cur_t*	page_cursor;
 	node_visit_t*	node = rtr_get_parent_node(btr_cur, level, false);
 	node_seq_t	path_ssn = node->seq_no;
-	const page_size_t	page_size(index->table->space->flags);
-
+	const ulint	zip_size = index->table->space->zip_size();
 	ulint		page_no = node->page_no;
 
 	heap = mem_heap_create(256);
@@ -1361,8 +1359,8 @@ search_again:
 	dberr_t err = DB_SUCCESS;
 
 	block = buf_page_get_gen(
-		page_id_t(index->table->space->id, page_no),
-		page_size, RW_X_LATCH, NULL,
+		page_id_t(index->table->space_id, page_no),
+		zip_size, RW_X_LATCH, NULL,
 		BUF_GET, __FILE__, __LINE__, mtr, &err);
 
 	ut_ad(block);
@@ -1562,14 +1560,13 @@ rtr_copy_buf(
 	matches->block.n_fields = block->n_fields;
 	matches->block.left_side = block->left_side;
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	matches->block.n_pointers = block->n_pointers;
+	matches->block.n_pointers = 0;
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	matches->block.curr_n_fields = block->curr_n_fields;
 	matches->block.curr_left_side = block->curr_left_side;
 	matches->block.index = block->index;
 #endif /* BTR_CUR_HASH_ADAPT */
-	ut_d(matches->block.debug_latch = block->debug_latch);
-
+	ut_d(matches->block.debug_latch = NULL);
 }
 
 /****************************************************************//**

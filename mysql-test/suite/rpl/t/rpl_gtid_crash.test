@@ -162,6 +162,7 @@ EOF
 wait
 EOF
 START SLAVE;
+--error 0,2006,2013
 SET GLOBAL debug_dbug="+d,crash_commit_before";
 
 --connection server_1
@@ -186,6 +187,7 @@ EOF
 wait
 EOF
 START SLAVE;
+--error 0,2006,2013
 SET GLOBAL debug_dbug="+d,crash_commit_after";
 
 --connection server_1

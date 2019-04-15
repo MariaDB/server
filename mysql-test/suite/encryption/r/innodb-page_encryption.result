@@ -118,6 +118,7 @@ variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 variable_value >= 0
 1
+# restart
 update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
@@ -193,6 +194,7 @@ innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+# restart
 show create table innodb_compact;
 Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (

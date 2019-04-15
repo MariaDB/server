@@ -17,6 +17,7 @@ SET GLOBAL innodb_limit_optimistic_insert_debug = @save_debug;
 connect con1, localhost, root,,;
 ANALYZE TABLE t;
 Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	OK
 disconnect con1;
 connection default;

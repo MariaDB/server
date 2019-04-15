@@ -114,7 +114,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
     }
-    else
+    else if (!table->s->tmp_table)
       table->m_needs_reopen= true;
 
     /*
@@ -443,6 +443,6 @@ maria_declare_plugin(sql_sequence)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "1.0",                      /* string version                  */
-  MariaDB_PLUGIN_MATURITY_ALPHA /* maturity                     */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity                     */
 }
 maria_declare_plugin_end;

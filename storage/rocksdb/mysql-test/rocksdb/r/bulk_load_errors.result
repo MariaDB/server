@@ -77,7 +77,7 @@ SET rocksdb_bulk_load=1;
 INSERT INTO t1 VALUES(13, 0);
 INSERT INTO t1 VALUES(2, 'test 2');
 Warnings:
-Warning	1366	Incorrect integer value: 'test 2' for column 'b' at row 1
+Warning	1366	Incorrect integer value: 'test 2' for column `test`.`t1`.`b` at row 1
 INSERT INTO t1 VALUES(@id, @arg04);
 SET @@global.table_open_cache=FALSE;
 Warnings:
@@ -86,6 +86,7 @@ INSERT INTO t1 VALUES(51479+0.333333333,1);
 DROP TABLE t1;
 SET @@global.table_open_cache=@orig_table_open_cache;
 FOUND 1 /RocksDB: Error [0-9]+ finalizing bulk load while closing handler/ in rocksdb.bulk_load_errors.3.err
+# restart
 CREATE TABLE t1 (pk INT, PRIMARY KEY (pk)) ENGINE=ROCKSDB;
 CREATE TABLE t2 (pk INT, PRIMARY KEY (pk)) ENGINE=ROCKSDB;
 SET rocksdb_bulk_load=1;

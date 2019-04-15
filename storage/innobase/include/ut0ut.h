@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,7 +46,6 @@ Created 1/20/1994 Heikki Tuuri
 #include <stdarg.h>
 
 #include <string>
-#include <my_atomic.h>
 
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
@@ -128,26 +128,23 @@ Calculates fast the remainder of n/m when m is a power of two.
 @param n in: numerator
 @param m in: denominator, must be a power of two
 @return the remainder of n/m */
-#define ut_2pow_remainder(n, m) ((n) & ((m) - 1))
+template <typename T> inline T ut_2pow_remainder(T n, T m){return n & (m - 1);}
 /*************************************************************//**
 Calculates the biggest multiple of m that is not bigger than n
 when m is a power of two.  In other words, rounds n down to m * k.
 @param n in: number to round down
 @param m in: alignment, must be a power of two
 @return n rounded down to the biggest possible integer multiple of m */
-#define ut_2pow_round(n, m) ((n) & ~((m) - 1))
-/** Align a number down to a multiple of a power of two.
-@param n in: number to round down
-@param m in: alignment, must be a power of two
-@return n rounded down to the biggest possible integer multiple of m */
-#define ut_calc_align_down(n, m) ut_2pow_round(n, m)
+template <typename T> inline T ut_2pow_round(T n, T m) { return n & ~(m - 1); }
 /********************************************************//**
 Calculates the smallest multiple of m that is not smaller than n
 when m is a power of two.  In other words, rounds n up to m * k.
 @param n in: number to round up
 @param m in: alignment, must be a power of two
 @return n rounded up to the smallest possible integer multiple of m */
-#define ut_calc_align(n, m) (((n) + ((m) - 1)) & ~((m) - 1))
+#define UT_CALC_ALIGN(n, m) ((n + m - 1) & ~(m - 1))
+template <typename T> inline T ut_calc_align(T n, T m)
+{ return UT_CALC_ALIGN(n, m); }
 
 /*************************************************************//**
 Calculates fast the 2-logarithm of a number, rounded upward to an
@@ -174,12 +171,6 @@ ut_2_power_up(
 /*==========*/
 	ulint	n)	/*!< in: number != 0 */
 	MY_ATTRIBUTE((const));
-
-/** Determine how many bytes (groups of 8 bits) are needed to
-store the given number of bits.
-@param b in: bits
-@return number of bytes (octets) needed to represent b */
-#define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
 
 /**********************************************************//**
 Returns system time. We do not specify the format of the time returned:
@@ -238,6 +229,12 @@ ut_difftime(
 	ib_time_t	time1);	/*!< in: time */
 
 #endif /* !UNIV_INNOCHECKSUM */
+
+/** Determine how many bytes (groups of 8 bits) are needed to
+store the given number of bits.
+@param b in: bits
+@return number of bytes (octets) needed to represent b */
+#define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
 
 /** Determines if a number is zero or a power of two.
 @param[in]	n	number

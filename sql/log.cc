@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,9 +55,13 @@
 #include "sql_show.h"
 #include "my_pthread.h"
 #include "semisync_master.h"
-#include "wsrep_mysqld.h"
 #include "sp_rcontext.h"
 #include "sp_head.h"
+
+#include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024
@@ -1703,7 +1707,7 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 #ifdef WITH_WSREP
   if (cache_mngr && !cache_mngr->trx_cache.empty()) {
-    IO_CACHE* cache= get_trans_log(thd);
+    IO_CACHE* cache= cache_mngr->get_binlog_cache_log(true);
     uchar *buf;
     size_t len=0;
     wsrep_write_cache_buf(cache, &buf, &len);
@@ -2198,7 +2202,19 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   {
     my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
   }
-
+#ifdef WITH_WSREP
+  /* If wsrep transaction is active and binlog emulation is on,
+     binlog write error may leave transaction without any registered
+     htons. This makes wsrep rollback hooks to be skipped and the
+     transaction will remain alive in wsrep world after rollback.
+     Register binlog hton here to ensure that rollback happens in full. */
+  if (WSREP_EMULATE_BINLOG(thd))
+  {
+    if (is_transactional)
+      trans_register_ha(thd, TRUE, binlog_hton);
+    trans_register_ha(thd, FALSE, binlog_hton);
+  }
+#endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
 }
 
@@ -2297,8 +2313,17 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
     non-transactional table. Otherwise, truncate the binlog cache starting
     from the SAVEPOINT command.
   */
+#ifdef WITH_WSREP
+  /* for streaming replication, we  must replicate savepoint rollback so that 
+     slaves can maintain SR transactions
+   */
+  if (unlikely(thd->wsrep_trx().is_streaming() ||
+               (trans_has_updated_non_trans_table(thd)) ||
+               (thd->variables.option_bits & OPTION_KEEP_LOG)))
+#else
   if (unlikely(trans_has_updated_non_trans_table(thd) ||
                (thd->variables.option_bits & OPTION_KEEP_LOG)))
+#endif /* WITH_WSREP */
   {
     char buf[1024];
     String log_query(buf, sizeof(buf), &my_charset_bin);
@@ -2424,7 +2449,7 @@ static void setup_windows_event_source()
 
   // Create the event source registry key
   dwError= RegCreateKey(HKEY_LOCAL_MACHINE,
-                          "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\MySQL", 
+                          "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\MariaDB",
                           &hRegKey);
 
   /* Name of the PE module that contains the message resource */
@@ -2456,11 +2481,19 @@ static void setup_windows_event_source()
   exceeds FN_REFLEN; (ii) if the number of extensions is exhausted;
   or (iii) some other error happened while examining the filesystem.
 
+  @param name                   Base name of file
+  @param min_log_number_to_use  minimum log number to choose. Set by
+                                CHANGE MASTER .. TO
+  @param last_used_log_number   If 0, find log number based on files.
+                                If not 0, then use *last_used_log_number +1
+                                Will be update to new generated number
   @return
+    0       ok
     nonzero if not possible to get unique filename.
 */
 
-static int find_uniq_filename(char *name, ulong next_log_number)
+static int find_uniq_filename(char *name, ulong min_log_number_to_use,
+                              ulong *last_used_log_number)
 {
   uint                  i;
   char                  buff[FN_REFLEN], ext_buf[FN_REFLEN];
@@ -2479,24 +2512,34 @@ static int find_uniq_filename(char *name, ulong next_log_number)
   *end='.';
   length= (size_t) (end - start + 1);
 
-  if ((DBUG_EVALUATE_IF("error_unique_log_filename", 1, 
-                        unlikely(!(dir_info= my_dir(buff,
-                                                    MYF(MY_DONT_SORT)))))))
-  {						// This shouldn't happen
-    strmov(end,".1");				// use name+1
-    DBUG_RETURN(1);
-  }
-  file_info= dir_info->dir_entry;
-  max_found= next_log_number ? next_log_number-1 : 0;
-  for (i= dir_info->number_of_files ; i-- ; file_info++)
+  /* The following matches the code for my_dir () below */
+  DBUG_EXECUTE_IF("error_unique_log_filename",
+                  {
+                    strmov(end,".1");
+                    DBUG_RETURN(1);
+                  });
+
+  if (*last_used_log_number)
+    max_found= *last_used_log_number;
+  else
   {
-    if (strncmp(file_info->name, start, length) == 0 &&
-	test_if_number(file_info->name+length, &number,0))
-    {
-      set_if_bigger(max_found,(ulong) number);
+    if (unlikely(!(dir_info= my_dir(buff, MYF(MY_DONT_SORT)))))
+    {						// This shouldn't happen
+      strmov(end,".1");				// use name+1
+      DBUG_RETURN(1);
     }
+    file_info= dir_info->dir_entry;
+    max_found= min_log_number_to_use ? min_log_number_to_use-1 : 0;
+    for (i= dir_info->number_of_files ; i-- ; file_info++)
+    {
+      if (strncmp(file_info->name, start, length) == 0 &&
+          test_if_number(file_info->name+length, &number,0))
+      {
+        set_if_bigger(max_found,(ulong) number);
+      }
+    }
+    my_dirend(dir_info);
   }
-  my_dirend(dir_info);
 
   /* check if reached the maximum possible extension number */
   if (max_found >= MAX_LOG_UNIQUE_FN_EXT)
@@ -2535,6 +2578,7 @@ index files.", name, ext_buf, (strlen(ext_buf) + (end - name)));
     error= 1;
     goto end;
   }
+  *last_used_log_number= next;
 
   /* print warning if reaching the end of available extensions. */
   if ((next > (MAX_LOG_UNIQUE_FN_EXT - LOG_WARN_UNIQUE_FN_EXT_LEFT)))
@@ -2786,19 +2830,24 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
                                  ulong next_log_number)
 {
   fn_format(new_name, log_name, mysql_data_home, "", 4);
-  if (log_type == LOG_BIN)
+  return 0;
+}
+
+int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
+                                     ulong next_log_number)
+{
+  fn_format(new_name, log_name, mysql_data_home, "", 4);
+  if (!fn_ext(log_name)[0])
   {
-    if (!fn_ext(log_name)[0])
+    if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
+        unlikely(find_uniq_filename(new_name, next_log_number,
+                                    &last_used_log_number)))
     {
-      if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
-          unlikely(find_uniq_filename(new_name, next_log_number)))
-      {
-        THD *thd= current_thd;
-        if (unlikely(thd))
-          my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
-        sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
-	return 1;
-      }
+      THD *thd= current_thd;
+      if (unlikely(thd))
+        my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
+      sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
+      return 1;
     }
   }
   return 0;
@@ -3198,7 +3247,8 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
 
 MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
   :reset_master_pending(0), mark_xid_done_waiting(0),
-   bytes_written(0), file_id(1), open_count(1),
+   bytes_written(0), last_used_log_number(0),
+   file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
    group_commit_trigger_count(0), group_commit_trigger_timeout(0),
@@ -3981,7 +4031,7 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
     // if the log entry matches, null string matching anything
     if (!log_name ||
         (log_name_len == fname_len &&
-	 !memcmp(full_fname, full_log_name, log_name_len)))
+	 !strncmp(full_fname, full_log_name, log_name_len)))
     {
       DBUG_PRINT("info", ("Found log file entry"));
       linfo->index_file_start_offset= offset;
@@ -4177,6 +4227,8 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
   save_name=name;
   name=0;					// Protect against free
   close(LOG_CLOSE_TO_BE_OPENED);
+
+  last_used_log_number= 0;                      // Reset log number cache
 
   /*
     First delete all old log files and then update the index file.
@@ -5113,7 +5165,11 @@ bool MYSQL_BIN_LOG::is_active(const char *log_file_name_arg)
 
 int MYSQL_BIN_LOG::new_file()
 {
-  return new_file_impl(1);
+  int res;
+  mysql_mutex_lock(&LOCK_log);
+  res= new_file_impl();
+  mysql_mutex_unlock(&LOCK_log);
+  return res;
 }
 
 /*
@@ -5122,7 +5178,7 @@ int MYSQL_BIN_LOG::new_file()
  */
 int MYSQL_BIN_LOG::new_file_without_locking()
 {
-  return new_file_impl(0);
+  return new_file_impl();
 }
 
 
@@ -5138,7 +5194,7 @@ int MYSQL_BIN_LOG::new_file_without_locking()
     The new file name is stored last in the index file
 */
 
-int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
+int MYSQL_BIN_LOG::new_file_impl()
 {
   int error= 0, close_on_error= FALSE;
   char new_name[FN_REFLEN], *new_name_ptr, *old_name, *file_to_open;
@@ -5147,14 +5203,12 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   File UNINIT_VAR(old_file);
   DBUG_ENTER("MYSQL_BIN_LOG::new_file_impl");
 
-  if (need_lock)
-    mysql_mutex_lock(&LOCK_log);
+  DBUG_ASSERT(log_type == LOG_BIN);
   mysql_mutex_assert_owner(&LOCK_log);
 
   if (!is_open())
   {
     DBUG_PRINT("info",("log is closed"));
-    mysql_mutex_unlock(&LOCK_log);
     DBUG_RETURN(error);
   }
 
@@ -5173,7 +5227,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
 #ifdef ENABLE_AND_FIX_HANG
     close_on_error= TRUE;
 #endif
-    goto end;
+    goto end2;
   }
   new_name_ptr=new_name;
 
@@ -5276,7 +5330,14 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   my_free(old_name);
 
 end:
+  /* In case of errors, reuse the last generated log file name */
+  if (unlikely(error))
+  {
+    DBUG_ASSERT(last_used_log_number > 0);
+    last_used_log_number--;
+  }
 
+end2:
   if (delay_close)
   {
     clear_inuse_flag_when_closing(old_file);
@@ -5302,8 +5363,6 @@ end:
   }
 
   mysql_mutex_unlock(&LOCK_index);
-  if (need_lock)
-    mysql_mutex_unlock(&LOCK_log);
 
   DBUG_RETURN(error);
 }
@@ -5663,7 +5722,18 @@ THD::binlog_start_trans_and_stmt()
     this->binlog_set_stmt_begin();
     bool mstmt_mode= in_multi_stmt_transaction_mode();
 #ifdef WITH_WSREP
-      /* Write Gtid
+    /*
+      With wsrep binlog emulation we can skip the rest because the
+      binlog cache will not be written into binlog. Note however that
+      because of this the hton callbacks will not get called to clean
+      up the cache, so this must be done explicitly when the transaction
+      terminates.
+    */
+    if (WSREP_EMULATE_BINLOG_NNULL(this))
+    {
+      DBUG_VOID_RETURN;
+    }
+    /* Write Gtid
          Get domain id only when gtid mode is set
          If this event is replicate through a master then ,
          we will forward the same gtid another nodes
@@ -5768,10 +5838,10 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
   /* Ensure that all events in a GTID group are in the same cache */
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
-  
+
   /* Pre-conditions */
   DBUG_ASSERT(is_current_stmt_binlog_format_row());
-  DBUG_ASSERT(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open());
+  DBUG_ASSERT(WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open());
   DBUG_ASSERT(table->s->table_map_id != ULONG_MAX);
 
   Table_map_log_event
@@ -5970,7 +6040,9 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   DBUG_PRINT("enter", ("standalone: %d", standalone));
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && thd->wsrep_trx_meta.gtid.seqno != -1 && wsrep_gtid_mode && !thd->variables.gtid_seq_no)
+  if (WSREP(thd)                               && 
+      (wsrep_thd_trx_seqno(thd) > 0)           &&
+      wsrep_gtid_mode && !thd->variables.gtid_seq_no)
   {
     domain_id= wsrep_gtid_domain_id;
   } else {
@@ -6073,7 +6145,7 @@ MYSQL_BIN_LOG::write_state_to_file()
   goto end;
 
 err:
-  sql_print_error("Error writing binlog state to file '%s'.\n", buf);
+  sql_print_error("Error writing binlog state to file '%s'.", buf);
   if (log_inited)
     end_io_cache(&cache);
 end:
@@ -6133,7 +6205,7 @@ MYSQL_BIN_LOG::read_state_from_file()
   goto end;
 
 err:
-  sql_print_error("Error reading binlog GTID state from file '%s'.\n", buf);
+  sql_print_error("Error reading binlog GTID state from file '%s'.", buf);
 end:
   if (log_inited)
     end_io_cache(&cache);
@@ -6287,7 +6359,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   */
   /* applier and replayer can skip writing binlog events */
   if ((WSREP_EMULATE_BINLOG(thd) &&
-       IF_WSREP(thd->wsrep_exec_mode != REPL_RECV, 0)) || is_open())
+       IF_WSREP(thd->wsrep_cs().mode() == wsrep::client_state::m_local, 0)) || is_open())
   {
     my_off_t UNINIT_VAR(my_org_b_tell);
 #ifdef HAVE_REPLICATION
@@ -7257,7 +7329,7 @@ MYSQL_BIN_LOG::write_binlog_checkpoint_event_already_locked(const char *name_arg
       ability to do crash recovery - crash recovery will just have to scan a
       bit more of the binlog than strictly necessary.
     */
-    sql_print_error("Failed to write binlog checkpoint event to binary log\n");
+    sql_print_error("Failed to write binlog checkpoint event to binary log");
   }
 
   offset= my_b_tell(&log_file);
@@ -7670,7 +7742,26 @@ bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader= queue_for_group_commit(entry);
-
+#ifdef WITH_WSREP
+  if (wsrep_is_active(entry->thd) &&
+      wsrep_run_commit_hook(entry->thd, entry->all))
+  {
+    /*
+      Release commit order and if leader, wait for prior commit to
+      complete. This establishes total order for group leaders.
+    */
+    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
+    {
+      entry->thd->wakeup_subsequent_commits(1);
+      return 1;
+    }
+    if (is_leader)
+    {
+      if (entry->thd->wait_for_prior_commit())
+        return 1;
+    }
+  }
+#endif /* WITH_WSREP */
   /*
     The first in the queue handles group commit for all; the others just wait
     to be signalled when group commit is done.
@@ -8640,18 +8731,35 @@ bool flush_error_log()
 }
 
 #ifdef _WIN32
+struct eventlog_source
+{
+  HANDLE handle;
+  eventlog_source()
+  {
+    setup_windows_event_source();
+    handle = RegisterEventSource(NULL, "MariaDB");
+  }
+
+  ~eventlog_source()
+  {
+    if (handle)
+      DeregisterEventSource(handle);
+  }
+};
+
+static eventlog_source eventlog;
+
 static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
                                         size_t length, size_t buffLen)
 {
-  HANDLE event;
+  HANDLE event= eventlog.handle;
   char   *buffptr= buff;
   DBUG_ENTER("print_buffer_to_nt_eventlog");
 
   /* Add ending CR/LF's to string, overwrite last chars if necessary */
   strmov(buffptr+MY_MIN(length, buffLen-5), "\r\n\r\n");
 
-  setup_windows_event_source();
-  if ((event= RegisterEventSource(NULL,"MySQL")))
+  if (event)
   {
     switch (level) {
       case ERROR_LEVEL:
@@ -8667,7 +8775,6 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
                     0, (LPCSTR*) &buffptr, NULL);
         break;
     }
-    DeregisterEventSource(event);
   }
 
   DBUG_VOID_RETURN;
@@ -9640,9 +9747,9 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
   */
   if (!xid || !need_unlog)
     DBUG_RETURN(BINLOG_COOKIE_DUMMY(cache_mngr->delayed_error));
-  else
-    DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
-                                   cache_mngr->delayed_error));
+
+  DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
+                                 cache_mngr->delayed_error));
 }
 
 /*
@@ -10467,7 +10574,7 @@ set_binlog_snapshot_file(const char *src)
   Copy out current values of status variables, for SHOW STATUS or
   information_schema.global_status.
 
-  This is called only under LOCK_show_status, so we can fill in a static array.
+  This is called only under LOCK_all_status_vars, so we can fill in a static array.
 */
 void
 TC_LOG_BINLOG::set_status_variables(THD *thd)
@@ -10592,7 +10699,10 @@ maria_declare_plugin(binlog)
 maria_declare_plugin_end;
 
 #ifdef WITH_WSREP
-IO_CACHE * get_trans_log(THD * thd)
+#include "wsrep_trans_observer.h"
+#include "wsrep_mysqld.h"
+
+IO_CACHE *wsrep_get_trans_cache(THD * thd)
 {
   DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
   binlog_cache_mngr *cache_mngr = (binlog_cache_mngr*)
@@ -10605,17 +10715,10 @@ IO_CACHE * get_trans_log(THD * thd)
   return NULL;
 }
 
-
-bool wsrep_trans_cache_is_empty(THD *thd)
+void wsrep_thd_binlog_trx_reset(THD * thd)
 {
-  binlog_cache_mngr *const cache_mngr=
-      (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-  return (!cache_mngr || cache_mngr->trx_cache.empty());
-}
-
-
-void thd_binlog_trx_reset(THD * thd)
-{
+  DBUG_ENTER("wsrep_thd_binlog_trx_reset");
+  WSREP_DEBUG("wsrep_thd_binlog_reset");
   /*
     todo: fix autocommit select to not call the caller
   */
@@ -10634,6 +10737,7 @@ void thd_binlog_trx_reset(THD * thd)
     }
   }
   thd->clear_binlog_table_maps();
+  DBUG_VOID_RETURN;
 }
 
 
@@ -10646,4 +10750,78 @@ void thd_binlog_rollback_stmt(THD * thd)
   if (cache_mngr)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
 }
+
+bool wsrep_stmt_rollback_is_safe(THD* thd)
+{
+  bool ret(true);
+
+  DBUG_ENTER("wsrep_binlog_stmt_rollback_is_safe");
+
+  binlog_cache_mngr *cache_mngr= 
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+
+
+  if (binlog_hton && cache_mngr)
+  {
+    binlog_cache_data * trx_cache = &cache_mngr->trx_cache;
+    if (thd->wsrep_sr().fragments_certified() > 0 &&
+        (trx_cache->get_prev_position() == MY_OFF_T_UNDEF ||
+         trx_cache->get_prev_position() < thd->wsrep_sr().bytes_certified()))
+    {
+      WSREP_DEBUG("statement rollback is not safe for streaming replication"
+                  " pre-stmt_pos: %llu, frag repl pos: %zu\n"
+                  "Thread: %llu, SQL: %s",
+                  trx_cache->get_prev_position(),
+                  thd->wsrep_sr().bytes_certified(),
+                  thd->thread_id, thd->query());
+       ret = false;
+    }
+  }
+  DBUG_RETURN(ret);
+}
+
+void wsrep_register_binlog_handler(THD *thd, bool trx)
+{
+  DBUG_ENTER("register_binlog_handler");
+  /*
+    If this is the first call to this function while processing a statement,
+    the transactional cache does not have a savepoint defined. So, in what
+    follows:
+      . an implicit savepoint is defined;
+      . callbacks are registered;
+      . binary log is set as read/write.
+
+    The savepoint allows for truncating the trx-cache transactional changes
+    fail. Callbacks are necessary to flush caches upon committing or rolling
+    back a statement or a transaction. However, notifications do not happen
+    if the binary log is set as read/write.
+  */
+  //binlog_cache_mngr *cache_mngr= thd_get_cache_mngr(thd);
+  binlog_cache_mngr *cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  /* cache_mngr may be missing e.g. in mtr test ev51914.test */
+  if (cache_mngr && cache_mngr->trx_cache.get_prev_position() == MY_OFF_T_UNDEF)
+  {
+    /*
+      Set an implicit savepoint in order to be able to truncate a trx-cache.
+    */
+    my_off_t pos= 0;
+    binlog_trans_log_savepos(thd, &pos);
+    cache_mngr->trx_cache.set_prev_position(pos);
+
+    /*
+      Set callbacks in order to be able to call commmit or rollback.
+    */
+    if (trx)
+      trans_register_ha(thd, TRUE, binlog_hton);
+    trans_register_ha(thd, FALSE, binlog_hton);
+
+    /*
+      Set the binary log as read/write otherwise callbacks are not called.
+    */
+    thd->ha_data[binlog_hton->slot].ha_info[0].set_trx_read_write();
+  }
+  DBUG_VOID_RETURN;
+}
+
 #endif /* WITH_WSREP */

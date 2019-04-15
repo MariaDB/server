@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,7 +100,6 @@ btr_pcur_store_position(
 	buf_block_t*	block;
 	rec_t*		rec;
 	dict_index_t*	index;
-	page_t*		page;
 	ulint		offs;
 
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
@@ -112,9 +111,8 @@ btr_pcur_store_position(
 	page_cursor = btr_pcur_get_page_cur(cursor);
 
 	rec = page_cur_get_rec(page_cursor);
-	page = page_align(rec);
-	offs = page_offset(rec);
-
+	offs = rec - block->frame;
+	ut_ad(block->page.id.page_no() == page_get_page_no(block->frame));
 	ut_ad(block->page.buf_fix_count);
 	/* For spatial index, when we do positioning on parent
 	buffer if necessary, it might not hold latches, but the
@@ -129,18 +127,19 @@ btr_pcur_store_position(
 
 	cursor->old_stored = true;
 
-	if (page_is_empty(page)) {
+	if (page_is_empty(block->frame)) {
 		/* It must be an empty index tree; NOTE that in this case
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
-		ut_a(!page_has_siblings(page));
-		ut_ad(page_is_leaf(page));
-		ut_ad(page_get_page_no(page) == index->page);
+		ut_a(!page_has_siblings(block->frame));
+		ut_ad(page_is_leaf(block->frame));
+		ut_ad(block->page.id.page_no() == index->page);
 
 		if (page_rec_is_supremum_low(offs)) {
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 		} else {
+before_first:
 			cursor->rel_pos = BTR_PCUR_BEFORE_FIRST_IN_TREE;
 		}
 
@@ -151,15 +150,28 @@ btr_pcur_store_position(
 		rec = page_rec_get_prev(rec);
 
 		ut_ad(!page_rec_is_infimum(rec));
-		ut_ad(!rec_is_metadata(rec, index));
+		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
+			ut_ad(index->table->instant);
+			ut_ad(page_get_n_recs(block->frame) == 1);
+			ut_ad(page_is_leaf(block->frame));
+			ut_ad(page_get_page_no(block->frame) == index->page);
+			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
+			return;
+		}
 
 		cursor->rel_pos = BTR_PCUR_AFTER;
 	} else if (page_rec_is_infimum_low(offs)) {
 		rec = page_rec_get_next(rec);
 
-		if (rec_is_metadata(rec, index)) {
+		if (rec_is_metadata(rec, *index)) {
+			ut_ad(!page_has_prev(block->frame));
+			ut_d(const rec_t* p = rec);
 			rec = page_rec_get_next(rec);
-			ut_ad(!page_rec_is_supremum(rec));
+			if (page_rec_is_supremum(rec)) {
+				ut_ad(page_has_next(block->frame)
+				      || rec_is_alter_metadata(p, *index));
+				goto before_first;
+			}
 		}
 
 		cursor->rel_pos = BTR_PCUR_BEFORE;
@@ -167,10 +179,25 @@ btr_pcur_store_position(
 		cursor->rel_pos = BTR_PCUR_ON;
 	}
 
-	cursor->old_rec = dict_index_copy_rec_order_prefix(
-		index, rec, &cursor->old_n_fields,
-		&cursor->old_rec_buf, &cursor->buf_size);
+	if (index->is_ibuf()) {
+		ut_ad(!index->table->not_redundant());
+		cursor->old_n_fields = rec_get_n_fields_old(rec);
+	} else if (page_rec_is_leaf(rec)) {
+		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
+	} else if (index->is_spatial()) {
+		ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
+		      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
+		/* For R-tree, we have to compare
+		the child page numbers as well. */
+		cursor->old_n_fields = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
+	} else {
+		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
+	}
 
+	cursor->old_rec = rec_copy_prefix_to_buf(rec, index,
+						 cursor->old_n_fields,
+						 &cursor->old_rec_buf,
+						 &cursor->buf_size);
 	cursor->block_when_stored = block;
 
 	/* Function try to check if block is S/X latch. */
@@ -447,7 +474,7 @@ btr_pcur_move_to_next_page(
 
 	next_block = btr_block_get(
 		page_id_t(block->page.id.space(), next_page_no),
-		block->page.size, mode,
+		block->zip_size(), mode,
 		btr_pcur_get_btr_cur(cursor)->index, mtr);
 
 	if (UNIV_UNLIKELY(!next_block)) {

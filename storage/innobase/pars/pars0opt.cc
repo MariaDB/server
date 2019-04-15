@@ -33,7 +33,6 @@ Created 12/21/1997 Heikki Tuuri
 #include "que0que.h"
 #include "pars0grm.h"
 #include "pars0pars.h"
-#include "lock0lock.h"
 
 #define OPT_EQUAL	1	/* comparison by = */
 #define OPT_COMPARISON	2	/* comparison by <, >, <=, or >= */

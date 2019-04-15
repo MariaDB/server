@@ -135,7 +135,7 @@ EXPALIN number of fields: 10
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
@@ -148,8 +148,8 @@ ANALYZE number of fields: 13
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
@@ -164,7 +164,7 @@ EXPALIN INSERT number of fields: 10
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON INSERT number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
@@ -177,8 +177,8 @@ ANALYZE INSERT number of fields: 13
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
@@ -193,7 +193,7 @@ EXPALIN UPDATE number of fields: 10
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON UPDATE number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
@@ -206,8 +206,8 @@ ANALYZE UPDATE number of fields: 13
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
@@ -222,7 +222,7 @@ EXPALIN DELETE number of fields: 10
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
 EXPALIN JSON DELETE number of fields: 1
   - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
@@ -235,8 +235,8 @@ ANALYZE DELETE number of fields: 13
   - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
   - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
-  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 10; max_length: 0; type: 8; decimals: 0
-  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 10
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
   - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
   - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39

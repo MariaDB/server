@@ -457,7 +457,7 @@ static int _ft2_search_no_lock(FTB *ftb, FTB_WORD *ftbw, my_bool init_search)
     */
     ftbw->off=off;
     ftbw->key_root= info->cur_row.lastpos;
-    ftbw->keyinfo=& info->s->ft2_keyinfo;
+    ftbw->keyinfo= info->last_key.keyinfo= & info->s->ft2_keyinfo;
     r= _ma_search_first(info, ftbw->keyinfo, ftbw->key_root);
     DBUG_ASSERT(r==0);  /* found something */
     memcpy(lastkey_buf+off, info->last_key.data,

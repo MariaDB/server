@@ -343,13 +343,15 @@ bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
   if (eval_signal_informations(thd, cond))
     DBUG_RETURN(result);
 
-  /* SIGNAL should not signal WARN_LEVEL_NOTE */
-  DBUG_ASSERT((cond->m_level == Sql_condition::WARN_LEVEL_WARN) ||
-              (cond->m_level == Sql_condition::WARN_LEVEL_ERROR));
+  /* SIGNAL should not signal WARN_LEVEL_NOTE, but RESIGNAL can */
+  DBUG_ASSERT(cond->m_level == Sql_condition::WARN_LEVEL_ERROR ||
+              cond->m_level != Sql_condition::WARN_LEVEL_NOTE ||
+              sql_command_code() == SQLCOM_RESIGNAL);
 
   (void) thd->raise_condition(cond);
 
-  if (cond->m_level == Sql_condition::WARN_LEVEL_WARN)
+  if (cond->m_level == Sql_condition::WARN_LEVEL_WARN ||
+      cond->m_level == Sql_condition::WARN_LEVEL_NOTE)
   {
     my_ok(thd);
     result= FALSE;

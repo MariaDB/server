@@ -45,10 +45,10 @@ load data infile '../../std_data/loaddata3.dat' into table t1 fields terminated 
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
-Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
+Warning	1366	Incorrect integer value: 'error      ' for column `test`.`t1`.`a` at row 3
 Warning	1262	Row 3 was truncated; it contained more data than there were input columns
 Note	1265	Data truncated for column 'a' at row 4
-Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 5
+Warning	1366	Incorrect integer value: 'wrong end  ' for column `test`.`t1`.`a` at row 5
 Warning	1262	Row 5 was truncated; it contained more data than there were input columns
 select * from t1;
 a	b
@@ -64,7 +64,7 @@ Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
 Note	1265	Data truncated for column 'a' at row 3
 Warning	1366	Incorrect integer value: '
-' for column 'a' at row 4
+' for column `test`.`t1`.`a` at row 4
 Warning	1261	Row 4 doesn't contain data for all columns
 select * from t1;
 a	b
@@ -580,6 +580,56 @@ SELECT HEX(a) FROM t1;
 HEX(a)
 C3A4
 DROP TABLE t1;
+#
+# MDEV-15744: Assertion `derived->table' failed in mysql_derived_merge_for_insert
+#
+create table t1 (a int, b int);
+CREATE OR REPLACE VIEW t2 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t2;
+LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE v2
+FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n';
+select * from v2;
+a	b
+2	2
+3	3
+4	4
+5	5
+6	6
+select * from t2;
+a	b
+2	2
+3	3
+4	4
+5	5
+6	6
+DROP VIEW IF EXISTS v2,t2;
+DROP TABLE IF EXISTS t1;
+#
+# MDEV-15950: LOAD DATA INTO compex_view crashed
+#
+create table t1 (a int, b int);
+create table t0 (x int, y int);
+CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1,t0;
+CREATE VIEW v2 AS SELECT * FROM v1;
+LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE v1
+FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n';
+ERROR HY000: Incorrect usage of Multi-table VIEW and LOAD
+LOAD DATA INFILE '../../std_data/loaddata7.dat' INTO TABLE v2
+FIELDS TERMINATED BY ',' LINES TERMINATED BY '\r\n';
+ERROR HY000: Incorrect usage of Multi-table VIEW and LOAD
+DROP VIEW IF EXISTS v2,v1;
+DROP TABLE IF EXISTS t1,t0;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (a), UNIQUE(b));
+INSERT INTO t1 VALUES (1,1);
+CREATE TABLE t2 (c INT);
+CREATE VIEW v AS SELECT t1.* FROM t1 JOIN t2;
+SELECT a, b INTO OUTFILE '15645.data' FROM t1;
+LOAD DATA INFILE '15645.data' IGNORE INTO TABLE v (a,b);
+ERROR HY000: Incorrect usage of Multi-table VIEW and LOAD
+LOAD DATA INFILE '15645.data' REPLACE INTO TABLE v (a,b);
+ERROR HY000: Incorrect usage of Multi-table VIEW and LOAD
+drop table t1,t2;
+drop view v;
 #
 # MDEV-15497 Wrong empty value in a GEOMETRY column on LOAD DATA
 #

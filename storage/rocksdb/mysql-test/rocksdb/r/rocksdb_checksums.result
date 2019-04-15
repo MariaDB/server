@@ -125,4 +125,5 @@ set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 set @@global.rocksdb_store_row_debug_checksums=@save_rocksdb_store_row_debug_checksums;
 set @@global.rocksdb_verify_row_debug_checksums=@save_rocksdb_verify_row_debug_checksums;
 set @@global.rocksdb_checksums_pct=@save_rocksdb_checksums_pct;
+# restart
 drop table t2,t3,t4;

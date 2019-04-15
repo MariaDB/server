@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,9 +27,7 @@ Created 6/9/1994 Heikki Tuuri
 #ifndef mem0mem_h
 #define mem0mem_h
 
-#include "univ.i"
 #include "ut0mem.h"
-#include "ut0byte.h"
 #include "ut0rnd.h"
 #include "mach0data.h"
 
@@ -79,7 +77,7 @@ is the maximum size for a single allocated buffer: */
 
 /** Space needed when allocating for a user a field of length N.
 The space is allocated only in multiples of UNIV_MEM_ALIGNMENT.  */
-#define MEM_SPACE_NEEDED(N) ut_calc_align((N), UNIV_MEM_ALIGNMENT)
+#define MEM_SPACE_NEEDED(N) UT_CALC_ALIGN((N), UNIV_MEM_ALIGNMENT)
 
 #ifdef UNIV_DEBUG
 /** Macro for memory heap creation.
@@ -195,70 +193,6 @@ mem_heap_get_top(
 	mem_heap_t*	heap,
 	ulint		n);
 
-/** Checks if a given chunk of memory is the topmost element stored in the
-heap. If this is the case, then calling mem_heap_free_top() would free
-that element from the heap.
-@param[in]	heap	memory heap
-@param[in]	buf	presumed topmost element
-@param[in]	buf_sz	size of buf in bytes
-@return true if topmost */
-UNIV_INLINE
-bool
-mem_heap_is_top(
-	mem_heap_t*	heap,
-	const void*	buf,
-	ulint		buf_sz)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element. If the memory chunk specified with (top, top_sz)
-is the topmost element, then it will be discarded, otherwise it will
-be left untouched and this function will be equivallent to
-mem_heap_alloc().
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-void*
-mem_heap_replace(
-/*=============*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	ulint		new_sz);/*!< in: desired size of the new chunk */
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element and then copy the specified data to it. If the memory
-chunk specified with (top, top_sz) is the topmost element, then it will be
-discarded, otherwise it will be left untouched and this function will be
-equivallent to mem_heap_dup().
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-void*
-mem_heap_dup_replace(
-/*=================*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	const void*	data,	/*!< in: new data to duplicate */
-	ulint		data_sz);/*!< in: size of data in bytes */
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element and then copy the specified string to it. If the memory
-chunk specified with (top, top_sz) is the topmost element, then it will be
-discarded, otherwise it will be left untouched and this function will be
-equivallent to mem_heap_strdup().
-@return allocated string, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-char*
-mem_heap_strdup_replace(
-/*====================*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	const char*	str);	/*!< in: new data to duplicate */
 /*****************************************************************//**
 Frees the topmost element in a memory heap.
 The size of the element must be given. */
@@ -414,108 +348,8 @@ struct mem_block_info_t {
 #define MEM_FREED_BLOCK_MAGIC_N	547711122
 
 /* Header size for a memory heap block */
-#define MEM_BLOCK_HEADER_SIZE	ut_calc_align(sizeof(mem_block_info_t),\
-							UNIV_MEM_ALIGNMENT)
+#define MEM_BLOCK_HEADER_SIZE	UT_CALC_ALIGN(sizeof(mem_block_info_t),\
+					      UNIV_MEM_ALIGNMENT)
 
 #include "mem0mem.ic"
-
-/** A C++ wrapper class to the mem_heap_t routines, so that it can be used
-as an STL allocator */
-template<typename T>
-class mem_heap_allocator
-{
-public:
-	typedef		T		value_type;
-	typedef		size_t		size_type;
-	typedef		ptrdiff_t	difference_type;
-	typedef		T*		pointer;
-	typedef		const T*	const_pointer;
-	typedef		T&		reference;
-	typedef		const T&	const_reference;
-
-	mem_heap_allocator(mem_heap_t* heap) : m_heap(heap) { }
-
-	mem_heap_allocator(const mem_heap_allocator& other)
-		:
-		m_heap(other.m_heap)
-	{
-		// Do nothing
-	}
-
-	template <typename U>
-	mem_heap_allocator (const mem_heap_allocator<U>& other)
-		:
-		m_heap(other.m_heap)
-	{
-		// Do nothing
-	}
-
-	~mem_heap_allocator() { m_heap = 0; }
-
-	size_type max_size() const
-	{
-		return(ULONG_MAX / sizeof(T));
-	}
-
-	/** This function returns a pointer to the first element of a newly
-	allocated array large enough to contain n objects of type T; only the
-	memory is allocated, and the objects are not constructed. Moreover,
-	an optional pointer argument (that points to an object already
-	allocated by mem_heap_allocator) can be used as a hint to the
-	implementation about where the new memory should be allocated in
-	order to improve locality. */
-	pointer	allocate(size_type n)
-	{
-		return(reinterpret_cast<pointer>(
-			mem_heap_alloc(m_heap, n * sizeof(T))));
-	}
-	pointer	allocate(size_type n, const_pointer) { return allocate(n); }
-
-	void deallocate(pointer, size_type) {}
-
-	pointer address (reference r) const { return(&r); }
-
-	const_pointer address (const_reference r) const { return(&r); }
-
-	void construct(pointer p, const_reference t)
-	{
-		new (reinterpret_cast<void*>(p)) T(t);
-	}
-
-	void destroy(pointer p)
-	{
-		(reinterpret_cast<T*>(p))->~T();
-	}
-
-	/** Allocators are required to supply the below template class member
-	which enables the possibility of obtaining a related allocator,
-	parametrized in terms of a different type. For example, given an
-	allocator type IntAllocator for objects of type int, a related
-	allocator type for objects of type long could be obtained using
-	IntAllocator::rebind<long>::other */
-	template <typename U>
-	struct rebind
-	{
-		typedef mem_heap_allocator<U> other;
-	};
-
-private:
-	mem_heap_t*	m_heap;
-	template <typename U> friend class mem_heap_allocator;
-};
-
-template <class T>
-bool operator== (const mem_heap_allocator<T>& left,
-		 const mem_heap_allocator<T>& right)
-{
-	return(left.heap == right.heap);
-}
-
-template <class T>
-bool operator!= (const mem_heap_allocator<T>& left,
-		 const mem_heap_allocator<T>& right)
-{
-	return(left.heap != right.heap);
-}
-
 #endif

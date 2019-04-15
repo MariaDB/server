@@ -559,6 +559,45 @@ MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
 
   DBUG_ASSERT(src || !srclen);
 
+#if MY_UCA_ASCII_OPTIMIZE && !MY_UCA_COMPILE_CONTRACTIONS
+ /*
+    Fast path for the ASCII range with no contractions.
+  */
+  {
+    const uchar *de2= de - 1; /* Last position where 2 bytes fit */
+    const uint16 *weights0= level->weights[0];
+    uint lengths0= level->lengths[0];
+    for ( ; ; src++, srclen--)
+    {
+      const uint16 *weight;
+      if (!srclen || !*nweights)
+        return dst;         /* Done */
+      if (*src > 0x7F)
+        break;              /* Non-ASCII */
+
+      weight= weights0 + (((uint) *src) * lengths0);
+      if (!(s_res= *weight))
+        continue;           /* Ignorable */
+      if (weight[1])        /* Expansion (e.g. in a user defined collation */
+        break;
+
+      /* Here we have a character with extactly one 2-byte UCA weight */
+      if (dst < de2)        /* Most typical case is when both bytes fit */
+      {
+        *dst++= s_res >> 8;
+        *dst++= s_res & 0xFF;
+        (*nweights)--;
+        continue;
+      }
+      if (dst >= de)        /* No space left in "dst" */
+        return dst;
+      *dst++= s_res >> 8;   /* There is space only for one byte */
+      (*nweights)--;
+      return dst;
+    }
+  }
+#endif
+
   my_uca_scanner_init_any(&scanner, cs, level, src, srclen);
   for (; dst < de && *nweights &&
          (s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) > 0 ; (*nweights)--)
@@ -620,6 +659,19 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
   uchar *d0= dst;
   uchar *de= dst + dstlen;
 
+  /*
+    There are two ways to handle trailing spaces for PAD SPACE collations:
+    1. Keep trailing spaces as they are, so have strnxfrm_onelevel() scan
+       spaces as normal characters. This will call scanner_next() for every
+       trailing space and calculate its weight using UCA weights.
+    2. Strip trailing spaces before calling strnxfrm_onelevel(), as it will
+       append weights for implicit spaces anyway, up to the desired key size.
+       This will effectively generate exactly the same sortable key result.
+    The latter is much faster.
+  */
+
+  if (flags & MY_STRXFRM_PAD_WITH_SPACE)
+    srclen= cs->cset->lengthsp(cs, (const char*) src, srclen);
   dst= MY_FUNCTION_NAME(strnxfrm_onelevel)(cs, &cs->uca->level[0],
                                            dst, de, nweights,
                                            src, srclen, flags);

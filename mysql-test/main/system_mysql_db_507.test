@@ -1,0 +1,132 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV-11170: MariaDB 10.2 cannot start on MySQL 5.7 datadir:
+--echo #             Fatal error: mysql.user table is damaged or in
+--echo #             unsupported 3.20 format
+--echo #
+
+--source include/switch_to_mysql_user.inc
+
+--echo #
+--echo # Original mysql.user table
+--echo #
+describe mysql.user;
+
+--echo #
+--echo # Drop the password column.
+--echo #
+alter table mysql.user drop column password,
+                       drop column is_role,
+                       drop column default_role,
+                       add column password_last_changed timestamp null default null after password_expired,
+                       add column password_lifetime smallint unsigned after password_last_changed,
+                       add column account_locked enum('n','y') character set utf8 not null default 'n' after password_lifetime;
+flush privileges;
+
+--echo #
+--echo # Create users without the password column present.
+--echo #
+create user foo;
+create user goo identified by "foo";
+select OLD_PASSWORD("ioo");
+create user ioo identified with "mysql_old_password" as "7a8f886d28473e85";
+
+--echo #
+--echo # Check if users have grants loaded correctly.
+--echo #
+show grants for foo;
+show grants for goo;
+show grants for ioo;
+
+select user, host, select_priv, plugin, authentication_string from mysql.user
+where user like "%oo"
+order by user;
+
+--echo #
+--echo # Test setting password.
+--echo #
+SET PASSWORD FOR foo=PASSWORD("bar");
+
+show grants for foo;
+show grants for goo;
+show grants for ioo;
+
+select user, host, select_priv, plugin, authentication_string from mysql.user
+where user like "%oo"
+order by user;
+
+--echo #
+--echo # Test flush privileges without password column.
+--echo #
+flush privileges;
+show grants for foo;
+show grants for goo;
+show grants for ioo;
+
+--echo #
+--echo # Test granting of privileges.
+--echo #
+grant select on *.* to foo;
+grant select on *.* to goo;
+grant select on *.* to ioo;
+show grants for foo;
+show grants for goo;
+show grants for ioo;
+
+--echo #
+--echo # Check to see if grants are stable on flush.
+--echo #
+flush privileges;
+show grants for foo;
+show grants for goo;
+show grants for ioo;
+
+--echo #
+--echo # Check internal table representation.
+--echo #
+select user, host, select_priv, plugin, authentication_string from mysql.user
+where user like "%oo"
+order by user;
+
+--echo #
+--echo # Test account locking
+--echo #
+create user user1@localhost account lock;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+flush privileges;
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect(con1,localhost,user1);
+show create user user1@localhost;
+alter user user1@localhost account unlock;
+connect(con1,localhost,user1);
+disconnect con1;
+connection default;
+show create user user1@localhost;
+
+--echo #
+--echo # Test password expiration fields are loaded correctly
+--echo #
+create user user@localhost;
+show create user user@localhost;
+alter user user@localhost password expire;
+show create user user@localhost;
+set password for user@localhost= password('');
+alter user user@localhost password expire default;
+show create user user@localhost;
+alter user user@localhost password expire never;
+show create user user@localhost;
+alter user user@localhost password expire interval 123 day;
+show create user user@localhost;
+alter user user@localhost password expire;
+show create user user@localhost;
+set password for user@localhost= password('');
+show create user user@localhost;
+drop user user@localhost;
+
+--echo #
+--echo # Reset to final original state.
+--echo #
+--source include/switch_to_mysql_global_priv.inc

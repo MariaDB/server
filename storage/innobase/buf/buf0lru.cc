@@ -44,7 +44,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "srv0srv.h"
 #include "srv0mon.h"
-#include "lock0lock.h"
 
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool->LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
@@ -167,7 +166,7 @@ incr_LRU_size_in_bytes(
 {
 	ut_ad(buf_pool_mutex_own(buf_pool));
 
-	buf_pool->stat.LRU_bytes += bpage->size.physical();
+	buf_pool->stat.LRU_bytes += bpage->physical_size();
 
 	ut_ad(buf_pool->stat.LRU_bytes <= buf_pool->curr_pool_size);
 }
@@ -1390,7 +1389,7 @@ buf_LRU_remove_block(
 	UT_LIST_REMOVE(buf_pool->LRU, bpage);
 	ut_d(bpage->in_LRU_list = FALSE);
 
-	buf_pool->stat.LRU_bytes -= bpage->size.physical();
+	buf_pool->stat.LRU_bytes -= bpage->physical_size();
 
 	buf_unzip_LRU_remove_block_if_needed(bpage);
 
@@ -1662,9 +1661,9 @@ func_exit:
 			? BUF_BLOCK_ZIP_DIRTY
 			: BUF_BLOCK_ZIP_PAGE;
 
-		ut_ad(b->size.is_compressed());
+		ut_ad(b->zip_size());
 
-		UNIV_MEM_DESC(b->zip.data, b->size.physical());
+		UNIV_MEM_DESC(b->zip.data, b->zip_size());
 
 		/* The fields in_page_hash and in_LRU_list of
 		the to-be-freed block descriptor should have
@@ -1743,10 +1742,6 @@ func_exit:
 
 		page_zip_set_size(&bpage->zip, 0);
 
-		bpage->size.copy_from(page_size_t(bpage->size.logical(),
-						  bpage->size.logical(),
-						  false));
-
 		mutex_exit(block_mutex);
 
 		/* Prevent buf_page_get_gen() from
@@ -1786,11 +1781,11 @@ func_exit:
 		buf_pool->page_hash, thus inaccessible by any
 		other thread. */
 
-		ut_ad(b->size.is_compressed());
+		ut_ad(b->zip_size());
 
 		const uint32_t	checksum = page_zip_calc_checksum(
 			b->zip.data,
-			b->size.physical(),
+			b->zip_size(),
 			static_cast<srv_checksum_algorithm_t>(
 				srv_checksum_algorithm));
 
@@ -1857,19 +1852,14 @@ buf_LRU_block_free_non_file_page(
 		buf_page_mutex_exit(block);
 		buf_pool_mutex_exit_forbid(buf_pool);
 
-		ut_ad(block->page.size.is_compressed());
+		ut_ad(block->zip_size());
 
-		buf_buddy_free(buf_pool, data, block->page.size.physical());
+		buf_buddy_free(buf_pool, data, block->zip_size());
 
 		buf_pool_mutex_exit_allow(buf_pool);
 		buf_page_mutex_enter(block);
 
 		page_zip_set_size(&block->page.zip, 0);
-
-		block->page.size.copy_from(
-			page_size_t(block->page.size.logical(),
-				    block->page.size.logical(),
-				    false));
 	}
 
 	if (buf_pool->curr_size < buf_pool->old_size
@@ -1940,7 +1930,7 @@ buf_LRU_block_remove_hashed(
 			const page_t*	page = ((buf_block_t*) bpage)->frame;
 
 			ut_a(!zip || bpage->oldest_modification == 0);
-			ut_ad(bpage->size.is_compressed());
+			ut_ad(bpage->zip_size());
 
 			switch (fil_page_get_type(page)) {
 			case FIL_PAGE_TYPE_ALLOCATED:
@@ -1955,7 +1945,7 @@ buf_LRU_block_remove_hashed(
 					to the compressed page, which will
 					be preserved. */
 					memcpy(bpage->zip.data, page,
-					       bpage->size.physical());
+					       bpage->zip_size());
 				}
 				break;
 			case FIL_PAGE_TYPE_ZBLOB:
@@ -1972,14 +1962,13 @@ buf_LRU_block_remove_hashed(
 			default:
 				ib::error() << "The compressed page to be"
 					" evicted seems corrupt:";
-				ut_print_buf(stderr, page,
-					     bpage->size.logical());
+				ut_print_buf(stderr, page, srv_page_size);
 
 				ib::error() << "Possibly older version of"
 					" the page:";
 
 				ut_print_buf(stderr, bpage->zip.data,
-					     bpage->size.physical());
+					     bpage->zip_size());
 				putc('\n', stderr);
 				ut_error;
 			}
@@ -1989,10 +1978,7 @@ buf_LRU_block_remove_hashed(
 		/* fall through */
 	case BUF_BLOCK_ZIP_PAGE:
 		ut_a(bpage->oldest_modification == 0);
-		if (bpage->size.is_compressed()) {
-			UNIV_MEM_ASSERT_W(bpage->zip.data,
-					  bpage->size.physical());
-		}
+		UNIV_MEM_ASSERT_W(bpage->zip.data, bpage->zip_size());
 		break;
 	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_DIRTY:
@@ -2008,25 +1994,16 @@ buf_LRU_block_remove_hashed(
 	if (bpage != hashed_bpage) {
 		ib::error() << "Page " << bpage->id
 			<< " not found in the hash table";
-
-#ifdef UNIV_DEBUG
-
-		
 		ib::error()
+#ifdef UNIV_DEBUG
 			<< "in_page_hash:" << bpage->in_page_hash
 			<< " in_zip_hash:" << bpage->in_zip_hash
-			//			<< " in_free_list:"<< bpage->in_fee_list
 			<< " in_flush_list:" << bpage->in_flush_list
 			<< " in_LRU_list:" << bpage->in_LRU_list
-			<< " zip.data:" << bpage->zip.data
-			<< " zip_size:" << bpage->size.logical()
-			<< " page_state:" << buf_page_get_state(bpage);
-#else
-		ib::error()
-			<< " zip.data:" << bpage->zip.data
-			<< " zip_size:" << bpage->size.logical()
-			<< " page_state:" << buf_page_get_state(bpage);
 #endif
+			<< " zip.data:" << bpage->zip.data
+			<< " zip_size:" << bpage->zip_size()
+			<< " page_state:" << buf_page_get_state(bpage);
 
 		if (hashed_bpage) {
 
@@ -2060,7 +2037,7 @@ buf_LRU_block_remove_hashed(
 		ut_ad(!bpage->in_flush_list);
 		ut_ad(!bpage->in_LRU_list);
 		ut_a(bpage->zip.data);
-		ut_a(bpage->size.is_compressed());
+		ut_a(bpage->zip.ssize);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		UT_LIST_REMOVE(buf_pool->zip_clean, bpage);
@@ -2070,8 +2047,7 @@ buf_LRU_block_remove_hashed(
 		rw_lock_x_unlock(hash_lock);
 		buf_pool_mutex_exit_forbid(buf_pool);
 
-		buf_buddy_free(buf_pool, bpage->zip.data,
-			       bpage->size.physical());
+		buf_buddy_free(buf_pool, bpage->zip.data, bpage->zip_size());
 
 		buf_pool_mutex_exit_allow(buf_pool);
 		buf_page_free_descriptor(bpage);
@@ -2118,16 +2094,11 @@ buf_LRU_block_remove_hashed(
 			ut_ad(!bpage->in_LRU_list);
 			buf_pool_mutex_exit_forbid(buf_pool);
 
-			buf_buddy_free(buf_pool, data, bpage->size.physical());
+			buf_buddy_free(buf_pool, data, bpage->zip_size());
 
 			buf_pool_mutex_exit_allow(buf_pool);
 
 			page_zip_set_size(&bpage->zip, 0);
-
-			bpage->size.copy_from(
-				page_size_t(bpage->size.logical(),
-					    bpage->size.logical(),
-					    false));
 		}
 
 		return(true);
@@ -2160,7 +2131,8 @@ buf_LRU_block_free_hashed_page(
 	buf_page_mutex_enter(block);
 
 	if (buf_pool->flush_rbt == NULL) {
-		block->page.id.reset();
+		block->page.id
+		    = page_id_t(ULINT32_UNDEFINED, ULINT32_UNDEFINED);
 	}
 
 	buf_block_set_state(block, BUF_BLOCK_MEMORY);
@@ -2459,7 +2431,7 @@ buf_LRU_print_instance(
 
 		if (bpage->buf_fix_count) {
 			fprintf(stderr, "buffix count %u ",
-				bpage->buf_fix_count);
+				uint32_t(bpage->buf_fix_count));
 		}
 
 		if (buf_page_get_io_fix(bpage)) {
@@ -2484,7 +2456,7 @@ buf_LRU_print_instance(
 			fprintf(stderr, "\ntype %u size " ULINTPF
 				" index id " IB_ID_FMT "\n",
 				fil_page_get_type(frame),
-				bpage->size.physical(),
+				bpage->zip_size(),
 				btr_page_get_index_id(frame));
 			break;
 

@@ -38,6 +38,7 @@ NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in t0.ibd
 # ib_logfile0 expecting NOT FOUND
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in ib_logfile0
 # Restart without redo log encryption
+# restart: --skip-innodb-encrypt-log --innodb-log-files-in-group=1
 SELECT COUNT(*) FROM t0;
 COUNT(*)
 1024
@@ -55,6 +56,7 @@ FOUND 1 /(public|gossip).*/ in ib_logfile0
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)|public|gossip/ in ibdata1
 # t0.ibd expecting NOT FOUND
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)|public|gossip/ in t0.ibd
+# restart
 SELECT COUNT(*) FROM t0;
 COUNT(*)
 1025

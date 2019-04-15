@@ -1,0 +1,197 @@
+--source include/not_embedded.inc
+create database db1;
+use db1;
+create table t1(a int);
+insert into t1 values (1),(2),(3);
+create table t2(a int);
+
+CREATE USER 'foo'@'%';
+CREATE USER 'bar'@'%';
+
+create definer=foo SQL SECURITY definer view db1.v1 as select * from db1.t1;
+
+delimiter |;
+create definer=foo function f1 (a int) returns INT SQL SECURITY DEFINER
+BEGIN
+  insert into t2 select * from t1; 
+  return a+1;
+END|
+delimiter ;|
+
+--change_user foo
+set optimizer_trace="enabled=on";
+--error 1142
+select * from db1.t1;
+select * from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace="enabled=off";
+
+--change_user root
+grant select(a)  on db1.t1 to 'foo'@'%';
+
+--change_user foo
+set optimizer_trace="enabled=on";
+select * from db1.t1;
+
+--echo # INSUFFICIENT PRIVILEGES should be set to 1 
+--echo # Trace and Query should be empty
+--echo # We need SELECT privilege on the table db1.t1;
+
+select * from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace="enabled=off";
+
+--change_user root
+select * from information_schema.OPTIMIZER_TRACE;
+grant select  on db1.t1 to 'foo'@'%';
+grant select  on db1.t2 to 'foo'@'%';
+
+--change_user foo
+set optimizer_trace="enabled=on";
+
+--echo #
+--echo # SELECT privilege on the table db1.t1
+--echo # The trace would be present.
+--echo #
+select * from db1.t1;
+select * from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace="enabled=off";
+
+--change_user root
+
+grant select  on db1.v1 to 'foo'@'%';
+grant show view  on db1.v1 to 'foo'@'%';
+
+grant select  on db1.v1 to 'bar'@'%';
+grant show view  on db1.v1 to 'bar'@'%';
+
+--change_user foo
+select current_user();
+set optimizer_trace="enabled=on";
+select * from db1.v1;
+select * from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace="enabled=off";
+
+--change_user bar
+select current_user();
+set optimizer_trace="enabled=on";
+select * from db1.v1;
+--echo #
+--echo # INSUFFICIENT PRIVILEGES should be set to 1 
+--echo # Trace and Query should be empty
+--echo # Privileges for the underlying tables of the
+--echo # view should also be present for the current user
+--echo #
+select * from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace="enabled=off";
+
+--change_user root
+grant execute on function db1.f1 to 'foo'@'%';
+grant execute on function db1.f1 to 'bar'@'%';
+
+grant select  on db1.t1 to 'bar'@'%';
+grant insert  on db1.t2 to 'foo'@'%';
+
+--change_user foo
+select current_user();
+set optimizer_trace="enabled=on";
+
+select db1.f1(a) from db1.t1;
+select INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace="enabled=off";
+
+--change_user bar
+select current_user();
+set optimizer_trace="enabled=on";
+--echo #
+--echo # The trace should be empty, because the current user
+--echo # does not have INSERT privilege for table t2 which is
+--echo # used in the function f1
+--echo #
+select db1.f1(a) from db1.t1;
+select * from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace="enabled=off";
+
+--change_user root
+select current_user();
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM foo;
+
+--change_user root
+drop user if exists foo;
+drop user if exists bar;
+drop table db1.t1, db1.t2;
+drop database db1;
+
+
+--echo # 
+--echo # Privilege checking for optimizer trace across connections
+--echo # 
+
+connection default;
+create database db1;
+use db1;
+create table t1(a int);
+insert into t1 values (1),(2),(3);
+create table t2(a int);
+
+CREATE USER 'foo'@'localhost';
+CREATE USER 'bar'@'localhost';
+grant all on *.* to foo@localhost with grant option;
+grant all on *.* to bar@localhost with grant option;
+#grant select on db1.t1 to bar@localhost;
+#grant insert on db1.t2 to bar@localhost;
+
+connect (con_foo,localhost, foo,, db1);
+connection default;
+connect (con_bar,localhost, bar,, db1);
+connection default;
+create definer=foo@localhost SQL SECURITY definer view db1.v1 as select * from db1.t1;
+
+delimiter |;
+create function f1 (a int) returns INT SQL SECURITY DEFINER 
+BEGIN
+  insert into t2 select * from t1;
+  return a+1;
+END|
+delimiter ;|
+
+grant execute on function f1 to bar@localhost;
+
+connection con_foo;
+set optimizer_trace='enabled=on';
+select * from db1.t1;
+--echo #
+--echo # Test that security context changes are allowed when, and only
+--echo # when, invoker has all global privileges.
+--echo #
+select query, INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace='enabled=off';
+
+connection con_bar;
+set optimizer_trace='enabled=on';
+select f1(a) from db1.t1;
+select query, INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace='enabled=off';
+
+connection default;
+revoke shutdown on *.* from foo@localhost;
+disconnect con_foo;
+connect (con_foo, localhost, foo,, db1);
+
+connection con_foo;
+set optimizer_trace='enabled=on';
+select f1(a) from db1.t1;
+--echo #
+--echo # Test to check if invoker has all global privileges or not, only then
+--echo # the security context changes are allowed. The user has been revoked
+--echo # shutdown privilege so INSUFFICIENT PRIVILEGES should be set to 1.
+--echo #
+select query, INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
+set optimizer_trace='enabled=off';
+
+connection default;
+select current_user();
+select * from db1.v1;
+drop user foo@localhost, bar@localhost;
+drop view db1.v1;
+drop table db1.t1;
+drop database db1;
+set optimizer_trace="enabled=off";

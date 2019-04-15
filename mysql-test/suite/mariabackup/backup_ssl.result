@@ -5,5 +5,5 @@ FLUSH PRIVILEGES;
 # shutdown server
 # remove datadir
 # xtrabackup move back
-# restart server
+# restart
 DROP USER backup_user;

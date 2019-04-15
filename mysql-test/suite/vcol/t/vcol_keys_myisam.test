@@ -262,3 +262,13 @@ create table t1 (
 insert into t1 values (null, 0);
 repair table t1 extended;
 drop table t1;
+
+#
+# MDEV-18486 Database crash on a table with indexed virtual column
+#
+create table t1 ( id int primary key,
+        hexid  varchar(10) generated always as (hex(id)) stored,
+        key (hexid)) engine=myisam;
+insert into t1 (id) select 100;
+select * from t1;
+drop table t1;

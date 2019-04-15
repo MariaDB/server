@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, Monty Program Ab.
+/* Copyright (c) 2013, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
   time-consuming loops, and gracefully abort the operation if it is
   non-zero.
 
-  thd_is_killed(thd)
+  thd_killed(thd)
   @return 0 - no KILL statement was issued, continue normally
   @return 1 - there was a KILL statement, abort the execution.
 

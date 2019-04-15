@@ -213,7 +213,7 @@ class Window_funcs_sort : public Sql_alloc
 public:
   bool setup(THD *thd, SQL_SELECT *sel, List_iterator<Item_window_func> &it,
              st_join_table *join_tab);
-  bool exec(JOIN *join);
+  bool exec(JOIN *join, bool keep_filesort_result);
   void cleanup() { delete filesort; }
 
   friend class Window_funcs_computation;
@@ -243,7 +243,7 @@ class Window_funcs_computation : public Sql_alloc
   List<Window_funcs_sort> win_func_sorts;
 public:
   bool setup(THD *thd, List<Item_window_func> *window_funcs, st_join_table *tab);
-  bool exec(JOIN *join);
+  bool exec(JOIN *join, bool keep_last_filesort_result);
 
   Explain_aggr_window_funcs *save_explain_plan(MEM_ROOT *mem_root, bool is_analyze);
   void cleanup();

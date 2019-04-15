@@ -65,7 +65,7 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
   File file= -1;
 
   DBUG_ENTER("create_temp_file");
-  DBUG_PRINT("enter", ("dir: %s, prefix: %s", dir, prefix));
+  DBUG_PRINT("enter", ("dir: %s, prefix: %s", dir ? dir : "(null)", prefix));
   DBUG_ASSERT((mode & (O_EXCL | O_TRUNC | O_CREAT | O_RDWR)) == 0);
 
   mode|= O_TRUNC | O_CREAT | O_RDWR; /* not O_EXCL, see Windows code below */
@@ -110,6 +110,8 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
     }
   }
 #elif defined(HAVE_MKSTEMP)
+  if (!dir && ! (dir =getenv("TMPDIR")))
+    dir= DEFAULT_TMPDIR;
 #ifdef O_TMPFILE
   {
     static int O_TMPFILE_works= 1;
@@ -146,8 +148,6 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
 				    prefix ? prefix : "tmp.",
 				    sizeof(prefix_buff)-7),"XXXXXX") -
 		     prefix_buff);
-    if (!dir && ! (dir =getenv("TMPDIR")))
-      dir= DEFAULT_TMPDIR;
     if (strlen(dir)+ pfx_len > FN_REFLEN-2)
     {
       errno=my_errno= ENAMETOOLONG;

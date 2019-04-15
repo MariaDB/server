@@ -17,7 +17,7 @@ connection slave;
 # it's visible in mysql.user and I_S:
 #
 select user, host, is_role from mysql.user where user in ('u1', 'r1');
-user	host	is_role
+User	Host	is_role
 r1		Y
 u1	%	N
 select * from information_schema.applicable_roles;
