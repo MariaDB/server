@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
 		0,(MARIA_UNIQUEDEF*) 0,
 		&create_info,create_flag))
     goto err;
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
     goto err;
   maria_begin(file);
   if (opt_versioning)

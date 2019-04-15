@@ -1025,7 +1025,8 @@ static int maria_chk(HA_CHECK *param, char *filename)
                         ((param->testflag & T_WAIT_FOREVER) ?
                          HA_OPEN_WAIT_IF_LOCKED :
                          (param->testflag & T_DESCRIPT) ?
-                         HA_OPEN_IGNORE_IF_LOCKED : HA_OPEN_ABORT_IF_LOCKED))))
+                         HA_OPEN_IGNORE_IF_LOCKED : HA_OPEN_ABORT_IF_LOCKED),
+                        0)))
   {
     /* Avoid twice printing of isam file name */
     param->error_printed=1;
@@ -2101,7 +2102,7 @@ static my_bool write_log_record(HA_CHECK *param)
     Now that all operations including O_NEW_DATA|INDEX are successfully
     done, we can write a log record.
   */
-  MARIA_HA *info= maria_open(param->isam_file_name, O_RDWR, 0);
+  MARIA_HA *info= maria_open(param->isam_file_name, O_RDWR, 0, 0);
   if (info == NULL)
     _ma_check_print_error(param, default_open_errmsg, my_errno,
                           param->isam_file_name);

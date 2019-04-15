@@ -1072,6 +1072,33 @@ The following specify which files/extra groups are read (specified before remain
  play when stop slave is executed.
  --rpl-semi-sync-slave-trace-level=# 
  The tracing level for semi-sync replication.
+ --s3[=name]         Enable or disable S3 plugin. One of: ON, OFF, FORCE
+ (don't start if the plugin fails to load).
+ --s3-access-key=name 
+ AWS access key
+ --s3-block-size=#   Block size for S3
+ --s3-bucket=name    AWS bucket
+ --s3-pagecache-age-threshold=# 
+ This characterizes the number of hits a hot block has to
+ be untouched until it is considered aged enough to be
+ downgraded to a warm block. This specifies the percentage
+ ratio of that number of hits to the total number of
+ blocks in the page cache.
+ --s3-pagecache-buffer-size=# 
+ The size of the buffer used for index blocks for Aria
+ tables. Increase this to get better index handling (for
+ all reads and multiple writes) to as much as you can
+ afford.
+ --s3-pagecache-division-limit=# 
+ The minimum percentage of warm blocks in key cache
+ --s3-pagecache-file-hash-size=# 
+ Number of hash buckets for open files.  If you have a lot
+ of S3 files open you should increase this for faster
+ flush of changes. A good value is probably 1/10 of number
+ of possible open S3 files.
+ --s3-region=name    AWS region
+ --s3-secret-key=name 
+ AWS secret key
  --safe-mode         Skip some optimize stages (for testing). Deprecated.
  --safe-user-create  Don't allow new user creation by the user who has no
  write privileges to the mysql.user table.
@@ -1684,6 +1711,16 @@ rpl-semi-sync-slave-delay-master FALSE
 rpl-semi-sync-slave-enabled FALSE
 rpl-semi-sync-slave-kill-conn-timeout 5
 rpl-semi-sync-slave-trace-level 32
+s3 ON
+s3-access-key (No default value)
+s3-block-size 4194304
+s3-bucket MariaDB
+s3-pagecache-age-threshold 300
+s3-pagecache-buffer-size 134217728
+s3-pagecache-division-limit 100
+s3-pagecache-file-hash-size 512
+s3-region 
+s3-secret-key (No default value)
 safe-user-create FALSE
 secure-auth TRUE
 secure-file-priv (No default value)

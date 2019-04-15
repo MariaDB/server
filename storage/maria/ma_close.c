@@ -22,6 +22,9 @@
 
 #include "maria_def.h"
 #include "ma_crypt.h"
+#ifdef WITH_S3_STORAGE_ENGINE
+#include "s3_func.h"
+#endif /* WITH_S3_STORAGE_ENGINE */
 
 int maria_close(register MARIA_HA *info)
 {
@@ -154,9 +157,10 @@ int maria_close(register MARIA_HA *info)
         File must be synced as it is going out of the maria_open_list and so
         becoming unknown to future Checkpoints.
       */
-      if (share->now_transactional && mysql_file_sync(share->kfile.file, MYF(MY_WME)))
+      if (share->now_transactional &&
+          mysql_file_sync(share->kfile.file, MYF(MY_WME)))
         error= my_errno;
-      if (mysql_file_close(share->kfile.file, MYF(0)))
+      if (!share->s3_path && mysql_file_close(share->kfile.file, MYF(0)))
         error= my_errno;
     }
     thr_lock_delete(&share->lock);
@@ -233,6 +237,7 @@ int maria_close(register MARIA_HA *info)
   if (share_can_be_freed)
   {
     ma_crypt_free(share);
+    my_free(share->s3_path);
     (void) mysql_mutex_destroy(&share->intern_lock);
     (void) mysql_mutex_destroy(&share->close_lock);
     (void) mysql_cond_destroy(&share->key_del_cond);
@@ -244,7 +249,7 @@ int maria_close(register MARIA_HA *info)
     */
   }
   my_free(info->ftparser_param);
-  if (info->dfile.file >= 0)
+  if (info->dfile.file >= 0 && ! info->s3)
   {
     /*
       This is outside of mutex so would confuse a concurrent
@@ -255,6 +260,10 @@ int maria_close(register MARIA_HA *info)
   }
 
   delete_dynamic(&info->pinned_pages);
+#ifdef WITH_S3_STORAGE_ENGINE
+  if (info->s3)
+    ms3_deinit(info->s3);
+#endif /* WITH_S3_STORAGE_ENGINE */
   my_free(info);
 
   if (error)

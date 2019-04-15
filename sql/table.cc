@@ -1768,7 +1768,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       name.length= str_db_type_length;
 
       plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name, false);
-      if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin))
+      if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin) &&
+          legacy_db_type != DB_TYPE_S3)
       {
         if (se_plugin)
         {
