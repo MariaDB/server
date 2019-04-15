@@ -328,6 +328,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   share.base.born_transactional= ci->transactional;
   share.base.max_field_lengths= max_field_lengths;
   share.base.field_offsets= 0;                  /* for future */
+  share.base.compression_algorithm= ci->compression_algorithm;
+  share.base.s3_block_size=         ci->s3_block_size;
 
   if (flags & HA_CREATE_CHECKSUM || (options & HA_OPTION_CHECKSUM))
   {

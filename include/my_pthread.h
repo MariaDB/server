@@ -717,22 +717,34 @@ extern void my_mutex_end(void);
 
 #define INSTRUMENT_ME 0
 
+/*
+  Thread specific variables
+
+  Aria key cache is using the following variables for keeping track of
+  state:
+  suspend, next, prev, keycache_link, keycache_file, suspend, lock_type
+
+  MariaDB uses the following to
+  mutex, current_mutex, current_cond, abort
+*/
+
 struct st_my_thread_var
 {
   int thr_errno;
   mysql_cond_t suspend;
   mysql_mutex_t mutex;
+  struct st_my_thread_var *next,**prev;
   mysql_mutex_t * volatile current_mutex;
   mysql_cond_t * volatile current_cond;
+  void *keycache_link;
+  void *keycache_file;
+  void *stack_ends_here;
+  safe_mutex_t *mutex_in_use;
   pthread_t pthread_self;
   my_thread_id id, dbug_id;
   int volatile abort;
+  uint lock_type; /* used by conditional release the queue */
   my_bool init;
-  struct st_my_thread_var *next,**prev;
-  void *keycache_link;
-  uint  lock_type; /* used by conditional release the queue */
-  void  *stack_ends_here;
-  safe_mutex_t *mutex_in_use;
 #ifndef DBUG_OFF
   void *dbug;
   char name[THREAD_NAME_SIZE+1];

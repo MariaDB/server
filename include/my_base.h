@@ -53,7 +53,7 @@
   Allow opening even if table is incompatible as this is for ALTER TABLE which
   will fix the table structure.
 */
-#define HA_OPEN_FOR_ALTER		4096U
+#define HA_OPEN_FOR_ALTER		8192U
 
 /* The following is parameter to ha_rkey() how to use key */
 

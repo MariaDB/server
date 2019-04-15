@@ -2572,9 +2572,10 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       it's not an error if the table doesn't exist in the engine.
       warn the user, but still report DROP being a success
     */
-    bool intercept= error == ENOENT || error == HA_ERR_NO_SUCH_TABLE;
+    bool intercept= (error == ENOENT || error == HA_ERR_NO_SUCH_TABLE ||
+                     error == HA_ERR_UNSUPPORTED);
 
-    if (!intercept || generate_warning)
+    if ((!intercept || generate_warning) && ! thd->is_error())
     {
       /* Fill up strucutures that print_error may need */
       dummy_share.path.str= (char*) path;
@@ -2587,7 +2588,10 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       file->print_error(error, MYF(intercept ? ME_WARNING : 0));
     }
     if (intercept)
+    {
+      thd->clear_error();
       error= 0;
+    }
   }
   delete file;
 

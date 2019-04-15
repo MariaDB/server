@@ -26,7 +26,7 @@ perl;
                collation-server character-set-server log-tc-size version.*/;
 
   # Plugins which may or may not be there:
-  @plugins=qw/innodb archive blackhole federated partition
+  @plugins=qw/innodb archive blackhole federated partition s3
               feedback debug temp-pool ssl des-key-file xtradb sequence
               thread-concurrency super-large-pages mutex-deadlock-detector
               connect null-audit aria oqgraph sphinx thread-handling

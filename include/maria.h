@@ -145,9 +145,11 @@ typedef struct st_maria_create_info
   ulonglong auto_increment;
   ulonglong data_file_length;
   ulonglong key_file_length;
+  ulong s3_block_size;
   /* Size of null bitmap at start of row */
   uint null_bytes;
   uint old_options;
+  uint compression_algorithm;
   enum data_file_type org_data_file_type;
   uint16 language;
   my_bool with_auto_increment, transactional;
@@ -229,6 +231,7 @@ typedef struct st_maria_decode_tree     /* Decode huff-table */
 
 
 struct st_maria_bit_buff;
+typedef struct s3_info S3_INFO;
 
 /*
   Note that null markers should always be first in a row !
@@ -285,7 +288,7 @@ extern my_bool maria_upgrade(void);
 extern int maria_close(MARIA_HA *file);
 extern int maria_delete(MARIA_HA *file, const uchar *buff);
 extern MARIA_HA *maria_open(const char *name, int mode,
-					uint wait_if_locked);
+                            uint wait_if_locked, S3_INFO *s3);
 extern int maria_panic(enum ha_panic_function function);
 extern int maria_rfirst(MARIA_HA *file, uchar *buf, int inx);
 extern int maria_rkey(MARIA_HA *file, uchar *buf, int inx,

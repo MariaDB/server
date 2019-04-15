@@ -315,7 +315,7 @@ static int create_test_table(const char *table_name, int type_of_table)
 		uniques, &uniquedef, &create_info,
 		create_flag))
     goto err;
-  if (!(file=maria_open(table_name,2,HA_OPEN_ABORT_IF_LOCKED)))
+  if (!(file=maria_open(table_name,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
     goto err;
   if (!silent)
     printf("- Writing key:s\n");

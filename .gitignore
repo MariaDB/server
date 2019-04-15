@@ -177,6 +177,7 @@ storage/maria/aria_dump_log
 storage/maria/aria_ftdump
 storage/maria/aria_pack
 storage/maria/aria_read_log
+storage/maria/aria_s3_copy
 storage/maria/ma_rt_test
 storage/maria/ma_sp_test
 storage/maria/ma_test1

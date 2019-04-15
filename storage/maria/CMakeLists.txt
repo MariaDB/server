@@ -13,12 +13,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-INCLUDE_DIRECTORIES(
-${SSL_INCLUDE_DIRS}
-)
+INCLUDE_DIRECTORIES(${SSL_INCLUDE_DIRS})
 
 IF(SSL_DEFINES)
-SET_SOURCE_FILES_PROPERTIES(ma_crypt.c PROPERTIES COMPILE_FLAGS ${SSL_DEFINES})
+  SET_SOURCE_FILES_PROPERTIES(ma_crypt.c PROPERTIES COMPILE_FLAGS ${SSL_DEFINES})
 ENDIF()
 
 SET(ARIA_SOURCES ma_init.c ma_open.c ma_extra.c ma_info.c ma_rkey.c 
@@ -28,14 +26,14 @@ SET(ARIA_SOURCES ma_init.c ma_open.c ma_extra.c ma_info.c ma_rkey.c
             ma_rrnd.c ma_scan.c ma_cache.c 
             ma_statrec.c ma_packrec.c ma_dynrec.c 
             ma_blockrec.c ma_bitmap.c 
-            ma_update.c ma_write.c ma_unique.c 
+            ma_update.c ma_write.c ma_unique.c
             ma_delete.c 
             ma_rprev.c ma_rfirst.c ma_rlast.c ma_rsame.c 
             ma_rsamepos.c ma_panic.c ma_close.c ma_create.c
             ma_range.c ma_dbug.c ma_checksum.c 
             ma_changed.c ma_static.c ma_delete_all.c 
             ma_delete_table.c ma_rename.c  ma_check.c 
-            ma_keycache.c ma_preload.c ma_ft_parser.c 
+            ma_keycache.c ma_preload.c ma_ft_parser.c
             ma_ft_update.c ma_ft_boolean_search.c 
             ma_ft_nlq_search.c ft_maria.c ma_sort.c 
             ha_maria.cc trnman.c lockman.c
@@ -53,17 +51,9 @@ IF(APPLE)
   ADD_DEFINITIONS(-fno-common)
 ENDIF()
 
-MYSQL_ADD_PLUGIN(aria ${ARIA_SOURCES} 
-  STORAGE_ENGINE
-  MANDATORY
-  RECOMPILE_FOR_EMBEDDED)
-
-IF(NOT WITH_ARIA_STORAGE_ENGINE)
-  RETURN()
-ENDIF()
-
-TARGET_LINK_LIBRARIES(aria myisam
-  mysys mysys_ssl)
+MYSQL_ADD_PLUGIN(aria ${ARIA_SOURCES} STORAGE_ENGINE MANDATORY
+                 LINK_LIBRARIES myisam mysys mysys_ssl
+                 RECOMPILE_FOR_EMBEDDED)
 
 MYSQL_ADD_EXECUTABLE(aria_ftdump maria_ftdump.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_ftdump aria)
@@ -110,3 +100,33 @@ ENDIF()
 
 OPTION(USE_ARIA_FOR_TMP_TABLES "Use Aria for temporary tables" ON)
 
+#
+# S3
+#
+INCLUDE (CheckIncludeFiles)
+
+SET(S3_SOURCES ha_s3.cc s3_func.c
+    libmarias3/src/debug.c libmarias3/src/error.c libmarias3/src/marias3.c
+    libmarias3/src/request.c libmarias3/src/response.c)
+
+IF(NOT PLUGIN_S3 STREQUAL NO)
+  FIND_PACKAGE(LibXml2)
+  FIND_PACKAGE(CURL)
+  CHECK_INCLUDE_FILES (mhash.h HAVE_MHASH_H)
+ENDIF()
+
+IF (LIBXML2_FOUND AND CURL_FOUND AND HAVE_MHASH_H)
+  MYSQL_ADD_PLUGIN(s3 ${S3_SOURCES} STORAGE_ENGINE STATIC_ONLY
+                   LINK_LIBRARIES aria myisam mysys mysys_ssl xml2 curl mhash
+                   RECOMPILE_FOR_EMBEDDED)
+ENDIF()
+
+IF(TARGET s3)
+  MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc COMPONENT Server)
+  TARGET_LINK_LIBRARIES(aria_s3_copy s3)
+
+  INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/libmarias3 ${LIBXML2_INCLUDE_DIR})
+  ADD_DEFINITIONS(-DWITH_S3_STORAGE_ENGINE)
+
+  TARGET_LINK_LIBRARIES(aria s3)
+ENDIF()

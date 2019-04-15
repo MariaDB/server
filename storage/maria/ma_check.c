@@ -6151,7 +6151,7 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename)
                           HA_OPEN_WAIT_IF_LOCKED :
                           (param->testflag & T_DESCRIPT) ?
                           HA_OPEN_IGNORE_IF_LOCKED :
-                          HA_OPEN_ABORT_IF_LOCKED)));
+                          HA_OPEN_ABORT_IF_LOCKED)), 0);
   if (!*org_info)
   {
     _ma_check_print_error(param,
@@ -6532,7 +6532,7 @@ static my_bool create_new_data_handle(MARIA_SORT_PARAM *param, File new_file)
 
   if (!(sort_info->new_info= maria_open(info->s->open_file_name.str, O_RDWR,
                                         HA_OPEN_COPY | HA_OPEN_FOR_REPAIR |
-                                        HA_OPEN_INTERNAL_TABLE)))
+                                        HA_OPEN_INTERNAL_TABLE, 0)))
     DBUG_RETURN(1);
 
   new_info= sort_info->new_info;
