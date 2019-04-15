@@ -1837,6 +1837,14 @@ files_checked:
 			return(srv_init_abort(err));
 		}
 	} else {
+		/* Work around the bug that we were performing a dirty read of
+		at least the TRX_SYS page into the buffer pool above, without
+		reading or applying any redo logs.
+
+		MDEV-19229 FIXME: Remove the dirty reads and this call.
+		Add an assertion that the buffer pool is empty. */
+		buf_pool_invalidate();
+
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
 
