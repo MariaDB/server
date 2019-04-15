@@ -1504,6 +1504,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         next_state= MY_LEX_START;
         return PERCENT_ORACLE_SYM;
       }
+      if (c == '[' && (m_thd->variables.sql_mode & MODE_MSSQL))
+        return scan_ident_delimited(thd, &yylval->ident_cli, ']');
       /* Fall through */
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
@@ -1664,7 +1666,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       return scan_ident_start(thd, &yylval->ident_cli);
 
     case MY_LEX_USER_VARIABLE_DELIMITER:        // Found quote char
-      return scan_ident_delimited(thd, &yylval->ident_cli);
+      return scan_ident_delimited(thd, &yylval->ident_cli, m_tok_start[0]);
 
     case MY_LEX_INT_OR_REAL:                    // Complete int or incomplete real
       if (c != '.' || yyPeek() == '.')
@@ -2236,11 +2238,12 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
 
 
 int Lex_input_stream::scan_ident_delimited(THD *thd,
-                                           Lex_ident_cli_st *str)
+                                           Lex_ident_cli_st *str,
+                                           uchar quote_char)
 {
   CHARSET_INFO *const cs= thd->charset();
   uint double_quotes= 0;
-  uchar c, quote_char= m_tok_start[0];
+  uchar c;
   DBUG_ASSERT(m_ptr == m_tok_start + 1);
 
   while ((c= yyGet()))

@@ -88,6 +88,9 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_SQL_LOG_ON_STR "set session sql_log_off = 1"
 #define SPIDER_SQL_SQL_LOG_ON_LEN sizeof(SPIDER_SQL_SQL_LOG_ON_STR) - 1
 
+#define SPIDER_SQL_WAIT_TIMEOUT_STR "set session wait_timeout = "
+#define SPIDER_SQL_WAIT_TIMEOUT_LEN sizeof(SPIDER_SQL_WAIT_TIMEOUT_STR) - 1
+
 #define SPIDER_SQL_TIME_ZONE_STR "set session time_zone = '"
 #define SPIDER_SQL_TIME_ZONE_LEN sizeof(SPIDER_SQL_TIME_ZONE_STR) - 1
 
@@ -1948,6 +1951,9 @@ int spider_db_mbase::connect(
       connect_retry_count--;
       my_sleep((ulong) connect_retry_interval);
     } else {
+#ifdef SPIDER_NET_HAS_THD
+      db_conn->net.thd = NULL;
+#endif
       if (connect_mutex)
         pthread_mutex_unlock(&spider_open_conn_mutex);
       break;
@@ -2735,6 +2741,44 @@ int spider_db_mbase::set_sql_log_off(
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   }
+  DBUG_RETURN(0);
+}
+
+bool spider_db_mbase::set_wait_timeout_in_bulk_sql()
+{
+  DBUG_ENTER("spider_db_mbase::set_wait_timeout_in_bulk_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
+int spider_db_mbase::set_wait_timeout(
+  int wait_timeout,
+  int *need_mon
+) {
+  char sql_buf[MAX_FIELD_WIDTH];
+  char timeout_str[SPIDER_SQL_INT_LEN];
+  int timeout_str_length;
+  spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
+  DBUG_ENTER("spider_db_mbase::set_wait_timeout");
+  DBUG_PRINT("info",("spider this=%p", this));
+  sql_str.init_calc_mem(264);
+  sql_str.length(0);
+  timeout_str_length =
+    my_sprintf(timeout_str, (timeout_str, "%d", wait_timeout));
+  if (sql_str.reserve(SPIDER_SQL_WAIT_TIMEOUT_LEN + timeout_str_length))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  sql_str.q_append(SPIDER_SQL_WAIT_TIMEOUT_STR, SPIDER_SQL_WAIT_TIMEOUT_LEN);
+  sql_str.q_append(timeout_str, timeout_str_length);
+  if (spider_db_query(
+    conn,
+    sql_str.ptr(),
+    sql_str.length(),
+    -1,
+    need_mon)
+  )
+    DBUG_RETURN(spider_db_errorno(conn));
+  SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
@@ -3704,6 +3748,30 @@ int spider_db_mbase_util::append_sql_log_off(
   } else {
     str->q_append(SPIDER_SQL_SQL_LOG_OFF_STR, SPIDER_SQL_SQL_LOG_OFF_LEN);
   }
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_wait_timeout(
+  spider_string *str,
+  int wait_timeout
+) {
+  char timeout_str[SPIDER_SQL_INT_LEN];
+  int timeout_str_length;
+  DBUG_ENTER("spider_db_mbase_util::append_wait_timeout");
+  DBUG_PRINT("info",("spider this=%p", this));
+  timeout_str_length =
+    my_sprintf(timeout_str, (timeout_str, "%d", wait_timeout));
+  if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_WAIT_TIMEOUT_LEN +
+    timeout_str_length))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  if (str->length())
+  {
+    str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+  }
+  str->q_append(SPIDER_SQL_WAIT_TIMEOUT_STR, SPIDER_SQL_WAIT_TIMEOUT_LEN);
+  str->q_append(timeout_str, timeout_str_length);
   DBUG_RETURN(0);
 }
 

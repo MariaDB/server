@@ -830,7 +830,7 @@ SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t1';
 affected rows: 1
 ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 ALTER TABLE t1 CHANGE m i INT;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
@@ -1654,7 +1654,7 @@ SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t1';
 affected rows: 1
 ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 ALTER TABLE t1 CHANGE m i INT;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
@@ -2478,7 +2478,7 @@ SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t1';
 affected rows: 1
 ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 ALTER TABLE t1 CHANGE m i INT;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0

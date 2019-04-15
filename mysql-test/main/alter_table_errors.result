@@ -1,6 +1,6 @@
 create table t (a int, v int as (a)) engine=innodb;
 alter table t change column a b tinyint, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (

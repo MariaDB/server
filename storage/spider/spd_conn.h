@@ -132,6 +132,11 @@ void spider_conn_queue_sql_log_off(
   bool sql_log_off
 );
 
+void spider_conn_queue_wait_timeout(
+  SPIDER_CONN *conn,
+  int wait_timeout
+);
+
 void spider_conn_queue_time_zone(
   SPIDER_CONN *conn,
   Time_zone *time_zone
