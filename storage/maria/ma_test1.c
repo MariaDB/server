@@ -209,7 +209,7 @@ static int run_test(const char *filename)
 		uniques, &uniquedef, &create_info,
 		create_flag))
     goto err;
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
     goto err;
   if (!silent)
     printf("- Writing key:s\n");
@@ -343,7 +343,7 @@ static int run_test(const char *filename)
     goto err;
   if (maria_close(file))
     goto err;
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
     goto err;
   if (maria_begin(file))
     goto err;

@@ -194,7 +194,7 @@ base_configs="--prefix=$prefix --enable-assembler "
 base_configs="$base_configs --with-extra-charsets=complex "
 base_configs="$base_configs --enable-thread-safe-client "
 base_configs="$base_configs --with-big-tables $maintainer_mode"
-base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables"
+base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables --with-plugin-s3=STATIC"
 # Following is to get tokudb to work
 base_configs="$base_configs --with-jemalloc=NO"
 

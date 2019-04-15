@@ -86,9 +86,25 @@ typedef struct st_pagecache_io_hook_args
   uchar *crypt_buf; /* when using encryption */
 } PAGECACHE_IO_HOOK_ARGS;
 
+struct st_pagecache;
+
+/* Structure to store things from get_object */
+
+typedef struct st_S3_BLOCK
+{
+  uchar *str, *alloc_ptr;
+  size_t length;
+} S3_BLOCK;
+
+
 /* file descriptor for Maria */
 typedef struct st_pagecache_file
 {
+  /* Number of pages in the header which are not read with big blocks */
+  size_t head_blocks;
+  /* size of a big block for S3 or 0 */
+  size_t big_block_size;
+  /* File number */
   File file;
 
   /** Cannot be NULL */
@@ -99,9 +115,9 @@ typedef struct st_pagecache_file
   my_bool (*pre_write_hook)(PAGECACHE_IO_HOOK_ARGS *args);
   void (*post_write_hook)(int error, PAGECACHE_IO_HOOK_ARGS *args);
 
-  /** Cannot be NULL */
   my_bool (*flush_log_callback)(PAGECACHE_IO_HOOK_ARGS *args);
 
+  /** Cannot be NULL */
   uchar *callback_data;
 } PAGECACHE_FILE;
 
@@ -163,6 +179,17 @@ typedef struct st_pagecache
   PAGECACHE_BLOCK_LINK **changed_blocks;
   /* hash for other file bl.*/
   PAGECACHE_BLOCK_LINK **file_blocks;
+
+  /**
+    Function for reading file in big hunks from S3
+    Data will be filled with pointer and length to data read
+    start_page will be contain first page read.
+  */
+  my_bool (*big_block_read)(struct st_pagecache *pagecache,
+                            PAGECACHE_IO_HOOK_ARGS *args,
+                            struct st_pagecache_file *file, S3_BLOCK *data);
+  void (*big_block_free)(S3_BLOCK *data);
+
 
   /*
     The following variables are and variables used to hold parameters for

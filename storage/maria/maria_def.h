@@ -263,6 +263,7 @@ typedef struct st_ma_base_info
   ulong min_pack_length;
   ulong max_pack_length;                /* Max possibly length of packed rec */
   ulong min_block_length;
+  ulong s3_block_size;                  /* Block length for S3 files */
   uint fields;                          /* fields in table */
   uint fixed_not_null_fields;
   uint fixed_not_null_fields_length;
@@ -298,6 +299,8 @@ typedef struct st_ma_base_info
   uint extra_options;
   /* default language, not really used but displayed by maria_chk */
   uint language;
+  /* Compression library used. 0 for no compression */
+  uint compression_algorithm;
 
   /* The following are from the header */
   uint key_parts, all_key_parts;
@@ -362,6 +365,7 @@ typedef struct st_maria_file_bitmap
 #define MARIA_CHECKPOINT_SEEN_IN_LOOP 4
 
 typedef struct st_maria_crypt_data MARIA_CRYPT_DATA;
+struct ms3_st;
 
 typedef struct st_maria_share
 {					/* Shared between opens */
@@ -456,6 +460,7 @@ typedef struct st_maria_share
   uint32 ftkeys;			/* Number of distinct full-text keys
 						   + 1 */
   PAGECACHE_FILE kfile;			/* Shared keyfile */
+  S3_INFO *s3_path;                     /* Connection and path in s3 */
   File data_file;			/* Shared data file */
   int mode;				/* mode of file on open */
   uint reopen;				/* How many times opened */
@@ -609,6 +614,7 @@ struct st_maria_handler
   MARIA_STATUS_INFO *state, state_save;
   MARIA_STATUS_INFO *state_start;       /* State at start of transaction */
   MARIA_USED_TABLES *used_tables;
+  struct ms3_st *s3;
   MARIA_ROW cur_row;                    /* The active row that we just read */
   MARIA_ROW new_row;			/* Storage for a row during update */
   MARIA_KEY last_key;                   /* Last found key */
@@ -712,6 +718,14 @@ struct st_maria_handler
   my_bool create_unique_index_by_sort;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
+};
+
+/* Table options for the Aria and S3 storage engine */
+
+struct ha_table_option_struct
+{
+  ulonglong s3_block_size;
+  uint compression_algorithm;
 };
 
 /* Some defines used by maria-functions */

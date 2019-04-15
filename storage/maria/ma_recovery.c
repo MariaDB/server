@@ -812,7 +812,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
     goto end;
   }
   /* we try hard to get create_rename_lsn, to avoid mistakes if possible */
-  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
@@ -933,7 +933,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
       correctly filled. So we just open the table (fortunately, an empty
       data file does not preclude this).
     */
-    if (((info= maria_open(name, O_RDONLY, 0)) == NULL) ||
+    if (((info= maria_open(name, O_RDONLY, 0, 0)) == NULL) ||
         _ma_initialize_data_file(info->s, info->dfile.file))
     {
       eprint(tracef, "Failed to open new table or write to data file");
@@ -1003,7 +1003,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     log insertions of records into the temporary table, so replaying may
     fail (grep for INCOMPLETE_LOG in files).
   */
-  info= maria_open(old_name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(old_name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
@@ -1052,7 +1052,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     t, renames it to u (if not testing create_rename_lsn) thus overwriting
     old-named v, drops u, and we are stuck, we have lost data.
   */
-  info= maria_open(new_name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(new_name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
@@ -1108,7 +1108,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     eprint(tracef, "Failed to rename table");
     goto end;
   }
-  info= maria_open(new_name, O_RDONLY, 0);
+  info= maria_open(new_name, O_RDONLY, 0, 0);
   if (info == NULL)
   {
     eprint(tracef, "Failed to open renamed table");
@@ -1227,7 +1227,7 @@ prototype_redo_exec_hook(REDO_DROP_TABLE)
   }
   name= (char *)log_record_buffer.str;
   tprint(tracef, "Table '%s'", name);
-  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
@@ -1369,7 +1369,7 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
     goto end;
   }
   tprint(tracef, "Table '%s', id %u", name, sid);
-  info= maria_open(name, O_RDWR, HA_OPEN_FOR_REPAIR);
+  info= maria_open(name, O_RDWR, HA_OPEN_FOR_REPAIR, 0);
   if (info == NULL)
   {
     tprint(tracef, ", is absent (must have been dropped later?)"
