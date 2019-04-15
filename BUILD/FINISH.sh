@@ -42,6 +42,8 @@ cd ./libmariadb
 git submodule update
 cd ../storage/rocksdb/rocksdb
 git submodule update
+cd ../../maria/libmarias3
+git submodule update
 cd ../../.."
 fi
 commands="$commands

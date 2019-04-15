@@ -77,6 +77,9 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
                          0) + KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE +
                         KEYPAGE_USED_SIZE);
   cap->block_size= share.base.block_size;
+  cap->data_file_type= share.state.header.data_file_type;
+  cap->s3_block_size=  share.base.s3_block_size;
+  cap->compression=    share.base.compression_algorithm;
 
   if (share.state.header.data_file_type == BLOCK_RECORD)
   {
@@ -110,7 +113,6 @@ err:
   because maria_backup uses maria_get_capabilities()
 */
 
-
 static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
 {
   bmove(base->uuid, ptr, MY_UUID_SIZE);                 ptr+= MY_UUID_SIZE;
@@ -142,14 +144,15 @@ static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
   base->keys=	       *ptr++;
   base->auto_key=      *ptr++;
   base->born_transactional= *ptr++;
-  ptr++;
+  base->compression_algorithm= *ptr++;
   base->pack_bytes= mi_uint2korr(ptr);			ptr+= 2;
   base->blobs= mi_uint2korr(ptr);			ptr+= 2;
   base->max_key_block_length= mi_uint2korr(ptr);	ptr+= 2;
   base->max_key_length= mi_uint2korr(ptr);		ptr+= 2;
   base->extra_alloc_bytes= mi_uint2korr(ptr);		ptr+= 2;
   base->extra_alloc_procent= *ptr++;
-  ptr+= 16;
+  base->s3_block_size= mi_uint3korr(ptr);               ptr+= 3;
+  ptr+= 13;
   return ptr;
 }
 

@@ -41,7 +41,7 @@ int maria_delete_table(const char *name)
     Unfortunately it is necessary to open the table just to check this. We use
     'open_for_repair' to be able to open even a crashed table.
   */
-  if (!(info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR)))
+  if (!(info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0)))
   {
     sync_dir= 0;
   }

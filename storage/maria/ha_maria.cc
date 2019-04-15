@@ -286,7 +286,7 @@ static MYSQL_SYSVAR_ENUM(sync_log_dir, sync_log_dir, PLUGIN_VAR_RQCMDARG,
 #endif
 my_bool use_maria_for_temp_tables= USE_ARIA_FOR_TMP_TABLES_VAL;
 
-static MYSQL_SYSVAR_BOOL(used_for_temp_tables, 
+static MYSQL_SYSVAR_BOOL(used_for_temp_tables,
        use_maria_for_temp_tables, PLUGIN_VAR_READONLY | PLUGIN_VAR_NOCMDOPT,
        "Whether temporary tables should be MyISAM or Aria", 0, 0,
        1);
@@ -978,7 +978,7 @@ static int maria_create_trn_for_mysql(MARIA_HA *info)
     DBUG_PRINT("info", ("lock_type: %d  trnman_flags: %u",
                         info->lock_type, trnman_get_flags(trn)));
   }
-  
+
 #endif
   DBUG_RETURN(0);
 }
@@ -1060,7 +1060,7 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
   ulong flags;
   if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT)
     flags= 0;
-  else 
+  else
   if ((table_share->key_info[inx].flags & HA_SPATIAL ||
       table_share->key_info[inx].algorithm == HA_KEY_ALG_RTREE))
   {
@@ -1068,7 +1068,7 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
     flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
            HA_READ_ORDER | HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
   }
-  else 
+  else
   {
     flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
           HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN;
@@ -1223,7 +1223,8 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     test_if_locked|= HA_OPEN_ABORT_IF_CRASHED;
   }
 
-  if (!(file= maria_open(name, mode, test_if_locked | HA_OPEN_FROM_SQL_LAYER)))
+  if (!(file= maria_open(name, mode, test_if_locked | HA_OPEN_FROM_SQL_LAYER,
+                         s3_open_args())))
   {
     if (my_errno == HA_ERR_OLD_FILE)
     {
@@ -1253,7 +1254,7 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
       stand up to "when client gets ok the data is safe on disk": the record
       may not even be inserted). In the future, we could enable it back (as a
       client doing INSERT DELAYED knows the specificities; but we then should
-      make sure to regularly commit in the delayed_insert thread). 
+      make sure to regularly commit in the delayed_insert thread).
     */
     int_table_flags|= HA_CAN_INSERT_DELAYED;
   }
@@ -1723,11 +1724,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         error= maria_repair_by_sort(param, file, fixed_name,
                                     MY_TEST(param->testflag & T_QUICK));
       }
-      if (error && file->create_unique_index_by_sort && 
+      if (error && file->create_unique_index_by_sort &&
           share->state.dupp_key != MAX_KEY)
       {
         my_errno= HA_ERR_FOUND_DUPP_KEY;
-        print_keydup_error(table, &table->key_info[share->state.dupp_key], 
+        print_keydup_error(table, &table->key_info[share->state.dupp_key],
                            MYF(0));
       }
     }
@@ -2406,6 +2407,7 @@ int ha_maria::index_read_map(uchar * buf, const uchar * key,
 			     enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(inited == INDEX);
+  register_handler(file);
   int error= maria_rkey(file, buf, active_index, key, keypart_map, find_flag);
   return error;
 }
@@ -2416,13 +2418,15 @@ int ha_maria::index_read_idx_map(uchar * buf, uint index, const uchar * key,
 				 enum ha_rkey_function find_flag)
 {
   int error;
+  register_handler(file);
+
   /* Use the pushed index condition if it matches the index we're scanning */
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
-  
+
   error= maria_rkey(file, buf, index, key, keypart_map, find_flag);
-   
+
   ma_set_index_cond_func(file, NULL, 0);
   return error;
 }
@@ -2433,6 +2437,7 @@ int ha_maria::index_read_last_map(uchar * buf, const uchar * key,
 {
   DBUG_ENTER("ha_maria::index_read_last_map");
   DBUG_ASSERT(inited == INDEX);
+  register_handler(file);
   int error= maria_rkey(file, buf, active_index, key, keypart_map,
                         HA_READ_PREFIX_LAST);
   DBUG_RETURN(error);
@@ -2442,6 +2447,7 @@ int ha_maria::index_read_last_map(uchar * buf, const uchar * key,
 int ha_maria::index_next(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
+  register_handler(file);
   int error= maria_rnext(file, buf, active_index);
   return error;
 }
@@ -2450,6 +2456,7 @@ int ha_maria::index_next(uchar * buf)
 int ha_maria::index_prev(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
+  register_handler(file);
   int error= maria_rprev(file, buf, active_index);
   return error;
 }
@@ -2458,6 +2465,7 @@ int ha_maria::index_prev(uchar * buf)
 int ha_maria::index_first(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
+  register_handler(file);
   int error= maria_rfirst(file, buf, active_index);
   return error;
 }
@@ -2466,6 +2474,7 @@ int ha_maria::index_first(uchar * buf)
 int ha_maria::index_last(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
+  register_handler(file);
   int error= maria_rlast(file, buf, active_index);
   return error;
 }
@@ -2477,6 +2486,7 @@ int ha_maria::index_next_same(uchar * buf,
 {
   int error;
   DBUG_ASSERT(inited == INDEX);
+  register_handler(file);
   /*
     TODO: Delete this loop in Maria 1.5 as versioning will ensure this never
     happens
@@ -2490,11 +2500,11 @@ int ha_maria::index_next_same(uchar * buf,
 
 
 int ha_maria::index_init(uint idx, bool sorted)
-{ 
+{
   active_index=idx;
   if (pushed_idx_cond_keyno == idx)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
-  return 0; 
+  return 0;
 }
 
 
@@ -2504,7 +2514,7 @@ int ha_maria::index_end()
   ma_set_index_cond_func(file, NULL, 0);
   in_range_check_pushed_down= FALSE;
   ds_mrr.dsmrr_close();
-  return 0; 
+  return 0;
 }
 
 
@@ -2527,13 +2537,14 @@ int ha_maria::rnd_end()
 
 int ha_maria::rnd_next(uchar *buf)
 {
-  int error= maria_scan(file, buf);
-  return error;
+  register_handler(file);
+  return maria_scan(file, buf);
 }
 
 
 int ha_maria::remember_rnd_pos()
 {
+  register_handler(file);
   return (*file->s->scan_remember_pos)(file, &remember_pos);
 }
 
@@ -2541,6 +2552,7 @@ int ha_maria::remember_rnd_pos()
 int ha_maria::restart_rnd_next(uchar *buf)
 {
   int error;
+  register_handler(file);
   if ((error= (*file->s->scan_restore_pos)(file, remember_pos)))
     return error;
   return rnd_next(buf);
@@ -2549,6 +2561,7 @@ int ha_maria::restart_rnd_next(uchar *buf)
 
 int ha_maria::rnd_pos(uchar *buf, uchar *pos)
 {
+  register_handler(file);
   int error= maria_rrnd(file, buf, my_get_ptr(pos, ref_length));
   return error;
 }
@@ -2608,11 +2621,13 @@ int ha_maria::info(uint flag)
     data_file_name= index_file_name= 0;
     fn_format(name_buff, file->s->open_file_name.str, "", MARIA_NAME_DEXT,
               MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (strcmp(name_buff, maria_info.data_file_name))
-      data_file_name =maria_info.data_file_name;
+    if (strcmp(name_buff, maria_info.data_file_name) &&
+        maria_info.data_file_name[0])
+      data_file_name= maria_info.data_file_name;
     fn_format(name_buff, file->s->open_file_name.str, "", MARIA_NAME_IEXT,
               MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (strcmp(name_buff, maria_info.index_file_name))
+    if (strcmp(name_buff, maria_info.index_file_name) &&
+        maria_info.index_file_name[0])
       index_file_name=maria_info.index_file_name;
   }
   if (flag & HA_STATUS_ERRKEY)
@@ -3138,6 +3153,7 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   MARIA_CREATE_INFO create_info;
   TABLE_SHARE *share= table_arg->s;
   uint options= share->db_options_in_use;
+  ha_table_option_struct *table_options= table_arg->s->option_struct;
   enum data_file_type row_type;
   THD *thd= current_thd;
   DBUG_ENTER("ha_maria::create");
@@ -3182,6 +3198,12 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   create_info.data_file_name= ha_create_info->data_file_name;
   create_info.index_file_name= ha_create_info->index_file_name;
   create_info.language= share->table_charset->number;
+  if (ht != maria_hton)
+  {
+    /* S3 engine */
+    create_info.s3_block_size= (ulong) table_options->s3_block_size;
+    create_info.compression_algorithm= table_options->compression_algorithm;
+  }
 
   /*
     Table is transactional:
@@ -3780,7 +3802,7 @@ my_bool ha_maria::register_query_cache_table(THD *thd, const char *table_name,
 }
 #endif
 
-struct st_mysql_sys_var* system_variables[]= {
+static struct st_mysql_sys_var *system_variables[]= {
   MYSQL_SYSVAR(block_size),
   MYSQL_SYSVAR(checkpoint_interval),
   MYSQL_SYSVAR(checkpoint_log_activity),
@@ -3920,7 +3942,7 @@ static void update_log_file_size(MYSQL_THD thd,
 }
 
 
-SHOW_VAR status_variables[]= {
+static SHOW_VAR status_variables[]= {
   {"pagecache_blocks_not_flushed", (char*) &maria_pagecache_var.global_blocks_changed, SHOW_LONG},
   {"pagecache_blocks_unused",      (char*) &maria_pagecache_var.blocks_unused, SHOW_LONG},
   {"pagecache_blocks_used",        (char*) &maria_pagecache_var.blocks_used, SHOW_LONG},
@@ -3937,7 +3959,7 @@ SHOW_VAR status_variables[]= {
  ***************************************************************************/
 
 int ha_maria::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                                    uint n_ranges, uint mode, 
+                                    uint n_ranges, uint mode,
                                     HANDLER_BUFFER *buf)
 {
   return ds_mrr.dsmrr_init(this, seq, seq_init_param, n_ranges, mode, buf);
@@ -3949,7 +3971,7 @@ int ha_maria::multi_range_read_next(range_id_t *range_info)
 }
 
 ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                               void *seq_init_param, 
+                                               void *seq_init_param,
                                                uint n_ranges, uint *bufsz,
                                                uint *flags, Cost_estimate *cost)
 {
@@ -3964,14 +3986,14 @@ ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 }
 
 ha_rows ha_maria::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
-                                       uint key_parts, uint *bufsz, 
+                                       uint key_parts, uint *bufsz,
                                        uint *flags, Cost_estimate *cost)
 {
   ds_mrr.init(this, table);
   return ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags, cost);
 }
 
-int ha_maria::multi_range_read_explain_info(uint mrr_mode, char *str, 
+int ha_maria::multi_range_read_explain_info(uint mrr_mode, char *str,
                                             size_t size)
 {
   return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
@@ -4028,6 +4050,7 @@ Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 int ha_maria::find_unique_row(uchar *record, uint constrain_no)
 {
   int rc;
+  register_handler(file);
   if (file->s->state.header.uniques)
   {
     DBUG_ASSERT(file->s->state.header.uniques > constrain_no);

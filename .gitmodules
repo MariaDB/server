@@ -8,3 +8,6 @@
 	path = wsrep-lib
 	url = https://github.com/codership/wsrep-lib.git
 	branch = master
+[submodule "storage/maria/libmarias3"]
+	path = storage/maria/libmarias3
+	url = https://github.com/mariadb-corporation/libmarias3

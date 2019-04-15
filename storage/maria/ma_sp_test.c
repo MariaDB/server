@@ -119,7 +119,7 @@ int run_test(const char *filename)
   if (!silent)
     printf("- Open isam-file\n");
 
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
     goto err;
 
   if (!silent)

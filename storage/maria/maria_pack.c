@@ -404,7 +404,7 @@ static MARIA_HA *open_maria_file(char *name,int mode)
 
   if (!(isam_file=maria_open(name, mode, HA_OPEN_IGNORE_MOVED_STATE |
 			  (opt_wait ? HA_OPEN_WAIT_IF_LOCKED :
-			   HA_OPEN_ABORT_IF_LOCKED))))
+			   HA_OPEN_ABORT_IF_LOCKED), 0)))
   {
     fprintf(stderr, "%s gave error %d on open\n", name, my_errno);
     DBUG_RETURN(0);

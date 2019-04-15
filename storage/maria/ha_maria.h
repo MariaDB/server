@@ -48,7 +48,7 @@ class ha_maria :public handler
   bool can_enable_indexes;
   /**
     If a transactional table is doing bulk insert with a single
-    UNDO_BULK_INSERT with/without repair. 
+    UNDO_BULK_INSERT with/without repair.
   */
   uint8 bulk_insert_single_undo;
   int repair(THD * thd, HA_CHECK *param, bool optimize);
@@ -180,22 +180,28 @@ public:
                             uint n_ranges, uint mode, HANDLER_BUFFER *buf);
   int multi_range_read_next(range_id_t *range_info);
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                      void *seq_init_param, 
+                                      void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
                                       uint *flags, Cost_estimate *cost);
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
-                                uint key_parts, uint *bufsz, 
+                                uint key_parts, uint *bufsz,
                                 uint *flags, Cost_estimate *cost);
   int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
-  
+
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond);
 
   int find_unique_row(uchar *record, uint unique_idx);
+
+  /* Following functions are needed by the S3 handler */
+  virtual S3_INFO *s3_open_args() { return 0; }
+  virtual void register_handler(MARIA_HA *file) {}
+
 private:
   DsMrr_impl ds_mrr;
   friend ICP_RESULT index_cond_func_maria(void *arg);
   friend void reset_thd_trn(THD *thd);
+  friend class ha_s3;
 };
 
 #endif /* HA_MARIA_INCLUDED */
