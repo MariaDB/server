@@ -139,6 +139,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_IN_LEN (sizeof(SPIDER_SQL_IN_STR) - 1)
 #define SPIDER_SQL_NOT_IN_STR "not in("
 #define SPIDER_SQL_NOT_IN_LEN (sizeof(SPIDER_SQL_NOT_IN_STR) - 1)
+#define SPIDER_SQL_NOT_LIKE_STR "not like"
+#define SPIDER_SQL_NOT_LIKE_LEN (sizeof(SPIDER_SQL_NOT_LIKE_STR) - 1)
 #define SPIDER_SQL_AS_CHAR_STR " as char"
 #define SPIDER_SQL_AS_CHAR_LEN (sizeof(SPIDER_SQL_AS_CHAR_STR) - 1)
 #define SPIDER_SQL_CAST_STR "cast("

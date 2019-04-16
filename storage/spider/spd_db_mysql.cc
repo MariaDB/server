@@ -3948,11 +3948,25 @@ int spider_db_mysql_util::open_item_func(
     case Item_func::LE_FUNC:
     case Item_func::GE_FUNC:
     case Item_func::GT_FUNC:
-    case Item_func::LIKE_FUNC:
       if (str)
       {
         func_name = (char*) item_func->func_name();
         func_name_length = strlen(func_name);
+      }
+      break;
+    case Item_func::LIKE_FUNC:
+      if (str)
+      {
+         if (((Item_func_like *)item_func)->negated)
+         {
+            func_name = SPIDER_SQL_NOT_LIKE_STR;
+            func_name_length = SPIDER_SQL_NOT_LIKE_LEN;
+         }
+         else
+         {
+            func_name = (char*)item_func->func_name();
+            func_name_length = strlen(func_name);
+         }
       }
       break;
     default:
