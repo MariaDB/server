@@ -183,7 +183,10 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   if (!lex->derived_tables)
     DBUG_RETURN(FALSE);
 
-  derived->select_lex->changed_elements|= TOUCHED_SEL_DERIVED;
+  if (derived->select_lex)
+    derived->select_lex->changed_elements|= TOUCHED_SEL_DERIVED;
+  else
+    DBUG_ASSERT(derived->prelocking_placeholder);
   lex->thd->derived_tables_processing= TRUE;
 
   for (uint phase= 0; phase < DT_PHASES; phase++)
