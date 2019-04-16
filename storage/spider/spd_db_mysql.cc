@@ -4864,9 +4864,10 @@ int spider_db_mbase_util::open_item_func(
       }
       break;
     case Item_func::LIKE_FUNC:
+#ifdef SPIDER_LIKE_FUNC_HAS_GET_NEGATED
       if (str)
       {
-         if (((Item_func_like *)item_func)->negated)
+         if (((Item_func_like *)item_func)->get_negated())
          {
             func_name = SPIDER_SQL_NOT_LIKE_STR;
             func_name_length = SPIDER_SQL_NOT_LIKE_LEN;
@@ -4878,6 +4879,9 @@ int spider_db_mbase_util::open_item_func(
          }
       }
       break;
+#else
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+#endif
     default:
       THD *thd = spider->trx->thd;
       SPIDER_SHARE *share = spider->share;
