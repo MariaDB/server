@@ -224,3 +224,9 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 
+#
+# Bug#27302459: EMPTY VALUE IN MYSQL.PLUGIN TABLE CAUSES SERVER TO EXIT ON STARTUP
+#
+insert mysql.plugin values ();
+source include/restart_mysqld.inc;
+delete from mysql.plugin where name = '';

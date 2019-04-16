@@ -277,3 +277,5 @@ UNUSABLE
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 plugin_name
+insert mysql.plugin values ();
+delete from mysql.plugin where name = '';

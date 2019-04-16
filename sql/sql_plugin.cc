@@ -1781,6 +1781,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
     LEX_STRING name= {(char *)str_name.ptr(), str_name.length()};
     LEX_STRING dl= {(char *)str_dl.ptr(), str_dl.length()};
 
+    if (!name.length || !dl.length)
+      continue;
+
     /*
       there're no other threads running yet, so we don't need a mutex.
       but plugin_add() before is designed to work in multi-threaded
