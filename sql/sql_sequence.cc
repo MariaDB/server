@@ -487,9 +487,12 @@ int SEQUENCE::read_initial_values(TABLE *table)
       Doing mysql_lock_tables() may have started a read only transaction.
       If that happend, it's better that we commit it now, as a lot of
       code assumes that there is no active stmt transaction directly after
-      open_tables()
+      open_tables().
+      But we also don't want to commit the stmt transaction while in a
+      substatement, see MDEV-15977.
     */
-    if (!has_active_transaction && !thd->transaction.stmt.is_empty())
+    if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
+        !thd->in_sub_stmt)
       trans_commit_stmt(thd);
   }
   write_unlock(table);
