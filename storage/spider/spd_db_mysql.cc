@@ -4880,6 +4880,7 @@ int spider_db_mbase_util::append_sql_mode(
   sql_mode_t sql_mode
 ) {
   int error_num;
+  uint length;
   DBUG_ENTER("spider_db_mbase_util::append_sql_mode");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_SQL_MODE_LEN))
@@ -4891,11 +4892,12 @@ int spider_db_mbase_util::append_sql_mode(
     str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
   }
   str->q_append(SPIDER_SQL_SQL_MODE_STR, SPIDER_SQL_SQL_MODE_LEN);
+  length = str->length();
   if ((error_num = append_sql_mode_internal(str, sql_mode)))
   {
     DBUG_RETURN(error_num);
   }
-  if (str->length() > SPIDER_SQL_SQL_MODE_LEN)
+  if (str->length() > length)
   {
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
   } else {
