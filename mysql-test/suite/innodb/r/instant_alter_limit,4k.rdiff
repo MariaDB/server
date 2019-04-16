@@ -1,0 +1,9 @@
+--- instant_alter_limit.result
++++ instant_alter_limit.result
+@@ -42,5 +42,5 @@
+ FROM information_schema.global_status
+ WHERE variable_name = 'innodb_instant_alter_column';
+ instants
+-502
++474
+ DROP TABLE t;
