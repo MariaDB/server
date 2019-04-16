@@ -1977,8 +1977,8 @@ union
 ( select * from t1
 where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ref|filter	f1,f2	f2|f1	33|13	const	1 (2%)	Using index condition; Using where; Using rowid filter
-2	UNION	t1	ref|filter	f1,f2	f2|f1	33|13	const	1 (2%)	Using index condition; Using where; Using rowid filter
+1	PRIMARY	t1	index_merge	f1,f2	f1,f2	13,33	NULL	1	Using intersect(f1,f2); Using where
+2	UNION	t1	index_merge	f1,f2	f1,f2	13,33	NULL	1	Using intersect(f1,f2); Using where
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json ( select * from t1
 where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
@@ -1997,24 +1997,24 @@ EXPLAIN
             "select_id": 1,
             "table": {
               "table_name": "t1",
-              "access_type": "ref",
+              "access_type": "index_merge",
               "possible_keys": ["f1", "f2"],
-              "key": "f2",
-              "key_length": "33",
-              "used_key_parts": ["f2"],
-              "ref": ["const"],
-              "rowid_filter": {
-                "range": {
-                  "key": "f1",
-                  "used_key_parts": ["f1"]
-                },
-                "rows": 1,
-                "selectivity_pct": 1.5873
+              "key_length": "13,33",
+              "index_merge": {
+                "intersect": {
+                  "range": {
+                    "key": "f1",
+                    "used_key_parts": ["f1"]
+                  },
+                  "range": {
+                    "key": "f2",
+                    "used_key_parts": ["f2"]
+                  }
+                }
               },
               "rows": 1,
-              "filtered": 100,
-              "index_condition": "t1.f2 is null",
-              "attached_condition": "t1.f1 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
+              "filtered": 1.5873,
+              "attached_condition": "t1.f1 is null and t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
             }
           }
         },
@@ -2024,24 +2024,24 @@ EXPLAIN
             "operation": "UNION",
             "table": {
               "table_name": "t1",
-              "access_type": "ref",
+              "access_type": "index_merge",
               "possible_keys": ["f1", "f2"],
-              "key": "f2",
-              "key_length": "33",
-              "used_key_parts": ["f2"],
-              "ref": ["const"],
-              "rowid_filter": {
-                "range": {
-                  "key": "f1",
-                  "used_key_parts": ["f1"]
-                },
-                "rows": 1,
-                "selectivity_pct": 1.5873
+              "key_length": "13,33",
+              "index_merge": {
+                "intersect": {
+                  "range": {
+                    "key": "f1",
+                    "used_key_parts": ["f1"]
+                  },
+                  "range": {
+                    "key": "f2",
+                    "used_key_parts": ["f2"]
+                  }
+                }
               },
               "rows": 1,
-              "filtered": 100,
-              "index_condition": "t1.f2 is null",
-              "attached_condition": "t1.f1 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
+              "filtered": 1.5873,
+              "attached_condition": "t1.f1 is null and t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
             }
           }
         }
@@ -2050,4 +2050,24 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-19195: possible RORI-plan and possible plan with range filter
+#             for not first joined table
+#
+create table t1 (id int not null primary key) engine=innodb;
+insert into t1 values (2),(1);
+create table t2 (y int,x int,index (x),index (y)) engine=innodb;
+insert into t2 values
+(4,1),(4,777),(2,1),(2,888),(111,1),(222,1),(333,345),(444,1),
+(555,555),(666,1);
+select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
+id	y	x
+1	2	1
+explain extended select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
+1	SIMPLE	t2	index_merge	x,y	y,x	5,5	NULL	1	100.00	Using intersect(y,x); Using where; Using index
+Warnings:
+Note	1003	select 1 AS `id`,`test`.`t2`.`y` AS `y`,`test`.`t2`.`x` AS `x` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`y` = 2 and `test`.`t2`.`x` = 1
+drop table t1, t2;
 SET SESSION STORAGE_ENGINE=DEFAULT;
