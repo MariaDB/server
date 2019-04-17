@@ -2618,6 +2618,10 @@ public:
   {
     return result_field->type();
   }
+  CHARSET_INFO *charset_for_protocol(void) const
+  {
+    return collation.collation;
+  }
 #else
   const Type_handler *type_handler() const
   {
@@ -3942,6 +3946,12 @@ public:
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field)
   { return (*ref)->setup_fast_field_copier(field); }
+#if MARIADB_VERSION_ID < 100300
+  CHARSET_INFO *charset_for_protocol(void) const
+  {
+    return (*ref)->charset_for_protocol();
+  }
+#endif
   enum Item_result result_type () const { return (*ref)->result_type(); }
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()
