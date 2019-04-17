@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB
+   Copyright (c) 2000, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2358,8 +2358,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                     table->table_name););
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
-  thd->thread_specific_used|= (trans_tmp_table_deleted ||
-                               non_trans_tmp_table_deleted);
+  thd->thread_specific_used= TRUE;
   error= 0;
 err:
   if (wrong_tables.length())
