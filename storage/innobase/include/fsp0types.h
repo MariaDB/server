@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -255,8 +255,7 @@ or have been introduced in MySQL 5.7 or 8.0:
 =====================================================================
 The flags below only exist in fil_space_t::flags, not in FSP_SPACE_FLAGS:
 =====================================================================
-						25: DATA_DIR
-						26..27: ATOMIC_WRITES
+						27: DATA_DIR
 						28..31: COMPRESSION_LEVEL
 */
 
@@ -264,9 +263,9 @@ The flags below only exist in fil_space_t::flags, not in FSP_SPACE_FLAGS:
 #define FSP_FLAGS_MEM_MASK		(~0U << FSP_FLAGS_MEM_DATA_DIR)
 
 /** Zero relative shift position of the DATA_DIR flag */
-#define FSP_FLAGS_MEM_DATA_DIR		25
+#define FSP_FLAGS_MEM_DATA_DIR		27
 /** Zero relative shift position of the COMPRESSION_LEVEL field */
-#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	26
+#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	28
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0
