@@ -249,20 +249,6 @@ err:
 } /* maria_clone_internal */
 
 
-/* Make a clone of a maria table */
-
-MARIA_HA *maria_clone(MARIA_SHARE *share, int mode)
-{
-  MARIA_HA *new_info;
-  mysql_mutex_lock(&THR_LOCK_maria);
-  new_info= maria_clone_internal(share, mode,
-                                 share->data_file_type == BLOCK_RECORD ?
-                                 share->bitmap.file.file : -1, 0);
-  mysql_mutex_unlock(&THR_LOCK_maria);
-  return new_info;
-}
-
-
 /******************************************************************************
   open a MARIA table
 
