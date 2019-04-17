@@ -155,10 +155,22 @@ struct file_name_t {
 	/** FSP_SIZE of tablespace */
 	ulint		size;
 
+	/** the log sequence number of the last observed MLOG_INDEX_LOAD
+	record for the tablespace */
+	lsn_t		enable_lsn;
+
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted) :
 		name(name_), space(NULL), status(deleted ? DELETED: NORMAL),
-		size(0) {}
+		size(0), enable_lsn(0) {}
+
+	/** Report a MLOG_INDEX_LOAD operation, meaning that
+	mlog_init for any earlier LSN must be skipped.
+	@param lsn	log sequence number of the MLOG_INDEX_LOAD */
+	void mlog_index_load(lsn_t lsn)
+	{
+		if (enable_lsn < lsn) enable_lsn = lsn;
+	}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -174,6 +186,8 @@ static recv_spaces_t	recv_spaces;
 enum recv_addr_state {
 	/** not yet processed */
 	RECV_NOT_PROCESSED,
+	/** not processed; the page will be reinitialized */
+	RECV_WILL_NOT_READ,
 	/** page is being read */
 	RECV_BEING_READ,
 	/** log records are being applied on the page */
@@ -219,6 +233,117 @@ void (*log_truncate)();
 void (*log_file_op)(ulint space_id, const byte* flags,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
+
+/** Information about initializing page contents during redo log processing */
+class mlog_init_t
+{
+public:
+	/** A page initialization operation that was parsed from
+	the redo log */
+	struct init {
+		/** log sequence number of the page initialization */
+		lsn_t lsn;
+		/** Whether btr_page_create() avoided a read of the page.
+
+		At the end of the last recovery batch, ibuf_merge()
+		will invoke change buffer merge for pages that reside
+		in the buffer pool. (In the last batch, loading pages
+		would trigger change buffer merge.) */
+		bool created;
+	};
+
+private:
+	typedef std::map<const page_id_t, init,
+			 std::less<const page_id_t>,
+			 ut_allocator<std::pair<const page_id_t, init> > >
+		map;
+	/** Map of page initialization operations.
+	FIXME: Merge this to recv_sys->addr_hash! */
+	map inits;
+public:
+	/** Record that a page will be initialized by the redo log.
+	@param[in]	space		tablespace identifier
+	@param[in]	page_no		page number
+	@param[in]	lsn		log sequence number */
+	void add(ulint space, ulint page_no, lsn_t lsn)
+	{
+		ut_ad(mutex_own(&recv_sys->mutex));
+		const init init = { lsn, false };
+		std::pair<map::iterator, bool> p = inits.insert(
+			map::value_type(page_id_t(space, page_no), init));
+		ut_ad(!p.first->second.created);
+		if (!p.second && p.first->second.lsn < init.lsn) {
+			p.first->second = init;
+		}
+	}
+
+	/** Get the last stored lsn of the page id and its respective
+	init/load operation.
+	@param[in]	page_id	page id
+	@param[in,out]	init	initialize log or load log
+	@return the latest page initialization;
+	not valid after releasing recv_sys->mutex. */
+	init& last(page_id_t page_id)
+	{
+		ut_ad(mutex_own(&recv_sys->mutex));
+		return inits.find(page_id)->second;
+	}
+
+	/** At the end of each recovery batch, reset the 'created' flags. */
+	void reset()
+	{
+		ut_ad(mutex_own(&recv_sys->mutex));
+		ut_ad(recv_no_ibuf_operations);
+		for (map::iterator i= inits.begin(); i != inits.end(); i++) {
+			i->second.created = false;
+		}
+	}
+
+	/** On the last recovery batch, merge buffered changes to those
+	pages that were initialized by buf_page_create() and still reside
+	in the buffer pool. Stale pages are not allowed in the buffer pool.
+
+	Note: When MDEV-14481 implements redo log apply in the
+	background, we will have to ensure that buf_page_get_gen()
+	will not deliver stale pages to users (pages on which the
+	change buffer was not merged yet).  Normally, the change
+	buffer merge is performed on I/O completion. Maybe, add a
+	flag to buf_page_t and perform the change buffer merge on
+	the first actual access?
+	@param[in,out]	mtr	dummy mini-transaction */
+	void ibuf_merge(mtr_t& mtr)
+	{
+		ut_ad(mutex_own(&recv_sys->mutex));
+		ut_ad(!recv_no_ibuf_operations);
+		mtr.start();
+
+		for (map::const_iterator i= inits.begin(); i != inits.end();
+		     i++) {
+			if (!i->second.created) {
+				continue;
+			}
+			if (buf_block_t* block = buf_page_get_gen(
+				    i->first, univ_page_size, RW_X_LATCH, NULL,
+				    BUF_GET_IF_IN_POOL, __FILE__, __LINE__,
+				    &mtr, NULL)) {
+				mutex_exit(&recv_sys->mutex);
+				ibuf_merge_or_delete_for_page(
+					block, i->first,
+					&block->page.size, true);
+				mtr.commit();
+				mtr.start();
+				mutex_enter(&recv_sys->mutex);
+			}
+		}
+
+		mtr.commit();
+	}
+
+	/** Clear the data structure */
+	void clear() { inits.clear(); }
+};
+
+static mlog_init_t mlog_init;
 
 /** Process a MLOG_CREATE2 record that indicates that a tablespace
 is being shrunk in size.
@@ -621,6 +746,7 @@ recv_sys_close()
 	}
 
 	recv_spaces.clear();
+	mlog_init.clear();
 }
 
 /************************************************************
@@ -1843,6 +1969,18 @@ recv_add_to_hash_table(
 		recv_sys->n_addrs++;
 	}
 
+	switch (type) {
+	case MLOG_INIT_FILE_PAGE2:
+	case MLOG_ZIP_PAGE_COMPRESS:
+		/* Ignore any earlier redo log records for this page. */
+		ut_ad(recv_addr->state == RECV_NOT_PROCESSED
+		      || recv_addr->state == RECV_WILL_NOT_READ);
+		recv_addr->state = RECV_WILL_NOT_READ;
+		mlog_init.add(space, page_no, start_lsn);
+	default:
+		break;
+	}
+
 	UT_LIST_ADD_LAST(recv_addr->rec_list, recv);
 
 	prev_field = &(recv->data);
@@ -1911,9 +2049,10 @@ recv_data_copy_to_buf(
 lsn of a log record.
 @param[in,out]	block		buffer pool page
 @param[in,out]	mtr		mini-transaction
-@param[in,out]	recv_addr	recovery address */
+@param[in,out]	recv_addr	recovery address
+@param[in]	init_lsn	the initial LSN where to start recovery */
 static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
-			      recv_addr_t* recv_addr)
+			      recv_addr_t* recv_addr, lsn_t init_lsn = 0)
 {
 	page_t*		page;
 	page_zip_des_t*	page_zip;
@@ -1961,6 +2100,15 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 		if (recv->start_lsn < page_lsn) {
 			/* Ignore this record, because there are later changes
 			for this page. */
+			DBUG_LOG("ib_log", "apply skip "
+				 << get_mlog_string(recv->type)
+				 << " LSN " << recv->start_lsn << " < "
+				 << page_lsn);
+		} else if (recv->start_lsn < init_lsn) {
+			DBUG_LOG("ib_log", "init skip "
+				 << get_mlog_string(recv->type)
+				 << " LSN " << recv->start_lsn << " < "
+				 << init_lsn);
 		} else if (srv_was_tablespace_truncated(
 				   fil_space_get(recv_addr->space))
 			   && recv->start_lsn
@@ -2207,6 +2355,7 @@ ignore:
 			case RECV_DISCARDED:
 				goto ignore;
 			case RECV_NOT_PROCESSED:
+			case RECV_WILL_NOT_READ:
 				break;
 			}
 
@@ -2220,19 +2369,95 @@ ignore:
 			const page_id_t page_id(recv_addr->space,
 						recv_addr->page_no);
 
-			mtr.start();
-			mtr.set_log_mode(MTR_LOG_NONE);
-			if (buf_block_t* block = buf_page_get_gen(
-				    page_id, univ_page_size, RW_X_LATCH,
-				    NULL, BUF_GET_IF_IN_POOL,
-				    __FILE__, __LINE__, &mtr, NULL)) {
-				buf_block_dbg_add_level(
-					block, SYNC_NO_ORDER_CHECK);
-				recv_recover_page(block, mtr, recv_addr);
-				ut_ad(mtr.has_committed());
+			if (recv_addr->state == RECV_NOT_PROCESSED) {
+apply:
+				mtr.start();
+				mtr.set_log_mode(MTR_LOG_NONE);
+				if (buf_block_t* block = buf_page_get_gen(
+					    page_id, univ_page_size,
+					    RW_X_LATCH, NULL,
+					    BUF_GET_IF_IN_POOL,
+					    __FILE__, __LINE__, &mtr, NULL)) {
+					buf_block_dbg_add_level(
+						block, SYNC_NO_ORDER_CHECK);
+					recv_recover_page(block, mtr,
+							  recv_addr);
+					ut_ad(mtr.has_committed());
+				} else {
+					mtr.commit();
+					recv_read_in_area(page_id);
+				}
 			} else {
-				mtr.commit();
-				recv_read_in_area(page_id);
+				mlog_init_t::init& i = mlog_init.last(page_id);
+				const lsn_t end_lsn = UT_LIST_GET_LAST(
+					recv_addr->rec_list)->end_lsn;
+
+				if (end_lsn < i.lsn) {
+					DBUG_LOG("ib_log", "skip log for page "
+						 << page_id
+						 << " LSN " << end_lsn
+						 << " < " << i.lsn);
+skip:
+					recv_addr->state = RECV_PROCESSED;
+					goto ignore;
+				}
+
+				fil_space_t* space = fil_space_acquire(
+					recv_addr->space);
+				if (!space) {
+					goto skip;
+				}
+
+				if (space->enable_lsn) {
+do_read:
+					fil_space_release(space);
+					recv_addr->state = RECV_NOT_PROCESSED;
+					goto apply;
+				}
+
+				/* Determine if a tablespace could be
+				for an internal table for FULLTEXT INDEX.
+				For those tables, no MLOG_INDEX_LOAD record
+				used to be written when redo logging was
+				disabled. Hence, we cannot optimize
+				away page reads, because all the redo
+				log records for initializing and
+				modifying the page in the past could
+				be older than the page in the data
+				file.
+
+				The check is too broad, causing all
+				tables whose names start with FTS_ to
+				skip the optimization. */
+
+				if (strstr(space->name, "/FTS_")) {
+					goto do_read;
+				}
+
+				mtr.start();
+				mtr.set_log_mode(MTR_LOG_NONE);
+				buf_block_t* block = buf_page_create(
+					page_id, page_size_t(space->flags),
+					&mtr);
+				if (recv_addr->state == RECV_PROCESSED) {
+					/* The page happened to exist
+					in the buffer pool, or it was
+					just being read in. Before
+					buf_page_get_with_no_latch()
+					returned, all changes must have
+					been applied to the page already. */
+					mtr.commit();
+				} else {
+					i.created = true;
+					buf_block_dbg_add_level(
+						block, SYNC_NO_ORDER_CHECK);
+					mtr.x_latch_at_savepoint(0, block);
+					recv_recover_page(block, mtr,
+							  recv_addr, i.lsn);
+					ut_ad(mtr.has_committed());
+				}
+
+				fil_space_release(space);
 			}
 		}
 	}
@@ -2240,7 +2465,13 @@ ignore:
 	/* Wait until all the pages have been processed */
 
 	while (recv_sys->n_addrs != 0) {
-		bool abort = recv_sys->found_corrupt_log;
+		const bool abort = recv_sys->found_corrupt_log
+			|| recv_sys->found_corrupt_fs;
+
+		if (recv_sys->found_corrupt_fs && !srv_force_recovery) {
+			ib::info() << "Set innodb_force_recovery=1"
+				" to ignore corrupted pages.";
+		}
 
 		mutex_exit(&(recv_sys->mutex));
 
@@ -2279,6 +2510,10 @@ ignore:
 
 		log_mutex_enter();
 		mutex_enter(&(recv_sys->mutex));
+		mlog_init.reset();
+	} else if (!recv_no_ibuf_operations) {
+		/* We skipped this in buf_page_create(). */
+		mlog_init.ibuf_merge(mtr);
 	}
 
 	recv_sys->apply_log_recs = FALSE;
@@ -2480,9 +2715,17 @@ recv_report_corrupt_log(
 }
 
 /** Report a MLOG_INDEX_LOAD operation.
-@param[in]	space_id	tablespace identifier */
-ATTRIBUTE_COLD static void recv_mlog_index_load(ulint space_id)
+@param[in]	space_id	tablespace id
+@param[in]	page_no		page number
+@param[in]	lsn		log sequence number */
+ATTRIBUTE_COLD static void
+recv_mlog_index_load(ulint space_id, ulint page_no, lsn_t lsn)
 {
+	recv_spaces_t::iterator it = recv_spaces.find(space_id);
+	if (it != recv_spaces.end()) {
+		it->second.mlog_index_load(lsn);
+	}
+
 	if (log_optimized_ddl_op) {
 		log_optimized_ddl_op(space_id);
 	}
@@ -2646,7 +2889,7 @@ loop:
 			/* fall through */
 		case MLOG_INDEX_LOAD:
 			if (type == MLOG_INDEX_LOAD) {
-				recv_mlog_index_load(space);
+				recv_mlog_index_load(space, page_no, old_lsn);
 			}
 			/* fall through */
 		case MLOG_FILE_NAME:
@@ -2800,7 +3043,7 @@ corrupted_log:
 				break;
 #endif /* UNIV_LOG_LSN_DEBUG */
 			case MLOG_INDEX_LOAD:
-				recv_mlog_index_load(space);
+				recv_mlog_index_load(space, page_no, old_lsn);
 				break;
 			case MLOG_FILE_NAME:
 			case MLOG_FILE_DELETE:
@@ -3344,6 +3587,7 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 			/* The tablespace was found, and there
 			are some redo log records for it. */
 			fil_names_dirty(i->second.space);
+			i->second.space->enable_lsn = i->second.enable_lsn;
 		} else if (i->second.name == "") {
 			ib::error() << "Missing MLOG_FILE_NAME"
 				" or MLOG_FILE_DELETE"

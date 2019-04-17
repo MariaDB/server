@@ -90,6 +90,9 @@ struct fil_space_t {
 				Protected by log_sys->mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
+	/** Log sequence number of the latest MLOG_INDEX_LOAD record
+	that was found while parsing the redo log */
+	lsn_t		enable_lsn;
 	bool		stop_new_ops;
 				/*!< we set this true when we start
 				deleting a single-table tablespace.
