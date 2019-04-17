@@ -4893,23 +4893,28 @@ wait_again:
 		if (indexes[i]->type & DICT_FTS) {
 			row_fts_psort_info_destroy(psort_info, merge_info);
 			fts_psort_initiated = false;
-		} else if (error != DB_SUCCESS || !online) {
-			/* Do not apply any online log. */
+		} else if (dict_index_is_spatial(indexes[i])) {
+			/* We never disable redo logging for
+			creating SPATIAL INDEX. Avoid writing any
+			unnecessary MLOG_INDEX_LOAD record. */
 		} else if (old_table != new_table) {
 			ut_ad(!sort_idx->online_log);
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
-		} else {
-			if (dict_index_is_spatial(indexes[i])) {
-				/* We never disable redo logging for
-				creating SPATIAL INDEX. Avoid writing any
-				unnecessary MLOG_INDEX_LOAD record. */
-			} else if (FlushObserver* flush_observer =
-					trx->get_flush_observer()) {
-				flush_observer->flush();
-				row_merge_write_redo(indexes[i]);
+		} else if (FlushObserver* flush_observer =
+			   trx->get_flush_observer()) {
+			if (error != DB_SUCCESS) {
+				flush_observer->interrupted();
 			}
+			flush_observer->flush();
+			row_merge_write_redo(indexes[i]);
+		}
 
+		if (old_table != new_table
+		    || (indexes[i]->type & (DICT_FTS | DICT_SPATIAL))
+		    || error != DB_SUCCESS || !online) {
+			/* Do not apply any online log. */
+		} else {
 			if (global_system_variables.log_warnings > 2) {
 				sql_print_information(
 					"InnoDB: Online DDL : Applying"
@@ -5016,13 +5021,7 @@ func_exit:
 
 		flush_observer->flush();
 
-		trx->remove_flush_observer();
-
-		if (trx_is_interrupted(trx)) {
-			error = DB_INTERRUPTED;
-		}
-
-		if (error == DB_SUCCESS && old_table != new_table) {
+		if (old_table != new_table) {
 			for (const dict_index_t* index
 				     = dict_table_get_first_index(new_table);
 			     index != NULL;
@@ -5032,6 +5031,12 @@ func_exit:
 					row_merge_write_redo(index);
 				}
 			}
+		}
+
+		trx->remove_flush_observer();
+
+		if (trx_is_interrupted(trx)) {
+			error = DB_INTERRUPTED;
 		}
 	}
 
