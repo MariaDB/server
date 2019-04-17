@@ -1,4 +1,4 @@
---source ../include/checksum_table_with_quick_mode_3_init.inc
+--source ../include/select_by_null_init.inc
 --echo
 --echo this test is for MDEV-16279
 --echo
@@ -67,6 +67,6 @@ DROP DATABASE IF EXISTS auto_test_remote;
 SET GLOBAL log_output = @old_log_output;
 
 --enable_warnings
---source ../include/checksum_table_with_quick_mode_3_deinit.inc
+--source ../include/select_by_null_deinit.inc
 --echo
 --echo end of test
