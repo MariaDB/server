@@ -7,14 +7,13 @@
 
 @DPATCH@
 
---- mysql-dfsg-5.1-5.1.23rc.orig/scripts/mysql_install_db.sh	2008-01-29 22:41:20.000000000 +0100
-+++ mysql-dfsg-5.1-5.1.23rc/scripts/mysql_install_db.sh	2008-02-28 10:08:11.000000000 +0100
-@@ -372,7 +372,7 @@ then
- fi
- 
- # Create database directories
--for dir in "$ldata" "$ldata/mysql" "$ldata/test"
-+for dir in "$ldata" "$ldata/mysql"
- do
-   if test ! -d "$dir"
-   then
+--- a/scripts/mysql_install_db.sh
++++ b/scripts/mysql_install_db.sh
+@@ -36,7 +36,6 @@ in_rpm=0
+ ip_only=0
+ cross_bootstrap=0
+ install_params="create database if not exists mysql;
+-create database if not exists test;
+ use mysql;"
+ auth_root_authentication_method=normal
+ auth_root_socket_user='root'

@@ -53,9 +53,6 @@ if [ $1 = 1 ] ; then
   chown -R %{mysqld_user}:%{mysqld_group} $datadir
 
   if [ ! -e $datadir/mysql ]; then
-    # Create data directory
-    mkdir -p $datadir/{mysql,test}
-
     # Initiate databases
     %{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}
   fi

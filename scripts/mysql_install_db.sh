@@ -35,7 +35,9 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-install_params=""
+install_params="create database if not exists mysql;
+create database if not exists test;
+use mysql;"
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
 
@@ -431,7 +433,7 @@ then
 fi
 
 # Create database directories
-for dir in "$ldata" "$ldata/mysql" "$ldata/test"
+for dir in "$ldata"
 do
   if test ! -d "$dir"
   then
@@ -493,7 +495,7 @@ SET @auth_root_socket=NULL;" ;;
 SET @skip_auth_root_nopasswd=1;
 SET @auth_root_socket='$auth_root_socket_user';" ;;
 esac
-if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if { echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
