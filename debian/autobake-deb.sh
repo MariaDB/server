@@ -30,6 +30,7 @@ LOGSTRING="MariaDB build"
 # Look up distro-version specific stuff.
 
 CODENAME="$(lsb_release -sc)"
+VERNUM="$(lsb_release -sr)"
 
 # add libcrack2 (>= 2.9.0) as a build dependency
 # but only where the distribution can possibly satisfy it
@@ -57,7 +58,7 @@ sed -i -e "s/\\\${LIBSSL}/${LIBSSL}/g" debian/control
 #
 echo "Incrementing changelog and starting build scripts"
 
-if [[ "$CODENAME" == bionic ]]; then
+if [[ "${VERNUM%.*}" -ge 18 ]]; then
   EPOCH="1:"
 fi
 dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME}" "Automatic build with ${LOGSTRING}."
