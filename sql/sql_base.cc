@@ -1906,15 +1906,16 @@ retry_share:
                table_list->alias.str);
       goto err_lock;
     }
+
+    /* Open view */
+    if (mysql_make_view(thd, share, table_list, false))
+      goto err_lock;
+
     /*
       This table is a view. Validate its metadata version: in particular,
       that it was a view when the statement was prepared.
     */
     if (check_and_update_table_version(thd, table_list, share))
-      goto err_lock;
-
-    /* Open view */
-    if (mysql_make_view(thd, share, table_list, false))
       goto err_lock;
 
 
@@ -2721,7 +2722,7 @@ static bool inject_reprepare(THD *thd)
 
   @sa Execute_observer
   @sa check_prepared_statement() to see cases when an observer is installed
-  @sa TABLE_LIST::is_table_ref_id_equal()
+  @sa TABLE_LIST::is_the_same_definition()
   @sa TABLE_SHARE::get_table_ref_id()
 
   @param[in]      thd         used to report errors
@@ -2738,7 +2739,7 @@ static bool
 check_and_update_table_version(THD *thd,
                                TABLE_LIST *tables, TABLE_SHARE *table_share)
 {
-  if (! tables->is_table_ref_id_equal(table_share))
+  if (! tables->is_the_same_definition(thd, table_share))
   {
     if (thd->m_reprepare_observer &&
         thd->m_reprepare_observer->report_error(thd))
@@ -2844,7 +2845,9 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
 
   DBUG_ASSERT(share->is_view);
 
-  if (flags & CHECK_METADATA_VERSION)
+  err= mysql_make_view(thd, share, table_list, (flags & OPEN_VIEW_NO_PARSE));
+
+  if (!err && (flags & CHECK_METADATA_VERSION))
   {
     /*
       Check TABLE_SHARE-version of view only if we have been instructed to do
@@ -2859,7 +2862,6 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
       goto ret;
   }
 
-  err= mysql_make_view(thd, share, table_list, (flags & OPEN_VIEW_NO_PARSE));
 ret:
   tdc_release_share(share);
 

@@ -6540,6 +6540,46 @@ drop view v1;
 drop table t1;
 
 --echo #
+--echo # MDEV-17124: mariadb 10.1.34, views and prepared statements:
+--echo # ERROR 1615 (HY000): Prepared statement needs to be re-prepared
+--echo #
+
+set @tdc= @@table_definition_cache, @tc= @@table_open_cache;
+set global table_definition_cache= 400, table_open_cache= 400;
+
+create table tt (a int, primary key(a)) engine=MyISAM;
+create view v as select * from tt;
+insert into tt values(1),(2),(3),(4);
+
+prepare stmt from 'select * from tt';
+--echo #fill table definition cache
+--disable_query_log
+--disable_result_log
+create database db;
+use db;
+--let $tables=401
+while ($tables)
+{
+  --eval create table t$tables (i int) engine=MyISAM
+  --eval select * from t$tables
+  --dec $tables
+}
+
+use test;
+
+--enable_query_log
+--enable_result_log
+execute stmt;
+prepare stmt from 'select * from v';
+execute stmt;
+
+# Cleanup
+drop database db;
+drop view v;
+drop table tt;
+set global table_definition_cache= @tdc, table_open_cache= @tc;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

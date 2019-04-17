@@ -37,6 +37,8 @@
 #ifdef WITH_WSREP
 #include "debug_sync.h"
 #endif /* WITH_WSREP */
+#include <my_time.h>
+#include <mysql_time.h>
 
 LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str,
                              const char* str, size_t length,
@@ -212,7 +214,7 @@ static File_option triggers_file_parameters[]=
   },
   {
     { STRING_WITH_LEN("created") },
-    my_offsetof(class Table_triggers_list, create_times),
+    my_offsetof(class Table_triggers_list, hr_create_times),
     FILE_OPTIONS_ULLLIST
   },
   { { 0, 0 }, 0, FILE_OPTIONS_STRING }
@@ -896,6 +898,10 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   if (!(trigger= new (&table->mem_root) Trigger(this, 0)))
     goto err_without_cleanup;
 
+  /* Time with in microseconds */
+  trigger->hr_create_time= make_hr_time(thd->query_start(),
+                                        thd->query_start_sec_part());
+
   /* Create trigger_name.TRN file to ensure trigger name is unique */
   if (sql_create_definition_file(NULL, &trigname_file, &trigname_file_type,
                                  (uchar*)&trigname, trigname_file_parameters))
@@ -904,8 +910,6 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Populate the trigger object */
 
   trigger->sql_mode= thd->variables.sql_mode;
-  /* Time with 2 decimals, like in MySQL 5.7 */
-  trigger->create_time= ((ulonglong) thd->query_start())*100 + thd->query_start_sec_part()/10000;
   build_trig_stmt_query(thd, tables, stmt_query, &trigger_definition,
                         &trigger->definer, trg_definer_holder);
 
@@ -973,7 +977,7 @@ void Table_triggers_list::empty_lists()
   client_cs_names.empty();
   connection_cl_names.empty();
   db_cl_names.empty();
-  create_times.empty();
+  hr_create_times.empty();
 }
 
 
@@ -1009,7 +1013,7 @@ bool Trigger::add_to_file_list(void* param_arg)
       base->client_cs_names.push_back(&client_cs_name, mem_root) ||
       base->connection_cl_names.push_back(&connection_cl_name, mem_root) ||
       base->db_cl_names.push_back(&db_cl_name, mem_root) ||
-      base->create_times.push_back(&create_time, mem_root))
+      base->hr_create_times.push_back(&hr_create_time.val, mem_root))
     return 1;
   return 0;
 }
@@ -1391,7 +1395,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
       List_iterator_fast<LEX_CSTRING> it_client_cs_name(trigger_list->client_cs_names);
       List_iterator_fast<LEX_CSTRING> it_connection_cl_name(trigger_list->connection_cl_names);
       List_iterator_fast<LEX_CSTRING> it_db_cl_name(trigger_list->db_cl_names);
-      List_iterator_fast<ulonglong> it_create_times(trigger_list->create_times);
+      List_iterator_fast<ulonglong>
+        it_create_times(trigger_list->hr_create_times);
       LEX *old_lex= thd->lex;
       LEX lex;
       sp_rcontext *save_spcont= thd->spcont;
@@ -1477,7 +1482,14 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
         trigger->sql_mode= sql_mode;
         trigger->definition= *trg_create_str;
-        trigger->create_time= trg_create_time ? *trg_create_time : 0;
+        trigger->hr_create_time=
+          my_hrtime_t({trg_create_time ? *trg_create_time : 0});
+        /*
+          Fix time if in 100th of second (comparison with max uint * 100
+          (max possible timestamp in the old format))
+        */
+        if (trigger->hr_create_time.val < 429496729400ULL)
+          trigger->hr_create_time.val*= 10000;
         trigger->name= sp ? sp->m_name : empty_clex_str;
         trigger->on_table_name.str= (char*) lex.raw_trg_on_table_name_begin;
         trigger->on_table_name.length= (lex.raw_trg_on_table_name_end -

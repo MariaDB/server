@@ -1122,6 +1122,7 @@ public:
 
   LEX_CSTRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
+  my_hrtime_t hr_prepare_time; // time of preparation in microseconds
   /*
     Points to the query associated with this statement. It's const, but
     we need to declare it char * because all table handlers are written
