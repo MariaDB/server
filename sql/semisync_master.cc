@@ -228,7 +228,7 @@ bool Active_tranx::is_tranx_end_pos(const char *log_file_name,
   DBUG_RETURN(entry != NULL);
 }
 
-int Active_tranx::clear_active_tranx_nodes(const char *log_file_name,
+void Active_tranx::clear_active_tranx_nodes(const char *log_file_name,
                                            my_off_t log_file_pos)
 {
   Tranx_node *new_front;
@@ -307,7 +307,7 @@ int Active_tranx::clear_active_tranx_nodes(const char *log_file_name,
                             m_trx_front->log_name, (ulong)m_trx_front->log_pos));
   }
 
-  DBUG_RETURN(0);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -371,19 +371,20 @@ int Repl_semi_sync_master::init_object()
   {
     result = enable_master();
     if (!result)
+    {
       result= ack_receiver.start(); /* Start the ACK thread. */
+      /*
+        If rpl_semi_sync_master_wait_no_slave is disabled, let's temporarily
+        switch off semisync to avoid hang if there's none active slave.
+      */
+      if (!rpl_semi_sync_master_wait_no_slave)
+        switch_off();
+    }
   }
   else
   {
     result = disable_master();
   }
-
-  /*
-    If rpl_semi_sync_master_wait_no_slave is disabled, let's temporarily
-    switch off semisync to avoid hang if there's none active slave.
-  */
-  if (!rpl_semi_sync_master_wait_no_slave)
-    switch_off();
 
   return result;
 }
@@ -961,17 +962,15 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
  * the current sending event catches up with last wait position.  If it
  * does match, semi-sync will be switched on again.
  */
-int Repl_semi_sync_master::switch_off()
+void Repl_semi_sync_master::switch_off()
 {
-  int result;
-
   DBUG_ENTER("Repl_semi_sync_master::switch_off");
 
   m_state = false;
 
   /* Clear the active transaction list. */
   assert(m_active_tranxs != NULL);
-  result = m_active_tranxs->clear_active_tranx_nodes(NULL, 0);
+  m_active_tranxs->clear_active_tranx_nodes(NULL, 0);
 
   rpl_semi_sync_master_off_times++;
   m_wait_file_name_inited   = false;
@@ -979,7 +978,7 @@ int Repl_semi_sync_master::switch_off()
   sql_print_information("Semi-sync replication switched OFF.");
   cond_broadcast();                            /* wake up all waiting threads */
 
-  DBUG_RETURN(result);
+  DBUG_VOID_RETURN;
 }
 
 int Repl_semi_sync_master::try_switch_on(int server_id,
