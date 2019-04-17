@@ -7072,6 +7072,14 @@ int Field_str::store(double nr)
   return store(buff, (uint)length, &my_charset_numeric);
 }
 
+static bool part_of_a_primary_key(const Field *field) {
+  const TABLE_SHARE *s= field->table->s;
+
+  if (s->primary_key == MAX_KEY)
+    return false;
+
+  return field->part_of_key.is_set(s->primary_key);
+}
 
 bool Field_longstr::
   csinfo_change_allows_instant_alter(const Create_field *to) const
@@ -7089,19 +7097,56 @@ uint Field_string::is_equal(Create_field *new_field)
   DBUG_ASSERT(!compression_method());
   if (new_field->type_handler() != type_handler())
     return IS_EQUAL_NO;
-  if (new_field->length < max_display_length())
-    return IS_EQUAL_NO;
   if (new_field->char_length < char_length())
     return IS_EQUAL_NO;
 
-  if (!csinfo_change_allows_instant_alter(new_field))
+  if (new_field->length != max_display_length())
+  {
+    if (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
+      return IS_EQUAL_NO;
+
+    if (strcmp(field_charset->csname, MY_UTF8MB3) ||
+        strcmp(new_field->charset->csname, MY_UTF8MB4))
+    {
+      return IS_EQUAL_NO;
+    }
+
+    const bool same_collate=
+        !strcmp(field_charset->name + strlen(field_charset->csname),
+                new_field->charset->name + strlen(new_field->charset->csname));
+
+    const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+
+    if (part_of_a_key && !same_collate)
+      return IS_EQUAL_NO;
+
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  if (new_field->charset != field_charset)
+  {
+    if (part_of_a_primary_key(new_field->field) &&
+        Charset::have_different_collate(new_field->charset, field_charset))
+    {
+      return IS_EQUAL_NO;
+    }
+
+    if (csinfo_change_allows_instant_alter(new_field))
+    {
+      return IS_EQUAL_PACK_LENGTH;
+    }
+
+    const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+    if (part_of_a_key && Charset::same_charset_but_not_collate(
+                             new_field->charset, field_charset))
+    {
+      return IS_EQUAL_BUT_COLLATE;
+    }
+
     return IS_EQUAL_NO;
+  }
 
-  if (new_field->length == max_display_length())
-    return new_field->charset == field_charset
-      ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
-
-  return IS_EQUAL_NO;
+  return IS_EQUAL_YES;
 }
 
 
@@ -7935,6 +7980,19 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
   return res;
 }
 
+// This check is InnoDB specific. ROW_FORMAT=REDUNDANT always allows such
+// enlargement. But other row formats can do this only for particular current
+// and new lengths. This is because InnoDB stores VARCHAR length in one or two
+// bytes.
+static bool supports_such_enlargement(const Field_varstring *varchar,
+                                      Create_field *new_field)
+{
+  return varchar->field_length <= 127 || new_field->length <= 255 ||
+         varchar->field_length > 255 ||
+         (varchar->table->file->ha_table_flags() &
+          HA_EXTENDED_TYPES_CONVERSION);
+}
+
 uint Field_varstring::is_equal(Create_field *new_field)
 {
   if (new_field->length < field_length)
@@ -7943,24 +8001,43 @@ uint Field_varstring::is_equal(Create_field *new_field)
     return IS_EQUAL_NO;
   if (!new_field->compression_method() != !compression_method())
     return IS_EQUAL_NO;
-
-  if (!csinfo_change_allows_instant_alter(new_field))
+  if (new_field->type_handler() != type_handler())
     return IS_EQUAL_NO;
 
-  const Type_handler *new_type_handler= new_field->type_handler();
-  if (new_type_handler == type_handler())
+  if (new_field->charset != field_charset)
   {
-    if (new_field->length == field_length)
-      return new_field->charset == field_charset
-        ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
-    if (field_length <= 127 ||
-        new_field->length <= 255 ||
-        field_length > 255 ||
-        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
+    if (part_of_a_primary_key(new_field->field) &&
+        Charset::have_different_collate(new_field->charset, field_charset))
+    {
+      return IS_EQUAL_NO;
+    }
+
+    if (csinfo_change_allows_instant_alter(new_field))
+    {
+      if (!supports_such_enlargement(this, new_field))
+        return IS_EQUAL_NO;
+
+      return IS_EQUAL_PACK_LENGTH;
+    }
+
+    const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+    if (part_of_a_key && Charset::same_charset_but_not_collate(
+                             new_field->charset, field_charset)) {
+      return IS_EQUAL_BUT_COLLATE;
+    }
+
+    return IS_EQUAL_NO;
   }
 
-  return IS_EQUAL_NO;
+  if (new_field->length != field_length)
+  {
+    if (!supports_such_enlargement(this, new_field))
+      return IS_EQUAL_NO;
+
+    return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
+  }
+
+  return IS_EQUAL_YES;
 }
 
 

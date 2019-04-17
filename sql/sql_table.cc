@@ -6568,14 +6568,16 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
                       ((Field_varstring *) old_field)->length_bytes);
     }
 
+    uint is_equal= key_part->field->is_equal(new_field);
     if (key_part->length == old_field_len &&
-        key_part->length < new_part->length &&
-        (key_part->field->is_equal((Create_field *) new_field) ==
-         IS_EQUAL_PACK_LENGTH))
+        key_part->length < new_part->length && is_equal == IS_EQUAL_PACK_LENGTH)
     {
       result= Compare_keys::EqualButKeyPartLength;
     }
     else if (key_part->length != new_part->length)
+      return Compare_keys::NotEqual;
+
+    if (is_equal == IS_EQUAL_BUT_COLLATE)
       return Compare_keys::NotEqual;
   }
 
@@ -6783,6 +6785,8 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         */
         ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH;
         break;
+      case IS_EQUAL_BUT_COLLATE:
+	break;
       default:
         DBUG_ASSERT(0);
         /* Safety. */

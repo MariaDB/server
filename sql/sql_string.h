@@ -167,8 +167,19 @@ public:
   LEX_CSTRING collation_specific_name() const;
   bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
   bool encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const;
-};
 
+  static bool same_charset_but_not_collate(const CHARSET_INFO *a,
+                                           const CHARSET_INFO *b)
+  {
+    return !strcmp(a->csname, b->csname) && strcmp(a->name, b->name);
+  }
+
+  static bool have_different_collate(const CHARSET_INFO *a,
+                                     const CHARSET_INFO *b)
+  {
+    return strcmp(a->name + strlen(a->csname), b->name + strlen(b->csname));
+  }
+};
 
 /*
   A storage for String.
