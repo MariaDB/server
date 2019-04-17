@@ -19,9 +19,9 @@ CREATE TABLE t1 (a INT NOT NULL, b INT UNIQUE) ENGINE=InnoDB;
 # MLOG_INDEX_LOAD will not be emitted for empty tables. Insert a row.
 INSERT INTO t1 VALUES (1,2);
 # We should get two MLOG_INDEX_LOAD for this.
-ALTER TABLE t1 ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD PRIMARY KEY(a), LOCK=SHARED, ALGORITHM=INPLACE;
 # And one MLOG_INDEX_LOAD for this.
-ALTER TABLE t1 DROP INDEX b, ADD INDEX (b);
+ALTER TABLE t1 DROP INDEX b, ADD INDEX (b), LOCK=SHARED;
 
 --let CLEANUP_IF_CHECKPOINT=DROP TABLE t1;
 --source include/no_checkpoint_end.inc
@@ -32,10 +32,10 @@ ALTER TABLE t1 DROP INDEX b, ADD INDEX (b);
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_ABORT=NOT FOUND;
 # ensure that we have exactly 2 records there.
-let SEARCH_PATTERN=scan .*: multi-log rec MLOG_FILE_CREATE2.*page .*:0;
+let SEARCH_PATTERN=scan \d+: multi-log rec MLOG_FILE_CREATE2 len \d+ page \d+:0;
 --source include/search_pattern_in_file.inc
 # ensure that we have exactly 3 records there.
-let SEARCH_PATTERN=scan .*: log rec MLOG_INDEX_LOAD;
+let SEARCH_PATTERN=scan \d+: log rec MLOG_INDEX_LOAD;
 --source include/search_pattern_in_file.inc
 
 CHECK TABLE t1;

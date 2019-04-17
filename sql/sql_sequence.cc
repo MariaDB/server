@@ -88,13 +88,13 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
   /*
     If min_value is not set, set it to LONGLONG_MIN or 1, depending on
-    increment
+    real_increment
   */
   if (!(used_fields & seq_field_used_min_value))
     min_value= real_increment < 0 ? LONGLONG_MIN+1 : 1;
 
   /*
-    If min_value is not set, set it to LONGLONG_MAX or -1, depending on
+    If max_value is not set, set it to LONGLONG_MAX or -1, depending on
     real_increment
   */
   if (!(used_fields & seq_field_used_max_value))
