@@ -24,6 +24,8 @@
 /***************************************************************************
   Handling of XA id cacheing
 ***************************************************************************/
+enum xa_states { XA_ACTIVE= 0, XA_IDLE, XA_PREPARED, XA_ROLLBACK_ONLY };
+
 class XID_cache_element
 {
   /*
@@ -63,6 +65,7 @@ public:
   XID_STATE *m_xid_state;
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
+  enum xa_states xa_state;
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -153,11 +156,13 @@ void XID_STATE::set_error(uint error)
     xid_cache_element->rm_error= error;
 }
 
+
 void XID_STATE::er_xaer_rmfail() const
 {
   static const char *xa_state_names[]=
-    { "NON-EXISTING", "ACTIVE", "IDLE", "PREPARED", "ROLLBACK ONLY" };
-  my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+    { "ACTIVE", "IDLE", "PREPARED", "ROLLBACK ONLY" };
+  my_error(ER_XAER_RMFAIL, MYF(0), is_explicit_XA() ?
+           xa_state_names[xid_cache_element->xa_state] : "NON-EXISTING");
 }
 
 
@@ -174,9 +179,7 @@ void XID_STATE::er_xaer_rmfail() const
 
 bool XID_STATE::check_has_uncommitted_xa() const
 {
-  if (xa_state == XA_IDLE ||
-      xa_state == XA_PREPARED ||
-      xa_state == XA_ROLLBACK_ONLY)
+  if (is_explicit_XA() && xid_cache_element->xa_state != XA_ACTIVE)
   {
     er_xaer_rmfail();
     return true;
@@ -246,7 +249,7 @@ bool xid_cache_insert(XID *xid)
       my_free(xs);
     else
     {
-      xs->xa_state= XA_PREPARED;
+      xs->xid_cache_element->xa_state= XA_PREPARED;
       xs->xid_cache_element->set(XID_cache_element::RECOVERED);
     }
     if (res == 1)
@@ -266,7 +269,7 @@ bool xid_cache_insert(THD *thd, XID_STATE *xid_state)
   switch (res)
   {
   case 0:
-    xid_state->xa_state= XA_ACTIVE;
+    xid_state->xid_cache_element->xa_state= XA_ACTIVE;
     xid_state->xid_cache_element->set(XID_cache_element::ACQUIRED);
     break;
   case 1:
@@ -293,7 +296,6 @@ void xid_cache_delete(THD *thd, XID_STATE *xid_state)
     else
     {
       xid_state->xid_cache_element= 0;
-      xid_state->xa_state= XA_NOTR;
       xid_state->xid.null();
     }
   }
@@ -354,10 +356,10 @@ static bool xa_trans_rolled_back(XID_STATE *xid_state)
     default:
       my_error(ER_XA_RBROLLBACK, MYF(0));
     }
-    xid_state->xa_state= XA_ROLLBACK_ONLY;
+    xid_state->xid_cache_element->xa_state= XA_ROLLBACK_ONLY;
   }
 
-  return (xid_state->xa_state == XA_ROLLBACK_ONLY);
+  return xid_state->xid_cache_element->xa_state == XA_ROLLBACK_ONLY;
 }
 
 
@@ -389,16 +391,17 @@ static bool xa_trans_force_rollback(THD *thd)
 
 bool trans_xa_start(THD *thd)
 {
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
   DBUG_ENTER("trans_xa_start");
 
-  if (xa_state == XA_IDLE && thd->lex->xa_opt == XA_RESUME)
+  if (thd->transaction.xid_state.is_explicit_XA() &&
+      thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE &&
+      thd->lex->xa_opt == XA_RESUME)
   {
     bool not_equal= !thd->transaction.xid_state.xid.eq(thd->lex->xid);
     if (not_equal)
       my_error(ER_XAER_NOTA, MYF(0));
     else
-      thd->transaction.xid_state.xa_state= XA_ACTIVE;
+      thd->transaction.xid_state.xid_cache_element->xa_state= XA_ACTIVE;
     DBUG_RETURN(not_equal);
   }
 
@@ -442,15 +445,16 @@ bool trans_xa_end(THD *thd)
   /* TODO: SUSPEND and FOR MIGRATE are not supported yet. */
   if (thd->lex->xa_opt != XA_NONE)
     my_error(ER_XAER_INVAL, MYF(0));
-  else if (thd->transaction.xid_state.xa_state != XA_ACTIVE)
+  else if (!thd->transaction.xid_state.is_explicit_XA() ||
+           thd->transaction.xid_state.xid_cache_element->xa_state != XA_ACTIVE)
     thd->transaction.xid_state.er_xaer_rmfail();
   else if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
   else if (!xa_trans_rolled_back(&thd->transaction.xid_state))
-    thd->transaction.xid_state.xa_state= XA_IDLE;
+    thd->transaction.xid_state.xid_cache_element->xa_state= XA_IDLE;
 
   DBUG_RETURN(thd->is_error() ||
-              thd->transaction.xid_state.xa_state != XA_IDLE);
+    thd->transaction.xid_state.xid_cache_element->xa_state != XA_IDLE);
 }
 
 
@@ -467,7 +471,8 @@ bool trans_xa_prepare(THD *thd)
 {
   DBUG_ENTER("trans_xa_prepare");
 
-  if (thd->transaction.xid_state.xa_state != XA_IDLE)
+  if (!thd->transaction.xid_state.is_explicit_XA() ||
+      thd->transaction.xid_state.xid_cache_element->xa_state != XA_IDLE)
     thd->transaction.xid_state.er_xaer_rmfail();
   else if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
@@ -477,10 +482,10 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XA_RBROLLBACK, MYF(0));
   }
   else
-    thd->transaction.xid_state.xa_state= XA_PREPARED;
+    thd->transaction.xid_state.xid_cache_element->xa_state= XA_PREPARED;
 
   DBUG_RETURN(thd->is_error() ||
-              thd->transaction.xid_state.xa_state != XA_PREPARED);
+    thd->transaction.xid_state.xid_cache_element->xa_state != XA_PREPARED);
 }
 
 
@@ -496,7 +501,6 @@ bool trans_xa_prepare(THD *thd)
 bool trans_xa_commit(THD *thd)
 {
   bool res= TRUE;
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
   DBUG_ENTER("trans_xa_commit");
 
   if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
@@ -525,13 +529,15 @@ bool trans_xa_commit(THD *thd)
     xa_trans_force_rollback(thd);
     res= thd->is_error();
   }
-  else if (xa_state == XA_IDLE && thd->lex->xa_opt == XA_ONE_PHASE)
+  else if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE &&
+           thd->lex->xa_opt == XA_ONE_PHASE)
   {
     int r= ha_commit_trans(thd, TRUE);
     if ((res= MY_TEST(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
   }
-  else if (xa_state == XA_PREPARED && thd->lex->xa_opt == XA_NONE)
+  else if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_PREPARED &&
+           thd->lex->xa_opt == XA_NONE)
   {
     MDL_request mdl_request;
 
@@ -591,7 +597,6 @@ bool trans_xa_commit(THD *thd)
 bool trans_xa_rollback(THD *thd)
 {
   bool res= TRUE;
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
   DBUG_ENTER("trans_xa_rollback");
 
   if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
@@ -614,7 +619,7 @@ bool trans_xa_rollback(THD *thd)
     DBUG_RETURN(thd->get_stmt_da()->is_error());
   }
 
-  if (xa_state != XA_IDLE && xa_state != XA_PREPARED && xa_state != XA_ROLLBACK_ONLY)
+  if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_ACTIVE)
   {
     thd->transaction.xid_state.er_xaer_rmfail();
     DBUG_RETURN(TRUE);
@@ -746,7 +751,7 @@ static uint get_sql_xid(XID *xid, char *buf)
 static my_bool xa_recover_callback(XID_STATE *xs, Protocol *protocol,
                   char *data, uint data_len, CHARSET_INFO *data_cs)
 {
-  if (xs->xa_state == XA_PREPARED)
+  if (xs->xid_cache_element->xa_state == XA_PREPARED)
   {
     protocol->prepare_for_resend();
     protocol->store_longlong((longlong) xs->xid.formatID, FALSE);

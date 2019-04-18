@@ -17,13 +17,11 @@
 */
 
 
-enum xa_states {XA_NOTR=0, XA_ACTIVE, XA_IDLE, XA_PREPARED, XA_ROLLBACK_ONLY};
 class XID_cache_element;
 
 struct XID_STATE {
   /* For now, this is only used to catch duplicated external xids */
   XID  xid;                           // transaction identifier
-  enum xa_states xa_state;            // used by external XA only
   XID_cache_element *xid_cache_element;
 
   bool check_has_uncommitted_xa() const;
