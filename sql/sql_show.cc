@@ -6268,7 +6268,8 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   sph= Sp_handler::handler_mysql_proc((stored_procedure_type)
                                       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
                                       val_int());
-  if (!sph)
+  if (!sph || sph->type() == TYPE_ENUM_PACKAGE ||
+      sph->type() == TYPE_ENUM_PACKAGE_BODY)
     DBUG_RETURN(0);
 
   if (!full_access)
