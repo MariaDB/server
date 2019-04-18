@@ -395,10 +395,6 @@ const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Error") }  // Last command number 255
 };
 
-const char *xa_state_names[]={
-  "NON-EXISTING", "ACTIVE", "IDLE", "PREPARED", "ROLLBACK ONLY"
-};
-
 #ifdef HAVE_REPLICATION
 /**
   Returns true if all tables should be ignored.
