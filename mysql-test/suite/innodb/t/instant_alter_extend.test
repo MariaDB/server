@@ -8,18 +8,18 @@
 -- echo #
 
 # Use character-set-server in test db
-create or replace database test;
-use test;
+create database best;
+use best;
 
 set default_storage_engine=innodb;
 set @bigval= repeat('0123456789', 30);
 
 delimiter ~~;
-create or replace procedure check_table(table_name varchar(255))
+create procedure check_table(table_name varchar(255))
 begin
   select table_id into @table_id
   from information_schema.innodb_sys_tables
-  where name = concat('test/', table_name);
+  where name = concat('best/', table_name);
   select name, mtype, hex(prtype) as prtype, len
   from information_schema.innodb_sys_columns
   where table_id = @table_id;
@@ -30,7 +30,7 @@ delimiter ;~~
 --echo # VARCHAR -> CHAR, VARBINARY -> BINARY conversion
 set @bigval= repeat('0123456789', 20);
 
-create or replace table t (a varchar(300));
+create table t (a varchar(300));
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify a char(255), algorithm=instant;
 alter table t modify a char(255), algorithm=copy;
@@ -166,8 +166,8 @@ create or replace table t1 (x tinyint);
 insert into t1 set x= 42;
 alter table t1 modify x int;
 flush tables t1 for export;
---move_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_DATADIR/best/t1.cfg $MYSQLD_DATADIR/best/t2.cfg
+--copy_file $MYSQLD_DATADIR/best/t1.ibd $MYSQLD_DATADIR/best/t2.ibd
 unlock tables;
 
 alter table t2 import tablespace;
@@ -246,4 +246,4 @@ alter table t1 modify a char(20);
 select * from t1;
 check table t1;
 
-create or replace database test charset latin1;
+drop database best;

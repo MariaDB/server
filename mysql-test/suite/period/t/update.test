@@ -1,7 +1,7 @@
 source suite/period/engines.inc;
 source include/have_log_bin.inc;
 
-create or replace table t (id int, s date, e date, period for apptime(s,e));
+create table t (id int, s date, e date, period for apptime(s,e));
 
 insert into t values(1, '1999-01-01', '2018-12-12');
 insert into t values(1, '1999-01-01', '2017-01-01');
@@ -157,4 +157,9 @@ create or replace table t1 (f int, s date, e date, period for app(s,e));
 insert into t1 values (1,'2016-09-21','2019-06-14');
 update ignore t1 for portion of app from '2019-03-13' to '2019-03-14' set f = 1;
 
-create or replace database test;
+drop table t,t1,t2,log_tbl;
+drop view v1;
+drop function f;
+drop function g;
+drop function h;
+drop procedure log;

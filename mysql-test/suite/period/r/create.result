@@ -1,5 +1,4 @@
-create or replace table t (id int primary key, s date, e date,
-period for mytime(s,e));
+create table t (id int primary key, s date, e date, period for mytime(s,e));
 # CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
 # this is important for correct command-based replication
 show create table t;
@@ -96,4 +95,4 @@ ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
 show status like "Feature_application_time_periods";
 Variable_name	Value
 Feature_application_time_periods	6
-create or replace database test;
+drop table t;
