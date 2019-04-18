@@ -1708,7 +1708,8 @@ int spider_check_and_set_time_zone(
 }
 
 static int spider_xa_lock(
-  XID_STATE *xid_state
+  XID_STATE *xid_state,
+  XID *xid
 ) {
   THD *thd = current_thd;
   int error_num;
@@ -1726,7 +1727,7 @@ static int spider_xa_lock(
 #endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
-  if (xid_cache_insert(thd, xid_state))
+  if (xid_cache_insert(thd, xid_state, xid))
   {
     error_num = (spider_stmt_da_sql_errno(thd) == ER_XAER_DUPID ?
       ER_SPIDER_XA_LOCKED_NUM : HA_ERR_OUT_OF_MEM);
@@ -1948,11 +1949,10 @@ int spider_internal_start_trx(
         thd->server_id));
 #endif
 
-      trx->internal_xid_state.xid.set(&trx->xid);
 #ifdef SPIDER_XID_STATE_HAS_in_thd
       trx->internal_xid_state.in_thd = 1;
 #endif
-      if ((error_num = spider_xa_lock(&trx->internal_xid_state)))
+      if ((error_num = spider_xa_lock(&trx->internal_xid_state, &trx->xid)))
       {
         if (error_num == ER_SPIDER_XA_LOCKED_NUM)
           my_message(error_num, ER_SPIDER_XA_LOCKED_STR, MYF(0));

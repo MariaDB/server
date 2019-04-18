@@ -2618,7 +2618,6 @@ public:
     st_transactions()
     {
       bzero((char*)this, sizeof(*this));
-      xid_state.xid.null();
       implicit_xid.null();
       init_sql_alloc(&mem_root, "THD::transactions",
                      ALLOC_ROOT_MIN_BLOCK_SIZE, 0,

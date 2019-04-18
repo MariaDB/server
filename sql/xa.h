@@ -20,8 +20,6 @@
 class XID_cache_element;
 
 struct XID_STATE {
-  /* For now, this is only used to catch duplicated external xids */
-  XID  xid;                           // transaction identifier
   XID_cache_element *xid_cache_element;
 
   bool check_has_uncommitted_xa() const;
@@ -34,7 +32,7 @@ struct XID_STATE {
 void xid_cache_init(void);
 void xid_cache_free(void);
 bool xid_cache_insert(XID *xid);
-bool xid_cache_insert(THD *thd, XID_STATE *xid_state);
+bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid);
 void xid_cache_delete(THD *thd, XID_STATE *xid_state);
 
 bool trans_xa_start(THD *thd);
