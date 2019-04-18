@@ -25,8 +25,6 @@ struct XID_STATE {
   /* For now, this is only used to catch duplicated external xids */
   XID  xid;                           // transaction identifier
   enum xa_states xa_state;            // used by external XA only
-  /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
-  uint rm_error;
   XID_cache_element *xid_cache_element;
 
   /**
@@ -51,6 +49,9 @@ struct XID_STATE {
     }
     return false;
   }
+
+  bool is_explicit_XA() const { return xid_cache_element != 0; }
+  void set_error(uint error);
 };
 
 void xid_cache_init(void);

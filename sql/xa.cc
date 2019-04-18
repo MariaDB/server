@@ -61,6 +61,8 @@ public:
   static const int32 ACQUIRED= 1 << 30;
   static const int32 RECOVERED= 1 << 29;
   XID_STATE *m_xid_state;
+  /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
+  uint rm_error;
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -108,6 +110,7 @@ public:
                                   XID_STATE *xid_state)
   {
     DBUG_ASSERT(!element->is_set(ACQUIRED | RECOVERED));
+    element->rm_error= 0;
     element->m_xid_state= xid_state;
     xid_state->xid_cache_element= element;
   }
@@ -144,6 +147,13 @@ bool THD::fix_xid_hash_pins()
   if (!xid_hash_pins)
     xid_hash_pins= lf_hash_get_pins(&xid_cache);
   return !xid_hash_pins;
+}
+
+
+void XID_STATE::set_error(uint error)
+{
+  if (is_explicit_XA())
+    xid_cache_element->rm_error= error;
 }
 
 
@@ -204,7 +214,6 @@ bool xid_cache_insert(XID *xid, enum xa_states xa_state)
   {
     xs->xa_state=xa_state;
     xs->xid.set(xid);
-    xs->rm_error=0;
 
     if ((res= lf_hash_insert(&xid_cache, pins, xs)))
       my_free(xs);
@@ -248,9 +257,13 @@ void xid_cache_delete(THD *thd, XID_STATE *xid_state)
     xid_state->xid_cache_element->mark_uninitialized();
     lf_hash_delete(&xid_cache, thd->xid_hash_pins,
                    xid_state->xid.key(), xid_state->xid.key_length());
-    xid_state->xid_cache_element= 0;
     if (recovered)
       my_free(xid_state);
+    else
+    {
+      xid_state->xid_cache_element= 0;
+      xid_state->xid.null();
+    }
   }
 }
 
@@ -296,9 +309,10 @@ static int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
 */
 static bool xa_trans_rolled_back(XID_STATE *xid_state)
 {
-  if (xid_state->rm_error)
+  DBUG_ASSERT(xid_state->is_explicit_XA());
+  if (xid_state->xid_cache_element->rm_error)
   {
-    switch (xid_state->rm_error) {
+    switch (xid_state->xid_cache_element->rm_error) {
     case ER_LOCK_WAIT_TIMEOUT:
       my_error(ER_XA_RBTIMEOUT, MYF(0));
       break;
@@ -318,21 +332,11 @@ static bool xa_trans_rolled_back(XID_STATE *xid_state)
 /**
   Rollback the active XA transaction.
 
-  @note Resets rm_error before calling ha_rollback(), so
-        the thd->transaction.xid structure gets reset
-        by ha_rollback() / THD::transaction::cleanup().
-
   @return TRUE if the rollback failed, FALSE otherwise.
 */
 
 static bool xa_trans_force_rollback(THD *thd)
 {
-  /*
-    We must reset rm_error before calling ha_rollback(),
-    so thd->transaction.xid structure gets reset
-    by ha_rollback()/THD::transaction::cleanup().
-  */
-  thd->transaction.xid_state.rm_error= 0;
   if (ha_rollback_trans(thd, true))
   {
     my_error(ER_XAER_RMERR, MYF(0));
@@ -377,7 +381,6 @@ bool trans_xa_start(THD *thd)
   {
     DBUG_ASSERT(thd->transaction.xid_state.xid.is_null());
     thd->transaction.xid_state.xa_state= XA_ACTIVE;
-    thd->transaction.xid_state.rm_error= 0;
     thd->transaction.xid_state.xid.set(thd->lex->xid);
     if (xid_cache_insert(thd, &thd->transaction.xid_state))
     {

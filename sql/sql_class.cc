@@ -1385,7 +1385,8 @@ void THD::init_for_queries()
   reset_root_defaults(&transaction.mem_root,
                       variables.trans_alloc_block_size,
                       variables.trans_prealloc_size);
-  transaction.xid_state.xid.null();
+  DBUG_ASSERT(!transaction.xid_state.is_explicit_XA());
+  DBUG_ASSERT(transaction.xid_state.xid.is_null());
 }
 
 
@@ -1529,7 +1530,6 @@ void THD::cleanup(void)
   close_temporary_tables();
 
   transaction.xid_state.xa_state= XA_NOTR;
-  transaction.xid_state.rm_error= 0;
   trans_rollback(this);
   xid_cache_delete(this, &transaction.xid_state);
 
