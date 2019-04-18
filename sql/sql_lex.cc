@@ -10112,7 +10112,7 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
        Multiple equalities are not removed but marked with DELETION_FL flag.
        They will be deleted later in substitite_for_best_equal_field() called
        for the HAVING condition.
-    5. Unwrap fields wrapped in Item_ref wrappers contain in the condition
+    5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
        of attach_to_conds so the condition could be pushed into WHERE.
 
   @note
@@ -10203,7 +10203,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
     join->having_equal= 0;
 
   /*
-    5. Unwrap fields wrapped in Item_ref wrappers contain in the condition
+    5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
        of attach_to_conds so the condition could be pushed into WHERE.
   */
   it.rewind();
@@ -10213,7 +10213,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
 
-    if (item->walk(&Item::cleanup_processor, 0, 0) ||
+    if (item->walk(&Item:: cleanup_processor, 0, STOP_PTR) ||
         item->fix_fields(thd, NULL))
     {
       attach_to_conds.empty();

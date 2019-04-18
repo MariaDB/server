@@ -714,6 +714,8 @@ public:
 
 /****************************************************************************/
 
+#define STOP_PTR ((void *) 1)
+
 class Item: public Value_source,
             public Type_all_attributes
 {
@@ -1829,8 +1831,10 @@ public:
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
   virtual bool cleanup_processor(void *arg);
-  virtual bool cleanup_excluding_fields_processor(void *arg) { return cleanup_processor(arg); }
-  virtual bool cleanup_excluding_const_fields_processor(void *arg) { return cleanup_processor(arg); }
+  virtual bool cleanup_excluding_fields_processor (void *arg)
+  { return cleanup_processor(arg); }
+  virtual bool cleanup_excluding_const_fields_processor (void *arg)
+  { return cleanup_processor(arg); }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
   virtual bool collect_outer_ref_processor(void *arg) {return 0; }
   virtual bool check_inner_refs_processor(void *arg) { return 0; }
@@ -6535,6 +6539,8 @@ public:
   virtual void set_null();
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
+    if (arg == STOP_PTR)
+      return FALSE;
     if (example && example->walk(processor, walk_subquery, arg))
       return TRUE;
     return (this->*processor)(arg);

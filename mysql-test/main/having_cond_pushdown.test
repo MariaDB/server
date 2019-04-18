@@ -1340,3 +1340,33 @@ HAVING (v1.pk = 1);
 
 DROP TABLE t1,t2,tmp1;
 DROP VIEW v1;
+
+--echo #
+--echo # MDEV-19164: pushdown of condition with cached items
+--echo #
+
+create table t1 (d1 date);
+insert into t1 values (null),('1971-03-06'),('1993-06-05'),('1998-07-08');
+
+let $q1=
+select d1 from t1
+  group by d1
+    having d1 between (inet_aton('1978-04-27')) and '2018-08-26';
+
+eval $q1;
+eval explain extended $q1;
+eval explain format=json $q1;
+
+delete from t1;
+insert into t1 values ('2018-01-15'),('2018-02-20');
+
+let $q2=
+select d1 from t1
+  group by d1
+    having d1 not between 0 AND exp(0);
+
+eval $q2;
+eval explain extended $q2;
+eval explain format=json $q2;
+
+drop table t1;
