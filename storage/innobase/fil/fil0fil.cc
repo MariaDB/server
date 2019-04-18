@@ -539,7 +539,7 @@ bool fil_node_t::read_page0(bool first)
 	/* Align the memory for file i/o if we might have O_DIRECT set */
 	byte* page = static_cast<byte*>(ut_align(buf2, psize));
 	IORequest request(IORequest::READ);
-	if (!os_file_read(request, handle, page, 0, psize)) {
+	if (os_file_read(request, handle, page, 0, psize) != DB_SUCCESS) {
 		ib::error() << "Unable to read first page of file " << name;
 		ut_free(buf2);
 		return false;
