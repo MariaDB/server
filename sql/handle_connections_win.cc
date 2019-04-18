@@ -28,8 +28,13 @@
 /* From mysqld.cc */
 extern HANDLE hEventShutdown;
 extern MYSQL_SOCKET base_ip_sock, extra_ip_sock;
+#ifdef HAVE_POOL_OF_THREADS
 extern PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ();
 extern void tp_win_callback_prolog();
+#else
+#define get_threadpool_win_callback_environ() 0
+#define tp_win_callback_prolog() do{}while(0)
+#endif
 static SECURITY_ATTRIBUTES pipe_security;
 
 /**
