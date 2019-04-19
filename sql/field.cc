@@ -67,14 +67,19 @@ inline bool Field::marked_for_read() const
           ptr < table->record[0] + table->s->reclength)));
 }
 
+/*
+  The name of this function is a bit missleading as in 10.4 we don't
+  have to test anymore if the field is computed. Instead we mark
+  changed fields with DBUG_FIX_WRITE_SET() in table.cc
+*/
 
 inline bool Field::marked_for_write_or_computed() const
 {
-  return is_stat_field || !table ||
-         (!table->write_set ||
-          bitmap_is_set(table->write_set, field_index) ||
-          (!(ptr >= table->record[0] &&
-          ptr < table->record[0] + table->s->reclength)));
+  return (is_stat_field || !table ||
+          (!table->write_set ||
+           bitmap_is_set(table->write_set, field_index) ||
+           (!(ptr >= table->record[0] &&
+              ptr < table->record[0] + table->s->reclength))));
 }
 
 

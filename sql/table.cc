@@ -8080,10 +8080,10 @@ public:
 
 
 /*
-  to satisfy ASSERT_COLUMN_MARKED_FOR_WRITE Field's assert we temporarily
+  to satisfy marked_for_write_or_computed() Field's assert we temporarily
   mark field for write before storing the generated value in it
 */
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 #define DBUG_FIX_WRITE_SET(f) bool _write_set_fixed= !bitmap_fast_test_and_set(write_set, (f)->field_index)
 #define DBUG_RESTORE_WRITE_SET(f) if (_write_set_fixed) bitmap_clear_bit(write_set, (f)->field_index)
 #else
