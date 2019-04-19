@@ -2690,7 +2690,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           field->key_start.set_bit(key);
         if (field->key_length() == key_part->length &&
             !(field->flags & BLOB_FLAG) &&
-            key_info->algorithm != HA_KEY_ALG_LONG_HASH)
+            keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
           {
@@ -9409,6 +9409,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
     return true;
   case SYSTEM_TIME_BEFORE:
     DBUG_ASSERT(0);
+    return false;
   case SYSTEM_TIME_AS_OF:
     return start.eq(conds.start);
   case SYSTEM_TIME_FROM_TO:
