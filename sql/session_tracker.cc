@@ -1285,7 +1285,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
 
       if ((tx_curr_state & TX_EXPLICIT) && is_xa)
       {
-        XID *xid= &thd->transaction.xid_state.xid;
+        XID *xid= thd->transaction.xid_state.get_xid();
         long glen, blen;
 
         buf->append(STRING_WITH_LEN("XA START"));

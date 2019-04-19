@@ -1159,10 +1159,12 @@ void thd_get_xid(const MYSQL_THD thd, MYSQL_XID *xid)
   if (!thd->wsrep_xid.is_null())
   {
     *xid = *(MYSQL_XID *) &thd->wsrep_xid;
+    return;
   }
-  else
 #endif /* WITH_WSREP */
-  *xid = *(MYSQL_XID *) &thd->transaction.xid_state.xid;
+  *xid= thd->transaction.xid_state.is_explicit_XA() ?
+        *(MYSQL_XID *) thd->transaction.xid_state.get_xid() :
+        *(MYSQL_XID *) &thd->transaction.implicit_xid;
 }
 
 
@@ -1386,7 +1388,7 @@ void THD::init_for_queries()
                       variables.trans_alloc_block_size,
                       variables.trans_prealloc_size);
   DBUG_ASSERT(!transaction.xid_state.is_explicit_XA());
-  DBUG_ASSERT(transaction.xid_state.xid.is_null());
+  DBUG_ASSERT(transaction.implicit_xid.is_null());
 }
 
 

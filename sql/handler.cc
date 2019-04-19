@@ -1199,8 +1199,11 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
   ha_info->register_ha(trans, ht_arg);
 
   trans->no_2pc|=(ht_arg->prepare==0);
-  if (thd->transaction.xid_state.xid.is_null())
-    thd->transaction.xid_state.xid.set(thd->query_id);
+
+  /* Set implicit xid even if there's explicit XA, it will be ignored anyway. */
+  if (thd->transaction.implicit_xid.is_null())
+    thd->transaction.implicit_xid.set(thd->query_id);
+
   DBUG_VOID_RETURN;
 }
 
@@ -1541,7 +1544,10 @@ int ha_commit_trans(THD *thd, bool all)
 
   need_prepare_ordered= FALSE;
   need_commit_ordered= FALSE;
-  xid= thd->transaction.xid_state.xid.get_my_xid();
+  DBUG_ASSERT(thd->transaction.implicit_xid.get_my_xid() ==
+              thd->transaction.implicit_xid.quick_get_my_xid());
+  xid= thd->transaction.xid_state.is_explicit_XA() ? 0 :
+       thd->transaction.implicit_xid.quick_get_my_xid();
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {

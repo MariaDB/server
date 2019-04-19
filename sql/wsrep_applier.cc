@@ -184,12 +184,6 @@ int wsrep_apply_events(THD*        thd,
     thd->set_server_id(ev->server_id);
     thd->set_time();                            // time the query
     thd->transaction.start_time.reset(thd);
-    //#define mariadb_10_4_0
-#ifdef mariadb_10_4_0
-    wsrep_xid_init(&thd->transaction.xid_state.xid,
-                   thd->wsrep_trx_meta.gtid.uuid,
-                   thd->wsrep_trx_meta.gtid.seqno);
-#endif
     thd->lex->current_select= 0;
     if (!ev->when)
     {

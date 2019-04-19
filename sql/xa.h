@@ -28,6 +28,7 @@ struct XID_STATE {
   bool is_explicit_XA() const { return xid_cache_element != 0; }
   void set_error(uint error);
   void er_xaer_rmfail() const;
+  XID *get_xid() const;
 };
 
 void xid_cache_init(void);

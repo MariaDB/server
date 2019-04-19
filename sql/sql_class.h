@@ -2582,6 +2582,7 @@ public:
     THD_TRANS stmt;			// Trans for current statement
     bool on;                            // see ha_enable_transaction()
     XID_STATE xid_state;
+    XID implicit_xid;
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
@@ -2606,9 +2607,7 @@ public:
       DBUG_ENTER("THD::st_transactions::cleanup");
       changed_tables= 0;
       savepoints= 0;
-      /* xid_cache_delete() resets xid of explicitly started XA transaction */
-      if (!xid_state.is_explicit_XA())
-        xid_state.xid.null();
+      implicit_xid.null();
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
       DBUG_VOID_RETURN;
     }
@@ -2620,6 +2619,7 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       xid_state.xid.null();
+      implicit_xid.null();
       init_sql_alloc(&mem_root, "THD::transactions",
                      ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
                      MYF(MY_THREAD_SPECIFIC));
