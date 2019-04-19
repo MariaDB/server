@@ -2794,6 +2794,8 @@ void Item_func_min_max::fix_length_and_dec()
   switch (tmp_cmp_type) {
   case TIME_RESULT:
     // At least one temporal argument was found.
+    if (temporal_type_count < arg_count)
+      maybe_null= true; // Non-temporal-to-temporal conversion can return NULL
     collation.set_numeric();
     set_handler_by_field_type(temporal_field_type);
     if (is_temporal_type_with_time(temporal_field_type))
