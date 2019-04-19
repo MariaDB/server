@@ -1504,7 +1504,7 @@ public:
     of a table is compatible with the old definition so that it can
     determine if data needs to be copied over (table data change).
   */
-  virtual uint is_equal(Create_field *new_field);
+  virtual uint is_equal(Create_field *new_field)= 0;
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
@@ -1868,7 +1868,6 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
   virtual bool str_needs_quotes() { return TRUE; }
-  uint is_equal(Create_field *new_field);
   bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
   virtual uint length_size() { return 0; }
   double pos_in_interval(Field *min, Field *max)
@@ -2640,6 +2639,7 @@ public:
   my_decimal *val_decimal(my_decimal *) { return 0; }
   String *val_str(String *value,String *value2)
   { value2->length(0); return value2;}
+  uint is_equal(Create_field *new_field);
   int cmp(const uchar *a, const uchar *b) { return 0;}
   void sort_string(uchar *buff, uint length)  {}
   uint32 pack_length() const { return 0; }
@@ -3563,6 +3563,7 @@ public:
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   void sql_type(String &str) const;
+  uint is_equal(Create_field *new_field);
   virtual uchar *pack(uchar *to, const uchar *from,
                       uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,

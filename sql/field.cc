@@ -2436,6 +2436,15 @@ void Field_null::sql_type(String &res) const
 }
 
 
+uint Field_null::is_equal(Create_field *new_field)
+{
+  DBUG_ASSERT(!compression_method());
+  return new_field->type_handler() == type_handler() &&
+         new_field->charset == field_charset &&
+         new_field->length == max_display_length();
+}
+
+
 /****************************************************************************
   Field_row, e.g. for ROW-type SP variables
 ****************************************************************************/
@@ -7069,14 +7078,10 @@ int Field_str::store(double nr)
   return store(buff, (uint)length, &my_charset_numeric);
 }
 
-uint Field::is_equal(Create_field *new_field)
-{
-  return new_field->type_handler() == type_handler();
-}
 
-
-uint Field_str::is_equal(Create_field *new_field)
+uint Field_string::is_equal(Create_field *new_field)
 {
+  DBUG_ASSERT(!compression_method());
   if (new_field->type_handler() != type_handler())
     return IS_EQUAL_NO;
   if (new_field->length < max_display_length())
