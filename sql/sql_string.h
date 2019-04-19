@@ -159,6 +159,14 @@ public:
   {
     swap_variables(CHARSET_INFO*, m_charset, other.m_charset);
   }
+  /*
+    Collation name without the character set name.
+    For example, in case of "latin1_swedish_ci",
+    this method returns "_swedish_ci".
+  */
+  LEX_CSTRING collation_specific_name() const;
+  bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
+  bool encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const;
 };
 
 

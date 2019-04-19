@@ -3705,10 +3705,6 @@ public:
 
   virtual bool
   Vers_history_point_resolve_unit(THD *thd, Vers_history_point *point) const;
-
-  static bool Charsets_are_compatible(const CHARSET_INFO *old_ci,
-                                      const CHARSET_INFO *new_ci,
-                                      bool part_of_a_key);
 };
 
 

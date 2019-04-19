@@ -1926,6 +1926,7 @@ protected:
                CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length);
+  bool csinfo_change_allows_instant_alter(const Create_field *to) const;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
