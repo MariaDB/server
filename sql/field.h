@@ -464,6 +464,7 @@ inline bool is_temporal_type_with_date(enum_field_types type)
   case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_TIMESTAMP2:
     DBUG_ASSERT(0); // field->real_type() should not get to here.
+    return false;
   default:
     return false;
   }

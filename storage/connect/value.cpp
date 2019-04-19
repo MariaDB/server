@@ -2599,12 +2599,13 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 
   // Pass g to have an error return or NULL to set invalid dates to 0
   if (MakeTime(&datm))
+  {
     if (g) {
       strcpy(g->Message, MSG(BAD_DATETIME));
       rc = true;
     } else
       Tval = 0;
-
+  }
   return rc;
   } // end of MakeDate
 
