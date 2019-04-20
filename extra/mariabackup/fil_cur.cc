@@ -253,7 +253,7 @@ xb_fil_cur_open(
 	if (!node->space->crypt_data
 	    && os_file_read(IORequestRead,
 			    node->handle, cursor->buf, 0,
-			    page_size.physical())) {
+			    page_size.physical()) == DB_SUCCESS) {
 		mutex_enter(&fil_system->mutex);
 		if (!node->space->crypt_data) {
 			node->space->crypt_data
@@ -442,8 +442,8 @@ read_retry:
 	cursor->buf_offset = offset;
 	cursor->buf_page_no = (ulint)(offset / page_size);
 
-	if (!os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
-			  (ulint) to_read)) {
+	if (os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
+			  (ulint) to_read) != DB_SUCCESS) {
 		ret = XB_FIL_CUR_ERROR;
 		goto func_exit;
 	}

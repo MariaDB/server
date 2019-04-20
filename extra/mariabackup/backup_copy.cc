@@ -559,9 +559,9 @@ datafile_read(datafile_cur_t *cursor)
 		return(XB_FIL_CUR_EOF);
 	}
 
-	if (!os_file_read(IORequestRead,
+	if (os_file_read(IORequestRead,
 			  cursor->file, cursor->buf, cursor->buf_offset,
-			  to_read)) {
+			  to_read) != DB_SUCCESS) {
 		return(XB_FIL_CUR_ERROR);
 	}
 
