@@ -11081,8 +11081,8 @@ int Rows_log_event::get_data_size()
                   m_rows_cur - m_rows_buf););
 
   int data_size= 0;
-  Log_event_type type = get_type_code();
-  bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
+  const Log_event_type type = get_type_code();
+  const bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
   if (is_v2_event)
   {
     data_size= ROWS_HEADER_LEN_V2 +
@@ -11865,6 +11865,8 @@ bool Rows_log_event::write_data_header()
 {
   uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
   DBUG_ASSERT(m_table_id != ~0ULL);
+  const Log_event_type type = get_type_code();
+  const bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
                     int4store(buf + 0, m_table_id);
@@ -11873,7 +11875,36 @@ bool Rows_log_event::write_data_header()
                   });
   int6store(buf + RW_MAPID_OFFSET, m_table_id);
   int2store(buf + RW_FLAGS_OFFSET, m_flags);
-  return write_data(buf, ROWS_HEADER_LEN);
+  int rc = 0;
+  if (likely(is_v2_event)) {
+    /*
+       v2 event, with variable header portion.
+       Determine length of variable header payload
+    */
+    uint16 vhlen = 2;
+    uint16 vhpayloadlen = 0;
+    uint16 extra_data_len = 0;
+    if (m_extra_row_data) {
+      extra_data_len = m_extra_row_data[EXTRA_ROW_INFO_LEN_OFFSET];
+      vhpayloadlen = RW_V_TAG_LEN + extra_data_len;
+    }
+
+    /* Var-size header len includes len itself */
+    int2store(buf + RW_VHLEN_OFFSET, vhlen + vhpayloadlen);
+    rc = write_data(buf, ROWS_HEADER_LEN_V2);
+
+    /* Write var-sized payload, if any */
+    if ((vhpayloadlen > 0) && (rc == 0)) {
+      /* Add tag and extra row info */
+      uchar type_code = RW_V_EXTRAINFO_TAG;
+      rc = write_data(&type_code, RW_V_TAG_LEN);
+      if (rc == 0)
+        rc = write_data(m_extra_row_data, extra_data_len);
+    }
+  } else {
+    rc = write_data(buf, ROWS_HEADER_LEN);
+  }
+  return (rc != 0);
 }
 
 bool Rows_log_event::write_data_body()
