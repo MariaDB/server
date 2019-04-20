@@ -36,6 +36,7 @@
 #include "violite.h"        /* vio_is_connected */
 #include "thr_lock.h"       /* thr_lock_type, THR_LOCK_DATA, THR_LOCK_INFO */
 #include "thr_timer.h"
+#include <my_tree.h>
 
 #include "sql_digest_stream.h"            // sql_digest_state
 
