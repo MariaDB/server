@@ -66,7 +66,6 @@ void trans_reset_one_shot_chistics(THD *thd)
 /* Conditions under which the transaction state must not change. */
 static bool trans_check(THD *thd)
 {
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
   DBUG_ENTER("trans_check");
 
   /*
@@ -77,8 +76,8 @@ static bool trans_check(THD *thd)
 
   if (unlikely(thd->in_sub_stmt))
     my_error(ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0));
-  if (xa_state != XA_NOTR)
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+  if (thd->transaction.xid_state.is_explicit_XA())
+    thd->transaction.xid_state.er_xaer_rmfail();
   else
     DBUG_RETURN(FALSE);
 

@@ -112,14 +112,6 @@ int spider_check_and_set_time_zone(
   int *need_mon
 );
 
-int spider_xa_lock(
-  XID_STATE *xid_state
-);
-
-int spider_xa_unlock(
-  XID_STATE *xid_state
-);
-
 int spider_start_internal_consistent_snapshot(
   SPIDER_TRX *trx,
   SPIDER_CONN *conn,

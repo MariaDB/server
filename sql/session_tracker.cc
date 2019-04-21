@@ -1108,7 +1108,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
   if ((thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS) &&
       (tx_changed & TX_CHG_CHISTICS))
   {
-    bool is_xa= (thd->transaction.xid_state.xa_state != XA_NOTR);
+    bool is_xa= thd->transaction.xid_state.is_explicit_XA();
     size_t start;
 
     /* 2 length by 1 byte and code */

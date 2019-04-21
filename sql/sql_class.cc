@@ -1509,12 +1509,6 @@ void THD::cleanup(void)
   DBUG_ASSERT(cleanup_done == 0);
 
   set_killed(KILL_CONNECTION);
-#ifdef ENABLE_WHEN_BINLOG_WILL_BE_ABLE_TO_PREPARE
-  if (transaction.xid_state.xa_state == XA_PREPARED)
-  {
-#error xid_state in the cache should be replaced by the allocated value
-  }
-#endif
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
   {
@@ -1529,9 +1523,8 @@ void THD::cleanup(void)
   delete_dynamic(&user_var_events);
   close_temporary_tables();
 
-  transaction.xid_state.xa_state= XA_NOTR;
-  trans_rollback(this);
   xid_cache_delete(this, &transaction.xid_state);
+  trans_rollback(this);
 
   DBUG_ASSERT(open_tables == NULL);
   /*

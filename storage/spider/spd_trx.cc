@@ -1707,7 +1707,7 @@ int spider_check_and_set_time_zone(
   DBUG_RETURN(0);
 }
 
-int spider_xa_lock(
+static int spider_xa_lock(
   XID_STATE *xid_state
 ) {
   THD *thd = current_thd;
@@ -1791,7 +1791,7 @@ error:
   DBUG_RETURN(error_num);
 }
 
-int spider_xa_unlock(
+static int spider_xa_unlock(
   XID_STATE *xid_state
 ) {
   THD *thd = current_thd;
@@ -1910,7 +1910,7 @@ int spider_internal_start_trx(
   if (!trx->trx_start)
   {
     if (
-      thd->transaction.xid_state.xa_state == XA_ACTIVE &&
+      thd->transaction.xid_state.is_explicit_XA() &&
       spider_param_support_xa()
     ) {
       trx->trx_xa = TRUE;
@@ -1948,7 +1948,6 @@ int spider_internal_start_trx(
         thd->server_id));
 #endif
 
-      trx->internal_xid_state.xa_state = XA_ACTIVE;
       trx->internal_xid_state.xid.set(&trx->xid);
 #ifdef SPIDER_XID_STATE_HAS_in_thd
       trx->internal_xid_state.in_thd = 1;
@@ -2217,7 +2216,6 @@ int spider_internal_xa_commit(
     table_xa_opened = FALSE;
   }
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(0);
 
 error:
@@ -2228,7 +2226,6 @@ error:
 error_in_commit:
 error_open_table:
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(error_num);
 }
 
@@ -2455,7 +2452,6 @@ int spider_internal_xa_rollback(
     table_xa_opened = FALSE;
   }
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(0);
 
 error:
@@ -2466,7 +2462,6 @@ error:
 error_in_rollback:
 error_open_table:
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(error_num);
 }
 
@@ -2635,8 +2630,6 @@ int spider_internal_xa_prepare(
     spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
     table_xa_opened = FALSE;
   }
-  if (internal_xa)
-    trx->internal_xid_state.xa_state = XA_PREPARED;
   DBUG_RETURN(0);
 
 error:

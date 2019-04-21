@@ -137,9 +137,6 @@ public:
 
 static LF_HASH xid_cache;
 static bool xid_cache_inited;
-const char *xa_state_names[]= {
-  "NON-EXISTING", "ACTIVE", "IDLE", "PREPARED", "ROLLBACK ONLY"
-};
 
 
 bool THD::fix_xid_hash_pins()
@@ -154,6 +151,37 @@ void XID_STATE::set_error(uint error)
 {
   if (is_explicit_XA())
     xid_cache_element->rm_error= error;
+}
+
+void XID_STATE::er_xaer_rmfail() const
+{
+  static const char *xa_state_names[]=
+    { "NON-EXISTING", "ACTIVE", "IDLE", "PREPARED", "ROLLBACK ONLY" };
+  my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+}
+
+
+/**
+  Check that XA transaction has an uncommitted work. Report an error
+  to the user in case when there is an uncommitted work for XA transaction.
+
+  @return  result of check
+    @retval  false  XA transaction is NOT in state IDLE, PREPARED
+                    or ROLLBACK_ONLY.
+    @retval  true   XA transaction is in state IDLE or PREPARED
+                    or ROLLBACK_ONLY.
+*/
+
+bool XID_STATE::check_has_uncommitted_xa() const
+{
+  if (xa_state == XA_IDLE ||
+      xa_state == XA_PREPARED ||
+      xa_state == XA_ROLLBACK_ONLY)
+  {
+    er_xaer_rmfail();
+    return true;
+  }
+  return false;
 }
 
 
@@ -201,7 +229,7 @@ static XID_STATE *xid_cache_search(THD *thd, XID *xid)
 }
 
 
-bool xid_cache_insert(XID *xid, enum xa_states xa_state)
+bool xid_cache_insert(XID *xid)
 {
   XID_STATE *xs;
   LF_PINS *pins;
@@ -212,13 +240,15 @@ bool xid_cache_insert(XID *xid, enum xa_states xa_state)
 
   if ((xs= (XID_STATE*) my_malloc(sizeof(*xs), MYF(MY_WME))))
   {
-    xs->xa_state=xa_state;
     xs->xid.set(xid);
 
     if ((res= lf_hash_insert(&xid_cache, pins, xs)))
       my_free(xs);
     else
+    {
+      xs->xa_state= XA_PREPARED;
       xs->xid_cache_element->set(XID_cache_element::RECOVERED);
+    }
     if (res == 1)
       res= 0;
   }
@@ -236,6 +266,7 @@ bool xid_cache_insert(THD *thd, XID_STATE *xid_state)
   switch (res)
   {
   case 0:
+    xid_state->xa_state= XA_ACTIVE;
     xid_state->xid_cache_element->set(XID_cache_element::ACQUIRED);
     break;
   case 1:
@@ -262,6 +293,7 @@ void xid_cache_delete(THD *thd, XID_STATE *xid_state)
     else
     {
       xid_state->xid_cache_element= 0;
+      xid_state->xa_state= XA_NOTR;
       xid_state->xid.null();
     }
   }
@@ -373,18 +405,16 @@ bool trans_xa_start(THD *thd)
   /* TODO: JOIN is not supported yet. */
   if (thd->lex->xa_opt != XA_NONE)
     my_error(ER_XAER_INVAL, MYF(0));
-  else if (xa_state != XA_NOTR)
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+  else if (thd->transaction.xid_state.is_explicit_XA())
+    thd->transaction.xid_state.er_xaer_rmfail();
   else if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
     my_error(ER_XAER_OUTSIDE, MYF(0));
   else if (!trans_begin(thd))
   {
     DBUG_ASSERT(thd->transaction.xid_state.xid.is_null());
-    thd->transaction.xid_state.xa_state= XA_ACTIVE;
     thd->transaction.xid_state.xid.set(thd->lex->xid);
     if (xid_cache_insert(thd, &thd->transaction.xid_state))
     {
-      thd->transaction.xid_state.xa_state= XA_NOTR;
       thd->transaction.xid_state.xid.null();
       trans_rollback(thd);
       DBUG_RETURN(true);
@@ -413,8 +443,7 @@ bool trans_xa_end(THD *thd)
   if (thd->lex->xa_opt != XA_NONE)
     my_error(ER_XAER_INVAL, MYF(0));
   else if (thd->transaction.xid_state.xa_state != XA_ACTIVE)
-    my_error(ER_XAER_RMFAIL, MYF(0),
-             xa_state_names[thd->transaction.xid_state.xa_state]);
+    thd->transaction.xid_state.er_xaer_rmfail();
   else if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
   else if (!xa_trans_rolled_back(&thd->transaction.xid_state))
@@ -439,14 +468,12 @@ bool trans_xa_prepare(THD *thd)
   DBUG_ENTER("trans_xa_prepare");
 
   if (thd->transaction.xid_state.xa_state != XA_IDLE)
-    my_error(ER_XAER_RMFAIL, MYF(0),
-             xa_state_names[thd->transaction.xid_state.xa_state]);
+    thd->transaction.xid_state.er_xaer_rmfail();
   else if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
   else if (ha_prepare(thd))
   {
     xid_cache_delete(thd, &thd->transaction.xid_state);
-    thd->transaction.xid_state.xa_state= XA_NOTR;
     my_error(ER_XA_RBROLLBACK, MYF(0));
   }
   else
@@ -535,7 +562,7 @@ bool trans_xa_commit(THD *thd)
   }
   else
   {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+    thd->transaction.xid_state.er_xaer_rmfail();
     DBUG_RETURN(TRUE);
   }
 
@@ -545,7 +572,6 @@ bool trans_xa_commit(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   xid_cache_delete(thd, &thd->transaction.xid_state);
-  thd->transaction.xid_state.xa_state= XA_NOTR;
 
   trans_track_end_trx(thd);
 
@@ -590,7 +616,7 @@ bool trans_xa_rollback(THD *thd)
 
   if (xa_state != XA_IDLE && xa_state != XA_PREPARED && xa_state != XA_ROLLBACK_ONLY)
   {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+    thd->transaction.xid_state.er_xaer_rmfail();
     DBUG_RETURN(TRUE);
   }
 
@@ -602,7 +628,6 @@ bool trans_xa_rollback(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   xid_cache_delete(thd, &thd->transaction.xid_state);
-  thd->transaction.xid_state.xa_state= XA_NOTR;
 
   trans_track_end_trx(thd);
 
