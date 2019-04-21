@@ -1587,9 +1587,27 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
             return(FLOAT_NUM);
           }
         }
+        /*
+          We've found:
+          - A sequence of digits
+          - Followed by 'e' or 'E'
+          - Followed by some byte XX which is not a known mantissa start,
+            and it's known to be a valid identifier part.
+            XX can be either a 8bit identifier character, or a multi-byte head.
+        */
         yyUnget();
+        return scan_ident_start(thd, &yylval->ident_cli);
       }
-      // fall through
+      /*
+        We've found:
+        - A sequence of digits
+        - Followed by some character XX, which is neither 'e' nor 'E',
+          and it's known to be a valid identifier part.
+          XX can be a 8bit identifier character, or a multi-byte head.
+      */
+      yyUnget();
+      return scan_ident_start(thd, &yylval->ident_cli);
+
     case MY_LEX_IDENT_START:                    // We come here after '.'
       return scan_ident_start(thd, &yylval->ident_cli);
 
