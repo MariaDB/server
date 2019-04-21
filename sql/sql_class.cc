@@ -1525,8 +1525,10 @@ void THD::cleanup(void)
   delete_dynamic(&user_var_events);
   close_temporary_tables();
 
-  xid_cache_delete(this, &transaction.xid_state);
-  trans_rollback(this);
+  if (transaction.xid_state.is_explicit_XA())
+    trans_xa_detach(this);
+  else
+    trans_rollback(this);
 
   DBUG_ASSERT(open_tables == NULL);
   /*

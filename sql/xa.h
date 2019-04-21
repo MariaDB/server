@@ -40,4 +40,5 @@ bool trans_xa_end(THD *thd);
 bool trans_xa_prepare(THD *thd);
 bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
+bool trans_xa_detach(THD *thd);
 bool mysql_xa_recover(THD *thd);

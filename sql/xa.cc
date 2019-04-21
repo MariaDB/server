@@ -106,11 +106,16 @@ public:
       (void) LF_BACKOFF();
     }
   }
+  void acquired_to_recovered()
+  {
+    m_state.fetch_or(RECOVERED, std::memory_order_relaxed);
+    m_state.fetch_and(~ACQUIRED, std::memory_order_release);
+  }
   bool acquire_recovered()
   {
     int32_t old= RECOVERED;
     while (!m_state.compare_exchange_weak(old, ACQUIRED | RECOVERED,
-                                          std::memory_order_relaxed,
+                                          std::memory_order_acquire,
                                           std::memory_order_relaxed))
     {
       if (!(old & RECOVERED) || (old & ACQUIRED))
@@ -303,11 +308,9 @@ static void xid_cache_delete(THD *thd, XID_cache_element *&element)
 
 void xid_cache_delete(THD *thd, XID_STATE *xid_state)
 {
-  if (xid_state->xid_cache_element)
-  {
-    xid_cache_delete(thd, xid_state->xid_cache_element);
-    xid_state->xid_cache_element= 0;
-  }
+  DBUG_ASSERT(xid_state->is_explicit_XA());
+  xid_cache_delete(thd, xid_state->xid_cache_element);
+  xid_state->xid_cache_element= 0;
 }
 
 
@@ -379,12 +382,24 @@ static bool xa_trans_rolled_back(XID_cache_element *element)
 
 static bool xa_trans_force_rollback(THD *thd)
 {
+  bool rc= false;
+
   if (ha_rollback_trans(thd, true))
   {
     my_error(ER_XAER_RMERR, MYF(0));
-    return true;
+    rc= true;
   }
-  return false;
+
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->transaction.all.reset();
+  thd->server_status&=
+    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+  xid_cache_delete(thd, &thd->transaction.xid_state);
+
+  trans_track_end_trx(thd);
+
+  return rc;
 }
 
 
@@ -532,7 +547,7 @@ bool trans_xa_commit(THD *thd)
   if (xa_trans_rolled_back(thd->transaction.xid_state.xid_cache_element))
   {
     xa_trans_force_rollback(thd);
-    res= thd->is_error();
+    DBUG_RETURN(thd->is_error());
   }
   else if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE &&
            thd->lex->xa_opt == XA_ONE_PHASE)
@@ -601,7 +616,6 @@ bool trans_xa_commit(THD *thd)
 
 bool trans_xa_rollback(THD *thd)
 {
-  bool res= TRUE;
   DBUG_ENTER("trans_xa_rollback");
 
   if (!thd->transaction.xid_state.is_explicit_XA() ||
@@ -629,19 +643,35 @@ bool trans_xa_rollback(THD *thd)
     thd->transaction.xid_state.er_xaer_rmfail();
     DBUG_RETURN(TRUE);
   }
+  DBUG_RETURN(xa_trans_force_rollback(thd));
+}
 
-  res= xa_trans_force_rollback(thd);
 
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
-  thd->transaction.all.reset();
-  thd->server_status&=
-    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
-  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
-  xid_cache_delete(thd, &thd->transaction.xid_state);
+bool trans_xa_detach(THD *thd)
+{
+  DBUG_ASSERT(thd->transaction.xid_state.is_explicit_XA());
+#if 1
+  return xa_trans_force_rollback(thd);
+#else
+  if (thd->transaction.xid_state.xid_cache_element->xa_state != XA_PREPARED)
+    return xa_trans_force_rollback(thd);
+  thd->transaction.xid_state.xid_cache_element->acquired_to_recovered();
+  thd->transaction.xid_state.xid_cache_element= 0;
+  thd->transaction.cleanup();
 
-  trans_track_end_trx(thd);
+  Ha_trx_info *ha_info, *ha_info_next;
+  for (ha_info= thd->transaction.all.ha_list;
+       ha_info;
+       ha_info= ha_info_next)
+  {
+    ha_info_next= ha_info->next();
+    ha_info->reset(); /* keep it conveniently zero-filled */
+  }
 
-  DBUG_RETURN(res);
+  thd->transaction.all.ha_list= 0;
+  thd->transaction.all.no_2pc= 0;
+  return false;
+#endif
 }
 
 
