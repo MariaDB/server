@@ -1335,6 +1335,18 @@ static Sys_var_uint Sys_log_bin_compress_min_len(
   GLOBAL_VAR(opt_bin_log_compress_min_len),
   CMD_LINE(OPT_ARG), VALID_RANGE(10, 1024), DEFAULT(256), BLOCK_SIZE(1));
 
+static Sys_var_mybool Sys_log_bin_send_microseconds(
+  "log_bin_send_microseconds",
+  "If equal to 1 then version 2 row events are written to a row based "
+  "binary log with microseconds in extra row info. "
+  "For statement-based replication microseconds are sent unconditionally. "
+  "It is useful for precise and consistent system versioning history on slave, "
+  "while master tables can be not system-versioned. "
+  "If equal to 0, then version 1 of events are written "
+  "without extra row info data.",
+  GLOBAL_VAR(opt_bin_log_send_microseconds), CMD_LINE(OPT_ARG),
+  DEFAULT(false), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 static Sys_var_mybool Sys_trust_function_creators(
        "log_bin_trust_function_creators",
        "If set to FALSE (the default), then when --log-bin is used, creation "
