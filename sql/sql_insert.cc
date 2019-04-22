@@ -1659,7 +1659,8 @@ int TABLE::vers_insert_history_row()
   Field *row_start= vers_start_field();
   Field *row_end= vers_end_field();
   int cmp_res= row_start->cmp(row_start->ptr, row_end->ptr);
-  if (cmp_res == 0)
+  if (cmp_res == 0 || (cmp_res > 0 && in_use->is_binlog()))
+  {
     return 0;
   if (cmp_res > 0) {
     String start, end;

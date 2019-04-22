@@ -3143,6 +3143,19 @@ public:
   int	     slave_expected_error;
   enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
 
+  bool is_binlog()
+  {
+    DBUG_ASSERT(lex);
+    if (slave_thread)
+      return true;
+    if (lex->sql_command == SQLCOM_BINLOG_BASE64_EVENT)
+      return true;
+    if (lex->sql_command == SQLCOM_END &&
+        last_sql_command == SQLCOM_BINLOG_BASE64_EVENT)
+      return true;
+    return false;
+  }
+
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
   sp_cache   *sp_func_cache;
