@@ -1947,6 +1947,12 @@ public:
   virtual bool check_partition_func_processor(void *arg) { return 1;}
   virtual bool post_fix_fields_part_expr_processor(void *arg) { return 0; }
   virtual bool rename_fields_processor(void *arg) { return 0; }
+  /*
+    TRUE if the function is knowingly TRUE or FALSE.
+    Not to be used for AND/OR formulas.
+  */
+  virtual bool is_simplified_cond_processor(void *arg) { return false; }
+
   /** Processor used to check acceptability of an item in the defining
       expression for a virtual column 
 
