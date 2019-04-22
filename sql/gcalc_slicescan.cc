@@ -982,6 +982,8 @@ void Gcalc_heap::reset()
 {
   if (m_n_points)
   {
+    if (m_hook)
+      *m_hook= NULL;
     free_list(m_first);
     m_n_points= 0;
   }
