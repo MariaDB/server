@@ -447,6 +447,14 @@ The following specify which files/extra groups are read (specified before remain
  record(in row mode)that can be compressed.
  --log-bin-index=name 
  File that holds the names for last binary log files.
+ --log-bin-send-microseconds 
+ If equal to 1 then version 2 row events are written to a
+ row based binary log with microseconds in extra row info.
+ For statement-based replication microseconds are sent
+ unconditionally. It is useful for precise and consistent
+ system versioning history on slave, while master tables
+ can be not system-versioned. If equal to 0, then version
+ 1 of events are written without extra row info data.
  --log-bin-trust-function-creators 
  If set to FALSE (the default), then when --log-bin is
  used, creation of a stored function (or trigger) is
@@ -1516,6 +1524,7 @@ log-bin (No default value)
 log-bin-compress FALSE
 log-bin-compress-min-len 256
 log-bin-index (No default value)
+log-bin-send-microseconds FALSE
 log-bin-trust-function-creators FALSE
 log-disabled-statements sp
 log-error 

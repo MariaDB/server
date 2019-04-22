@@ -9,5 +9,7 @@ Variable_name	log_bin_compress_min_len
 Value	256
 Variable_name	log_bin_index
 Value	MYSQLTEST_VARDIR/mysqld.1/data/mysqld-bin.index
+Variable_name	log_bin_send_microseconds
+Value	OFF
 Variable_name	log_bin_trust_function_creators
 Value	ON

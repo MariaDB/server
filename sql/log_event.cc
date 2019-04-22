@@ -4213,7 +4213,7 @@ bool Query_log_event::write()
     }
   }
 
-  if (thd && thd->query_start_sec_part_used)
+  if ((thd && thd->query_start_sec_part_used) || opt_bin_log_send_microseconds)
   {
     *start++= Q_HRNOW;
     get_time();
@@ -4773,6 +4773,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
       CHECK_SPACE(pos, end, 3);
       when_sec_part= uint3korr(pos);
       pos+= 3;
+      DBUG_PRINT("time", ("Got microseconds: %lu", when_sec_part));
       break;
     }
     default:
@@ -10824,6 +10825,21 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
   DBUG_ASSERT((tbl_arg && tbl_arg->s && tid != ~0UL) ||
               (!tbl_arg && !cols && tid == ~0UL));
 
+  if (is_v2_event() && opt_bin_log_send_microseconds) {
+    /* Copy Extra data from thd into new event */
+    const uint8 extra_data_len = EXTRA_ROW_INFO_HDR_BYTES + EXTRA_ROW_INFO_MICROSECONDS_BYTES;
+    assert(extra_data_len >= EXTRA_ROW_INFO_HDR_BYTES);
+
+    m_extra_row_data =
+        (uchar *)my_malloc(extra_data_len, MYF(MY_WME));
+
+    if (likely(m_extra_row_data != NULL)) {
+      m_extra_row_data[EXTRA_ROW_INFO_LEN_OFFSET]= extra_data_len;
+      m_extra_row_data[EXTRA_ROW_INFO_FORMAT_OFFSET]= ERIF_OPEN1;
+      int3store(&m_extra_row_data[EXTRA_ROW_INFO_MICROSECONDS_OFFSET], when_sec_part);
+    }
+  }
+
   if (thd_arg->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS)
     set_flags(NO_FOREIGN_KEY_CHECKS_F);
   if (thd_arg->variables.option_bits & OPTION_RELAXED_UNIQUE_CHECKS)
@@ -11081,9 +11097,7 @@ int Rows_log_event::get_data_size()
                   m_rows_cur - m_rows_buf););
 
   int data_size= 0;
-  const Log_event_type type = get_type_code();
-  const bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
-  if (is_v2_event)
+  if (is_v2_event())
   {
     data_size= ROWS_HEADER_LEN_V2 +
       (m_extra_row_data ?
@@ -11512,6 +11526,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       which tested replicate-* rules).
     */
 
+    if (m_extra_row_data &&
+        m_extra_row_data[EXTRA_ROW_INFO_FORMAT_OFFSET] == ERIF_OPEN1)
+    {
+      when_sec_part= uint3korr(&m_extra_row_data[EXTRA_ROW_INFO_MICROSECONDS_OFFSET]);
+      DBUG_PRINT("time", ("Got microseconds: %lu", when_sec_part));
+    }
+
     /*
       It's not needed to set_time() but
       1) it continues the property that "Time" in SHOW PROCESSLIST shows how
@@ -11865,8 +11886,6 @@ bool Rows_log_event::write_data_header()
 {
   uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
   DBUG_ASSERT(m_table_id != ~0ULL);
-  const Log_event_type type = get_type_code();
-  const bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
                     int4store(buf + 0, m_table_id);
@@ -11876,7 +11895,7 @@ bool Rows_log_event::write_data_header()
   int6store(buf + RW_MAPID_OFFSET, m_table_id);
   int2store(buf + RW_FLAGS_OFFSET, m_flags);
   int rc = 0;
-  if (likely(is_v2_event)) {
+  if (is_v2_event()) {
     /*
        v2 event, with variable header portion.
        Determine length of variable header payload
@@ -13178,7 +13197,9 @@ Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                            ulong tid_arg,
                                            bool is_transactional)
   :Rows_log_event(thd_arg, tbl_arg, tid_arg, tbl_arg->rpl_write_set,
-                  is_transactional, WRITE_ROWS_EVENT_V1)
+                  is_transactional,
+                  opt_bin_log_send_microseconds ? WRITE_ROWS_EVENT
+                                                : WRITE_ROWS_EVENT_V1)
 {
 }
 
@@ -13189,7 +13210,8 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
                                            bool is_transactional)
   : Write_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
-  m_type = WRITE_ROWS_COMPRESSED_EVENT_V1;
+  m_type = opt_bin_log_send_microseconds ? WRITE_ROWS_COMPRESSED_EVENT
+                                         : WRITE_ROWS_COMPRESSED_EVENT_V1;
 }
 
 bool Write_rows_compressed_log_event::write()
@@ -14337,7 +14359,8 @@ end:
 Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                              ulong tid, bool is_transactional)
   : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
-                   DELETE_ROWS_EVENT_V1)
+                   opt_bin_log_send_microseconds ? DELETE_ROWS_EVENT
+                                                 : DELETE_ROWS_EVENT_V1)
 {
 }
 
@@ -14347,7 +14370,8 @@ Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
                                            bool is_transactional)
   : Delete_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
-  m_type= DELETE_ROWS_COMPRESSED_EVENT_V1;
+  m_type= opt_bin_log_send_microseconds ? DELETE_ROWS_COMPRESSED_EVENT
+                                        : DELETE_ROWS_COMPRESSED_EVENT_V1;
 }
 
 bool Delete_rows_compressed_log_event::write()
@@ -14531,7 +14555,8 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                                              ulong tid,
                                              bool is_transactional)
 : Rows_log_event(thd_arg, tbl_arg, tid, tbl_arg->read_set, is_transactional,
-                 UPDATE_ROWS_EVENT_V1)
+                 opt_bin_log_send_microseconds ? UPDATE_ROWS_EVENT
+                                               : UPDATE_ROWS_EVENT_V1)
 {
   init(tbl_arg->rpl_write_set);
 }
@@ -14541,7 +14566,8 @@ Update_rows_compressed_log_event::Update_rows_compressed_log_event(THD *thd_arg,
                                                                    bool is_transactional)
 : Update_rows_log_event(thd_arg, tbl_arg, tid, is_transactional)
 {
-  m_type = UPDATE_ROWS_COMPRESSED_EVENT_V1;
+  m_type = opt_bin_log_send_microseconds ? UPDATE_ROWS_COMPRESSED_EVENT
+                                         : UPDATE_ROWS_COMPRESSED_EVENT_V1;
 }
 
 bool Update_rows_compressed_log_event::write()
