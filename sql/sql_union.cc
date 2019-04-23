@@ -1150,12 +1150,12 @@ cont:
 
     while ((type= tp++))
     {
-      if (type->cmp_type() == STRING_RESULT &&
-          type->collation.derivation == DERIVATION_NONE)
-      {
-        my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
+      /*
+        Test if the aggregated data type is OK for a UNION element.
+        E.g. in case of string data, DERIVATION_NONE is not allowed.
+      */
+      if (type->type_handler()->union_element_finalize(type))
         goto err;
-      }
     }
     
     /*

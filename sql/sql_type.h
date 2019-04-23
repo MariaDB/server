@@ -1187,6 +1187,14 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  /*
+    Performs the final data type validation for a UNION element,
+    after the regular "aggregation for result" was done.
+  */
+  virtual bool union_element_finalize(const Item * item) const
+  {
+    return false;
+  }
   virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   virtual bool Column_definition_prepare_stage1(THD *thd,
                                                 MEM_ROOT *mem_root,
@@ -2236,7 +2244,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
-
+  bool union_element_finalize(const Item * item) const;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,

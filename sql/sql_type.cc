@@ -5933,6 +5933,18 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
 
 /***************************************************************************/
 
+bool Type_handler_string_result::union_element_finalize(const Item * item) const
+{
+  if (item->collation.derivation == DERIVATION_NONE)
+  {
+    my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
+    return true;
+  }
+  return false;
+}
+
+/***************************************************************************/
+
 bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
                                                    Vers_history_point *point)
                                                    const
