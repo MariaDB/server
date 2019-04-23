@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2015, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2008, 2018, MariaDB Corporation
+# Copyright (c) 2008, 2019, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -80,7 +80,7 @@ ENDIF(WIN32)
 ADD_EXECUTABLE(async_example async_example.c)
 TARGET_LINK_LIBRARIES(async_example mysqlclient)
 
-SET_TARGET_PROPERTIES (mysqlcheck mysqldump mysqlimport mysql_upgrade mysqlshow mysqlslap mysql_plugin 
+SET_TARGET_PROPERTIES (mysqlcheck mysqldump mysqlimport mysql_upgrade mysqlshow mysqlslap mysql_plugin async_example
 PROPERTIES HAS_CXX TRUE)
 
 ADD_DEFINITIONS(-DHAVE_DLOPEN)
