@@ -1989,10 +1989,8 @@ static bool innodb_init()
 {
 	dberr_t err = innobase_start_or_create_for_mysql();
 	if (err != DB_SUCCESS) {
-		msg("mariabackup: innodb_init() returned %d (%s).",
+		die("mariabackup: innodb_init() returned %d (%s).",
 		    err, ut_strerr(err));
-		innodb_shutdown();
-		return(TRUE);
 	}
 
 	return(FALSE);
