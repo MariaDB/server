@@ -2177,7 +2177,10 @@ inline bool statistics_for_command_is_needed(THD *thd)
 {
   if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
     return FALSE;
-  
+
+  if (thd->force_read_stats)
+    return TRUE;
+
   switch(thd->lex->sql_command) {
   case SQLCOM_SELECT:
   case SQLCOM_INSERT:

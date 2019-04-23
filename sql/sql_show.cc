@@ -4273,6 +4273,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     'only_view_structure()'.
   */
   lex->sql_command= SQLCOM_SHOW_FIELDS;
+  thd->force_read_stats= get_schema_table_idx(schema_table) == SCH_STATISTICS;
   result= (open_temporary_tables(thd, table_list) ||
            open_normal_and_derived_tables(thd, table_list,
                                           (MYSQL_OPEN_IGNORE_FLUSH |
@@ -4280,6 +4281,10 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
                                            (can_deadlock ?
                                             MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
                                           DT_PREPARE | DT_CREATE));
+
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
+  thd->force_read_stats= false;
+
   /*
     Restore old value of sql_command back as it is being looked at in
     process_table() function.
