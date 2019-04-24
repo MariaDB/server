@@ -1992,6 +1992,7 @@ public:
   void cleanup();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_set_user_var>(thd, mem_root, this); }
+  bool excl_dep_on_table(table_map tab_map) { return false; }
 };
 
 
