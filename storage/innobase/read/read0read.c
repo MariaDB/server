@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -272,15 +273,19 @@ read_view_open_now(
 	view->low_limit_id = view->low_limit_no;
 
 	n = 0;
-	trx = UT_LIST_GET_FIRST(trx_sys->trx_list);
 
 	/* No active transaction should be visible, except cr_trx */
 
-	while (trx) {
-		if (trx->id != cr_trx_id
-		    && (trx->conc_state == TRX_ACTIVE
-			|| trx->conc_state == TRX_PREPARED)) {
+	for (trx = UT_LIST_GET_FIRST(trx_sys->trx_list); trx;
+	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
+		if (trx->id == cr_trx_id) {
+			continue;
+		}
 
+		switch (trx->conc_state) {
+		case TRX_ACTIVE:
+		case TRX_PREPARED:
+		case TRX_PREPARED_RECOVERED:
 			read_view_set_nth_trx_id(view, n, trx->id);
 
 			n++;
@@ -296,8 +301,6 @@ read_view_open_now(
 				view->low_limit_no = trx->no;
 			}
 		}
-
-		trx = UT_LIST_GET_NEXT(trx_list, trx);
 	}
 
 	view->n_trx_ids = n;
@@ -437,18 +440,15 @@ read_cursor_view_create_for_mysql(
 	view->low_limit_id = view->low_limit_no;
 
 	n = 0;
-	trx = UT_LIST_GET_FIRST(trx_sys->trx_list);
 
 	/* No active transaction should be visible */
-
-	while (trx) {
-
-		if (trx->conc_state == TRX_ACTIVE
-		    || trx->conc_state == TRX_PREPARED) {
-
-			read_view_set_nth_trx_id(view, n, trx->id);
-
-			n++;
+	for (trx = UT_LIST_GET_FIRST(trx_sys->trx_list); trx;
+	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
+		switch (trx->conc_state) {
+		case TRX_ACTIVE:
+		case TRX_PREPARED:
+		case TRX_PREPARED_RECOVERED:
+			read_view_set_nth_trx_id(view, n++, trx->id);
 
 			/* NOTE that a transaction whose trx number is <
 			trx_sys->max_trx_id can still be active, if it is
@@ -461,8 +461,6 @@ read_cursor_view_create_for_mysql(
 				view->low_limit_no = trx->no;
 			}
 		}
-
-		trx = UT_LIST_GET_NEXT(trx_list, trx);
 	}
 
 	view->n_trx_ids = n;

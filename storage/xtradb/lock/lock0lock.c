@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4811,6 +4812,22 @@ print_rec:
 }
 
 #ifdef UNIV_DEBUG
+/** Validate the state of a transaction that holds locks */
+static void lock_trx_state_validate(const trx_t* trx)
+{
+	switch (trx->state) {
+	case TRX_NOT_STARTED:
+		break;
+	case TRX_ACTIVE:
+	case TRX_PREPARED:
+	case TRX_PREPARED_RECOVERED:
+	case TRX_COMMITTED_IN_MEMORY:
+		return;
+
+	}
+	ut_ad(!"wrong state");
+}
+
 /*********************************************************************//**
 Validates the lock queue on a table.
 @return	TRUE if ok */
@@ -4827,9 +4844,7 @@ lock_table_queue_validate(
 	lock = UT_LIST_GET_FIRST(table->locks);
 
 	while (lock) {
-		ut_a(((lock->trx)->state == TRX_ACTIVE)
-		     || ((lock->trx)->state == TRX_PREPARED)
-		     || ((lock->trx)->state == TRX_COMMITTED_IN_MEMORY));
+		ut_d(lock_trx_state_validate(lock->trx));
 
 		if (!lock_get_wait(lock)) {
 
@@ -4877,15 +4892,7 @@ lock_rec_queue_validate(
 		lock = lock_rec_get_first(block, heap_no);
 
 		while (lock) {
-			switch(lock->trx->state) {
-			case TRX_ACTIVE:
-			case TRX_PREPARED:
-			case TRX_COMMITTED_IN_MEMORY:
-				break;
-			default:
-				ut_error;
-			}
-
+			ut_d(lock_trx_state_validate(lock->trx));
 			ut_a(trx_in_trx_list(lock->trx));
 
 			if (lock_get_wait(lock)) {
@@ -4964,9 +4971,7 @@ lock_rec_queue_validate(
 	lock = lock_rec_get_first(block, heap_no);
 
 	while (lock) {
-		ut_a(lock->trx->state == TRX_ACTIVE
-		     || lock->trx->state == TRX_PREPARED
-		     || lock->trx->state == TRX_COMMITTED_IN_MEMORY);
+		ut_d(lock_trx_state_validate(lock->trx));
 		ut_a(trx_in_trx_list(lock->trx));
 
 		if (index) {
@@ -5043,10 +5048,8 @@ loop:
 		}
 	}
 
+	ut_d(lock_trx_state_validate(lock->trx));
 	ut_a(trx_in_trx_list(lock->trx));
-	ut_a(lock->trx->state == TRX_ACTIVE
-	     || lock->trx->state == TRX_PREPARED
-	     || lock->trx->state == TRX_COMMITTED_IN_MEMORY);
 
 # ifdef UNIV_SYNC_DEBUG
 	/* Only validate the record queues when this thread is not

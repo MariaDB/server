@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -741,6 +742,8 @@ struct trx_struct{
 #define	TRX_ACTIVE		1
 #define	TRX_COMMITTED_IN_MEMORY	2
 #define	TRX_PREPARED		3	/* Support for 2PC/XA */
+#define TRX_PREPARED_RECOVERED	4	/* XA PREPARE transaction that
+					was returned to ha_recover() */
 
 /* Transaction execution states when trx->conc_state == TRX_ACTIVE */
 #define TRX_QUE_RUNNING		0	/* transaction is running */

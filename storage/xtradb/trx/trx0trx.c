@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2011, Innobase Oy. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -481,7 +482,8 @@ trx_free_prepared(
 	trx_t*	trx)	/*!< in, own: trx object */
 {
 	ut_ad(mutex_own(&kernel_mutex));
-	ut_a(trx->state == TRX_PREPARED);
+	ut_a(trx->state == TRX_PREPARED
+	     || trx->state == TRX_PREPARED_RECOVERED);
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	/* Prepared transactions are sort of active; they allow
@@ -1148,10 +1150,11 @@ trx_commit_off_kernel(
 		lsn = 0;
 	}
 
-	ut_ad(trx->state == TRX_ACTIVE || trx->state == TRX_PREPARED);
+	ut_ad(trx->state == TRX_ACTIVE || trx->state == TRX_PREPARED
+	      || trx->state == TRX_PREPARED_RECOVERED);
 	ut_ad(mutex_own(&kernel_mutex));
 
-	if (UNIV_UNLIKELY(trx->state == TRX_PREPARED)) {
+	if (UNIV_UNLIKELY(trx->state != TRX_ACTIVE)) {
 		ut_a(trx_n_prepared > 0);
 		trx_n_prepared--;
 	}
@@ -2359,6 +2362,7 @@ trx_recover_for_mysql(
 
 	while (trx) {
 		if (trx->state == TRX_PREPARED) {
+			trx->state = TRX_PREPARED_RECOVERED;
 			xid_list[count] = trx->xid;
 
 			if (count == 0) {
@@ -2383,13 +2387,25 @@ trx_recover_for_mysql(
 			count++;
 
 			if (count == len) {
-				break;
+				goto partial;
 			}
 		}
 
 		trx = UT_LIST_GET_NEXT(trx_list, trx);
 	}
 
+	/* After returning the full list, reset the state, because
+	init_server_components() wants to recover the collection of
+	transactions twice, by first calling tc_log->open() and then
+	ha_recover() directly. */
+	for (trx = UT_LIST_GET_FIRST(trx_sys->trx_list); trx;
+	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
+		if (trx->state == TRX_PREPARED_RECOVERED) {
+			trx->state = TRX_PREPARED;
+		}
+	}
+
+partial:
 	mutex_exit(&kernel_mutex);
 
 	if (count > 0){
@@ -2431,7 +2447,8 @@ trx_get_trx_by_xid(
 		the same */
 
 		if (trx->is_recovered
-		    && trx->state == TRX_PREPARED
+		    && (trx->state == TRX_PREPARED
+			|| trx->state == TRX_PREPARED_RECOVERED)
 		    && xid->gtrid_length == trx->xid.gtrid_length
 		    && xid->bqual_length == trx->xid.bqual_length
 		    && memcmp(xid->data, trx->xid.data,

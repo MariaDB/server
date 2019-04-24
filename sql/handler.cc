@@ -1740,6 +1740,7 @@ int ha_recover(HASH *commit_list)
   for (info.len= MAX_XID_LIST_SIZE ; 
        info.list==0 && info.len > MIN_XID_LIST_SIZE; info.len/=2)
   {
+    DBUG_EXECUTE_IF("min_xa_len", info.len = 16;);
     info.list=(XID *)my_malloc(info.len*sizeof(XID), MYF(0));
   }
   if (!info.list)
