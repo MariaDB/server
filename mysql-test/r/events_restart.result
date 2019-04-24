@@ -20,25 +20,25 @@ select @@event_scheduler;
 @@event_scheduler
 OFF
 show events;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 select event_name from information_schema.events;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 show create event intact_check;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event no_such_event;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 create event intact_check_1 on schedule every 5 hour do select 5;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 alter event intact_check_1 on schedule every 8 hour do select 8;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 alter event intact_check_1 rename to intact_check_2;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event intact_check_1;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event intact_check_2;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event intact_check;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 set global event_scheduler=on;
 ERROR HY000: Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.
 set global event_scheduler=off;
