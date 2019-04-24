@@ -702,3 +702,39 @@ drop table t1;
 --echo #
 --echo # End of 10.2 test
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 test
+--echo #
+
+--echo #
+--echo # MDEV-19317 TEXT column accepts too long literals as a default value
+--echo #
+
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 255);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+DROP TABLE t1;
+
+--error ER_INVALID_DEFAULT
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 256);
+
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT ?)' USING REPEAT('a', 256);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.4 test
+--echo #

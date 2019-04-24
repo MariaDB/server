@@ -1382,6 +1382,14 @@ error:
 }
 
 
+bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
+{
+  DBUG_ASSERT(!(flags & BLOB_FLAG));
+  int res= item->save_in_field(this, true);
+  return res != 0 && res != 3;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -8770,6 +8778,18 @@ void Field_blob::make_send_field(Send_field *field)
   */
   Field_longstr::make_send_field(field);
   field->set_handler(&type_handler_blob);
+}
+
+
+bool Field_blob::make_empty_rec_store_default_value(THD *thd, Item *item)
+{
+  DBUG_ASSERT(flags & BLOB_FLAG);
+  int res= item->save_in_field(this, true);
+  DBUG_ASSERT(res != 3); // Field_blob never returns 3
+  if (res)
+    return true; // E.g. truncation happened
+  reset(); // Clear the pointer to a String, it should not be written to frm
+  return false;
 }
 
 

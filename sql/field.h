@@ -782,6 +782,11 @@ public:
     @retval false - conversion is needed
   */
   virtual bool memcpy_field_possible(const Field *from) const= 0;
+  virtual bool make_empty_rec_store_default_value(THD *thd, Item *item);
+  virtual void make_empty_rec_reset(THD *thd)
+  {
+    reset();
+  }
   virtual int  store(const char *to, size_t length,CHARSET_INFO *cs)=0;
   virtual int  store_hex_hybrid(const char *str, size_t length);
   virtual int  store(double nr)=0;
@@ -3895,6 +3900,7 @@ public:
            !compression_method() == !from->compression_method() &&
            !table->copy_blobs;
   }
+  bool make_empty_rec_store_default_value(THD *thd, Item *item);
   int store(const char *to, size_t length, CHARSET_INFO *charset);
   using Field_str::store;
   double val_real(void);
@@ -4212,6 +4218,16 @@ public:
     return save_in_field_str(to);
   }
   bool memcpy_field_possible(const Field *from) const { return false; }
+  void make_empty_rec_reset(THD *thd)
+  {
+    if (flags & NOT_NULL_FLAG)
+    {
+      set_notnull();
+      store((longlong) 1, true);
+    }
+    else
+      reset();
+  }
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -4278,6 +4294,11 @@ public:
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
+  void make_empty_rec_reset(THD *thd)
+  {
+    Field::make_empty_rec_reset(thd);
+  }
+
   int  store_field(Field *from) { return from->save_in_field(this); }
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr) { return Field_set::store((longlong) nr, FALSE); }
