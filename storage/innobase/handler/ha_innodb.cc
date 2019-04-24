@@ -4015,7 +4015,6 @@ static int innodb_init(void* p)
 	handlerton* innobase_hton= static_cast<handlerton*>(p);
 	innodb_hton_ptr = innobase_hton;
 
-	innobase_hton->state = SHOW_OPTION_YES;
 	innobase_hton->db_type = DB_TYPE_INNODB;
 	innobase_hton->savepoint_offset = sizeof(trx_named_savept_t);
 	innobase_hton->close_connection = innobase_close_connection;

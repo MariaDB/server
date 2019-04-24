@@ -133,7 +133,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     logger.flush_general_log();
 
   if (options & REFRESH_ENGINE_LOG)
-    if (ha_flush_logs(NULL))
+    if (ha_flush_logs())
       result= 1;
 
   if (options & REFRESH_BINARY_LOG)

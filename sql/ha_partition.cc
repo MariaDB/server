@@ -126,7 +126,6 @@ static int partition_initialize(void *p)
   handlerton *partition_hton;
   partition_hton= (handlerton *)p;
 
-  partition_hton->state= SHOW_OPTION_YES;
   partition_hton->db_type= DB_TYPE_PARTITION_DB;
   partition_hton->create= partition_create_handler;
   partition_hton->partition_flags= partition_flags;

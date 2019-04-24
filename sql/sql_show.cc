@@ -6148,12 +6148,11 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       LEX_CSTRING yesno[2]= {{ STRING_WITH_LEN("NO") },
                              { STRING_WITH_LEN("YES") }};
       LEX_CSTRING *tmp;
-      const char *option_name= show_comp_option_name[(int) hton->state];
+      const char *option_name= default_type != hton ? yesno[1].str
+                                                    : "DEFAULT";
       restore_record(table, s->default_values);
 
       table->field[0]->store(name->str, name->length, scs);
-      if (hton->state == SHOW_OPTION_YES && default_type == hton)
-        option_name= "DEFAULT";
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
@@ -8796,7 +8795,7 @@ static my_bool run_hton_fill_schema_table(THD *thd, plugin_ref plugin,
   struct run_hton_fill_schema_table_args *args=
     (run_hton_fill_schema_table_args *) arg;
   handlerton *hton= plugin_hton(plugin);
-  if (hton->fill_is_table && hton->state == SHOW_OPTION_YES)
+  if (hton->fill_is_table)
       hton->fill_is_table(hton, thd, args->tables, args->cond,
             get_schema_table_idx(args->tables->schema_table));
   return false;

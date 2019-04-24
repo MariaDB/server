@@ -4848,7 +4848,6 @@ static int rocksdb_init_func(void *const p) {
                    &rdb_block_cache_resize_mutex, MY_MUTEX_INIT_FAST);
   Rdb_transaction::init_mutex();
 
-  rocksdb_hton->state = SHOW_OPTION_YES;
   rocksdb_hton->create = rocksdb_create_handler;
   rocksdb_hton->close_connection = rocksdb_close_connection;
 

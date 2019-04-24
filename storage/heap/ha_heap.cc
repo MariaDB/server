@@ -49,7 +49,6 @@ int heap_init(void *p)
 #endif
 
   heap_hton= (handlerton *)p;
-  heap_hton->state=      SHOW_OPTION_YES;
   heap_hton->db_type=    DB_TYPE_HEAP;
   heap_hton->create=     heap_create_handler;
   heap_hton->panic=      heap_panic;

@@ -1806,7 +1806,6 @@ static int mrn_init(void *p)
   // init handlerton
   grn_ctx *ctx = NULL;
   handlerton *hton = static_cast<handlerton *>(p);
-  hton->state = SHOW_OPTION_YES;
   hton->create = mrn_handler_create;
   hton->flags = HTON_NO_FLAGS;
 #ifndef MRN_SUPPORT_PARTITION

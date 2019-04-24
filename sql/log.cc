@@ -1680,9 +1680,6 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
 int binlog_init(void *p)
 {
   binlog_hton= (handlerton *)p;
-  binlog_hton->state= (WSREP_ON || opt_bin_log) ? SHOW_OPTION_YES
-                                                : SHOW_OPTION_NO;
-  binlog_hton->db_type=DB_TYPE_BINLOG;
   binlog_hton->savepoint_offset= sizeof(my_off_t);
   binlog_hton->close_connection= binlog_close_connection;
   binlog_hton->savepoint_set= binlog_savepoint_set;
@@ -1691,8 +1688,11 @@ int binlog_init(void *p)
                                      binlog_savepoint_rollback_can_release_mdl;
   binlog_hton->commit= binlog_commit;
   binlog_hton->rollback= binlog_rollback;
-  binlog_hton->prepare= binlog_prepare;
-  binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
+  if (WSREP_ON || opt_bin_log)
+  {
+    binlog_hton->prepare= binlog_prepare;
+    binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
+  }
   binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
   return 0;
 }
