@@ -11295,7 +11295,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
 };
 
 /**
-  a helper function to report an access denied error in all the proper places
+  a helper function to report an access denied error in most proper places
 */
 static void login_failed_error(THD *thd)
 {
@@ -12715,10 +12715,26 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /* Change a database if necessary */
   if (mpvio.db.length)
   {
-    if (mysql_change_db(thd, &mpvio.db, FALSE))
+    uint err = mysql_change_db(thd, &mpvio.db, FALSE);
+    if(err)
     {
-      /* mysql_change_db() has pushed the error message. */
-      status_var_increment(thd->status_var.access_denied_errors);
+      if (err == ER_DBACCESS_DENIED_ERROR)
+      {
+        /*
+          Got an "access denied" error, which must be handled
+          other access denied errors (see login_failed_error()).
+          mysql_change_db() already sent error to client, and
+          wrote to general log, we only need to increment the counter
+          and maybe write a warning to error log.
+        */
+        status_var_increment(thd->status_var.access_denied_errors);
+        if (global_system_variables.log_warnings > 1)
+        {
+          Security_context* sctx = thd->security_ctx;
+          sql_print_warning(ER_THD(thd, err),
+            sctx->priv_user, sctx->priv_host, mpvio.db.str);
+        }
+      }
       DBUG_RETURN(1);
     }
   }

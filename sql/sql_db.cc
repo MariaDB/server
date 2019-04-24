@@ -1451,12 +1451,12 @@ static void backup_current_db_name(THD *thd,
   a stack pointer set by Stored Procedures was used by replication after
   the stack address was long gone.
 
-  @return Operation status
-    @retval FALSE Success
-    @retval TRUE  Error
+  @return error code (ER_XXX)
+    @retval 0 Success
+    @retval >0  Error
 */
 
-bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
+uint mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
 {
   LEX_STRING new_db_file_name;
 
@@ -1480,13 +1480,13 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
 
       mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
 
-      DBUG_RETURN(FALSE);
+      DBUG_RETURN(0);
     }
     else
     {
       my_message(ER_NO_DB_ERROR, ER_THD(thd, ER_NO_DB_ERROR), MYF(0));
 
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(ER_NO_DB_ERROR);
     }
   }
   DBUG_PRINT("enter",("name: '%s'", new_db_name->str));
@@ -1498,7 +1498,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
     mysql_change_db_impl(thd, &INFORMATION_SCHEMA_NAME, SELECT_ACL,
                          system_charset_info);
 
-    DBUG_RETURN(FALSE);
+    DBUG_RETURN(0);
   }
 
   /*
@@ -1513,7 +1513,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
   new_db_file_name.length= new_db_name->length;
 
   if (new_db_file_name.str == NULL)
-    DBUG_RETURN(TRUE);                             /* the error is set */
+    DBUG_RETURN(ER_OUT_OF_RESOURCES);                             /* the error is set */
 
   /*
     NOTE: if check_db_name() fails, we should throw an error in any case,
@@ -1532,7 +1532,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
     if (force_switch)
       mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
 
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(ER_WRONG_DB_NAME);
   }
 
   DBUG_PRINT("info",("Use database: %s", new_db_file_name.str));
@@ -1562,7 +1562,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
     general_log_print(thd, COM_INIT_DB, ER_THD(thd, ER_DBACCESS_DENIED_ERROR),
                       sctx->priv_user, sctx->priv_host, new_db_file_name.str);
     my_free(new_db_file_name.str);
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(ER_DBACCESS_DENIED_ERROR);
   }
 #endif
 
@@ -1586,7 +1586,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
 
       /* The operation succeed. */
 
-      DBUG_RETURN(FALSE);
+      DBUG_RETURN(0);
     }
     else
     {
@@ -1597,7 +1597,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
 
       /* The operation failed. */
 
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(ER_BAD_DB_ERROR);
     }
   }
 
@@ -1610,7 +1610,7 @@ bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name, bool force_switch)
 
   mysql_change_db_impl(thd, &new_db_file_name, db_access, db_default_cl);
 
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(0);
 }
 
 
