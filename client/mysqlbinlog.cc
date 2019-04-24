@@ -2020,6 +2020,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
             if ((rev->ident_len != logname_len) ||
                 memcmp(rev->new_log_ident, logname, logname_len))
             {
+              delete ev;
               DBUG_RETURN(OK_CONTINUE);
             }
             /*
@@ -2028,6 +2029,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
               log. If we are running with to_last_remote_log, we print it,
               because it serves as a useful marker between binlogs then.
             */
+            delete ev;
             continue;
           }
           len= 1; // fake Rotate, so don't increment old_off
