@@ -245,7 +245,6 @@ static int cassandra_init_func(void *p)
   (void) my_hash_init(&cassandra_open_tables,system_charset_info,32,0,0,
                       (my_hash_get_key) cassandra_get_key,0,0);
 
-  cassandra_hton->state=   SHOW_OPTION_YES;
   cassandra_hton->create=  cassandra_create_handler;
   /*
     Don't specify HTON_CAN_RECREATE in flags. re-create is used by TRUNCATE

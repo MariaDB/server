@@ -3588,7 +3588,6 @@ static int ha_maria_init(void *p)
 #endif
 
   maria_hton= (handlerton *)p;
-  maria_hton->state= SHOW_OPTION_YES;
   maria_hton->db_type= DB_TYPE_ARIA;
   maria_hton->create= maria_create_handler;
   maria_hton->panic= maria_hton_panic;

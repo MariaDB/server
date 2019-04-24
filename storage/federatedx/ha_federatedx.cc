@@ -426,7 +426,6 @@ int federatedx_db_init(void *p)
   DBUG_ENTER("federatedx_db_init");
   init_federated_psi_keys();
   federatedx_hton= (handlerton *)p;
-  federatedx_hton->state= SHOW_OPTION_YES;
   /* Needed to work with old .frm files */
   federatedx_hton->db_type= DB_TYPE_FEDERATED_DB;
   federatedx_hton->savepoint_offset= sizeof(ulong);

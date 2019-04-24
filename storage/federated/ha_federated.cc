@@ -480,7 +480,6 @@ int federated_db_init(void *p)
 #endif /* HAVE_PSI_INTERFACE */
 
   handlerton *federated_hton= (handlerton *)p;
-  federated_hton->state= SHOW_OPTION_YES;
   federated_hton->db_type= DB_TYPE_FEDERATED_DB;
   federated_hton->commit= federated_commit;
   federated_hton->rollback= federated_rollback;

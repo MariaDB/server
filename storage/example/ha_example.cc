@@ -257,7 +257,6 @@ static int example_init_func(void *p)
 #endif
 
   example_hton= (handlerton *)p;
-  example_hton->state=   SHOW_OPTION_YES;
   example_hton->create=  example_create_handler;
   example_hton->flags=   HTON_CAN_RECREATE;
   example_hton->table_options= example_table_option_list;
