@@ -1,5 +1,5 @@
 # DELETE
-create or replace table t (
+create table t (
 s date, e date,
 row_start SYS_TYPE as row start invisible,
 row_end SYS_TYPE as row end invisible,
@@ -86,4 +86,9 @@ x	s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
 1	2018-01-01	2018-12-12	NEW	CURRENT ROW
 2	1999-01-01	1999-12-12	OLD	CURRENT ROW
 6	2000-01-01	2018-01-01	NEW	CURRENT ROW
-create or replace database test;
+drop table t,log_tbl;
+drop function check_row;
+drop function current_row;
+drop procedure verify_trt;
+drop procedure verify_trt_dummy;
+drop procedure log;

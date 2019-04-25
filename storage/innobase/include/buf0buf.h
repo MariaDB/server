@@ -234,6 +234,15 @@ public:
 	}
 	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
 
+	bool operator<(const page_id_t& rhs) const
+	{
+		if (m_space == rhs.m_space) {
+			return m_page_no < rhs.m_page_no;
+		}
+
+		return m_space < rhs.m_space;
+	}
+
 	/** Retrieve the tablespace id.
 	@return tablespace id */
 	uint32_t space() const { return m_space; }

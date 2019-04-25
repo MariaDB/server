@@ -398,6 +398,8 @@ public:
   bool with_sum_func() const { return m_with_sum_func; }
   With_sum_func_cache* get_with_sum_func_cache() { return this; }
   Item_func *get_item_func() { return this; }
+  bool is_simplified_cond_processor(void *arg)
+  { return const_item() && !val_int(); }
 };
 
 

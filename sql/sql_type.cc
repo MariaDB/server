@@ -7892,6 +7892,19 @@ bool Type_handler_string_result::Item_eq_value(THD *thd,
 
 /***************************************************************************/
 
+bool Type_handler_string_result::union_element_finalize(const Item * item) const
+{
+  if (item->collation.derivation == DERIVATION_NONE)
+  {
+    my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
+    return true;
+  }
+  return false;
+}
+
+
+/***************************************************************************/
+
 void Type_handler_var_string::
   Column_definition_implicit_upgrade(Column_definition *c) const
 {

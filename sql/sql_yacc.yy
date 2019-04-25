@@ -9415,6 +9415,7 @@ for_portion_of_time_clause:
                                         Vers_history_point(VERS_TIMESTAMP, $9),
                                         $5);
           }
+        ;
 
 opt_for_portion_of_time_clause:
           /* empty */

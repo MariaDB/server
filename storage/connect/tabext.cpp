@@ -342,7 +342,6 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len;
 	bool   first = true;
-	PTABLE tablep = To_Table;
 	PCOL   colp;
 
 	if (Srcdef)
@@ -455,6 +454,7 @@ void TDBEXT::RemoveConst(PGLOBAL g, char *stmt)
 	int   n, nc;
 
 	while ((p = strstr(stmt, "NAME_CONST")))
+        {
 		if ((n = sscanf(p, "%*[^,],%1024[^)])%n", val, &nc))) {
 			if (trace(33))
 				htrc("p=%s\nn=%d val=%s nc=%d\n", p, n, val, nc);
@@ -478,8 +478,8 @@ void TDBEXT::RemoveConst(PGLOBAL g, char *stmt)
 
 		} else
 			break;
-
-		return;
+        }
+	return;
 } // end of RemoveConst
 
 /***********************************************************************/

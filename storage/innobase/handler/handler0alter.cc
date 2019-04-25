@@ -1447,15 +1447,21 @@ check_v_col_in_order(
 @param[in]	ib_table	InnoDB table definition
 @param[in]	ha_alter_info	the ALTER TABLE operation
 @param[in]	table		table definition before ALTER TABLE
-@param[in]	table		table definition after ALTER TABLE */
+@param[in]	altered_table	table definition after ALTER TABLE
+@param[in]	strict		whether to ensure that user records fit */
 static
 bool
 instant_alter_column_possible(
 	const dict_table_t&		ib_table,
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table,
-	const TABLE*			altered_table)
+	const TABLE*			altered_table,
+	bool				strict)
 {
+	const dict_index_t* const pk = ib_table.indexes.start;
+	ut_ad(pk->is_primary());
+	ut_ad(!pk->has_virtual());
+
 	if (ha_alter_info->handler_flags
 	    & (ALTER_STORED_COLUMN_ORDER | ALTER_DROP_STORED_COLUMN
 	       | ALTER_ADD_STORED_BASE_COLUMN)) {
@@ -1472,19 +1478,174 @@ instant_alter_column_possible(
 			}
 		}
 #endif
-	}
-	const dict_index_t* const pk = ib_table.indexes.start;
-	ut_ad(pk->is_primary());
-	ut_ad(!pk->has_virtual());
-	if (ha_alter_info->handler_flags & ALTER_ADD_STORED_BASE_COLUMN) {
+		uint n_add = 0, n_nullable = 0, lenlen = 0;
+		const uint blob_prefix = dict_table_has_atomic_blobs(&ib_table)
+			? 0
+			: REC_ANTELOPE_MAX_INDEX_COL_LEN;
+		const uint min_local_len = blob_prefix
+			? blob_prefix + FIELD_REF_SIZE
+			: 2 * FIELD_REF_SIZE;
+		size_t min_size = 0, max_size = 0;
+		Field** af = altered_table->field;
+		Field** const end = altered_table->field
+			+ altered_table->s->fields;
 		List_iterator_fast<Create_field> cf_it(
 			ha_alter_info->alter_info->create_list);
-		uint n_add = 0;
-		while (const Create_field* cf = cf_it++) {
-			n_add += !cf->field;
+
+		for (; af < end; af++) {
+			const Create_field* cf = cf_it++;
+			if (!(*af)->stored_in_db() || cf->field) {
+				/* Virtual or pre-existing column */
+				continue;
+			}
+			const bool nullable = (*af)->real_maybe_null();
+			const bool is_null = (*af)->is_real_null();
+			ut_ad(!is_null || nullable);
+			n_nullable += nullable;
+			n_add++;
+			uint l;
+			switch ((*af)->type()) {
+			case MYSQL_TYPE_VARCHAR:
+				l = reinterpret_cast<const Field_varstring*>
+					(*af)->get_length();
+			variable_length:
+				if (l >= min_local_len) {
+					max_size += blob_prefix
+						+ FIELD_REF_SIZE;
+					if (!is_null) {
+						min_size += blob_prefix
+							+ FIELD_REF_SIZE;
+					}
+					lenlen += 2;
+				} else {
+					if (!is_null) {
+						min_size += l;
+					}
+					l = (*af)->pack_length();
+					max_size += l;
+					lenlen += l > 255 ? 2 : 1;
+				}
+				break;
+			case MYSQL_TYPE_GEOMETRY:
+			case MYSQL_TYPE_TINY_BLOB:
+			case MYSQL_TYPE_MEDIUM_BLOB:
+			case MYSQL_TYPE_BLOB:
+			case MYSQL_TYPE_LONG_BLOB:
+				l = reinterpret_cast<const Field_blob*>
+					((*af))->get_length();
+				goto variable_length;
+			default:
+				l = (*af)->pack_length();
+				if (l > 255 && ib_table.not_redundant()) {
+					goto variable_length;
+				}
+				max_size += l;
+				if (!is_null) {
+					min_size += l;
+				}
+			}
 		}
-		if (pk->n_fields >= REC_MAX_N_USER_FIELDS + DATA_N_SYS_COLS
-		    - n_add) {
+
+		ulint n_fields = pk->n_fields + n_add;
+
+		if (n_fields >= REC_MAX_N_USER_FIELDS + DATA_N_SYS_COLS) {
+			return false;
+		}
+
+		if (pk->is_gen_clust()) {
+			min_size += DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN
+				+ DATA_ROW_ID_LEN;
+			max_size += DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN
+				+ DATA_ROW_ID_LEN;
+		} else {
+			min_size += DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+			max_size += DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+		}
+
+		uint i = pk->n_fields;
+		while (i-- > pk->n_core_fields) {
+			const dict_field_t& f = pk->fields[i];
+			if (f.col->is_nullable()) {
+				n_nullable++;
+				if (!f.col->is_dropped()
+				    && f.col->def_val.data) {
+					goto instantly_added_column;
+				}
+			} else if (f.fixed_len
+				   && (f.fixed_len <= 255
+				       || !ib_table.not_redundant())) {
+				if (ib_table.not_redundant()
+				    || !f.col->is_dropped()) {
+					min_size += f.fixed_len;
+					max_size += f.fixed_len;
+				}
+			} else if (f.col->is_dropped() || !f.col->is_added()) {
+				lenlen++;
+				goto set_max_size;
+			} else {
+instantly_added_column:
+				ut_ad(f.col->is_added());
+				if (f.col->def_val.len >= min_local_len) {
+					min_size += blob_prefix
+						+ FIELD_REF_SIZE;
+					lenlen += 2;
+				} else {
+					min_size += f.col->def_val.len;
+					lenlen += f.col->def_val.len
+						> 255 ? 2 : 1;
+				}
+set_max_size:
+				if (f.fixed_len
+				    && (f.fixed_len <= 255
+					|| !ib_table.not_redundant())) {
+					max_size += f.fixed_len;
+				} else if (f.col->len >= min_local_len) {
+					max_size += blob_prefix
+						+ FIELD_REF_SIZE;
+				} else {
+					max_size += f.col->len;
+				}
+			}
+		}
+
+		do {
+			const dict_field_t& f = pk->fields[i];
+			if (f.col->is_nullable()) {
+				n_nullable++;
+			} else if (f.fixed_len) {
+				min_size += f.fixed_len;
+			} else {
+				lenlen++;
+			}
+		} while (i--);
+
+		if (ib_table.instant
+		    || (ha_alter_info->handler_flags
+			& (ALTER_STORED_COLUMN_ORDER
+			   | ALTER_DROP_STORED_COLUMN))) {
+			n_fields++;
+			lenlen += 2;
+			min_size += FIELD_REF_SIZE;
+		}
+
+		if (ib_table.not_redundant()) {
+			min_size += REC_N_NEW_EXTRA_BYTES
+				+ UT_BITS_IN_BYTES(n_nullable)
+				+ lenlen;
+		} else {
+			min_size += (n_fields > 255 || min_size > 255)
+				? n_fields * 2 : n_fields;
+			min_size += REC_N_OLD_EXTRA_BYTES;
+		}
+
+		if (page_zip_rec_needs_ext(min_size, ib_table.not_redundant(),
+					   0, 0)) {
+			return false;
+		}
+
+		if (strict && page_zip_rec_needs_ext(max_size,
+						     ib_table.not_redundant(),
+						     0, 0)) {
 			return false;
 		}
 	}
@@ -1910,54 +2071,10 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-	const bool supports_instant = instant_alter_column_possible(
-		*m_prebuilt->table, ha_alter_info, table, altered_table);
-	bool	add_drop_v_cols = false;
-
-	/* If there is add or drop virtual columns, we will support operations
-	with these 2 options alone with inplace interface for now */
-
-	if (ha_alter_info->handler_flags
-	    & (ALTER_ADD_VIRTUAL_COLUMN
-	       | ALTER_DROP_VIRTUAL_COLUMN
-	       | ALTER_VIRTUAL_COLUMN_ORDER)) {
-		ulonglong flags = ha_alter_info->handler_flags;
-
-		/* TODO: uncomment the flags below, once we start to
-		support them */
-
-		flags &= ~(ALTER_ADD_VIRTUAL_COLUMN
-			   | ALTER_DROP_VIRTUAL_COLUMN
-			   | ALTER_VIRTUAL_COLUMN_ORDER
-		           | ALTER_VIRTUAL_GCOL_EXPR
-		           | ALTER_COLUMN_VCOL
-		/*
-			   | ALTER_ADD_STORED_BASE_COLUMN
-			   | ALTER_DROP_STORED_COLUMN
-			   | ALTER_STORED_COLUMN_ORDER
-			   | ALTER_ADD_UNIQUE_INDEX
-		*/
-			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
-			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
-		if (supports_instant) {
-			flags &= ~(ALTER_DROP_STORED_COLUMN
-#if 0 /* MDEV-17468: remove check_v_col_in_order() and fix the code */
-				   | ALTER_ADD_STORED_BASE_COLUMN
-#endif
-				   | ALTER_STORED_COLUMN_ORDER);
-		}
-		if (flags != 0
-		    || IF_PARTITIONING((altered_table->s->partition_info_str
-			&& altered_table->s->partition_info_str_len), 0)
-		    || (!check_v_col_in_order(
-			this->table, altered_table, ha_alter_info))) {
-			ha_alter_info->unsupported_reason =
-				MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN;
-			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-		}
-
-		add_drop_v_cols = true;
-	}
+	const bool add_drop_v_cols = !!(ha_alter_info->handler_flags
+					& (ALTER_ADD_VIRTUAL_COLUMN
+					   | ALTER_DROP_VIRTUAL_COLUMN
+					   | ALTER_VIRTUAL_COLUMN_ORDER));
 
 	/* We should be able to do the operation in-place.
 	See if we can do it online (LOCK=NONE) or without rebuild. */
@@ -2188,7 +2305,9 @@ ha_innobase::check_if_supported_inplace_alter(
 				(because of FULLTEXT INDEX), it cannot
 				be replaced with a user-created one
 				except when using ALGORITHM=COPY. */
-				goto cannot_create_many_fulltext_index;
+				ha_alter_info->unsupported_reason =
+					my_get_err_msg(ER_INNODB_FT_LIMIT);
+				DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 			}
 			goto next_column;
 		}
@@ -2197,6 +2316,46 @@ ha_innobase::check_if_supported_inplace_alter(
 
 next_column:
 		af++;
+	}
+
+	const bool supports_instant = instant_alter_column_possible(
+		*m_prebuilt->table, ha_alter_info, table, altered_table,
+		trx_is_strict(m_prebuilt->trx));
+	if (add_drop_v_cols) {
+		ulonglong flags = ha_alter_info->handler_flags;
+
+		/* TODO: uncomment the flags below, once we start to
+		support them */
+
+		flags &= ~(ALTER_ADD_VIRTUAL_COLUMN
+			   | ALTER_DROP_VIRTUAL_COLUMN
+			   | ALTER_VIRTUAL_COLUMN_ORDER
+		           | ALTER_VIRTUAL_GCOL_EXPR
+		           | ALTER_COLUMN_VCOL
+		/*
+			   | ALTER_ADD_STORED_BASE_COLUMN
+			   | ALTER_DROP_STORED_COLUMN
+			   | ALTER_STORED_COLUMN_ORDER
+			   | ALTER_ADD_UNIQUE_INDEX
+		*/
+			   | ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
+			   | ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX);
+		if (supports_instant) {
+			flags &= ~(ALTER_DROP_STORED_COLUMN
+#if 0 /* MDEV-17468: remove check_v_col_in_order() and fix the code */
+				   | ALTER_ADD_STORED_BASE_COLUMN
+#endif
+				   | ALTER_STORED_COLUMN_ORDER);
+		}
+		if (flags != 0
+		    || IF_PARTITIONING((altered_table->s->partition_info_str
+			&& altered_table->s->partition_info_str_len), 0)
+		    || (!check_v_col_in_order(
+			this->table, altered_table, ha_alter_info))) {
+			ha_alter_info->unsupported_reason =
+				MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN;
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
 	}
 
 	if (supports_instant) {
@@ -6385,7 +6544,8 @@ new_clustered_failed:
 		    || !ctx->new_table->persistent_autoinc);
 
 	if (ctx->need_rebuild() && instant_alter_column_possible(
-		    *user_table, ha_alter_info, old_table, altered_table)) {
+		    *user_table, ha_alter_info, old_table, altered_table,
+		    trx_is_strict(ctx->trx))) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
 			ctx->add_index[a] = dict_index_add_to_cache(

@@ -1,4 +1,4 @@
---source include/have_innodb.inc
+--source include/innodb_page_size.inc
 
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
@@ -38,5 +38,23 @@ FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 
 SELECT * FROM t;
+ALTER TABLE t ADD COLUMN (c CHAR(255) NOT NULL, d BIGINT NOT NULL),
+ALGORITHM=INSTANT;
+
+--disable_query_log
+let $n=253;
+while ($n) {
+dec $n;
+ALTER TABLE t DROP b, DROP c, DROP d,
+ADD COLUMN (b INT NOT NULL, c CHAR(255) NOT NULL, d BIGINT NOT NULL);
+}
+--enable_query_log
+
+UPDATE t SET b=b+1,d=d+1,c='foo';
+SELECT * FROM t;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
 
 DROP TABLE t;

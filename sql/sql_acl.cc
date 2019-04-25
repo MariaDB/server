@@ -119,6 +119,9 @@ class ACL_ACCESS {
 public:
   ulong sort;
   ulong access;
+  ACL_ACCESS()
+   :sort(0), access(0)
+  { }
 };
 
 /* ACL_HOST is used if no host is specified */
@@ -134,15 +137,25 @@ class ACL_USER_BASE :public ACL_ACCESS, public Sql_alloc
 {
 
 public:
+  ACL_USER_BASE()
+   :flags(0), user(null_clex_str)
+  {
+    bzero(&role_grants, sizeof(role_grants));
+  }
   uchar flags;           // field used to store various state information
   LEX_CSTRING user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
+  const char *get_username() { return user.str; }
 };
 
-class ACL_USER :public ACL_USER_BASE
+class ACL_USER_PARAM
 {
 public:
+  ACL_USER_PARAM()
+  {
+    bzero(this, sizeof(*this));
+  }
   acl_host_and_ip host;
   size_t hostname_length;
   USER_RESOURCES user_resource;
@@ -161,6 +174,18 @@ public:
   {
     return !(auth= (AUTH*) alloc_root(root, (nauth= n)*sizeof(AUTH)));
   }
+};
+
+
+class ACL_USER :public ACL_USER_BASE,
+                public ACL_USER_PARAM
+{
+public:
+
+  ACL_USER() { }
+  ACL_USER(THD *thd, const LEX_USER &combo,
+           const Account_options &options,
+           const ulong privileges);
 
   ACL_USER *copy(MEM_ROOT *root)
   {
@@ -205,8 +230,6 @@ public:
   }
 
   bool eq(const char *user2, const char *host2) { return !cmp(user2, host2); }
-
-  const char *get_username(){ return user.str; }
 
   bool wild_eq(const char *user2, const char *host2, const char *ip2)
   {
@@ -1931,12 +1954,10 @@ enum enum_acl_lists
 
 ACL_ROLE::ACL_ROLE(ACL_USER *user, MEM_ROOT *root) : counter(0)
 {
-
   access= user->access;
   /* set initial role access the same as the table row privileges */
   initial_role_access= user->access;
   this->user= user->user;
-  bzero(&role_grants, sizeof(role_grants));
   bzero(&parent_grantee, sizeof(parent_grantee));
   flags= IS_ROLE;
 }
@@ -1947,7 +1968,6 @@ ACL_ROLE::ACL_ROLE(const char * rolename, ulong privileges, MEM_ROOT *root) :
   this->access= initial_role_access;
   this->user.str= safe_strdup_root(root, rolename);
   this->user.length= strlen(rolename);
-  bzero(&role_grants, sizeof(role_grants));
   bzero(&parent_grantee, sizeof(parent_grantee));
   flags= IS_ROLE;
 }
@@ -2348,7 +2368,6 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   {
     ACL_USER user;
     bool is_role= FALSE;
-    bzero(&user, sizeof(user));
     update_hostname(&user.host, user_table.get_host(&acl_memroot));
     char *username= safe_str(user_table.get_user(&acl_memroot));
     user.user.str= username;
@@ -3122,26 +3141,25 @@ static void acl_update_role(const char *rolename, ulong privileges)
 }
 
 
+ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
+                   const Account_options &options,
+                   const ulong privileges)
+{
+  user= safe_lexcstrdup_root(&acl_memroot, combo.user);
+  update_hostname(&host, safe_strdup_root(&acl_memroot, combo.host.str));
+  hostname_length= combo.host.length;
+  sort= get_sort(2, host.hostname, user.str);
+  password_last_changed= thd->query_start();
+  password_lifetime= -1;
+  my_init_dynamic_array(&role_grants, sizeof(ACL_USER *), 0, 8, MYF(0));
+}
+
+
 static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
-                           const ACL_USER *from, const LEX_USER &combo,
+                           const LEX_USER &combo,
                            const Account_options &options,
                            const ulong privileges)
 {
-  if (from)
-    *acl_user= *from;
-  else
-  {
-    bzero(acl_user, sizeof(*acl_user));
-    acl_user->user= safe_lexcstrdup_root(&acl_memroot, combo.user);
-    update_hostname(&acl_user->host, safe_strdup_root(&acl_memroot, combo.host.str));
-    acl_user->hostname_length= combo.host.length;
-    acl_user->sort= get_sort(2, acl_user->host.hostname, acl_user->user.str);
-    acl_user->password_last_changed= thd->query_start();
-    acl_user->password_lifetime= -1;
-    my_init_dynamic_array(&acl_user->role_grants, sizeof(ACL_USER *),
-                          0, 8, MYF(0));
-  }
-
   if (nauth)
   {
     if (acl_user->nauth >= nauth)
@@ -4424,8 +4442,9 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
+    new_acl_user= old_row_exists ? *old_acl_user :
+                  ACL_USER(thd, *combo, lex->account_options, rights);
     if (acl_user_update(thd, &new_acl_user, nauth,
-                        old_row_exists ? old_acl_user : NULL,
                         *combo, lex->account_options, rights))
       goto end;
 

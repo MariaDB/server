@@ -73,6 +73,8 @@ protected:
     to substitute 'this' with a constant item.
   */
   bool forced_const;
+  /* Set to the result of the last call of is_expensive()  */
+  bool expensive_fl;
 #ifndef DBUG_OFF
   /* Count the number of times this subquery predicate has been executed. */
   uint exec_counter;

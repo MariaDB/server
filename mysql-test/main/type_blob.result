@@ -1093,3 +1093,34 @@ drop table t1;
 #
 # End of 10.2 test
 #
+#
+# Start of 10.4 test
+#
+#
+# MDEV-19317 TEXT column accepts too long literals as a default value
+#
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 255);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+LENGTH(a)	LENGTH(DEFAULT(a))
+255	255
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT ?)' USING REPEAT('a', 256);
+ERROR 42000: Invalid default value for 'a'
+CREATE OR REPLACE TABLE t1 (a TINYTEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+ERROR 42000: Invalid default value for 'a'
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT ?)' USING REPEAT('a', 256);
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+LENGTH(a)	LENGTH(DEFAULT(a))
+256	256
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a TEXT DEFAULT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 VALUES ();
+SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
+LENGTH(a)	LENGTH(DEFAULT(a))
+256	256
+DROP TABLE t1;
+#
+# End of 10.4 test
+#

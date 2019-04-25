@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-19224 Assertion `marked_for_read()' failed in various places with long
+# unique key
+#
+
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, a varchar(30000), UNIQUE (a)) ENGINE=innodb;
+INSERT INTO t1 (a) VALUES (20),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+SELECT * FROM t1 WHERE a BETWEEN '1' AND '100';
+DROP TABLE t1;
+
+#
+# MDEV-19252 Warning about assertion failure marked_for_write_or_computed()
+# printed by release build with DBUG_ASSERT_AS_PRINTF, but no failure on debug
+# build
+#
+
+CREATE TABLE t2 (n BLOB, UNIQUE(n));
+INSERT INTO t2 VALUES (1);
+DELETE FROM t2 WHERE n = 1;
+DROP TABLE t2;

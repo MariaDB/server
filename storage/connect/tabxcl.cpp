@@ -274,7 +274,8 @@ void XCLCOL::ReadColumn(PGLOBAL g)
 		PSZ p;
 
     // Trim left
-    for (p = Cp; *p == ' '; p++) ;
+    for (p = Cp; *p == ' '; p++)
+      ;
 
 		if ((Cp = strchr(Cp, Sep)))
 			// Separator is found

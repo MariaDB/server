@@ -1504,6 +1504,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         next_state= MY_LEX_START;
         return PERCENT_ORACLE_SYM;
       }
+      if (c == '[' && (m_thd->variables.sql_mode & MODE_MSSQL))
+        return scan_ident_delimited(thd, &yylval->ident_cli, ']');
       /* Fall through */
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
@@ -1664,7 +1666,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       return scan_ident_start(thd, &yylval->ident_cli);
 
     case MY_LEX_USER_VARIABLE_DELIMITER:        // Found quote char
-      return scan_ident_delimited(thd, &yylval->ident_cli);
+      return scan_ident_delimited(thd, &yylval->ident_cli, m_tok_start[0]);
 
     case MY_LEX_INT_OR_REAL:                    // Complete int or incomplete real
       if (c != '.' || yyPeek() == '.')
@@ -2236,11 +2238,12 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
 
 
 int Lex_input_stream::scan_ident_delimited(THD *thd,
-                                           Lex_ident_cli_st *str)
+                                           Lex_ident_cli_st *str,
+                                           uchar quote_char)
 {
   CHARSET_INFO *const cs= thd->charset();
   uint double_quotes= 0;
-  uchar c, quote_char= m_tok_start[0];
+  uchar c;
   DBUG_ASSERT(m_ptr == m_tok_start + 1);
 
   while ((c= yyGet()))
@@ -10109,7 +10112,7 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
        Multiple equalities are not removed but marked with DELETION_FL flag.
        They will be deleted later in substitite_for_best_equal_field() called
        for the HAVING condition.
-    5. Unwrap fields wrapped in Item_ref wrappers contain in the condition
+    5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
        of attach_to_conds so the condition could be pushed into WHERE.
 
   @note
@@ -10200,7 +10203,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
     join->having_equal= 0;
 
   /*
-    5. Unwrap fields wrapped in Item_ref wrappers contain in the condition
+    5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
        of attach_to_conds so the condition could be pushed into WHERE.
   */
   it.rewind();
@@ -10210,7 +10213,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
 
-    if (item->walk(&Item::cleanup_processor, 0, 0) ||
+    if (item->walk(&Item:: cleanup_processor, 0, STOP_PTR) ||
         item->fix_fields(thd, NULL))
     {
       attach_to_conds.empty();

@@ -1,3 +1,7 @@
+#ifndef THREADPOOL_H_INCLUDED
+#define THREADPOOL_H_INCLUDED
+
+#ifdef HAVE_POOL_OF_THREADS
 /* Copyright (C) 2012 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -154,3 +158,6 @@ struct TP_pool_generic :TP_pool
   virtual int set_stall_limit(uint);
   virtual int get_idle_thread_count();
 };
+
+#endif /* HAVE_POOL_OF_THREADS */
+#endif /* THREADPOOL_H_INCLUDED */

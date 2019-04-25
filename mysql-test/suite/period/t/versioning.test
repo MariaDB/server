@@ -3,7 +3,7 @@ source suite/versioning/common.inc;
 
 --echo # DELETE
 --replace_result $sys_datatype_expl SYS_TYPE
-eval create or replace table t (
+eval create table t (
     s date, e date,
     row_start $sys_datatype_expl as row start invisible,
     row_end $sys_datatype_expl as row end invisible,
@@ -56,4 +56,9 @@ select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
        from t for system_time all
        order by x, s, e, row_start;
 
-create or replace database test;
+drop table t,log_tbl;
+drop function check_row;
+drop function current_row;
+drop procedure verify_trt;
+drop procedure verify_trt_dummy;
+drop procedure log;

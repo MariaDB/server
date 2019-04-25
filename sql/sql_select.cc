@@ -7815,6 +7815,10 @@ best_access_path(JOIN      *join,
           DBUG_ASSERT(tmp >= 0);
 	}
       }
+      else
+      {
+        best_filter= 0;
+      }
 
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
@@ -13463,8 +13467,10 @@ void JOIN::join_free()
 void JOIN::cleanup(bool full)
 {
   DBUG_ENTER("JOIN::cleanup");
-  DBUG_PRINT("enter", ("full %u", (uint) full));
-  
+  DBUG_PRINT("enter", ("select: %d (%p)  join: %p  full: %u",
+                       select_lex->select_number, select_lex, this,
+                       (uint) full));
+
   if (full)
     have_query_plan= QEP_DELETED;
 

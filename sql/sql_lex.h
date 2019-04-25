@@ -2678,7 +2678,7 @@ private:
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
                         CHARSET_INFO **cs, my_lex_states *);
-  int scan_ident_delimited(THD *thd, Lex_ident_cli_st *str);
+  int scan_ident_delimited(THD *thd, Lex_ident_cli_st *str, uchar quote_char);
   bool get_7bit_or_8bit_ident(THD *thd, uchar *last_char);
 
   /** Current thread. */

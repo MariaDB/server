@@ -14,7 +14,7 @@
 +# Also, this problem may cause a chain effect (more errors of different kinds in the test).
 +# -------------------------------------------
  ALTER ONLINE TABLE t1 MODIFY b BIGINT <CUSTOM_COL_OPTIONS>;
--ERROR 0A000: LOCK=NONE is not supported. Reason: Cannot change column type INPLACE. Try LOCK=SHARED.
+-ERROR 0A000: LOCK=NONE is not supported. Reason: Cannot change column type. Try LOCK=SHARED.
 +ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
 +# ERROR: Statement ended with errno 1845, errname ER_ALTER_OPERATION_NOT_SUPPORTED (expected results: ER_ALTER_OPERATION_NOT_SUPPORTED_REASON)
  ALTER ONLINE TABLE t1 ENGINE=MEMORY;

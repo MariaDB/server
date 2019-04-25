@@ -5723,12 +5723,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                       &((Item_cond_and *) cond)->m_cond_equal,
                                       false, NULL);
       }
-      /*
-        Check if equalities that can't be transformed into multiple
-        equalities are knowingly true or false.
-      */
-      if (item->const_item() && !item->val_int())
-        is_simplified_cond= true;
       and_args->push_back(item, thd->mem_root);
     }
     and_args->append((List<Item> *) cond_equalities);
@@ -5821,12 +5815,6 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
       {
         item= item->build_equal_items(thd, inherited, false, NULL);
       }
-      /*
-        Check if equalities that can't be transformed into multiple
-        equalities are knowingly true or false.
-      */
-      if (item->const_item() && !item->val_int())
-        is_simplified_cond= true;
       new_conds_list.push_back(item, thd->mem_root);
     }
     new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
@@ -5870,7 +5858,14 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     cond= cond->propagate_equal_fields(thd,
                                        Item::Context_boolean(),
                                        *cond_eq);
+    cond->update_used_tables();
   }
+  /* Check if conds has knowingly true or false parts. */
+  if (cond &&
+      !is_simplified_cond &&
+      cond->walk(&Item::is_simplified_cond_processor, 0, 0))
+    is_simplified_cond= true;
+
 
   /*
     If it was found that there are some knowingly true or false equalities

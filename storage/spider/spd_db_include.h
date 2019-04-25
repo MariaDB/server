@@ -161,6 +161,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_IN_LEN (sizeof(SPIDER_SQL_IN_STR) - 1)
 #define SPIDER_SQL_NOT_IN_STR "not in("
 #define SPIDER_SQL_NOT_IN_LEN (sizeof(SPIDER_SQL_NOT_IN_STR) - 1)
+#define SPIDER_SQL_NOT_LIKE_STR "not like"
+#define SPIDER_SQL_NOT_LIKE_LEN (sizeof(SPIDER_SQL_NOT_LIKE_STR) - 1)
 #define SPIDER_SQL_AS_CHAR_STR " as char"
 #define SPIDER_SQL_AS_CHAR_LEN (sizeof(SPIDER_SQL_AS_CHAR_STR) - 1)
 #define SPIDER_SQL_CAST_STR "cast("
@@ -835,6 +837,10 @@ public:
     spider_string *str,
     bool sql_log_off
   ) = 0;
+  virtual int append_wait_timeout(
+    spider_string *str,
+    int wait_timeout
+  ) = 0;
   virtual int append_time_zone(
     spider_string *str,
     Time_zone *time_zone
@@ -1132,6 +1138,11 @@ public:
   virtual bool set_sql_log_off_in_bulk_sql() = 0;
   virtual int set_sql_log_off(
     bool sql_log_off,
+    int *need_mon
+  ) = 0;
+  virtual bool set_wait_timeout_in_bulk_sql() = 0;
+  virtual int set_wait_timeout(
+    int wait_timeout,
     int *need_mon
   ) = 0;
   virtual bool set_time_zone_in_bulk_sql() = 0;

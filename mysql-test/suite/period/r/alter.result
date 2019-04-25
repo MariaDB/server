@@ -1,6 +1,6 @@
 set @s= '1992-01-01';
 set @e= '1999-12-31';
-create or replace table t (s date, e date);
+create table t (s date, e date);
 # period start/end columns are implicit NOT NULL
 alter table t add period for a(s, e);
 show create table t;
@@ -96,9 +96,11 @@ t1	CREATE TABLE `t1` (
   `s1` date NOT NULL,
   PERIOD FOR `b` (`s1`, `e`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
 create table t2 (period for b(s,e)) select * from t;
 ERROR 23000: CONSTRAINT `b` failed for `test`.`t2`
 create table t2 (period for b(s1,e)) select * from t;
+drop table t2;
 # SQL16 11.27 <add table period definition>, Syntax Rules, 5)g)
 # The declared type of BC1 shall be either DATE or a timestamp type
 # and shall be equivalent to the declared type of BC2.
@@ -171,4 +173,4 @@ ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
 alter table t add constraint mytime_1 check (x > 2);
 insert t values (3, @e, @s);
 ERROR 23000: CONSTRAINT `mytime_2` failed for `test`.`t`
-create or replace database test;
+drop table t;
