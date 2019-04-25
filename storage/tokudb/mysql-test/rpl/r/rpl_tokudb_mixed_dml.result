@@ -681,6 +681,8 @@ DROP TRIGGER tr1;
 GRANT EVENT ON *.* TO 'root'@'localhost';
 INSERT INTO t1 VALUES(1, 'test1');
 CREATE EVENT e1 ON SCHEDULE EVERY '1' SECOND COMMENT 'e_second_comment' DO DELETE FROM t1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 ==========MASTER==========
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation

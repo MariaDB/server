@@ -85,6 +85,8 @@ insert into t1_temp values (1);
 return 0;
 end|
 create event e1 on schedule every 1 minute do begin end;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 #
 # Test compatibility of FLUSH TABLES WITH READ LOCK 
 # with various statements.

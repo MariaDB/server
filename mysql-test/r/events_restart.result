@@ -6,10 +6,16 @@ use events_test;
 create table execution_log(name char(10));
 create event abc1 on schedule every 1 second do
 insert into execution_log value('abc1');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create event abc2 on schedule every 1 second do
 insert into execution_log value('abc2');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create event abc3 on schedule every 1 second do 
 insert into execution_log value('abc3');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create table event_like like mysql.event;
 insert into event_like select * from mysql.event;
 alter table mysql.event

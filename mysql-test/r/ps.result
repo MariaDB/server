@@ -2706,9 +2706,13 @@ create procedure proc_1() alter event xyz comment 'xyz';
 call proc_1();
 drop event xyz;
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 drop event xyz;
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 drop event xyz;
 drop procedure proc_1;
@@ -2723,6 +2727,8 @@ create event xyz on schedule every 5 minute disable do select 123;
 create procedure proc_1() drop event xyz;
 call proc_1();
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 call proc_1();
 ERROR HY000: Unknown event 'xyz'
