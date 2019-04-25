@@ -11,6 +11,9 @@
 
 -- vertical_results
 
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
+
 CREATE TABLE test_ps_fetch
 (a INT, b INT, c INT, d INT, PRIMARY KEY (a, b), INDEX idx (c, d))
 ENGINE=INNODB STATS_PERSISTENT=1;
@@ -77,3 +80,4 @@ table_rows, avg_row_length, max_data_length, index_length
 FROM information_schema.tables WHERE table_name = 'test_ps_fetch';
 
 DROP TABLE test_ps_fetch;
+set @@use_stat_tables = @save_use_stat_tables;

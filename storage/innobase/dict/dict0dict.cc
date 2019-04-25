@@ -4345,11 +4345,19 @@ dict_create_foreign_constraints_low(
 	}
 
 	orig = ptr;
-	ptr = dict_accept(cs, ptr, "TABLE", &success);
-
-	if (!success) {
-
-		goto loop;
+	for (;;) {
+		ptr = dict_accept(cs, ptr, "TABLE", &success);
+		if (success) {
+			break;
+		}
+		ptr = dict_accept(cs, ptr, "ONLINE", &success);
+		if (success) {
+			continue;
+		}
+		ptr = dict_accept(cs, ptr, "IGNORE", &success);
+		if (!success) {
+			goto loop;
+		}
 	}
 
 	/* We are doing an ALTER TABLE: scan the table name we are altering */

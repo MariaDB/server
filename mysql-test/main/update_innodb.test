@@ -77,10 +77,37 @@ SELECT * FROM t1;
 drop table t1,t2;
 
 
---source include/have_innodb.inc
+--echo #
+--echo # MDEV-18300: ASAN error in Field_blob::get_key_image upon UPDATE with subquery
+--echo #
 
-CREATE OR REPLACE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
-CREATE OR REPLACE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @save_use_stat_tables= @@use_stat_tables;
+set use_stat_tables=preferably;
+set optimizer_use_condition_selectivity=4;
+
+CREATE TABLE t1 (a INT, b CHAR(8)) ENGINE=InnoDB;
+insert into t1 values (1,'foo'),(2, 'abc');
+CREATE TABLE t2 (c CHAR(8), d BLOB) ENGINE=InnoDB;
+insert into t2 values ('abc', 'foo'),('edf', 'food');
+
+--disable_result_log
+ANALYZE TABLE t1,t2;
+--enable_result_log
+UPDATE t1 SET a = 1 WHERE b = ( SELECT c FROM t2 WHERE d = 'foo' );
+SELECT * FROM t1;
+DROP TABLE t1, t2;
+
+create table t1 (a int not null, b int, c int) engine=InnoDB;
+create table t2 (d int, e int) engine=InnoDB;
+update t1, t2 set a=NULL, b=2, c=NULL where b=d and e=200;
+drop table t1,t2;
+
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set @@use_stat_tables= @save_use_stat_tables;
+
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (2);
 BEGIN;
@@ -105,8 +132,8 @@ commit;
 drop table t1,t2;
 
 
-CREATE OR REPLACE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
-CREATE OR REPLACE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (2);
 BEGIN;

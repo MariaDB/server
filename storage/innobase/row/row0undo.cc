@@ -130,6 +130,7 @@ row_undo_node_create(
 	undo_node_t*	undo;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE)
+	      || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	      || trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(parent);
 

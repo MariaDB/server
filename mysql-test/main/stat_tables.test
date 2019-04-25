@@ -405,6 +405,61 @@ DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
 
 
+
+--echo #
+--echo # MDEV-17605: SHOW INDEXES with use_stat_tables='preferably'
+--echo #
+
+set use_stat_tables='preferably';
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+create index i_p_retailprice on part(p_retailprice);
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
+ANALYZE TABLE lineitem;
+FLUSH TABLE mysql.table_stats, mysql.index_stats;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+select * from mysql.table_stats;
+select * from mysql.index_stats;
+
+SHOW INDEXES FROM lineitem;
+
+SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name='lineitem';
+
+SELECT
+  COUNT(DISTINCT l_orderkey), COUNT(DISTINCT l_orderkey,l_linenumber),
+  COUNT(DISTINCT l_shipDATE),
+  COUNT(DISTINCT l_partkey), COUNT(DISTINCT l_partkey,l_suppkey),
+  COUNT(DISTINCT l_suppkey), COUNT(DISTINCT l_receiptDATE),
+  COUNT(DISTINCT l_orderkey, l_quantity), COUNT(DISTINCT l_commitDATE)
+FROM lineitem;
+
+set optimizer_switch=@save_optimizer_switch;
+
+DROP DATABASE dbt3_s001;
+USE test;
+
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set use_stat_tables=@save_use_stat_tables;
+
 --echo #
 --echo # MDEV-18899: Server crashes in Field::set_warning_truncated_wrong_value
 --echo #

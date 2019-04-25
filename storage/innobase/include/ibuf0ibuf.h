@@ -368,13 +368,6 @@ ibuf_merge_space(
 /** Apply MLOG_IBUF_BITMAP_INIT when crash-upgrading */
 ATTRIBUTE_COLD void ibuf_bitmap_init_apply(buf_block_t* block);
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-/** Gets the ibuf count for a given page.
-@param[in]	page_id	page id
-@return number of entries in the insert buffer currently buffered for
-this page */
-ulint ibuf_count_get(const page_id_t page_id);
-#endif
 /******************************************************************//**
 Looks if the insert buffer is empty.
 @return true if empty */

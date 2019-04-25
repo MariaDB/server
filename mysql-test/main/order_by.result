@@ -3330,6 +3330,19 @@ Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id`
 set optimizer_switch= @save_optimizer_switch;
 DROP TABLE books, wings;
 #
+# MDEV-17796: query with DISTINCT, GROUP BY and ORDER BY
+#
+CREATE TABLE t1 (id int, gr int, v1 varchar(10));
+INSERT INTO t1 VALUES (1,1,'A'), (2,2,'B'), (3,3,NULL), (4,4,'C');
+SELECT DISTINCT NULLIF(GROUP_CONCAT(v1), null) FROM t1
+WHERE gr in (4,2)
+GROUP BY id
+ORDER BY id+1 DESC;
+NULLIF(GROUP_CONCAT(v1), null)
+C
+B
+DROP TABLE t1;
+#
 # MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
 #
 create table t1(a int);

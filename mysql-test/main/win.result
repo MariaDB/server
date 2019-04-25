@@ -3506,6 +3506,18 @@ id	a	b	sum_a_b
 2	2	2	4
 drop table t1;
 #
+# MDEV-15837: Assertion `item1->type() == Item::FIELD_ITEM && item2->type() == Item::FIELD_ITEM'
+# failed in compare_order_elements function
+#
+CREATE TABLE t1 (a1 int);
+insert into t1 values (1),(2),(3);
+SELECT  rank() OVER (ORDER BY 1), ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4))) FROM t1;
+rank() OVER (ORDER BY 1)	ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4)))
+1	1
+1	2
+1	3
+drop table t1;
+#
 # End of 10.2 tests
 #
 #
