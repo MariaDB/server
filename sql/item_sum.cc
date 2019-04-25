@@ -35,6 +35,11 @@
 #include "sql_parse.h"
 #include "sp_head.h"
 
+#if defined __cplusplus && 201103L <= __cplusplus
+#include <cmath>
+template <typename T> bool isnan(T arg) { return std::isnan(arg); }
+#endif //__cplusplus && 201103L <= __cplusplus
+
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
   used in Item_sum_*
