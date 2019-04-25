@@ -47,6 +47,7 @@
 #include <mysql_com_server.h>
 #include "session_tracker.h"
 #include "backup.h"
+#include "xa.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -1276,50 +1277,6 @@ struct st_savepoint {
   MDL_savepoint        mdl_savepoint;
 };
 
-enum xa_states {XA_NOTR=0, XA_ACTIVE, XA_IDLE, XA_PREPARED, XA_ROLLBACK_ONLY};
-extern const char *xa_state_names[];
-class XID_cache_element;
-
-typedef struct st_xid_state {
-  /* For now, this is only used to catch duplicated external xids */
-  XID  xid;                           // transaction identifier
-  enum xa_states xa_state;            // used by external XA only
-  /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
-  uint rm_error;
-  XID_cache_element *xid_cache_element;
-
-  /**
-    Check that XA transaction has an uncommitted work. Report an error
-    to the user in case when there is an uncommitted work for XA transaction.
-
-    @return  result of check
-      @retval  false  XA transaction is NOT in state IDLE, PREPARED
-                      or ROLLBACK_ONLY.
-      @retval  true   XA transaction is in state IDLE or PREPARED
-                      or ROLLBACK_ONLY.
-  */
-
-  bool check_has_uncommitted_xa() const
-  {
-    if (xa_state == XA_IDLE ||
-        xa_state == XA_PREPARED ||
-        xa_state == XA_ROLLBACK_ONLY)
-    {
-      my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
-      return true;
-    }
-    return false;
-  }
-} XID_STATE;
-
-void xid_cache_init(void);
-void xid_cache_free(void);
-XID_STATE *xid_cache_search(THD *thd, XID *xid);
-bool xid_cache_insert(XID *xid, enum xa_states xa_state);
-bool xid_cache_insert(THD *thd, XID_STATE *xid_state);
-void xid_cache_delete(THD *thd, XID_STATE *xid_state);
-int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *argument);
-
 /**
   @class Security_context
   @brief A set of THD members describing the current authenticated user.
@@ -2471,6 +2428,9 @@ public:
   */ 
   bool create_tmp_table_for_derived;
 
+  /* The flag to force reading statistics from EITS tables */
+  bool force_read_stats;
+
   bool save_prep_leaf_list;
 
   /* container for handler's private per-connection data */
@@ -2625,6 +2585,7 @@ public:
     THD_TRANS stmt;			// Trans for current statement
     bool on;                            // see ha_enable_transaction()
     XID_STATE xid_state;
+    XID implicit_xid;
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
@@ -2646,17 +2607,10 @@ public:
     MEM_ROOT mem_root; // Transaction-life memory allocation pool
     void cleanup()
     {
-      DBUG_ENTER("thd::cleanup");
+      DBUG_ENTER("THD::st_transactions::cleanup");
       changed_tables= 0;
       savepoints= 0;
-      /*
-        If rm_error is raised, it means that this piece of a distributed
-        transaction has failed and must be rolled back. But the user must
-        rollback it explicitly, so don't start a new distributed XA until
-        then.
-      */
-      if (!xid_state.rm_error)
-        xid_state.xid.null();
+      implicit_xid.null();
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
       DBUG_VOID_RETURN;
     }
@@ -2667,7 +2621,7 @@ public:
     st_transactions()
     {
       bzero((char*)this, sizeof(*this));
-      xid_state.xid.null();
+      implicit_xid.null();
       init_sql_alloc(&mem_root, "THD::transactions",
                      ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
                      MYF(MY_THREAD_SPECIFIC));

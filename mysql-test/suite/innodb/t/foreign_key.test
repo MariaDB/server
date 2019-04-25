@@ -244,9 +244,17 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 --error ER_CANT_CREATE_TABLE
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
---replace_regex /#sql-[0-9_a-f-]*/#sql-temporary/
 SHOW WARNINGS;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18139 ALTER IGNORE ... ADD FOREIGN KEY causes bogus error
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, KEY(f1)) ENGINE=InnoDB;
+CREATE TABLE t2 (f INT, KEY(f)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t2 (f);
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (f3) REFERENCES t1 (f1);
+DROP TABLE t1, t2;
 
 --echo # Start of 10.2 tests
 

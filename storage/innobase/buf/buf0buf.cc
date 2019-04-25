@@ -3891,10 +3891,6 @@ got_block:
 		}
 	}
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(page_id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 	return(bpage);
 }
 
@@ -4672,15 +4668,9 @@ evict_from_pool:
 			}
 		}
 
-		if (!recv_no_ibuf_operations) {
-			if (access_time) {
-#ifdef UNIV_IBUF_COUNT_DEBUG
-				ut_a(ibuf_count_get(page_id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-			} else {
-				ibuf_merge_or_delete_for_page(
-					block, block->page.id, zip_size, true);
-			}
+		if (!access_time && !recv_no_ibuf_operations) {
+			ibuf_merge_or_delete_for_page(
+				block, block->page.id, zip_size, true);
 		}
 
 		buf_pool_mutex_enter(buf_pool);
@@ -4882,10 +4872,6 @@ evict_from_pool:
 		buf_read_ahead_linear(page_id, zip_size, ibuf_inside(mtr));
 	}
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(fix_block->page.id) == 0);
-#endif
-
 	ut_ad(!rw_lock_own_flagged(hash_lock,
 				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
@@ -4993,10 +4979,6 @@ buf_page_optimistic_get(
 				      ibuf_inside(mtr));
 	}
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(block->page.id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 	buf_pool = buf_pool_from_block(block);
 	buf_pool->stat.n_page_gets++;
 
@@ -5100,9 +5082,6 @@ buf_page_get_known_nowait(
 	}
 #endif /* UNIV_DEBUG */
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a((mode == BUF_KEEP_OLD) || ibuf_count_get(block->page.id) == 0);
-#endif
 	buf_pool->stat.n_page_gets++;
 
 	return(TRUE);
@@ -5186,10 +5165,6 @@ buf_page_try_get_func(
 	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
 	buf_pool->stat.n_page_gets++;
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(block->page.id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
 
 	return(block);
 }
@@ -5584,11 +5559,6 @@ buf_page_create(
 	if (block
 	    && buf_page_in_file(&block->page)
 	    && !buf_pool_watch_is_sentinel(buf_pool, &block->page)) {
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-		ut_a(ibuf_count_get(page_id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 		ut_d(block->page.file_page_was_freed = FALSE);
 
 		/* Page can be found in buf_pool */
@@ -5693,9 +5663,6 @@ buf_page_create(
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(++buf_dbg_counter % 5771 || buf_validate());
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(block->page.id) == 0);
-#endif
 	return(block);
 }
 
@@ -6172,14 +6139,6 @@ database_corrupted:
 	buf_pool_mutex_enter(buf_pool);
 	mutex_enter(block_mutex);
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	if (io_type == BUF_IO_WRITE || uncompressed) {
-		/* For BUF_IO_READ of compressed-only blocks, the
-		buffered operations will be merged by buf_page_get_gen()
-		after the block has been uncompressed. */
-		ut_a(ibuf_count_get(bpage->id) == 0);
-	}
-#endif
 	/* Because this thread which does the unlocking is not the same that
 	did the locking, we use a pass value != 0 in unlock, which simply
 	removes the newest lock debug record, without checking the thread
@@ -6408,11 +6367,6 @@ buf_pool_validate_instance(
 						buf_pool, block->page.id)
 				     == &block->page);
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-				ut_a(buf_page_get_io_fix(&block->page)
-				     == BUF_IO_READ
-				     || !ibuf_count_get(block->page.id));
-#endif
 				switch (buf_page_get_io_fix(&block->page)) {
 				case BUF_IO_NONE:
 					break;

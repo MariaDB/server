@@ -395,10 +395,6 @@ const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Error") }  // Last command number 255
 };
 
-const char *xa_state_names[]={
-  "NON-EXISTING", "ACTIVE", "IDLE", "PREPARED", "ROLLBACK ONLY"
-};
-
 #ifdef HAVE_REPLICATION
 /**
   Returns true if all tables should be ignored.
@@ -2979,15 +2975,14 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
       my_error(ER_SP_BADSELECT, MYF(0), ErrConvDQName(sp).ptr());
       return 1;
     }
-    /*
-      If SERVER_MORE_RESULTS_EXISTS is not set,
-      then remember that it should be cleared
-    */
-    bits_to_be_cleared= (~thd->server_status &
-                         SERVER_MORE_RESULTS_EXISTS);
-    thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
   }
-
+  /*
+    If SERVER_MORE_RESULTS_EXISTS is not set,
+    then remember that it should be cleared
+  */
+  bits_to_be_cleared= (~thd->server_status &
+                       SERVER_MORE_RESULTS_EXISTS);
+  thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
   ha_rows select_limit= thd->variables.select_limit;
   thd->variables.select_limit= HA_POS_ERROR;
 

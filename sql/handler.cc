@@ -1199,8 +1199,11 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
   ha_info->register_ha(trans, ht_arg);
 
   trans->no_2pc|=(ht_arg->prepare==0);
-  if (thd->transaction.xid_state.xid.is_null())
-    thd->transaction.xid_state.xid.set(thd->query_id);
+
+  /* Set implicit xid even if there's explicit XA, it will be ignored anyway. */
+  if (thd->transaction.implicit_xid.is_null())
+    thd->transaction.implicit_xid.set(thd->query_id);
+
   DBUG_VOID_RETURN;
 }
 
@@ -1541,7 +1544,10 @@ int ha_commit_trans(THD *thd, bool all)
 
   need_prepare_ordered= FALSE;
   need_commit_ordered= FALSE;
-  xid= thd->transaction.xid_state.xid.get_my_xid();
+  DBUG_ASSERT(thd->transaction.implicit_xid.get_my_xid() ==
+              thd->transaction.implicit_xid.quick_get_my_xid());
+  xid= thd->transaction.xid_state.is_explicit_XA() ? 0 :
+       thd->transaction.implicit_xid.quick_get_my_xid();
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {
@@ -1867,14 +1873,6 @@ int ha_rollback_trans(THD *thd, bool all)
     trans->no_2pc=0;
   }
 
-  /*
-    Thanks to possibility of MDL deadlock rollback request can come even if
-    transaction hasn't been started in any transactional storage engine.
-  */
-  if (is_real_trans && thd->transaction_rollback_request &&
-      thd->transaction.xid_state.xa_state != XA_NOTR)
-    thd->transaction.xid_state.rm_error= thd->get_stmt_da()->sql_errno();
-
 #ifdef WITH_WSREP
   if (thd->is_error())
   {
@@ -1887,6 +1885,13 @@ int ha_rollback_trans(THD *thd, bool all)
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
   {
+    /*
+      Thanks to possibility of MDL deadlock rollback request can come even if
+      transaction hasn't been started in any transactional storage engine.
+    */
+    if (thd->transaction_rollback_request)
+      thd->transaction.xid_state.set_error(thd->get_stmt_da()->sql_errno());
+
     thd->has_waiter= false;
     thd->transaction.cleanup();
   }
@@ -2110,7 +2115,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           char buf[XIDDATASIZE*4+6]; // see xid_to_str
           DBUG_PRINT("info", ("ignore xid %s", xid_to_str(buf, info->list+i)));
 #endif
-          xid_cache_insert(info->list+i, XA_PREPARED);
+          xid_cache_insert(info->list + i);
           info->found_foreign_xids++;
           continue;
         }
@@ -2189,6 +2194,7 @@ int ha_recover(HASH *commit_list)
   for (info.len= MAX_XID_LIST_SIZE ; 
        info.list==0 && info.len > MIN_XID_LIST_SIZE; info.len/=2)
   {
+    DBUG_EXECUTE_IF("min_xa_len", info.len = 16;);
     info.list=(XID *)my_malloc(info.len*sizeof(XID), MYF(0));
   }
   if (!info.list)
@@ -2221,186 +2227,6 @@ int ha_recover(HASH *commit_list)
   DBUG_RETURN(0);
 }
 
-/**
-  return the XID as it appears in the SQL function's arguments.
-  So this string can be passed to XA START, XA PREPARE etc...
-
-  @note
-    the 'buf' has to have space for at least SQL_XIDSIZE bytes.
-*/
-
-
-/*
-  'a'..'z' 'A'..'Z', '0'..'9'
-  and '-' '_' ' ' symbols don't have to be
-  converted.
-*/
-
-static const char xid_needs_conv[128]=
-{
-  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-  0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,
-  0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,
-  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,
-  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1
-};
-
-uint get_sql_xid(XID *xid, char *buf)
-{
-  int tot_len= xid->gtrid_length + xid->bqual_length;
-  int i;
-  const char *orig_buf= buf;
-
-  for (i=0; i<tot_len; i++)
-  {
-    uchar c= ((uchar *) xid->data)[i];
-    if (c >= 128 || xid_needs_conv[c])
-      break;
-  }
-
-  if (i >= tot_len)
-  {
-    /* No need to convert characters to hexadecimals. */
-    *buf++= '\'';
-    memcpy(buf, xid->data, xid->gtrid_length);
-    buf+= xid->gtrid_length;
-    *buf++= '\'';
-    if (xid->bqual_length > 0 || xid->formatID != 1)
-    {
-      *buf++= ',';
-      *buf++= '\'';
-      memcpy(buf, xid->data+xid->gtrid_length, xid->bqual_length);
-      buf+= xid->bqual_length;
-      *buf++= '\'';
-    }
-  }
-  else
-  {
-    *buf++= 'X';
-    *buf++= '\'';
-    for (i= 0; i < xid->gtrid_length; i++)
-    {
-      *buf++=_dig_vec_lower[((uchar*) xid->data)[i] >> 4];
-      *buf++=_dig_vec_lower[((uchar*) xid->data)[i] & 0x0f];
-    }
-    *buf++= '\'';
-    if (xid->bqual_length > 0 || xid->formatID != 1)
-    {
-      *buf++= ',';
-      *buf++= 'X';
-      *buf++= '\'';
-      for (; i < tot_len; i++)
-      {
-        *buf++=_dig_vec_lower[((uchar*) xid->data)[i] >> 4];
-        *buf++=_dig_vec_lower[((uchar*) xid->data)[i] & 0x0f];
-      }
-      *buf++= '\'';
-    }
-  }
-
-  if (xid->formatID != 1)
-  {
-    *buf++= ',';
-    buf+= my_longlong10_to_str_8bit(&my_charset_bin, buf,
-            MY_INT64_NUM_DECIMAL_DIGITS, -10, xid->formatID);
-  }
-
-  return (uint)(buf - orig_buf);
-}
-
-
-/**
-  return the list of XID's to a client, the same way SHOW commands do.
-
-  @note
-    I didn't find in XA specs that an RM cannot return the same XID twice,
-    so mysql_xa_recover does not filter XID's to ensure uniqueness.
-    It can be easily fixed later, if necessary.
-*/
-
-static my_bool xa_recover_callback(XID_STATE *xs, Protocol *protocol,
-                  char *data, uint data_len, CHARSET_INFO *data_cs)
-{
-  if (xs->xa_state == XA_PREPARED)
-  {
-    protocol->prepare_for_resend();
-    protocol->store_longlong((longlong) xs->xid.formatID, FALSE);
-    protocol->store_longlong((longlong) xs->xid.gtrid_length, FALSE);
-    protocol->store_longlong((longlong) xs->xid.bqual_length, FALSE);
-    protocol->store(data, data_len, data_cs);
-    if (protocol->write())
-      return TRUE;
-  }
-  return FALSE;
-}
-
-
-static my_bool xa_recover_callback_short(XID_STATE *xs, Protocol *protocol)
-{
-  return xa_recover_callback(xs, protocol, xs->xid.data,
-      xs->xid.gtrid_length + xs->xid.bqual_length, &my_charset_bin);
-}
-
-
-static my_bool xa_recover_callback_verbose(XID_STATE *xs, Protocol *protocol)
-{
-  char buf[SQL_XIDSIZE];
-  uint len= get_sql_xid(&xs->xid, buf);
-  return xa_recover_callback(xs, protocol, buf, len,
-                             &my_charset_utf8_general_ci);
-}
-
-
-bool mysql_xa_recover(THD *thd)
-{
-  List<Item> field_list;
-  Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
-  my_hash_walk_action action;
-  DBUG_ENTER("mysql_xa_recover");
-
-  field_list.push_back(new (mem_root)
-                       Item_int(thd, "formatID", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_int(thd, "gtrid_length", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_int(thd, "bqual_length", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
-  {
-    uint len;
-    CHARSET_INFO *cs;
-
-    if (thd->lex->verbose)
-    {
-      len= SQL_XIDSIZE;
-      cs= &my_charset_utf8_general_ci;
-      action= (my_hash_walk_action) xa_recover_callback_verbose;
-    }
-    else
-    {
-      len= XIDDATASIZE;
-      cs= &my_charset_bin;
-      action= (my_hash_walk_action) xa_recover_callback_short;
-    }
-
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "data", len, cs), mem_root);
-  }
-
-  if (protocol->send_result_set_metadata(&field_list,
-                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
-    DBUG_RETURN(1);
-
-  if (xid_cache_iterate(thd, action, protocol))
-    DBUG_RETURN(1);
-  my_eof(thd);
-  DBUG_RETURN(0);
-}
 
 /*
   Called by engine to notify TC that a new commit checkpoint has been reached.

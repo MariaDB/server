@@ -290,7 +290,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show indexes from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	1	NULL	NULL	YES	BTREE		
+t1	1	a	1	a	A	2	NULL	NULL	YES	BTREE		
 drop table t1;
 create table t1 (a int)
 partition by hash (a);

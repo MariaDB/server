@@ -977,11 +977,6 @@ public:
   {
     length(0);
   }
-  StringBuffer(const char *str, size_t length_arg, CHARSET_INFO *cs)
-    : String(buff, buff_sz, cs)
-  {
-    set(str, length_arg, cs);
-  }
 };
 
 

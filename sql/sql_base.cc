@@ -4190,13 +4190,9 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   bool has_prelocking_list;
   DBUG_ENTER("open_tables");
 
-  /* Accessing data in XA_IDLE or XA_PREPARED is not allowed. */
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
-  if (*start && (xa_state == XA_IDLE || xa_state == XA_PREPARED))
-  {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+  /* Data access in XA transaction is only allowed when it is active. */
+  if (*start && thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(true);
-  }
 
   thd->current_tablenr= 0;
 restart:
