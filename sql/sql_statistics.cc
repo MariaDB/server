@@ -4067,6 +4067,14 @@ bool is_stat_table(const char *db, const char *table)
 
 bool is_eits_usable(Field *field)
 {
+  Column_statistics* col_stats= field->read_stats;
+  
+  // check if column_statistics was allocated for this field
+  if (!col_stats)
+    return false;
+
+  DBUG_ASSERT(field->table->stats_is_read);
+
   /*
     (1): checks if we have EITS statistics for a particular column
     (2): Don't use EITS for GEOMETRY columns
@@ -4074,10 +4082,9 @@ bool is_eits_usable(Field *field)
          partition list of a table. We assume the selecticivity for
          such columns would be handled during partition pruning.
   */
-  DBUG_ASSERT(field->table->stats_is_read);
-  Column_statistics* col_stats= field->read_stats;
-  return col_stats && !col_stats->no_stat_values_provided() &&        //(1)
-    field->type() != MYSQL_TYPE_GEOMETRY &&                           //(2)
+
+  return !col_stats->no_stat_values_provided() &&        //(1)
+    field->type() != MYSQL_TYPE_GEOMETRY &&              //(2)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     (!field->table->part_info ||
      !field->table->part_info->field_in_partition_expr(field)) &&     //(3)
