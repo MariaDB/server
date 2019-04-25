@@ -159,3 +159,14 @@ create temporary table mysql.user select * from mysql.user1 limit 0;
 flush privileges;
 drop temporary table mysql.user;
 rename table mysql.user1 to mysql.user;
+
+#
+# Bug#28986737: RENAMING AND REPLACING MYSQL.USER TABLE CAN LEAD TO A SERVER CRASH
+#
+call mtr.add_suppression('mysql.user table is damaged');
+rename table mysql.user to mysql.user1;
+create table mysql.user (Host char(100), User char(100));
+--error ER_UNKNOWN_ERROR
+flush privileges;
+drop table mysql.user;
+rename table mysql.user1 to mysql.user;

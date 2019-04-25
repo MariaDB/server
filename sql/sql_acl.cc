@@ -825,6 +825,14 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     goto end;
 
   table->use_all_columns();
+
+  if (table->s->fields < 13) // number of columns in 3.21
+  {
+    sql_print_error("Fatal error: mysql.user table is damaged or in "
+                    "unsupported 3.20 format.");
+    goto end;
+  }
+
   username_char_length= min(table->field[1]->char_length(), USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
     table->field[2]->charset()->mbmaxlen;
