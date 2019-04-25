@@ -424,6 +424,45 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-17830 Server crashes in Item_null_result::field_type upon SELECT with CHARSET(date) and ROLLUP
+--echo #
+
+--echo # Note, different MariaDB versions can return different results
+--echo # in the two rows (such as "latin1" vs "binary"). This is wrong.
+--echo # Both lines should return equal values.
+--echo # The point in this test is to make sure it does not crash.
+--echo # As this is a minor issue, bad result will be fixed
+--echo # in a later version, presumably in 10.4.
+
+CREATE TABLE t (d DATE) ENGINE=MyISAM;
+INSERT INTO t VALUES ('2018-12-12');
+SELECT CHARSET(d) AS f FROM t GROUP BY d WITH ROLLUP;
+DROP TABLE t;
+
+
+--echo #
+--echo # MDEV-14041 Server crashes in String::length on queries with functions and ROLLUP
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT GET_LOCK( 'foo', 0 );
+SELECT HEX( RELEASE_LOCK( 'foo' ) ) AS f FROM t1 GROUP BY f WITH ROLLUP;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT i FROM t1 GROUP BY i WITH ROLLUP
+UNION ALL
+SELECT ELT( FOUND_ROWS(), 1 ) f FROM t1 GROUP BY f WITH ROLLUP;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT a FROM t1 GROUP BY NULLIF( CONVERT('', DATE), '2015-10-15' ) WITH ROLLUP;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 
