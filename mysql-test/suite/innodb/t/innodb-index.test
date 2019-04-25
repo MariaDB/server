@@ -593,3 +593,23 @@ CHECK TABLE t1;
 DROP TABLE t1;
 SET GLOBAL innodb_file_format=@save_format;
 SET GLOBAL innodb_large_prefix=@save_prefix;
+
+--echo #
+--echo # Bug#19811005 ALTER TABLE ADD INDEX DOES NOT UPDATE INDEX_LENGTH
+--echo # IN I_S TABLES
+--echo #
+let $i_s_query=SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB, STATS_PERSISTENT=1;
+eval $i_s_query;
+--enable_info
+ALTER TABLE t1 ADD INDEX (a);
+--disable_info
+eval $i_s_query;
+--enable_info
+ALTER TABLE t1 ADD INDEX (b);
+--disable_info
+eval $i_s_query;
+DROP TABLE t1;
