@@ -1234,10 +1234,13 @@ public:
     name= a->name;
     name_length= a->name_length;
   }
-  double val_real() { return args[0]->val_real(); }
-  longlong val_int() { return args[0]->val_int(); }
-  String *val_str(String *str) { return args[0]->val_str(str); }
-  my_decimal *val_decimal(my_decimal *dec) { return args[0]->val_decimal(dec); }
+  double val_real() { return val_real_from_item(args[0]); }
+  longlong val_int() { return val_int_from_item(args[0]); }
+  String *val_str(String *str) { return val_str_from_item(args[0], str); }
+  my_decimal *val_decimal(my_decimal *dec)
+    { return val_decimal_from_item(args[0], dec); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+    { return get_date_from_item(args[0], ltime, fuzzydate); }
   const char *func_name() const { return "rollup_const"; }
   bool const_item() const { return 0; }
   Item_result result_type() const { return args[0]->result_type(); }

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -129,6 +129,7 @@ row_undo_node_create(
 	undo_node_t*	undo;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE)
+	      || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	      || trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(parent);
 

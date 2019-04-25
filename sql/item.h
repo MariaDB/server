@@ -707,6 +707,45 @@ protected:
                                          bool fixed_length,
                                          bool set_blob_packlength);
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
+  /* Helper methods, to get an Item value from another Item */
+  double val_real_from_item(Item *item)
+  {
+    DBUG_ASSERT(fixed == 1);
+    double value= item->val_real();
+    null_value= item->null_value;
+    return value;
+  }
+  longlong val_int_from_item(Item *item)
+  {
+    DBUG_ASSERT(fixed == 1);
+    longlong value= item->val_int();
+    null_value= item->null_value;
+    return value;
+  }
+  String *val_str_from_item(Item *item, String *str)
+  {
+    DBUG_ASSERT(fixed == 1);
+    String *res= item->val_str(str);
+    if (res)
+      res->set_charset(collation.collation);
+    if ((null_value= item->null_value))
+      res= NULL;
+    return res;
+  }
+  my_decimal *val_decimal_from_item(Item *item, my_decimal *decimal_value)
+  {
+    DBUG_ASSERT(fixed == 1);
+    my_decimal *value= item->val_decimal(decimal_value);
+    if ((null_value= item->null_value))
+      value= NULL;
+    return value;
+  }
+  bool get_date_from_item(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    bool rc= item->get_date(ltime, fuzzydate);
+    null_value= MY_TEST(rc || item->null_value);
+    return rc;
+  }
   /*
     This method is used if the item was not null but convertion to
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
@@ -2862,6 +2901,10 @@ public:
   {
     return result_field->type();
   }
+  CHARSET_INFO *charset_for_protocol(void) const
+  {
+    return collation.collation;
+  }
 #else
   const Type_handler *type_handler() const
   {
@@ -4361,6 +4404,12 @@ public:
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field)
   { return (*ref)->setup_fast_field_copier(field); }
+#if MARIADB_VERSION_ID < 100300
+  CHARSET_INFO *charset_for_protocol(void) const
+  {
+    return (*ref)->charset_for_protocol();
+  }
+#endif
   enum Item_result result_type () const { return (*ref)->result_type(); }
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()

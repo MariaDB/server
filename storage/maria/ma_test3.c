@@ -362,7 +362,7 @@ int test_write(MARIA_HA *file,int id,int lock_type)
       maria_extra(file,HA_EXTRA_WRITE_CACHE,0);
   }
 
-  sprintf((char*) record.id,"%7ld", (long) getpid());
+  my_snprintf((char*) record.id, sizeof(record.id), "%7ld", (long) getpid());
   strnmov((char*) record.text,"Testing...", sizeof(record.text));
 
   tries=(uint) rnd(100)+10;
