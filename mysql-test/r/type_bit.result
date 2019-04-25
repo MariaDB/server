@@ -830,3 +830,10 @@ def					COALESCE(val, 1)	246	2	1	Y	32896	0	63
 COALESCE(val, 1)
 0
 DROP TABLE t1;
+#
+# MDEV-18452 ASAN unknown-crash in Field::set_default upon SET bit_column = DEFAULT
+#
+CREATE TABLE t1 (b BIT(20)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0);
+UPDATE t1 SET b = DEFAULT;
+DROP TABLE t1;
