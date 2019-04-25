@@ -4973,28 +4973,27 @@ lock_print_info_summary(
 	return(TRUE);
 }
 
-/** Functor to print not-started transaction from the mysql_trx_list. */
+/** Prints not started transaction or puts it into set.
+@param[in]	trx	transaction
+@param[in,out]	file	fd where to print
+@param[in,out]	set	put transaction here if is started */
+static void
+print_not_started(const trx_t* trx, FILE* file, std::set<const trx_t*>& started)
+{
+	ut_ad(trx);
+	ut_ad(trx->in_mysql_trx_list);
+	ut_ad(mutex_own(&trx_sys->mutex));
 
-struct	PrintNotStarted {
+	/* See state transitions and locking rules in trx0trx.h */
 
-	PrintNotStarted(FILE* file) : m_file(file) { }
+	if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
 
-	void	operator()(const trx_t* trx)
-	{
-		ut_ad(trx->in_mysql_trx_list);
-		ut_ad(mutex_own(&trx_sys->mutex));
-
-		/* See state transitions and locking rules in trx0trx.h */
-
-		if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
-
-			fputs("---", m_file);
-			trx_print_latched(m_file, trx, 600);
-		}
+		fputs("---", file);
+		trx_print_latched(file, trx, 600);
+	} else {
+		started.insert(trx);
 	}
-
-	FILE*		m_file;
-};
+}
 
 /** Iterate over a transaction's locks. Keeping track of the
 iterator using an ordinal value. */
@@ -5287,8 +5286,11 @@ lock_print_info_all_transactions(
 	transactions will be omitted here. The information will be
 	available from INFORMATION_SCHEMA.INNODB_TRX. */
 
-	PrintNotStarted	print_not_started(file);
-	ut_list_map(trx_sys->mysql_trx_list, print_not_started);
+	std::set<const trx_t*> not_printed_transactions;
+	for (const trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list); trx;
+	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
+		print_not_started(trx, file, not_printed_transactions);
+	}
 
 	const trx_t*	trx;
 	TrxListIterator	trx_iter;
@@ -5301,6 +5303,8 @@ lock_print_info_all_transactions(
 	while ((trx = trx_iter.current()) != 0) {
 
 		check_trx_state(trx);
+
+		not_printed_transactions.erase(trx);
 
 		if (trx != prev_trx) {
 			lock_trx_print_wait_and_mvcc_state(file, trx);
@@ -5340,6 +5344,14 @@ lock_print_info_all_transactions(
 		/* All record lock details were printed without fetching
 		a page from disk, or we didn't need to print the detail. */
 		trx_iter.next();
+	}
+
+	for (std::set<const trx_t*>::const_iterator it
+	     = not_printed_transactions.begin(),
+	     end = not_printed_transactions.end();
+	     it != end; ++it) {
+		fputs("---", file);
+		trx_print_latched(file, *it, 600);
 	}
 
 	lock_mutex_exit();
