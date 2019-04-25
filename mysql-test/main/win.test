@@ -2256,6 +2256,16 @@ from t1 e;
 drop table t1;
 
 --echo #
+--echo # MDEV-15837: Assertion `item1->type() == Item::FIELD_ITEM && item2->type() == Item::FIELD_ITEM'
+--echo # failed in compare_order_elements function
+--echo #
+
+CREATE TABLE t1 (a1 int);
+insert into t1 values (1),(2),(3);
+SELECT  rank() OVER (ORDER BY 1), ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4))) FROM t1;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

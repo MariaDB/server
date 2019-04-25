@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4606,7 +4606,10 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   }
 
   DBUG_ASSERT(thd->lex == lex);
+  thd->force_read_stats= get_schema_table_idx(schema_table) == SCH_STATISTICS;
   result= open_tables_only_view_structure(thd, table_list, can_deadlock);
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
+  thd->force_read_stats= false;
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 

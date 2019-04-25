@@ -6307,6 +6307,7 @@ lock_trx_release_locks(
 {
 	check_trx_state(trx);
 	ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED)
+	      || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
               || trx_state_eq(trx, TRX_STATE_ACTIVE));
 
 	bool release_lock = UT_LIST_GET_LEN(trx->lock.trx_locks) > 0;
