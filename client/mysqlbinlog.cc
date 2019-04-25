@@ -227,8 +227,7 @@ void print_annotate_event(PRINT_EVENT_INFO *print_event_info)
   if (annotate_event)
   {
     annotate_event->print(result_file, print_event_info);
-    delete annotate_event;  // the event should not be printed more than once
-    annotate_event= 0;
+    free_annotate_event();
   }
 }
 
@@ -1465,7 +1464,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       if (print_row_event(print_event_info, ev, e->get_table_id(),
                           e->get_flags(Rows_log_event::STMT_END_F)))
         goto err;
-      if (!is_stmt_end)
+      if (opt_flashback && !is_stmt_end)
         destroy_evt= FALSE;
       break;
     }
@@ -1478,7 +1477,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       if (print_row_event(print_event_info, ev, e->get_table_id(),
                           e->get_flags(Old_rows_log_event::STMT_END_F)))
         goto err;
-      if (!is_stmt_end)
+      if (opt_flashback && !is_stmt_end)
         destroy_evt= FALSE;
       break;
     }
@@ -1539,8 +1538,6 @@ end:
       }
     }
 
-    if (remote_opt)
-      ev->temp_buf= 0;
     if (destroy_evt) /* destroy it later if not set (ignored table map) */
       delete ev;
   }
