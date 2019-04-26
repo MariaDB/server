@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -217,6 +217,7 @@ row_undo_mod_remove_clust_low(
 	/* In delete-marked records, DB_TRX_ID must
 	always refer to an existing update_undo log record. */
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur), btr_cur->index));
+	node->convert_impl_to_expl(*btr_cur);
 
 	if (mode == BTR_MODIFY_LEAF) {
 		err = btr_cur_optimistic_delete(btr_cur, 0, mtr)
@@ -524,6 +525,8 @@ row_undo_mod_del_mark_or_remove_sec_low(
 				ut_ad(0);
 			}
 		}
+
+		node->convert_impl_to_expl(*btr_cur);
 
 		if (modify_leaf) {
 			success = btr_cur_optimistic_delete(btr_cur, 0, &mtr);

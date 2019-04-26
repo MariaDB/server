@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -39,7 +39,24 @@ Created 1/8/1997 Heikki Tuuri
 #include "row0umod.h"
 #include "row0upd.h"
 #include "row0mysql.h"
-#include "srv0srv.h"
+#include "lock0lock.h"
+
+/** On a partial rollback, convert an implicit lock into explicit
+before undoing an insert (or update of delete-marked record).
+
+Releasing an implicit lock could break the serializability of
+INSERT...ON DUPLICATE KEY UPDATE and REPLACE statements.
+@param[in]	cursor	record whose insert is about to be undone */
+void
+undo_node_t::convert_impl_to_expl(const btr_cur_t& cursor, ulint heap_no) const
+{
+	trx_mutex_enter(trx);
+	trx->n_ref++;
+	trx_mutex_exit(trx);
+	lock_rec_convert_impl_to_expl_for_trx(
+		cursor.page_cur.block, cursor.page_cur.rec, cursor.index,
+		trx, heap_no);
+}
 
 /* How to undo row operations?
 (1) For an insert, we have stored a prefix of the clustered index record

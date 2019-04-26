@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 1997, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -120,6 +120,32 @@ struct undo_node_t{
 	mem_heap_t*	heap;	/*!< memory heap used as auxiliary storage for
 				row; this must be emptied after undo is tried
 				on a row */
+
+	/** On rollback, convert an implicit lock into explicit before
+	undoing an insert (or update of delete-marked record), if needed.
+	@param[in]	cursor	record whose insert is about to be undone */
+	void convert_impl_to_expl(const btr_cur_t& cursor) const
+	{
+		ut_ad(trx->in_rollback);
+		if (trx->duplicates != ULINT_UNDEFINED
+		    || dict_index_is_spatial(cursor.index)) {
+			return;
+		}
+
+		ulint heap_no = page_rec_get_heap_no(btr_cur_get_rec(&cursor));
+
+		if (heap_no != PAGE_HEAP_NO_SUPREMUM) {
+			convert_impl_to_expl(cursor, heap_no);
+		}
+	}
+private:
+	/** On a partial rollback, convert an implicit lock into explicit
+	before undoing an insert (or update of delete-marked record).
+
+	Releasing an implicit lock could break the serializability of
+	INSERT...ON DUPLICATE KEY UPDATE and REPLACE statements.
+	@param[in]	cursor	record whose insert is about to be undone */
+	void convert_impl_to_expl(const btr_cur_t& cursor,ulint heap_no) const;
 };
 
 #endif

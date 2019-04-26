@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -912,6 +912,20 @@ lock_rec_create(
 	bool			caller_owns_trx_mutex);
 					/*!< in: true if caller owns
 					trx mutex */
+
+/*********************************************************************//**
+Creates an explicit record lock for a running transaction that currently only
+has an implicit lock on the record. The transaction instance must have a
+reference count > 0 so that it can't be committed and freed before this
+function has completed. */
+void
+lock_rec_convert_impl_to_expl_for_trx(
+/*==================================*/
+	const buf_block_t*	block,	/*!< in: buffer block of rec */
+	const rec_t*		rec,	/*!< in: user record on page */
+	dict_index_t*		index,	/*!< in: index of record */
+	trx_t*			trx,	/*!< in/out: active transaction */
+	ulint			heap_no);/*!< in: rec heap number to lock */
 
 /*************************************************************//**
 Removes a record lock request, waiting or granted, from the queue. */

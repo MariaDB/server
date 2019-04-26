@@ -141,13 +141,16 @@ trx_rollback_to_savepoint(
 				partial rollback requested, or NULL for
 				complete rollback */
 {
-	ut_ad(!trx_mutex_own(trx));
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE)
+	      || trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 
-	trx_start_if_not_started_xa(trx, true);
+	trx->error_state = DB_SUCCESS;
 
-	trx_rollback_to_savepoint_low(trx, savept);
+	if (trx_state_eq(trx, TRX_STATE_ACTIVE)) {
+		trx_rollback_to_savepoint_low(trx, savept);
+	}
 
-	return(trx->error_state);
+	return trx->error_state;
 }
 
 /*******************************************************************//**
@@ -160,18 +163,9 @@ trx_rollback_for_mysql_low(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	trx->op_info = "rollback";
-
-	/* If we are doing the XA recovery of prepared transactions,
-	then the transaction object does not have an InnoDB session
-	object, and we set a dummy session that we use for all MySQL
-	transactions. */
-
 	trx_rollback_to_savepoint_low(trx, NULL);
-
 	trx->op_info = "";
-
 	ut_a(trx->error_state == DB_SUCCESS);
-
 	return(trx->error_state);
 }
 

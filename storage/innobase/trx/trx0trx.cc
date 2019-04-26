@@ -120,6 +120,7 @@ trx_init(
 
 	trx->error_state = DB_SUCCESS;
 
+	trx->error_info = NULL;
 	trx->error_key_num = ULINT_UNDEFINED;
 
 	trx->undo_no = 0;

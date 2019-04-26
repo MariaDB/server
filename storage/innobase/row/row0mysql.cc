@@ -1424,8 +1424,11 @@ error_exit:
 		/* FIXME: What's this ? */
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
+		ulint duplicates = trx->duplicates;
+		trx->duplicates = ULINT_UNDEFINED;
 		was_lock_wait = row_mysql_handle_errors(
 			&err, trx, thr, &savept);
+		trx->duplicates = duplicates;
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 

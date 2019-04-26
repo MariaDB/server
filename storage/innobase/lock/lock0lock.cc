@@ -6023,7 +6023,6 @@ Creates an explicit record lock for a running transaction that currently only
 has an implicit lock on the record. The transaction instance must have a
 reference count > 0 so that it can't be committed and freed before this
 function has completed. */
-static
 void
 lock_rec_convert_impl_to_expl_for_trx(
 /*==================================*/
