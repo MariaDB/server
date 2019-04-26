@@ -1376,14 +1376,10 @@ innobase_col_check_fk(
 {
 	dict_s_col_list::const_iterator	it;
 
-	for (it = s_cols->begin();
-	     it != s_cols->end(); ++it) {
-		dict_s_col_t	s_col = *it;
-
-		for (ulint j = 0; j < s_col.num_base; j++) {
-			if (strcmp(col_name, dict_table_get_col_name(
-						table,
-						s_col.base_col[j]->ind)) == 0) {
+	for (it = s_cols->begin(); it != s_cols->end(); ++it) {
+		for (ulint j = it->num_base; j--; ) {
+			if (!strcmp(col_name, dict_table_get_col_name(
+					    table, it->base_col[j]->ind))) {
 				return(true);
 			}
 		}
