@@ -2582,6 +2582,22 @@ int spider_db_append_key_where(
   DBUG_RETURN(0);
 }
 
+int spider_db_append_charset_name_before_string(
+  spider_string *str,
+  CHARSET_INFO *cs
+) {
+  const char *csname = cs->csname;
+  uint csname_length = strlen(csname);
+  DBUG_ENTER("spider_db_append_charset_name_before_string");
+  if (str->reserve(SPIDER_SQL_UNDERSCORE_LEN + csname_length))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_UNDERSCORE_STR, SPIDER_SQL_UNDERSCORE_LEN);
+  str->q_append(csname, csname_length);
+  DBUG_RETURN(0);
+}
+
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_refetch_for_item_sum_funcs(
   ha_spider *spider
@@ -9291,6 +9307,14 @@ int spider_db_open_item_string(
           goto end;
         }
       }
+      if (str->charset() != tmp_str2->charset())
+      {
+        if ((error_num = spider_db_append_charset_name_before_string(str,
+          tmp_str2->charset())))
+        {
+          goto end;
+        }
+      }
       if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 +
         tmp_str2->length() * 2))
       {
@@ -9300,7 +9324,8 @@ int spider_db_open_item_string(
       if (!thd)
         tmp_str.mem_calc();
       str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-      str->append_escape_string(tmp_str2->ptr(), tmp_str2->length());
+      str->append_escape_string(tmp_str2->ptr(), tmp_str2->length(),
+        tmp_str2->charset());
       if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
       {
         error_num = HA_ERR_OUT_OF_MEM;
