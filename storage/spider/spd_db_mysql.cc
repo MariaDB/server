@@ -3745,8 +3745,9 @@ int spider_db_mbase_util::append_column_value(
   const uchar *new_ptr,
   CHARSET_INFO *access_charset
 ) {
+  int error_num;
   char buf[MAX_FIELD_WIDTH];
-  spider_string tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin);
+  spider_string tmp_str(buf, MAX_FIELD_WIDTH, field->charset());
   String *ptr;
   uint length;
   THD *thd = field->table->in_use;
@@ -3764,7 +3765,7 @@ int spider_db_mbase_util::append_column_value(
     ) {
       length = uint2korr(new_ptr);
       tmp_str.set_quick((char *) new_ptr + HA_KEY_BLOB_LENGTH, length,
-        &my_charset_bin);
+        field->charset());
       ptr = tmp_str.get_str();
     } else if (field->type() == MYSQL_TYPE_GEOMETRY)
     {
@@ -3880,6 +3881,14 @@ int spider_db_mbase_util::append_column_value(
   if (field->result_type() == STRING_RESULT)
   {
     DBUG_PRINT("info", ("spider STRING_RESULT"));
+    if (str->charset() != field->charset())
+    {
+      if ((error_num = spider_db_append_charset_name_before_string(str,
+        field->charset())))
+      {
+        DBUG_RETURN(error_num);
+      }
+    }
     if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
@@ -3890,7 +3899,7 @@ int spider_db_mbase_util::append_column_value(
     ) {
       DBUG_PRINT("info", ("spider append_escaped"));
       char buf2[MAX_FIELD_WIDTH];
-      spider_string tmp_str2(buf2, MAX_FIELD_WIDTH, access_charset);
+      spider_string tmp_str2(buf2, MAX_FIELD_WIDTH, field->charset());
       tmp_str2.init_calc_mem(114);
       tmp_str2.length(0);
       if (
@@ -3906,6 +3915,14 @@ int spider_db_mbase_util::append_column_value(
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   } else if (field->str_needs_quotes())
   {
+    if (str->charset() != field->charset())
+    {
+      if ((error_num = spider_db_append_charset_name_before_string(str,
+        field->charset())))
+      {
+        DBUG_RETURN(error_num);
+      }
+    }
     if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 + ptr->length() * 2 + 2))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
