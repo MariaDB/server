@@ -53,7 +53,7 @@ pkey	dt
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select t0.`pkey` `pkey`,t0.`dt` `dt` from `auto_test_remote`.`tbl_a` t0 where (t0.`dt` > '2012-11-30 23:59:59')
+select t0.`pkey` `pkey`,t0.`dt` `dt` from `auto_test_remote`.`tbl_a` t0 where (t0.`dt` > _latin1'2012-11-30 23:59:59')
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT pkey, dt FROM tbl_a ORDER BY pkey;
 pkey	dt
