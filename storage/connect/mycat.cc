@@ -545,15 +545,6 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
     case TAB_JSON: tdp= new(g) JSONDEF; break;
-#if defined(MONGO_SUPPORT)
-		case TAB_MONGO:
-//		if (MongoEnabled())
-			  tdp = new(g) MGODEF;
-//		else
-//			strcpy(g->Message, "MONGO type not enabled");
-
-			break;
-#endif   // MONGO_SUPPORT
 #if defined(ZIP_SUPPORT)
 		case TAB_ZIP: tdp = new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT
