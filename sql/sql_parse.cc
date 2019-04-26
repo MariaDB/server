@@ -2629,9 +2629,6 @@ mysql_execute_command(THD *thd)
         my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE),
                    MYF(0));
       }
-      
-      for (table=all_tables; table; table=table->next_global)
-        table->updating= TRUE;
     }
     
     /*
@@ -8002,9 +7999,8 @@ TABLE_LIST *st_select_lex::convert_right_join()
     query
 */
 
-void st_select_lex::set_lock_for_tables(thr_lock_type lock_type)
+void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update)
 {
-  bool for_update= lock_type >= TL_READ_NO_INSERT;
   DBUG_ENTER("set_lock_for_tables");
   DBUG_PRINT("enter", ("lock_type: %d  for_update: %d", lock_type,
 		       for_update));

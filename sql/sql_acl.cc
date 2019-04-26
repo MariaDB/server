@@ -1271,6 +1271,13 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
     goto end;
   table->use_all_columns();
 
+  if (table->s->fields < 13) // number of columns in 3.21
+  {
+    sql_print_error("Fatal error: mysql.user table is damaged or in "
+                    "unsupported 3.20 format.");
+    goto end;
+  }
+
   username_char_length= MY_MIN(table->field[1]->char_length(),
                                USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
@@ -8550,8 +8557,7 @@ static int open_grant_tables(THD *thd, TABLE_LIST *tables,
                                acl_table_names[cur].length,
                                acl_table_names[cur].str, lock_type);
     tables[cur].open_type= OT_BASE_ONLY;
-    if (lock_type >= TL_WRITE_ALLOW_WRITE)
-      tables[cur].updating= 1;
+    tables[cur].i_s_requested_object= OPEN_TABLE_ONLY;
     if (cur >= FIRST_OPTIONAL_TABLE)
       tables[cur].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
     if (prev != -1)
