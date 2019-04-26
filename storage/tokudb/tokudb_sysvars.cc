@@ -662,13 +662,13 @@ static MYSQL_THDVAR_ULONGLONG(
     ~0ULL,
     1);
 
-static MYSQL_THDVAR_STR(
-    last_lock_timeout,
-    PLUGIN_VAR_MEMALLOC,
-    "last lock timeout",
-    NULL,
-    NULL,
-    NULL);
+static MYSQL_THDVAR_STR(last_lock_timeout,
+                        PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_NOCMDOPT |
+                            PLUGIN_VAR_READONLY,
+                        "last lock timeout",
+                        NULL,
+                        NULL,
+                        NULL);
 
 static MYSQL_THDVAR_BOOL(
     load_save_space,

@@ -93,10 +93,10 @@ extern my_bool      gdb_on_fatal;
 
 extern my_bool         check_jemalloc;
 
-#if TOKUDB_DEBUG
+#if defined(TOKUDB_DEBUG)
 // used to control background job manager
 extern my_bool      debug_pause_background_job_manager;
-#endif // TOKUDB_DEBUG
+#endif // defined(TOKUDB_DEBUG)
 
 // session/thread
 my_bool     alter_print_error(THD* thd);
