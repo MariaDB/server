@@ -66,7 +66,7 @@
      SLJIT_RETURN_ADDRESS_OFFSET : a return instruction always adds this offset to the return address
 
    Other macros:
-     SLJIT_FUNC : calling convention attribute for both calling JIT form C and C calling back from JIT
+     SLJIT_FUNC : calling convention attribute for both calling JIT from C and C calling back from JIT
      SLJIT_W(number) : defining 64 bit constants on 64 bit architectures (compiler independent helper)
 */
 
@@ -530,7 +530,7 @@ typedef double sljit_f64;
 #endif /* !SLJIT_FUNC */
 
 #ifndef SLJIT_INDIRECT_CALL
-#if ((defined SLJIT_CONFIG_PPC_64 && SLJIT_CONFIG_PPC_64) && (defined SLJIT_BIG_ENDIAN && SLJIT_BIG_ENDIAN)) \
+#if ((defined SLJIT_CONFIG_PPC_64 && SLJIT_CONFIG_PPC_64) && (!defined _CALL_ELF || _CALL_ELF == 1)) \
 	|| ((defined SLJIT_CONFIG_PPC_32 && SLJIT_CONFIG_PPC_32) && defined _AIX)
 /* It seems certain ppc compilers use an indirect addressing for functions
    which makes things complicated. */
