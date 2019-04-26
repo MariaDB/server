@@ -22,6 +22,7 @@ output=".my.output.$$"
 trap "interrupt" 1 2 3 6 15
 
 rootpass=""
+rootuser="root"
 echo_n=
 echo_c=
 basedir=
@@ -168,6 +169,8 @@ then
 else
   print_defaults="@bindir@/my_print_defaults"
   mysql_command="@bindir@/mysql"
+  print_defaults="/usr/bin/my_print_defaults"
+  mysql_command="/usr/bin/mysql"
 fi
 
 if test ! -x "$print_defaults"
@@ -248,7 +251,8 @@ basic_single_escape () {
 make_config() {
     echo "# mysql_secure_installation config file" >$config
     echo "[mysql]" >>$config
-    echo "user=root" >>$config
+    esc_user=`basic_single_escape "$rootuser"`
+    echo "user='$esc_user'" >>$config
     esc_pass=`basic_single_escape "$rootpass"`
     echo "password='$esc_pass'" >>$config
     #sed 's,^,> ,' < $config  # Debugging
@@ -285,6 +289,30 @@ get_root_password() {
     echo
 }
 
+set_root_user() {
+  def_user="root"
+  echo $echo_n "New user [$def_user]: $echo_c"
+  read newuser
+  echo
+
+  if [ -z "$newuser" ]; then
+    newuser="$def_user"
+    return 1
+  fi
+
+  do_query "UPDATE mysql.global_priv SET User='$newuser' WHERE User='root';"
+  if [ $? -eq 0 ]; then
+    echo "User updated successfully!"
+    echo
+    rootuser=$newuser
+  else
+    echo "User update failed!"
+    clean_and_exit
+  fi
+
+  return 0
+}
+
 set_root_password() {
     stty -echo
     echo $echo_n "New password: $echo_c"
@@ -296,32 +324,32 @@ set_root_password() {
     stty echo
 
     if [ "$password1" != "$password2" ]; then
-	echo "Sorry, passwords do not match."
-	echo
-	return 1
+  echo "Sorry, passwords do not match."
+  echo
+  return 1
     fi
 
     if [ "$password1" = "" ]; then
-	echo "Sorry, you can't use an empty password here."
-	echo
-	return 1
+  echo "Sorry, you can't use an empty password here."
+  echo
+  return 1
     fi
 
     esc_pass=`basic_single_escape "$password1"`
-    do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$esc_pass')) WHERE User='root';"
+    do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$esc_pass')) WHERE User='$rootuser';"
     if [ $? -eq 0 ]; then
-	echo "Password updated successfully!"
-	echo "Reloading privilege tables.."
-	reload_privilege_tables
-	if [ $? -eq 1 ]; then
-		clean_and_exit
-	fi
-	echo
-	rootpass=$password1
-	make_config
+  echo "Password updated successfully!"
+  echo "Reloading privilege tables.."
+  reload_privilege_tables
+  if [ $? -eq 1 ]; then
+    clean_and_exit
+  fi
+  echo
+  rootpass=$password1
+  make_config
     else
-	echo "Password update failed!"
-	clean_and_exit
+  echo "Password update failed!"
+  clean_and_exit
     fi
 
     return 0
@@ -340,7 +368,7 @@ remove_anonymous_users() {
 }
 
 remove_remote_root() {
-    do_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    do_query "DELETE FROM mysql.global_priv WHERE User='$rootuser' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
@@ -417,55 +445,21 @@ get_root_password
 
 
 #
-# Set the root password
+# Set the root user
 #
 
-echo "Setting the root password or using the unix_socket ensures that nobody"
-echo "can log into the MariaDB root user without the proper authorisation."
+echo "Changing the root username obfuscates administrative users and"
+echo "helps prevent targeted attacks."
+echo
+echo "If you change the root username you must provide a password for"
+echo "the user. Socket based authentication will not work under the"
+echo "system root user."
 echo
 
 while true ; do
-    if [ $emptypass -eq 1 ]; then
-	echo $echo_n "Enable unix_socket authentication? [Y/n] $echo_c"
-    else
-	echo "You already have your root account protected, so you can safely answer 'n'."
-	echo
-	echo $echo_n "Switch to unix_socket authentication [Y/n] $echo_c"
-    fi
-    read reply
-    validate_reply $reply && break
-done
-
-if [ "$reply" = "n" ]; then
-  echo " ... skipping."
-else
-  emptypass=0
-  do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
-  if [ $? -eq 0 ]; then
-   echo "Enabled successfully!"
-   echo "Reloading privilege tables.."
-   reload_privilege_tables
-   if [ $? -eq 1 ]; then
-     clean_and_exit
-   fi
-   echo
-  else
-   echo "Failed!"
-   clean_and_exit
-  fi
-fi
-echo
-
-while true ; do
-    if [ $emptypass -eq 1 ]; then
-	echo $echo_n "Set root password? [Y/n] $echo_c"
-    else
-	echo "You already have your root account protected, so you can safely answer 'n'."
-	echo
-	echo $echo_n "Change the root password? [Y/n] $echo_c"
-    fi
-    read reply
-    validate_reply $reply && break
+  echo $echo_n "Change root username? [Y/n] $echo_c"
+  read reply
+  validate_reply $reply && break
 done
 
 if [ "$reply" = "n" ]; then
@@ -473,9 +467,75 @@ if [ "$reply" = "n" ]; then
 else
     status=1
     while [ $status -eq 1 ]; do
-	set_root_password
-	status=$?
+      set_root_user
+      status=$?
     done
+fi
+echo
+
+
+#
+# Set the root password
+#
+
+echo "Setting the password for $rootuser or using the unix_socket ensures that nobody"
+echo "can log into the MariaDB root user without the proper authorisation."
+echo
+
+if [ "$rootuser" = "root" ]; then
+  while true ; do
+    if [ $emptypass -eq 1 ]; then
+     echo $echo_n "Enable unix_socket authentication? [Y/n] $echo_c"
+    else
+     echo "You already have your root account protected, so you can safely answer 'n'."
+     echo
+     echo $echo_n "Switch to unix_socket authentication [Y/n] $echo_c"
+    fi
+    read reply
+    validate_reply $reply && break
+  done
+
+  if [ "$reply" = "n" ]; then
+    echo " ... skipping."
+  else
+    emptypass=0
+    do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='$rootuser';"
+    if [ $? -eq 0 ]; then
+     echo "Enabled successfully!"
+     echo "Reloading privilege tables.."
+     reload_privilege_tables
+     if [ $? -eq 1 ]; then
+       clean_and_exit
+     fi
+     echo
+    else
+     echo "Failed!"
+     clean_and_exit
+    fi
+  fi
+  echo
+
+  while true ; do
+    if [ $emptypass -eq 1 ]; then
+  	 echo $echo_n "Set password for $rootuser? [Y/n] $echo_c"
+    else
+  	 echo "You already have your root account protected, so you can safely answer 'n'."
+  	 echo
+  	 echo $echo_n "Change the password for $rootuser? [Y/n] $echo_c"
+    fi
+    read reply
+    validate_reply $reply && break
+  done
+fi
+
+if [ "$reply" = "n" ] && [ "$rootuser" = "root" ]; then
+    echo " ... skipping."
+else
+  status=1
+  while [ $status -eq 1 ]; do
+	  set_root_password
+	  status=$?
+  done
 fi
 echo
 
@@ -508,11 +568,11 @@ echo
 # Disallow remote root login
 #
 
-echo "Normally, root should only be allowed to connect from 'localhost'.  This"
+echo "Normally, $rootuser should only be allowed to connect from 'localhost'.  This"
 echo "ensures that someone cannot guess at the root password from the network."
 echo
 while true ; do
-    echo $echo_n "Disallow root login remotely? [Y/n] $echo_c"
+    echo $echo_n "Disallow the user $rootuser from logging in remotely? [Y/n] $echo_c"
     read reply
     validate_reply $reply && break
 done
