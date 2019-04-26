@@ -20,6 +20,7 @@ dec $trial;
 
 connection default;
 # Kill and restart the server.
+FLUSH TABLES;
 -- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 -- shutdown_server 0
 -- source include/wait_until_disconnected.inc
