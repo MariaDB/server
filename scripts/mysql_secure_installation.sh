@@ -169,8 +169,6 @@ then
 else
   print_defaults="@bindir@/my_print_defaults"
   mysql_command="@bindir@/mysql"
-  print_defaults="/usr/bin/my_print_defaults"
-  mysql_command="/usr/bin/mysql"
 fi
 
 if test ! -x "$print_defaults"
