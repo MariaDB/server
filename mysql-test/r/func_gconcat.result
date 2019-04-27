@@ -1207,3 +1207,22 @@ c
 Warnings:
 Warning	1260	Row 15 was cut by GROUP_CONCAT()
 set max_session_mem_used=default;
+SET group_concat_max_len= 8;
+CREATE TABLE t1 (a INT);
+INSERT t1 VALUES (1),(2);
+CREATE TABLE t2 (b DATE, c INT);
+INSERT t2 VALUES ('2019-12-04',1),('2020-03-28',2);
+CREATE TABLE t3 (d INT);
+INSERT t3 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14);
+CREATE TABLE t4 (e INT);
+INSERT t4 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15);
+SELECT (SELECT MAX(a) FROM t1 WHERE t2_sq.c > 0) AS f,
+GROUP_CONCAT(t2_sq.b ORDER BY 1) AS gc
+FROM (SELECT t2_a.* FROM t2 AS t2_a, t2 AS t2_b) AS t2_sq, t3, t4
+GROUP BY f;
+f	gc
+2	2019-12-
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+DROP TABLE t1, t2, t3, t4;
+SET group_concat_max_len= default;

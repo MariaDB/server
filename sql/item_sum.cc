@@ -3345,8 +3345,8 @@ bool Item_func_group_concat::repack_tree(THD *thd)
     delete_tree(&st.tree);
     return 1;
   }
-  delete_tree(&tree_base);
-  tree_base= st.tree;
+  delete_tree(tree);
+  *tree= st.tree;
   tree_len= st.len;
   return 0;
 }
