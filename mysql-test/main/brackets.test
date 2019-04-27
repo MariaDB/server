@@ -106,5 +106,38 @@ INSERT INTO t2 VALUES (4),(5),(6),(7);
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-19324: ((SELECT ...) ORDER BY col ) LIMIT n
+--echo #
+
+create table t1 (a int);
+insert into t1 values (10),(20),(30);
+
+let $q1=
+select a from t1 order by a desc limit 1;
+eval $q1;
+eval explain extended $q1;
+eval explain format=json $q1;
+
+let $q2=
+(select a from t1 order by a desc) limit 1;
+eval $q2;
+eval explain extended $q2;
+eval explain format=json $q2;
+
+let $q1=
+(select a from t1 where a=20 union select a from t1) order by a desc limit 1;
+eval $q1;
+eval explain extended $q1;
+eval explain format=json $q1;
+
+let $q2=
+((select a from t1 where a=20 union select a from t1) order by a desc) limit 1;
+eval $q2;
+eval explain extended $q2;
+eval explain format=json $q2;
+
+drop table t1;
+
 --echo # End of 10.4 tests
 
