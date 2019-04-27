@@ -116,8 +116,7 @@ trx_rollback_to_savepoint_low(
 	roll_node = roll_node_create(heap);
 
 	if (savept != NULL) {
-		roll_node->partial = TRUE;
-		roll_node->savept = *savept;
+		roll_node->savept = savept;
 		check_trx_state(trx);
 	} else {
 		assert_trx_nonlocking_or_in_list(trx);
@@ -1084,7 +1083,7 @@ que_thr_t*
 trx_rollback_start(
 /*===============*/
 	trx_t*		trx,		/*!< in: transaction */
-	ib_id_t		roll_limit)	/*!< in: rollback to undo no (for
+	undo_no_t	roll_limit)	/*!< in: rollback to undo no (for
 					partial undo), 0 if we are rolling back
 					the entire transaction */
 {
@@ -1162,7 +1161,7 @@ trx_rollback_step(
 
 		ut_a(node->undo_thr == NULL);
 
-		roll_limit = node->partial ? node->savept.least_undo_no : 0;
+		roll_limit = node->savept ? node->savept->least_undo_no : 0;
 
 		trx_commit_or_rollback_prepare(trx);
 

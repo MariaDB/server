@@ -2179,6 +2179,16 @@ srv_master_do_active_tasks(void)
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
 
+	/* The periodic log_checkpoint() call here makes it harder to
+	reproduce bugs in crash recovery or mariabackup --prepare, or
+	in code that writes the redo log records. Omitting the call
+	here should not affect correctness, because log_free_check()
+	should still be invoking checkpoints when needed. In a
+	production server, those calls could cause "furious flushing"
+	and stall the server. Normally we want to perform checkpoints
+	early and often to avoid those situations. */
+	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
+
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
@@ -2257,6 +2267,16 @@ srv_master_do_idle_tasks(void)
 	srv_sync_log_buffer_in_background();
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
+
+	/* The periodic log_checkpoint() call here makes it harder to
+	reproduce bugs in crash recovery or mariabackup --prepare, or
+	in code that writes the redo log records. Omitting the call
+	here should not affect correctness, because log_free_check()
+	should still be invoking checkpoints when needed. In a
+	production server, those calls could cause "furious flushing"
+	and stall the server. Normally we want to perform checkpoints
+	early and often to avoid those situations. */
+	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;

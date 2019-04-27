@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -233,9 +233,8 @@ bool print_annotate_event(PRINT_EVENT_INFO *print_event_info)
   bool error= 0;
   if (annotate_event)
   {
-    error= annotate_event->print(result_file, print_event_info);
-    delete annotate_event;  // the event should not be printed more than once
-    annotate_event= 0;
+    annotate_event->print(result_file, print_event_info);
+    free_annotate_event();
   }
   return error;
 }
@@ -1553,8 +1552,6 @@ end:
       }
     }
 
-    if (remote_opt)
-      ev->temp_buf= 0;
     if (destroy_evt) /* destroy it later if not set (ignored table map) */
       delete ev;
   }

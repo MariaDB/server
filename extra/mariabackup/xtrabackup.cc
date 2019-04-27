@@ -3297,10 +3297,10 @@ static dberr_t xb_assign_undo_space_start()
 	page = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 retry:
-	if (!os_file_read(IORequestRead, file, page,
-			  TRX_SYS_PAGE_NO << srv_page_size_shift,
-			  srv_page_size)) {
-		msg("Reading TRX_SYS page failed.\n");
+	if (os_file_read(IORequestRead, file, page,
+			 TRX_SYS_PAGE_NO << srv_page_size_shift,
+			 srv_page_size) != DB_SUCCESS) {
+		msg("Reading TRX_SYS page failed.");
 		error = DB_ERROR;
 		goto func_exit;
 	}
@@ -4604,7 +4604,7 @@ xb_space_create_file(
 
 	free(buf);
 
-	if (!ret) {
+	if (ret != DB_SUCCESS) {
 		msg("mariabackup: could not write the first page to %s",
 		    path);
 		os_file_close(*file);
@@ -4900,7 +4900,7 @@ xtrabackup_apply_delta(
 			 << page_size_shift);
 		success = os_file_read(IORequestRead, src_file,
 				       incremental_buffer, offset, page_size);
-		if (!success) {
+		if (success != DB_SUCCESS) {
 			goto error;
 		}
 
@@ -4933,7 +4933,7 @@ xtrabackup_apply_delta(
 		success = os_file_read(IORequestRead, src_file,
 				       incremental_buffer,
 				       offset, page_in_buffer * page_size);
-		if (!success) {
+		if (success != DB_SUCCESS) {
 			goto error;
 		}
 
@@ -4981,7 +4981,7 @@ xtrabackup_apply_delta(
 
 			success = os_file_write(IORequestWrite,
 						dst_path, dst_file, buf, off, page_size);
-			if (!success) {
+			if (success != DB_SUCCESS) {
 				goto error;
 			}
 		}
