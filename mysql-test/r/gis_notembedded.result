@@ -1,17 +1,3 @@
-CREATE TABLE t1 (
-id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-point_data POINT NOT NULL,
-PRIMARY KEY (id),
-KEY idx_point_data(point_data)
-) ENGINE=MyISAM;
-INSERT t1 (point_data) VALUES
-(GeomFromText('Point(37.0248492 23.8512726)')),
-(GeomFromText('Point(38.0248492 23.8512726)'));
-SELECT id FROM t1
-WHERE ST_Contains(point_data, GeomFromText('Point(38.0248492 23.8512726)'));
-id
-2
-DROP TABLE t1;
 show create procedure mysql.AddGeometryColumn;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 AddGeometryColumn		CREATE DEFINER=`root`@`localhost` PROCEDURE `AddGeometryColumn`(catalog varchar(64), t_schema varchar(64),
