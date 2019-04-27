@@ -2793,6 +2793,7 @@ void Item_func_min_max::fix_length_and_dec()
 
   switch (tmp_cmp_type) {
   case TIME_RESULT:
+  {
     // At least one temporal argument was found.
     if (temporal_type_count < arg_count)
       maybe_null= true; // Non-temporal-to-temporal conversion can return NULL
@@ -2802,8 +2803,11 @@ void Item_func_min_max::fix_length_and_dec()
       set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
     else
       decimals= 0;
+    uint len= decimals ? (decimals + 1) : 0;
+    len+= mysql_temporal_int_part_length(temporal_field_type);
+    fix_char_length(len);
     break;
-
+  }
   case STRING_RESULT:
     /*
       All arguments are of string-alike types:
