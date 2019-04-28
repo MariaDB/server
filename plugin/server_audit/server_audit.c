@@ -335,6 +335,10 @@ static void update_file_rotations(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                   void *var_ptr, const void *save);
 static void update_incl_users(MYSQL_THD thd, struct st_mysql_sys_var *var,
                               void *var_ptr, const void *save);
+static int check_incl_users(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                            struct st_mysql_value *value);
+static int check_excl_users(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                            struct st_mysql_value *value);
 static void update_excl_users(MYSQL_THD thd, struct st_mysql_sys_var *var,
                               void *var_ptr, const void *save);
 static void update_output_type(MYSQL_THD thd, struct st_mysql_sys_var *var,
@@ -354,10 +358,10 @@ static void rotate_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
 
 static MYSQL_SYSVAR_STR(incl_users, incl_users, PLUGIN_VAR_RQCMDARG,
        "Comma separated list of users to monitor.",
-       NULL, update_incl_users, NULL);
+       check_incl_users, update_incl_users, NULL);
 static MYSQL_SYSVAR_STR(excl_users, excl_users, PLUGIN_VAR_RQCMDARG,
        "Comma separated list of users to exclude from auditing.",
-       NULL, update_excl_users, NULL);
+       check_excl_users, update_excl_users, NULL);
 /* bits in the event filter. */
 #define EVENT_CONNECT 1
 #define EVENT_QUERY_ALL 2
@@ -2643,16 +2647,56 @@ static void update_file_rotate_size(MYSQL_THD thd  __attribute__((unused)),
 }
 
 
+static int check_users(void *save, struct st_mysql_value *value,
+                       size_t s, const char *name)
+{
+  const char *users;
+  int len= 0;
+
+  users= value->val_str(value, NULL, &len);
+  if ((size_t) len > s)
+  {
+    error_header();
+    fprintf(stderr,
+            "server_audit_%s_users value can't be longer than %ld characters.\n",
+            name, s);
+    return 1;
+  }
+  *((const char**)save)= users;
+  return 0;
+}
+
+static int check_incl_users(MYSQL_THD thd  __attribute__((unused)),
+                            struct st_mysql_sys_var *var  __attribute__((unused)),
+                            void *save, struct st_mysql_value *value)
+{
+  return check_users(save, value, sizeof(incl_user_buffer), "incl");
+}
+
+static int check_excl_users(MYSQL_THD thd  __attribute__((unused)),
+                            struct st_mysql_sys_var *var  __attribute__((unused)),
+                            void *save, struct st_mysql_value *value)
+{
+  return check_users(save, value, sizeof(excl_user_buffer), "excl");
+}
+
+
 static void update_incl_users(MYSQL_THD thd,
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
   char *new_users= (*(char **) save) ? *(char **) save : empty_str;
+  size_t new_len= strlen(new_users) + 1;
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_lock(&lock_operations);
   mark_always_logged(thd);
-  strncpy(incl_user_buffer, new_users, sizeof(incl_user_buffer)-1);
-  incl_user_buffer[sizeof(incl_user_buffer)-1]= 0;
+
+  if (new_len > sizeof(incl_user_buffer))
+    new_len= sizeof(incl_user_buffer);
+
+  memcpy(incl_user_buffer, new_users, new_len - 1);
+  incl_user_buffer[new_len - 1]= 0;
+
   incl_users= incl_user_buffer;
   user_coll_fill(&incl_user_coll, incl_users, &excl_user_coll, 1);
   error_header();
@@ -2667,11 +2711,17 @@ static void update_excl_users(MYSQL_THD thd  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
   char *new_users= (*(char **) save) ? *(char **) save : empty_str;
+  size_t new_len= strlen(new_users) + 1;
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_lock(&lock_operations);
   mark_always_logged(thd);
-  strncpy(excl_user_buffer, new_users, sizeof(excl_user_buffer)-1);
-  excl_user_buffer[sizeof(excl_user_buffer)-1]= 0;
+
+  if (new_len > sizeof(excl_user_buffer))
+    new_len= sizeof(excl_user_buffer);
+
+  memcpy(excl_user_buffer, new_users, new_len - 1);
+  excl_user_buffer[new_len - 1]= 0;
+
   excl_users= excl_user_buffer;
   user_coll_fill(&excl_user_coll, excl_users, &incl_user_coll, 0);
   error_header();
