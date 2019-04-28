@@ -136,6 +136,9 @@ select * from t1;
 select 2;
 drop table t1;
 
+set global server_audit_logging= off;
+set global server_audit_logging= on;
+
 set global server_audit_events='';
 
 set global server_audit_query_log_limit= 15;

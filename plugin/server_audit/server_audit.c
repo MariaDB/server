@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.4"
+#define PLUGIN_STR_VERSION "1.4.5"
 
 #define _my_thread_var loc_thread_var
 
@@ -1623,7 +1623,7 @@ static int log_statement_ex(const struct connection_info *cn,
   }
 
   if (query && !(events & EVENT_QUERY_ALL) &&
-      (events & EVENT_QUERY))
+      (events & EVENT_QUERY && !cn->log_always))
   {
     const char *orig_query= query;
 
@@ -2556,9 +2556,10 @@ static void log_current_query(MYSQL_THD thd)
   if (!ci_needs_setup(cn) && cn->query_length &&
       FILTER(EVENT_QUERY) && do_log_user(cn->user))
   {
+    cn->log_always= 1;
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
         cn->query, cn->query_length, 0, "QUERY");
-    cn->log_always= 1;
+    cn->log_always= 0;
   }
 }
 
