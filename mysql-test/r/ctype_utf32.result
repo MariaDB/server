@@ -668,6 +668,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf32_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SET NAMES latin1;
 SET collation_connection='utf32_bin';
 create table t1 select repeat('a',4000) a;
@@ -805,6 +811,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf32_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 select hex(substr(_utf32 0x000000e4000000e500000068,1));
 hex(substr(_utf32 0x000000e4000000e500000068,1))
 000000E4000000E500000068
