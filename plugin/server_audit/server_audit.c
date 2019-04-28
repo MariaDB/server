@@ -2660,7 +2660,7 @@ static int check_users(void *save, struct st_mysql_value *value,
     error_header();
     fprintf(stderr,
             "server_audit_%s_users value can't be longer than %ld characters.\n",
-            name, s);
+            name, (long int) s);
     return 1;
   }
   *((const char**)save)= users;
