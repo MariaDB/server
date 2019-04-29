@@ -579,13 +579,9 @@ bool fil_node_t::read_page0(bool first)
 		return false;
 	}
 
-	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
-	ut_ad(space->free_len == 0 || space->free_len == free_len);
-	space->size_in_header = size;
-	space->free_limit = free_limit;
-	space->free_len = free_len;
-
 	if (first) {
+		ut_ad(space->id != TRX_SYS_SPACE);
+
 		/* Truncate the size to a multiple of extent size. */
 		ulint	mask = psize * FSP_EXTENT_SIZE - 1;
 
@@ -598,8 +594,19 @@ bool fil_node_t::read_page0(bool first)
 
 		this->size = ulint(size_bytes / psize);
 		space->size += this->size;
+	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
+		/* If this is not the first-time open, do nothing.
+		For the system tablespace, we always get invoked as
+		first=false, so we detect the true first-time-open based
+		on size_in_header and proceed to initiailze the data. */
+		return true;
 	}
 
+	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
+	ut_ad(space->free_len == 0 || space->free_len == free_len);
+	space->size_in_header = size;
+	space->free_limit = free_limit;
+	space->free_len = free_len;
 	return true;
 }
 
