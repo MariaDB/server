@@ -5327,7 +5327,7 @@ fil_validate(void)
 
 	ut_a(fil_system->n_open == n_open);
 
-	UT_LIST_CHECK(fil_system->LRU);
+	ut_list_validate(fil_system->LRU);
 
 	for (fil_node = UT_LIST_GET_FIRST(fil_system->LRU);
 	     fil_node != 0;

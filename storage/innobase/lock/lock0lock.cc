@@ -2738,7 +2738,7 @@ lock_move_granted_locks_to_front(
 		if (!lock->is_waiting()) {
 			lock_t* prev = UT_LIST_GET_PREV(trx_locks, lock);
 			ut_a(prev);
-			UT_LIST_MOVE_TO_FRONT(lock_list, lock);
+			ut_list_move_to_front(lock_list, lock);
 			lock = prev;
 		}
 	}
@@ -2826,7 +2826,7 @@ lock_move_reorganize_page(
 	lock_move_granted_locks_to_front(old_locks);
 
 	DBUG_EXECUTE_IF("do_lock_reverse_page_reorganize",
-			UT_LIST_REVERSE(old_locks););
+			ut_list_reverse(old_locks););
 
 	for (lock = UT_LIST_GET_FIRST(old_locks); lock;
 	     lock = UT_LIST_GET_NEXT(trx_locks, lock)) {
