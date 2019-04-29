@@ -2659,8 +2659,8 @@ static int check_users(void *save, struct st_mysql_value *value,
   {
     error_header();
     fprintf(stderr,
-            "server_audit_%s_users value can't be longer than %ld characters.\n",
-            name, (long int) s);
+            "server_audit_%s_users value can't be longer than %zu characters.\n",
+            name, s);
     return 1;
   }
   *((const char**)save)= users;
