@@ -8047,10 +8047,12 @@ int spider_mbase_handler::init()
   }
   sql.set_charset(share->access_charset);
   sql_part.set_charset(share->access_charset);
+  sql_part2.set_charset(share->access_charset);
   ha_sql.set_charset(share->access_charset);
   insert_sql.set_charset(share->access_charset);
   update_sql.set_charset(share->access_charset);
   tmp_sql.set_charset(share->access_charset);
+  dup_update_sql.set_charset(share->access_charset);
   upd_tmp_tbl_prm.init();
   upd_tmp_tbl_prm.field_count = 1;
   if (!(link_for_hash = (SPIDER_LINK_FOR_HASH *)
