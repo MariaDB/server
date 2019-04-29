@@ -4009,6 +4009,39 @@ static int init_early_variables()
   return 0;
 }
 
+#ifdef _WIN32
+static void get_win_tzname(char* buf, size_t size)
+{
+  static struct
+  {
+    const wchar_t* windows_name;
+    const char*  tzdb_name;
+  }
+  tz_data[] =
+  {
+#include "win_tzname_data.h"
+    {0,0}
+  };
+  DYNAMIC_TIME_ZONE_INFORMATION  tzinfo;
+  if (GetDynamicTimeZoneInformation(&tzinfo) == TIME_ZONE_ID_UNKNOWN)
+  {
+    strncpy(buf, "unknown", size);
+    return;
+  }
+
+  for (size_t i= 0; tz_data[i].windows_name; i++)
+  {
+    if (wcscmp(tzinfo.TimeZoneKeyName, tz_data[i].windows_name) == 0)
+    {
+      strncpy(buf, tz_data[i].tzdb_name, size);
+      return;
+    }
+  }
+  wcstombs(buf, tzinfo.TimeZoneKeyName, size);
+  buf[size-1]= 0;
+  return;
+}
+#endif
 
 static int init_common_variables()
 {
@@ -4053,23 +4086,13 @@ static int init_common_variables()
 
   if (ignore_db_dirs_init())
     return 1;
-
-#ifdef HAVE_TZNAME
+#ifdef _WIN32
+  get_win_tzname(system_time_zone, sizeof(system_time_zone));
+#elif defined(HAVE_TZNAME)
   struct tm tm_tmp;
   localtime_r(&server_start_time,&tm_tmp);
   const char *tz_name=  tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
-#ifdef _WIN32
-  /*
-    Time zone name may be localized and contain non-ASCII characters,
-    Convert from ANSI encoding to UTF8.
-  */
-  wchar_t wtz_name[sizeof(system_time_zone)];
-  mbstowcs(wtz_name, tz_name, sizeof(system_time_zone)-1);
-  WideCharToMultiByte(CP_UTF8,0, wtz_name, -1, system_time_zone, 
-    sizeof(system_time_zone) - 1, NULL, NULL);
-#else
   strmake_buf(system_time_zone, tz_name);
-#endif /* _WIN32 */
 #endif /* HAVE_TZNAME */
 
   /*
