@@ -1325,7 +1325,7 @@ recv_find_max_checkpoint(ulint* max_field)
 			" The redo log was created"
 			" with " << creator <<
 			". Please follow the instructions at "
-			REFMAN "upgrading-downgrading.html";
+			"https://mariadb.com/kb/en/library/upgrading/";
 		/* Do not issue a message about a possibility
 		to cleanly shut down the newer server version
 		and to remove the redo logs, because the

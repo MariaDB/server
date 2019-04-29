@@ -6261,9 +6261,9 @@ no_such_table:
 			<< n_cols << " user"
 			" defined columns in InnoDB, but " << n_fields
 			<< " columns in MariaDB. Please check"
-			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and " REFMAN
-			"innodb-troubleshooting.html for how to resolve the"
-			" issue.";
+			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and"
+			" https://mariadb.com/kb/en/innodb-data-dictionary-troubleshooting/"
+			" for how to resolve the issue.";
 
 		/* Mark this table as corrupted, so the drop table
 		or force recovery can still use it, but not others. */
@@ -22101,11 +22101,11 @@ ib_errf(
 /* Keep the first 16 characters as-is, since the url is sometimes used
 as an offset from this.*/
 const char*	TROUBLESHOOTING_MSG =
-	"Please refer to " REFMAN "innodb-troubleshooting.html"
+	"Please refer to https://mariadb.com/kb/en/innodb-troubleshooting/"
 	" for how to resolve the issue.";
 
 const char*	TROUBLESHOOT_DATADICT_MSG =
-	"Please refer to " REFMAN "innodb-troubleshooting-datadict.html"
+	"Please refer to https://mariadb.com/kb/en/innodb-data-dictionary-troubleshooting/"
 	" for how to resolve the issue.";
 
 const char*	BUG_REPORT_MSG =
@@ -22115,9 +22115,6 @@ const char*	FORCE_RECOVERY_MSG =
 	"Please refer to "
 	"https://mariadb.com/kb/en/library/innodb-recovery-modes/"
 	" for information about forcing recovery.";
-
-const char*	ERROR_CREATING_MSG =
-	"Please refer to " REFMAN "error-creating-innodb.html";
 
 const char*	OPERATING_SYSTEM_ERROR_MSG =
 	"Some operating system error numbers are described at"
@@ -22511,8 +22508,7 @@ ib_push_frm_error(
 			" Have you mixed up "
 			".frm files from different "
 			"installations? See "
-			REFMAN
-			"innodb-troubleshooting.html\n",
+			"https://mariadb.com/kb/en/innodb-troubleshooting/\n",
 			ib_table->name.m_name);
 
 		if (push_warning) {
@@ -22555,8 +22551,7 @@ ib_push_frm_error(
 			" Have you mixed up "
 			".frm files from different "
 			"installations? See "
-			REFMAN
-			"innodb-troubleshooting.html\n",
+			"https://mariadb.com/kb/en/innodb-troubleshooting/\n",
 			ib_table->name.m_name, n_keys,
 			table->s->keys);
 
