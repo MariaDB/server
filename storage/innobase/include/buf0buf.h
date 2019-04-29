@@ -2427,8 +2427,7 @@ struct	CheckInLRUList {
 
 	static void validate(const buf_pool_t* buf_pool)
 	{
-		CheckInLRUList	check;
-		ut_list_validate(buf_pool->LRU, check);
+		ut_list_validate(buf_pool->LRU, CheckInLRUList());
 	}
 };
 
@@ -2441,8 +2440,7 @@ struct	CheckInFreeList {
 
 	static void validate(const buf_pool_t* buf_pool)
 	{
-		CheckInFreeList	check;
-		ut_list_validate(buf_pool->free, check);
+		ut_list_validate(buf_pool->free, CheckInFreeList());
 	}
 };
 
@@ -2455,8 +2453,8 @@ struct	CheckUnzipLRUAndLRUList {
 
 	static void validate(const buf_pool_t* buf_pool)
 	{
-		CheckUnzipLRUAndLRUList	check;
-		ut_list_validate(buf_pool->unzip_LRU, check);
+		ut_list_validate(buf_pool->unzip_LRU,
+				 CheckUnzipLRUAndLRUList());
 	}
 };
 #endif /* UNIV_DEBUG || defined UNIV_BUF_DEBUG */

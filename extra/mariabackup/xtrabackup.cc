@@ -4148,7 +4148,7 @@ reread_log_header:
 	memset(&stat_info, 0, sizeof(MY_STAT));
 	dst_log_file = ds_open(ds_redo, "ib_logfile0", &stat_info);
 	if (dst_log_file == NULL) {
-		msg("§rror: failed to open the target stream for "
+		msg("Error: failed to open the target stream for "
 		    "'ib_logfile0'.");
 		goto fail;
 	}
