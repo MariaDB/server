@@ -839,6 +839,17 @@ public:
     uint name_length,
     CHARSET_INFO *name_charset
   ) = 0;
+  virtual int append_escaped_name(
+    spider_string *str,
+    const char *name,
+    uint name_length
+  ) = 0;
+  virtual int append_escaped_name_with_charset(
+    spider_string *str,
+    const char *name,
+    uint name_length,
+    CHARSET_INFO *name_charset
+  ) = 0;
   virtual bool is_name_quote(
     const char head_code
   ) = 0;

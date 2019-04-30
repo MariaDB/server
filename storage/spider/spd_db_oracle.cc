@@ -2622,6 +2622,57 @@ int spider_db_oracle_util::append_name_with_charset(
   DBUG_RETURN(0);
 }
 
+int spider_db_oracle_util::append_escaped_name(
+  spider_string *str,
+  const char *name,
+  uint name_length
+) {
+  int error_num;
+  DBUG_ENTER("spider_db_oracle_util::append_name");
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN * 2 + name_length * 2))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  if ((error_num = spider_db_append_name_with_quote_str_internal(
+    str, name, name_length, dbton_id)))
+  {
+    DBUG_RETURN(error_num);
+  }
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  DBUG_RETURN(0);
+}
+
+int spider_db_oracle_util::append_escaped_name_with_charset(
+  spider_string *str,
+  const char *name,
+  uint name_length,
+  CHARSET_INFO *name_charset
+) {
+  int error_num;
+  DBUG_ENTER("spider_db_oracle_util::append_name_with_charset");
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN * 2 + name_length * 2))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  if ((error_num = spider_db_append_name_with_quote_str_internal(
+    str, name, name_length, name_charset, dbton_id)))
+  {
+    DBUG_RETURN(error_num);
+  }
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  DBUG_RETURN(0);
+}
+
 bool spider_db_oracle_util::is_name_quote(
   const char head_code
 ) {
@@ -12914,7 +12965,7 @@ int spider_oracle_handler::append_list_item_select(
     ))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
-    if ((error_num = spider_db_oracle_utility.append_name(str,
+    if ((error_num = spider_db_oracle_utility.append_escaped_name(str,
       item_name, length)))
     {
       DBUG_RETURN(error_num);
