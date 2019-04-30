@@ -9129,7 +9129,13 @@ SELECT_LEX *LEX::parsed_select(SELECT_LEX *sel, Lex_order_limit_lock * l)
         l->set_to(unit->fake_select_lex);
       else
       {
-        sel= wrap_unit_into_derived(unit);
+        if (!l->order_list && !unit->fake_select_lex->explicit_limit)
+        {
+          sel= unit->fake_select_lex;
+          l->order_list= &sel->order_list;
+        }
+        else
+          sel= wrap_unit_into_derived(unit);
         if (!sel)
           return NULL;
         l->set_to(sel);
@@ -9144,7 +9150,10 @@ SELECT_LEX *LEX::parsed_select(SELECT_LEX *sel, Lex_order_limit_lock * l)
       SELECT_LEX_UNIT *unit= create_unit(sel);
       if (!unit)
         return NULL;
-      sel= wrap_unit_into_derived(unit);
+      if (!l->order_list && !sel->explicit_limit)
+        l->order_list= &sel->order_list;
+      else
+        sel= wrap_unit_into_derived(unit);
       if (!sel)
         return NULL;
       l->set_to(sel);

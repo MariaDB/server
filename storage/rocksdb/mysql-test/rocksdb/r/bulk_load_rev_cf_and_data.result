@@ -74,5 +74,6 @@ count(b)
 2500000
 longfilenamethatvalidatesthatthiswillgetdeleted.bulk_load.tmp
 test.bulk_load.tmp
+# restart
 disconnect other;
 DROP TABLE t1, t2, t3;
