@@ -1904,5 +1904,15 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-19359 ASAN heap-use-after-free in copy_if_not_alloced / make_sortkey
+--echo #
+
+CREATE TABLE t1 (a INT, b TIME, c TIME);
+INSERT INTO t1 VALUES (NULL,'22:56:45','22:56:45'),(4,'12:51:42','12:51:42');
+SELECT REPLACE( BINARY c, a, b ) f FROM t1 GROUP BY f WITH ROLLUP;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

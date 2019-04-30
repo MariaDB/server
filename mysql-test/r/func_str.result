@@ -4784,5 +4784,16 @@ f
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 DROP TABLE t1;
 #
+# MDEV-19359 ASAN heap-use-after-free in copy_if_not_alloced / make_sortkey
+#
+CREATE TABLE t1 (a INT, b TIME, c TIME);
+INSERT INTO t1 VALUES (NULL,'22:56:45','22:56:45'),(4,'12:51:42','12:51:42');
+SELECT REPLACE( BINARY c, a, b ) f FROM t1 GROUP BY f WITH ROLLUP;
+f
+NULL
+12:51:12:51:422
+NULL
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
