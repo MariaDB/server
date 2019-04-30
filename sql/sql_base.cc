@@ -9301,13 +9301,7 @@ my_bool mysql_rm_tmp_tables(void)
     {
       file=dirp->dir_entry+idx;
 
-      /* skiping . and .. */
-      if (file->name[0] == '.' && (!file->name[1] ||
-                                   (file->name[1] == '.' &&  !file->name[2])))
-        continue;
-
-      if (!memcmp(file->name, tmp_file_prefix,
-                  tmp_file_prefix_length))
+      if (!strncmp(file->name, tmp_file_prefix, tmp_file_prefix_length))
       {
         char *ext= fn_ext(file->name);
         uint ext_len= strlen(ext);
