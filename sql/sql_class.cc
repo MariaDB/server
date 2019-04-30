@@ -847,6 +847,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   invoker.init();
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
+  force_read_stats= FALSE;
   save_prep_leaf_list= FALSE;
   org_charset= 0;
   /* Restore THR_THD */

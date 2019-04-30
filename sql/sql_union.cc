@@ -2049,3 +2049,43 @@ void st_select_lex_unit::set_unique_exclude()
     }
   }
 }
+
+/**
+  @brief
+  Check if the derived table is guaranteed to have distinct rows because of
+  UNION operations used to populate it.
+
+  @detail
+    UNION operation removes duplicate rows from its output. That is, a query like
+
+      select * from t1 UNION select * from t2
+
+    will not produce duplicate rows in its output, even if table t1 (and/or t2)
+    contain duplicate rows. EXCEPT and INTERSECT operations also have this
+    property.
+
+    On the other hand, UNION ALL operation doesn't remove duplicates. (The SQL
+    standard also defines EXCEPT ALL and INTERSECT ALL, but we don't support
+    them).
+
+    st_select_lex_unit computes its value left to right. That is, if there is
+     a st_select_lex_unit object describing
+
+      (select #1) OP1 (select #2) OP2 (select #3)
+
+    then ((select #1) OP1 (select #2)) is computed first, and OP2 is computed
+    second.
+
+    How can one tell if st_select_lex_unit is guaranteed to have distinct
+    output rows? This depends on whether the last operation was duplicate-
+    removing or not:
+    - UNION ALL is not duplicate-removing
+    - all other operations are duplicate-removing
+*/
+
+bool st_select_lex_unit::check_distinct_in_union()
+{
+  if (union_distinct && !union_distinct->next_select())
+    return true;
+  return false;
+}
