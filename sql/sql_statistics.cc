@@ -3285,12 +3285,13 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
       if (table_share->stats_cb.stats_is_read)
         tl->table->stats_is_read= TRUE;
       if (thd->variables.optimizer_use_condition_selectivity > 3 && 
-          table_share && !table_share->stats_cb.histograms_are_read)
+          table_share && table_share->stats_cb.stats_can_be_read &&
+          !table_share->stats_cb.histograms_are_read)
       {
         (void) read_histograms_for_table(thd, tl->table, stat_tables);
         table_share->stats_cb.histograms_are_read= TRUE;
       }
-      if (table_share->stats_cb.stats_is_read)
+      if (table_share->stats_cb.histograms_are_read)
         tl->table->histograms_are_read= TRUE;
     }
   }  
