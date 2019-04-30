@@ -2217,6 +2217,8 @@ t1	CREATE TABLE `t1` (
   `b` bigint(20) DEFAULT (cast(`a` as signed))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (0xFFFFFFFFFFFFFFFF);
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 SELECT * FROM t1;
 a	b
 18446744073709551615	-1

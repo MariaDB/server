@@ -9,6 +9,7 @@ CAST(CAST(1-2 AS UNSIGNED) AS SIGNED INTEGER)
 -1
 Warnings:
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 select CAST('10 ' as unsigned integer);
 CAST('10 ' as unsigned integer)
 10
@@ -29,6 +30,8 @@ Note	1105	Cast to unsigned converted negative integer to it's positive complemen
 select ~5, cast(~5 as signed);
 ~5	cast(~5 as signed)
 18446744073709551610	-6
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 explain extended select ~5, cast(~5 as signed);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -37,6 +40,8 @@ Note	1003	select ~5 AS `~5`,cast(~5 as signed) AS `cast(~5 as signed)`
 select cast(18446744073709551615 as signed);
 cast(18446744073709551615 as signed)
 -1
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 select cast(5 as unsigned) -6.0;
 cast(5 as unsigned) -6.0
 -1.0
@@ -212,12 +217,16 @@ CAST(0xb3 as signed)
 select CAST(0x8fffffffffffffff as signed);
 CAST(0x8fffffffffffffff as signed)
 -8070450532247928833
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 select CAST(0xffffffffffffffff as unsigned);
 CAST(0xffffffffffffffff as unsigned)
 18446744073709551615
 select CAST(0xfffffffffffffffe as signed);
 CAST(0xfffffffffffffffe as signed)
 -2
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 select cast('-10a' as signed integer);
 cast('-10a' as signed integer)
 -10
@@ -554,6 +563,8 @@ cast(18446744073709551615 as unsigned)
 select cast(18446744073709551615 as signed);
 cast(18446744073709551615 as signed)
 -1
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
 select cast('18446744073709551615' as unsigned);
 cast('18446744073709551615' as unsigned)
 18446744073709551615
@@ -1277,3 +1288,11 @@ END;
 $$
 ERROR 22007: Truncated incorrect CHAR(1) value: '10:20:30'
 SET sql_mode=DEFAULT;
+#
+# MDEV-10307 CAST(11068046444225730969 AS SIGNED) does not return a warning
+#
+SELECT CAST(11068046444225730969 AS SIGNED);
+CAST(11068046444225730969 AS SIGNED)
+-7378697629483820647
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement

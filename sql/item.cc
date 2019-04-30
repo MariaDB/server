@@ -333,6 +333,15 @@ longlong Item::val_int_unsigned_typecast_from_int()
 }
 
 
+longlong Item::val_int_signed_typecast_from_int()
+{
+  longlong value= val_int();
+  if (!null_value && unsigned_flag && value < 0)
+    push_note_converted_to_negative_complement(current_thd);
+  return value;
+}
+
+
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
