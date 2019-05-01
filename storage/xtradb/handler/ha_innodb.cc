@@ -961,20 +961,6 @@ innodb_empty_free_list_algorithm_allowed(
 			|| algorithm != SRV_EMPTY_FREE_LIST_BACKOFF);
 }
 
-/** Get the list of foreign keys referencing a specified table
-table.
-@param thd		The thread handle
-@param path		Path to the table
-@param f_key_list[out]	The list of foreign keys
-
-@return error code or zero for success */
-static
-int
-innobase_get_parent_fk_list(
-	THD*			thd,
-	const char*		path,
-	List<FOREIGN_KEY_INFO>*	f_key_list) __attribute__((unused));
-
 /******************************************************************//**
 Maps a MySQL trx isolation level code to the InnoDB isolation level code
 @return	InnoDB isolation level */
@@ -15200,49 +15186,6 @@ fill_foreign_key_list(THD* thd,
 			f_key_list->push_back(pf_key_info);
 		}
 	}
-}
-
-/** Get the list of foreign keys referencing a specified table
-table.
-@param thd		The thread handle
-@param path		Path to the table
-@param f_key_list[out]	The list of foreign keys
-
-@return error code or zero for success */
-static
-int
-innobase_get_parent_fk_list(
-	THD*			thd,
-	const char*		path,
-	List<FOREIGN_KEY_INFO>*	f_key_list)
-{
-	ut_a(strlen(path) <= FN_REFLEN);
-	char	norm_name[FN_REFLEN + 1];
-	normalize_table_name(norm_name, path);
-
-	trx_t*	parent_trx = check_trx_exists(thd);
-	parent_trx->op_info = "getting list of referencing foreign keys";
-	trx_search_latch_release_if_reserved(parent_trx);
-
-	mutex_enter(&dict_sys->mutex);
-
-	dict_table_t*	table
-		= dict_table_open_on_name(norm_name, TRUE, FALSE,
-					  static_cast<dict_err_ignore_t>(
-						  DICT_ERR_IGNORE_INDEX_ROOT
-						  | DICT_ERR_IGNORE_CORRUPT));
-	if (!table) {
-		mutex_exit(&dict_sys->mutex);
-		return(HA_ERR_NO_SUCH_TABLE);
-	}
-
-	fill_foreign_key_list(thd, table, f_key_list);
-
-	dict_table_close(table, TRUE, FALSE);
-
-	mutex_exit(&dict_sys->mutex);
-	parent_trx->op_info = "";
-	return(0);
 }
 
 /*******************************************************************//**
