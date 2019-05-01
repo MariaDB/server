@@ -532,6 +532,12 @@ struct fil_system_t {
 					/* !< TRUE if fil_space_create()
 					has issued a warning about
 					potential space_id reuse */
+
+	/** Trigger a call to fil_node_t::read_page0()
+	@param[in]	id	tablespace identifier
+	@return	tablespace
+	@retval	NULL	if the tablespace does not exist or cannot be read */
+	fil_space_t* read_page0(ulint id);
 };
 
 /** The tablespace memory cache. This variable is NULL before the module is

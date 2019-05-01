@@ -1,0 +1,75 @@
+CREATE TABLE t1 (f1 INT, f2 VARCHAR(256))engine=innodb;
+INSERT INTO t1 VALUES(1, 'MariaDB'), (2, 'Robot'), (3, 'Science');
+INSERT INTO t1 SELECT * FROM t1;
+CREATE TABLE t2(f1 INT, f2 VARCHAR(256))engine=innodb;
+INSERT INTO t2 SELECT * FROM t1;
+CREATE TABLE t3(f1 INT, f2 VARCHAR(256))engine=innodb encrypted=yes;
+INSERT INTO t3 SELECT * FROM t1;
+# Restart the server with encryption
+# Wait until encryption threads have encrypted all tablespaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+test/t1
+test/t2
+test/t3
+# Restart the server with innodb_encryption_rotate_key_age= 0
+create table t4 (f1 int not null)engine=innodb encrypted=NO;
+# Wait until encryption threads have encrypted all tablespaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+test/t4
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+test/t1
+test/t2
+test/t3
+# Disable encryption when innodb_encryption_rotate_key_age is 0
+set global innodb_encrypt_tables = OFF;
+# Wait until encryption threads to decrypt all unencrypted tablespaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+test/t1
+test/t2
+test/t4
+# Display only encrypted create tables (t3)
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+test/t3
+# Enable encryption when innodb_encryption_rotate_key_age is 0
+set global innodb_encrypt_tables = ON;
+# Wait until encryption threads to encrypt all unencrypted tablespaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+test/t4
+# Display only unencrypted create tables (t4)
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+test/t1
+test/t2
+test/t3
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+test/t4
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+test/t1
+test/t2
+test/t3
+DROP TABLE t4, t3, t2, t1;
