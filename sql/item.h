@@ -7130,7 +7130,7 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
 
 inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol) const
 {
-  return field_type == vcol->get_real_type()
+  return type_handler()  == vcol->type_handler()
       && stored_in_db == vcol->is_stored()
       && expr->eq(vcol->expr, true);
 }

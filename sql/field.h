@@ -524,7 +524,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   - whether the field is used in a partitioning expression
 */
 
-class Virtual_column_info: public Sql_alloc
+class Virtual_column_info: public Sql_alloc,
+                           private Type_handler_hybrid_field_type
 {
 private:
   enum_vcol_info_type vcol_type; /* Virtual column expression type */
@@ -532,7 +533,6 @@ private:
     The following data is only updated by the parser and read
     when a Create_field object is created/initialized.
   */
-  enum_field_types field_type;   /* Real field type*/
   /* Flag indicating that the field used in a partitioning expression */
   bool in_partitioning_expr;
 
@@ -546,8 +546,8 @@ public:
   uint flags;
 
   Virtual_column_info()
-  : vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
-    field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
+   :Type_handler_hybrid_field_type(&type_handler_null),
+    vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
     utf8(TRUE), expr(NULL), flags(0)
   {
@@ -568,14 +568,11 @@ public:
     DBUG_ASSERT(vcol_type != VCOL_TYPE_NONE);
     return vcol_type_name(vcol_type);
   }
-  enum_field_types get_real_type() const
-  {
-    return field_type;
-  }
-  void set_field_type(enum_field_types fld_type)
+  void set_handler(const Type_handler *handler)
   {
     /* Calling this function can only be done once. */
-    field_type= fld_type;
+    DBUG_ASSERT(type_handler() == &type_handler_null);
+    Type_handler_hybrid_field_type::set_handler(handler);
   }
   bool is_stored() const
   {
