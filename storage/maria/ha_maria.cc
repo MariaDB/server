@@ -2528,6 +2528,7 @@ int ha_maria::info(uint flag)
     stats.delete_length=     maria_info.delete_length;
     stats.check_time=        maria_info.check_time;
     stats.mean_rec_length=   maria_info.mean_reclength;
+    stats.checksum=          file->state->checksum;
   }
   if (flag & HA_STATUS_CONST)
   {
@@ -3274,12 +3275,6 @@ int ha_maria::ft_read(uchar * buf)
   error= ft_handler->please->read_next(ft_handler, (char*) buf);
 
   return error;
-}
-
-
-uint ha_maria::checksum() const
-{
-  return (uint) file->state->checksum;
 }
 
 

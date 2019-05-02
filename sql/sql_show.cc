@@ -5636,7 +5636,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       }
       if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
       {
-        table->field[18]->store((longlong) file->checksum(), TRUE);
+        table->field[18]->store((longlong) file->stats.checksum, TRUE);
         table->field[18]->set_notnull();
       }
     }

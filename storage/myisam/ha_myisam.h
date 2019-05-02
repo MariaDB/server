@@ -66,7 +66,6 @@ class ha_myisam: public handler
   uint max_supported_key_parts()     const { return HA_MAX_KEY_SEG; }
   uint max_supported_key_length()    const { return HA_MAX_KEY_LENGTH; }
   uint max_supported_key_part_length() const { return HA_MAX_KEY_LENGTH; }
-  uint checksum() const;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share);
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);

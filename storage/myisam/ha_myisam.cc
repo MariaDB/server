@@ -2000,6 +2000,7 @@ int ha_myisam::info(uint flag)
     stats.delete_length=     misam_info.delete_length;
     stats.check_time=        (ulong) misam_info.check_time;
     stats.mean_rec_length=   misam_info.mean_reclength;
+    stats.checksum=          file->state->checksum;
   }
   if (flag & HA_STATUS_CONST)
   {
@@ -2303,12 +2304,6 @@ int ha_myisam::ft_read(uchar *buf)
   error=ft_handler->please->read_next(ft_handler,(char*) buf);
   return error;
 }
-
-uint ha_myisam::checksum() const
-{
-  return (uint)file->state->checksum;
-}
-
 
 enum_alter_inplace_result
 ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
