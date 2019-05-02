@@ -4389,10 +4389,10 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     mdl_requests.push_front(&global_request);
 
     if (create_table)
-    #ifdef WITH_WSREP
-      if (thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
-          thd->wsrep_exec_mode != REPL_RECV)
-    #endif
+#ifdef WITH_WSREP
+      if (!(thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+	    thd->wsrep_exec_mode == REPL_RECV))
+#endif
       lock_wait_timeout= 0;                     // Don't wait for timeout
   }
 
@@ -4403,6 +4403,7 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     bool res= thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout);
     if (create_table)
       thd->pop_internal_handler();
+
     if (!res)
       DBUG_RETURN(FALSE);                       // Got locks
 
