@@ -278,7 +278,7 @@ public:
   Field **nullable_fields() { return record0_field; }
   void reset_extra_null_bitmap()
   {
-    size_t null_bytes= (trigger_table->s->stored_fields -
+    size_t null_bytes= (trigger_table->s->fields -
                         trigger_table->s->null_fields + 7)/8;
     bzero(extra_null_bitmap, null_bytes);
   }

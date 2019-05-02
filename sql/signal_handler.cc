@@ -30,6 +30,10 @@
 #define SIGNAL_FMT "signal %d"
 #endif
 
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 /*
   We are handling signals/exceptions in this file.
   Any global variables we read should be 'volatile sig_atomic_t'
@@ -43,6 +47,43 @@ extern volatile sig_atomic_t ld_assume_kernel_is_set;
 #endif
 
 extern const char *optimizer_switch_names[];
+
+static inline void output_core_info()
+{
+  /* proc is optional on some BSDs so it can't hurt to look */
+#ifdef HAVE_READLINK
+  char buff[PATH_MAX];
+  ssize_t len;
+  int fd;
+  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
+  {
+    my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
+                          (int) len, buff);
+  }
+  if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+  {
+    my_safe_printf_stderr("Resource Limits:\n");
+    while ((len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0))) > 0)
+    {
+      my_write_stderr(buff, len);
+    }
+    my_close(fd, MYF(0));
+  }
+#ifdef __linux__
+  if ((fd= my_open("/proc/sys/kernel/core_pattern", O_RDONLY, MYF(0))) >= 0)
+  {
+    len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0));
+    my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
+    my_close(fd, MYF(0));
+  }
+#endif
+#else
+  char buff[80];
+  my_getwd(buff, sizeof(buff), 0);
+  my_safe_printf_stderr("Writing a core file at %s\n", buff);
+  fflush(stderr);
+#endif
+}
 
 /**
  * Handler for fatal signals on POSIX, exception handler on Windows.
@@ -295,13 +336,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   }
 #endif
 
+  output_core_info();
 #ifdef HAVE_WRITE_CORE
   if (test_flags & TEST_CORE_ON_SIGNAL)
   {
-    char buff[80];
-    my_getwd(buff, sizeof(buff), 0);
-    my_safe_printf_stderr("Writing a core file at %s\n", buff);
-    fflush(stderr);
     my_write_core(sig);
   }
 #endif

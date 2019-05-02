@@ -1,10 +1,6 @@
 #
 # Testing of constraints
 #
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 create table t1 (a int check (a>0));
 show create table t1;
 insert into t1 values (1);
@@ -104,7 +100,24 @@ SHOW CREATE TABLE long_enough_name;
 DROP TABLE long_enough_name;
 
 #
-# Check that we don't loose constraints as part of CREATE ... SELECT
+# MDEV-17654 Incorrect syntax returned for column with CHECK constraint
+#            in the "SHOW CREATE TABLE ..." result
+#
+
+CREATE TABLE test.t(t int COMMENT 't_comment' CHECK(t>0));
+SHOW CREATE TABLE test.t;
+DROP table test.t;
+
+SET @OLD_SQL_MODE=@@SQL_MODE;
+SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
+
+CREATE TABLE test.t (f int foo=bar check(f>0));
+SHOW CREATE TABLE t;
+DROP table test.t;
+SET @@SQL_MODE=@OLD_SQL_MODE;
+
+#
+# Check that we don't lose constraints as part of CREATE ... SELECT
 #
 
 create table t1 (a int check (a>10)) select 100 as 'a';
