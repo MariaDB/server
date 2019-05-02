@@ -9420,6 +9420,9 @@ ulonglong ha_spider::table_flags() const
 #ifdef HA_CAN_FORCE_BULK_DELETE
     (share && share->force_bulk_delete ? HA_CAN_FORCE_BULK_DELETE : 0) |
 #endif
+#ifdef HA_IGNORE_TRANSFORM_IN_INTO_SUBQ
+    HA_IGNORE_TRANSFORM_IN_INTO_SUBQ |
+#endif
     (share ? share->additional_table_flags : 0)
   ;
   DBUG_RETURN(flags);

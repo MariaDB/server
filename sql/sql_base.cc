@@ -8308,9 +8308,9 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     */
     if ((*conds)->type() == Item::FIELD_ITEM && !derived)
       wrap_ident(thd, conds);
-    (*conds)->mark_as_condition_AND_part(NO_JOIN_NEST);
     if ((*conds)->fix_fields_if_needed_for_bool(thd, conds))
       goto err_no_arena;
+    (*conds)->mark_as_condition_AND_part(NO_JOIN_NEST);
   }
 
   /*

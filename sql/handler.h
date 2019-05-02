@@ -327,7 +327,12 @@ enum enum_alter_inplace_result {
 
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 58)
-#define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
+
+/**
+  Storage engine does not want to transform IN predicates into IN subqueries
+*/
+#define HA_IGNORE_TRANSFORM_IN_INTO_SUBQ    (1ULL << 59)
+#define HA_LAST_TABLE_FLAG HA_IGNORE_TRANSFORM_IN_INTO_SUBQ
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */

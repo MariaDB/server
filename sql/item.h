@@ -6435,18 +6435,7 @@ protected:
   bool value_cached;
 
   table_map used_table_map;
-public:
-  Item_cache(THD *thd):
-    Item(thd),
-    Type_handler_hybrid_field_type(&type_handler_string),
-    example(0), cached_field(0),
-    value_cached(0),
-    used_table_map(0)
-  {
-    maybe_null= 1;
-    null_value= 1;
-  }
-protected:
+
   Item_cache(THD *thd, const Type_handler *handler):
     Item(thd),
     Type_handler_hybrid_field_type(handler),
@@ -6876,7 +6865,7 @@ class Item_cache_row: public Item_cache
   bool save_array;
 public:
   Item_cache_row(THD *thd):
-    Item_cache(thd), values(0), item_count(2),
+    Item_cache(thd, &type_handler_row), values(0), item_count(2),
     save_array(0) {}
   
   /*
