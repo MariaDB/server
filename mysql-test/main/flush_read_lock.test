@@ -199,11 +199,13 @@ let $cleanup_stmt1= alter event e1 comment '';
 --echo #
 --echo # 2) ANALYZE TABLE statement is compatible with FTWRL.
 --echo # See Bug#43336 ANALYZE and OPTIMIZE do not honour
---echo #  --read-only for a discussion why.
+--echo #  --read-only as they update status tables.
 --echo #
+let $skip_3rd_check= 1;
 let $statement= analyze table t1_base;
 let $cleanup_stmt= ;
---source include/check_ftwrl_compatible.inc
+--source include/check_ftwrl_incompatible.inc
+let $skip_3rd_check= ;
 
 --echo #
 --echo # 3) BEGIN, ROLLBACK and COMMIT statements.
@@ -1712,7 +1714,7 @@ set autocommit= 1;
 --echo # 39.1.a) ANALYZE TABLE for transactional table is incompatible with
 --echo #         FTWRL.
 flush tables with read lock;
---echo # Implicit commits are allowed under FTWRL.
+--error ER_CANT_UPDATE_WITH_READLOCK
 analyze table t3_trans;
 unlock tables;
 --echo #
