@@ -151,15 +151,9 @@ public:
 
   }
   int optimize(THD * thd, HA_CHECK_OPT * check_opt);
-  int restore(THD * thd, HA_CHECK_OPT * check_opt);
-  int backup(THD * thd, HA_CHECK_OPT * check_opt);
   int assign_to_keycache(THD * thd, HA_CHECK_OPT * check_opt);
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt);
   bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
-#ifdef HAVE_REPLICATION
-  int dump(THD * thd, int fd);
-  int net_read_dump(NET * net);
-#endif
 #ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
