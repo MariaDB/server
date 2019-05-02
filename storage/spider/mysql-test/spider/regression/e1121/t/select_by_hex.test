@@ -50,7 +50,7 @@ TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 SET NAMES utf8;
-SELECT `pkey`, HEX(`txt_bin`) FROM `auto_test_local`.`tbl_a` WHERE `txt_bin` = 0x15101408BFF8380088000C458048000C;
+SELECT pkey, HEX(txt_bin) FROM auto_test_local.tbl_a WHERE txt_bin = 0x15101408BFF8380088000C458048000C;
 
 --connection child2_1
 SET NAMES utf8;
