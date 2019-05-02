@@ -262,6 +262,9 @@ check_cpu () {
     *AuthenticAMD*)
       cpu_arg="k6"
       ;;
+    *HygonGenuine*)
+      cpu_arg="k8"
+      ;;
     *VIA\ *)
       cpu_arg="i686"
       ;;
