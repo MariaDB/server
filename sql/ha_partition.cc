@@ -8239,8 +8239,9 @@ int ha_partition::info(uint flag)
     stats.deleted= 0;
     stats.data_file_length= 0;
     stats.index_file_length= 0;
-    stats.check_time= 0;
     stats.delete_length= 0;
+    stats.check_time= 0;
+    stats.checksum= 0;
     for (i= bitmap_get_first_set(&m_part_info->read_partitions);
          i < m_tot_parts;
          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
@@ -8254,6 +8255,7 @@ int ha_partition::info(uint flag)
       stats.delete_length+= file->stats.delete_length;
       if (file->stats.check_time > stats.check_time)
         stats.check_time= file->stats.check_time;
+      stats.checksum+= file->stats.checksum;
     }
     if (stats.records && stats.records < 2 &&
         !(m_file[0]->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT))
@@ -8409,10 +8411,7 @@ void ha_partition::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->create_time=          file->stats.create_time;
   stat_info->update_time=          file->stats.update_time;
   stat_info->check_time=           file->stats.check_time;
-  stat_info->check_sum= 0;
-  if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
-    stat_info->check_sum= file->checksum();
-  return;
+  stat_info->check_sum=            file->stats.checksum;
 }
 
 
@@ -10729,27 +10728,6 @@ void ha_partition::release_auto_increment()
 void ha_partition::init_table_handle_for_HANDLER()
 {
   return;
-}
-
-
-/**
-  Return the checksum of the table (all partitions)
-*/
-
-uint ha_partition::checksum() const
-{
-  ha_checksum sum= 0;
-
-  DBUG_ENTER("ha_partition::checksum");
-  if ((table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)))
-  {
-    handler **file= m_file;
-    do
-    {
-      sum+= (*file)->checksum();
-    } while (*(++file));
-  }
-  DBUG_RETURN(sum);
 }
 
 

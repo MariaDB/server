@@ -2895,6 +2895,7 @@ public:
   time_t check_time;
   time_t update_time;
   uint block_size;			/* index block size */
+  ha_checksum checksum;
 
   /*
     number of buffer bytes that native mrr implementation needs,
@@ -3936,7 +3937,7 @@ public:
   virtual uint max_supported_key_part_length() const { return 255; }
   virtual uint min_record_length(uint options) const { return 1; }
 
-  virtual uint checksum() const { return 0; }
+  virtual int calculate_checksum();
   virtual bool is_crashed() const  { return 0; }
   virtual bool auto_repair(int error) const { return 0; }
 

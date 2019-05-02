@@ -68,7 +68,6 @@ public:
   uint max_supported_key_part_length() const
   { return max_supported_key_length(); }
   enum row_type get_row_type() const;
-  uint checksum() const;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share);
   virtual double scan_time();
 
