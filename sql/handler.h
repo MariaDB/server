@@ -326,7 +326,12 @@ enum enum_alter_inplace_result {
 
 /* Has checksum extended */
 #define HA_HAS_CHECKSUM_EXTENDED    (1ULL << 59)
-#define HA_LAST_TABLE_FLAG HA_HAS_CHECKSUM_EXTENDED
+
+/**
+  Storage engine does not want to transform IN predicates into IN subqueries
+*/
+#define HA_IGNORE_TRANSFORM_IN_INTO_SUBQ    (1ULL << 60)
+#define HA_LAST_TABLE_FLAG HA_IGNORE_TRANSFORM_IN_INTO_SUBQ
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */

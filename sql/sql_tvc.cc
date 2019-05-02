@@ -800,15 +800,48 @@ err:
 
 bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
 {
+  DBUG_ENTER("Item_func_in::to_be_transformed_into_in_subq");
   uint values_count= arg_count-1;
+  if (args[0]->type() == Item::FIELD_ITEM)
+  {
+    Field *field = ((Item_field *) args[0])->field;
+    if (field && (field->table->file->ha_table_flags() &
+                  HA_IGNORE_TRANSFORM_IN_INTO_SUBQ))
+      DBUG_RETURN(false);
+  }
+  else if (args[0]->type() == Item::ROW_ITEM)
+  {
+    bool ignore= FALSE;
+    Item_row *item_row= (Item_row *) args[0];
+    uint cols= item_row->cols(), col_index;
+    for (col_index= 0; col_index < cols; ++col_index)
+    {
+      Item *item= item_row->element_index(col_index);
+      if (item->type() == Item::FIELD_ITEM)
+      {
+        Field *field = ((Item_field *) item)->field;
+        if (field && (field->table->file->ha_table_flags() &
+                      HA_IGNORE_TRANSFORM_IN_INTO_SUBQ))
+        {
+          ignore= TRUE;
+          continue;
+        }
+        break;
+      }
+      if (!item->const_item())
+        break;
+    }
+    if (col_index == cols && ignore)
+      DBUG_RETURN(false);
+  }
 
   if (args[1]->type() == Item::ROW_ITEM)
     values_count*= ((Item_row *)(args[1]))->cols();
 
   if (values_count < thd->variables.in_subquery_conversion_threshold)
-    return false;
+    DBUG_RETURN(false);
 
-  return true;
+  DBUG_RETURN(true);
 }
 
 
