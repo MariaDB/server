@@ -65,6 +65,15 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE
 
+#
+# MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check
+#
+--write_file $MYSQLTEST_VARDIR/tmp/1
+use test;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/1 >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/1
+
 --echo End of 5.5 tests
 
 --source include/not_windows_embedded.inc
