@@ -2266,5 +2266,19 @@ SELECT  rank() OVER (ORDER BY 1), ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y',
 drop table t1;
 
 --echo #
+--echo # MDEV-17781: Server crashes in next_linear_tab
+--echo #
+
+CREATE TABLE t1 (i1 int);
+explain
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

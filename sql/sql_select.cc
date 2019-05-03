@@ -8867,7 +8867,7 @@ JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab,
   }
 
   /* If no more JOIN_TAB's on the top level */
-  if (++tab == join->join_tab + join->top_join_tab_count + join->aggr_tables)
+  if (++tab >= join->join_tab + join->exec_join_tab_cnt() + join->aggr_tables)
     return NULL;
 
   if (include_bush_roots == WITHOUT_BUSH_ROOTS && tab->bush_children)
