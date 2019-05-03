@@ -15,7 +15,7 @@
 
 #include "mysys_priv.h"
 
-my_bool my_may_have_atomic_write= 0;
+my_bool my_may_have_atomic_write= IF_WIN(1,0);
 
 #ifdef __linux__
 

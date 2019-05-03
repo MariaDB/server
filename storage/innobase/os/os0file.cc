@@ -7669,7 +7669,15 @@ void fil_node_t::find_metadata(os_file_t file
 			&& my_test_if_atomic_write(file,
 						   space->physical_size())
 #else
+			/* On Windows, all single sector writes are atomic,
+			as per WriteFile() documentation on MSDN.
+			We also require SSD for atomic writes, eventhough
+			technically it is not necessary- the reason is that
+			on hard disks, we still want the benefit from
+			(non-atomic) neighbor page flushing in the buffer
+			pool code. */
 			&& srv_page_size == block_size
+			&& on_ssd
 #endif
 			;
 	}
