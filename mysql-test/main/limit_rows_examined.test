@@ -576,3 +576,15 @@ EXECUTE ps;
 
 drop view v;
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-18117: Crash with Explain extended when using limit rows examined
+--echo #
+
+create table t1 (c1 char(2));
+create table t2 (c2 char(2));
+insert into t1 values ('bb'), ('cc'), ('aa'), ('dd');
+insert into t2 values ('bb'), ('cc'), ('dd'), ('ff');
+explain extended
+select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 2;
+drop table t1,t2;
