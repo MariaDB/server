@@ -4,6 +4,8 @@ set default_storage_engine='tokudb';
 disable_warnings;
 drop table if exists t;
 enable_warnings;
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
 
 create table t (id int, x int, y int, primary key (id), key (x), key (y)) 
 partition by range(id) 
@@ -22,5 +24,6 @@ alter table t analyze partition p0;
 show indexes from t;
 alter table t analyze partition p1;
 show indexes from t;
+set @@use_stat_tables =  @save_use_stat_tables;
 
 drop table t;

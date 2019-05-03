@@ -170,5 +170,8 @@ public:
   int unpack_row(azio_stream *file_to_read, uchar *record);
   unsigned int pack_row(uchar *record, azio_stream *writer);
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
+  int external_lock(THD *thd, int lock_type);
+private:
+  void flush_and_clear_pending_writes();
 };
 

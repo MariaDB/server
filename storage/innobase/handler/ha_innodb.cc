@@ -4037,7 +4037,7 @@ static int innodb_init_params()
 	if (innobase_open_files > open_files_limit) {
 		ib::warn() << "innodb_open_files " << innobase_open_files
 			   << " should not be greater"
-			   << "than the open_files_limit " << open_files_limit;
+			   << " than the open_files_limit " << open_files_limit;
 		if (innobase_open_files > tc_size) {
 			innobase_open_files = tc_size;
 		}

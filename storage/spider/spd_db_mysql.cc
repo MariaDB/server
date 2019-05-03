@@ -88,6 +88,9 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_SQL_LOG_ON_STR "set session sql_log_off = 1"
 #define SPIDER_SQL_SQL_LOG_ON_LEN sizeof(SPIDER_SQL_SQL_LOG_ON_STR) - 1
 
+#define SPIDER_SQL_WAIT_TIMEOUT_STR "set session wait_timeout = "
+#define SPIDER_SQL_WAIT_TIMEOUT_LEN sizeof(SPIDER_SQL_WAIT_TIMEOUT_STR) - 1
+
 #define SPIDER_SQL_TIME_ZONE_STR "set session time_zone = '"
 #define SPIDER_SQL_TIME_ZONE_LEN sizeof(SPIDER_SQL_TIME_ZONE_STR) - 1
 
@@ -1948,6 +1951,9 @@ int spider_db_mbase::connect(
       connect_retry_count--;
       my_sleep((ulong) connect_retry_interval);
     } else {
+#ifdef SPIDER_NET_HAS_THD
+      db_conn->net.thd = NULL;
+#endif
       if (connect_mutex)
         pthread_mutex_unlock(&spider_open_conn_mutex);
       break;
@@ -2738,6 +2744,44 @@ int spider_db_mbase::set_sql_log_off(
   DBUG_RETURN(0);
 }
 
+bool spider_db_mbase::set_wait_timeout_in_bulk_sql()
+{
+  DBUG_ENTER("spider_db_mbase::set_wait_timeout_in_bulk_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
+int spider_db_mbase::set_wait_timeout(
+  int wait_timeout,
+  int *need_mon
+) {
+  char sql_buf[MAX_FIELD_WIDTH];
+  char timeout_str[SPIDER_SQL_INT_LEN];
+  int timeout_str_length;
+  spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
+  DBUG_ENTER("spider_db_mbase::set_wait_timeout");
+  DBUG_PRINT("info",("spider this=%p", this));
+  sql_str.init_calc_mem(264);
+  sql_str.length(0);
+  timeout_str_length =
+    my_sprintf(timeout_str, (timeout_str, "%d", wait_timeout));
+  if (sql_str.reserve(SPIDER_SQL_WAIT_TIMEOUT_LEN + timeout_str_length))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  sql_str.q_append(SPIDER_SQL_WAIT_TIMEOUT_STR, SPIDER_SQL_WAIT_TIMEOUT_LEN);
+  sql_str.q_append(timeout_str, timeout_str_length);
+  if (spider_db_query(
+    conn,
+    sql_str.ptr(),
+    sql_str.length(),
+    -1,
+    need_mon)
+  )
+    DBUG_RETURN(spider_db_errorno(conn));
+  SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  pthread_mutex_unlock(&conn->mta_conn_mutex);
+  DBUG_RETURN(0);
+}
+
 bool spider_db_mbase::set_time_zone_in_bulk_sql()
 {
   DBUG_ENTER("spider_db_mbase::set_time_zone_in_bulk_sql");
@@ -3421,8 +3465,9 @@ int spider_db_mbase_util::append_column_value(
   const uchar *new_ptr,
   CHARSET_INFO *access_charset
 ) {
+  int error_num;
   char buf[MAX_FIELD_WIDTH];
-  spider_string tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin);
+  spider_string tmp_str(buf, MAX_FIELD_WIDTH, field->charset());
   String *ptr;
   uint length;
   THD *thd = field->table->in_use;
@@ -3440,7 +3485,7 @@ int spider_db_mbase_util::append_column_value(
     ) {
       length = uint2korr(new_ptr);
       tmp_str.set_quick((char *) new_ptr + HA_KEY_BLOB_LENGTH, length,
-        &my_charset_bin);
+        field->charset());
       ptr = tmp_str.get_str();
     } else if (field->type() == MYSQL_TYPE_GEOMETRY)
     {
@@ -3556,6 +3601,14 @@ int spider_db_mbase_util::append_column_value(
   if (field->result_type() == STRING_RESULT)
   {
     DBUG_PRINT("info", ("spider STRING_RESULT"));
+    if (str->charset() != field->charset())
+    {
+      if ((error_num = spider_db_append_charset_name_before_string(str,
+        field->charset())))
+      {
+        DBUG_RETURN(error_num);
+      }
+    }
     if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
@@ -3566,7 +3619,7 @@ int spider_db_mbase_util::append_column_value(
     ) {
       DBUG_PRINT("info", ("spider append_escaped"));
       char buf2[MAX_FIELD_WIDTH];
-      spider_string tmp_str2(buf2, MAX_FIELD_WIDTH, access_charset);
+      spider_string tmp_str2(buf2, MAX_FIELD_WIDTH, field->charset());
       tmp_str2.init_calc_mem(114);
       tmp_str2.length(0);
       if (
@@ -3704,6 +3757,30 @@ int spider_db_mbase_util::append_sql_log_off(
   } else {
     str->q_append(SPIDER_SQL_SQL_LOG_OFF_STR, SPIDER_SQL_SQL_LOG_OFF_LEN);
   }
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_wait_timeout(
+  spider_string *str,
+  int wait_timeout
+) {
+  char timeout_str[SPIDER_SQL_INT_LEN];
+  int timeout_str_length;
+  DBUG_ENTER("spider_db_mbase_util::append_wait_timeout");
+  DBUG_PRINT("info",("spider this=%p", this));
+  timeout_str_length =
+    my_sprintf(timeout_str, (timeout_str, "%d", wait_timeout));
+  if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_WAIT_TIMEOUT_LEN +
+    timeout_str_length))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  if (str->length())
+  {
+    str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+  }
+  str->q_append(SPIDER_SQL_WAIT_TIMEOUT_STR, SPIDER_SQL_WAIT_TIMEOUT_LEN);
+  str->q_append(timeout_str, timeout_str_length);
   DBUG_RETURN(0);
 }
 
@@ -4789,13 +4866,31 @@ int spider_db_mbase_util::open_item_func(
     case Item_func::LE_FUNC:
     case Item_func::GE_FUNC:
     case Item_func::GT_FUNC:
-    case Item_func::LIKE_FUNC:
       if (str)
       {
         func_name = (char*) item_func->func_name();
         func_name_length = strlen(func_name);
       }
       break;
+    case Item_func::LIKE_FUNC:
+#ifdef SPIDER_LIKE_FUNC_HAS_GET_NEGATED
+      if (str)
+      {
+         if (((Item_func_like *)item_func)->get_negated())
+         {
+            func_name = SPIDER_SQL_NOT_LIKE_STR;
+            func_name_length = SPIDER_SQL_NOT_LIKE_LEN;
+         }
+         else
+         {
+            func_name = (char*)item_func->func_name();
+            func_name_length = strlen(func_name);
+         }
+      }
+      break;
+#else
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+#endif
     default:
       THD *thd = spider->trx->thd;
       SPIDER_SHARE *share = spider->share;
@@ -6800,10 +6895,12 @@ int spider_mbase_handler::init()
   }
   sql.set_charset(share->access_charset);
   sql_part.set_charset(share->access_charset);
+  sql_part2.set_charset(share->access_charset);
   ha_sql.set_charset(share->access_charset);
   insert_sql.set_charset(share->access_charset);
   update_sql.set_charset(share->access_charset);
   tmp_sql.set_charset(share->access_charset);
+  dup_update_sql.set_charset(share->access_charset);
   upd_tmp_tbl_prm.init();
   upd_tmp_tbl_prm.field_count = 1;
   if (!(link_for_hash = (SPIDER_LINK_FOR_HASH *)

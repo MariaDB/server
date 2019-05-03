@@ -9415,6 +9415,7 @@ for_portion_of_time_clause:
                                         Vers_history_point(VERS_TIMESTAMP, $9),
                                         $5);
           }
+        ;
 
 opt_for_portion_of_time_clause:
           /* empty */
@@ -12652,7 +12653,7 @@ limit_clause:
           {
             $$.select_limit= 0;
             $$.offset_limit= 0;
-            $$.explicit_limit= 1;
+            $$.explicit_limit= 0;
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
         ;

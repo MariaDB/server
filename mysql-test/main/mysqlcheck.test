@@ -403,7 +403,7 @@ drop database mysqltest1;
 --echo #
 create table t1(a int);
 insert into t1 (a) values (1), (2), (3);
-select * from mysql.column_stats;
+select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type from mysql.column_stats order by db_name,table_name;
 --exec $MYSQL_CHECK --analyze test t1 --persistent
-select * from mysql.column_stats where db_name = 'test' and table_name = 't1';
+select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type from mysql.column_stats where db_name = 'test' and table_name = 't1' order by db_name,table_name;
 drop table t1;

@@ -1504,6 +1504,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         next_state= MY_LEX_START;
         return PERCENT_ORACLE_SYM;
       }
+      if (c == '[' && (m_thd->variables.sql_mode & MODE_MSSQL))
+        return scan_ident_delimited(thd, &yylval->ident_cli, ']');
       /* Fall through */
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
@@ -1657,14 +1659,32 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
             return(FLOAT_NUM);
           }
         }
+        /*
+          We've found:
+          - A sequence of digits
+          - Followed by 'e' or 'E'
+          - Followed by some byte XX which is not a known mantissa start,
+            and it's known to be a valid identifier part.
+            XX can be either a 8bit identifier character, or a multi-byte head.
+        */
         yyUnget();
+        return scan_ident_start(thd, &yylval->ident_cli);
       }
-      // fall through
+      /*
+        We've found:
+        - A sequence of digits
+        - Followed by some character XX, which is neither 'e' nor 'E',
+          and it's known to be a valid identifier part.
+          XX can be a 8bit identifier character, or a multi-byte head.
+      */
+      yyUnget();
+      return scan_ident_start(thd, &yylval->ident_cli);
+
     case MY_LEX_IDENT_START:                    // We come here after '.'
       return scan_ident_start(thd, &yylval->ident_cli);
 
     case MY_LEX_USER_VARIABLE_DELIMITER:        // Found quote char
-      return scan_ident_delimited(thd, &yylval->ident_cli);
+      return scan_ident_delimited(thd, &yylval->ident_cli, m_tok_start[0]);
 
     case MY_LEX_INT_OR_REAL:                    // Complete int or incomplete real
       if (c != '.' || yyPeek() == '.')
@@ -2236,11 +2256,12 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
 
 
 int Lex_input_stream::scan_ident_delimited(THD *thd,
-                                           Lex_ident_cli_st *str)
+                                           Lex_ident_cli_st *str,
+                                           uchar quote_char)
 {
   CHARSET_INFO *const cs= thd->charset();
   uint double_quotes= 0;
-  uchar c, quote_char= m_tok_start[0];
+  uchar c;
   DBUG_ASSERT(m_ptr == m_tok_start + 1);
 
   while ((c= yyGet()))
@@ -9108,7 +9129,13 @@ SELECT_LEX *LEX::parsed_select(SELECT_LEX *sel, Lex_order_limit_lock * l)
         l->set_to(unit->fake_select_lex);
       else
       {
-        sel= wrap_unit_into_derived(unit);
+        if (!l->order_list && !unit->fake_select_lex->explicit_limit)
+        {
+          sel= unit->fake_select_lex;
+          l->order_list= &sel->order_list;
+        }
+        else
+          sel= wrap_unit_into_derived(unit);
         if (!sel)
           return NULL;
         l->set_to(sel);
@@ -9120,10 +9147,15 @@ SELECT_LEX *LEX::parsed_select(SELECT_LEX *sel, Lex_order_limit_lock * l)
     }
     else
     {
-      SELECT_LEX_UNIT *unit= create_unit(sel);
-      if (!unit)
-        return NULL;
-      sel= wrap_unit_into_derived(unit);
+      if (!l->order_list && !sel->explicit_limit)
+        l->order_list= &sel->order_list;
+      else
+      {
+        SELECT_LEX_UNIT *unit= create_unit(sel);
+        if (!unit)
+          return NULL;
+        sel= wrap_unit_into_derived(unit);
+      }
       if (!sel)
         return NULL;
       l->set_to(sel);
@@ -10109,7 +10141,7 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
        Multiple equalities are not removed but marked with DELETION_FL flag.
        They will be deleted later in substitite_for_best_equal_field() called
        for the HAVING condition.
-    5. Unwrap fields wrapped in Item_ref wrappers contain in the condition
+    5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
        of attach_to_conds so the condition could be pushed into WHERE.
 
   @note
@@ -10200,7 +10232,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
     join->having_equal= 0;
 
   /*
-    5. Unwrap fields wrapped in Item_ref wrappers contain in the condition
+    5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
        of attach_to_conds so the condition could be pushed into WHERE.
   */
   it.rewind();
@@ -10210,7 +10242,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
 
-    if (item->walk(&Item::cleanup_processor, 0, 0) ||
+    if (item->walk(&Item:: cleanup_processor, 0, STOP_PTR) ||
         item->fix_fields(thd, NULL))
     {
       attach_to_conds.empty();

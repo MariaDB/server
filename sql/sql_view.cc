@@ -1200,7 +1200,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       in which case the reinit call wasn't done.
       See MDEV-6668 for details.
     */
-    mysql_derived_reinit(thd, NULL, table);
+    mysql_handle_single_derived(thd->lex, table, DT_REINIT);
 
     DEBUG_SYNC(thd, "after_cached_view_opened");
     DBUG_RETURN(0);

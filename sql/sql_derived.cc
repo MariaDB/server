@@ -38,14 +38,15 @@
 
 typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
 
-bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived);
-bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived);
-bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived);
-bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived);
-bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived);
-bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived);
-bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived);
-bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived);
+static bool mysql_derived_merge_for_insert(THD *thd, LEX *lex,
+                                           TABLE_LIST *derived);
 
 dt_processor processors[]=
 {
@@ -182,7 +183,10 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   if (!lex->derived_tables)
     DBUG_RETURN(FALSE);
 
-  derived->select_lex->changed_elements|= TOUCHED_SEL_DERIVED;
+  if (derived->select_lex)
+    derived->select_lex->changed_elements|= TOUCHED_SEL_DERIVED;
+  else
+    DBUG_ASSERT(derived->prelocking_placeholder);
   lex->thd->derived_tables_processing= TRUE;
 
   for (uint phase= 0; phase < DT_PHASES; phase++)
@@ -331,6 +335,7 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   @return TRUE if an error occur.
 */
 
+static
 bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   bool res= FALSE;
@@ -513,6 +518,7 @@ unconditional_materialization:
   @return TRUE if an error occur.
 */
 
+static
 bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_merge_for_insert");
@@ -569,7 +575,7 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
     true   Error
 */
 
-
+static
 bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
@@ -646,7 +652,7 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
     true   Error
 */
 
-
+static
 bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
@@ -917,6 +923,7 @@ exit:
   @return TRUE if an error occur.
 */
 
+static
 bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
@@ -1028,6 +1035,7 @@ err:
   @return TRUE if an error occur.
 */
 
+static
 bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_create");
@@ -1138,7 +1146,7 @@ bool TABLE_LIST::fill_recursive(THD *thd)
   @return TRUE   Error
 */
 
-
+static
 bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   Field_iterator_table field_iterator;
@@ -1280,6 +1288,7 @@ err:
   @return TRUE   Error
 */
 
+static
 bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_reinit");
@@ -1293,11 +1302,6 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->types.empty();
   /* for derived tables & PS (which can't be reset by Item_subselect) */
   unit->reinit_exec_mechanism();
-  for (st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())
-  {
-    sl->cond_pushed_into_where= NULL;
-    sl->cond_pushed_into_having= NULL;
-  }
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);
 }

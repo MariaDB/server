@@ -641,6 +641,9 @@ show index from t1;
 
 # Set nulls to be equal:
 set myisam_stats_method=nulls_equal;
+
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
 show variables like 'myisam_stats_method';
 insert into t1 values (11);
 delete from t1 where a=11;
@@ -655,6 +658,7 @@ check table t1;
 show index from t1;
 
 # Set nulls back to be equal 
+set @@use_stat_tables =  @save_use_stat_tables;
 set myisam_stats_method=DEFAULT;
 show variables like 'myisam_stats_method';
 insert into t1 values (11);
@@ -675,6 +679,9 @@ drop table t1;
 set myisam_stats_method=nulls_ignored;
 show variables like 'myisam_stats_method';
 
+set @save_use_stat_tables =  @@use_stat_tables;
+set @@use_stat_tables = COMPLEMENTARY;
+
 create table t1 (
   a char(3), b char(4), c char(5), d char(6),
   key(a,b,c,d)
@@ -691,6 +698,7 @@ show index from t1;
 
 set myisam_stats_method=DEFAULT;
 drop table t1;
+set @@use_stat_tables =  @save_use_stat_tables;
 
 # BUG#13814 - key value packed incorrectly for TINYBLOBs
 

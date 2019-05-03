@@ -8,7 +8,7 @@ ALGORITHM=COPY;
 ERROR 01000: Data truncated for column 'i1' at row 1
 ALTER TABLE t1 CHANGE i1 id INT UNSIGNED NOT NULL AUTO_INCREMENT,
 ADD PRIMARY KEY(id), ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 ALTER IGNORE TABLE t1 ADD PRIMARY KEY(i1), ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Creating unique indexes with IGNORE requires COPY algorithm to remove duplicate rows. Try ALGORITHM=COPY
 SET @old_sql_mode = @@sql_mode;

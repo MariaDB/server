@@ -8473,16 +8473,9 @@ void spider_free_tmp_dbton_handler(
 TABLE_LIST *spider_get_parent_table_list(
   ha_spider *spider
 ) {
-  TABLE *table = spider->get_table();
-  TABLE_LIST *table_list = table->pos_in_table_list;
+  TABLE *table = spider->get_top_table();
   DBUG_ENTER("spider_get_parent_table_list");
-  if (table_list)
-  {
-    while (table_list->parent_l)
-      table_list = table_list->parent_l;
-    DBUG_RETURN(table_list);
-  }
-  DBUG_RETURN(NULL);
+  DBUG_RETURN(table->pos_in_table_list);
 }
 
 List<Index_hint> *spider_get_index_hints(
@@ -8916,6 +8909,13 @@ bool spider_check_direct_order_limit(
           break;
         }
       }
+      if (!spider_all_part_in_order((ORDER *) select_lex->group_list.first,
+        spider->get_table()))
+      {
+        DBUG_PRINT("info",("spider FALSE by group condition"));
+        first_check = FALSE;
+        spider->result_list.direct_distinct = FALSE;
+      }
 #endif
     }
 
@@ -8980,6 +8980,98 @@ bool spider_check_direct_order_limit(
   DBUG_PRINT("info",("spider FALSE by parameter"));
   DBUG_RETURN(FALSE);
 }
+
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+bool spider_all_part_in_order(
+  ORDER *order,
+  TABLE *table
+) {
+  TABLE_LIST *parent;
+  partition_info *part_info;
+  Field **part_fields;
+  ORDER *ptr;
+  Item *item;
+  Item_field *item_field;
+  DBUG_ENTER("spider_all_part_in_order");
+  while (TRUE)
+  {
+    DBUG_PRINT("info", ("spider table_name = %s", table->s->db.str));
+    DBUG_PRINT("info",("spider part_info=%p", table->part_info));
+    if ((part_info = table->part_info))
+    {
+      for (part_fields = part_info->full_part_field_array;
+        *part_fields; ++part_fields)
+      {
+        DBUG_PRINT("info", ("spider part_field = %s",
+          SPIDER_field_name_str(*part_fields)));
+        for (ptr = order; ptr; ptr = ptr->next)
+        {
+          item = *ptr->item;
+          if (item->type() != Item::FIELD_ITEM)
+          {
+            continue;
+          }
+          item_field = (Item_field *) item;
+          Field *field = item_field->field;
+          if (!field)
+          {
+            continue;
+          }
+          DBUG_PRINT("info", ("spider field_name = %s.%s",
+            field->table->s->db.str, SPIDER_field_name_str(field)));
+          if (*part_fields == spider_field_exchange(table->file, field))
+          {
+            break;
+          }
+        }
+        if (!ptr)
+        {
+          DBUG_RETURN(FALSE);
+        }
+      }
+    }
+    if (!(parent = table->pos_in_table_list->parent_l))
+    {
+      break;
+    }
+    table = parent->table;
+  }
+  DBUG_RETURN(TRUE);
+}
+
+Field *spider_field_exchange(
+  handler *handler,
+  Field *field
+) {
+  DBUG_ENTER("spider_field_exchange");
+#ifdef HA_CAN_BULK_ACCESS
+  if (handler->is_bulk_access_clone)
+  {
+    handler = handler->pt_clone_source_handler;
+  }
+#endif
+  DBUG_PRINT("info",("spider in field=%p", field));
+  DBUG_PRINT("info",("spider in field->table=%p", field->table));
+#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
+  if (handler->set_top_table_fields)
+  {
+    DBUG_PRINT("info",("spider top_table=%p", handler->top_table));
+    if (field->table != handler->top_table)
+      DBUG_RETURN(NULL);
+    if (!(field = handler->top_table_field[field->field_index]))
+      DBUG_RETURN(NULL);
+  } else {
+#endif
+    DBUG_PRINT("info",("spider table=%p", handler->get_table()));
+    if (field->table != handler->get_table())
+      DBUG_RETURN(NULL);
+#ifdef HANDLER_HAS_TOP_TABLE_FIELDS
+  }
+#endif
+  DBUG_PRINT("info",("spider out field=%p", field));
+  DBUG_RETURN(field);
+}
+#endif
 
 int spider_set_direct_limit_offset(
   ha_spider *spider

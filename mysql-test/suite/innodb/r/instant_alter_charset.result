@@ -54,7 +54,7 @@ algorithm=inplace;
 alter table various_cases
 change a a varchar(222),
 algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table various_cases
 change b b varchar(150) as (a) virtual,
 algorithm=inplace;
@@ -65,7 +65,7 @@ ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITH
 alter table various_cases
 modify a char(150) charset utf8mb4,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table various_cases;
 create table all_texts (
 a tinytext charset ascii,
@@ -87,17 +87,17 @@ e varbinary(150),
 f binary(150)
 ) engine=innodb;
 alter table all_binaries modify a tinytext, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_binaries modify b text, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_binaries modify c mediumtext, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_binaries modify d longtext, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_binaries modify e varchar(150), algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_binaries modify f char(150), algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table all_binaries;
 create table all_strings (
 a tinytext,
@@ -108,29 +108,29 @@ e varchar(150),
 f char(150)
 ) engine=innodb;
 alter table all_strings modify a tinyblob, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify b blob, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify c mediumblob, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify d longblob, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify e varbinary(150), algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify f binary(150), algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify a tinytext charset binary, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify b text charset binary, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify c mediumtext charset binary, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify d longtext charset binary, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify e varchar(150) charset binary, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table all_strings modify f char(150) charset binary, algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table all_strings;
 create table key_part_change (
 a char(150) charset ascii,
@@ -143,7 +143,7 @@ modify a char(150) charset utf8mb4,
 drop index ab,
 add unique key ab(a,c),
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table key_part_change;
 create table key_part_change_and_rename (
 a char(100) charset ascii,
@@ -156,7 +156,7 @@ change b a char(100) charset utf8mb4,
 drop index ab,
 add unique key ab(a,b),
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table key_part_change_and_rename;
 create table enum_and_set (
 a enum('one', 'two') charset utf8mb3,
@@ -165,11 +165,11 @@ b set('three', 'four') charset utf8mb3
 alter table enum_and_set
 modify a enum('one', 'two') charset utf8mb4,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table enum_and_set
 modify b enum('three', 'four') charset utf8mb4,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table enum_and_set;
 create table compressed (
 a varchar(255) charset utf8mb3 compressed
@@ -254,7 +254,7 @@ algorithm=instant;
 alter table boundary_255
 modify b varchar(200) charset utf8mb3,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table boundary_255
 modify c varchar(300) charset utf8mb3,
 algorithm=instant;
@@ -1080,11 +1080,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_bin,
@@ -1097,11 +1097,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_nopad_ci,
@@ -1114,11 +1114,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_nopad_bin,
@@ -1131,11 +1131,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1148,11 +1148,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset koi8u collate koi8u_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset koi8u collate koi8u_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_nopad_ci,
@@ -1165,11 +1165,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset koi8u collate koi8u_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset koi8u collate koi8u_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_nopad_bin,
@@ -1182,11 +1182,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset koi8u collate koi8u_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset koi8u collate koi8u_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1199,11 +1199,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset latin1 collate latin1_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_bin,
@@ -1216,11 +1216,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_nopad_ci,
@@ -1233,11 +1233,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_nopad_bin,
@@ -1250,11 +1250,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1267,11 +1267,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_bin,
@@ -1284,11 +1284,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_nopad_ci,
@@ -1301,11 +1301,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_nopad_bin,
@@ -1318,11 +1318,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb3 collate utf8mb3_general_ci,
@@ -1335,11 +1335,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb3 collate utf8mb3_bin,
@@ -1352,11 +1352,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb3 collate utf8mb3_general_nopad_ci,
@@ -1369,11 +1369,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb3 collate utf8mb3_nopad_bin,
@@ -1386,11 +1386,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1403,11 +1403,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset gbk collate gbk_chinese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset gbk collate gbk_chinese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1420,11 +1420,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset gbk collate gbk_chinese_nopad_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset gbk collate gbk_chinese_nopad_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ucs2 collate ucs2_myanmar_ci,
@@ -1437,11 +1437,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf16 collate utf16_thai_520_w2,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf16 collate utf16_thai_520_w2,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ucs2 collate ucs2_general_ci,
@@ -1454,11 +1454,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf16 collate utf16_unicode_nopad_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf16 collate utf16_unicode_nopad_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ucs2 collate ucs2_general_mysql500_ci,
@@ -1471,11 +1471,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf16 collate utf16_spanish2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf16 collate utf16_spanish2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1488,11 +1488,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset ascii collate ascii_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset ascii collate ascii_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb3 collate utf8mb3_roman_ci,
@@ -1505,11 +1505,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2,
@@ -1522,11 +1522,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb3 collate utf8mb3_myanmar_ci,
@@ -1539,11 +1539,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf8mb3 collate utf8mb3_general_ci,
@@ -1556,11 +1556,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset latin1 collate latin1_general_cs,
@@ -1573,11 +1573,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin1 collate latin1_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset latin1 collate latin1_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1590,11 +1590,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset ujis collate ujis_japanese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset ujis collate ujis_japanese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1607,11 +1607,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset big5 collate big5_chinese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset big5 collate big5_chinese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1624,11 +1624,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin2 collate latin2_croatian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset latin2 collate latin2_croatian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset ascii collate ascii_general_ci,
@@ -1641,11 +1641,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin7 collate latin7_estonian_cs,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset latin7 collate latin7_estonian_cs,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(50) charset utf16 collate utf16_general_ci,
@@ -1658,11 +1658,11 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf16 collate utf16_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify c varchar(50) charset utf16 collate utf16_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 drop table compatible_without_index;
 create table fully_incompatible (
@@ -1691,11 +1691,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset utf8mb3 collate utf8mb3_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset utf8mb3 collate utf8mb3_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset utf8mb4 collate utf8mb4_general_ci,
@@ -1705,11 +1705,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset ascii collate ascii_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset ascii collate ascii_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset utf8mb3 collate utf8mb3_general_ci,
@@ -1719,11 +1719,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset ascii collate ascii_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset ascii collate ascii_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset utf8mb3 collate utf8mb3_general_ci,
@@ -1733,11 +1733,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset latin1 collate latin1_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset latin1 collate latin1_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset utf16 collate utf16_general_ci,
@@ -1747,11 +1747,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset utf32 collate utf32_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset utf32 collate utf32_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset latin1 collate latin1_general_ci,
@@ -1761,11 +1761,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset ascii collate ascii_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset ascii collate ascii_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset ascii collate ascii_general_ci,
@@ -1775,11 +1775,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset swe7 collate swe7_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset swe7 collate swe7_swedish_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset eucjpms collate eucjpms_japanese_nopad_ci,
@@ -1789,11 +1789,11 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset geostd8 collate geostd8_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset geostd8 collate geostd8_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 create table tmp (
 a varchar(150) charset latin1 collate latin1_general_ci,
@@ -1803,10 +1803,10 @@ unique key b_idx (b(150))
 alter table tmp
 change a a varchar(150) charset utf16 collate utf16_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 alter table tmp
 modify b text charset utf16 collate utf16_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table tmp;
 drop table fully_incompatible;

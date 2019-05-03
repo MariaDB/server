@@ -1,0 +1,87 @@
+SET sql_mode=MSSQL;
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-19142 sql_mode=MSSQL: Bracket identifiers
+#
+SELECT 'test' AS [[];
+[
+test
+SELECT 'test' AS []]];
+]
+test
+SELECT 'test' AS [[a]]];
+[a]
+test
+SELECT 'test' AS [\n];
+\n
+test
+CREATE TABLE [t 1] ([a b] INT);
+SHOW CREATE TABLE [t 1];
+Table	Create Table
+t 1	CREATE TABLE "t 1" (
+  "a b" int(11) DEFAULT NULL
+)
+INSERT INTO [t 1] VALUES (10);
+SELECT [a b] FROM [t 1];
+a b
+10
+SELECT [a b] [a b alias] FROM [t 1] [t 1 alias];
+a b alias
+10
+SELECT [a b] FROM [test].[t 1];
+a b
+10
+SELECT [a b], COUNT(*) FROM [t 1] GROUP BY [a b];
+a b	COUNT(*)
+10	1
+SELECT [a b], COUNT(*) FROM [t 1] GROUP BY [a b] HAVING [a b]>0;
+a b	COUNT(*)
+10	1
+DROP TABLE [t 1];
+CREATE TABLE [t[1]]] (a INT);
+SHOW CREATE TABLE [t[1]]];
+Table	Create Table
+t[1]	CREATE TABLE "t[1]" (
+  "a" int(11) DEFAULT NULL
+)
+DROP TABLE [t[1]]];
+CREATE TABLE [t 1] ([a b] INT);
+CREATE VIEW [v 1] AS SELECT [a b] FROM [t 1];
+SHOW CREATE VIEW [v 1];
+View	Create View	character_set_client	collation_connection
+v 1	CREATE VIEW "v 1" AS select "t 1"."a b" AS "a b" from "t 1"	latin1	latin1_swedish_ci
+SELECT * FROM [v 1];
+a b
+DROP VIEW [v 1];
+DROP TABLE [t 1];
+CREATE PROCEDURE [p 1]()
+BEGIN
+SELECT 'test' [a b];
+END;
+$$
+SHOW CREATE PROCEDURE [p 1];
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p 1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,MSSQL,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS	CREATE DEFINER="root"@"localhost" PROCEDURE "p 1"()
+BEGIN
+SELECT 'test' [a b];
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+CALL [p 1];
+a b
+test
+DROP PROCEDURE [p 1];
+CREATE TABLE [t1] ([a] INT);
+INSERT INTO t1 VALUES (10);
+PREPARE [stmt] FROM 'SELECT [a] FROM [test].[t1]';
+EXECUTE [stmt];
+a
+10
+DEALLOCATE PREPARE [stmt];
+EXECUTE IMMEDIATE 'SELECT [a] FROM [test].[t1]';
+a
+10
+DROP TABLE [t1];
+#
+# End of 10.4 tests
+#

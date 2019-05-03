@@ -464,6 +464,7 @@ inline bool is_temporal_type_with_date(enum_field_types type)
   case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_TIMESTAMP2:
     DBUG_ASSERT(0); // field->real_type() should not get to here.
+    return false;
   default:
     return false;
   }
@@ -523,7 +524,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   - whether the field is used in a partitioning expression
 */
 
-class Virtual_column_info: public Sql_alloc
+class Virtual_column_info: public Sql_alloc,
+                           private Type_handler_hybrid_field_type
 {
 private:
   enum_vcol_info_type vcol_type; /* Virtual column expression type */
@@ -531,7 +533,6 @@ private:
     The following data is only updated by the parser and read
     when a Create_field object is created/initialized.
   */
-  enum_field_types field_type;   /* Real field type*/
   /* Flag indicating that the field used in a partitioning expression */
   bool in_partitioning_expr;
 
@@ -545,8 +546,8 @@ public:
   uint flags;
 
   Virtual_column_info()
-  : vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
-    field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
+   :Type_handler_hybrid_field_type(&type_handler_null),
+    vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
     utf8(TRUE), expr(NULL), flags(0)
   {
@@ -567,14 +568,11 @@ public:
     DBUG_ASSERT(vcol_type != VCOL_TYPE_NONE);
     return vcol_type_name(vcol_type);
   }
-  enum_field_types get_real_type() const
-  {
-    return field_type;
-  }
-  void set_field_type(enum_field_types fld_type)
+  void set_handler(const Type_handler *handler)
   {
     /* Calling this function can only be done once. */
-    field_type= fld_type;
+    DBUG_ASSERT(type_handler() == &type_handler_null);
+    Type_handler_hybrid_field_type::set_handler(handler);
   }
   bool is_stored() const
   {
@@ -781,6 +779,11 @@ public:
     @retval false - conversion is needed
   */
   virtual bool memcpy_field_possible(const Field *from) const= 0;
+  virtual bool make_empty_rec_store_default_value(THD *thd, Item *item);
+  virtual void make_empty_rec_reset(THD *thd)
+  {
+    reset();
+  }
   virtual int  store(const char *to, size_t length,CHARSET_INFO *cs)=0;
   virtual int  store_hex_hybrid(const char *str, size_t length);
   virtual int  store(double nr)=0;
@@ -1504,7 +1507,7 @@ public:
     of a table is compatible with the old definition so that it can
     determine if data needs to be copied over (table data change).
   */
-  virtual uint is_equal(Create_field *new_field);
+  virtual uint is_equal(Create_field *new_field)= 0;
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
@@ -1868,7 +1871,6 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
   virtual bool str_needs_quotes() { return TRUE; }
-  uint is_equal(Create_field *new_field);
   bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
   virtual uint length_size() { return 0; }
   double pos_in_interval(Field *min, Field *max)
@@ -2640,6 +2642,7 @@ public:
   my_decimal *val_decimal(my_decimal *) { return 0; }
   String *val_str(String *value,String *value2)
   { value2->length(0); return value2;}
+  uint is_equal(Create_field *new_field);
   int cmp(const uchar *a, const uchar *b) { return 0;}
   void sort_string(uchar *buff, uint length)  {}
   uint32 pack_length() const { return 0; }
@@ -3563,6 +3566,7 @@ public:
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   void sql_type(String &str) const;
+  uint is_equal(Create_field *new_field);
   virtual uchar *pack(uchar *to, const uchar *from,
                       uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
@@ -3893,6 +3897,7 @@ public:
            !compression_method() == !from->compression_method() &&
            !table->copy_blobs;
   }
+  bool make_empty_rec_store_default_value(THD *thd, Item *item);
   int store(const char *to, size_t length, CHARSET_INFO *charset);
   using Field_str::store;
   double val_real(void);
@@ -4210,6 +4215,16 @@ public:
     return save_in_field_str(to);
   }
   bool memcpy_field_possible(const Field *from) const { return false; }
+  void make_empty_rec_reset(THD *thd)
+  {
+    if (flags & NOT_NULL_FLAG)
+    {
+      set_notnull();
+      store((longlong) 1, true);
+    }
+    else
+      reset();
+  }
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -4276,6 +4291,11 @@ public:
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
+  void make_empty_rec_reset(THD *thd)
+  {
+    Field::make_empty_rec_reset(thd);
+  }
+
   int  store_field(Field *from) { return from->save_in_field(this); }
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr) { return Field_set::store((longlong) nr, FALSE); }

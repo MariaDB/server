@@ -67,14 +67,19 @@ inline bool Field::marked_for_read() const
           ptr < table->record[0] + table->s->reclength)));
 }
 
+/*
+  The name of this function is a bit missleading as in 10.4 we don't
+  have to test anymore if the field is computed. Instead we mark
+  changed fields with DBUG_FIX_WRITE_SET() in table.cc
+*/
 
 inline bool Field::marked_for_write_or_computed() const
 {
-  return is_stat_field || !table ||
-         (!table->write_set ||
-          bitmap_is_set(table->write_set, field_index) ||
-          (!(ptr >= table->record[0] &&
-          ptr < table->record[0] + table->s->reclength)));
+  return (is_stat_field || !table ||
+          (!table->write_set ||
+           bitmap_is_set(table->write_set, field_index) ||
+           (!(ptr >= table->record[0] &&
+              ptr < table->record[0] + table->s->reclength))));
 }
 
 
@@ -1377,6 +1382,14 @@ error:
 }
 
 
+bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
+{
+  DBUG_ASSERT(!(flags & BLOB_FLAG));
+  int res= item->save_in_field(this, true);
+  return res != 0 && res != 3;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -2433,6 +2446,15 @@ int Field::set_default()
 void Field_null::sql_type(String &res) const
 {
   res.set_ascii(STRING_WITH_LEN("null"));
+}
+
+
+uint Field_null::is_equal(Create_field *new_field)
+{
+  DBUG_ASSERT(!compression_method());
+  return new_field->type_handler() == type_handler() &&
+         new_field->charset == field_charset &&
+         new_field->length == max_display_length();
 }
 
 
@@ -7069,14 +7091,10 @@ int Field_str::store(double nr)
   return store(buff, (uint)length, &my_charset_numeric);
 }
 
-uint Field::is_equal(Create_field *new_field)
-{
-  return new_field->type_handler() == type_handler();
-}
 
-
-uint Field_str::is_equal(Create_field *new_field)
+uint Field_string::is_equal(Create_field *new_field)
 {
+  DBUG_ASSERT(!compression_method());
   if (new_field->type_handler() != type_handler())
     return IS_EQUAL_NO;
   if (new_field->length < max_display_length())
@@ -8760,6 +8778,18 @@ void Field_blob::make_send_field(Send_field *field)
   */
   Field_longstr::make_send_field(field);
   field->set_handler(&type_handler_blob);
+}
+
+
+bool Field_blob::make_empty_rec_store_default_value(THD *thd, Item *item)
+{
+  DBUG_ASSERT(flags & BLOB_FLAG);
+  int res= item->save_in_field(this, true);
+  DBUG_ASSERT(res != 3); // Field_blob never returns 3
+  if (res)
+    return true; // E.g. truncation happened
+  reset(); // Clear the pointer to a String, it should not be written to frm
+  return false;
 }
 
 
@@ -10542,7 +10572,7 @@ bool Column_definition::check(THD *thd)
   if (vcol_info)
   {
     DBUG_ASSERT(vcol_info->expr);
-    vcol_info->set_field_type(real_field_type());
+    vcol_info->set_handler(type_handler());
     if (check_expression(vcol_info, &field_name, vcol_info->stored_in_db
                          ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
       DBUG_RETURN(TRUE);

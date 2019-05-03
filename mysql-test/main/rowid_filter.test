@@ -300,4 +300,43 @@ SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-19255: rowid range filter built for range condition
+--echo #             that uses in expensive subquery
+--echo #
+
+CREATE TABLE t1 (
+  pk1 INT PRIMARY KEY, a1 INT, b1 VARCHAR(1), KEY(b1)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(10,0,'z'),(11,3,'j'),(12,8,'f'),(13,8,'p'),(14,6,'w'),(15,0,'c'),(16,1,'j'),
+(17,1,'f'),(18,5,'v'),(19,3,'f'),(20,2,'q'),(21,8,'y'),(22,0,'a'),(23,9,'w'),
+(24,3,'e'),(25,1,'b'),(26,9,'r'),(27,2,'k'),(28,5,'c'),(29,3,'k'),(30,9,'b'),
+(31,8,'j'),(32,1,'t'),(33,8,'n'),(34,3,'z'),(35,0,'u'),(36,3,'a'),(37,3,'g'),
+(38,1,'f'),(39,6,'p'),(40,6,'m'),(41,6,'t'),(42,7,'i'),(43,4,'h'),(44,3,'d'),
+(45,2,'b'),(46,1,'o'),(47,2,'j'),(48,6,'s'),(49,5,'q'),(50,6,'l'),(51,9,'j'),
+(52,6,'y'),(53,0,'i'),(54,7,'x'),(55,2,'u'),(56,6,'t'),(57,4,'b'),(58,5,'m'),
+(59,4,'x'),(60,8,'x'),(61,6,'v'),(62,8,'m'),(63,4,'j'),(64,8,'z'),(65,2,'a'),
+(66,9,'i'),(67,4,'g'),(68,8,'h'),(69,1,'p'),(70,8,'a'),(71,0,'x'),(72,2,'s'),
+(73,6,'k'),(74,0,'m'),(75,6,'e'),(76,9,'y'),(77,7,'d'),(78,7,'w'),(79,6,'y'),
+(80,9,'s'),(81,9,'x'),(82,6,'l'),(83,9,'f'),(84,8,'x'),(85,1,'p'),(86,7,'y'),
+(87,6,'p'),(88,1,'g'),(89,3,'c'),(90,5,'h'),(91,3,'p'),(92,2,'b'),(93,1,NULL),
+(94,3,NULL),(95,2,'y'),(96,7,'s'),(97,7,'x'),(98,6,'i'),(99,9,'t'),(100,5,'j'),
+(101,0,'u'),(102,7,'r'),(103,2,'x'),(104,8,'e'),(105,8,'i'),(106,5,'q'),
+(107,8,'z'),(108,3,'k'),(109,65,NULL);
+
+CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 INT, b2 VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,1,'x');
+INSERT INTO t2 SELECT * FROM t1;
+
+let $q=
+SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+  WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+eval EXPLAIN FORMAT=JSON $q;
+
+DROP TABLE t1,t2;
+
 set @@use_stat_tables=@save_use_stat_tables;

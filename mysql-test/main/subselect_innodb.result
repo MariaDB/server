@@ -616,3 +616,36 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` semi join (`test`.`t4`) join `test`.`t3` where `test`.`t4`.`f4` = 1 and `test`.`t1`.`f1` >= `test`.`t2`.`f2`
 DROP TABLE t1,t2,t3,t4;
+# 
+# MDEV-17362: SIGSEGV in JOIN::optimize_inner or Assertion `fixed == 0'
+# failed in  Item_equal::fix_fields, server crashes after 2nd execution
+# of PS
+# 
+create table t1 (a int, b int);
+create table t2 (x int, y int);
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(2,2),(2,3);
+# here we can see conditions pushdown (see HAVING):
+prepare stmt from "
+explain extended
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+execute stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from  <materialize> (/* select#2 */ select `test`.`t2`.`x`,count(`test`.`t2`.`y`) from `test`.`t2` where 0 group by `test`.`t2`.`x` having `COUNT(t2.y)` = `test`.`t2`.`x`) join `test`.`t1` where 0
+# here re-execution of the pushdown does not crash:
+prepare stmt from "
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+execute stmt;
+a	b
+execute stmt;
+a	b
+execute stmt;
+a	b
+drop table t1,t2;

@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -381,6 +382,13 @@ int spider_db_conn_queue_action(
           append_sql_log_off(&sql_str, conn->queued_sql_log_off_val))
       ) ||
       (
+        conn->queued_wait_timeout &&
+        conn->queued_wait_timeout_val != conn->wait_timeout &&
+        conn->db_conn->set_wait_timeout_in_bulk_sql() &&
+        (error_num = spider_dbton[conn->dbton_id].db_util->
+          append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
+      ) ||
+      (
         conn->queued_time_zone &&
         conn->queued_time_zone_val != conn->time_zone &&
         conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -453,6 +461,15 @@ int spider_db_conn_queue_action(
       DBUG_RETURN(error_num);
     }
     if (
+      conn->queued_wait_timeout &&
+      conn->queued_wait_timeout_val != conn->wait_timeout &&
+      !conn->db_conn->set_wait_timeout_in_bulk_sql() &&
+      (error_num = spider_dbton[conn->dbton_id].db_util->
+        append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+    if (
       conn->queued_time_zone &&
       conn->queued_time_zone_val != conn->time_zone &&
       !conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -517,6 +534,13 @@ int spider_db_conn_queue_action(
       conn->trx_isolation = thd_tx_isolation(conn->thd);
       DBUG_PRINT("info", ("spider conn->trx_isolation=%d",
         conn->trx_isolation));
+    }
+
+    if (
+      conn->queued_wait_timeout &&
+      conn->queued_wait_timeout_val != conn->wait_timeout
+    ) {
+      conn->wait_timeout = conn->queued_wait_timeout_val;
     }
 
     if (conn->queued_autocommit)
@@ -2555,6 +2579,22 @@ int spider_db_append_key_where(
       DBUG_RETURN(error_num);
   }
 #endif
+  DBUG_RETURN(0);
+}
+
+int spider_db_append_charset_name_before_string(
+  spider_string *str,
+  CHARSET_INFO *cs
+) {
+  const char *csname = cs->csname;
+  uint csname_length = strlen(csname);
+  DBUG_ENTER("spider_db_append_charset_name_before_string");
+  if (str->reserve(SPIDER_SQL_UNDERSCORE_LEN + csname_length))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_UNDERSCORE_STR, SPIDER_SQL_UNDERSCORE_LEN);
+  str->q_append(csname, csname_length);
   DBUG_RETURN(0);
 }
 
@@ -8884,34 +8924,58 @@ int spider_db_open_item_ident(
     Field *field = item_ident->cached_table->table->field[
       item_ident->cached_field_index];
     DBUG_PRINT("info",("spider use cached_field_index"));
-    if (!use_fields)
+    DBUG_PRINT("info",("spider const_table=%s",
+      field->table->const_table ? "TRUE" : "FALSE"));
+    if (field->table->const_table)
     {
-      if (!(field = spider->field_exchange(field)))
-        DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       if (str)
       {
-        if ((error_num = share->dbton_share[dbton_id]->
-          append_column_name_with_alias(str, field->field_index,
-          alias, alias_length)))
-          DBUG_RETURN(error_num);
+        String str_value;
+        String *tmp_str;
+        tmp_str = field->val_str(&str_value);
+        if (!tmp_str)
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 +
+          tmp_str->length() * 2))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+        str->append_escape_string(tmp_str->ptr(), tmp_str->length());
+        str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
       }
     } else {
-      if (str)
+      if (!use_fields)
       {
-        SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
-        SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
-        spider = field_holder->spider;
-        share = spider->share;
-        field = spider->field_exchange(field);
-        DBUG_ASSERT(field);
-        if ((error_num = share->dbton_share[dbton_id]->
-          append_column_name_with_alias(str, field->field_index,
-          field_holder->alias->ptr(), field_holder->alias->length())))
-          DBUG_RETURN(error_num);
-      } else {
-        if ((error_num = fields->add_field(field)))
+        if (!(field = spider->field_exchange(field)))
+          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+        if (str)
         {
-          DBUG_RETURN(error_num);
+          if ((error_num = share->dbton_share[dbton_id]->
+            append_column_name_with_alias(str, field->field_index,
+            alias, alias_length)))
+            DBUG_RETURN(error_num);
+        }
+      } else {
+        if (str)
+        {
+          SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
+          SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
+          spider = field_holder->spider;
+          share = spider->share;
+          field = spider->field_exchange(field);
+          DBUG_ASSERT(field);
+          if ((error_num = share->dbton_share[dbton_id]->
+            append_column_name_with_alias(str, field->field_index,
+            field_holder->alias->ptr(), field_holder->alias->length())))
+            DBUG_RETURN(error_num);
+        } else {
+          if ((error_num = fields->add_field(field)))
+          {
+            DBUG_RETURN(error_num);
+          }
         }
       }
     }
@@ -8981,46 +9045,72 @@ int spider_db_open_item_field(
   Field *field = item_field->field;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_db_open_item_field");
-  if (field && !field->table->const_table)
+  if (field)
   {
     DBUG_PRINT("info",("spider field=%p", field));
     DBUG_PRINT("info",("spider db=%s", field->table->s->db.str));
-    DBUG_PRINT("info",("spider table_name=%s", field->table->s->table_name.str));
-    DBUG_PRINT("info",("spider tmp_table=%u", field->table->s->tmp_table));
-    if (field->table->s->tmp_table != INTERNAL_TMP_TABLE)
+    DBUG_PRINT("info",("spider table_name=%s",
+      field->table->s->table_name.str));
+    DBUG_PRINT("info",("spider const_table=%s",
+      field->table->const_table ? "TRUE" : "FALSE"));
+    if (field->table->const_table)
     {
-      if (!use_fields)
+      if (str)
       {
-        if (!(field = spider->field_exchange(field)))
-          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-        if (str)
+        String str_value;
+        String *tmp_str;
+        tmp_str = field->val_str(&str_value);
+        if (!tmp_str)
         {
-          if ((error_num = share->dbton_share[dbton_id]->
-            append_column_name_with_alias(str, field->field_index,
-            alias, alias_length)))
-            DBUG_RETURN(error_num);
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
-        DBUG_RETURN(0);
-      } else {
-        if (str)
+        if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 +
+          tmp_str->length() * 2))
         {
-          SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
-          SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
-          spider = field_holder->spider;
-          share = spider->share;
-          field = spider->field_exchange(field);
-          DBUG_ASSERT(field);
-          if ((error_num = share->dbton_share[dbton_id]->
-            append_column_name_with_alias(str, field->field_index,
-            field_holder->alias->ptr(), field_holder->alias->length())))
-            DBUG_RETURN(error_num);
-        } else {
-          if ((error_num = fields->add_field(field)))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+        str->append_escape_string(tmp_str->ptr(), tmp_str->length());
+        str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+      }
+      DBUG_RETURN(0);
+    } else {
+      DBUG_PRINT("info",("spider tmp_table=%u", field->table->s->tmp_table));
+      if (field->table->s->tmp_table != INTERNAL_TMP_TABLE)
+      {
+        if (!use_fields)
+        {
+          if (!(field = spider->field_exchange(field)))
+            DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+          if (str)
           {
-            DBUG_RETURN(error_num);
+            if ((error_num = share->dbton_share[dbton_id]->
+              append_column_name_with_alias(str, field->field_index,
+              alias, alias_length)))
+              DBUG_RETURN(error_num);
           }
+          DBUG_RETURN(0);
+        } else {
+          if (str)
+          {
+            SPIDER_FIELD_CHAIN *field_chain = fields->get_next_field_chain();
+            SPIDER_FIELD_HOLDER *field_holder = field_chain->field_holder;
+            spider = field_holder->spider;
+            share = spider->share;
+            field = spider->field_exchange(field);
+            DBUG_ASSERT(field);
+            if ((error_num = share->dbton_share[dbton_id]->
+              append_column_name_with_alias(str, field->field_index,
+              field_holder->alias->ptr(), field_holder->alias->length())))
+              DBUG_RETURN(error_num);
+          } else {
+            if ((error_num = fields->add_field(field)))
+            {
+              DBUG_RETURN(error_num);
+            }
+          }
+          DBUG_RETURN(0);
         }
-        DBUG_RETURN(0);
       }
     }
   }
@@ -9217,6 +9307,14 @@ int spider_db_open_item_string(
           goto end;
         }
       }
+      if (str->charset() != tmp_str2->charset())
+      {
+        if ((error_num = spider_db_append_charset_name_before_string(str,
+          tmp_str2->charset())))
+        {
+          goto end;
+        }
+      }
       if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 +
         tmp_str2->length() * 2))
       {
@@ -9226,7 +9324,8 @@ int spider_db_open_item_string(
       if (!thd)
         tmp_str.mem_calc();
       str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-      str->append_escape_string(tmp_str2->ptr(), tmp_str2->length());
+      str->append_escape_string(tmp_str2->ptr(), tmp_str2->length(),
+        tmp_str2->charset());
       if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
       {
         error_num = HA_ERR_OUT_OF_MEM;

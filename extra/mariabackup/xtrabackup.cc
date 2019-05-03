@@ -1984,10 +1984,8 @@ static bool innodb_init()
 	}
 
 	if (err != DB_SUCCESS) {
-		msg("mariabackup: innodb_init() returned %d (%s).",
+		die("mariabackup: innodb_init() returned %d (%s).",
 		    err, ut_strerr(err));
-		innodb_shutdown();
-		return(TRUE);
 	}
 
 	return(FALSE);
@@ -5142,7 +5140,7 @@ xb_process_datadir(
 	handle_datadir_entry_func_t	func)	/*!<in: callback */
 {
 	ulint		ret;
-	char		dbpath[OS_FILE_MAX_PATH+1];
+	char		dbpath[OS_FILE_MAX_PATH+2];
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;

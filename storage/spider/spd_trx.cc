@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1667,6 +1668,22 @@ int spider_check_and_set_sql_log_off(
   DBUG_RETURN(0);
 }
 
+int spider_check_and_set_wait_timeout(
+  THD *thd,
+  SPIDER_CONN *conn,
+  int *need_mon
+) {
+  int wait_timeout;
+  DBUG_ENTER("spider_check_and_set_wait_timeout");
+
+  wait_timeout = spider_param_wait_timeout(thd);
+  if (wait_timeout > 0)
+  {
+    spider_conn_queue_wait_timeout(conn, wait_timeout);
+  }
+  DBUG_RETURN(0);
+}
+
 int spider_check_and_set_time_zone(
   THD *thd,
   SPIDER_CONN *conn,
@@ -1690,8 +1707,9 @@ int spider_check_and_set_time_zone(
   DBUG_RETURN(0);
 }
 
-int spider_xa_lock(
-  XID_STATE *xid_state
+static int spider_xa_lock(
+  XID_STATE *xid_state,
+  XID *xid
 ) {
   THD *thd = current_thd;
   int error_num;
@@ -1709,7 +1727,7 @@ int spider_xa_lock(
 #endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
-  if (xid_cache_insert(thd, xid_state))
+  if (xid_cache_insert(thd, xid_state, xid))
   {
     error_num = (spider_stmt_da_sql_errno(thd) == ER_XAER_DUPID ?
       ER_SPIDER_XA_LOCKED_NUM : HA_ERR_OUT_OF_MEM);
@@ -1774,7 +1792,7 @@ error:
   DBUG_RETURN(error_num);
 }
 
-int spider_xa_unlock(
+static int spider_xa_unlock(
   XID_STATE *xid_state
 ) {
   THD *thd = current_thd;
@@ -1866,6 +1884,8 @@ int spider_internal_start_trx(
   if (
     (error_num = spider_check_and_set_sql_log_off(thd, conn,
       &spider->need_mons[link_idx])) ||
+    (error_num = spider_check_and_set_wait_timeout(thd, conn,
+      &spider->need_mons[link_idx])) ||
     (sync_autocommit &&
       (error_num = spider_check_and_set_autocommit(thd, conn,
         &spider->need_mons[link_idx])))
@@ -1891,7 +1911,7 @@ int spider_internal_start_trx(
   if (!trx->trx_start)
   {
     if (
-      thd->transaction.xid_state.xa_state == XA_ACTIVE &&
+      thd->transaction.xid_state.is_explicit_XA() &&
       spider_param_support_xa()
     ) {
       trx->trx_xa = TRUE;
@@ -1929,12 +1949,10 @@ int spider_internal_start_trx(
         thd->server_id));
 #endif
 
-      trx->internal_xid_state.xa_state = XA_ACTIVE;
-      trx->internal_xid_state.xid.set(&trx->xid);
 #ifdef SPIDER_XID_STATE_HAS_in_thd
       trx->internal_xid_state.in_thd = 1;
 #endif
-      if ((error_num = spider_xa_lock(&trx->internal_xid_state)))
+      if ((error_num = spider_xa_lock(&trx->internal_xid_state, &trx->xid)))
       {
         if (error_num == ER_SPIDER_XA_LOCKED_NUM)
           my_message(error_num, ER_SPIDER_XA_LOCKED_STR, MYF(0));
@@ -2198,7 +2216,6 @@ int spider_internal_xa_commit(
     table_xa_opened = FALSE;
   }
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(0);
 
 error:
@@ -2209,7 +2226,6 @@ error:
 error_in_commit:
 error_open_table:
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(error_num);
 }
 
@@ -2436,7 +2452,6 @@ int spider_internal_xa_rollback(
     table_xa_opened = FALSE;
   }
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(0);
 
 error:
@@ -2447,7 +2462,6 @@ error:
 error_in_rollback:
 error_open_table:
   spider_xa_unlock(&trx->internal_xid_state);
-  trx->internal_xid_state.xa_state = XA_NOTR;
   DBUG_RETURN(error_num);
 }
 
@@ -2616,8 +2630,6 @@ int spider_internal_xa_prepare(
     spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
     table_xa_opened = FALSE;
   }
-  if (internal_xa)
-    trx->internal_xid_state.xa_state = XA_PREPARED;
   DBUG_RETURN(0);
 
 error:

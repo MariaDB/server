@@ -126,7 +126,7 @@ SET (SQL_SOURCE
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
-               threadpool_common.cc ../sql-common/mysql_async.c
+               ../sql-common/mysql_async.c
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc
                rpl_gtid.cc rpl_parallel.cc
@@ -143,7 +143,7 @@ SET (SQL_SOURCE
                opt_trace.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
-               proxy_protocol.cc backup.cc
+               proxy_protocol.cc backup.cc xa.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
@@ -152,17 +152,21 @@ SET (SQL_SOURCE
                ${MYSYS_LIBWRAP_SOURCE}
 )
   
-IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
-    CMAKE_SYSTEM_NAME MATCHES "Windows" OR
-    CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
-    HAVE_KQUEUE)
+IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
+     CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
+     WIN32 OR
+     HAVE_KQUEUE)
+    AND (NOT DISABLE_THREADPOOL))
  ADD_DEFINITIONS(-DHAVE_POOL_OF_THREADS)
  IF(WIN32)
    SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
-   SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
  ENDIF()
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_generic.cc)
+ SET(SQL_SOURCE ${SQL_SOURCE} threadpool_common.cc)
+ENDIF()
 
+IF(WIN32)
+  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY

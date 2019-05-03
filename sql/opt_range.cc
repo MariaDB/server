@@ -9044,7 +9044,11 @@ int and_range_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree1, SEL_TREE *tree2,
       if (key && key->type == SEL_ARG::IMPOSSIBLE)
       {
 	result->type= SEL_TREE::IMPOSSIBLE;
-        param->table->with_impossible_ranges.set_bit(param->real_keynr[key_no]);
+        if (param->using_real_indexes)
+        {
+          param->table->with_impossible_ranges.set_bit(param->
+                                                       real_keynr[key_no]);
+        }
         DBUG_RETURN(1);
       }
       result_keys.set_bit(key_no);

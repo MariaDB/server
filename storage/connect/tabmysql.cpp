@@ -1259,7 +1259,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
         : COLBLK(NULL, tdbp, i)
   {
-  const char *chset = get_charset_name(fld->charsetnr);
+//const char *chset = get_charset_name(fld->charsetnr);
 //char  v = (!strcmp(chset, "binary")) ? 'B' : 0;
 	char  v = 0;
 
@@ -1400,6 +1400,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
   /*  If physical fetching of the line was deferred, do it now.        */
   /*********************************************************************/
   if (!tdbp->Fetched)
+  {
     if ((rc = tdbp->Myc.Fetch(g, tdbp->N)) != RC_OK) {
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
@@ -1407,7 +1408,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
 			throw 11;
 		} else
       tdbp->Fetched = true;
-
+  }
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
     if (trace(2))
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);

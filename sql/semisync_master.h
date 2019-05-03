@@ -343,11 +343,8 @@ public:
    * position.
    * If log_file_name is NULL, everything will be cleared: the sorted
    * list and the hash table will be reset to empty.
-   * 
-   * Return:
-   *  0: success;  non-zero: error
    */
-  int clear_active_tranx_nodes(const char *log_file_name,
+  void clear_active_tranx_nodes(const char *log_file_name,
                                my_off_t    log_file_pos);
 
   /* Given a position, check to see whether the position is an active
@@ -449,7 +446,7 @@ class Repl_semi_sync_master
   }
 
   /* Switch semi-sync off because of timeout in transaction waiting. */
-  int switch_off();
+  void switch_off();
 
   /* Switch semi-sync on when slaves catch up. */
   int try_switch_on(int server_id,

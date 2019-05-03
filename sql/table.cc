@@ -2690,7 +2690,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           field->key_start.set_bit(key);
         if (field->key_length() == key_part->length &&
             !(field->flags & BLOB_FLAG) &&
-            key_info->algorithm != HA_KEY_ALG_LONG_HASH)
+            keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
           {
@@ -8080,10 +8080,10 @@ public:
 
 
 /*
-  to satisfy ASSERT_COLUMN_MARKED_FOR_WRITE Field's assert we temporarily
+  to satisfy marked_for_write_or_computed() Field's assert we temporarily
   mark field for write before storing the generated value in it
 */
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 #define DBUG_FIX_WRITE_SET(f) bool _write_set_fixed= !bitmap_fast_test_and_set(write_set, (f)->field_index)
 #define DBUG_RESTORE_WRITE_SET(f) if (_write_set_fixed) bitmap_clear_bit(write_set, (f)->field_index)
 #else
@@ -9409,6 +9409,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
     return true;
   case SYSTEM_TIME_BEFORE:
     DBUG_ASSERT(0);
+    return false;
   case SYSTEM_TIME_AS_OF:
     return start.eq(conds.start);
   case SYSTEM_TIME_FROM_TO:

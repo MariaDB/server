@@ -10,10 +10,12 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   --source ../include/deinit_child2_1.inc
   --disconnect child2_1
+  --disconnect child2_1_2
   --echo child2_2
   --connection child2_2
   --source ../include/deinit_child2_2.inc
   --disconnect child2_2
+  --disconnect child2_2_2
   --echo child2_3
   --connection child2_3
   --source ../include/deinit_child2_3.inc

@@ -2104,6 +2104,23 @@ int spider_db_oracle::set_sql_log_off(
   DBUG_RETURN(0);
 }
 
+bool spider_db_oracle::set_wait_timeout_in_bulk_sql()
+{
+  DBUG_ENTER("spider_db_oracle::set_wait_timeout_in_bulk_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+int spider_db_oracle::set_wait_timeout(
+  int wait_timeout,
+  int *need_mon
+) {
+  DBUG_ENTER("spider_db_oracle::set_wait_timeout");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
 bool spider_db_oracle::set_time_zone_in_bulk_sql()
 {
   DBUG_ENTER("spider_db_oracle::set_time_zone_in_bulk_sql");
@@ -2805,6 +2822,16 @@ int spider_db_oracle_util::append_sql_log_off(
   bool sql_log_off
 ) {
   DBUG_ENTER("spider_db_oracle_util::append_sql_log_off");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+int spider_db_oracle_util::append_wait_timeout(
+  spider_string *str,
+  int wait_timeout
+) {
+  DBUG_ENTER("spider_db_oracle_util::append_wait_timeout");
   DBUG_PRINT("info",("spider this=%p", this));
   /* nothing to do */
   DBUG_RETURN(0);
@@ -4016,13 +4043,31 @@ int spider_db_oracle_util::open_item_func(
     case Item_func::LE_FUNC:
     case Item_func::GE_FUNC:
     case Item_func::GT_FUNC:
-    case Item_func::LIKE_FUNC:
       if (str)
       {
         func_name = (char*) item_func->func_name();
         func_name_length = strlen(func_name);
       }
       break;
+    case Item_func::LIKE_FUNC:
+#ifdef SPIDER_LIKE_FUNC_HAS_GET_NEGATED
+      if (str)
+      {
+         if (((Item_func_like *)item_func)->get_negated())
+         {
+            func_name = SPIDER_SQL_NOT_LIKE_STR;
+            func_name_length = SPIDER_SQL_NOT_LIKE_LEN;
+         }
+         else
+         {
+            func_name = (char*)item_func->func_name();
+            func_name_length = strlen(func_name);
+         }
+      }
+      break;
+#else
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+#endif
     default:
       THD *thd = spider->trx->thd;
       SPIDER_SHARE *share = spider->share;
@@ -5380,10 +5425,12 @@ int spider_oracle_handler::init()
   }
   sql.set_charset(share->access_charset);
   sql_part.set_charset(share->access_charset);
+  sql_part2.set_charset(share->access_charset);
   ha_sql.set_charset(share->access_charset);
   insert_sql.set_charset(share->access_charset);
   update_sql.set_charset(share->access_charset);
   tmp_sql.set_charset(share->access_charset);
+  dup_update_sql.set_charset(share->access_charset);
   upd_tmp_tbl_prm.init();
   upd_tmp_tbl_prm.field_count = 1;
   if (!(link_for_hash = (SPIDER_LINK_FOR_HASH *)

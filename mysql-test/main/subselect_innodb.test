@@ -611,3 +611,35 @@ FROM t1
 
 DROP TABLE t1,t2,t3,t4;
 
+--echo # 
+--echo # MDEV-17362: SIGSEGV in JOIN::optimize_inner or Assertion `fixed == 0'
+--echo # failed in  Item_equal::fix_fields, server crashes after 2nd execution
+--echo # of PS
+--echo # 
+
+create table t1 (a int, b int);
+create table t2 (x int, y int);
+ 
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(2,2),(2,3);
+
+--echo # here we can see conditions pushdown (see HAVING):
+prepare stmt from "
+explain extended
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+
+execute stmt;
+
+--echo # here re-execution of the pushdown does not crash:
+prepare stmt from "
+SELECT * FROM t1
+WHERE a = b
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
+
+execute stmt;
+execute stmt;
+execute stmt;
+
+drop table t1,t2;
