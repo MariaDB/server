@@ -19110,7 +19110,7 @@ checkpoint_now_set(
 		       + (log_sys->append_on_checkpoint != NULL
 			  ? log_sys->append_on_checkpoint->size() : 0)
 		       < log_sys->lsn) {
-			log_make_checkpoint_at(LSN_MAX, TRUE);
+			log_make_checkpoint_at(LSN_MAX);
 			fil_flush_file_spaces(FIL_TYPE_LOG);
 		}
 

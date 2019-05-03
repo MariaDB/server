@@ -1996,7 +1996,7 @@ dberr_t row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx)
 	DBUG_EXECUTE_IF("ib_trunc_crash_with_intermediate_log_checkpoint",
 			log_buffer_flush_to_disk();
 			os_thread_sleep(2000000);
-			log_checkpoint(TRUE, TRUE);
+			log_checkpoint(TRUE);
 			os_thread_sleep(1000000);
 			DBUG_SUICIDE(););
 
@@ -2224,7 +2224,7 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 
 	if (err == DB_SUCCESS && s_tables.size() > 0) {
 
-		log_make_checkpoint_at(LSN_MAX, TRUE);
+		log_make_checkpoint_at(LSN_MAX);
 	}
 
 	for (ulint i = 0; i < s_tables.size(); ++i) {
