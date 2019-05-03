@@ -2280,5 +2280,36 @@ UNION ALL
 drop table t1;
 
 --echo #
+--echo # MDEV-14791: Crash with order by expression containing window functions
+--echo #
+
+CREATE TABLE t1 (b1 int, b2 int);
+INSERT INTO t1 VALUES (1,1),(0,0);
+
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 VALUES (2,3,207), (1,21,909), (7,13,312), (8,64,248);
+
+explain
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+
+explain
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
