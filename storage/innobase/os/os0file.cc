@@ -72,7 +72,11 @@ Created 10/21/1995 Heikki Tuuri
 
 #ifdef _WIN32
 #include <winioctl.h>
+#else
+// my_test_if_atomic_write()
+#include <my_sys.h>
 #endif
+
 
 /** Insert buffer segment id */
 static const ulint IO_IBUF_SEGMENT = 0;
@@ -7661,7 +7665,7 @@ void fil_node_t::find_metadata(os_file_t file
 	if (!space->atomic_write_supported) {
 		space->atomic_write_supported = atomic_write
 			&& srv_use_atomic_writes
-#ifdef _WIN32
+#ifndef _WIN32
 			&& my_test_if_atomic_write(file,
 						   space->physical_size())
 #else
