@@ -453,7 +453,7 @@ row_merge_buf_redundant_convert(
 	ut_ad(field_len <= len);
 
 	if (row_field->ext) {
-		const byte*	field_data = static_cast<byte*>(
+		const byte*	field_data = static_cast<const byte*>(
 			dfield_get_data(row_field));
 		ulint		ext_len;
 
@@ -483,7 +483,7 @@ row_merge_buf_redundant_convert(
 @param[in]	old_table	original table
 @param[in]	new_table	new table
 @param[in,out]	psort_info	parallel sort info
-@param[in]	row		table row
+@param[in,out]	row		table row
 @param[in]	ext		cache of externally stored
 				column prefixes, or NULL
 @param[in,out]	doc_id		Doc ID if we are creating
@@ -505,7 +505,7 @@ row_merge_buf_add(
 	const dict_table_t*	old_table,
 	const dict_table_t*	new_table,
 	fts_psort_t*		psort_info,
-	const dtuple_t*		row,
+	dtuple_t*		row,
 	const row_ext_t*	ext,
 	doc_id_t*		doc_id,
 	mem_heap_t*		conv_heap,
@@ -642,7 +642,7 @@ row_merge_buf_add(
 						row,
 						index->table->fts->doc_col);
 					*doc_id = (doc_id_t) mach_read_from_8(
-						static_cast<byte*>(
+						static_cast<const byte*>(
 						dfield_get_data(doc_field)));
 
 					if (*doc_id == 0) {
@@ -1904,7 +1904,7 @@ row_merge_read_clustered_index(
 
 		const rec_t*	rec;
 		ulint*		offsets;
-		const dtuple_t*	row;
+		dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
@@ -2154,9 +2154,8 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			const dfield_t*	dfield;
-
-			dfield = dtuple_get_nth_field(row, add_autoinc);
+			dfield_t* dfield = dtuple_get_nth_field(row,
+								add_autoinc);
 			if (dfield_is_null(dfield)) {
 				goto write_buffers;
 			}

@@ -95,7 +95,7 @@ row_build_index_entry_low(
 		const dict_col_t*	col;
 		ulint			col_no = 0;
 		dfield_t*		dfield;
-		dfield_t*		dfield2;
+		const dfield_t*		dfield2;
 		ulint			len;
 
 		if (i >= entry_len) {
@@ -162,7 +162,7 @@ row_build_index_entry_low(
 			dfield_set_data(dfield, mbr, mbr_len);
 
 			if (dfield2->data) {
-				uchar*	dptr = NULL;
+				const uchar* dptr = NULL;
 				ulint	dlen = 0;
 				ulint	flen = 0;
 				double	tmp_mbr[SPDIMS * 2];
@@ -170,7 +170,7 @@ row_build_index_entry_low(
 
 				if (dfield_is_ext(dfield2)) {
 					if (flag == ROW_BUILD_FOR_PURGE) {
-						byte*	ptr = NULL;
+						const byte*	ptr = NULL;
 
 						spatial_status_t spatial_status;
 						spatial_status =
@@ -179,7 +179,7 @@ row_build_index_entry_low(
 
 						switch (spatial_status) {
 						case SPATIAL_ONLY:
-						ptr = static_cast<byte*>(
+						ptr = static_cast<const byte*>(
 							dfield_get_data(
 								dfield2));
 						ut_ad(dfield_get_len(dfield2)
@@ -187,7 +187,7 @@ row_build_index_entry_low(
 						break;
 
 						case SPATIAL_MIXED:
-						ptr = static_cast<byte*>(
+						ptr = static_cast<const byte*>(
 							dfield_get_data(
 								dfield2))
 							+ dfield_get_len(
@@ -216,13 +216,13 @@ row_build_index_entry_low(
 						flen = BTR_EXTERN_FIELD_REF_SIZE;
 						ut_ad(dfield_get_len(dfield2) >=
 						      BTR_EXTERN_FIELD_REF_SIZE);
-						dptr = static_cast<byte*>(
+						dptr = static_cast<const byte*>(
 							dfield_get_data(dfield2))
 							+ dfield_get_len(dfield2)
 							- BTR_EXTERN_FIELD_REF_SIZE;
 					} else {
 						flen = dfield_get_len(dfield2);
-						dptr = static_cast<byte*>(
+						dptr = static_cast<const byte*>(
 							dfield_get_data(dfield2));
 					}
 
@@ -240,7 +240,7 @@ row_build_index_entry_low(
 						flen,
 						temp_heap);
 				} else {
-					dptr = static_cast<uchar*>(
+					dptr = static_cast<const uchar*>(
 						dfield_get_data(dfield2));
 					dlen = dfield_get_len(dfield2);
 

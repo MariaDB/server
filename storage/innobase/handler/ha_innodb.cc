@@ -21784,7 +21784,7 @@ void innobase_free_row_for_vcol(VCOL_STORAGE *storage)
 to store the value in passed in "my_rec" */
 dfield_t*
 innobase_get_computed_value(
-	const dtuple_t*		row,
+	dtuple_t*		row,
 	const dict_v_col_t*	col,
 	const dict_index_t*	index,
 	mem_heap_t**		local_heap,
