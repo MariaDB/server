@@ -127,10 +127,10 @@ cmp_dfield_dfield_like_prefix(
 	if (CHARSET_INFO* cs = get_charset(cs_num, MYF(MY_WME))) {
 		return(cs->coll->strnncoll(
 			       cs,
-			       static_cast<uchar*>(
+			       static_cast<const uchar*>(
 				       dfield_get_data(dfield1)),
 			       dfield_get_len(dfield1),
-			       static_cast<uchar*>(
+			       static_cast<const uchar*>(
 				       dfield_get_data(dfield2)),
 			       dfield_get_len(dfield2),
 			       1));

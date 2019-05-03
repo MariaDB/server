@@ -1095,9 +1095,7 @@ rec_get_converted_size_comp_prefix_low(
 		col = dict_field_get_col(field);
 
 #ifdef UNIV_DEBUG
-		dtype_t*	type;
-
-		type = dfield_get_type(&fields[i]);
+		const dtype_t* type = dfield_get_type(&fields[i]);
 		if (dict_index_is_spatial(index)) {
 			if (DATA_GEOMETRY_MTYPE(col->mtype) && i == 0) {
 				ut_ad(type->prtype & DATA_GIS_MBR);

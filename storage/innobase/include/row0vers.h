@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -110,7 +110,7 @@ row_vers_build_for_consistent_read(
 				if the history is missing or the record
 				does not exist in the view, that is,
 				it was freshly inserted afterwards */
-	const dtuple_t**vrow);	/*!< out: reports virtual column info if any */
+	dtuple_t**	vrow);	/*!< out: reports virtual column info if any */
 
 /*****************************************************************//**
 Constructs the last committed version of a clustered index record,
@@ -136,7 +136,7 @@ row_vers_build_for_semi_consistent_read(
 	const rec_t**	old_vers,/*!< out: rec, old version, or NULL if the
 				record does not exist in the view, that is,
 				it was freshly inserted afterwards */
-	const dtuple_t**vrow);	/*!< out: holds virtual column info if any
+	dtuple_t**	vrow);	/*!< out: holds virtual column info if any
 				is updated in the view */
 
 #endif

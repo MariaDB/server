@@ -5755,6 +5755,13 @@ check_all_privileges()
 
 	if (check_result & PRIVILEGE_ERROR) {
 		mysql_close(mysql_connection);
+		msg("Current privileges, as reported by 'SHOW GRANTS': ");
+		int n=1;
+		for (std::list<std::string>::const_iterator it = granted_privileges.begin();
+			it != granted_privileges.end();
+			it++,n++) {
+				msg("  %d.%s", n, it->c_str());
+		}
 		die("Insufficient privileges");
 	}
 }

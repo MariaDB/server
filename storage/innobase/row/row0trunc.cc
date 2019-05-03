@@ -1189,7 +1189,7 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 
 	if (err == DB_SUCCESS && s_tables.size() > 0) {
 
-		log_make_checkpoint_at(LSN_MAX, TRUE);
+		log_make_checkpoint_at(LSN_MAX);
 	}
 
 	for (ulint i = 0; i < s_tables.size(); ++i) {
