@@ -7502,6 +7502,75 @@ os_file_set_umask(ulint umask)
 	os_innodb_umask = umask;
 }
 
+#ifdef _WIN32
+static int win32_get_block_size(HANDLE volume_handle, const char *volume_name)
+{
+  STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR disk_alignment;
+  STORAGE_PROPERTY_QUERY storage_query;
+  DWORD tmp;
+
+  memset(&storage_query, 0, sizeof(storage_query));
+  storage_query.PropertyId = StorageAccessAlignmentProperty;
+  storage_query.QueryType = PropertyStandardQuery;
+
+  if (os_win32_device_io_control(volume_handle,
+    IOCTL_STORAGE_QUERY_PROPERTY,
+    &storage_query,
+    sizeof storage_query,
+    &disk_alignment,
+    sizeof disk_alignment,
+    &tmp) &&  tmp == sizeof disk_alignment) {
+      return disk_alignment.BytesPerPhysicalSector;
+  }
+
+  switch (GetLastError()) {
+    case ERROR_INVALID_FUNCTION:
+    case ERROR_NOT_SUPPORTED:
+      break;
+    default:
+      os_file_handle_error_no_exit(
+        volume_name,
+        "DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY / StorageAccessAlignmentProperty)",
+        FALSE);
+   }
+   return 512;
+}
+
+static bool win32_is_ssd(HANDLE volume_handle)
+{
+  DWORD tmp;
+  DEVICE_SEEK_PENALTY_DESCRIPTOR seek_penalty;
+  STORAGE_PROPERTY_QUERY storage_query;
+  memset(&storage_query, 0, sizeof(storage_query));
+
+  storage_query.PropertyId = StorageDeviceSeekPenaltyProperty;
+  storage_query.QueryType = PropertyStandardQuery;
+
+  if (os_win32_device_io_control(volume_handle,
+    IOCTL_STORAGE_QUERY_PROPERTY,
+    &storage_query,
+    sizeof storage_query,
+    &seek_penalty,
+    sizeof seek_penalty,
+    &tmp) && tmp == sizeof(seek_penalty)){
+      return !seek_penalty.IncursSeekPenalty;
+  }
+
+  DEVICE_TRIM_DESCRIPTOR trim;
+  storage_query.PropertyId = StorageDeviceTrimProperty;
+  if (os_win32_device_io_control(volume_handle,
+    IOCTL_STORAGE_QUERY_PROPERTY,
+    &storage_query,
+    sizeof storage_query,
+    &trim,
+    sizeof trim,
+    &tmp) && tmp == sizeof trim) {
+      return trim.TrimEnabled;
+  }
+  return false;
+}
+#endif
+
 /** Determine some file metadata when creating or reading the file.
 @param	file	the file that is being created, or OS_FILE_CLOSED */
 void fil_node_t::find_metadata(os_file_t file
@@ -7559,66 +7628,9 @@ void fil_node_t::find_metadata(os_file_t file
 		0, OPEN_EXISTING, 0, 0);
 
 	if (volume_handle != INVALID_HANDLE_VALUE) {
-		DWORD tmp;
-		union {
-			STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR disk_alignment;
-			DEVICE_SEEK_PENALTY_DESCRIPTOR seek_penalty;
-		} result;
-		STORAGE_PROPERTY_QUERY storage_query;
-		memset(&storage_query, 0, sizeof(storage_query));
-		storage_query.PropertyId = StorageAccessAlignmentProperty;
-		storage_query.QueryType  = PropertyStandardQuery;
-
-		if (!os_win32_device_io_control(volume_handle,
-						IOCTL_STORAGE_QUERY_PROPERTY,
-						&storage_query,
-						sizeof storage_query,
-						&result.disk_alignment,
-						sizeof result.disk_alignment,
-						&tmp)
-		    || tmp < sizeof result.disk_alignment) {
-			switch (GetLastError()) {
-			case ERROR_INVALID_FUNCTION:
-			case ERROR_NOT_SUPPORTED:
-				break;
-			default:
-			ioctl_fail:
-				os_file_handle_error_no_exit(
-					volume,
-					"DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)",
-					FALSE);
-			}
-			goto end;
-		}
-
-		block_size = result.disk_alignment.BytesPerPhysicalSector;
-
-		storage_query.PropertyId = StorageDeviceSeekPenaltyProperty;
-		storage_query.QueryType  = PropertyStandardQuery;
-
-		if (!os_win32_device_io_control(volume_handle,
-						IOCTL_STORAGE_QUERY_PROPERTY,
-						&storage_query,
-						sizeof storage_query,
-						&result.seek_penalty,
-						sizeof result.seek_penalty,
-						&tmp)
-		    || tmp < sizeof result.seek_penalty) {
-			switch (GetLastError()) {
-			case ERROR_INVALID_FUNCTION:
-			case ERROR_NOT_SUPPORTED:
-			case ERROR_GEN_FAILURE:
-				goto end;
-			default:
-				goto ioctl_fail;
-			}
-		}
-
-		on_ssd = !result.seek_penalty.IncursSeekPenalty;
-end:
-		if (volume_handle != INVALID_HANDLE_VALUE) {
-			CloseHandle(volume_handle);
-		}
+		block_size = win32_get_block_size(volume_handle, volume);
+		on_ssd = win32_is_ssd(volume_handle);
+		CloseHandle(volume_handle);
 	} else {
 		if (GetLastError() != ERROR_ACCESS_DENIED) {
 			os_file_handle_error_no_exit(volume,
