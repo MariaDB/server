@@ -22576,6 +22576,10 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
+    if (from_window_spec && (*order->item)->with_sum_func &&
+        (*order->item)->type() != Item::SUM_FUNC_ITEM)
+      (*order->item)->split_sum_func(thd, ref_pointer_array,
+                                     all_fields, SPLIT_SUM_SELECT);
   }
   return 0;
 }
@@ -22643,6 +22647,10 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
         my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
+    if (from_window_spec && (*ord->item)->with_sum_func &&
+        (*ord->item)->type() != Item::SUM_FUNC_ITEM)
+      (*ord->item)->split_sum_func(thd, ref_pointer_array,
+                                   all_fields, SPLIT_SUM_SELECT);
   }
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       context_analysis_place == IN_GROUP_BY)

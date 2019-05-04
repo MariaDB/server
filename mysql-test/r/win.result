@@ -3581,5 +3581,31 @@ x	b	c
 8	64	248
 drop table t1;
 #
+# MDEV-18373: DENSE_RANK is not calculated correctly
+#
+create table t1 (a int, b int);
+insert into t1 values (60, 1515),(60, 2000),(70, 2000),(55, 1600);
+select b, dense_rank() over (order by sum(a)) from t1 group by  b;
+b	dense_rank() over (order by sum(a))
+1515	2
+1600	1
+2000	3
+select b, dense_rank() over (order by sum(a)+1) from t1 group by  b;
+b	dense_rank() over (order by sum(a)+1)
+1515	2
+1600	1
+2000	3
+select b, row_number() over (partition by sum(a)) from t1 group by b;
+b	row_number() over (partition by sum(a))
+1515	1
+1600	1
+2000	1
+select b, row_number() over (partition by sum(a)+1) from t1 group by b;
+b	row_number() over (partition by sum(a)+1)
+1515	1
+1600	1
+2000	1
+drop table t1;
+#
 # End of 10.2 tests
 #

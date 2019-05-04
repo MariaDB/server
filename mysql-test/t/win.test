@@ -2311,5 +2311,20 @@ SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) ove
 drop table t1;
 
 --echo #
+--echo # MDEV-18373: DENSE_RANK is not calculated correctly
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (60, 1515),(60, 2000),(70, 2000),(55, 1600);
+
+select b, dense_rank() over (order by sum(a)) from t1 group by  b;
+select b, dense_rank() over (order by sum(a)+1) from t1 group by  b;
+
+select b, row_number() over (partition by sum(a)) from t1 group by b;
+select b, row_number() over (partition by sum(a)+1) from t1 group by b;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
