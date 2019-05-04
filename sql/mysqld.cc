@@ -209,9 +209,6 @@ typedef fp_except fp_except_t;
 #define fcntl(X,Y,Z) 0
 #endif
 
-extern "C" my_bool reopen_fstreams(const char *filename,
-                                   FILE *outstream, FILE *errstream);
-
 inline void setup_fpu()
 {
 #if defined(__FreeBSD__) && defined(HAVE_IEEEFP_H) && !defined(HAVE_FEDISABLEEXCEPT)
