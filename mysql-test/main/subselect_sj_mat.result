@@ -265,11 +265,11 @@ set @@optimizer_switch=@save_optimizer_switch;
 explain extended
 select * from t1 where (a1, a2) in (select b1, b2 from t2 order by b1, b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	test.t1.a1,test.t1.a2	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	100.00	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from  <materialize> (/* select#2 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` order by `test`.`t2`.`b1`,`test`.`t2`.`b2`) join `test`.`t1` where `<subquery2>`.`b1` = `test`.`t1`.`a1` and `<subquery2>`.`b2` = `test`.`t1`.`a2`
+Note	1003	select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` semi join (`test`.`t2`) where 1
 select * from t1 where (a1, a2) in (select b1, b2 from t2 order by b1, b2);
 a1	a2
 1 - 01	2 - 01
@@ -277,11 +277,10 @@ a1	a2
 explain extended
 select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1i	index	it1i1,it1i2,it1i3	it1i3	18	NULL	3	100.00	Using where; Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	test.t1i.a1,test.t1i.a2	1	100.00	
-2	MATERIALIZED	t2i	index	NULL	it2i3	18	NULL	5	100.00	Using index
+1	PRIMARY	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	50.00	Using where; Using index; LooseScan
+1	PRIMARY	t1i	ref	it1i1,it1i2,it1i3	it1i3	18	test.t2i.b1,test.t2i.b2	1	100.00	Using index
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from  <materialize> (/* select#2 */ select `test`.`t2i`.`b1`,`test`.`t2i`.`b2` from `test`.`t2i` order by `test`.`t2i`.`b1`,`test`.`t2i`.`b2`) join `test`.`t1i` where `<subquery2>`.`b1` = `test`.`t1i`.`a1` and `<subquery2>`.`b2` = `test`.`t1i`.`a2`
+Note	1003	select `test`.`t1i`.`a1` AS `a1`,`test`.`t1i`.`a2` AS `a2` from `test`.`t1i` semi join (`test`.`t2i`) where `test`.`t1i`.`a1` = `test`.`t2i`.`b1` and `test`.`t1i`.`a2` = `test`.`t2i`.`b2`
 select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
 a1	a2
 1 - 01	2 - 01
@@ -1472,10 +1471,7 @@ INSERT INTO t2 VALUES (10,0),(11,0);
 explain SELECT * FROM t1 JOIN t2 USING (f1)
 WHERE t1.f1 IN (SELECT t1.pk FROM t1 ORDER BY t1.f1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	const	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 JOIN t2 USING (f1)
 WHERE t1.f1 IN (SELECT t1.pk FROM t1 ORDER BY t1.f1);
 f1	pk	pk
