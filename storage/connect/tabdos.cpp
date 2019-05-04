@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.3                                                      */
+/*  Version 4.9.4                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2019    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -2492,8 +2492,10 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } // endif's Value, Buf_Type
 
   // Allocate the buffer used in WriteColumn for numeric columns
-  if (!Buf && IsTypeNum(Buf_Type))
-    Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(32, Long + Dcm + 1));
+	if (!Buf && IsTypeNum(Buf_Type))
+		Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(64, Long + 1));
+	else // Text columns do not need additional buffer
+		Buf = (char*)Value->GetTo_Val();
 
   // Because Colblk's have been made from a copy of the original TDB in
   // case of Update, we must reset them to point to the original one.
@@ -2603,8 +2605,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void DOSCOL::WriteColumn(PGLOBAL g)
   {
-  char   *p, *p2, fmt[32];
-  int     i, k, len, field;
+  char   *p, fmt[32];
+  int     i, k, n, len, field;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
   if (trace(2))
@@ -2679,8 +2681,8 @@ void DOSCOL::WriteColumn(PGLOBAL g)
         case TYPE_DOUBLE:
         case TYPE_DECIM:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
-          sprintf(Buf, fmt, field + ((Nod && Dcm) ? 1 : 0),
-                  Dcm, Value->GetFloatValue());
+					len = field + ((Nod && Dcm) ? 1 : 0);
+          snprintf(Buf, len, fmt, len, Dcm, Value->GetFloatValue());
           len = strlen(Buf);
 
           if (Nod && Dcm)
@@ -2699,35 +2701,37 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 					throw 31;
 			} // endswitch BufType
 
-      p2 = Buf;
+			n = strlen(Buf);
     } else                 // Standard CONNECT format
-      p2 = Value->ShowValue(Buf, field);
+      n = Value->ShowValue(Buf, field);
 
     if (trace(1))
-      htrc("new length(%p)=%d\n", p2, strlen(p2));
+      htrc("new length(%p)=%d\n", Buf, n);
 
-    if ((len = strlen(p2)) > field) {
-      sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
+    if ((len = n) > field) {
+			char *p = Value->GetCharString(Buf);
+
+      sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, field);
 			throw 31;
 		} else if (Dsp)
       for (i = 0; i < len; i++)
-        if (p2[i] == '.')
-          p2[i] = Dsp; 
+        if (Buf[i] == '.')
+          Buf[i] = Dsp; 
 
     if (trace(2))
-      htrc("buffer=%s\n", p2);
+      htrc("buffer=%s\n", Buf);
 
     /*******************************************************************/
     /*  Updating must be done only when not in checking pass.          */
     /*******************************************************************/
     if (Status) {
       memset(p, ' ', field);
-      memcpy(p, p2, len);
+      memcpy(p, Buf, len);
 
       if (trace(2))
         htrc(" col write: '%.*s'\n", len, p);
 
-      } // endif Use
+    } // endif Status
 
   } else    // BIN compressed table
     /*******************************************************************/
@@ -2738,7 +2742,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
       sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                           Name, Value->GetSize(), Long);
       throw 31;
-      } // endif
+    } // endif
 
   } // end of WriteColumn
 

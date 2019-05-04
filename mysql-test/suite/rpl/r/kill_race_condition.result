@@ -1,0 +1,18 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+set global debug_dbug='d,rows_log_event_before_open_table';
+set debug_sync='now WAIT_FOR before_open_table';
+connection master;
+create table t1 (a int);
+insert t1 values (1),(2),(3);
+connection slave;
+kill slave_sql_thread;
+set debug_sync='now SIGNAL go_ahead_sql';
+set global debug_dbug='';
+set debug_sync='RESET';
+connection master;
+drop table t1;
+connection slave;
+start slave;
+include/rpl_end.inc

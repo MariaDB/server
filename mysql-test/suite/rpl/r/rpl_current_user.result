@@ -90,6 +90,8 @@ include/diff_tables.inc [server_1:v_user, server_2:v_user, server_3:v_user]
 # Verify 'ALTER EVENT...' statement
 connection master;
 CREATE EVENT e1 ON SCHEDULE EVERY 1 DAY DO SELECT * FROM t1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 # Explicitly assign CURRENT_USER() to definer
 ALTER DEFINER=CURRENT_USER() EVENT e1 ENABLE;
 include/rpl_sync.inc

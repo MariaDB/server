@@ -103,7 +103,8 @@ UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 CODENAME="$(lsb_release -sc)"
-if [[ "$CODENAME" == bionic ]]; then
+VERNUM="$(lsb_release -sr)"
+if [[ "${VERNUM%.*}" -ge 18 ]]; then
   EPOCH="1:"
 fi
 

@@ -547,7 +547,7 @@ public:
 					List<Index_hint> *hints= 0,
                                         List<String> *partition_names= 0,
                                         LEX_STRING *option= 0);
-  virtual void set_lock_for_tables(thr_lock_type lock_type) {}
+  virtual void set_lock_for_tables(thr_lock_type lock_type, bool for_update) {}
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
   void move_node(st_select_lex_node *where_to_move)
   {
@@ -1026,7 +1026,7 @@ public:
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
   ulong get_table_join_options();
-  void set_lock_for_tables(thr_lock_type lock_type);
+  void set_lock_for_tables(thr_lock_type lock_type, bool for_update);
   inline void init_order()
   {
     order_list.elements= 0;

@@ -1779,6 +1779,7 @@ struct TABLE_LIST
     table_name_length= table_name_length_arg;
     alias= (char*) (alias_arg ? alias_arg : table_name_arg);
     lock_type= lock_type_arg;
+    updating= lock_type >= TL_WRITE_ALLOW_WRITE;
     mdl_request.init(MDL_key::TABLE, db, table_name, mdl_type, MDL_TRANSACTION);
   }
 

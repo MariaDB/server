@@ -4398,8 +4398,8 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     SQLCOM_SHOW_FIELDS is used because it satisfies
     'only_view_structure()'.
   */
-  lex->sql_command= SQLCOM_SHOW_FIELDS;
   thd->force_read_stats= get_schema_table_idx(schema_table) == SCH_STATISTICS;
+  lex->sql_command= SQLCOM_SHOW_FIELDS;
   result= (thd->open_temporary_tables(table_list) ||
            open_normal_and_derived_tables(thd, table_list,
                                           (MYSQL_OPEN_IGNORE_FLUSH |
@@ -4408,14 +4408,14 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
                                             MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
 					  DT_INIT | DT_PREPARE | DT_CREATE));
 
-  (void) read_statistics_for_tables_if_needed(thd, table_list);
-  thd->force_read_stats= false;
-
   /*
     Restore old value of sql_command back as it is being looked at in
     process_table() function.
   */
   lex->sql_command= old_lex->sql_command;
+
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
+  thd->force_read_stats= false;
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 
@@ -8101,8 +8101,6 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     table->alias_name_used= my_strcasecmp(table_alias_charset,
                                           table_list->schema_table_name,
                                           table_list->alias);
-  table_list->table_name= table->s->table_name.str;
-  table_list->table_name_length= table->s->table_name.length;
   table_list->table= table;
   table->next= thd->derived_tables;
   thd->derived_tables= table;
