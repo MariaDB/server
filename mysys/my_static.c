@@ -31,7 +31,7 @@ char *mysql_data_home= (char*) ".";
 const char      *my_progname= NULL, *my_progname_short= NULL;
 char		curr_dir[FN_REFLEN]= {0},
 		home_dir_buff[FN_REFLEN]= {0};
-ulong		my_stream_opened=0,my_file_opened=0, my_tmp_file_created=0;
+ulong		my_stream_opened=0,my_tmp_file_created=0;
 ulong           my_file_total_opened= 0;
 int		my_umask=0664, my_umask_dir=0777;
 
@@ -39,6 +39,7 @@ myf             my_global_flags= 0;
 my_bool         my_assert_on_error= 0;
 struct st_my_file_info my_file_info_default[MY_NFILE];
 uint   my_file_limit= MY_NFILE;
+int32           my_file_opened=0;
 struct st_my_file_info *my_file_info= my_file_info_default;
 
 	/* From mf_brkhant */

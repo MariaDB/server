@@ -790,26 +790,6 @@ inline void table_case_convert(char * name, uint length)
                                      name, length, name, length);
 }
 
-inline void thread_safe_increment32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_increment64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
 extern void set_server_version(char *buf, size_t size);
 
 #define current_thd _current_thd()

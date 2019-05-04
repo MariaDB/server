@@ -223,7 +223,7 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
     {
       if (my_file_info[Filedes].type != UNOPEN)
       {
-        statistic_decrement(my_file_opened, &THR_LOCK_open);		/* File is opened with my_open ! */
+        thread_safe_decrement32(&my_file_opened);       /* File is opened with my_open ! */
       }
       else
       {
