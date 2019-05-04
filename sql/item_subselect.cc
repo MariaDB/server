@@ -3204,21 +3204,6 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
 
   DBUG_ENTER("Item_in_subselect::select_in_like_transformer");
   DBUG_ASSERT(thd == join->thd);
-
-  /*
-    IN/SOME/ALL/ANY subqueries aren't support LIMIT clause. Without it
-    ORDER BY clause becomes meaningless thus we drop it here.
-  */
-  for (SELECT_LEX *sl= current->master_unit()->first_select();
-       sl; sl= sl->next_select())
-  {
-    if (sl->join)
-    {
-      sl->join->order= 0;
-      sl->join->skip_sort_order= 1;
-    }
-  }
-
   thd->where= "IN/ALL/ANY subquery";
 
   /*

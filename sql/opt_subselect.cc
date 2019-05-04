@@ -594,7 +594,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
   {
     Item_in_subselect *in_subs= NULL;
     Item_allany_subselect *allany_subs= NULL;
-    switch (subselect->substype()) {
+    Item_subselect::subs_type substype= subselect->substype();
+    switch (substype) {
     case Item_subselect::IN_SUBS:
       in_subs= (Item_in_subselect *)subselect;
       break;
@@ -606,6 +607,26 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       break;
     }
 
+    /*
+      Try removing "ORDER BY" or even "ORDER BY ... LIMIT" from certain kinds
+      of subqueries. The removal might enable further transformations.
+    */
+    if (substype == Item_subselect::IN_SUBS ||
+        substype == Item_subselect::EXISTS_SUBS ||
+        substype == Item_subselect::ANY_SUBS ||
+        substype == Item_subselect::ALL_SUBS)
+    {
+      // (1) - ORDER BY without LIMIT can be removed from IN/EXISTS subqueries
+      // (2) - for EXISTS, can also remove "ORDER BY ... LIMIT n",
+      //       but cannot remove "ORDER BY ... LIMIT n OFFSET m"
+      if (!select_lex->select_limit ||                               // (1)
+          (substype == Item_subselect::EXISTS_SUBS &&                // (2)
+           !select_lex->offset_limit))                               // (2)
+      {
+        select_lex->join->order= 0;
+        select_lex->join->skip_sort_order= 1;
+      }
+    }
 
     /* Resolve expressions and perform semantic analysis for IN query */
     if (in_subs != NULL)
