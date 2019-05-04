@@ -164,6 +164,7 @@ class Session_sysvars_tracker: public State_tracker
     }
   public:
     vars_list(): track_all(false) { init(); }
+    ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
     void deinit() { free_hash(); }
 
     sysvar_node_st *insert_or_search(const sys_var *svar)
