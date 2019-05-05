@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -66,7 +66,7 @@ rtr_page_split_initialize_nodes(
 	page_t*			page;
 	ulint			n_uniq;
 	ulint			len;
-	byte*			source_cur;
+	const byte*		source_cur;
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
@@ -106,7 +106,7 @@ rtr_page_split_initialize_nodes(
 	}
 
 	/* Put the insert key to node list */
-	source_cur = static_cast<byte*>(dfield_get_data(
+	source_cur = static_cast<const byte*>(dfield_get_data(
 		dtuple_get_nth_field(tuple, 0)));
 	cur->coords = reserve_coords(buf_pos, SPDIMS);
 	rec = (byte*) mem_heap_alloc(
@@ -1855,11 +1855,10 @@ rtr_estimate_n_rows_in_range(
 	/* Read mbr from tuple. */
 	rtr_mbr_t	range_mbr;
 	double		range_area;
-	const byte*	range_mbr_ptr;
 
 	const dfield_t* dtuple_field = dtuple_get_nth_field(tuple, 0);
 	ut_ad(dfield_get_len(dtuple_field) >= DATA_MBR_LEN);
-	range_mbr_ptr = reinterpret_cast<const byte*>(
+	const byte* range_mbr_ptr = reinterpret_cast<const byte*>(
 		dfield_get_data(dtuple_field));
 
 	rtr_read_mbr(range_mbr_ptr, &range_mbr);

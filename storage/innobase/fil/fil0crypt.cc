@@ -417,45 +417,6 @@ fil_space_crypt_t::write_page0(
 }
 
 /******************************************************************
-Set crypt data for a tablespace
-@param[in,out]		space		Tablespace
-@param[in,out]		crypt_data	Crypt data to be set
-@return crypt_data in tablespace */
-static
-fil_space_crypt_t*
-fil_space_set_crypt_data(
-	fil_space_t*		space,
-	fil_space_crypt_t*	crypt_data)
-{
-	fil_space_crypt_t* free_crypt_data = NULL;
-	fil_space_crypt_t* ret_crypt_data = NULL;
-
-	/* Provided space is protected using fil_space_acquire()
-	from concurrent operations. */
-	if (space->crypt_data != NULL) {
-		/* There is already crypt data present,
-		merge new crypt_data */
-		fil_space_merge_crypt_data(space->crypt_data,
-						   crypt_data);
-		ret_crypt_data = space->crypt_data;
-		free_crypt_data = crypt_data;
-	} else {
-		space->crypt_data = crypt_data;
-		ret_crypt_data = space->crypt_data;
-	}
-
-	if (free_crypt_data != NULL) {
-		/* there was already crypt data present and the new crypt
-		* data provided as argument to this function has been merged
-		* into that => free new crypt data
-		*/
-		fil_space_destroy_crypt_data(&free_crypt_data);
-	}
-
-	return ret_crypt_data;
-}
-
-/******************************************************************
 Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
 @param[in]	ptr		Log entry start
 @param[in]	end_ptr		Log entry end
@@ -512,26 +473,36 @@ fil_parse_write_crypt_data(
 		return NULL;
 	}
 
-	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data(encryption, key_id);
-	/* Need to overwrite these as above will initialize fields. */
+	mutex_enter(&fil_system.mutex);
+
+	fil_space_t* space = fil_space_get_by_id(space_id);
+
+	if (!space) {
+		mutex_exit(&fil_system.mutex);
+		return ptr + len;
+	}
+
+	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data(
+		encryption, key_id);
+
 	crypt_data->page0_offset = offset;
 	crypt_data->min_key_version = min_key_version;
-	crypt_data->encryption = encryption;
 	crypt_data->type = type;
 	memcpy(crypt_data->iv, ptr, len);
 	ptr += len;
 
-	/* update fil_space memory cache with crypt_data */
-	if (fil_space_t* space = fil_space_acquire_silent(space_id)) {
-		crypt_data = fil_space_set_crypt_data(space, crypt_data);
-		space->release();
-		/* Check is used key found from encryption plugin */
-		if (crypt_data->should_encrypt()
-		    && !crypt_data->is_key_found()) {
-			*err = DB_DECRYPTION_FAILED;
-		}
-	} else {
+	if (space->crypt_data) {
+		fil_space_merge_crypt_data(space->crypt_data, crypt_data);
 		fil_space_destroy_crypt_data(&crypt_data);
+		crypt_data = space->crypt_data;
+	} else {
+		space->crypt_data = crypt_data;
+	}
+
+	mutex_exit(&fil_system.mutex);
+
+	if (crypt_data->should_encrypt() && !crypt_data->is_key_found()) {
+		*err = DB_DECRYPTION_FAILED;
 	}
 
 	return ptr;
@@ -1138,9 +1109,13 @@ fil_crypt_needs_rotation(
 
 	if (crypt_data->encryption == FIL_ENCRYPTION_DEFAULT
 	    && crypt_data->type == CRYPT_SCHEME_1
-	    && srv_encrypt_tables == 0 ) {
+	    && !srv_encrypt_tables) {
 		/* This is rotation encrypted => unencrypted */
 		return true;
+	}
+
+	if (rotate_key_age == 0) {
+		return false;
 	}
 
 	/* this is rotation encrypted => encrypted,
@@ -1225,7 +1200,8 @@ fil_crypt_start_encrypting_space(
 	* crypt data in page 0 */
 
 	/* 1 - create crypt data */
-	crypt_data = fil_space_create_crypt_data(FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+	crypt_data = fil_space_create_crypt_data(
+		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
 	if (crypt_data == NULL) {
 		mutex_exit(&fil_crypt_threads_mutex);
@@ -1238,9 +1214,9 @@ fil_crypt_start_encrypting_space(
 	crypt_data->rotate_state.starting = true;
 	crypt_data->rotate_state.active_threads = 1;
 
-	mutex_enter(&crypt_data->mutex);
-	crypt_data = fil_space_set_crypt_data(space, crypt_data);
-	mutex_exit(&crypt_data->mutex);
+	mutex_enter(&fil_system.mutex);
+	space->crypt_data = crypt_data;
+	mutex_exit(&fil_system.mutex);
 
 	fil_crypt_start_converting = true;
 	mutex_exit(&fil_crypt_threads_mutex);
@@ -2505,6 +2481,64 @@ fil_crypt_set_thread_cnt(
 	}
 }
 
+/** Initialize the tablespace rotation_list
+if innodb_encryption_rotate_key_age=0. */
+static void fil_crypt_rotation_list_fill()
+{
+	ut_ad(mutex_own(&fil_system.mutex));
+
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space != NULL;
+	     space = UT_LIST_GET_NEXT(space_list, space)) {
+		if (space->purpose != FIL_TYPE_TABLESPACE
+		    || space->is_in_rotation_list()
+		    || space->is_stopping()
+		    || UT_LIST_GET_LEN(space->chain) == 0) {
+			continue;
+		}
+
+		/* Ensure that crypt_data has been initialized. */
+		if (!space->size) {
+			/* Protect the tablespace while we may
+			release fil_system.mutex. */
+			space->n_pending_ops++;
+			fil_space_t* s= fil_system.read_page0(
+				space->id);
+			ut_ad(!s || s == space);
+			space->n_pending_ops--;
+			if (!space->size) {
+				/* Page 0 was not loaded.
+				Skip this tablespace. */
+				continue;
+			}
+		}
+
+		/* Skip ENCRYPTION!=DEFAULT tablespaces. */
+		if (space->crypt_data
+		    && !space->crypt_data->is_default_encryption()) {
+			continue;
+		}
+
+		if (srv_encrypt_tables) {
+			/* Skip encrypted tablespaces if
+			innodb_encrypt_tables!=OFF */
+			if (space->crypt_data
+			    && space->crypt_data->min_key_version) {
+				continue;
+			}
+		} else {
+			/* Skip unencrypted tablespaces if
+			innodb_encrypt_tables=OFF */
+			if (!space->crypt_data
+			    || !space->crypt_data->min_key_version) {
+				continue;
+			}
+		}
+
+		UT_LIST_ADD_LAST(fil_system.rotation_list, space);
+	}
+}
+
 /*********************************************************************
 Adjust max key age
 @param[in]	val		New max key age */
@@ -2513,7 +2547,12 @@ void
 fil_crypt_set_rotate_key_age(
 	uint	val)
 {
+	mutex_enter(&fil_system.mutex);
 	srv_fil_crypt_rotate_key_age = val;
+	if (val == 0) {
+		fil_crypt_rotation_list_fill();
+	}
+	mutex_exit(&fil_system.mutex);
 	os_event_set(fil_crypt_threads_event);
 }
 
@@ -2537,7 +2576,16 @@ void
 fil_crypt_set_encrypt_tables(
 	uint val)
 {
+	mutex_enter(&fil_system.mutex);
+
 	srv_encrypt_tables = val;
+
+	if (srv_fil_crypt_rotate_key_age == 0) {
+		fil_crypt_rotation_list_fill();
+	}
+
+	mutex_exit(&fil_system.mutex);
+
 	os_event_set(fil_crypt_threads_event);
 }
 

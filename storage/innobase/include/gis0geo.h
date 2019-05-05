@@ -1,5 +1,6 @@
 /*****************************************************************************
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -73,7 +74,7 @@ stored in "well-known binary representation" (wkb) format.
 int
 rtree_mbr_from_wkb(
 /*===============*/
-	uchar*	wkb,		/*!< in: pointer to wkb. */
+	const uchar*	wkb,		/*!< in: pointer to wkb. */
 	uint	size,		/*!< in: size of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr);		/*!< in/out: mbr. */

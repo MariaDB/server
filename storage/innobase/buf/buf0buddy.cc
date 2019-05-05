@@ -171,13 +171,13 @@ buf_buddy_get(
 struct	CheckZipFree {
 	CheckZipFree(ulint i) : m_i(i) {}
 
-	void	operator()(const buf_buddy_free_t* elem) const
+	void operator()(const buf_buddy_free_t* elem) const
 	{
-		ut_a(buf_buddy_stamp_is_free(elem));
-		ut_a(elem->stamp.size <= m_i);
+		ut_ad(buf_buddy_stamp_is_free(elem));
+		ut_ad(elem->stamp.size <= m_i);
 	}
 
-	ulint		m_i;
+	const ulint m_i;
 };
 
 /** Validate a buddy list.
@@ -189,8 +189,7 @@ buf_buddy_list_validate(
 	const buf_pool_t*	buf_pool,
 	ulint			i)
 {
-	CheckZipFree	check(i);
-	ut_list_validate(buf_pool->zip_free[i], check);
+	ut_list_validate(buf_pool->zip_free[i], CheckZipFree(i));
 }
 
 /**********************************************************************//**

@@ -53,8 +53,6 @@ component, i.e. we show M.N.P as M.N */
 	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
 	IB_TO_STR(MYSQL_VERSION_PATCH)
 
-#define REFMAN "http://dev.mysql.com/doc/refman/5.7/en/"
-
 /** How far ahead should we tell the service manager the timeout
 (time in seconds) */
 #define INNODB_EXTEND_TIMEOUT_INTERVAL 30

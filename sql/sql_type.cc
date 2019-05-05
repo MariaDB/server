@@ -4490,7 +4490,7 @@ void Type_handler_temporal_result::Item_get_date(THD *thd, Item *item,
 longlong Type_handler_real_result::
            Item_val_int_signed_typecast(Item *item) const
 {
-  return item->val_int();
+  return item->val_int_signed_typecast_from_int();
 }
 
 longlong Type_handler_int_result::

@@ -1529,7 +1529,8 @@ void trx_commit_low(trx_t* trx, mtr_t* mtr)
 
 		DBUG_EXECUTE_IF("ib_crash_during_trx_commit_in_mem",
 				if (trx->has_logged()) {
-					log_make_checkpoint_at(LSN_MAX, TRUE);
+					log_write_up_to(mtr->commit_lsn(),
+							true);
 					DBUG_SUICIDE();
 				});
 		/*--------------*/

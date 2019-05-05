@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2010, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -261,6 +261,15 @@ longlong Item::val_int_unsigned_typecast_from_str()
   longlong value= val_int_from_str(&error);
   if (unlikely(!null_value && error < 0))
     push_note_converted_to_positive_complement(current_thd);
+  return value;
+}
+
+
+longlong Item::val_int_signed_typecast_from_int()
+{
+  longlong value= val_int();
+  if (!null_value && unsigned_flag && value < 0)
+    push_note_converted_to_negative_complement(current_thd);
   return value;
 }
 

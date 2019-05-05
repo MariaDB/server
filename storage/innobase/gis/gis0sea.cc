@@ -1627,15 +1627,13 @@ rtr_get_mbr_from_tuple(
 {
 	const dfield_t* dtuple_field;
         ulint           dtuple_f_len;
-	byte*		data;
 
 	dtuple_field = dtuple_get_nth_field(dtuple, 0);
 	dtuple_f_len = dfield_get_len(dtuple_field);
 	ut_a(dtuple_f_len >= 4 * sizeof(double));
 
-	data = static_cast<byte*>(dfield_get_data(dtuple_field));
-
-	rtr_read_mbr(data, mbr);
+	rtr_read_mbr(static_cast<const byte*>(dfield_get_data(dtuple_field)),
+		     mbr);
 }
 
 /****************************************************************//**

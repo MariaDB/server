@@ -23,6 +23,7 @@
 #include "semisync_master_ack_receiver.h"
 
 #ifdef HAVE_PSI_INTERFACE
+extern PSI_mutex_key key_LOCK_rpl_semi_sync_master_enabled;
 extern PSI_mutex_key key_LOCK_binlog;
 extern PSI_cond_key key_COND_binlog_send;
 #endif
@@ -365,7 +366,6 @@ public:
 */
 class Repl_semi_sync_master
   :public Repl_semi_sync_base {
- private:
   Active_tranx    *m_active_tranxs;  /* active transaction list: the list will
                                       be cleared when semi-sync switches off. */
 
@@ -491,8 +491,8 @@ class Repl_semi_sync_master
   /* Enable the object to enable semi-sync replication inside the master. */
   int enable_master();
 
-  /* Enable the object to enable semi-sync replication inside the master. */
-  int disable_master();
+  /* Disable the object to disable semi-sync replication inside the master. */
+  void disable_master();
 
   /* Add a semi-sync replication slave */
   void add_slave();
@@ -619,6 +619,8 @@ class Repl_semi_sync_master
   int before_reset_master();
 
   void check_and_switch();
+
+  mysql_mutex_t LOCK_rpl_semi_sync_master_enabled;
 };
 
 enum rpl_semi_sync_master_wait_point_t {

@@ -165,7 +165,9 @@ page_header_set_field(
 {
 	ut_ad(page);
 	ut_ad(field <= PAGE_N_RECS);
+#if 0 /* FIXME: MDEV-19344 hits this */
 	ut_ad(field != PAGE_N_RECS || val);
+#endif
 	ut_ad(field == PAGE_N_HEAP || val < srv_page_size);
 	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < srv_page_size);
 

@@ -2834,37 +2834,25 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
   System Variables support
 ****************************************************************************/
 
-sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
-                         bool throw_error, bool locked)
+sys_var *find_sys_var(THD *thd, const char *str, size_t length,
+                      bool throw_error)
 {
   sys_var *var;
-  sys_var_pluginvar *pi= NULL;
-  plugin_ref plugin;
-  DBUG_ENTER("find_sys_var_ex");
+  sys_var_pluginvar *pi;
+  DBUG_ENTER("find_sys_var");
   DBUG_PRINT("enter", ("var '%.*s'", (int)length, str));
 
-  if (!locked)
-    mysql_mutex_lock(&LOCK_plugin);
   mysql_prlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
   {
-    mysql_prlock_unlock(&LOCK_system_variables_hash);
-    LEX *lex= thd ? thd->lex : 0;
-    if (!(plugin= intern_plugin_lock(lex, plugin_int_to_ref(pi->plugin))))
+    mysql_mutex_lock(&LOCK_plugin);
+    if (!intern_plugin_lock(thd ? thd->lex : 0, plugin_int_to_ref(pi->plugin),
+                            PLUGIN_IS_READY))
       var= NULL; /* failed to lock it, it must be uninstalling */
-    else
-    if (!(plugin_state(plugin) & PLUGIN_IS_READY))
-    {
-      /* initialization not completed */
-      var= NULL;
-      intern_plugin_unlock(lex, plugin);
-    }
-  }
-  else
-    mysql_prlock_unlock(&LOCK_system_variables_hash);
-  if (!locked)
     mysql_mutex_unlock(&LOCK_plugin);
+  }
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (unlikely(!throw_error && !var))
     my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
@@ -2872,11 +2860,6 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
   DBUG_RETURN(var);
 }
 
-
-sys_var *find_sys_var(THD *thd, const char *str, size_t length)
-{
-  return find_sys_var_ex(thd, str, length, false, false);
-}
 
 /*
   called by register_var, construct_options and test_plugin_options.
@@ -3161,6 +3144,11 @@ void plugin_thdvar_init(THD *thd)
   thd->variables.enforced_table_plugin= NULL;
   cleanup_variables(&thd->variables);
 
+  /* This and all other variable cleanups are here for COM_CHANGE_USER :( */
+#ifndef EMBEDDED_LIBRARY
+  thd->session_tracker.sysvars.deinit(thd);
+#endif
+
   thd->variables= global_system_variables;
 
   /* we are going to allocate these lazily */
@@ -3182,6 +3170,9 @@ void plugin_thdvar_init(THD *thd)
   intern_plugin_unlock(NULL, old_enforced_table_plugin);
   mysql_mutex_unlock(&LOCK_plugin);
 
+#ifndef EMBEDDED_LIBRARY
+  thd->session_tracker.sysvars.init(thd);
+#endif
   DBUG_VOID_RETURN;
 }
 
@@ -3246,6 +3237,10 @@ void plugin_thdvar_cleanup(THD *thd)
   uint idx;
   plugin_ref *list;
   DBUG_ENTER("plugin_thdvar_cleanup");
+
+#ifndef EMBEDDED_LIBRARY
+  thd->session_tracker.sysvars.deinit(thd);
+#endif
 
   mysql_mutex_lock(&LOCK_plugin);
 

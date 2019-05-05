@@ -2318,6 +2318,16 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
           !(sql_mode & MODE_NO_FIELD_OPTIONS))
         packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
     }
+
+    if (field->comment.length)
+    {
+      packet->append(STRING_WITH_LEN(" COMMENT "));
+      append_unescaped(packet, field->comment.str, field->comment.length);
+    }
+
+    append_create_options(thd, packet, field->option_list, check_options,
+                          hton->field_options);
+    
     if (field->check_constraint)
     {
       StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
@@ -2327,13 +2337,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN(")"));
     }
 
-    if (field->comment.length)
-    {
-      packet->append(STRING_WITH_LEN(" COMMENT "));
-      append_unescaped(packet, field->comment.str, field->comment.length);
-    }
-    append_create_options(thd, packet, field->option_list, check_options,
-                          hton->field_options);
   }
 
   key_info= table->s->key_info;

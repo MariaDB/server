@@ -2739,11 +2739,6 @@ loop:
 
 			if (lsn == checkpoint_lsn) {
 				if (recv_sys->mlog_checkpoint_lsn) {
-					/* At recv_reset_logs() we may
-					write a duplicate MLOG_CHECKPOINT
-					for the same checkpoint LSN. Thus
-					recv_sys->mlog_checkpoint_lsn
-					can differ from the current LSN. */
 					ut_ad(recv_sys->mlog_checkpoint_lsn
 					      <= recv_sys->recovered_lsn);
 					break;
@@ -3870,49 +3865,6 @@ recv_recovery_rollback_active(void)
 		trx_rollback_is_active = true;
 		os_thread_create(trx_rollback_all_recovered, 0, 0);
 	}
-}
-
-/******************************************************//**
-Resets the logs. The contents of log files will be lost! */
-void
-recv_reset_logs(
-/*============*/
-	lsn_t		lsn)		/*!< in: reset to this lsn
-					rounded up to be divisible by
-					OS_FILE_LOG_BLOCK_SIZE, after
-					which we add
-					LOG_BLOCK_HDR_SIZE */
-{
-	ut_ad(log_mutex_own());
-
-	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
-
-	log_sys.log.set_lsn(log_sys.lsn);
-	log_sys.log.set_lsn_offset(LOG_FILE_HDR_SIZE);
-
-	log_sys.buf_next_to_write = 0;
-	log_sys.write_lsn = log_sys.lsn;
-
-	log_sys.next_checkpoint_no = 0;
-	log_sys.last_checkpoint_lsn = 0;
-
-	memset(log_sys.buf, 0, srv_log_buffer_size);
-	log_block_init(log_sys.buf, log_sys.lsn);
-	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
-
-	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
-
-	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
-
-	log_mutex_exit();
-
-	/* Reset the checkpoint fields in logs */
-
-	log_make_checkpoint_at(LSN_MAX, TRUE);
-
-	log_mutex_enter();
 }
 
 /** Find a doublewrite copy of a page.

@@ -3206,6 +3206,8 @@ static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
 static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&repl_semisync_master.LOCK_rpl_semi_sync_master_enabled);
   if (rpl_semi_sync_master_enabled)
   {
     if (repl_semisync_master.enable_master() != 0)
@@ -3218,11 +3220,11 @@ static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
   }
   else
   {
-    if (repl_semisync_master.disable_master() != 0)
-      rpl_semi_sync_master_enabled= true;
-    if (!rpl_semi_sync_master_enabled)
-      ack_receiver.stop();
+    repl_semisync_master.disable_master();
+    ack_receiver.stop();
   }
+  mysql_mutex_unlock(&repl_semisync_master.LOCK_rpl_semi_sync_master_enabled);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
 
@@ -3806,14 +3808,12 @@ bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
 #ifndef EMBEDDED_LIBRARY
     if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
     {
-      Transaction_state_tracker *tst= (Transaction_state_tracker *)
-             thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-
       if (var->type == OPT_DEFAULT)
-        tst->set_read_flags(thd,
+        thd->session_tracker.transaction_info.set_read_flags(thd,
                             thd->tx_read_only ? TX_READ_ONLY : TX_READ_WRITE);
       else
-        tst->set_read_flags(thd, TX_READ_INHERIT);
+        thd->session_tracker.transaction_info.set_read_flags(thd,
+                            TX_READ_INHERIT);
     }
 #endif //EMBEDDED_LIBRARY
   }
@@ -6255,8 +6255,7 @@ static bool update_session_track_schema(sys_var *self, THD *thd,
                                         enum_var_type type)
 {
   DBUG_ENTER("update_session_track_schema");
-  DBUG_RETURN(thd->session_tracker.get_tracker(CURRENT_SCHEMA_TRACKER)->
-              update(thd, NULL));
+  DBUG_RETURN(thd->session_tracker.current_schema.update(thd, NULL));
 }
 
 static Sys_var_mybool Sys_session_track_schema(
@@ -6273,8 +6272,7 @@ static bool update_session_track_tx_info(sys_var *self, THD *thd,
                                          enum_var_type type)
 {
   DBUG_ENTER("update_session_track_tx_info");
-  DBUG_RETURN(thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER)->
-              update(thd, NULL));
+  DBUG_RETURN(thd->session_tracker.transaction_info.update(thd, NULL));
 }
 
 static const char *session_track_transaction_info_names[]=
@@ -6299,8 +6297,7 @@ static bool update_session_track_state_change(sys_var *self, THD *thd,
                                               enum_var_type type)
 {
   DBUG_ENTER("update_session_track_state_change");
-  DBUG_RETURN(thd->session_tracker.get_tracker(SESSION_STATE_CHANGE_TRACKER)->
-              update(thd, NULL));
+  DBUG_RETURN(thd->session_tracker.state_change.update(thd, NULL));
 }
 
 static Sys_var_mybool Sys_session_track_state_change(

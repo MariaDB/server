@@ -326,7 +326,7 @@ log_margin_checkpoint_age(
 		if (!flushed_enough) {
 			os_thread_sleep(100000);
 		}
-		log_checkpoint(true, false);
+		log_checkpoint(true);
 
 		log_mutex_enter();
 	}
@@ -1405,13 +1405,8 @@ blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
 log files. Use log_make_checkpoint_at() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint
 @return true if success, false if a checkpoint write was already running */
-bool
-log_checkpoint(
-	bool	sync,
-	bool	write_always)
+bool log_checkpoint(bool sync)
 {
 	lsn_t	oldest_lsn;
 
@@ -1454,9 +1449,15 @@ log_checkpoint(
 	flushed up to oldest_lsn. */
 
 	ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
-	if (!write_always
-	    && oldest_lsn
-	    <= log_sys.last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
+	if (oldest_lsn
+	    > log_sys.last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
+		/* Some log has been written since the previous checkpoint. */
+	} else if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+		/* MariaDB 10.3 startup expects the redo log file to be
+		logically empty (not even containing a MLOG_CHECKPOINT record)
+		after a clean shutdown. Perform an extra checkpoint at
+		shutdown. */
+	} else {
 		/* Do nothing, because nothing was logged (other than
 		a MLOG_CHECKPOINT marker) since the previous checkpoint. */
 		log_mutex_exit();
@@ -1487,20 +1488,6 @@ log_checkpoint(
 	log_mutex_exit();
 
 	log_write_up_to(flush_lsn, true, true);
-
-	DBUG_EXECUTE_IF(
-		"using_wa_checkpoint_middle",
-		if (write_always) {
-			DEBUG_SYNC_C("wa_checkpoint_middle");
-
-			const my_bool b = TRUE;
-			buf_flush_page_cleaner_disabled_debug_update(
-				NULL, NULL, NULL, &b);
-			dict_stats_disabled_debug_update(
-				NULL, NULL, NULL, &b);
-			srv_master_thread_disabled_debug_update(
-				NULL, NULL, NULL, &b);
-		});
 
 	log_mutex_enter();
 
@@ -1534,13 +1521,8 @@ log_checkpoint(
 
 /** Make a checkpoint at or after a specified LSN.
 @param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint */
-void
-log_make_checkpoint_at(
-	lsn_t			lsn,
-	bool			write_always)
+for the latest LSN */
+void log_make_checkpoint_at(lsn_t lsn)
 {
 	/* Preflush pages synchronously */
 
@@ -1548,7 +1530,7 @@ log_make_checkpoint_at(
 		/* Flush as much as we can */
 	}
 
-	while (!log_checkpoint(true, write_always)) {
+	while (!log_checkpoint(true)) {
 		/* Force a checkpoint */
 	}
 }
@@ -1628,7 +1610,7 @@ loop:
 	}
 
 	if (do_checkpoint) {
-		log_checkpoint(checkpoint_sync, FALSE);
+		log_checkpoint(checkpoint_sync);
 
 		if (checkpoint_sync) {
 
@@ -1877,7 +1859,7 @@ wait_suspend_loop:
 	if (!srv_read_only_mode) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"ensuring dirty buffer pool are written to log");
-		log_make_checkpoint_at(LSN_MAX, TRUE);
+		log_make_checkpoint_at(LSN_MAX);
 
 		log_mutex_enter();
 

@@ -83,20 +83,21 @@ static bool row_build_spatial_index_key(
 		return true;
 	}
 
-	uchar*	dptr = NULL;
+	const byte* dptr = NULL;
 	ulint	dlen = 0;
 	ulint	flen = 0;
 	double	tmp_mbr[SPDIMS * 2];
 	mem_heap_t*	temp_heap = NULL;
 
 	if (!dfield_is_ext(dfield2)) {
-		dptr = static_cast<uchar*>(dfield_get_data(dfield2));
+		dptr = static_cast<const byte*>(dfield_get_data(dfield2));
 		dlen = dfield_get_len(dfield2);
 		goto write_mbr;
 	}
 
 	if (flag == ROW_BUILD_FOR_PURGE) {
-		byte*	ptr = static_cast<byte*>(dfield_get_data(dfield2));
+		const byte* ptr = static_cast<const byte*>(
+			dfield_get_data(dfield2));
 
 		switch (dfield_get_spatial_status(dfield2)) {
 		case SPATIAL_ONLY:
@@ -140,12 +141,12 @@ static bool row_build_spatial_index_key(
 		log record, and avoid recomputing it here! */
 		flen = BTR_EXTERN_FIELD_REF_SIZE;
 		ut_ad(dfield_get_len(dfield2) >= BTR_EXTERN_FIELD_REF_SIZE);
-		dptr = static_cast<byte*>(dfield_get_data(dfield2))
+		dptr = static_cast<const byte*>(dfield_get_data(dfield2))
 			+ dfield_get_len(dfield2)
 			- BTR_EXTERN_FIELD_REF_SIZE;
 	} else {
 		flen = dfield_get_len(dfield2);
-		dptr = static_cast<byte*>(dfield_get_data(dfield2));
+		dptr = static_cast<const byte*>(dfield_get_data(dfield2));
 	}
 
 	temp_heap = mem_heap_create(1000);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -98,7 +98,7 @@ row_vers_impl_x_locked_low(
 	mem_heap_t*	heap;
 	dtuple_t*	ientry = NULL;
 	mem_heap_t*	v_heap = NULL;
-	const dtuple_t*	cur_vrow = NULL;
+	dtuple_t*	cur_vrow = NULL;
 
 	DBUG_ENTER("row_vers_impl_x_locked_low");
 
@@ -181,7 +181,7 @@ row_vers_impl_x_locked_low(
 		ulint		vers_del;
 		trx_id_t	prev_trx_id;
 		mem_heap_t*	old_heap = heap;
-		const dtuple_t*	vrow = NULL;
+		dtuple_t*	vrow = NULL;
 
 		/* We keep the semaphore in mtr on the clust_rec page, so
 		that no other transaction can update it and get an
@@ -515,7 +515,7 @@ row_vers_build_cur_vrow_low(
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
 	mem_heap_t*		v_heap,
-	const dtuple_t**	vrow,
+	dtuple_t**		vrow,
 	mtr_t*			mtr)
 {
 	const rec_t*	version;
@@ -632,7 +632,7 @@ row_vers_vc_matches_cluster(
 	roll_ptr_t	roll_ptr,
 	trx_id_t	trx_id,
 	mem_heap_t*	v_heap,
-	const dtuple_t**vrow,
+	dtuple_t**	vrow,
 	mtr_t*		mtr)
 {
 	const rec_t*	version;
@@ -796,7 +796,7 @@ func_exit:
 @param[in,out]	vcol_info	virtual column information for purge thread
 @return dtuple contains virtual column data */
 static
-const dtuple_t*
+dtuple_t*
 row_vers_build_cur_vrow(
 	bool			in_purge,
 	const rec_t*		rec,
@@ -810,7 +810,7 @@ row_vers_build_cur_vrow(
 	mtr_t*			mtr,
 	purge_vcol_info_t*	vcol_info)
 {
-	const dtuple_t*	cur_vrow = NULL;
+	dtuple_t* cur_vrow = NULL;
 
 	roll_ptr_t t_roll_ptr = row_get_rec_roll_ptr(
 		rec, clust_index, *clust_offsets);
@@ -891,9 +891,9 @@ row_vers_old_has_index_entry(
 	dtuple_t*	row;
 	const dtuple_t*	entry;
 	ulint		comp;
-	const dtuple_t*	vrow = NULL;
+	dtuple_t*	vrow = NULL;
 	mem_heap_t*	v_heap = NULL;
-	const dtuple_t*	cur_vrow = NULL;
+	dtuple_t*	cur_vrow = NULL;
 
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
@@ -1155,7 +1155,7 @@ row_vers_build_for_consistent_read(
 				if the history is missing or the record
 				does not exist in the view, that is,
 				it was freshly inserted afterwards */
-	const dtuple_t**vrow)	/*!< out: virtual row */
+	dtuple_t**	vrow)	/*!< out: virtual row */
 {
 	const rec_t*	version;
 	rec_t*		prev_version;
@@ -1269,7 +1269,7 @@ row_vers_build_for_semi_consistent_read(
 	const rec_t**	old_vers,/*!< out: rec, old version, or NULL if the
 				record does not exist in the view, that is,
 				it was freshly inserted afterwards */
-	const dtuple_t** vrow)	/*!< out: virtual row, old version, or NULL
+	dtuple_t**	vrow)	/*!< out: virtual row, old version, or NULL
 				if it is not updated in the view */
 {
 	const rec_t*	version;

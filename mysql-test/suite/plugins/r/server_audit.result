@@ -21,6 +21,16 @@ set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
 set global server_audit_logging=on;
+set global server_audit_incl_users= repeat("'root',", 10000);
+ERROR 42000: Variable 'server_audit_incl_users' can't be set to the value of ''root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','roo'
+show variables like 'server_audit_incl_users';
+Variable_name	Value
+server_audit_incl_users	
+set global server_audit_excl_users= repeat("'root',", 10000);
+ERROR 42000: Variable 'server_audit_excl_users' can't be set to the value of ''root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','roo'
+show variables like 'server_audit_excl_users';
+Variable_name	Value
+server_audit_excl_users	
 connect  con1,localhost,root,,mysql;
 connection default;
 disconnect con1;
@@ -202,6 +212,8 @@ select 2;
 2
 2
 drop table t1;
+set global server_audit_logging= off;
+set global server_audit_logging= on;
 set global server_audit_events='';
 set global server_audit_query_log_limit= 15;
 select (1), (2), (3), (4);
@@ -251,6 +263,10 @@ uninstall plugin server_audit;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=on',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users= repeat("\'root\',", 10000)',ID
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_incl_users\'',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_excl_users= repeat("\'root\',", 10000)',ID
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_excl_users\'',0
 TIME,HOSTNAME,root,localhost,ID,0,CONNECT,mysql,,0
 TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,mysql,,0
 TIME,HOSTNAME,no_such_user,localhost,ID,0,FAILED_CONNECT,,,ID
@@ -376,6 +392,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'SET PASSWORD FOR u1=<secret>',ID
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_logging= off',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_events=\'\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global serv',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select (1), (2)',0

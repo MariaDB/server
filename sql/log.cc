@@ -7964,6 +7964,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     */
     for (current= queue; current != NULL; current= current->next)
     {
+      set_current_thd(current->thd);
       binlog_cache_mngr *cache_mngr= current->cache_mngr;
 
       /*
@@ -7999,6 +8000,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         cache_mngr->delayed_error= false;
       }
     }
+    set_current_thd(leader->thd);
 
     bool synced= 0;
     if (unlikely(flush_and_sync(&synced)))

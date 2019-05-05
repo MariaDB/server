@@ -4162,7 +4162,7 @@ reread_log_header:
 	memset(&stat_info, 0, sizeof(MY_STAT));
 	dst_log_file = ds_open(ds_redo, "ib_logfile0", &stat_info);
 	if (dst_log_file == NULL) {
-		msg("§rror: failed to open the target stream for "
+		msg("Error: failed to open the target stream for "
 		    "'ib_logfile0'.");
 		goto fail;
 	}
@@ -4914,9 +4914,9 @@ xtrabackup_apply_delta(
 		/* first block of block cluster */
 		offset = ((incremental_buffers * (page_size / 4))
 			 << page_size_shift);
-		success = os_file_read(IORequestRead, src_file,
-				       incremental_buffer, offset, page_size);
-		if (success != DB_SUCCESS) {
+		if (os_file_read(IORequestRead, src_file,
+				 incremental_buffer, offset, page_size)
+		    != DB_SUCCESS) {
 			goto error;
 		}
 
@@ -4946,10 +4946,10 @@ xtrabackup_apply_delta(
 		ut_a(last_buffer || page_in_buffer == page_size / 4);
 
 		/* read whole of the cluster */
-		success = os_file_read(IORequestRead, src_file,
-				       incremental_buffer,
-				       offset, page_in_buffer * page_size);
-		if (success != DB_SUCCESS) {
+		if (os_file_read(IORequestRead, src_file,
+				 incremental_buffer,
+				 offset, page_in_buffer * page_size)
+		    != DB_SUCCESS) {
 			goto error;
 		}
 
@@ -4995,9 +4995,9 @@ xtrabackup_apply_delta(
 				}
 			}
 
-			success = os_file_write(IORequestWrite,
-						dst_path, dst_file, buf, off, page_size);
-			if (success != DB_SUCCESS) {
+			if (os_file_write(IORequestWrite,
+					  dst_path, dst_file, buf, off,
+					  page_size) != DB_SUCCESS) {
 				goto error;
 			}
 		}
@@ -5763,7 +5763,18 @@ static bool check_all_privileges()
 			PRIVILEGE_WARNING);
 	}
 
-	return !(check_result & PRIVILEGE_ERROR);
+	if (check_result & PRIVILEGE_ERROR) {
+		msg("Current privileges, as reported by 'SHOW GRANTS': ");
+		int n=1;
+		for (std::list<std::string>::const_iterator it = granted_privileges.begin();
+			it != granted_privileges.end();
+			it++,n++) {
+				msg("  %d.%s", n, it->c_str());
+		}
+		return false;
+	}
+
+	return true;
 }
 
 bool

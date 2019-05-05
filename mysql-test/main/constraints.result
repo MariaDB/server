@@ -1,4 +1,3 @@
-drop table if exists t1;
 create table t1 (a int check (a>0));
 show create table t1;
 Table	Create Table
@@ -111,6 +110,25 @@ long_enough_name	CREATE TABLE `long_enough_name` (
   CONSTRAINT `constr` CHECK (`f6` >= 0)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE long_enough_name;
+CREATE TABLE test.t(t int COMMENT 't_comment' CHECK(t>0));
+SHOW CREATE TABLE test.t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL COMMENT 't_comment' CHECK (`t` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP table test.t;
+SET @OLD_SQL_MODE=@@SQL_MODE;
+SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
+CREATE TABLE test.t (f int foo=bar check(f>0));
+Warnings:
+Warning	1911	Unknown option 'foo'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `f` int(11) DEFAULT NULL `foo`=bar CHECK (`f` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP table test.t;
+SET @@SQL_MODE=@OLD_SQL_MODE;
 create table t1 (a int check (a>10)) select 100 as 'a';
 show create table t1;
 Table	Create Table

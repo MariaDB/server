@@ -224,7 +224,6 @@ row_sel_sec_rec_is_for_clust_rec(
 		reconstructed from base column in cluster index */
 		if (is_virtual) {
 			const dict_v_col_t*	v_col;
-			const dtuple_t*         row;
 			dfield_t*		vfield;
 			row_ext_t*		ext;
 
@@ -241,10 +240,11 @@ row_sel_sec_rec_is_for_clust_rec(
 
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 
-			row = row_build(ROW_COPY_POINTERS,
-					clust_index, clust_rec,
-					clust_offs,
-					NULL, NULL, NULL, &ext, heap);
+			dtuple_t* row = row_build(
+				ROW_COPY_POINTERS,
+				clust_index, clust_rec,
+				clust_offs,
+				NULL, NULL, NULL, &ext, heap);
 
 			vfield = innobase_get_computed_value(
 					row, v_col, clust_index,
@@ -804,7 +804,7 @@ row_sel_build_committed_vers_for_mysql(
 					record does not exist in the view:
 					i.e., it was freshly inserted
 					afterwards */
-	const dtuple_t**vrow,		/*!< out: to be filled with old virtual
+	dtuple_t**	vrow,		/*!< out: to be filled with old virtual
 					column version if any */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
@@ -3181,7 +3181,7 @@ row_sel_build_prev_vers_for_mysql(
 					record does not exist in the view:
 					i.e., it was freshly inserted
 					afterwards */
-	const dtuple_t**vrow,		/*!< out: dtuple to hold old virtual
+	dtuple_t**	vrow,		/*!< out: dtuple to hold old virtual
 					column data */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
@@ -3225,7 +3225,7 @@ row_sel_get_clust_rec_for_mysql(
 				rec_get_offsets(out_rec, clust_index) */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
 				the offsets are allocated */
-	const dtuple_t**vrow,	/*!< out: virtual column to fill */
+	dtuple_t**	vrow,	/*!< out: virtual column to fill */
 	mtr_t*		mtr)	/*!< in: mtr used to get access to the
 				non-clustered record; the same mtr is used to
 				access the clustered index */
@@ -3947,7 +3947,7 @@ void
 row_sel_fill_vrow(
 	const rec_t*		rec,
 	dict_index_t*		index,
-	const dtuple_t**	vrow,
+	dtuple_t**		vrow,
 	mem_heap_t*		heap)
 {
 	ulint           offsets_[REC_OFFS_NORMAL_SIZE];
@@ -4143,7 +4143,7 @@ row_search_mvcc(
 	dict_index_t*	clust_index;
 	que_thr_t*	thr;
 	const rec_t*	UNINIT_VAR(rec);
-	const dtuple_t*	vrow = NULL;
+	dtuple_t*	vrow = NULL;
 	const rec_t*	result_rec = NULL;
 	const rec_t*	clust_rec;
 	dberr_t		err				= DB_SUCCESS;

@@ -325,7 +325,7 @@ too_small:
 	mtr_commit(&mtr);
 
 	/* Flush the modified pages to disk and make a checkpoint */
-	log_make_checkpoint_at(LSN_MAX, TRUE);
+	log_make_checkpoint_at(LSN_MAX);
 
 	/* Remove doublewrite pages from LRU */
 	buf_pool_invalidate();
