@@ -1677,6 +1677,8 @@ set global sql_mode=default;
 # Deadlock between FTWRL under open handler and DDL/LOCK TABLES
 #
 CREATE TABLE t1(a INT);
+#
+connect  con3,localhost,root,,;
 HANDLER t1 OPEN;
 #
 connect  con1,localhost,root,,;
@@ -1692,7 +1694,10 @@ disconnect con2;
 connection default;
 FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
+#
+connection con3;
 HANDLER t1 CLOSE;
+disconnect con3;
 #
 connection con1;
 UNLOCK TABLES;
@@ -1726,4 +1731,32 @@ disconnect con1;
 #
 connection default;
 DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#
+# MDEV-19384 Deadlock between FTWRL under open HANDLER, LOCK TABLE
+# and DROP DATABASE
+#
+CREATE DATABASE mysqltest;
+CREATE TABLE mysqltest.t1(a INT);
+HANDLER mysqltest.t1 OPEN as t1;
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+LOCK TABLE mysqltest.t1 WRITE;
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+DROP DATABASE mysqltest;
+connect  con3,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+disconnect con3;
+connection default;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+HANDLER t1 CLOSE;
+connection con1;
+UNLOCK TABLES;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
 SET DEBUG_SYNC= 'RESET';

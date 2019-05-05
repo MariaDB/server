@@ -1029,6 +1029,12 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
       DBUG_RETURN(1);
     }
 
+    /*
+      Release HANDLER OPEN by the current THD as they may cause deadlocks
+      if another thread is trying to simultaneous drop the table
+    */
+    mysql_ha_cleanup_no_free(thd);
+
     DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
                                                  MDL_BACKUP_FTWRL1));
     DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
@@ -1050,9 +1056,6 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
 
     m_mdl_global_read_lock= mdl_request.ticket;
     m_state= GRL_ACQUIRED;
-
-    /* Release HANDLER OPEN after we have got our MDL lock */
-    mysql_ha_cleanup_no_free(thd);
   }
   /*
     We DON'T set global_read_lock_blocks_commit now, it will be set after
