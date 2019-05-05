@@ -647,6 +647,10 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
+    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS) &&
+        (error= table_list->table->file->ha_rnd_init_with_error(0)))
+      goto err;
+
     thd_progress_init(thd, 2);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {
@@ -665,6 +669,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       error= read_sep_field(thd, info, table_list, fields_vars,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
+
+    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      table_list->table->file->ha_rnd_end();
 
     thd_proc_info(thd, "End bulk insert");
     if (likely(!error))

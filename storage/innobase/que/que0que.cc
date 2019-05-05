@@ -1230,7 +1230,5 @@ que_eval_sql(
 		mutex_exit(&dict_sys->mutex);
 	}
 
-	ut_a(trx->error_state != 0);
-
 	DBUG_RETURN(trx->error_state);
 }

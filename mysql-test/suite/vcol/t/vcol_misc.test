@@ -388,3 +388,26 @@ SELECT COLUMN_GET(@aaa, 'price' AS DOUBLE) aaa;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-16518 MYSQL57_GENERATED_FIELD: The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
+--echo #
+
+--copy_file std_data/frm/mdev16518.frm $MYSQLD_DATADIR/test/t1.frm
+SHOW TABLES;
+--replace_result $MYSQLD_DATADIR ./
+--error ER_NOT_FORM_FILE
+SHOW CREATE TABLE t1;
+--replace_result $MYSQLD_DATADIR ./
+--error ER_NOT_FORM_FILE
+ALTER TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.frm
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

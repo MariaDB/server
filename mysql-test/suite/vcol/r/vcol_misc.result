@@ -429,3 +429,19 @@ Warning	1918	Encountered illegal value '\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7' when c
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-16518 MYSQL57_GENERATED_FIELD: The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
+#
+SHOW TABLES;
+Tables_in_test
+t1
+SHOW CREATE TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+ALTER TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+#
+# End of 10.2 tests
+#

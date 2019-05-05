@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20449,6 +20449,65 @@ static void test_bulk_delete()
   myquery(rc);
 }
 
+static void test_bulk_replace()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[2];
+  MYSQL_ROW  row;
+  int        i,
+             id[]= {1, 2, 3, 4},
+             val[]= {1, 1, 1, 1},
+             count= sizeof(id)/sizeof(id[0]);
+  MYSQL_RES *result;
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key, active int)");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values (1, 0), (2, 0), (3, 0)");
+  myquery(rc);
+  verify_affected_rows(3);
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, "replace into t1 (id, active) values (?, ?)", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[1].buffer_type = MYSQL_TYPE_LONG;
+  bind[1].buffer = (void *)val;
+  bind[1].buffer_length = 0;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT active FROM t1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    i++;
+    DIE_IF(atoi(row[0]) != 1);
+  }
+  DIE_IF(i != 4);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
 #endif
 
 static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
@@ -21077,6 +21136,7 @@ static struct my_tests_st my_tests[]= {
   { "test_proxy_header", test_proxy_header},
   { "test_bulk_autoinc", test_bulk_autoinc},
   { "test_bulk_delete", test_bulk_delete },
+  { "test_bulk_replace", test_bulk_replace },
 #endif
   { "test_explain_meta", test_explain_meta },
   { "test_mdev18408", test_mdev18408 },
