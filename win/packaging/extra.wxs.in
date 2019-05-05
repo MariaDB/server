@@ -279,7 +279,7 @@
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
           <Publish Property="WarningText" Value="Passwords do not match."><![CDATA[PASSWORD <> RootPasswordConfirm]]></Publish>
           <Publish Event="SpawnDialog" Value="WarningDlg"><![CDATA[WarningText <>""]]></Publish>
-          <Publish Property="SERVICENAME" Value="MySQL">NOT SERVICENAME AND NOT WarningText</Publish>
+          <Publish Property="SERVICENAME" Value="MariaDB">NOT SERVICENAME AND NOT WarningText</Publish>
           <Publish Event="NewDialog" Value="ServicePortDlg"><![CDATA[WarningText=""]]></Publish>
           <Condition Action="enable"><![CDATA[NOT ModifyRootPassword OR PASSWORD]]> </Condition>
           <Condition Action="disable"><![CDATA[ModifyRootPassword AND (NOT PASSWORD)]]> </Condition>

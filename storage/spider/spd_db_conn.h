@@ -472,6 +472,11 @@ int spider_db_append_key_where(
   ha_spider *spider
 );
 
+int spider_db_append_charset_name_before_string(
+  spider_string *str,
+  CHARSET_INFO *cs
+);
+
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_refetch_for_item_sum_funcs(
   ha_spider *spider

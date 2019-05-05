@@ -679,6 +679,14 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
     return true;
   }
 
+  if (wsrep_protocol_version < 4  && new_trx_fragment_size > 0) {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_trx_fragment_size' to a value other than "
+                  "0 because cluster is not yet operating in Galera 4 mode.");
+    return true;
+  }
+
   return false;
 }
 

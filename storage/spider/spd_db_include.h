@@ -533,6 +533,11 @@ public:
     const char *st,
     uint len
   );
+  void append_escape_string(
+    const char *st,
+    uint len,
+    CHARSET_INFO *cs
+  );
   bool append_for_single_quote(
     const char *st,
     uint len

@@ -12653,7 +12653,7 @@ limit_clause:
           {
             $$.select_limit= 0;
             $$.offset_limit= 0;
-            $$.explicit_limit= 1;
+            $$.explicit_limit= 0;
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
         ;

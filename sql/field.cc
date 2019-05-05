@@ -10572,7 +10572,7 @@ bool Column_definition::check(THD *thd)
   if (vcol_info)
   {
     DBUG_ASSERT(vcol_info->expr);
-    vcol_info->set_field_type(real_field_type());
+    vcol_info->set_handler(type_handler());
     if (check_expression(vcol_info, &field_name, vcol_info->stored_in_db
                          ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
       DBUG_RETURN(TRUE);

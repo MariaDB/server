@@ -355,7 +355,7 @@ void CheckServiceConfig(
     goto end;
   }
 
-  WcaLog(LOGMSG_STANDARD, "MySQL service %S found: CommandLine= %S", 
+  WcaLog(LOGMSG_STANDARD, "MySQL/MariaDB service %S found: CommandLine= %S",
     other_servicename, commandline);
   if (wcsstr(argv[0], bindir))
   {

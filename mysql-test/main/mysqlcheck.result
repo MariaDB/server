@@ -468,11 +468,11 @@ drop database mysqltest1;
 #
 create table t1(a int);
 insert into t1 (a) values (1), (2), (3);
-select * from mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type from mysql.column_stats order by db_name,table_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type
 test.t1                                            Engine-independent statistics collected
 status   : OK
-select * from mysql.column_stats where db_name = 'test' and table_name = 't1';
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	1	3	0.0000	4.0000	1.0000	0	NULL	NULL
+select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type from mysql.column_stats where db_name = 'test' and table_name = 't1' order by db_name,table_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type
+test	t1	a	1	3	0.0000	4.0000	1.0000	254	DOUBLE_PREC_HB
 drop table t1;

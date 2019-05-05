@@ -159,11 +159,10 @@ Success: FTWRL is blocked when 'alter event e1 comment 'test'' is active in anot
 #
 # 2) ANALYZE TABLE statement is compatible with FTWRL.
 # See Bug#43336 ANALYZE and OPTIMIZE do not honour
-#  --read-only for a discussion why.
+#  --read-only as they update status tables.
 #
-Success: Was able to run 'analyze table t1_base' under FTWRL.
-Success: Was able to run 'analyze table t1_base' with FTWRL active in another connection.
-Success: Was able to run FTWRL while 'analyze table t1_base' was active in another connection.
+Success: Was not able to run 'analyze table t1_base' under FTWRL.
+Success: 'analyze table t1_base' is blocked by FTWRL active in another connection.
 #
 # 3) BEGIN, ROLLBACK and COMMIT statements.
 #    BEGIN and ROLLBACK are compatible with FTWRL.
@@ -1409,10 +1408,8 @@ set autocommit= 1;
 # 39.1.a) ANALYZE TABLE for transactional table is incompatible with
 #         FTWRL.
 flush tables with read lock;
-# Implicit commits are allowed under FTWRL.
 analyze table t3_trans;
-Table	Op	Msg_type	Msg_text
-test.t3_trans	analyze	status	OK
+ERROR HY000: Can't execute the query because you have a conflicting read lock
 unlock tables;
 #
 connection con1;
@@ -1425,6 +1422,7 @@ unlock tables;
 connection default;
 # Reap ANALYZE TABLE
 Table	Op	Msg_type	Msg_text
+test.t3_trans	analyze	status	Engine-independent statistics collected
 test.t3_trans	analyze	status	OK
 #
 # 39.1.b) CHECK TABLE for transactional table is compatible with FTWRL.
@@ -1460,7 +1458,7 @@ Success: Was able to run 'repair table t3_temp_trans' with FTWRL active in anoth
 Success: Was able to run FTWRL while 'repair table t3_temp_trans' was active in another connection.
 #
 # And ANALYZE TABLE:
-Success: Was able to run 'analyze table t3_temp_trans' under FTWRL.
+Error: Wasn't able to run 'analyze table t3_temp_trans' under FTWRL!
 Success: Was able to run 'analyze table t3_temp_trans' with FTWRL active in another connection.
 Success: Was able to run FTWRL while 'analyze table t3_temp_trans' was active in another connection.
 #

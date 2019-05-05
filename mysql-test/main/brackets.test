@@ -139,5 +139,20 @@ eval explain format=json $q2;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-19363: ((SELECT ...) ORDER BY col ) LIMIT n UNION ...
+--echo #
+
+create table t1 (pk int);
+insert into t1 values (5),(4),(1),(2),(3);
+
+let $q=
+((select * from t1 order by pk) limit 2) union (select * from t1 where pk > 4);
+eval $q;
+eval explain extended $q;
+eval explain format=json $q;
+
+drop table t1;
+
 --echo # End of 10.4 tests
 
