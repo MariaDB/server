@@ -4700,9 +4700,6 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
 
-	if (table->triggers)
-		g->More= 1;			// We don't know which columns are used by the trigger
-
   if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
