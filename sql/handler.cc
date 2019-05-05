@@ -6500,8 +6500,7 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
      with respect to fields in hash_str
    */
   uint reclength= (uint) (table->record[1] - table->record[0]);
-  if (!table->update_handler)
-    table->clone_handler_for_update();
+  table->clone_handler_for_update();
   for (uint i= 0; i < table->s->keys; i++)
   {
     keyinfo= table->key_info + i;
@@ -6546,6 +6545,8 @@ int handler::ha_write_row(uchar *buf)
 
   if (table->s->long_unique_table)
   {
+    if (this->inited == RND)
+      table->clone_handler_for_update();
     handler *h= table->update_handler ? table->update_handler : table->file;
     if ((error= check_duplicate_long_entries(table, h, buf)))
       DBUG_RETURN(error);

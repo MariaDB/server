@@ -9014,6 +9014,8 @@ void re_setup_keyinfo_hash(KEY *key_info)
 */
 void TABLE::clone_handler_for_update()
 {
+  if (this->update_handler)
+    return;
   handler *update_handler= NULL;
   if (!s->long_unique_table)
     return;
