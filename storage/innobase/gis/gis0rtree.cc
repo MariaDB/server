@@ -720,15 +720,22 @@ rtr_adjust_upper_level(
 		cursor.rtr_info = sea_cur->rtr_info;
 		cursor.tree_height = sea_cur->tree_height;
 
+		/* Recreate a memory heap as input parameter for
+		btr_cur_pessimistic_insert(), because the heap may be
+		emptied in btr_cur_pessimistic_insert(). */
+		mem_heap_t* new_heap = mem_heap_create(1024);
+
 		err = btr_cur_pessimistic_insert(flags
 						 | BTR_NO_LOCKING_FLAG
 						 | BTR_KEEP_SYS_FLAG
 						 | BTR_NO_UNDO_LOG_FLAG,
-						 &cursor, &offsets, &heap,
+						 &cursor, &offsets, &new_heap,
 						 node_ptr_upper, &rec,
 						 &dummy_big_rec, 0, NULL, mtr);
 		cursor.rtr_info = NULL;
 		ut_a(err == DB_SUCCESS);
+
+		mem_heap_free(new_heap);
 	}
 
 	prdt.data = static_cast<void*>(mbr);
