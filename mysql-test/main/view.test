@@ -4050,7 +4050,7 @@ CREATE OR REPLACE view v1 AS
 ;
 
 SELECT 1
-FROM (  SELECT 1
+FROM ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4058,8 +4058,8 @@ FROM (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t1
-LEFT OUTER JOIN (  SELECT 1
+) t1)
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4067,8 +4067,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t2 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t2) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4076,8 +4076,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t3 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t3) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4085,8 +4085,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t4 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t4) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4094,8 +4094,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t5 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t5) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4103,8 +4103,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t6 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t6) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4112,8 +4112,8 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t7 ON 1=1
-LEFT OUTER JOIN (  SELECT 1
+) t7) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
   FROM t1 a_alias_1
     LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
     LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
@@ -4121,18 +4121,18 @@ LEFT OUTER JOIN (  SELECT 1
     LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
     LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
     LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t8 ON 1=1
+) t8) ON 1=1
 ;
 
 SELECT 1
-FROM v1 t1
-LEFT OUTER JOIN v1 t2 ON 1=1
-LEFT OUTER JOIN v1 t3 ON 1=1
-LEFT OUTER JOIN v1 t4 ON 1=1
-LEFT OUTER JOIN v1 t5 ON 1=1
-LEFT OUTER JOIN v1 t6 ON 1=1
-LEFT OUTER JOIN v1 t7 ON 1=1
-LEFT OUTER JOIN v1 t8 ON 1=1
+FROM (v1 t1)
+LEFT OUTER JOIN (v1 t2) ON 1=1
+LEFT OUTER JOIN (v1 t3) ON 1=1
+LEFT OUTER JOIN (v1 t4) ON 1=1
+LEFT OUTER JOIN (v1 t5) ON 1=1
+LEFT OUTER JOIN (v1 t6) ON 1=1
+LEFT OUTER JOIN (v1 t7) ON 1=1
+LEFT OUTER JOIN (v1 t8) ON 1=1
 ;
 
 drop view v1;

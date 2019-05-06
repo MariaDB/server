@@ -154,5 +154,27 @@ eval explain format=json $q;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-18689: parenthesis around table names and derived tables
+--echo #
+
+select * from ( mysql.db );
+
+create table t1 (a int);
+insert into t1 values (7), (2), (7);
+
+select * from (t1);
+select * from ((t1));
+select * from (t1 t) where t.a > 5;
+select * from ((t1 t)) where t.a > 5;
+
+select * from ((select a, sum(a) from t1 group by a) t);
+select * from (((select a, sum(a) from t1 group by a) t));
+
+update (t1 t) set t.a=t.a+1;
+select * from t1;
+
+drop table t1;
+
 --echo # End of 10.4 tests
 
