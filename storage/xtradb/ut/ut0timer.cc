@@ -47,8 +47,6 @@ ulonglong (*ut_timer_now)(void) = &ut_timer_none;
 
 struct my_timer_unit_info ut_timer;
 
-extern MY_TIMER_INFO sys_timer_info;
-
 /**************************************************************//**
 Sets up the data required for use of my_timer_* functions.
 Selects the best timer by high frequency, and tight resolution.
@@ -59,27 +57,30 @@ void
 ut_init_timer(void)
 /*===============*/
 {
-	if (sys_timer_info.cycles.frequency > 1000000 &&
-	    sys_timer_info.cycles.resolution == 1) {
-		ut_timer = sys_timer_info.cycles;
+	MY_TIMER_INFO all_timer_info;
+	my_timer_init(&all_timer_info);
+
+	if (all_timer_info.cycles.frequency > 1000000 &&
+	    all_timer_info.cycles.resolution == 1) {
+		ut_timer = all_timer_info.cycles;
 		ut_timer_now = &my_timer_cycles;
-	} else if (sys_timer_info.nanoseconds.frequency > 1000000 &&
-		 sys_timer_info.nanoseconds.resolution == 1) {
-		ut_timer = sys_timer_info.nanoseconds;
+	} else if (all_timer_info.nanoseconds.frequency > 1000000 &&
+		 all_timer_info.nanoseconds.resolution == 1) {
+		ut_timer = all_timer_info.nanoseconds;
 		ut_timer_now = &my_timer_nanoseconds;
-	} else if (sys_timer_info.microseconds.frequency >= 1000000 &&
-		sys_timer_info.microseconds.resolution == 1) {
-		ut_timer = sys_timer_info.microseconds;
+	} else if (all_timer_info.microseconds.frequency >= 1000000 &&
+		all_timer_info.microseconds.resolution == 1) {
+		ut_timer = all_timer_info.microseconds;
 		ut_timer_now = &my_timer_microseconds;
 
-	} else if (sys_timer_info.milliseconds.frequency >= 1000 &&
-		sys_timer_info.milliseconds.resolution == 1) {
-		ut_timer = sys_timer_info.milliseconds;
+	} else if (all_timer_info.milliseconds.frequency >= 1000 &&
+		all_timer_info.milliseconds.resolution == 1) {
+		ut_timer = all_timer_info.milliseconds;
 		ut_timer_now = &my_timer_milliseconds;
-	} else if (sys_timer_info.ticks.frequency >= 1000 &&
+	} else if (all_timer_info.ticks.frequency >= 1000 &&
 		 /* Will probably be false */
-		sys_timer_info.ticks.resolution == 1) {
-		ut_timer = sys_timer_info.ticks;
+		all_timer_info.ticks.resolution == 1) {
+		ut_timer = all_timer_info.ticks;
 		ut_timer_now = &my_timer_ticks;
 	} else {
 		/* None are acceptable, so leave it as "None", and fill in struct */
