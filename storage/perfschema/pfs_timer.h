@@ -102,7 +102,7 @@ extern enum_timer_name statement_timer;
   Timer information data.
   Characteristics about each suported timer.
 */
-extern MY_TIMER_INFO pfs_timer_info;
+extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 
 /** Initialize the timer component. */
 void init_timers();
