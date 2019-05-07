@@ -249,7 +249,7 @@ IF(WIN32)
   # The resulting files will have .pl extension (those are perl scripts)
 
   # Input files with pl.in extension
-  SET(PLIN_FILES mysql_config mysql_secure_installation)
+  SET(PLIN_FILES mysql_config)
   # Input files with .sh extension
 
   SET(SH_FILES mysql_convert_table_format mysqld_multi mysqldumpslow
