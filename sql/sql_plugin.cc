@@ -4342,13 +4342,19 @@ void wsrep_plugins_post_init()
   THD *thd;
   I_List_iterator<THD> it(threads);
 
+  DBUG_ASSERT(!current_thd);
+
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
   while ((thd= it++))
   {
-    if (IF_WSREP(thd->wsrep_applier,1))
+    if (thd->wsrep_applier)
     {
-      // Save options_bits as it will get overwritten in plugin_thdvar_init()
+      // Save options_bits as it will get overwritten in
+      // plugin_thdvar_init() (verified)
       ulonglong option_bits_saved= thd->variables.option_bits;
 
+      set_current_thd(thd);
       plugin_thdvar_init(thd);
 
       // Restore option_bits
@@ -4356,6 +4362,8 @@ void wsrep_plugins_post_init()
     }
   }
 
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  set_current_thd(0);
   return;
 }
 #endif /* WITH_WSREP */
