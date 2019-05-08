@@ -292,6 +292,9 @@ enum enum_alter_inplace_result {
 
 #define HA_PERSISTENT_TABLE              (1ULL << 48)
 
+/* If storage engine uses another engine as a base */
+#define HA_REUSES_FILE_NAMES             (1ULL << 49)
+
 /*
   Set of all binlog flags. Currently only contain the capabilities
   flags.
@@ -510,6 +513,7 @@ enum legacy_db_type
   DB_TYPE_BINLOG=21,
   DB_TYPE_PBXT=23,
   DB_TYPE_PERFORMANCE_SCHEMA=28,
+  DB_TYPE_S3=41,
   DB_TYPE_ARIA=42,
   DB_TYPE_TOKUDB=43,
   DB_TYPE_SEQUENCE=44,
