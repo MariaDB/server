@@ -5533,7 +5533,6 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     my_error(ER_BAD_DB_ERROR, MYF(0), new_db->str);
   else if (error)
     my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
-
   else if (!(flags & FN_IS_TMP))
     mysql_audit_rename_table(thd, old_db, old_name, new_db, new_name);
 
@@ -5811,8 +5810,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             goto err;
 
           /*
-            As the reference table is temporary and may not exist on slave, we must
-            force the ENGINE to be present into CREATE TABLE.
+            As the reference table is temporary and may not exist on slave, we
+            must force the ENGINE to be present into CREATE TABLE.
           */
           create_info->used_fields|= HA_CREATE_USED_ENGINE;
 
