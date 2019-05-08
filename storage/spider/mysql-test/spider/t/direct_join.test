@@ -178,6 +178,152 @@ if ($USE_CHILD_GROUP2)
 }
 
 --echo
+--echo Test JOIN on a constant table.
+--echo Spider should NOT push down the join because the tbl_person table
+--echo is optimized as a constant table.
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_DROP_CONST_TABLE_JOIN;
+    echo CHILD2_1_DROP_CONST_TABLE2_JOIN;
+    echo CHILD2_1_CREATE_CONST_TABLE_JOIN;
+    echo CHILD2_1_CREATE_CONST_TABLE2_JOIN;
+  }
+  --disable_warnings
+  eval $CHILD2_1_DROP_CONST_TABLE_JOIN;
+  eval $CHILD2_1_DROP_CONST_TABLE2_JOIN;
+  --enable_warnings
+  eval $CHILD2_1_CREATE_CONST_TABLE_JOIN;
+  eval $CHILD2_1_CREATE_CONST_TABLE2_JOIN;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS tbl_person;
+DROP TABLE IF EXISTS tbl_ncd_cm_person;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE tbl_person (
+    id VARCHAR(50) NOT NULL,
+    hr_status VARCHAR(50) NULL DEFAULT NULL,
+    region_code VARCHAR(50) NULL DEFAULT NULL,
+    region INT(11) NOT NULL,
+    PRIMARY KEY (id, region) USING BTREE
+  ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE_JOIN
+    MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE_JOIN;
+eval CREATE TABLE tbl_person (
+    id VARCHAR(50) NOT NULL,
+    hr_status VARCHAR(50) NULL DEFAULT NULL,
+    region_code VARCHAR(50) NULL DEFAULT NULL,
+    region INT(11) NOT NULL,
+    PRIMARY KEY (id, region) USING BTREE
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_CONST_TABLE_JOIN
+    $MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN $MASTER_1_PART_CONST_TABLE_JOIN;
+echo SHOW CREATE TABLE tbl_person;
+SHOW CREATE TABLE tbl_person;
+echo CREATE TABLE tbl_ncd_cm_person (
+    id VARCHAR(50) NOT NULL,
+    person_id VARCHAR(50) NULL DEFAULT '',
+    diseaseKind_id VARCHAR(50) NULL DEFAULT NULL,
+    region INT(11) NOT NULL,
+    PRIMARY KEY (id, region) USING BTREE
+  ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE2_JOIN
+    MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE2_JOIN;
+eval CREATE TABLE tbl_ncd_cm_person (
+    id VARCHAR(50) NOT NULL,
+    person_id VARCHAR(50) NULL DEFAULT '',
+    diseaseKind_id VARCHAR(50) NULL DEFAULT NULL,
+    region INT(11) NOT NULL,
+    PRIMARY KEY (id, region) USING BTREE
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_CONST_TABLE2_JOIN
+    $MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN $MASTER_1_PART_CONST_TABLE2_JOIN;
+echo SHOW CREATE TABLE tbl_ncd_cm_person;
+SHOW CREATE TABLE tbl_ncd_cm_person;
+--enable_query_log
+INSERT INTO tbl_person VALUES ('24FC3F0A5119432BAE13DD65AABAA39C',
+                               '1', '123-51041110620301-321', 510411);
+INSERT INTO tbl_person VALUES ('123456789012345678901234567890AB',
+                               '1', '123-51041110620301-321', 510411);
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789',
+                                      '24FC3F0A5119432BAE13DD65AABAA39C',
+                                      '52A0328740914BCE86ED10A4D2521816',
+                                      510411);
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789AB',
+                                      '123456789012345678901234567890AB',
+                                      '52A0328740914BCE86ED10A4D2521816',
+                                      510411);
+DELETE FROM tbl_ncd_cm_person;
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789',
+                                      '24FC3F0A5119432BAE13DD65AABAA39C',
+                                      '52A0328740914BCE86ED10A4D2521816',
+                                      510411);
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789AB',
+                                      '123456789012345678901234567890AB',
+                                      '52A0328740914BCE86ED10A4D2521816',
+                                      510411);
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--connection master_1
+SELECT count(0) FROM tbl_person tp INNER JOIN tbl_ncd_cm_person tncp ON tp.id = tncp.person_id WHERE 1 = 1 AND tp.hr_status != "99" AND tp.hr_status != "2" AND tp.region_code LIKE CONCAT(CONCAT('%', '51041110620301', '%')) AND tp.id = '24FC3F0A5119432BAE13DD65AABAA39C' AND tncp.diseaseKind_id = '52A0328740914BCE86ED10A4D2521816' AND tp.region = 510411;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_CONST_TABLE_JOIN;
+  eval $CHILD2_1_SELECT_CONST_TABLE2_JOIN;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
 --echo deinit
 --disable_warnings
 --connection master_1

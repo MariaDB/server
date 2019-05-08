@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,24 +28,10 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0dict_h
 #define dict0dict_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "data0type.h"
 #include "dict0mem.h"
-#include "dict0types.h"
 #include "fsp0fsp.h"
-#include "fsp0sysspace.h"
-#include "hash0hash.h"
-#include "mem0mem.h"
-#include "rem0types.h"
-#include "row0types.h"
-#include "trx0types.h"
-#include "ut0byte.h"
-#include "ut0mem.h"
-#include "ut0new.h"
-#include "ut0rnd.h"
 #include <deque>
-#include "fsp0fsp.h"
 #include "dict0pagecompress.h"
 
 extern bool innodb_table_stats_not_found;
@@ -398,10 +384,14 @@ dict_table_rename_in_cache(
 /*=======================*/
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	new_name,	/*!< in: new name */
-	ibool		rename_also_foreigns)
+	bool		rename_also_foreigns,
 					/*!< in: in ALTER TABLE we want
 					to preserve the original table name
 					in constraints which reference it */
+	bool		replace_new_file = false)
+					/*!< in: whether to replace the
+					file with the new name
+					(as part of rolling back TRUNCATE) */
 	MY_ATTRIBUTE((nonnull));
 
 /** Removes an index from the dictionary cache.
@@ -870,10 +860,9 @@ dict_table_get_sys_col(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #else /* UNIV_DEBUG */
-#define dict_table_get_nth_col(table, pos)				\
-	(&(table)->cols[pos])
-#define dict_table_get_sys_col(table, sys)				\
-	(&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS])
+#define dict_table_get_nth_col(table, pos)	(&(table)->cols[pos])
+#define dict_table_get_sys_col(table, sys)	\
+	&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS]
 /* Get nth virtual columns */
 #define dict_table_get_nth_v_col(table, pos)	(&(table)->v_cols[pos])
 #endif /* UNIV_DEBUG */
@@ -1539,31 +1528,21 @@ dict_tables_have_same_db(
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed=true)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 		MY_ATTRIBUTE((warn_unused_result));
 
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 inline
 const dict_index_t*
-dict_table_get_index_on_name(
-	const dict_table_t*	table,
-	const char*		name,
-	bool			committed=true)
+dict_table_get_index_on_name(const dict_table_t* table, const char* name)
 {
-	return(dict_table_get_index_on_name(
-		       const_cast<dict_table_t*>(table), name, committed));
+	return dict_table_get_index_on_name(const_cast<dict_table_t*>(table),
+					    name);
 }
 
 /***************************************************************

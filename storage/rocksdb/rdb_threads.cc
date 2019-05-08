@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation // gcc: Class implementation
@@ -28,7 +28,7 @@ namespace myrocks {
 
 void *Rdb_thread::thread_func(void *const thread_ptr) {
   DBUG_ASSERT(thread_ptr != nullptr);
-  Rdb_thread *const thread = static_cast<Rdb_thread *const>(thread_ptr);
+  Rdb_thread *const thread = static_cast<Rdb_thread *>(thread_ptr);
   if (!thread->m_run_once.exchange(true)) {
     thread->setname();
     thread->run();

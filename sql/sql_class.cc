@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -597,7 +597,7 @@ extern "C" void thd_kill_timeout(THD* thd)
   thd->awake(KILL_TIMEOUT);
 }
 
-THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
+THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
@@ -787,11 +787,12 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
+  wsrep_split_flag        = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
 
-  init(skip_global_sys_var_lock);
+  init();
 #if defined(ENABLED_PROFILING)
   profiling.set_thd(this);
 #endif
@@ -846,7 +847,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   invoker.init();
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
+  force_read_stats= FALSE;
   save_prep_leaf_list= FALSE;
+  org_charset= 0;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
   inc_thread_count();
@@ -1164,11 +1167,10 @@ const Type_handler *THD::type_handler_for_date() const
   Init common variables that has to be reset on start and on change_user
 */
 
-void THD::init(bool skip_lock)
+void THD::init()
 {
   DBUG_ENTER("thd::init");
-  if (!skip_lock)
-    mysql_mutex_lock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
     plugin_thd_var_init() sets variables= global_system_variables, which
@@ -1181,8 +1183,7 @@ void THD::init(bool skip_lock)
   ::strmake(default_master_connection_buff,
             global_system_variables.default_master_connection.str,
             variables.default_master_connection.length);
-  if (!skip_lock)
-    mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
 
   user_time.val= start_time= start_time_sec_part= 0;
 
@@ -1238,6 +1239,7 @@ void THD::init(bool skip_lock)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
+  wsrep_split_flag        = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1363,6 +1365,11 @@ void THD::change_user(void)
   cleanup_done= 0;
   reset_killed();
   thd_clear_errors(this);
+
+  /* Clear warnings. */
+  if (!get_stmt_da()->is_warning_info_empty())
+    get_stmt_da()->clear_warning_info(0);
+
   init();
   stmt_map.reset();
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
@@ -1508,6 +1515,7 @@ void THD::cleanup(void)
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
   mysql_ull_cleanup(this);
+  stmt_map.reset();
   /* All metadata locks must have been released by now. */
   DBUG_ASSERT(!mdl_context.has_locks());
 
@@ -1651,7 +1659,7 @@ THD::~THD()
 
   /* trick to make happy memory accounting system */
 #ifndef EMBEDDED_LIBRARY
-  session_tracker.deinit();
+  session_tracker.sysvars.deinit();
 #endif //EMBEDDED_LIBRARY
 
   if (status_var.local_memory_used != 0)
@@ -2579,17 +2587,15 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 }
 
 
-void THD::prepare_explain_fields(select_result *result,
-                                 List<Item> *field_list,
-                                 uint8 explain_flags,
-                                 bool is_analyze)
+int THD::prepare_explain_fields(select_result *result, List<Item> *field_list,
+                                 uint8 explain_flags, bool is_analyze)
 {
   if (lex->explain_json)
     make_explain_json_field_list(*field_list, is_analyze);
   else
     make_explain_field_list(*field_list, explain_flags, is_analyze);
 
-  result->prepare(*field_list, NULL);
+  return result->prepare(*field_list, NULL);
 }
 
 
@@ -2599,11 +2605,10 @@ int THD::send_explain_fields(select_result *result,
 {
   List<Item> field_list;
   int rc;
-  prepare_explain_fields(result, &field_list, explain_flags, is_analyze);
-  rc= result->send_result_set_metadata(field_list,
-                                       Protocol::SEND_NUM_ROWS |
-                                       Protocol::SEND_EOF);
-  return(rc);
+  rc= prepare_explain_fields(result, &field_list, explain_flags, is_analyze) ||
+      result->send_result_set_metadata(field_list, Protocol::SEND_NUM_ROWS |
+                                                   Protocol::SEND_EOF);
+  return rc;
 }
 
 
@@ -2678,7 +2683,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "r_rows", 0.1234, 10, 4),
+                         Item_float(this, "r_rows", 0.1234, 2, 4),
                          mem_root);
     item->maybe_null=1;
   }
@@ -3233,6 +3238,10 @@ int select_export::send_data(List<Item> &items)
       error_pos= copier.most_important_error_pos();
       if (unlikely(error_pos))
       {
+        /*
+          TODO: 
+             add new error message that will show user this printable_buff
+
         char printable_buff[32];
         convert_to_printable(printable_buff, sizeof(printable_buff),
                              error_pos, res->ptr() + res->length() - error_pos,
@@ -3241,6 +3250,11 @@ int select_export::send_data(List<Item> &items)
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                             ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
+                            item->name.str, static_cast<long>(row_count));
+        */
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
+                            ER_THD(thd, WARN_DATA_TRUNCATED),
                             item->name.str, static_cast<long>(row_count));
       }
       else if (copier.source_end_pos() < res->ptr() + res->length())
@@ -3969,11 +3983,13 @@ void Statement_map::erase(Statement *statement)
 void Statement_map::reset()
 {
   /* Must be first, hash_free will reset st_hash.records */
-  mysql_mutex_lock(&LOCK_prepared_stmt_count);
-  DBUG_ASSERT(prepared_stmt_count >= st_hash.records);
-  prepared_stmt_count-= st_hash.records;
-  mysql_mutex_unlock(&LOCK_prepared_stmt_count);
-
+  if (st_hash.records)
+  {
+    mysql_mutex_lock(&LOCK_prepared_stmt_count);
+    DBUG_ASSERT(prepared_stmt_count >= st_hash.records);
+    prepared_stmt_count-= st_hash.records;
+    mysql_mutex_unlock(&LOCK_prepared_stmt_count);
+  }
   my_hash_reset(&names_hash);
   my_hash_reset(&st_hash);
   last_found_statement= 0;
@@ -3982,12 +3998,8 @@ void Statement_map::reset()
 
 Statement_map::~Statement_map()
 {
-  /* Must go first, hash_free will reset st_hash.records */
-  mysql_mutex_lock(&LOCK_prepared_stmt_count);
-  DBUG_ASSERT(prepared_stmt_count >= st_hash.records);
-  prepared_stmt_count-= st_hash.records;
-  mysql_mutex_unlock(&LOCK_prepared_stmt_count);
-
+  /* Statement_map::reset() should be called prior to destructor. */
+  DBUG_ASSERT(!st_hash.records);
   my_hash_free(&names_hash);
   my_hash_free(&st_hash);
 }
@@ -4783,6 +4795,15 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
 {
   return(thd->slave_thread);
 }
+
+
+extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
+{
+  return thd &&
+    !thd->is_current_stmt_binlog_format_row() &&
+    !thd->is_current_stmt_binlog_disabled();
+}
+
 
 /* Returns high resolution timestamp for the start
   of the current query. */
@@ -6039,16 +6060,18 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       replicated_tables_count++;
 
-      if (table->lock_type <= TL_READ_NO_INSERT &&
-          table->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
-        has_read_tables= true;
-      else if (table->table->found_next_number_field &&
-                (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+      if (table->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
       {
-        has_auto_increment_write_tables= true;
-        has_auto_increment_write_tables_not_first= found_first_not_own_table;
-        if (table->table->s->next_number_keypart != 0)
-          has_write_table_auto_increment_not_first_in_pk= true;
+        if (table->lock_type <= TL_READ_NO_INSERT)
+          has_read_tables= true;
+        else if (table->table->found_next_number_field &&
+                 (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+        {
+          has_auto_increment_write_tables= true;
+          has_auto_increment_write_tables_not_first= found_first_not_own_table;
+          if (table->table->s->next_number_keypart != 0)
+            has_write_table_auto_increment_not_first_in_pk= true;
+        }
       }
 
       if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
@@ -6622,6 +6645,22 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
+  /**
+    Save a reference to the original read bitmaps
+    We will need this to restore the bitmaps at the end as
+    binlog_prepare_row_images() may change table->read_set.
+    table->read_set is used by pack_row and deep in
+    binlog_prepare_pending_events().
+  */
+  MY_BITMAP *old_read_set= table->read_set;
+
+  /**
+     This will remove spurious fields required during execution but
+     not needed for binlogging. This is done according to the:
+     binlog-row-image option.
+   */
+  binlog_prepare_row_images(table);
+
   size_t const before_maxlen= max_row_length(table, table->read_set,
                                              before_record);
   size_t const after_maxlen=  max_row_length(table, table->rpl_write_set,
@@ -6635,9 +6674,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   uchar *after_row= row_data.slot(1);
 
   size_t const before_size= pack_row(table, table->read_set, before_row,
-                                        before_record);
+                                     before_record);
   size_t const after_size= pack_row(table, table->rpl_write_set, after_row,
-                                       after_record);
+                                    after_record);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (variables.option_bits & OPTION_GTID_BEGIN)
@@ -6672,6 +6711,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   int error=  ev->add_row_data(before_row, before_size) ||
               ev->add_row_data(after_row, after_size);
 
+  /* restore read set for the rest of execution */
+  table->column_bitmaps_set_no_signal(old_read_set,
+                                      table->write_set);
   return error;
 
 }
@@ -7258,12 +7300,12 @@ void THD::set_last_commit_gtid(rpl_gtid &gtid)
 #endif
   m_last_commit_gtid= gtid;
 #ifndef EMBEDDED_LIBRARY
-  if (changed_gtid &&
-      session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
+  if (changed_gtid && session_tracker.sysvars.is_enabled())
   {
-    session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+    DBUG_ASSERT(current_thd == this);
+    session_tracker.sysvars.
       mark_as_changed(this, (LEX_CSTRING*)Sys_last_gtid_ptr);
- }
+  }
 #endif
 }
 

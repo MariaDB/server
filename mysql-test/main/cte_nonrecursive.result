@@ -244,7 +244,7 @@ with t as (select distinct a from t1 where b >= 'c')
 select * from t as r1, t as r2 where r1.a=r2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	r1.a	2	
+1	PRIMARY	<derived3>	ref	key0	key0	5	r1.a	1	
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 explain
@@ -253,7 +253,7 @@ select * from (select distinct a from t1 where b >= 'c') as r1,
 where r1.a=r2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	r1.a	2	
+1	PRIMARY	<derived3>	ref	key0	key0	5	r1.a	1	
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 # two references to t specified by a query
@@ -369,7 +369,7 @@ select c as a from t2 where c < 4)
 select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -381,7 +381,7 @@ select c as a from t2 where c < 4) as t
 where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1511,4 +1511,165 @@ a	a
 3	3
 1	1
 drop database db_mdev_16473;
+use test;
+#
+# MDEV-17154: using parameter markers for PS within CTEs more than once
+#             using local variables in SP within CTEs more than once
+#
+prepare stmt from "
+with cte(c) as (select ? ) select r.c, s.c+10  from cte as r, cte as s;
+";
+set @a=2;
+execute stmt using @a;
+c	s.c+10
+2	12
+set @a=5;
+execute stmt using @a;
+c	s.c+10
+5	15
+deallocate prepare stmt;
+prepare stmt from "
+with cte(c) as (select ? ) select c from cte union select c+10 from cte;
+";
+set @a=2;
+execute stmt using @a;
+c
+2
+12
+set @a=5;
+execute stmt using @a;
+c
+5
+15
+deallocate prepare stmt;
+prepare stmt from "
+with cte_e(a,b) as
+(
+  with cte_o(c) as (select ?)
+  select r.c+10, s.c+20 from cte_o as r, cte_o as s
+)
+select * from cte_e as cte_e1 where a > 12
+union all
+select * from cte_e as cte_e2;
+";
+set @a=2;
+execute stmt using @a;
+a	b
+12	22
+set @a=5;
+execute stmt using @a;
+a	b
+15	25
+15	25
+deallocate prepare stmt;
+create table t1 (a int, b int);
+insert into t1 values
+(3,33), (1,17), (7,72), (4,45), (2,27), (3,35), (4,47), (3,38), (2,22);
+prepare stmt from "
+with cte as (select * from t1 where a < ? and b > ?)
+  select r.a, r.b+10, s.a, s.b+20 from cte as r, cte as s where r.a=s.a+1;
+";
+set @a=4, @b=20;
+execute stmt using @a,@b;
+a	r.b+10	a	s.b+20
+3	43	2	47
+3	45	2	47
+3	48	2	47
+3	43	2	42
+3	45	2	42
+3	48	2	42
+set @a=5, @b=20;
+execute stmt using @a,@b;
+a	r.b+10	a	s.b+20
+4	55	3	53
+4	57	3	53
+3	43	2	47
+3	45	2	47
+3	48	2	47
+4	55	3	55
+4	57	3	55
+4	55	3	58
+4	57	3	58
+3	43	2	42
+3	45	2	42
+3	48	2	42
+deallocate prepare stmt;
+create procedure p1()
+begin
+declare i int;
+set i = 0;
+while i < 4 do
+insert into t1
+with cte(a) as (select i) select r.a-1, s.a+1 from cte as r, cte as s;
+set i = i+1;
+end while;
+end|
+create procedure p2(in i int)
+begin
+insert into t1
+with cte(a) as (select i) select r.a-1, s.a+1 from cte as r, cte as s;
+end|
+delete from t1;
+call p1();
+select * from t1;
+a	b
+-1	1
+0	2
+1	3
+2	4
+call p1();
+select * from t1;
+a	b
+-1	1
+0	2
+1	3
+2	4
+-1	1
+0	2
+1	3
+2	4
+delete from t1;
+call p2(3);
+select * from t1;
+a	b
+2	4
+call p2(7);
+select * from t1;
+a	b
+2	4
+6	8
+drop procedure p1;
+drop procedure p2;
+drop table t1;
+#
+# MDEV-17107: PS for CREATE OR REPLACE VIEW defined by SELECT with CTEs
+#
+create table t1(a int);
+insert into t1 values (3), (1), (2);
+create table t2 (b int);
+insert into t2 values (2), (10);
+prepare stmt from
+"create or replace view v1 as
+ with t as (select s.a from (select t1.a from t1) s),
+      r as(select t.a from t2, t where t2.b=t.a)
+ select a from r;";
+execute stmt;
+select * from v1;
+a
+2
+drop view v1;
+drop table t1,t2;
+#
+# MDEV-19112: CTE usage when information_schema is set as default db
+#
+with t as (select 1 as t ) select * from t;
+t
+1
+use information_schema;
+with t as (select 1 as t) select * from t;
+t
+1
+with columns as (select 1 as t) select * from columns;
+t
+1
 use test;

@@ -252,16 +252,11 @@ static void track_table_access(THD *thd, TABLE **tables, size_t count)
 {
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
   {
-    Transaction_state_tracker *tst= (Transaction_state_tracker *)
-      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-
     while (count--)
     {
-      TABLE *t= tables[count];
-
-      if (t)
-        tst->add_trx_state(thd,  t->reginfo.lock_type,
-                           t->file->has_transaction_manager());
+      if (TABLE *t= tables[count])
+        thd->session_tracker.transaction_info.add_trx_state(thd,
+          t->reginfo.lock_type, t->file->has_transaction_manager());
     }
   }
 }
@@ -593,22 +588,6 @@ void mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table)
       }
     }
   }
-}
-
-
-/** Abort all other threads waiting to get lock in table. */
-
-void mysql_lock_abort(THD *thd, TABLE *table, bool upgrade_lock)
-{
-  MYSQL_LOCK *locked;
-  DBUG_ENTER("mysql_lock_abort");
-
-  if ((locked= get_lock_data(thd, &table, 1, GET_LOCK_UNLOCK | GET_LOCK_ON_THD)))
-  {
-    for (uint i=0; i < locked->lock_count; i++)
-      thr_abort_locks(locked->locks[i]->lock, upgrade_lock);
-  }
-  DBUG_VOID_RETURN;
 }
 
 

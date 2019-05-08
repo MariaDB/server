@@ -23,3 +23,18 @@ SHOW local STATUS LIKE 'com_select';
 
 SHOW local STATUS LIKE 'com_select';
 
+--echo # Test if charset changes after reset (utf8)
+connect(utf8_conn,localhost,root,,,,,CHARSET=utf8);
+connection utf8_conn;
+SELECT IF(@@character_set_client='utf8','OK', 'FAIL') AS RESULT;
+--reset_connection
+SELECT IF(@@character_set_client='utf8','OK', 'FAIL') AS RESULT;
+disconnect utf8_conn;
+
+--echo # Test if charset changes after reset (latin1)
+connect(latin1_conn,localhost,root,,,,,CHARSET=latin1);
+connection latin1_conn;
+SELECT IF(@@character_set_client='latin1','OK', 'FAIL') AS RESULT;
+--reset_connection
+SELECT IF(@@character_set_client='latin1','OK', 'FAIL') AS RESULT;
+disconnect latin1_conn;

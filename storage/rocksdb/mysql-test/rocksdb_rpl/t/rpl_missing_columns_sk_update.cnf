@@ -1,0 +1,13 @@
+!include include/default_mysqld.cnf
+
+[mysqld.1]
+binlog_row_image = COMPLETE
+log_column_names= ON
+
+[mysqld.2]
+binlog_row_image = COMPLETE
+log_column_names= ON
+
+[ENV]
+SERVER_MYPORT_1= @mysqld.1.port
+SERVER_MYPORT_2= @mysqld.2.port

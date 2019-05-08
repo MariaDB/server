@@ -1,0 +1,265 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE T1 (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=ROCKSDB;
+INSERT INTO T1 VALUES();
+"con1: Creating explict snapshot"
+SELECT * FROM T1;
+a
+1
+"con2: Inserting a row"
+INSERT INTO T1 VALUES();
+SELECT * FROM T1;
+a
+1
+2
+"con2: Attaching snapshot id 1"
+ATTACH EXPLICIT ROCKSDB SNAPSHOT 1;
+"con2: New row should not be visible"
+SELECT * FROM T1;
+a
+1
+"con2: Releasing snapshot"
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+"con2: New row should be visible"
+SELECT * FROM T1;
+a
+1
+2
+"con1: New row should not be visible"
+SELECT * FROM T1;
+a
+1
+"con1: Releasing snapshot"
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+"con1: New row should be visible"
+SELECT * FROM T1;
+a
+1
+2
+"con1: Starting shared snapshot"
+SELECT * FROM T1;
+a
+1
+2
+"con2: Inserting a row"
+INSERT INTO T1 VALUES();
+SELECT * FROM T1;
+a
+1
+2
+3
+"con2: Starting existing snapshot"
+START TRANSACTION WITH EXISTING ROCKSDB SNAPSHOT 2;
+"con2: New row should not be visible"
+SELECT * FROM T1;
+a
+1
+2
+COMMIT;
+"con2: New row should be visible"
+SELECT * FROM T1;
+a
+1
+2
+3
+COMMIT;
+"con1: New row should be visible"
+SELECT * FROM T1;
+a
+1
+2
+3
+"con1: Creating explict snapshot"
+"con2: Trying to insert row"
+INSERT INTO T1 VALUES();
+ERROR HY000: Can't execute updates when an explicit snapshot is associated with the connection using CREATE|ATTACH EXPLICIT [ENGINE] SNAPSHOT
+"con2: Attaching existing snapshot"
+ATTACH EXPLICIT ROCKSDB SNAPSHOT 3;
+"con2: Trying to insert row"
+INSERT INTO T1 VALUES();
+ERROR HY000: Can't execute updates when an explicit snapshot is associated with the connection using CREATE|ATTACH EXPLICIT [ENGINE] SNAPSHOT
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+"con1: Starting shared snapshot"
+"con1: Trying to insert row"
+INSERT INTO T1 VALUES();
+ERROR HY000: Can't execute updates when you started a transaction with START TRANSACTION WITH CONSISTENT|SHARED|EXISTING [ROCKSDB] SNAPSHOT.
+"con2: Starting existing snapshot"
+START TRANSACTION WITH EXISTING ROCKSDB SNAPSHOT 4;
+"con2: Trying to insert row"
+INSERT INTO T1 VALUES();
+ERROR HY000: Can't execute updates when you started a transaction with START TRANSACTION WITH CONSISTENT|SHARED|EXISTING [ROCKSDB] SNAPSHOT.
+COMMIT;
+COMMIT;
+"con1: Creating explicit snapshot"
+CREATE EXPLICIT ROCKSDB SNAPSHOT;
+SELECT * FROM T1;
+a
+1
+2
+3
+"con2: Inserting a row"
+INSERT INTO T1 VALUES();
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+"con1: New row should not be seen"
+SELECT * FROM T1;
+a
+1
+2
+3
+"con1: Creating another explicit snapshot"
+CREATE EXPLICIT ROCKSDB SNAPSHOT;
+"con1: Now the new row should be seen"
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+"con1: Starting transaction with consistent snapshot"
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+"con2: Inserting a row"
+INSERT INTO T1 VALUES();
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+"con1: The new row should not be seen"
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+"con1: Creating another explicit snapshot"
+CREATE EXPLICIT ROCKSDB SNAPSHOT;
+"con1: The new row should still not be seen"
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+"con1: Committing trx"
+COMMIT;
+"con1: The new row should now be seen because of the new explicit snapshot created above"
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+"con1: Releasing explicit snapshot"
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+"con1: Starting transaction with shared snapshot"
+START TRANSACTION WITH SHARED ROCKSDB SNAPSHOT;
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+"con2: Inserting a row"
+INSERT INTO T1 VALUES();
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+6
+"con1: The new row should not be seen"
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+"con1: Starting another transaction with shared snapshot"
+START TRANSACTION WITH SHARED ROCKSDB SNAPSHOT;
+"con1: The new row should now be seen"
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+6
+COMMIT;
+"con1: Creating explicit snapshot"
+CREATE EXPLICIT ROCKSDB SNAPSHOT;
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+6
+"con1: Releasing explicit snapshot"
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+"con1: Releasing explicit snapshot again"
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+ERROR HY000: Cannot process explicit snapshot
+"con1: Starting transaction with shared snapshot"
+START TRANSACTION WITH SHARED ROCKSDB SNAPSHOT;
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+6
+"con2: Inserting a row"
+INSERT INTO T1 VALUES();
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+6
+7
+"con1: Creating explicit snapshot"
+CREATE EXPLICIT ROCKSDB SNAPSHOT;
+SELECT * FROM T1;
+a
+1
+2
+3
+4
+5
+6
+"con1: Releasing explicit snapshot"
+RELEASE EXPLICIT ROCKSDB SNAPSHOT;
+"con1: The new row should not be seen"
+SELECT* FROM T1;
+a
+1
+2
+3
+4
+5
+6
+COMMIT;
+DROP TABLE T1;

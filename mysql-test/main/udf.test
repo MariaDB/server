@@ -528,3 +528,16 @@ DROP FUNCTION METAPHON;
 #INSERT INTO t1 (a) VALUES ('Hello');
 #SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15424: Unreasonal SQL Error (1356) on select from view
+--echo #
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "$UDF_EXAMPLE_SO";
+create table t1(a int , b int);
+insert into t1 values(100, 54), (200, 199);
+create view v1 as select myfunc_int(max(a) over (order by b) , b) from t1;
+select * from v1;
+drop view v1;
+drop function myfunc_int;
+drop table t1;

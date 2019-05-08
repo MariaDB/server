@@ -1,0 +1,82 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+-- source include/have_example_key_management_plugin.inc
+
+CREATE TABLE t1 (f1 INT, f2 VARCHAR(256))engine=innodb;
+INSERT INTO t1 VALUES(1, 'MariaDB'), (2, 'Robot'), (3, 'Science');
+INSERT INTO t1 SELECT * FROM t1;
+
+CREATE TABLE t2(f1 INT, f2 VARCHAR(256))engine=innodb;
+INSERT INTO t2 SELECT * FROM t1;
+
+CREATE TABLE t3(f1 INT, f2 VARCHAR(256))engine=innodb encrypted=yes;
+INSERT INTO t3 SELECT * FROM t1;
+
+--echo # Restart the server with encryption
+
+let $restart_parameters= --innodb_encryption_threads=5 --innodb_encryption_rotate_key_age=16384;
+--source include/restart_mysqld.inc
+
+--echo # Wait until encryption threads have encrypted all tablespaces
+
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--echo # Restart the server with innodb_encryption_rotate_key_age= 0
+
+let $restart_parameters= --innodb_encryption_threads=1 --innodb_encryption_rotate_key_age=0;
+
+--source include/restart_mysqld.inc
+
+create table t4 (f1 int not null)engine=innodb encrypted=NO;
+
+--echo # Wait until encryption threads have encrypted all tablespaces
+
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--echo # Disable encryption when innodb_encryption_rotate_key_age is 0
+set global innodb_encrypt_tables = OFF;
+
+--echo # Wait until encryption threads to decrypt all unencrypted tablespaces
+
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING = 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--echo # Display only encrypted create tables (t3)
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--echo # Enable encryption when innodb_encryption_rotate_key_age is 0
+set global innodb_encrypt_tables = ON;
+
+--echo # Wait until encryption threads to encrypt all unencrypted tablespaces
+
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--echo # Display only unencrypted create tables (t4)
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--let $restart_parameters=
+-- source include/restart_mysqld.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+DROP TABLE t4, t3, t2, t1;

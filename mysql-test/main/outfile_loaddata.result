@@ -206,7 +206,7 @@ a	b	c
 # latin1 charset (INTO OUTFILE warning is expected):
 SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' CHARACTER SET latin1 FROM t1;
 Warnings:
-Warning	1366	Incorrect string value: '\xE1\xE2\xF7' for column 'b' at row 1
+Warning	1366	Data truncated for column 'b' at row 1
 ##################################################
 1	ABC-???	DEF-ÂÃÄ
 2	\N	\N
@@ -221,7 +221,7 @@ a	b	c
 # KOI8-R charset (INTO OUTFILE warning is expected):
 SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' CHARACTER SET koi8r FROM t1;
 Warnings:
-Warning	1366	Incorrect string value: '\xC2\xC3\xC4' for column 'c' at row 1
+Warning	1366	Data truncated for column 'c' at row 1
 ##################################################
 1	ABC-áâ÷	DEF-???
 2	\N	\N

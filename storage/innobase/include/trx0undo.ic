@@ -140,7 +140,7 @@ trx_read_roll_ptr(
 @return pointer to page x-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr)
+trx_undo_page_get(const page_id_t page_id, mtr_t* mtr)
 {
 	buf_block_t*	block = buf_page_get(page_id, univ_page_size,
 					     RW_X_LATCH, mtr);
@@ -156,7 +156,7 @@ trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr)
 @return pointer to page s-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get_s_latched(const page_id_t& page_id, mtr_t* mtr)
+trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr)
 {
 	buf_block_t*	block = buf_page_get(page_id, univ_page_size,
 					     RW_S_LATCH, mtr);

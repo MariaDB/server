@@ -19,8 +19,8 @@ then
   sed -i -e '/Add support for verbose builds/,+2d' debian/rules
 
   # Don't include test suite package on Travis-CI to make the build time shorter
-  sed '/Package: mariadb-test-data/,+28d' -i debian/control
-  sed '/Package: mariadb-test/,+36d' -i debian/control
+  sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
+  sed '/Package: mariadb-test/,/^$/d' -i debian/control
 
   # Don't build the test package at all to save time and disk space
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
@@ -47,7 +47,7 @@ GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g
 if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
   sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,+9d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,/^$/d' -i debian/control
 fi
 
 # If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
@@ -94,45 +94,27 @@ fi
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+14d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
-# AWS SDK requires c++11 -capable compiler.
-# Minimal supported versions are g++ 4.8 and clang 3.3.
-# AWS SDK also requires the build machine to have network access and git, so
-# it cannot be part of the base version included in Linux distros, but a pure
-# custom built plugin.
-if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && ping -c 1 github.com
+# Always remove aws plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
+sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
+
+# Don't build cassandra package if thrift is not installed
+if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
 then
-  cat <<EOF >> debian/control
-
-Package: mariadb-plugin-aws-key-management
-Architecture: any
-Breaks: mariadb-aws-key-management-10.1,
-        mariadb-aws-key-management-10.2
-Replaces: mariadb-aws-key-management-10.1,
-          mariadb-aws-key-management-10.2
-Depends: mariadb-server-10.3,
-         \${misc:Depends},
-         \${shlibs:Depends}
-Description: Amazon Web Service Key Management Service Plugin for MariaDB
- This encryption key management plugin gives an interface to the Amazon Web
- Services Key Management Service for managing encryption keys used for MariaDB
- data-at-rest encryption.
-EOF
-
-  sed -i -e "/-DPLUGIN_AWS_KEY_MANAGEMENT=NO/d" debian/rules
+  sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
-  sed -i -e "/Package: mariadb-plugin-tokudb/,+19d" debian/control
-  sed -i -e "/Package: mariadb-plugin-mroonga/,+17d" debian/control
-  sed -i -e "/Package: mariadb-plugin-spider/,+18d" debian/control
-  sed -i -e "/Package: mariadb-plugin-oqgraph/,+16d" debian/control
+  sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-spider/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-oqgraph/,/^$/d" debian/control
   sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.3.install
-  sed -i -e "/Package: libmariadbd-dev/,+19d" debian/control
+  sed -i -e "/Package: libmariadbd-dev/,/^$/d" debian/control
 fi
 
 # Adjust changelog, add new version

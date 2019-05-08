@@ -25,7 +25,6 @@ its own storage, avoiding duplicates.
 Created September 22, 2007 Vasil Dimov
 *******************************************************/
 
-#include "ha_prototypes.h"
 #include "ha0storage.h"
 #include "hash0hash.h"
 #include "mem0mem.h"

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,13 +24,11 @@ Import a tablespace to a running instance.
 Created 2012-02-08 by Sunny Bains.
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0import.h"
 #include "btr0pcur.h"
-#include "btr0sea.h"
 #include "que0que.h"
 #include "dict0boot.h"
+#include "dict0load.h"
 #include "ibuf0ibuf.h"
 #include "pars0pars.h"
 #include "row0sel.h"
@@ -39,7 +37,6 @@ Created 2012-02-08 by Sunny Bains.
 #include "row0quiesce.h"
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
-#include "ut0new.h"
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
@@ -664,7 +661,7 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 		return set_current_xdes(block->page.id.page_no(), page);
 	} else if (fil_page_index_page_check(page)
 		   && !is_free(block->page.id.page_no())
-		   && page_is_root(page)) {
+		   && !page_has_siblings(page)) {
 
 		index_id_t	id = btr_page_get_index_id(page);
 
@@ -1462,9 +1459,9 @@ IndexPurge::open() UNIV_NOTHROW
 	btr_pcur_open_at_index_side(
 		true, m_index, BTR_MODIFY_LEAF, &m_pcur, true, 0, &m_mtr);
 	btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr);
-	if (rec_is_default_row(btr_pcur_get_rec(&m_pcur), m_index)) {
+	if (rec_is_metadata(btr_pcur_get_rec(&m_pcur), m_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&m_pcur));
-		/* Skip the 'default row' pseudo-record. */
+		/* Skip the metadata pseudo-record. */
 	} else {
 		btr_pcur_move_to_prev_on_page(&m_pcur);
 	}
@@ -1822,14 +1819,23 @@ PageConverter::update_index_page(
 		page, m_page_zip_ptr, m_index->m_srv_index->id, 0);
 
 	if (dict_index_is_clust(m_index->m_srv_index)) {
-		if (page_is_root(page)) {
+		dict_index_t* index = const_cast<dict_index_t*>(
+			m_index->m_srv_index);
+		if (block->page.id.page_no() == index->page) {
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
-			if (m_index->m_srv_index->table->supports_instant()
-			    && btr_cur_instant_root_init(
-				    const_cast<dict_index_t*>(
-					    m_index->m_srv_index),
-				    page)) {
-				return(DB_CORRUPTION);
+			if (index->table->supports_instant()) {
+				if (btr_cur_instant_root_init(index, page)) {
+					return(DB_CORRUPTION);
+				}
+
+				/* Provisionally set all instantly
+				added columns to be DEFAULT NULL. */
+				for (unsigned i = index->n_core_fields;
+				     i < index->n_fields; i++) {
+					dict_col_t* col = index->fields[i].col;
+					col->def_val.len = UNIV_SQL_NULL;
+					col->def_val.data = NULL;
+				}
 			}
 		} else {
 			/* Clear PAGE_MAX_TRX_ID so that it can be
@@ -1849,7 +1855,7 @@ PageConverter::update_index_page(
 	if (page_is_empty(page)) {
 
 		/* Only a root page can be empty. */
-		if (!page_is_root(page)) {
+		if (page_has_siblings(page)) {
 			// TODO: We should relax this and skip secondary
 			// indexes. Mark them as corrupt because they can
 			// always be rebuilt.
@@ -2053,7 +2059,7 @@ row_import_discard_changes(
 
 	table->file_unreadable = true;
 	if (table->space) {
-		fil_close_tablespace(trx, table->space->id);
+		fil_close_tablespace(trx, table->space_id);
 		table->space = NULL;
 	}
 }
@@ -2088,7 +2094,7 @@ row_import_cleanup(
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
 
-	log_make_checkpoint_at(LSN_MAX, TRUE);
+	log_make_checkpoint_at(LSN_MAX);
 
 	return(err);
 }
@@ -2267,8 +2273,8 @@ row_import_set_sys_max_row_id(
 	if (page_rec_is_infimum(rec)) {
 		/* The table is empty. */
 		err = DB_SUCCESS;
-	} else if (rec_is_default_row(rec, index)) {
-		/* The clustered index contains the 'default row',
+	} else if (rec_is_metadata(rec, index)) {
+		/* The clustered index contains the metadata record only,
 		that is, the table is empty. */
 		err = DB_SUCCESS;
 	} else {
@@ -3060,23 +3066,13 @@ row_import_read_cfg(
 	return(err);
 }
 
-/*****************************************************************//**
-Update the <space, root page> of a table's indexes from the values
-in the data dictionary.
+/** Update the root page numbers and tablespace ID of a table.
+@param[in,out]	trx	dictionary transaction
+@param[in,out]	table	persistent table
+@param[in]	reset	whether to reset the fields to FIL_NULL
 @return DB_SUCCESS or error code */
 dberr_t
-row_import_update_index_root(
-/*=========================*/
-	trx_t*			trx,		/*!< in/out: transaction that
-						covers the update */
-	const dict_table_t*	table,		/*!< in: Table for which we want
-						to set the root page_no */
-	bool			reset,		/*!< in: if true then set to
-						FIL_NUL */
-	bool			dict_locked)	/*!< in: Set to true if the
-						caller already owns the
-						dict_sys_t:: mutex. */
-
+row_import_update_index_root(trx_t* trx, dict_table_t* table, bool reset)
 {
 	const dict_index_t*	index;
 	que_t*			graph = 0;
@@ -3094,9 +3090,7 @@ row_import_update_index_root(
 		"WHERE TABLE_ID = :table_id AND ID = :index_id;\n"
 		"END;\n"};
 
-	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-	}
+	table->def_trx_id = trx->id;
 
 	for (index = dict_table_get_first_index(table);
 	     index != 0;
@@ -3170,10 +3164,6 @@ row_import_update_index_root(
 	}
 
 	que_graph_free(graph);
-
-	if (!dict_locked) {
-		mutex_exit(&dict_sys->mutex);
-	}
 
 	return(err);
 }
@@ -3436,9 +3426,7 @@ not_encrypted:
 				}
 			} else {
 				if (!fil_space_verify_crypt_checksum(
-					    src, callback.get_page_size(),
-					    block->page.id.space(),
-					    block->page.id.page_no())) {
+					    src, callback.get_page_size())) {
 					goto page_corrupted;
 				}
 
@@ -3654,7 +3642,7 @@ fil_tablespace_iterate(
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
 		(ut_zalloc_nokey(sizeof *block));
 	block->frame = page;
-	block->page.id.copy_from(page_id_t(0, 0));
+	block->page.id = page_id_t(0, 0);
 	block->page.io_fix = BUF_IO_NONE;
 	block->page.buf_fix_count = 1;
 	block->page.state = BUF_BLOCK_FILE_PAGE;
@@ -3672,8 +3660,7 @@ fil_tablespace_iterate(
 	}
 
 	if (err == DB_SUCCESS) {
-		block->page.id.copy_from(
-			page_id_t(callback.get_space_id(), 0));
+		block->page.id = page_id_t(callback.get_space_id(), 0);
 		block->page.size.copy_from(callback.get_page_size());
 		if (block->page.size.is_compressed()) {
 			page_zip_set_size(&block->page.zip,
@@ -3915,7 +3902,7 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-
+#ifdef BTR_CUR_HASH_ADAPT
 	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
 	index entries. If we replaced the discarded tablespace with a
 	smaller one here, there could still be some adaptive hash
@@ -3932,6 +3919,7 @@ row_import_for_mysql(
 			break;
 		}
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
@@ -4111,7 +4099,7 @@ row_import_for_mysql(
 	row_mysql_lock_data_dictionary(trx);
 
 	/* Update the root pages of the table's indexes. */
-	err = row_import_update_index_root(trx, table, false, true);
+	err = row_import_update_index_root(trx, table, false);
 
 	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));

@@ -226,7 +226,7 @@ set join_cache_level=3;
 explain SELECT 1 FROM (SELECT url, id FROM t2 LIMIT 1 OFFSET 20) derived RIGHT JOIN t1 ON t1.id = derived.id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	#	
-1	PRIMARY	<derived2>	hash_ALL	key0	#hash#key0	25	test.t1.id	#	Using join buffer (flat, BNLH join)
+1	PRIMARY	<derived2>	ref	key0	key0	25	test.t1.id	#	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	#	
 set join_cache_level= @tmp_mdev5037;
 drop table t0,t1,t2;

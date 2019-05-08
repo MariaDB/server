@@ -30,7 +30,6 @@ Created Apr 25, 2012 Vasil Dimov
 #include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
-#include "ut0new.h"
 #include "fil0fil.h"
 #ifdef WITH_WSREP
 # include "mysql/service_wsrep.h"
@@ -167,10 +166,26 @@ void dict_stats_update_if_needed_func(dict_table_t* table)
 		    && dict_stats_auto_recalc_is_enabled(table)) {
 
 #ifdef WITH_WSREP
-			if (thd && wsrep_on(thd) && wsrep_thd_is_BF(thd, 0)) {
+			/* Do not add table to background
+			statistic calculation if this thread is not a
+			applier (as all DDL, which is replicated (i.e
+			is binlogged in master node), will be executed
+			with high priority (a.k.a BF) in slave nodes)
+			and is BF. This could again lead BF lock
+			waits in applier node but it is better than
+			no persistent index/table statistics at
+			applier nodes. TODO: allow BF threads
+			wait for these InnoDB internal SQL-parser
+			generated row locks and allow BF thread
+			lock waits to be enqueued at head of waiting
+			queue. */
+			if (thd
+			    && !wsrep_thd_is_applier(thd)
+			    && wsrep_on(thd)
+			    && wsrep_thd_is_BF(thd, 0)) {
 				WSREP_DEBUG("Avoiding background statistics"
-					    " calculation for table %s",
-					    table->name.m_name);
+					    " calculation for table %s.",
+					table->name.m_name);
 				return;
 			}
 #endif /* WITH_WSREP */

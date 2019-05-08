@@ -26,7 +26,6 @@ Created 2013-7-26 by Kevin Lewis
 #ifndef fsp0sysspace_h
 #define fsp0sysspace_h
 
-#include "univ.i"
 #include "fsp0space.h"
 
 /** If the last data file is auto-extended, we add this many pages to it

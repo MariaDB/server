@@ -56,7 +56,11 @@ int maria_status(MARIA_HA *info, register MARIA_INFO *x, uint flag)
   }
   if (flag & HA_STATUS_VARIABLE)
   {
-    x->records	 	= info->state->records;
+    /* If table is locked, give versioned number otherwise last commited */
+    if (info->lock_type == F_UNLCK)
+      x->records         = share->state.state.records;
+    else
+      x->records         = info->state->records;
     x->deleted	 	= share->state.state.del;
     x->delete_length	= share->state.state.empty;
     x->data_file_length	= share->state.state.data_file_length;

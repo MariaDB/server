@@ -26,12 +26,9 @@ Created 2/17/1996 Heikki Tuuri
 #ifndef btr0types_h
 #define btr0types_h
 
-#include "univ.i"
-
-#include "rem0types.h"
 #include "page0types.h"
-#include "sync0rw.h"
 #include "page0size.h"
+#include "rem0types.h"
 
 /** Persistent cursor */
 struct btr_pcur_t;

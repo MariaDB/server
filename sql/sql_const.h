@@ -33,7 +33,17 @@
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
 #define MAX_REF_PARTS 32			/* Max parts used as ref */
-#define MAX_KEY_LENGTH 3072			/* max possible key */
+
+/*
+  Maximum length of the data part of an index lookup key.
+
+  The "data part" is defined as the value itself, not including the
+  NULL-indicator bytes or varchar length bytes ("the Extras"). We need this
+  value because there was a bug where length of the Extras were not counted.
+
+  You probably need MAX_KEY_LENGTH, not this constant.
+*/
+#define MAX_DATA_LENGTH_FOR_KEY 3072
 #if SIZEOF_OFF_T > 4
 #define MAX_REFLENGTH 8				/* Max length for record ref */
 #else
@@ -84,7 +94,7 @@
 #define MAX_FIELDS	4096			/* Limit in the .frm file */
 #define MAX_PARTITIONS  8192
 
-#define MAX_SELECT_NESTING (sizeof(nesting_map)*8-1)
+#define MAX_SELECT_NESTING (SELECT_NESTING_MAP_SIZE - 1)
 
 #define MAX_SORT_MEMORY 2048*1024
 #define MIN_SORT_MEMORY 1024

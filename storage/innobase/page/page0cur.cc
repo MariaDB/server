@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,6 @@ The page cursor
 
 Created 10/4/1994 Heikki Tuuri
 *************************************************************************/
-
-#include "ha_prototypes.h"
 
 #include "page0cur.h"
 #include "page0zip.h"
@@ -737,7 +735,7 @@ up_slot_match:
 				  & REC_INFO_MIN_REC_FLAG)) {
 			ut_ad(!page_has_prev(page_align(mid_rec)));
 			ut_ad(!page_rec_is_leaf(mid_rec)
-			      || rec_is_default_row(mid_rec, index));
+			      || rec_is_metadata(mid_rec, index));
 			cmp = 1;
 			goto low_rec_match;
 		}
@@ -846,7 +844,8 @@ page_cur_insert_rec_write_log(
 	ulint	i;
 
 	if (index->table->is_temporary()) {
-		ut_ad(!mlog_open(mtr, 0));
+		mtr->set_modified();
+		ut_ad(mtr->get_log_mode() == MTR_LOG_NO_REDO);
 		return;
 	}
 
@@ -1989,12 +1988,14 @@ page_parse_copy_rec_list_to_created_page(
 		return(rec_end);
 	}
 
+	ut_ad(fil_page_index_page_check(block->frame));
 	/* This function is never invoked on the clustered index root page,
 	except in the redo log apply of
 	page_copy_rec_list_end_to_created_page() which was logged by.
 	page_copy_rec_list_to_created_page_write_log().
 	For other pages, this field must be zero-initialized. */
-	ut_ad(!page_get_instant(block->frame) || page_is_root(block->frame));
+	ut_ad(!page_get_instant(block->frame)
+	      || !page_has_siblings(block->frame));
 
 	while (ptr < rec_end) {
 		ptr = page_cur_parse_insert_rec(TRUE, ptr, end_ptr,
@@ -2050,9 +2051,10 @@ page_copy_rec_list_end_to_created_page(
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 	ut_ad(page_align(rec) != new_page);
 	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page));
+	ut_ad(fil_page_index_page_check(new_page));
 	/* This function is never invoked on the clustered index root page,
 	except in btr_lift_page_up(). */
-	ut_ad(!page_get_instant(new_page) || page_is_root(new_page));
+	ut_ad(!page_get_instant(new_page) || !page_has_siblings(new_page));
 
 	if (page_rec_is_infimum(rec)) {
 
@@ -2144,6 +2146,8 @@ page_copy_rec_list_end_to_created_page(
 		prev_rec = insert_rec;
 		rec = page_rec_get_next(rec);
 	} while (!page_rec_is_supremum(rec));
+
+	ut_ad(n_recs);
 
 	if ((slot_index > 0) && (count + 1
 				 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2

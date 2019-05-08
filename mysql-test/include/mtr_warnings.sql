@@ -242,7 +242,7 @@ BEGIN
   DECLARE `pos` bigint unsigned;
 
   -- Don't write these queries to binlog
-  SET SQL_LOG_BIN=0;
+  SET SQL_LOG_BIN=0, SQL_SAFE_UPDATES=0;
 
   --
   -- Remove mark from lines that are suppressed by global suppressions

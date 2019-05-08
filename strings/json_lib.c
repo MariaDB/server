@@ -772,7 +772,7 @@ static json_state_handler json_actions[NR_JSON_STATES][NR_C_CLASSES]=
     syntax_error,   syntax_error, syntax_error, syntax_error, syntax_error,
     syntax_error,   syntax_error, syntax_error, not_json_chr, bad_chr},
   {/*OBJ_CONT*/
-    unexpected_eos, syntax_error, end_object,    syntax_error,   end_array,
+    unexpected_eos, syntax_error, end_object,    syntax_error,   syntax_error,
     syntax_error,   next_key,     syntax_error,  syntax_error,   syntax_error,
     syntax_error,    syntax_error,    syntax_error,    not_json_chr, bad_chr},
   {/*ARRAY_CONT*/
@@ -1195,6 +1195,27 @@ int json_skip_to_level(json_engine_t *j, int level)
 }
 
 
+/*
+  works as json_skip_level() but also counts items on the current
+  level skipped.
+*/
+int json_skip_level_and_count(json_engine_t *j, int *n_items_skipped)
+{
+  int level= j->stack_p;
+
+  *n_items_skipped= 0;
+  while (json_scan_next(j) == 0)
+  {
+    if (j->stack_p < level)
+      return 0;
+    if (j->stack_p == level && j->state == JST_VALUE)
+      (*n_items_skipped)++;
+  }
+
+  return 1;
+}
+
+
 int json_skip_key(json_engine_t *j)
 {
   if (json_read_value(j))
@@ -1386,7 +1407,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
           if (!json_key_matches(je, &key_name))
             continue;
         }
-        if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
+        if (cur_step == state->paths[p_c].last_step + state->cur_depth)
           path_found= TRUE;
         else
         {
@@ -1419,7 +1440,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
             cur_step->n_item == state->array_counters[state->cur_depth])
         {
           /* Array item matches. */
-          if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
+          if (cur_step == state->paths[p_c].last_step + state->cur_depth)
             path_found= TRUE;
           else
           {
@@ -1824,4 +1845,3 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
   return json_path_parts_compare(a->steps+1, a->last_step,
                                  b->steps+1, b->last_step, vt);
 }
-

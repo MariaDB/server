@@ -1177,5 +1177,96 @@ source suite/rpl/include/check_type.inc;
 
 --echo # End of MDEV-15833
 
+--echo #
+--echo # MDEV-17098 DATE <-> DATETIME
+--echo #
+
+# NON-LOSSY
+let $source_temp_format= 1; # irrelevant with DATE though
+let $source_type= DATE;
+let $target_temp_format= 1; # to produce MYSQL_TYPE_DATETIME2
+let $target_type= DATETIME(6);
+let $source_value= '2018-10-11';
+let $target_value= '2018-10-11 00:00:00.000000';
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_temp_format= 1;
+let $source_type= DATE;
+let $target_temp_format= 0; # to produce "old" MYSQL_TYPE_DATETIME
+let $target_type= DATETIME(6);
+let $source_value= '2018-10-11';
+let $target_value= '2018-10-11 00:00:00.000000';
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_temp_format= 0;
+let $source_type= DATE;
+let $target_temp_format= 1;
+let $target_type= DATETIME(6);
+let $source_value= '2018-10-11';
+let $target_value= '2018-10-11 00:00:00.000000';
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+# zero-precision test version
+let $source_temp_format= 1;
+let $source_type= DATE;
+let $target_temp_format= 1;
+let $target_type= DATETIME(0);
+let $source_value= '2018-10-11';
+let $target_value= '2018-10-11 00:00:00';
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+# LOSSY
+let $source_temp_format= 1;
+let $source_type= DATETIME(6);
+let $target_temp_format= 1;
+let $target_type= DATE;
+let $source_value= '2018-10-11 00:00:00.000001';
+let $target_value= '2018-10-11';
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_temp_format= 1;
+let $source_type= DATETIME(6);
+let $target_temp_format= 0;
+let $target_type= DATE;
+let $source_value= '2018-10-11 00:00:00.000001';
+let $target_value= '2018-10-11';
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+# zero-precision test version
+let $source_temp_format= 1;
+let $source_type= DATETIME(0);
+let $target_temp_format= 1;
+let $target_type= DATE;
+let $source_value= '2018-10-11 00:00:00';
+let $target_value= '2018-10-11';
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+# TODO: fix MDEV-17394 Row-based replication DATETIME(m) to
+#                      DATETIME(s) does not work or incorrect
+#
+#
+# let $source_temp_format= 0;
+# let $source_type= DATETIME(6);
+# let $target_temp_format= 1;
+# let $target_type= DATE;
+# ...
+# let $source_temp_format= 0;
+# let $source_type= DATETIME(6);
+# let $target_temp_format= 0;
+# let $target_type= DATE;
+# ...
+
+let $source_temp_format=;
+let $target_temp_format=;
+--echo # End of MDEV-17098
+
+
 --source include/rpl_reset.inc
 enable_query_log;

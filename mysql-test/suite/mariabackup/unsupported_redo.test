@@ -11,33 +11,15 @@ let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
 
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
---source ../../suite/innodb/include/no_checkpoint_start.inc
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 
-# Below mariabackup operation may complete successfully if checkpoint happens
-# after the alter table command.
-
-echo # Fails during full backup;
+echo # No longer fails during full backup;
 --disable_result_log
---error 0,1
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
 --enable_result_log
 
 DROP TABLE t1;
 
---let MYSQLD_DATADIR=$basedir/
-perl;
-open(OUT, ">$ENV{MYSQLTEST_VARDIR}/log/check.txt") || die;
-print OUT '
---let no_checkpoint_end=1
---let CLEANUP_IF_CHECKPOINT=rmdir $basedir;
---source ../../suite/innodb/include/no_checkpoint_end.inc
---exit Backup failed to fail despite MLOG_INDEX_LOAD record
-' if (-f "$ENV{MYSQLD_DATADIR}/xtrabackup_info");
-close(OUT);
-EOF
---source $MYSQLTEST_VARDIR/log/check.txt
---remove_file $MYSQLTEST_VARDIR/log/check.txt
 rmdir $basedir;
 
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
@@ -50,29 +32,14 @@ INSERT INTO t1(a) select 1 union select 2 union select 3;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
 --enable_result_log
 
---source ../../suite/innodb/include/no_checkpoint_start.inc
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 
 --disable_result_log
---error 0,1
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
 --enable_result_log
 
 DROP TABLE t1;
 
---let MYSQLD_DATADIR=$incremental_dir/
-perl;
-open(OUT, ">$ENV{MYSQLTEST_VARDIR}/log/check.txt") || die;
-print OUT '
---let no_checkpoint_end=1
---let CLEANUP_IF_CHECKPOINT=rmdir $basedir;rmdir $incremental_dir;
---source ../../suite/innodb/include/no_checkpoint_end.inc
---exit Backup failed to fail despite MLOG_INDEX_LOAD record
-' if (-f "$ENV{MYSQLD_DATADIR}/xtrabackup_info");
-close(OUT);
-EOF
---source $MYSQLTEST_VARDIR/log/check.txt
---remove_file $MYSQLTEST_VARDIR/log/check.txt
 rmdir $basedir;rmdir $incremental_dir;
 
 CREATE TABLE t1(i INT) ENGINE INNODB;

@@ -1200,6 +1200,40 @@ select * from my_ancestors;
 
 drop table my_ancestors;
 
+#
+# MDEV-17967 Add a solution of the 8 queens problem to the regression test for CTE
+#
+# adapted to MariaDB from https://rosettacode.org/wiki/N-queens_problem#SQL
+#
+let $N=4; # 8 takes too long for a test
+eval WITH RECURSIVE
+  positions(i) AS (
+    VALUES(0)
+    UNION SELECT ALL
+    i+1 FROM positions WHERE i < $N*$N-1
+    ),
+  solutions(board, n_queens) AS (
+    SELECT REPEAT('-', $N*$N), 0
+      FROM positions
+    UNION
+    SELECT
+      concat(substr(board, 1, i),'*',substr(board, i+2)),n_queens + 1 AS n_queens
+      FROM positions AS ps, solutions
+    WHERE n_queens < $N
+      AND substr(board,1,i) != '*'
+      AND NOT EXISTS (
+        SELECT 1 FROM positions WHERE
+          substr(board,i+1,1) = '*' AND
+            (
+                i % $N = ps.i % $N OR
+                i div $N = ps.i div $N OR
+                i div $N + (i % $N) = ps.i div $N + (ps.i % $N) OR
+                i div $N - (i % $N) = ps.i div $N - (ps.i % $N)
+            )
+        )
+  )
+SELECT regexp_replace(board,concat('(',REPEAT('.', $N),')'),'\\\\1\\n') n_queens FROM solutions WHERE n_queens = $N;
+
 --echo #
 --echo # MDEV-10883: execution of prepared statement from SELECT
 --echo #             with recursive CTE that renames columns
@@ -2324,7 +2358,218 @@ SELECT func();
 
 DROP FUNCTION func;
 
---echo # Start of 10.3 tests
+--echo #
+--echo # MDEV-17024: two materialized CTEs using the same recursive CTE
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3);
+
+let $q=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2;
+
+eval $q;
+eval explain extended $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+
+create table t2 (c1 int, c2 int);
+eval create procedure p() insert into t2 $q;
+call p();
+select * from t2;
+
+let $q1=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1;
+
+eval $q1;
+
+let $q2=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from t1),
+cte2 as
+(select count(*) as c2 from t2)
+select * from cte1,cte2;
+
+eval $q2;
+
+let $q3=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2 where cte1.c1 = 3;
+
+eval $q3;
+
+drop procedure p;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-17201: recursive part with LIMIT
+--echo #
+
+CREATE TABLE purchases (
+  id int unsigned NOT NULL AUTO_INCREMENT,
+  pdate date NOT NULL,
+  quantity int unsigned NOT NULL,
+  p_id int unsigned NOT NULL,
+  PRIMARY KEY (id)
+);
+INSERT INTO purchases(pdate, quantity, p_id) VALUES
+  ('2014-11-01',5 ,1),('2014-11-03', 3 ,1),
+  ('2014-11-01',2 ,2),('2014-11-03', 4 ,2);
+
+CREATE TABLE expired (
+  edate date NOT NULL,
+  quantity int unsigned NOT NULL,
+  p_id int unsigned NOT NULL,
+  PRIMARY KEY (edate,p_id)
+);
+
+INSERT INTO expired VALUES ('2014-11-12', 5 ,1),('2014-11-08', 1 ,2);
+
+WITH RECURSIVE expired_map AS (
+   SELECT edate AS expired_date,
+          CAST(NULL AS date) AS purchase_date,
+          0 AS quantity,
+          e.p_id,
+          (SELECT MAX(id)+1 FROM purchases p
+             WHERE pdate <= edate AND p.p_id =p_id) AS purchase_processed,
+          quantity AS unresolved
+   FROM expired e
+   UNION
+   ( SELECT expired_date,
+            pdate,
+            IF(p.quantity < m.unresolved, p.quantity, m.unresolved),
+            p.p_id,
+            p.id,
+            IF(p.quantity < m.unresolved, m.unresolved - p.quantity, 0)
+     FROM purchases p JOIN expired_map m ON p.p_id = m.p_id
+     WHERE p.id < m.purchase_processed AND m.unresolved > 0
+     ORDER BY p.id DESC
+     LIMIT 1
+   )
+)
+SELECT  * FROM expired_map;
+
+DROP TABLE purchases, expired;
+
+--echo #
+--echo # MDEV-17635: Two recursive CTEs, the second using the first
+--echo #
+
+WITH RECURSIVE
+x AS (SELECT 0 as k UNION ALL SELECT k + 1 FROM x WHERE k < 1),
+z AS
+  ( SELECT  k1 AS cx, k2 AS cy, k1, k2
+      FROM (SELECT k  AS k1 FROM x) x1 JOIN (SELECT k  AS k2 FROM x) y1
+    UNION
+    SELECT 1,1,1,1 FROM z)
+SELECT * FROM z;
+
+--echo # https://wiki.postgresql.org/wiki/Mandelbrot_set:
+
+WITH RECURSIVE x(i) AS (
+    SELECT CAST(0 AS DECIMAL(13, 10))
+     UNION ALL
+    SELECT i + 1
+      FROM x
+     WHERE i < 101
+),
+Z(Ix, Iy, Cx, Cy, X, Y, I) AS (
+    SELECT Ix, Iy, X, Y, X, Y, 0
+      FROM (SELECT CAST(-2.2 + 0.031 * i AS DECIMAL(13, 10)) AS X,
+                  i AS Ix FROM x) AS xgen
+           CROSS JOIN (
+               SELECT CAST(-1.5 + 0.031 * i AS DECIMAL(13, 10)) AS Y,
+                      i AS iY FROM x
+           ) AS ygen
+    UNION ALL
+    SELECT Ix, Iy, Cx, Cy,
+           CAST(X * X - Y * Y + Cx AS DECIMAL(13, 10)) AS X,
+           CAST(Y * X * 2 + Cy AS DECIMAL(13, 10)), I + 1
+      FROM Z
+     WHERE X * X + Y * Y < 16.0
+           AND I < 27
+),
+Zt (Ix, Iy, I) AS (
+    SELECT Ix, Iy, MAX(I) AS I
+      FROM Z
+     GROUP BY Iy, Ix
+     ORDER BY Iy, Ix
+)
+SELECT GROUP_CONCAT(
+           SUBSTRING(
+               ' .,,,-----++++%%%%@@@@#### ',
+               GREATEST(I, 1),
+               1
+           ) ORDER BY Ix SEPARATOR ''
+       ) AS 'Mandelbrot Set'
+  FROM Zt
+GROUP BY Iy
+ORDER BY Iy;
+
+--echo #
+--echo # MDEV-17871: EXPLAIN for query with not used recursive cte
+--echo #
+
+create table t1 (a int);
+insert into t1 values (2), (1), (4), (3);
+
+let $rec_cte =
+with recursive cte as
+  (select * from t1 where a=1 union select a+1 from cte where a<3);
+
+eval
+explain extended
+$rec_cte
+select * from cte as t;
+
+eval
+$rec_cte
+select * from cte as t;
+
+eval
+explain extended
+$rec_cte
+select * from t1 as t;
+
+eval
+$rec_cte
+select * from t1 as t;
+
+create table t2 ( i1 int, i2 int);
+insert into t2 values (1,1),(2,2);
+
+explain
+with recursive cte as
+ ( select * from t1 union select s1.* from t1 as s1, cte where s1.i1 = cte.i2 )
+select * from t1 as t;
+
+drop table t1,t2;
+
+--echo # End of 10.2 tests
 
 --echo #
 --echo # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
@@ -2553,3 +2798,5 @@ WITH RECURSIVE cte AS
 SELECT * FROM cte;
 
 DROP TABLE t1;
+
+--echo # End of 10.3 tests

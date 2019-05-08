@@ -2008,6 +2008,16 @@ INSERT INTO t1 (name) VALUES ('cat');
 SELECT * FROM t1;
 DROP TABLE t1;
 
+#
+# MDEV-16682
+# Assertion `(buff[7] & 7) == HEAD_PAGE' failed.
+#
+
+CREATE TABLE t1 (pk int, i2 int) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,2), (2,3),(3,4);
+DELETE FROM tt.*, t1.* USING t1 AS tt LEFT JOIN t1 ON (tt.i2 = t1.pk);
+DROP TABLE t1;
+
 --echo #
 --echo # End of 5.5 tests
 --echo #

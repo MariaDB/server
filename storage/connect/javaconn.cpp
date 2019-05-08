@@ -82,29 +82,6 @@ GETDEF JAVAConn::GetDefaultJavaVMInitArgs = NULL;
 #endif  // !_DEBUG
 
 /***********************************************************************/
-/*  Allocate the structure used to refer to the result set.            */
-/***********************************************************************/
-static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, PCSZ db,
-	PCSZ tab, PQRYRES qrp)
-{
-	JCATPARM *cap;
-
-#if defined(_DEBUG)
-	assert(qrp);
-#endif
-
-	if ((cap = (JCATPARM *)PlgDBSubAlloc(g, NULL, sizeof(JCATPARM)))) {
-		memset(cap, 0, sizeof(JCATPARM));
-		cap->Id = fid;
-		cap->Qrp = qrp;
-		cap->DB = db;
-		cap->Tab = tab;
-	} // endif cap
-
-	return cap;
-} // end of AllocCatInfo
-
-/***********************************************************************/
 /*  JAVAConn construction/destruction.                                 */
 /***********************************************************************/
 JAVAConn::JAVAConn(PGLOBAL g, PCSZ wrapper)
@@ -464,7 +441,7 @@ bool JAVAConn::Open(PGLOBAL g)
 
 		//=============== load and initialize Java VM and JNI interface =============
 		rc = CreateJavaVM(&jvm, (void**)&env, &vm_args);  // YES !!
-		delete options;    // we then no longer need the initialisation options.
+		delete[] options;    // we then no longer need the initialisation options.
 
 		switch (rc) {
 			case JNI_OK:

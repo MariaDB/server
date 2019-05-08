@@ -192,7 +192,7 @@ drop view v_bug5719;
 select * from t1;
 unlock tables;
 create or replace view v_bug5719 as select * from t1;
-lock tables v_bug5719 write;
+lock tables v_bug5719 read;
 select * from v_bug5719;
 --echo
 --echo Allowed to use an underlying table under LOCK TABLES <view>
@@ -368,7 +368,7 @@ create table t2 (j int);
 --echo #
 --echo # Try to perform DDL on table which is locked through view.
 create view v1 as select * from t2;
-lock tables t1 write, v1 write;
+lock tables t1 write, v1 read;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 flush table t2;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE

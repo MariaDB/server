@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2018, MariaDB Corporation.
+Copyright (C) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -166,7 +166,7 @@ btr_defragment_add_index(
 	mtr_start(&mtr);
 	// Load index rood page.
 	buf_block_t* block = btr_block_get(
-		page_id_t(index->table->space->id, index->page),
+		page_id_t(index->table->space_id, index->page),
 		page_size_t(index->table->space->flags),
 		RW_NO_LATCH, index, &mtr);
 	page_t* page = NULL;
@@ -181,7 +181,8 @@ btr_defragment_add_index(
 		return NULL;
 	}
 
-	ut_ad(page_is_root(page));
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
 
 	if (page_is_leaf(page)) {
 		// Index root is a leaf page, no need to defragment.
@@ -314,7 +315,7 @@ btr_defragment_save_defrag_stats_if_needed(
 	dict_index_t*	index)	/*!< in: index */
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
-	    && index->table->space->id != 0 // do not track system tables
+	    && index->table->space_id != 0 // do not track system tables
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);
@@ -482,6 +483,7 @@ btr_defragment_merge_pages(
 				ULINT_UNDEFINED);
 		}
 	}
+	btr_cur_t parent;
 	if (n_recs_to_move == n_recs) {
 		/* The whole page is merged with the previous page,
 		free it. */
@@ -489,9 +491,10 @@ btr_defragment_merge_pages(
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
 		btr_level_list_remove(
-			index->table->space->id,
+			index->table->space_id,
 			page_size, from_page, index, mtr);
-		btr_node_ptr_delete(index, from_block, mtr);
+		btr_page_get_father(index, from_block, mtr, &parent);
+		btr_cur_node_ptr_delete(&parent, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
 		"btr_defragment_n_pages"); */
 		btr_page_free(index, from_block, mtr);
@@ -509,7 +512,9 @@ btr_defragment_merge_pages(
 			lock_update_split_and_merge(to_block,
 						    orig_pred,
 						    from_block);
-			btr_node_ptr_delete(index, from_block, mtr);
+			// FIXME: reuse the node_ptr!
+			btr_page_get_father(index, from_block, mtr, &parent);
+			btr_cur_node_ptr_delete(&parent, mtr);
 			rec = page_rec_get_next(
 				page_get_infimum_rec(from_page));
 			node_ptr = dict_index_build_node_ptr(
@@ -564,7 +569,7 @@ btr_defragment_n_pages(
 		return NULL;
 	}
 
-	if (!index->table->space || !index->table->space->id) {
+	if (!index->table->space || !index->table->space_id) {
 		/* Ignore space 0. */
 		return NULL;
 	}
@@ -589,7 +594,7 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		blocks[i] = btr_block_get(page_id_t(index->table->space->id,
+		blocks[i] = btr_block_get(page_id_t(index->table->space_id,
 						    page_no), page_size,
 					  RW_X_LATCH, index, mtr);
 	}

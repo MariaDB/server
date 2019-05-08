@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 export DH_VERBOSE=1
+export DEB_BUILD_HARDENING=1
 
 # enable Debian Hardening
 # see: https://wiki.debian.org/Hardening
@@ -112,11 +113,6 @@ override_dh_auto_install:
 	@echo "RULES.$@"
 	dh_testdir
 	dh_testroot
-
-	# If libthrift-dev was available (manually installed, as it is
-	# not in Debian) and ha_cassandra.so was thus built, create package,
-	# otherwise skip it.
-	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+20d" debian/control
 
 ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit

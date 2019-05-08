@@ -1,0 +1,13 @@
+--source include/have_tokudb.inc
+# PS-4979 : Dropping TokuDB table with non-alphanumeric characters could lead
+#           to a crash
+#
+# `#mysql50#q.q` is an invalid table name, but the server side doesn't detect it
+# and complain.  Instead it passes in an empty table name to the engine.  The
+# engine expects a table name in the form of a relative path like
+# "./databasename/tablename".  InnoDB detects this in parsing the table name
+# during the creation and returns an error.
+# MariaDB server detect above error.
+
+--error ER_WRONG_TABLE_NAME
+CREATE TABLE `#mysql50#q.q`(f1 INT KEY) ENGINE=TOKUDB;

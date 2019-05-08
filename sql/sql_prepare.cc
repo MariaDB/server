@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -893,6 +893,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
       DBUG_RETURN(1);
     if (param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -941,6 +942,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
     }
     else
       DBUG_RETURN(1); // long is not supported here
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -969,6 +971,7 @@ static bool set_conversion_functions(Prepared_statement *stmt,
     read_pos+= 2;
     (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
     (*it)->setup_conversion(thd, (uchar) (typecode & 0xff));
+    (*it)->sync_clones();
   }
   *data= read_pos;
   DBUG_RETURN(0);
@@ -1039,6 +1042,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
         if (param->has_no_value())
           DBUG_RETURN(1);
       }
+      param->sync_clones();
     }
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
@@ -1081,6 +1085,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -1136,7 +1141,11 @@ swap_parameter_array(Item_param **param_array_dst,
   Item_param **end= param_array_dst + param_count;
 
   for (; dst < end; ++src, ++dst)
+  {
     (*dst)->set_param_type_and_swap_value(*src);
+    (*dst)->sync_clones();
+    (*src)->sync_clones();
+  }
 }
 
 
@@ -1167,6 +1176,7 @@ insert_params_from_actual_params(Prepared_statement *stmt,
     if (ps_param->save_in_param(stmt->thd, param) ||
         param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);
+    param->sync_clones();
   }
   DBUG_RETURN(0);
 }
@@ -1209,6 +1219,8 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);
+
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -1582,7 +1594,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
     DBUG_RETURN(TRUE);
 
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
                            *values, COLUMNS_READ, 0, NULL, 0));
@@ -1614,7 +1626,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
       open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     goto error;
 
   while ((var= it++))
@@ -1651,7 +1663,8 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
-      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL, DT_PREPARE))
+      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   while ((item= it++))
@@ -1777,7 +1790,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE | DT_CREATE))
+                                       DT_INIT | DT_PREPARE | DT_CREATE))
       DBUG_RETURN(TRUE);
 
     select_lex->context.resolve_in_select_list= TRUE;
@@ -1798,7 +1811,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
     */
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE))
+                                       DT_INIT | DT_PREPARE))
       DBUG_RETURN(TRUE);
   }
 
@@ -1888,8 +1901,20 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   DBUG_ENTER("mysql_test_show_grants");
   THD *thd= stmt->thd;
   List<Item> fields;
+  char buff[1024];
+  const char *username= NULL, *hostname= NULL, *rolename= NULL, *end;
 
-  mysql_show_grants_get_fields(thd, &fields, STRING_WITH_LEN("Grants for"));
+  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename))
+    DBUG_RETURN(1);
+
+  if (username)
+    end= strxmov(buff,"Grants for ",username,"@",hostname, NullS);
+  else if (rolename)
+    end= strxmov(buff,"Grants for ",rolename, NullS);
+  else
+    DBUG_RETURN(1);
+
+  mysql_show_grants_get_fields(thd, &fields, buff, (uint)(end - buff));
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
@@ -1913,7 +1938,7 @@ static int mysql_test_show_slave_status(Prepared_statement *stmt)
   THD *thd= stmt->thd;
   List<Item> fields;
 
-  show_master_info_get_fields(thd, &fields, 0, 0);
+  show_master_info_get_fields(thd, &fields, thd->lex->verbose, 0);
     
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
@@ -2025,7 +2050,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE))
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   res= select_like_stmt_test(stmt, 0, 0);
@@ -2451,6 +2476,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_CREATE_INDEX:
   case SQLCOM_DROP_INDEX:
   case SQLCOM_ROLLBACK:
+  case SQLCOM_ROLLBACK_TO_SAVEPOINT:
   case SQLCOM_TRUNCATE:
   case SQLCOM_DROP_VIEW:
   case SQLCOM_REPAIR:
@@ -2470,6 +2496,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_ALTER_DB_UPGRADE:
   case SQLCOM_CHECKSUM:
   case SQLCOM_CREATE_USER:
+  case SQLCOM_ALTER_USER:
   case SQLCOM_RENAME_USER:
   case SQLCOM_DROP_USER:
   case SQLCOM_CREATE_ROLE:
@@ -2479,6 +2506,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_GRANT:
   case SQLCOM_GRANT_ROLE:
   case SQLCOM_REVOKE:
+  case SQLCOM_REVOKE_ALL:
   case SQLCOM_REVOKE_ROLE:
   case SQLCOM_KILL:
   case SQLCOM_COMPOUND:
@@ -2507,14 +2535,12 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     {
        if (lex->describe || lex->analyze_stmt)
        {
-         if (!lex->result &&
-             !(lex->result= new (stmt->mem_root) select_send(thd)))
-              DBUG_RETURN(TRUE);
+         select_send result(thd);
          List<Item> field_list;
-         thd->prepare_explain_fields(lex->result, &field_list,
-                                     lex->describe, lex->analyze_stmt);
-         res= send_prep_stmt(stmt, lex->result->field_count(field_list)) ||
-              lex->result->send_result_set_metadata(field_list,
+         res= thd->prepare_explain_fields(&result, &field_list,
+                                          lex->describe, lex->analyze_stmt) ||
+              send_prep_stmt(stmt, result.field_count(field_list)) ||
+              result.send_result_set_metadata(field_list,
                                                     Protocol::SEND_EOF);
        }
        else
@@ -2900,6 +2926,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 {
   SELECT_LEX *sl= lex->all_selects_list;
   DBUG_ENTER("reinit_stmt_before_use");
+  Window_spec *win_spec;
 
   /*
     We have to update "thd" pointer in LEX, all its units and in LEX::result,
@@ -2916,7 +2943,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
   }
   for (; sl; sl= sl->next_select_in_list())
   {
-    if (!sl->first_execution)
+    if (sl->changed_elements & TOUCHED_SEL_COND)
     {
       /* remove option which was put by mysql_explain_union() */
       sl->options&= ~SELECT_DESCRIBE;
@@ -2963,19 +2990,36 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
           order->next= sl->group_list_ptrs->at(ix+1);
         }
       }
+    }
+    { // no harm to do it (item_ptr set on parsing)
+      ORDER *order;
       for (order= sl->group_list.first; order; order= order->next)
+      {
         order->item= &order->item_ptr;
+      }
       /* Fix ORDER list */
       for (order= sl->order_list.first; order; order= order->next)
         order->item= &order->item_ptr;
+      /* Fix window functions too */
+      List_iterator<Window_spec> it(sl->window_specs);
+
+      while ((win_spec= it++))
       {
-#ifdef DBUG_ASSERT_EXISTS
-        bool res=
-#endif
-          sl->handle_derived(lex, DT_REINIT);
-        DBUG_ASSERT(res == 0);
+        for (order= win_spec->partition_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
+        for (order= win_spec->order_list->first; order; order= order->next)
+          order->item= &order->item_ptr;
       }
     }
+    if (sl->changed_elements & TOUCHED_SEL_DERIVED)
+    {
+#ifdef DBUG_ASSERT_EXISTS
+      bool res=
+#endif
+        sl->handle_derived(lex, DT_REINIT);
+      DBUG_ASSERT(res == 0);
+    }
+
     {
       SELECT_LEX_UNIT *unit= sl->master_unit();
       unit->unclean();
@@ -3028,7 +3072,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     lex->result->cleanup();
     lex->result->set_thd(thd);
   }
-  lex->allow_sum_func= 0;
+  lex->allow_sum_func.clear_all();
   lex->in_sum_func= NULL;
   DBUG_VOID_RETURN;
 }
@@ -3199,7 +3243,7 @@ static void mysql_stmt_execute_common(THD *thd,
   sp_cache_enforce_limit(thd->sp_package_body_cache, stored_program_cache_size);
 
   /* Close connection socket; for use with client testing (Bug#43560). */
-  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_close(thd->net.vio););
+  DBUG_EXECUTE_IF("close_conn_after_stmt_execute", vio_shutdown(thd->net.vio,SHUT_RD););
 
   DBUG_VOID_RETURN;
 }

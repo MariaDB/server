@@ -191,9 +191,10 @@ storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
 storage/rocksdb/ldb
+storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb
-storage/rocksdb/sst_dump
 storage/rocksdb/rdb_source_revision.h
+storage/rocksdb/sst_dump
 storage/tokudb/PerconaFT/buildheader/db.h
 storage/tokudb/PerconaFT/buildheader/make_tdb
 storage/tokudb/PerconaFT/buildheader/runcat.sh
@@ -261,6 +262,7 @@ storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
 storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
+zlib/zconf.h
 xxx/*
 yyy/*
 zzz/*
@@ -511,3 +513,6 @@ compile_commands.json
 .editorconfig
 .kateconfig
 *.kdev4
+
+# Visual Studio Code workspace
+.vscode/

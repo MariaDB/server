@@ -233,7 +233,7 @@ struct rpl_slave_state
   int truncate_state_table(THD *thd);
   void select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                  bool in_transaction, bool in_statement, void **out_hton);
+                  rpl_group_info *rgi, bool in_statement, void **out_hton);
   uint64 next_sub_id(uint32 domain_id);
   int iterate(int (*cb)(rpl_gtid *, void *), void *data,
               rpl_gtid *extra_gtids, uint32 num_extra,

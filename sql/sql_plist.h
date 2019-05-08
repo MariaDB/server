@@ -184,7 +184,12 @@ public:
     list= &a;
     current= a.m_first;
   }
-  /* Operator for it++ */
+  /**
+    Operator for it++
+
+    @note since we save next element pointer, caller may remove current element.
+    Such modification doesn't invalidate iterator.
+  */
   inline T* operator++(int)
   {
     T *result= current;

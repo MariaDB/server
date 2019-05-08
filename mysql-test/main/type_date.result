@@ -108,7 +108,7 @@ DROP TABLE t1, t2, t3;
 CREATE TABLE t1 (y YEAR);
 INSERT IGNORE INTO t1 VALUES ('abc');
 Warnings:
-Warning	1366	Incorrect integer value: 'abc' for column 'y' at row 1
+Warning	1366	Incorrect integer value: 'abc' for column `test`.`t1`.`y` at row 1
 SELECT * FROM t1;
 y
 0000
@@ -221,7 +221,7 @@ a
 0000-00-00
 0000-00-00
 INSERT INTO t1 VALUES ('0000-00-00');
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`a` at row 1
 SET SQL_MODE=DEFAULT;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a DATE);
@@ -250,7 +250,7 @@ a
 1000-00-00
 1000-00-00
 INSERT INTO t1 VALUES ('1000-00-00');
-ERROR 22007: Incorrect date value: '1000-00-00' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '1000-00-00' for column `test`.`t1`.`a` at row 1
 SET SQL_MODE=DEFAULT;
 DROP TABLE t1,t2;
 CREATE TABLE t1 SELECT curdate() AS f1;
@@ -504,7 +504,7 @@ SET sql_mode=DEFAULT;
 CREATE TABLE t1 (a DATE DEFAULT '0000-00-00');
 SET sql_mode=TRADITIONAL;
 INSERT INTO t1 VALUES ('0000-00-00');
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES ();
 ERROR 22007: Incorrect default value '0000-00-00' for column 'a'
 INSERT INTO t1 VALUES (DEFAULT);
@@ -545,7 +545,7 @@ CREATE TABLE t1 (a DATE);;
 INSERT INTO t1 VALUES (0);
 SET sql_mode='TRADITIONAL';
 CREATE TABLE t2 AS SELECT * FROM t1;
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'a' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t2`.`a` at row 1
 DROP TABLE t1;
 #
 # End of MDEV-8373 Zero date can be inserted in strict no-zero mode through CREATE TABLE AS SELECT timestamp_field
@@ -819,9 +819,9 @@ DATE(a)	DATE(b)	DATE(c)
 NULL	NULL	NULL
 2001-01-01	2001-01-01	2001-01-01
 Warnings:
-Warning	1292	Incorrect datetime value: '1' for column 'a' at row 1
-Warning	1292	Incorrect datetime value: '1' for column 'b' at row 1
-Warning	1292	Incorrect datetime value: '1' for column 'c' at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`c` at row 1
 SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
 DATE(COALESCE(a))	DATE(COALESCE(b))	DATE(COALESCE(c))
 NULL	NULL	NULL
@@ -839,9 +839,9 @@ DATE(a)	DATE(b)	DATE(c)
 NULL	NULL	NULL
 2001-01-01	2001-01-01	2001-01-01
 Warnings:
-Warning	1292	Incorrect datetime value: '1' for column 'a' at row 1
-Warning	1292	Incorrect datetime value: '1' for column 'b' at row 1
-Warning	1292	Incorrect datetime value: '1' for column 'c' at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`b` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`c` at row 1
 SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
 DATE(COALESCE(a))	DATE(COALESCE(b))	DATE(COALESCE(c))
 NULL	NULL	NULL
@@ -861,6 +861,31 @@ d	COUNT(*)
 1985-05-13	1
 1989-12-24	1
 NULL	2
+DROP TABLE t1;
+#
+# MDEV-17299 Assertion `maybe_null' failed in make_sortkey
+#
+CREATE TABLE t1 (pk int NOT NULL, d1 date, d2 date NOT NULL);
+INSERT INTO t1 values (1,'2018-06-22','2018-06-22'),(2,'2018-07-11','2018-07-11');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT group_concat(d1/(CASE 'b' WHEN 'j' THEN 'c' END))
+FROM v1 GROUP BY greatest(pk, 0, d2);
+group_concat(d1/(CASE 'b' WHEN 'j' THEN 'c' END))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`pk` at row 2
+CREATE TABLE t2 AS SELECT greatest(pk, 0, d2) AS c1 FROM t1 LIMIT 0;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP VIEW v1;
 DROP TABLE t1;
 #
 # End of 10.1 tests

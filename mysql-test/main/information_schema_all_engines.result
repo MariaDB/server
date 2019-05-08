@@ -4,6 +4,7 @@ Tables_in_information_schema
 ALL_PLUGINS
 APPLICABLE_ROLES
 CHARACTER_SETS
+CHECK_CONSTRAINTS
 CLIENT_STATISTICS
 COLLATIONS
 COLLATION_CHARACTER_SET_APPLICABILITY
@@ -83,6 +84,7 @@ table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE
 CHARACTER_SETS	CHARACTER_SET_NAME
+CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
 CLIENT_STATISTICS	CLIENT
 COLLATIONS	COLLATION_NAME
 COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME
@@ -162,6 +164,7 @@ table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE
 CHARACTER_SETS	CHARACTER_SET_NAME
+CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
 CLIENT_STATISTICS	CLIENT
 COLLATIONS	COLLATION_NAME
 COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME
@@ -247,6 +250,7 @@ table_name	group_concat(t.table_schema, '.', t.table_name)	num1
 ALL_PLUGINS	information_schema.ALL_PLUGINS	1
 APPLICABLE_ROLES	information_schema.APPLICABLE_ROLES	1
 CHARACTER_SETS	information_schema.CHARACTER_SETS	1
+CHECK_CONSTRAINTS	information_schema.CHECK_CONSTRAINTS	1
 CLIENT_STATISTICS	information_schema.CLIENT_STATISTICS	1
 COLLATIONS	information_schema.COLLATIONS	1
 COLLATION_CHARACTER_SET_APPLICABILITY	information_schema.COLLATION_CHARACTER_SET_APPLICABILITY	1
@@ -315,6 +319,7 @@ Database: information_schema
 | ALL_PLUGINS                           |
 | APPLICABLE_ROLES                      |
 | CHARACTER_SETS                        |
+| CHECK_CONSTRAINTS                     |
 | CLIENT_STATISTICS                     |
 | COLLATIONS                            |
 | COLLATION_CHARACTER_SET_APPLICABILITY |
@@ -384,6 +389,7 @@ Database: INFORMATION_SCHEMA
 | ALL_PLUGINS                           |
 | APPLICABLE_ROLES                      |
 | CHARACTER_SETS                        |
+| CHECK_CONSTRAINTS                     |
 | CLIENT_STATISTICS                     |
 | COLLATIONS                            |
 | COLLATION_CHARACTER_SET_APPLICABILITY |
@@ -453,5 +459,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	64
+information_schema	65
 mysql	31

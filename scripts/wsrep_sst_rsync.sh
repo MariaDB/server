@@ -1,4 +1,4 @@
-#!/bin/sh -ue
+#!/bin/bash -ue
 
 # Copyright (C) 2010-2014 Codership Oy
 #
@@ -41,6 +41,8 @@ cleanup_joiner()
     kill -9 $RSYNC_REAL_PID >/dev/null 2>&1 || \
     :
     rm -rf "$RSYNC_CONF"
+    rm -f "$STUNNEL_CONF"
+    rm -f "$STUNNEL_PID"
     rm -rf "$MAGIC_FILE"
     rm -rf "$RSYNC_PID"
     wsrep_log_info "Joiner cleanup done."
@@ -68,7 +70,7 @@ check_pid_and_port()
         local port_info="$(sockstat -46lp ${rsync_port} 2>/dev/null | \
             grep ":${rsync_port}")"
         local is_rsync="$(echo $port_info | \
-            grep '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
+            grep -E '[[:space:]]+(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
         ;;
     *)
         if ! command -v lsof > /dev/null; then
@@ -79,14 +81,14 @@ check_pid_and_port()
         local port_info="$(lsof -i :$rsync_port -Pn 2>/dev/null | \
             grep "(LISTEN)")"
         local is_rsync="$(echo $port_info | \
-            grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
+            grep -E '^(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
         ;;
     esac
 
     local is_listening_all="$(echo $port_info | \
         grep "*:$rsync_port" 2>/dev/null)"
     local is_listening_addr="$(echo $port_info | \
-        grep "$rsync_addr:$rsync_port" 2>/dev/null)"
+        grep -F "$rsync_addr:$rsync_port" 2>/dev/null)"
 
     if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
         if [ -z "$is_rsync" ]; then
@@ -117,8 +119,14 @@ is_local_ip()
     address="$address "
   fi
 
-  $get_addr_bin | grep "$address" > /dev/null
+  $get_addr_bin | grep -F "$address" > /dev/null
 }
+
+STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
+rm -f "$STUNNEL_CONF"
+
+STUNNEL_PID="$WSREP_SST_OPT_DATA/stunnel.pid"
+rm -f "$STUNNEL_PID"
 
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
 rm -rf "$MAGIC_FILE"
@@ -131,6 +139,14 @@ if ! [ -z $WSREP_SST_OPT_BINLOG ]
 then
     BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
     BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
+    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+fi
+
+if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+then
+    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG_INDEX)
+    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG_INDEX)
 fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
@@ -147,6 +163,24 @@ else
     WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
 fi
 
+INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
+# Try to set INNODB_DATA_HOME_DIR from the command line:
+if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
+fi
+# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
+fi
+
+if [ -n "$INNODB_DATA_HOME_DIR" ]; then
+    # handle both relative and absolute paths
+    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
+else
+    # default to datadir
+    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
+fi
+
 # Old filter - include everything except selected
 # FILTER=(--exclude '*.err' --exclude '*.pid' --exclude '*.sock' \
 #         --exclude '*.conf' --exclude core --exclude 'galera.*' \
@@ -154,11 +188,37 @@ fi
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
 # New filter - exclude everything except dirs (schemas) and innodb files
-FILTER="-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
-        -f '+ /wsrep_sst_binlog.tar' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*'"
+FILTER="-f '- /lost+found'
+        -f '- /.fseventsd'
+        -f '- /.Trashes'
+        -f '+ /wsrep_sst_binlog.tar'
+        -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump'
+        -f '- $INNODB_DATA_HOME_DIR/ibdata*'
+        -f '+ /undo*'
+        -f '+ /*/'
+        -f '- /*'"
+
+SSTKEY=$(parse_cnf sst tkey "")
+SSTCERT=$(parse_cnf sst tcert "")
+STUNNEL=""
+if [ -f "$SSTKEY" ] && [ -f "$SSTCERT" ] && wsrep_check_programs stunnel
+then
+    STUNNEL="stunnel ${STUNNEL_CONF}"
+fi
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
+
+cat << EOF > "$STUNNEL_CONF"
+CApath = ${SSTCERT%/*}
+foreground = yes
+pid = $STUNNEL_PID
+debug = warning
+client = yes
+connect = ${WSREP_SST_OPT_ADDR%/*}
+TIMEOUTclose = 0
+verifyPeer = yes
+EOF
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
@@ -205,12 +265,20 @@ then
             OLD_PWD="$(pwd)"
             cd $BINLOG_DIRNAME
 
-            binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            then
+               cd $BINLOG_INDEX_DIRNAME
+               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME}.index)
+            fi
+
+            cd $BINLOG_DIRNAME
             binlog_files=""
             for ii in $binlog_files_full
             do
                 binlog_files="$binlog_files $(basename $ii)"
             done
+
             if ! [ -z "$binlog_files" ]
             then
                 wsrep_log_info "Preparing binlog files for transfer:"
@@ -221,7 +289,8 @@ then
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        eval rsync --owner --group --perms --links --specials \
+        eval rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT ${FILTER} "$WSREP_SST_OPT_DATA/" \
               rsync://$WSREP_SST_OPT_ADDR >&2 || RC=$?
@@ -243,8 +312,22 @@ then
             exit $RC
         fi
 
+        # Transfer InnoDB data files
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
+              $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
+              -f '- **' "$INNODB_DATA_HOME_DIR/" \
+              rsync://$WSREP_SST_OPT_ADDR-data_dir >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
+            exit 255 # unknown error
+        fi
+
         # second, we transfer InnoDB log files
-        rsync --owner --group --perms --links --specials \
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '- **' "$WSREP_LOG_DIR/" \
               rsync://$WSREP_SST_OPT_ADDR-log_dir >&2 || RC=$?
@@ -264,7 +347,8 @@ then
 
         find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" \
              -print0 | xargs -I{} -0 -P $count \
-             rsync --owner --group --perms --links --specials \
+             rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+             --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
              $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
              rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
@@ -287,7 +371,8 @@ then
     echo "continue" # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"
-    rsync --archive --quiet --checksum "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
+    rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+          --archive --quiet --checksum "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
 
     echo "done $STATE"
 
@@ -310,12 +395,17 @@ then
     rm -rf "$RSYNC_PID"
 
     ADDR=$WSREP_SST_OPT_ADDR
-    RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
-    RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    if [ "${ADDR#\[}" != "$ADDR" ]; then
+        RSYNC_PORT=$(echo $ADDR | awk -F '\\]:' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F '\\]:' '{ print $1 }')"]"
+    else
+        RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
+        RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
+    fi
     if [ -z "$RSYNC_PORT" ]
     then
         RSYNC_PORT=4444
-        ADDR="$(echo $ADDR | awk -F ':' '{ print $1 }'):$RSYNC_PORT"
+        ADDR="$RSYNC_ADDR:$RSYNC_PORT"
     fi
 
     trap "exit 32" HUP PIPE
@@ -340,6 +430,8 @@ $SILENT
     path = $WSREP_SST_OPT_DATA
 [$MODULE-log_dir]
     path = $WSREP_LOG_DIR
+[$MODULE-data_dir]
+    path = $INNODB_DATA_HOME_DIR
 EOF
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
@@ -348,14 +440,37 @@ EOF
     # If the IP is local listen only in it
     if is_local_ip "$RSYNC_ADDR"
     then
-      rsync --daemon --no-detach --address "$RSYNC_ADDR" --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
+      RSYNC_EXTRA_ARGS="--address $RSYNC_ADDR"
+      STUNNEL_ACCEPT="$RSYNC_ADDR:$RSYNC_PORT"
     else
-      # Not local, possibly a NAT, listen in all interface
-      rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
+      # Not local, possibly a NAT, listen on all interfaces
+      RSYNC_EXTRA_ARGS=""
+      STUNNEL_ACCEPT="$RSYNC_PORT"
       # Overwrite address with all
       RSYNC_ADDR="*"
     fi
-    RSYNC_REAL_PID=$!
+
+    if [ -z "$STUNNEL" ]
+    then
+      rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" ${RSYNC_EXTRA_ARGS} &
+      RSYNC_REAL_PID=$!
+    else
+      cat << EOF > "$STUNNEL_CONF"
+key = $SSTKEY
+cert = $SSTCERT
+foreground = yes
+pid = $STUNNEL_PID
+debug = warning
+client = no
+[rsync]
+accept = $STUNNEL_ACCEPT
+exec = $(which rsync)
+execargs = rsync --server --daemon --config=$RSYNC_CONF .
+EOF
+      stunnel "$STUNNEL_CONF" &
+      RSYNC_REAL_PID=$!
+      RSYNC_PID=$STUNNEL_PID
+    fi
 
     until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR" "$RSYNC_PORT"
     do
@@ -394,7 +509,11 @@ EOF
             tar -xvf $BINLOG_TAR_FILE >&2
             for ii in $(ls -1 ${BINLOG_FILENAME}.*)
             do
-                echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+                if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+		then
+                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
+                fi
             done
         fi
         cd "$OLD_PWD"

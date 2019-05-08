@@ -3,6 +3,9 @@
 #
 CREATE TABLE t1(c1 INT PRIMARY KEY, c2 CHAR(1), c3 INT UNSIGNED) ENGINE=InnoDB;
 SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG='+d,create_index_metadata_fail';
+ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
+ERROR HY000: The table 't1' is full
 SET DEBUG_DBUG='+d,ib_create_table_fail_too_many_trx';
 ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
 ERROR HY000: Too many active concurrent transactions

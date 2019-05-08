@@ -44,6 +44,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/ft-ops.h"
 #include "ft/logger/log.h"
 #include "util/dbt.h"
+#ifndef TOKU_MYSQL_WITH_PFS
+#include <my_global.h>
+#endif
 
 typedef struct ft *FT;
 typedef struct ft_options *FT_OPTIONS;

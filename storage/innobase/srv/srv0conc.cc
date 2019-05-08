@@ -38,13 +38,11 @@ InnoDB concurrency manager
 Created 2011/04/18 Sunny Bains
 *******************************************************/
 
-#include "ha_prototypes.h"
-#include <mysql/service_thd_wait.h>
-
 #include "srv0srv.h"
 #include "trx0trx.h"
 #include "row0mysql.h"
 #include "dict0dict.h"
+#include <mysql/service_thd_wait.h>
 #include <mysql/service_wsrep.h>
 
 /** Number of times a thread is allowed to enter InnoDB within the same

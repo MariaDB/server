@@ -39,3 +39,14 @@ create table t_partition (f1 int) partition by hash(f1) partitions 2;
 select * from t_partition as tbl;
 show create table t_partition;
 drop table t_partition;
+
+#
+# MDEV-16792 Assertion `m_status == DA_ERROR' failed in Diagnostics_area::sql_errno or wrong result upon SHOW TABLE STATUS after adding partition under ANSI_QUOTES
+#
+create table t1 (a int) partition by range(a) (partition p0 values less than (5));
+set sql_mode='ansi_quotes';
+alter table t1 add partition (partition p1 values less than (10));
+set sql_mode= default;
+--replace_column 12 X 13 X
+show table status;
+drop table t1;

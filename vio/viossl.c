@@ -124,6 +124,9 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   default:
     should_retry= FALSE;
     ssl_set_sys_error(ssl_error);
+#ifndef HAVE_YASSL
+    ERR_clear_error();
+#endif
     break;
   }
 
@@ -315,27 +318,22 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
 {
   int r;
   SSL *ssl;
-  my_bool unused;
-  my_bool was_blocking;
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
   DBUG_ENTER("ssl_do");
   DBUG_PRINT("enter", ("ptr: %p, sd: %d  ctx: %p",
                        ptr, (int)sd, ptr->ssl_context));
 
-  /* Set socket to blocking if not already set */
-  vio_blocking(vio, 1, &was_blocking);
 
   if (!(ssl= SSL_new(ptr->ssl_context)))
   {
     DBUG_PRINT("error", ("SSL_new failure"));
     *errptr= ERR_get_error();
-    vio_blocking(vio, was_blocking, &unused);
     DBUG_RETURN(1);
   }
   DBUG_PRINT("info", ("ssl: %p timeout: %ld", ssl, timeout));
   SSL_clear(ssl);
   SSL_SESSION_set_timeout(SSL_get_session(ssl), timeout);
-  SSL_set_fd(ssl, sd);
+  SSL_set_fd(ssl, (int)sd);
 
   /*
     Since yaSSL does not support non-blocking send operations, use
@@ -360,7 +358,6 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
     DBUG_PRINT("error", ("SSL_connect/accept failure"));
     *errptr= SSL_errno(ssl, r);
     SSL_free(ssl);
-    vio_blocking(vio, was_blocking, &unused);
     DBUG_RETURN(1);
   }
 
@@ -371,7 +368,6 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
   */
   if (vio_reset(vio, VIO_TYPE_SSL, SSL_get_fd(ssl), ssl, 0))
   {
-    vio_blocking(vio, was_blocking, &unused);
     DBUG_RETURN(1);
   }
 

@@ -206,5 +206,4 @@ public:
   }
 };
 
-
 #endif // SQL_CMD_INCLUDED

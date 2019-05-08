@@ -203,6 +203,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_SHOW_FUNC_CODE:
+  case SQLCOM_SHOW_GENERIC:
   case SQLCOM_SHOW_GRANTS:
   case SQLCOM_SHOW_ENGINE_STATUS:
   case SQLCOM_SHOW_ENGINE_LOGS:
@@ -552,6 +553,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
 
   DBUG_ENTER("sp_head::sp_head");
 
+  m_security_ctx.init();
   m_backpatch.empty();
   m_backpatch_goto.empty();
   m_cont_backpatch.empty();
@@ -3208,7 +3210,7 @@ sp_head::show_routine_code(THD *thd)
       const char *format= "Instruction at position %u has m_ip=%u";
       char tmp[sizeof(format) + 2*SP_INSTR_UINT_MAXLEN + 1];
 
-      sprintf(tmp, format, ip, i->m_ip);
+      my_snprintf(tmp, sizeof(tmp), format, ip, i->m_ip);
       /*
         Since this is for debugging purposes only, we don't bother to
         introduce a special error code for it.
@@ -4470,24 +4472,26 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   */
   if (!row->arguments())
   {
-    sp_cursor tmp(thd, &m_lex_keeper);
+    sp_cursor tmp(thd, &m_lex_keeper, true);
     // Open the cursor without copying data
-    if (!(ret= tmp.open_view_structure_only(thd)))
+    if (!(ret= tmp.open(thd)))
     {
       Row_definition_list defs;
+      /*
+        Create row elements on the caller arena.
+        It's the same arena that was used during sp_rcontext::create().
+        This puts cursor%ROWTYPE elements on the same mem_root
+        where explicit ROW elements and table%ROWTYPE reside:
+        - tmp.export_structure() allocates new Spvar_definition instances
+          and their components (such as TYPELIBs).
+        - row->row_create_items() creates new Item_field instances.
+        They all are created on the same mem_root.
+      */
+      Query_arena current_arena;
+      thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
       if (!(ret= tmp.export_structure(thd, &defs)))
-      {
-        /*
-          Create row elements on the caller arena.
-          It's the same arena that was used during sp_rcontext::create().
-          This puts cursor%ROWTYPE elements on the same mem_root
-          where explicit ROW elements and table%ROWTYPE reside.
-        */
-        Query_arena current_arena;
-        thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
         row->row_create_items(thd, &defs);
-        thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
-      }
+      thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
       tmp.close(thd);
     }
   }

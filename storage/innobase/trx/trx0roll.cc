@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,12 +24,9 @@ Transaction rollback
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "my_config.h"
-#include <my_service_manager.h>
-
-#include "ha_prototypes.h"
 #include "trx0roll.h"
 
+#include <my_service_manager.h>
 #include <mysql/service_wsrep.h>
 
 #include "fsp0fsp.h"
@@ -46,7 +43,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "trx0trx.h"
 #include "trx0undo.h"
-#include "ha_prototypes.h"
 
 /** This many pages must be undone before a truncate is tried within
 rollback */
@@ -120,8 +116,7 @@ trx_rollback_to_savepoint_low(
 	roll_node = roll_node_create(heap);
 
 	if (savept != NULL) {
-		roll_node->partial = TRUE;
-		roll_node->savept = *savept;
+		roll_node->savept = savept;
 		check_trx_state(trx);
 	} else {
 		assert_trx_nonlocking_or_in_list(trx);
@@ -240,6 +235,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		ut_ad(!trx_is_autocommit_non_locking(trx));
 		if (trx->rsegs.m_redo.undo || trx->rsegs.m_redo.old_insert) {
 			/* Change the undo log state back from
@@ -339,6 +335,7 @@ trx_rollback_last_sql_stat_for_mysql(
 		return(err);
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		/* The statement rollback is only allowed on an ACTIVE
 		transaction, not a PREPARED or COMMITTED one. */
@@ -512,6 +509,7 @@ trx_rollback_to_savepoint_for_mysql(
 				trx, savep, mysql_binlog_cache_pos));
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		/* The savepoint rollback is only allowed on an ACTIVE
 		transaction, not a PREPARED or COMMITTED one. */
@@ -1019,7 +1017,7 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 	trx_undo_rec_t*	undo_rec = trx_roll_pop_top_rec(trx, undo, &mtr);
 	const undo_no_t	undo_no = trx_undo_rec_get_undo_no(undo_rec);
 	switch (trx_undo_rec_get_type(undo_rec)) {
-	case TRX_UNDO_INSERT_DEFAULT:
+	case TRX_UNDO_INSERT_METADATA:
 		/* This record type was introduced in MDEV-11369
 		instant ADD COLUMN, which was implemented after
 		MDEV-12288 removed the insert_undo log. There is no
@@ -1085,7 +1083,7 @@ que_thr_t*
 trx_rollback_start(
 /*===============*/
 	trx_t*		trx,		/*!< in: transaction */
-	ib_id_t		roll_limit)	/*!< in: rollback to undo no (for
+	undo_no_t	roll_limit)	/*!< in: rollback to undo no (for
 					partial undo), 0 if we are rolling back
 					the entire transaction */
 {
@@ -1163,7 +1161,7 @@ trx_rollback_step(
 
 		ut_a(node->undo_thr == NULL);
 
-		roll_limit = node->partial ? node->savept.least_undo_no : 0;
+		roll_limit = node->savept ? node->savept->least_undo_no : 0;
 
 		trx_commit_or_rollback_prepare(trx);
 

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@
 #include "records.h"                            // init_read_record,
 #include "filesort.h"
 #include "uniques.h"
-#include "sql_derived.h"                        // mysql_handle_list_of_derived
+#include "sql_derived.h"                        // mysql_handle_derived
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
 
@@ -319,21 +319,24 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       DBUG_RETURN(true);
     }
 
-    TABLE *table= table_list->table;
-    DBUG_ASSERT(table);
+    DBUG_ASSERT(table_list->table);
 
     DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
-    if (select_lex->vers_setup_conds(thd, table_list))
-      DBUG_RETURN(TRUE);
 
-    DBUG_ASSERT(!conds);
-    conds= table_list->on_expr;
-    table_list->on_expr= NULL;
+    // conds could be cached from previous SP call
+    if (!conds)
+    {
+      if (select_lex->vers_setup_conds(thd, table_list))
+        DBUG_RETURN(TRUE);
+
+      conds= table_list->on_expr;
+      table_list->on_expr= NULL;
+    }
   }
 
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
+  if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_PREPARE))
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
   if (!table_list->single_table_updatable())
@@ -932,7 +935,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
   List<Item> all_fields;
 
   *delete_while_scanning= true;
-  thd->lex->allow_sum_func= 0;
+  thd->lex->allow_sum_func.clear_all();
   if (setup_tables_and_check_access(thd, &thd->lex->select_lex.context,
                                     &thd->lex->select_lex.top_join_list,
                                     table_list, 
@@ -1208,6 +1211,7 @@ multi_delete::~multi_delete()
   {
     TABLE *table= table_being_deleted->table;
     table->no_keyread=0;
+    table->no_cache= 0;
   }
 
   for (uint counter= 0; counter < num_of_tables; counter++)

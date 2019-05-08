@@ -124,14 +124,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 
   if (options & REFRESH_ERROR_LOG)
     if (unlikely(flush_error_log()))
-    {
-      /*
-        When flush_error_log() failed, my_error() has not been called.
-        So, we have to do it here to keep the protocol.
-      */
-      my_error(ER_UNKNOWN_ERROR, MYF(0));
       result= 1;
-    }
 
   if ((options & REFRESH_SLOW_LOG) && global_system_variables.sql_log_slow)
     logger.flush_slow_log();
@@ -289,9 +282,18 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         */
         if (tables)
         {
+          int err;
           for (TABLE_LIST *t= tables; t; t= t->next_local)
-            if (!find_table_for_mdl_upgrade(thd, t->db.str, t->table_name.str, false))
-              return 1;
+            if (!find_table_for_mdl_upgrade(thd, t->db.str, t->table_name.str, &err))
+            {
+              if (is_locked_view(thd, t))
+                t->next_local= t->next_global;
+              else
+              {
+                my_error(err, MYF(0), t->table_name.str);
+                return 1;
+              }
+            }
         }
         else
         {
@@ -616,4 +618,3 @@ static void disable_checkpoints(THD *thd)
       ha_checkpoint_state(1);                   // Disable checkpoints
   }
 }
-

@@ -594,7 +594,9 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 /* Flag to mark that on_node was already called for this role */
 #define ROLE_OPENED             (1L << 3)
 
-static DYNAMIC_ARRAY acl_hosts, acl_users, acl_dbs, acl_proxy_users;
+static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
+static Dynamic_array<ACL_DB> acl_dbs(0U,50U);
+typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
   An hash containing mappings user <--> role
@@ -679,7 +681,7 @@ enum enum_acl_tables
   ROLES_MAPPING_TABLE,
   TABLES_MAX // <== always the last
 };
-// bits for open_grant_tables
+
 static const int Table_user= 1 << USER_TABLE;
 static const int Table_db= 1 << DB_TABLE;
 static const int Table_tables_priv= 1 << TABLES_PRIV_TABLE;
@@ -760,7 +762,7 @@ class Grant_table_base
 
   Grant_table_base() : start_privilege_column(0), num_privilege_cols(0)
   {
-    bzero(&tl, sizeof(tl));
+    tl.reset();
   };
 
   /* Initialization sequence common for all grant tables. This should be called
@@ -1490,8 +1492,7 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   else
     return true;
 
-  if (user->auth_string.length)
-    set_user_salt(user, user->auth_string.str, user->auth_string.length);
+  set_user_salt(user, user->auth_string.str, user->auth_string.length);
   return false;
 }
 
@@ -1956,13 +1957,20 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
                                  user_table.authentication_string()));
             user.auth_string.length= strlen(user.auth_string.str);
 
-            if (user.auth_string.length && password_len)
+            if (user.auth_string.length && password_len &&
+                (user.auth_string.length != password_len ||
+                 memcmp(user.auth_string.str, password, password_len)))
             {
               sql_print_warning("'user' entry '%s@%s' has both a password "
                                 "and an authentication plugin specified. The "
                                 "password will be ignored.",
                                 safe_str(user.user.str),
                                 safe_str(user.host.hostname));
+            }
+            else if (password_len)
+            {
+              user.auth_string.str= password;
+              user.auth_string.length= password_len;
             }
 
             fix_user_plugin_ptr(&user);
@@ -2090,12 +2098,11 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
     }
 #endif
-    (void) push_dynamic(&acl_dbs,(uchar*) &db);
+    acl_dbs.push(db);
   }
-  my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
-	   sizeof(ACL_DB),(qsort_cmp) acl_compare);
   end_read_record(&read_record_info);
-  freeze_size(&acl_dbs);
+  acl_dbs.sort((acl_dbs_cmp)acl_compare);
+  acl_dbs.freeze();
 
   const Proxies_priv_table& proxies_priv_table= tables.proxies_priv_table();
   if (proxies_priv_table.table_exists())
@@ -2174,7 +2181,7 @@ void acl_free(bool end)
   free_root(&acl_memroot,MYF(0));
   delete_dynamic(&acl_hosts);
   delete_dynamic_with_callback(&acl_users, (FREE_FUNC) free_acl_user);
-  delete_dynamic(&acl_dbs);
+  acl_dbs.free_memory();
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
   my_hash_free(&acl_check_hosts);
@@ -2212,7 +2219,8 @@ void acl_free(bool end)
 
 bool acl_reload(THD *thd)
 {
-  DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_dbs, old_acl_proxy_users;
+  DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_proxy_users;
+  Dynamic_array<ACL_DB> old_acl_dbs(0U,0U);
   HASH old_acl_roles, old_acl_roles_mappings;
   MEM_ROOT old_mem;
   int result;
@@ -2248,7 +2256,7 @@ bool acl_reload(THD *thd)
   old_acl_dbs= acl_dbs;
   my_init_dynamic_array(&acl_hosts, sizeof(ACL_HOST), 20, 50, MYF(0));
   my_init_dynamic_array(&acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
-  my_init_dynamic_array(&acl_dbs, sizeof(ACL_DB), 50, 100, MYF(0));
+  acl_dbs.init(50, 100);
   my_init_dynamic_array(&acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
   my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
@@ -2269,6 +2277,7 @@ bool acl_reload(THD *thd)
     acl_roles_mappings= old_acl_roles_mappings;
     acl_proxy_users= old_acl_proxy_users;
     acl_dbs= old_acl_dbs;
+    old_acl_dbs.init(0,0);
     acl_memroot= old_mem;
     init_check_host();
   }
@@ -2279,7 +2288,6 @@ bool acl_reload(THD *thd)
     delete_dynamic(&old_acl_hosts);
     delete_dynamic_with_callback(&old_acl_users, (FREE_FUNC) free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
-    delete_dynamic(&old_acl_dbs);
     my_hash_free(&old_acl_roles_mappings);
   }
   mysql_mutex_unlock(&acl_cache->lock);
@@ -2434,9 +2442,9 @@ bool acl_getroot(Security_context *sctx, const char *user, const char *host,
     if (acl_user)
     {
       res= 0;
-      for (i=0 ; i < acl_dbs.elements ; i++)
+      for (i=0 ; i < acl_dbs.elements() ; i++)
       {
-        ACL_DB *acl_db= dynamic_element(&acl_dbs, i, ACL_DB*);
+        ACL_DB *acl_db= &acl_dbs.at(i);
         if (!acl_db->user ||
             (user && user[0] && !strcmp(user, acl_db->user)))
         {
@@ -2465,9 +2473,9 @@ bool acl_getroot(Security_context *sctx, const char *user, const char *host,
     if (acl_role)
     {
       res= 0;
-      for (i=0 ; i < acl_dbs.elements ; i++)
+      for (i=0 ; i < acl_dbs.elements() ; i++)
       {
-        ACL_DB *acl_db= dynamic_element(&acl_dbs, i, ACL_DB*);
+        ACL_DB *acl_db= &acl_dbs.at(i);
         if (!acl_db->user ||
             (user && user[0] && !strcmp(user, acl_db->user)))
         {
@@ -2759,9 +2767,9 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
 
   bool updated= false;
 
-  for (uint i=0 ; i < acl_dbs.elements ; i++)
+  for (uint i=0 ; i < acl_dbs.elements() ; i++)
   {
-    ACL_DB *acl_db=dynamic_element(&acl_dbs,i,ACL_DB*);
+    ACL_DB *acl_db= &acl_dbs.at(i);
     if ((!acl_db->user && !user[0]) ||
         (acl_db->user &&
          !strcmp(user,acl_db->user)))
@@ -2780,7 +2788,7 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
             acl_db->initial_access= acl_db->access;
           }
           else
-            delete_dynamic_element(&acl_dbs,i);
+            acl_dbs.del(i);
           updated= true;
         }
       }
@@ -2815,9 +2823,8 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   acl_db.db=strdup_root(&acl_memroot,db);
   acl_db.initial_access= acl_db.access= privileges;
   acl_db.sort=get_sort(3,acl_db.host.hostname,acl_db.db,acl_db.user);
-  (void) push_dynamic(&acl_dbs,(uchar*) &acl_db);
-  my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
-	   sizeof(ACL_DB),(qsort_cmp) acl_compare);
+  acl_dbs.push(acl_db);
+  acl_dbs.sort((acl_dbs_cmp)acl_compare);
 }
 
 
@@ -2863,9 +2870,9 @@ ulong acl_get(const char *host, const char *ip,
   /*
     Check if there are some access rights for database and user
   */
-  for (i=0 ; i < acl_dbs.elements ; i++)
+  for (i=0 ; i < acl_dbs.elements() ; i++)
   {
-    ACL_DB *acl_db=dynamic_element(&acl_dbs,i,ACL_DB*);
+    ACL_DB *acl_db= &acl_dbs.at(i);
     if (!acl_db->user || !strcmp(user,acl_db->user))
     {
       if (compare_hostname(&acl_db->host,host,ip))
@@ -3333,7 +3340,7 @@ end:
   close_mysql_tables(thd);
 
 #ifdef WITH_WSREP
-error: // this label is used in WSREP_TO_ISOLATION_BEGIN
+WSREP_ERROR_LABEL:
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;
@@ -3496,7 +3503,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   }
 
 #ifdef WITH_WSREP
-error: // this label is used in WSREP_TO_ISOLATION_END
+WSREP_ERROR_LABEL:
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;
@@ -3829,7 +3836,6 @@ static bool update_user_table(THD *thd, const User_table& user_table,
   {
     set_authentication_plugin_from_password(user_table, new_password,
                                             new_password_len);
-    new_password_len= 0;
   }
 
   if (user_table.password())
@@ -5760,15 +5766,15 @@ static bool merge_role_global_privileges(ACL_ROLE *grantee)
   return old != grantee->access;
 }
 
-static int db_name_sort(ACL_DB * const *db1, ACL_DB * const *db2)
+static int db_name_sort(const int *db1, const int *db2)
 {
-  return strcmp((*db1)->db, (*db2)->db);
+  return strcmp(acl_dbs.at(*db1).db, acl_dbs.at(*db2).db);
 }
 
 /**
   update ACL_DB for given database and a given role with merged privileges
 
-  @param merged ACL_DB of the role in question (or NULL if it wasn't found)
+  @param merged ACL_DB of the role in question (or -1 if it wasn't found)
   @param first  first ACL_DB in an array for the database in question
   @param access new privileges for the given role on the gived database
   @param role   the name of the given role
@@ -5778,15 +5784,15 @@ static int db_name_sort(ACL_DB * const *db1, ACL_DB * const *db2)
           2 - ACL_DB was added
           4 - ACL_DB was deleted
 */
-static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access,
+static int update_role_db(int merged, int first, ulong access,
                           const char *role)
 {
-  if (!first)
+  if (first < 0)
     return 0;
 
   DBUG_EXECUTE_IF("role_merge_stats", role_db_merges++;);
 
-  if (merged == NULL)
+  if (merged < 0)
   {
     /*
       there's no ACL_DB for this role (all db grants come from granted roles)
@@ -5801,11 +5807,11 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access,
     acl_db.user= role;
     acl_db.host.hostname= const_cast<char*>("");
     acl_db.host.ip= acl_db.host.ip_mask= 0;
-    acl_db.db= first[0]->db;
+    acl_db.db= acl_dbs.at(first).db;
     acl_db.access= access;
     acl_db.initial_access= 0;
     acl_db.sort=get_sort(3, "", acl_db.db, role);
-    push_dynamic(&acl_dbs,(uchar*) &acl_db);
+    acl_dbs.push(acl_db);
     return 2;
   }
   else if (access == 0)
@@ -5821,13 +5827,13 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access,
       2. it's O(N) operation, and we may need many of them
       so we only mark elements deleted and will delete later.
     */
-    merged->sort= 0; // lower than any valid ACL_DB sort value, will be sorted last
+    acl_dbs.at(merged).sort= 0; // lower than any valid ACL_DB sort value, will be sorted last
     return 4;
   }
-  else if (merged->access != access)
+  else if (acl_dbs.at(merged).access != access)
   {
     /* this is easy */
-    merged->access= access;
+    acl_dbs.at(merged).access= access;
     return 1;
   }
   return 0;
@@ -5842,7 +5848,7 @@ static int update_role_db(ACL_DB *merged, ACL_DB **first, ulong access,
 static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
                                      role_hash_t *rhash)
 {
-  Dynamic_array<ACL_DB *> dbs; 
+  Dynamic_array<int> dbs;
 
   /*
     Supposedly acl_dbs can be huge, but only a handful of db grants
@@ -5850,9 +5856,9 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
 
     Collect these applicable db grants.
   */
-  for (uint i=0 ; i < acl_dbs.elements ; i++)
+  for (uint i=0 ; i < acl_dbs.elements() ; i++)
   {
-    ACL_DB *db= dynamic_element(&acl_dbs,i,ACL_DB*);
+    ACL_DB *db= &acl_dbs.at(i);
     if (db->host.hostname[0])
       continue;
     if (dbname && strcmp(db->db, dbname))
@@ -5860,7 +5866,7 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     ACL_ROLE *r= rhash->find(db->user, strlen(db->user));
     if (!r)
       continue;
-    dbs.append(db);
+    dbs.append(i);
   }
   dbs.sort(db_name_sort);
 
@@ -5869,21 +5875,21 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     (that should be merged) are sorted together. The grantee's ACL_DB element
     is not necessarily the first and may be not present at all.
   */
-  ACL_DB **first= NULL, *merged= NULL;
+  int first= -1, merged= -1;
   ulong access= 0, update_flags= 0;
-  for (ACL_DB **cur= dbs.front(); cur <= dbs.back(); cur++)
+  for (int *p= dbs.front(); p <= dbs.back(); p++)
   {
-    if (!first || (!dbname && strcmp(cur[0]->db, cur[-1]->db)))
+    if (first<0 || (!dbname && strcmp(acl_dbs.at(p[0]).db, acl_dbs.at(p[-1]).db)))
     { // new db name series
       update_flags|= update_role_db(merged, first, access, grantee->user.str);
-      merged= NULL;
+      merged= -1;
       access= 0;
-      first= cur;
+      first= *p;
     }
-    if (strcmp(cur[0]->user, grantee->user.str) == 0)
-      access|= (merged= cur[0])->initial_access;
+    if (strcmp(acl_dbs.at(*p).user, grantee->user.str) == 0)
+      access|= acl_dbs.at(merged= *p).initial_access;
     else
-      access|= cur[0]->access;
+      access|= acl_dbs.at(*p).access;
   }
   update_flags|= update_role_db(merged, first, access, grantee->user.str);
 
@@ -5896,14 +5902,12 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   */
   if (update_flags & (2|4))
   { // inserted or deleted, need to sort
-    my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
-             sizeof(ACL_DB),(qsort_cmp) acl_compare);
+    acl_dbs.sort((acl_dbs_cmp)acl_compare);
   }
   if (update_flags & 4)
   { // deleted, trim the end
-    while (acl_dbs.elements &&
-           dynamic_element(&acl_dbs, acl_dbs.elements-1, ACL_DB*)->sort == 0)
-      acl_dbs.elements--;
+    while (acl_dbs.elements() && acl_dbs.back()->sort == 0)
+      acl_dbs.pop();
   }
   return update_flags;
 }
@@ -6609,7 +6613,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 {
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
-  bool create_new_users= 0, result;
+  bool create_new_users= 0;
+  int result;
   const char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
 
@@ -7046,7 +7051,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   List_iterator <LEX_USER> str_list (list);
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
   char tmp_db[SAFE_NAME_LEN+1];
-  bool create_new_users=0, result;
+  bool create_new_users=0;
+  int result;
   DBUG_ENTER("mysql_grant");
 
   if (lower_case_table_names && db)
@@ -8431,13 +8437,13 @@ static const char *command_array[]=
   "LOCK TABLES", "EXECUTE", "REPLICATION SLAVE", "REPLICATION CLIENT",
   "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE", "ALTER ROUTINE",
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE",
-  "DELETE VERSIONING ROWS"
+  "DELETE HISTORY"
 };
 
 static uint command_lengths[]=
 {
   6, 6, 6, 6, 6, 4, 6, 8, 7, 4, 5, 10, 5, 5, 14, 5, 23, 11, 7, 17, 18, 11, 9,
-  14, 13, 11, 5, 7, 17, 22,
+  14, 13, 11, 5, 7, 17, 14,
 };
 
 
@@ -8477,60 +8483,6 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 
 }
 
-/** checks privileges for SHOW GRANTS and SHOW CREATE USER
-
-  @note that in case of SHOW CREATE USER the parser guarantees
-  that a role can never happen here, so *rolename will never
-  be assigned to
-*/
-static bool check_show_access(THD *thd, LEX_USER *lex_user,
-                              const char **username,
-                              const char **hostname, const char **rolename)
-{
-  DBUG_ENTER("check_show_access");
-
-  if (lex_user->user.str == current_user.str)
-  {
-    *username= thd->security_ctx->priv_user;
-    *hostname= thd->security_ctx->priv_host;
-  }
-  else if (lex_user->user.str == current_role.str)
-  {
-    *rolename= thd->security_ctx->priv_role;
-  }
-  else if (lex_user->user.str == current_user_and_current_role.str)
-  {
-    *username= thd->security_ctx->priv_user;
-    *hostname= thd->security_ctx->priv_host;
-    *rolename= thd->security_ctx->priv_role;
-  }
-  else
-  {
-    Security_context *sctx= thd->security_ctx;
-    bool do_check_access;
-
-    lex_user= get_current_user(thd, lex_user);
-    if (!lex_user)
-      DBUG_RETURN(TRUE);
-
-    if (lex_user->is_role())
-    {
-      *rolename= lex_user->user.str;
-      do_check_access= strcmp(*rolename, sctx->priv_role);
-    }
-    else
-    {
-      *username= lex_user->user.str;
-      *hostname= lex_user->host.str;
-      do_check_access= strcmp(*username, sctx->priv_user) ||
-                       strcmp(*hostname, sctx->priv_host);
-    }
-
-    if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
-      DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
 
 bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 {
@@ -8542,7 +8494,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   uint head_length;
   DBUG_ENTER("mysql_show_create_user");
 
-  if (check_show_access(thd, lex_user, &username, &hostname, NULL))
+  if (get_show_user(thd, lex_user, &username, &hostname, NULL))
     DBUG_RETURN(TRUE);
 
   List<Item> field_list;
@@ -8618,6 +8570,57 @@ void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
   fields->push_back(field, thd->mem_root);
 }
 
+/** checks privileges for SHOW GRANTS and SHOW CREATE USER
+
+  @note that in case of SHOW CREATE USER the parser guarantees
+  that a role can never happen here, so *rolename will never
+  be assigned to
+*/
+bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
+                   const char **hostname, const char **rolename)
+{
+  if (lex_user->user.str == current_user.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    return 0;
+  }
+  if (lex_user->user.str == current_role.str)
+  {
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+  if (lex_user->user.str == current_user_and_current_role.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+
+  Security_context *sctx= thd->security_ctx;
+  bool do_check_access;
+
+  if (!(lex_user= get_current_user(thd, lex_user)))
+    return 1;
+
+  if (lex_user->is_role())
+  {
+    *rolename= lex_user->user.str;
+    do_check_access= strcmp(*rolename, sctx->priv_role);
+  }
+  else
+  {
+    *username= lex_user->user.str;
+    *hostname= lex_user->host.str;
+    do_check_access= strcmp(*username, sctx->priv_user) ||
+                     strcmp(*hostname, sctx->priv_host);
+  }
+
+  if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
+    return 1;
+  return 0;
+}
 
 /*
   SHOW GRANTS;  Send grants for a user to the client
@@ -8642,15 +8645,16 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
-  if (check_show_access(thd, lex_user, &username, &hostname, &rolename))
+  if (get_show_user(thd, lex_user, &username, &hostname, &rolename))
     DBUG_RETURN(TRUE);
+
   DBUG_ASSERT(rolename || username);
 
   List<Item> field_list;
-  if (!username)
-    end= strxmov(buff,"Grants for ",rolename, NullS);
-  else
+  if (username)
     end= strxmov(buff,"Grants for ",username,"@",hostname, NullS);
+  else
+    end= strxmov(buff,"Grants for ",rolename, NullS);
 
   mysql_show_grants_get_fields(thd, &field_list, buff, (uint) (end-buff));
 
@@ -8858,16 +8862,14 @@ static bool show_database_privileges(THD *thd, const char *username,
                                      const char *hostname,
                                      char *buff, size_t buffsize)
 {
-  ACL_DB *acl_db;
   ulong want_access;
-  uint counter;
   Protocol *protocol= thd->protocol;
 
-  for (counter=0 ; counter < acl_dbs.elements ; counter++)
+  for (uint i=0 ; i < acl_dbs.elements() ; i++)
   {
     const char *user, *host;
 
-    acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
+    ACL_DB *acl_db= &acl_dbs.at(i);
     user= safe_str(acl_db->user);
     host=acl_db->host.hostname;
 
@@ -9623,7 +9625,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     elements= acl_users.elements;
     break;
   case DB_ACL:
-    elements= acl_dbs.elements;
+    elements= int(acl_dbs.elements());
     break;
   case COLUMN_PRIVILEGES_HASH:
     grant_name_hash= &column_priv_hash;
@@ -9675,7 +9677,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     break;
 
     case DB_ACL:
-      acl_db= dynamic_element(&acl_dbs, idx, ACL_DB*);
+      acl_db= &acl_dbs.at(idx);
       user= acl_db->user;
       host= acl_db->host.hostname;
       break;
@@ -9761,7 +9763,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         break;
 
       case DB_ACL:
-        delete_dynamic_element(&acl_dbs, idx);
+        acl_dbs.del(idx);
         break;
 
       case COLUMN_PRIVILEGES_HASH:
@@ -10141,6 +10143,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name;
   List_iterator <LEX_USER> user_list(list);
   bool binlog= false;
+  bool some_users_dropped= false;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -10207,6 +10210,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
           result= true;
           continue;
         }
+        else
+          some_users_dropped= true;
         // Proceed with the creation
       }
       else if (thd->lex->create_info.if_not_exists())
@@ -10275,12 +10280,21 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
   }
 
+  if (result && some_users_dropped && !handle_as_role)
+  {
+    /* Rebuild in-memory structs, since 'acl_users' has been modified */
+    rebuild_check_host();
+    rebuild_role_grants();
+  }
+
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
+  {
     my_error(ER_CANNOT_USER, MYF(0),
              (handle_as_role) ? "CREATE ROLE" : "CREATE USER",
              wrong_users.c_ptr_safe());
+  }
 
   if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
@@ -10507,6 +10521,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   DBUG_ENTER("mysql_alter_user");
   int result= 0;
   String wrong_users;
+  bool some_users_altered= false;
 
   /* The only table we're altering is the user table. */
   Grant_tables tables(Table_user, TL_WRITE);
@@ -10532,6 +10547,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
       result= TRUE;
       continue;
     }
+    some_users_altered= true;
   }
 
   /* Unlock ACL data structures. */
@@ -10556,6 +10572,10 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
                wrong_users.c_ptr_safe());
     }
   }
+
+  if (some_users_altered)
+    result|= write_bin_log(thd, FALSE, thd->query(),
+                                     thd->query_length());
   DBUG_RETURN(result);
 }
 
@@ -10664,11 +10684,11 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
      */
     do
     {
-      for (counter= 0, revoked= 0 ; counter < acl_dbs.elements ; )
+      for (counter= 0, revoked= 0 ; counter < acl_dbs.elements() ; )
       {
 	const char *user,*host;
 
-	acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
+        acl_db=&acl_dbs.at(counter);
 
         user= safe_str(acl_db->user);
         host= safe_str(acl_db->host.hostname);
@@ -10989,9 +11009,8 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   combo->user.str= (char *) sctx->priv_user;
 
   mysql_mutex_lock(&acl_cache->lock);
-
- if ((au= find_user_wild(combo->host.str= (char *) sctx->priv_host,
-                         combo->user.str)))
+  if ((au= find_user_exact(combo->host.str= (char *) sctx->priv_host,
+                           combo->user.str)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -11272,6 +11291,14 @@ static int show_column_grants(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
+static int show_database_grants(THD *thd, SHOW_VAR *var, char *buff,
+                                enum enum_var_type scope)
+{
+  var->type= SHOW_UINT;
+  var->value= buff;
+  *(uint *)buff= uint(acl_dbs.elements());
+  return 0;
+}
 
 #else
 bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
@@ -11283,7 +11310,7 @@ bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
 SHOW_VAR acl_statistics[] = {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   {"column_grants",    (char*)show_column_grants,          SHOW_SIMPLE_FUNC},
-  {"database_grants",  (char*)&acl_dbs.elements,           SHOW_UINT},
+  {"database_grants",  (char*)show_database_grants,        SHOW_SIMPLE_FUNC},
   {"function_grants",  (char*)&func_priv_hash.records,     SHOW_ULONG},
   {"procedure_grants", (char*)&proc_priv_hash.records,     SHOW_ULONG},
   {"package_spec_grants", (char*)&package_spec_priv_hash.records, SHOW_ULONG},
@@ -11556,11 +11583,11 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(0);
   mysql_mutex_lock(&acl_cache->lock);
 
-  for (counter=0 ; counter < acl_dbs.elements ; counter++)
+  for (counter=0 ; counter < acl_dbs.elements() ; counter++)
   {
     const char *user, *host, *is_grantable="YES";
 
-    acl_db=dynamic_element(&acl_dbs,counter,ACL_DB*);
+    acl_db=&acl_dbs.at(counter);
     user= safe_str(acl_db->user);
     host= safe_str(acl_db->host.hostname);
 
@@ -12286,7 +12313,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   const char *client_auth_plugin=
     ((st_mysql_auth *) (plugin_decl(mpvio->plugin)->info))->client_auth_plugin;
 
-  DBUG_EXECUTE_IF("auth_disconnect", { vio_close(net->vio); DBUG_RETURN(1); });
+  DBUG_EXECUTE_IF("auth_disconnect", { DBUG_RETURN(1); });
   DBUG_ASSERT(client_auth_plugin);
 
   /*

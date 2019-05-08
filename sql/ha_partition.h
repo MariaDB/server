@@ -349,7 +349,6 @@ private:
   /*
     Variables for lock structures.
   */
-  THR_LOCK_DATA lock;                   /* MySQL lock */
 
   bool auto_increment_lock;             /**< lock reading/updating auto_inc */
   /**
@@ -412,6 +411,22 @@ public:
   }
 
   virtual void return_record_by_parent();
+
+  virtual bool vers_can_native(THD *thd)
+  {
+    if (thd->lex->part_info)
+    {
+      // PARTITION BY SYSTEM_TIME is not supported for now
+      return thd->lex->part_info->part_type != VERSIONING_PARTITION;
+    }
+    else
+    {
+      bool can= true;
+      for (uint i= 0; i < m_tot_parts && can; i++)
+        can= can && m_file[i]->vers_can_native(thd);
+      return can;
+    }
+  }
 
   /*
     -------------------------------------------------------------------------
@@ -844,7 +859,7 @@ public:
   int change_partitions_to_open(List<String> *partition_names);
   int open_read_partitions(char *name_buff, size_t name_buff_size);
   virtual int extra(enum ha_extra_function operation);
-  virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
+  virtual int extra_opt(enum ha_extra_function operation, ulong arg);
   virtual int reset(void);
   virtual uint count_query_cache_dependant_tables(uint8 *tables_type);
   virtual my_bool
@@ -854,6 +869,8 @@ public:
                                           uint *n);
 
 private:
+  typedef int handler_callback(handler *, void *);
+
   my_bool reg_query_cache_dependant_table(THD *thd,
                                           char *engine_key,
                                           uint engine_key_len,
@@ -864,7 +881,7 @@ private:
                                           **block_table,
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
-  int loop_extra(enum ha_extra_function operation);
+  int loop_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
@@ -1038,6 +1055,10 @@ public:
     Can't define a table without primary key (and cannot handle a table
     with hidden primary key)
     (No handler has this limitation currently)
+
+    HA_WANTS_PRIMARY_KEY:
+    Can't define a table without primary key except sequences
+    (Only InnoDB has this when using innodb_force_primary_key == ON)
 
     HA_STATS_RECORDS_IS_EXACT:
     Does the counter of records after the info call specify an exact
@@ -1422,18 +1443,6 @@ public:
     void append_row_to_str(String &str);
     public:
 
-  /*
-    -------------------------------------------------------------------------
-    Admin commands not supported currently (almost purely MyISAM routines)
-    This means that the following methods are not implemented:
-    -------------------------------------------------------------------------
-
-    virtual int backup(TD* thd, HA_CHECK_OPT *check_opt);
-    virtual int restore(THD* thd, HA_CHECK_OPT *check_opt);
-    virtual int dump(THD* thd, int fd = -1);
-    virtual int net_read_dump(NET* net);
-  */
-    virtual uint checksum() const;
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);

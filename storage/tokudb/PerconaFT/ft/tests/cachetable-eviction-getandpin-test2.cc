@@ -93,13 +93,11 @@ static void cachetable_prefetch_maybegetandpin_test (void) {
     wc.pe_callback = pe_callback;
     for (int i = 0; i < 20; i++) {
         void* value;
-        long size;
         r = toku_cachetable_get_and_pin(
             f1, 
             key, 
             fullhash, 
             &value, 
-            &size, 
             wc, 
             def_fetch,
             def_pf_req_callback,
@@ -116,13 +114,11 @@ static void cachetable_prefetch_maybegetandpin_test (void) {
 
     // fetch another block, causing an eviction of the first block we made above
     void* value2;
-    long size2;
     r = toku_cachetable_get_and_pin(
         f1,
         make_blocknum(1),
         1,
         &value2,
-        &size2,
         wc, 
         def_fetch,
         def_pf_req_callback,
@@ -139,14 +135,12 @@ static void cachetable_prefetch_maybegetandpin_test (void) {
     toku_cachetable_verify(ct);
 
     void *v = 0;
-    long size = 0;
     // now verify that the block we are trying to evict may be pinned
     r = toku_cachetable_get_and_pin_nonblocking(
         f1, 
         key, 
         fullhash, 
         &v, 
-        &size, 
         wc, 
         def_fetch, 
         def_pf_req_callback, 
@@ -161,7 +155,6 @@ static void cachetable_prefetch_maybegetandpin_test (void) {
         key, 
         fullhash, 
         &v, 
-        &size, 
         wc, 
         def_fetch, 
         def_pf_req_callback, 
@@ -169,7 +162,10 @@ static void cachetable_prefetch_maybegetandpin_test (void) {
         true, 
         NULL
         );
-    assert(r == 0 && v == 0 && size == 1);
+    assert(r == 0 && v == 0);
+    PAIR_ATTR attr;
+    r = toku_cachetable_get_attr(f1, key, fullhash, &attr);
+    assert(r == 0 && attr.size == 1);
 
     struct timeval tend; 
     gettimeofday(&tend, NULL);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,12 +27,11 @@ Created 10/16/1994 Heikki Tuuri
 #ifndef btr0cur_h
 #define btr0cur_h
 
-#include "univ.i"
-#include "my_base.h"
 #include "dict0dict.h"
 #include "page0cur.h"
 #include "btr0types.h"
 #include "gis0type.h"
+#include "my_base.h"
 
 /** Mode flags for btr_cur operations; these can be ORed */
 enum {
@@ -559,6 +558,11 @@ btr_cur_pessimistic_delete(
 	bool		rollback,/*!< in: performing rollback? */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
+/** Delete the node pointer in a parent page.
+@param[in,out]	parent	cursor pointing to parent record
+@param[in,out]	mtr	mini-transaction */
+void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
@@ -824,7 +828,7 @@ btr_rec_set_deleted_flag(
 btr_latch_leaves_t
 btr_cur_latch_leaves(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,

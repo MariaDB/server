@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -488,16 +488,9 @@ encrypted, or corrupted.
 
 @param[in,out]	page		page frame (checksum is temporarily modified)
 @param[in]	page_size	page size
-@param[in]	space		tablespace identifier
-@param[in]	offset		page number
 @return true if page is encrypted AND OK, false otherwise */
-UNIV_INTERN
 bool
-fil_space_verify_crypt_checksum(
-	byte* 			page,
-	const page_size_t&	page_size,
-	ulint			space,
-	ulint			offset)
+fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
 #endif /* fil0crypt_h */

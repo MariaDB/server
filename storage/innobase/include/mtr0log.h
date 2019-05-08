@@ -26,7 +26,6 @@ Created 12/7/1995 Heikki Tuuri
 #ifndef mtr0log_h
 #define mtr0log_h
 
-#include "univ.i"
 #include "mtr0mtr.h"
 #include "dyn0buf.h"
 

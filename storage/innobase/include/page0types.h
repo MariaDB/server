@@ -26,10 +26,8 @@ Created 2/2/1994 Heikki Tuuri
 #ifndef page0types_h
 #define page0types_h
 
-#include "univ.i"
 #include "dict0types.h"
 #include "mtr0types.h"
-#include "ut0new.h"
 
 #include <map>
 

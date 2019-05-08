@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* For PRIu64 use below: */
 #define __STDC_FORMAT_MACROS
@@ -83,7 +83,9 @@ rocksdb::Status Rdb_sst_file_ordered::Rdb_sst_file::open() {
   const rocksdb::Options options(m_db_options, cf_descr.options);
 
   m_sst_file_writer =
-      new rocksdb::SstFileWriter(env_options, options, m_comparator, m_cf);
+      new rocksdb::SstFileWriter(env_options, options, m_comparator, m_cf, true,
+                                 rocksdb::Env::IOPriority::IO_TOTAL,
+                                 cf_descr.options.optimize_filters_for_hits);
 
   s = m_sst_file_writer->Open(m_name);
   if (m_tracing) {

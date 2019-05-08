@@ -42,19 +42,16 @@ Created 10/10/1995 Heikki Tuuri
 #ifndef srv0srv_h
 #define srv0srv_h
 
-#include "my_global.h"
-
-#include "mysql/psi/mysql_stage.h"
-#include "mysql/psi/psi.h"
-
-#include "univ.i"
+#include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
 #include "srv0conc.h"
 #include "buf0checksum.h"
-#include "ut0counter.h"
 #include "fil0fil.h"
+
+#include "mysql/psi/mysql_stage.h"
+#include "mysql/psi/psi.h"
 
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
@@ -993,10 +990,12 @@ struct export_var_t{
 	ulint innodb_system_rows_inserted; /*!< srv_n_system_rows_inserted */
 	ulint innodb_system_rows_updated; /*!< srv_n_system_rows_updated */
 	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
-	ulint innodb_num_open_files;		/*!< fil_n_file_opened */
+	ulint innodb_num_open_files;		/*!< fil_system_t::n_open */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs
 						*/
+	/** Number of undo tablespace truncation operations */
+	ulong innodb_undo_truncations;
 	ulint innodb_defragment_compression_failures; /*!< Number of
 						defragment re-compression
 						failures */
@@ -1013,12 +1012,6 @@ struct export_var_t{
 	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage
 						of used row log buffer */
 	ulint innodb_onlineddl_pct_progress;	/*!< Online alter progress */
-
-#ifdef UNIV_DEBUG
-	ulint innodb_ahi_drop_lookups;		/*!< number of adaptive hash
-						index lookups when freeing
-						file pages */
-#endif /* UNIV_DEBUG */
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */

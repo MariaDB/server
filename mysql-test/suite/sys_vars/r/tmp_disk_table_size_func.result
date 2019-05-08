@@ -18,7 +18,7 @@ Variable_name	Value
 Created_tmp_disk_tables	1
 set @@session.tmp_disk_table_size=1000000;
 select count(*) as c from t1 group by b having c>1;
-ERROR HY000: The table '#sql_xxx' is full
+ERROR HY000: The table '(temporary)' is full
 show status like "created_tmp_disk%";
 Variable_name	Value
 Created_tmp_disk_tables	2

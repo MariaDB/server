@@ -929,13 +929,14 @@ static int keys_compare(bulk_insert_param *param, uchar *key1, uchar *key2)
 }
 
 
-static int keys_free(uchar *key, TREE_FREE mode, bulk_insert_param *param)
+static int keys_free(void* key_arg, TREE_FREE mode, void *param_arg)
 {
   /*
     Probably I can use info->lastkey here, but I'm not sure,
     and to be safe I'd better use local lastkey.
   */
-  uchar lastkey[HA_MAX_KEY_BUFF];
+  bulk_insert_param *param= (bulk_insert_param*)param_arg;
+  uchar lastkey[HA_MAX_KEY_BUFF], *key= (uchar*)key_arg;
   uint keylen;
   MI_KEYDEF *keyinfo;
 
@@ -951,14 +952,15 @@ static int keys_free(uchar *key, TREE_FREE mode, bulk_insert_param *param)
     keyinfo=param->info->s->keyinfo+param->keynr;
     keylen=_mi_keylength(keyinfo, key);
     memcpy(lastkey, key, keylen);
-    return _mi_ck_write_btree(param->info,param->keynr,lastkey,
-			      keylen - param->info->s->rec_reflength);
+    _mi_ck_write_btree(param->info, param->keynr, lastkey,
+			                 keylen - param->info->s->rec_reflength);
+    return 0;
   case free_end:
     if (param->info->s->concurrent_insert)
       mysql_rwlock_unlock(&param->info->s->key_root_lock[param->keynr]);
     return 0;
   }
-  return -1;
+  return 0;
 }
 
 
@@ -1014,8 +1016,7 @@ int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows)
       init_tree(&info->bulk_insert[i],
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
-		(qsort_cmp2)keys_compare,
-		(tree_element_free) keys_free, (void *)params++, MYF(0));
+                (qsort_cmp2)keys_compare, keys_free, (void *)params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;

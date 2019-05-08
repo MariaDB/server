@@ -1680,3 +1680,89 @@ SELECT without VERSIONING FROM t1
 SELECT without WITHOUT FROM t1
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
+#
+# MDEV-16697: Fix difference between 32bit/windows and 64bit
+# systems in allowed select nest level
+#
+SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+1
+)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT
+1
+#
+# MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+#
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+names
+DROP TABLE names;
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+password
+DROP TABLE password;
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+role
+DROP TABLE role;
+BEGIN NOT ATOMIC
+DECLARE names    VARCHAR(32) DEFAULT '[names]';
+DECLARE password VARCHAR(32) DEFAULT '[password]';
+DECLARE role     VARCHAR(32) DEFAULT '[role]';
+names:
+LOOP
+SELECT names;
+LEAVE names;
+END LOOP;
+password:
+LOOP
+SELECT password;
+LEAVE password;
+END LOOP;
+role:
+LOOP
+SELECT role;
+LEAVE role;
+END LOOP;
+END;
+$$
+names
+[names]
+password
+[password]
+role
+[role]
+BEGIN NOT ATOMIC
+DECLARE names VARCHAR(32);
+SET names='[names]';
+END;
+$$
+ERROR 42000: Variable 'names' must be quoted with `...`, or renamed
+BEGIN NOT ATOMIC
+DECLARE password VARCHAR(32);
+SET password='[password]';
+END;
+$$
+ERROR 42000: Variable 'password' must be quoted with `...`, or renamed
+BEGIN NOT ATOMIC
+DECLARE role VARCHAR(32);
+SET role='[role]';
+END;
+$$
+SELECT @@GLOBAL.names;
+ERROR HY000: Unknown system variable 'names'
+SELECT @@GLOBAL.password;
+ERROR HY000: Unknown system variable 'password'
+SELECT @@GLOBAL.role;
+ERROR HY000: Unknown system variable 'role'
+End of 10.3 tests

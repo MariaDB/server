@@ -1,0 +1,10 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+secure-file-priv = ""
+innodb_file_format ='Barracuda'
+innodb_file_per_table = ON
+innodb_stats_persistent=ON
+innodb_stats_auto_recalc=ON
+innodb_stats_persistent_sample_pages=20
+innodb_stats_sample_pages=8

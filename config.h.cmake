@@ -444,7 +444,11 @@
 /*
   MySQL features
 */
-#cmakedefine ENABLED_LOCAL_INFILE 1
+#define LOCAL_INFILE_MODE_OFF  0
+#define LOCAL_INFILE_MODE_ON   1
+#define LOCAL_INFILE_MODE_AUTO 2
+#define ENABLED_LOCAL_INFILE LOCAL_INFILE_MODE_@ENABLED_LOCAL_INFILE@
+
 #cmakedefine ENABLED_PROFILING 1
 #cmakedefine EXTRA_DEBUG 1
 #cmakedefine USE_SYMDIR 1
@@ -559,12 +563,8 @@
 #cmakedefine WSREP_PROC_INFO 1
 #endif
 
-#ifdef _AIX
-/*
-  AIX includes inttypes.h from sys/types.h
-  Explicitly request format macros before the first inclusion of inttypes.h
-*/
+#if !defined(__STDC_FORMAT_MACROS)
 #define __STDC_FORMAT_MACROS
-#endif
+#endif  // !defined(__STDC_FORMAT_MACROS)
 
 #endif

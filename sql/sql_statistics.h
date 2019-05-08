@@ -21,7 +21,7 @@ enum enum_use_stat_tables_mode
 {
   NEVER,
   COMPLEMENTARY,
-  PEFERABLY,
+  PREFERABLY,
 } Use_stat_tables_mode;
 
 typedef
@@ -112,6 +112,7 @@ double get_column_range_cardinality(Field *field,
                                     key_range *max_endp,
                                     uint range_flag);
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
+bool is_eits_usable(Field* field);
 
 class Histogram
 {
@@ -333,12 +334,17 @@ private:
 public:
 
   Histogram histogram;
+
+  uint32 no_values_provided_bitmap()
+  {
+    return
+     ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
+      (COLUMN_STAT_COLUMN_NAME+1);
+  }
  
   void set_all_nulls()
   {
-    column_stat_nulls= 
-      ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
-      (COLUMN_STAT_COLUMN_NAME+1);
+    column_stat_nulls= no_values_provided_bitmap();
   }
 
   void set_not_null(uint stat_field_no)
@@ -384,8 +390,22 @@ public:
   bool min_max_values_are_provided()
   {
     return !is_null(COLUMN_STAT_MIN_VALUE) && 
-      !is_null(COLUMN_STAT_MIN_VALUE);
-  }          
+      !is_null(COLUMN_STAT_MAX_VALUE);
+  }
+  /*
+    This function checks whether the values for the fields of the statistical
+    tables that were NULL by DEFAULT for a column have changed or not.
+
+    @retval
+    TRUE: Statistics are not present for a column
+    FALSE: Statisitics are present for a column
+  */
+  bool no_stat_values_provided()
+  {
+    if (column_stat_nulls == no_values_provided_bitmap())
+      return true;
+    return false;
+  }
 };
 
 

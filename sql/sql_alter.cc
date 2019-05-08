@@ -402,7 +402,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
   /* If it is a merge table, check privileges for merge children. */
-  if (create_info.merge_list.first)
+  if (create_info.merge_list)
   {
     /*
       The user must have (SELECT_ACL | UPDATE_ACL | DELETE_ACL) on the
@@ -440,7 +440,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     */
 
     if (check_table_access(thd, SELECT_ACL | UPDATE_ACL | DELETE_ACL,
-                           create_info.merge_list.first, FALSE, UINT_MAX, FALSE))
+                           create_info.merge_list, FALSE, UINT_MAX, FALSE))
       DBUG_RETURN(TRUE);
   }
 
@@ -451,9 +451,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   {
     // Rename of table
     TABLE_LIST tmp_table;
-    memset(&tmp_table, 0, sizeof(tmp_table));
-    tmp_table.table_name= lex->name;
-    tmp_table.db= select_lex->db;
+    tmp_table.init_one_table(&select_lex->db, &lex->name, 0, TL_IGNORE);
     tmp_table.grant.privilege= priv;
     if (check_grant(thd, INSERT_ACL | CREATE_ACL, &tmp_table, FALSE,
                     UINT_MAX, FALSE))
@@ -471,20 +469,21 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                         "INDEX DIRECTORY");
   create_info.data_file_name= create_info.index_file_name= NULL;
 
-  thd->prepare_logs_for_admin_command();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= 0;
 #endif
 
-#ifdef WITH_WSREP
-  if ((!thd->is_current_stmt_binlog_format_row() ||
+  if (WSREP(thd) &&
+      (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {
-    WSREP_TO_ISOLATION_BEGIN(((lex->name.str) ? select_lex->db.str : NULL),
-                             ((lex->name.str) ? lex->name.str : NULL),
-                             first_table);
+    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
+                                   (lex->name.str ? lex->name.str : NULL),
+                                   first_table, &alter_info);
+
+    thd->variables.auto_increment_offset = 1;
+    thd->variables.auto_increment_increment = 1;
   }
-#endif /* WITH_WSREP */
 
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,
                             &create_info,
@@ -496,11 +495,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   DBUG_RETURN(result);
 
-#ifdef WITH_WSREP
-error:
+WSREP_ERROR_LABEL:
   WSREP_WARN("ALTER TABLE isolation failure");
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)
@@ -518,8 +515,6 @@ bool Sql_cmd_discard_import_tablespace::execute(THD *thd)
 
   if (check_grant(thd, ALTER_ACL, table_list, false, UINT_MAX, false))
     return true;
-
-  thd->prepare_logs_for_admin_command();
 
   /*
     Check if we attempt to alter mysql.slow_log or

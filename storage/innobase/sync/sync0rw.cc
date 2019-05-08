@@ -32,15 +32,6 @@ Created 9/11/1995 Heikki Tuuri
 *******************************************************/
 
 #include "sync0rw.h"
-#include "ha_prototypes.h"
-
-#include "os0thread.h"
-#include "mem0mem.h"
-#include "srv0srv.h"
-#include "os0event.h"
-#include "srv0mon.h"
-#include "sync0debug.h"
-#include "ha_prototypes.h"
 #include "my_cpu.h"
 #include <my_sys.h>
 
@@ -485,14 +476,6 @@ rw_lock_x_lock_wait_func(
 
 	if (count_os_wait > 0) {
 		lock->count_os_wait += static_cast<uint32_t>(count_os_wait);
-		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
-	}
-
-	rw_lock_stats.rw_x_spin_round_count.add(n_spins);
-
-	if (count_os_wait > 0) {
-		lock->count_os_wait +=
-			static_cast<uint32_t>(count_os_wait);
 		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
 	}
 }

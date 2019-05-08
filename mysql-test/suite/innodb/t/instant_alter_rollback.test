@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source innodb_default_row_format.inc
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 
@@ -11,40 +12,24 @@ FLUSH TABLES;
 
 connect to_be_killed, localhost, root;
 
-let $format= 3;
-while ($format) {
-let $fmt= `SELECT CASE $format WHEN 1 THEN 'DYNAMIC' WHEN 2 THEN 'COMPACT'
-ELSE 'REDUNDANT' END`;
-let $engine= ENGINE=InnoDB ROW_FORMAT=$fmt;
-
-eval CREATE TABLE empty_$fmt
-(id INT PRIMARY KEY, c2 INT UNIQUE) $engine;
-eval CREATE TABLE once_$fmt LIKE empty_$fmt;
-eval CREATE TABLE twice_$fmt LIKE empty_$fmt;
-eval INSERT INTO once_$fmt SET id=1,c2=1;
-eval INSERT INTO twice_$fmt SET id=1,c2=1;
-eval ALTER TABLE empty_$fmt ADD COLUMN (d1 INT DEFAULT 15);
-eval ALTER TABLE once_$fmt ADD COLUMN (d1 INT DEFAULT 20);
-eval ALTER TABLE twice_$fmt ADD COLUMN (d1 INT DEFAULT 20);
-eval ALTER TABLE twice_$fmt ADD COLUMN
+CREATE TABLE empty (id INT PRIMARY KEY, c2 INT UNIQUE) ENGINE=InnoDB;
+CREATE TABLE once LIKE empty;
+CREATE TABLE twice LIKE empty;
+INSERT INTO once SET id=1,c2=1;
+INSERT INTO twice SET id=1,c2=1;
+ALTER TABLE empty ADD COLUMN (d1 INT DEFAULT 15);
+ALTER TABLE once ADD COLUMN (d1 INT DEFAULT 20);
+ALTER TABLE twice ADD COLUMN (d1 INT DEFAULT 20);
+ALTER TABLE twice ADD COLUMN
 (d2 INT NOT NULL DEFAULT 10,
  d3 VARCHAR(15) NOT NULL DEFAULT 'var och en char');
-dec $format;
-}
 
 BEGIN;
 
-let $format= 3;
-while ($format) {
-let $fmt= `SELECT CASE $format WHEN 1 THEN 'DYNAMIC' WHEN 2 THEN 'COMPACT'
-ELSE 'REDUNDANT' END`;
-
-eval INSERT INTO empty_$fmt set id=0,c2=42;
-eval UPDATE once_$fmt set c2=c2+1;
-eval UPDATE twice_$fmt set c2=c2+1;
-eval INSERT INTO twice_$fmt SET id=2,c2=0,d3='';
-dec $format;
-}
+INSERT INTO empty set id=0,c2=42;
+UPDATE once set c2=c2+1;
+UPDATE twice set c2=c2+1;
+INSERT INTO twice SET id=2,c2=0,d3='';
 
 connection default;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
@@ -60,14 +45,7 @@ DROP TABLE foo;
 --source include/wait_all_purged.inc
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;
 
-let $format= 3;
-while ($format) {
-let $fmt= `SELECT CASE $format WHEN 1 THEN 'DYNAMIC' WHEN 2 THEN 'COMPACT'
-ELSE 'REDUNDANT' END`;
-
-eval SELECT * FROM empty_$fmt;
-eval SELECT * FROM once_$fmt;
-eval SELECT * FROM twice_$fmt;
-eval DROP TABLE empty_$fmt, once_$fmt, twice_$fmt;
-dec $format;
-}
+SELECT * FROM empty;
+SELECT * FROM once;
+SELECT * FROM twice;
+DROP TABLE empty, once, twice;

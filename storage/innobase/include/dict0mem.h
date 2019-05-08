@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,8 +28,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
-#include "univ.i"
-#include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
 #include "row0types.h"
@@ -47,7 +45,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "gis0type.h"
 #include "os0once.h"
-#include "ut0new.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include <set>
@@ -479,14 +476,7 @@ void
 dict_mem_table_free_foreign_vcol_set(
 	dict_table_t*	table);
 
-/** Create a temporary tablename like "#sql-ibtid-inc where
-  tid = the Table ID
-  inc = a randomly initialized number that is incremented for each file
-The table ID is a 64 bit integer, can use up to 20 digits, and is
-initialized at bootstrap. The second number is 32 bits, can use up to 10
-digits, and is initialized at startup to a randomly distributed number.
-It is hoped that the combination of these two numbers will provide a
-reasonably unique temporary file name.
+/** Create a temporary tablename like "#sql-ibNNN".
 @param[in]	heap	A memory heap
 @param[in]	dbtab	Table name in the form database/table name
 @param[in]	id	Table id
@@ -496,10 +486,6 @@ dict_mem_create_temporary_tablename(
 	mem_heap_t*	heap,
 	const char*	dbtab,
 	table_id_t	id);
-
-/** Initialize dict memory variables */
-void
-dict_mem_init(void);
 
 /** SQL identifier name wrapper for pretty-printing */
 class id_name_t
@@ -601,7 +587,7 @@ struct dict_col_t{
 	} def_val;
 
 	/** Retrieve the column name.
-	@param[in]	table	table name */
+	@param[in]	table	the table of this column */
 	const char* name(const dict_table_t& table) const;
 
 	/** @return whether this is a virtual column */
@@ -687,8 +673,7 @@ struct dict_v_col_t{
 	ulint			v_pos;
 
 	/** Virtual index list, and column position in the index,
-	the allocated memory is not from table->heap, nor it is
-	tracked by dict_sys->size */
+	the allocated memory is not from table->heap */
 	dict_v_idx_list*	v_indexes;
 
 };
@@ -1519,6 +1504,13 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
+	/** Check if a table name contains the string "/#sql"
+	which denotes temporary or intermediate tables in MariaDB. */
+	static bool is_temporary_name(const char* name)
+	{
+		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
+	}
+
 	/** @return whether instant ADD COLUMN is in effect */
 	bool is_instant() const
 	{
@@ -1577,20 +1569,15 @@ struct dict_table_t {
 
 	/** Id of the table. */
 	table_id_t				id;
-
-	/** Memory heap. If you allocate from this heap after the table has
-	been created then be sure to account the allocation into
-	dict_sys->size. When closing the table we do something like
-	dict_sys->size -= mem_heap_get_size(table->heap) and if that is going
-	to become negative then we would assert. Something like this should do:
-	old_size = mem_heap_get_size()
-	mem_heap_alloc()
-	new_size = mem_heap_get_size()
-	dict_sys->size += new_size - old_size. */
-	mem_heap_t*				heap;
-
+	/** Hash chain node. */
+	hash_node_t				id_hash;
 	/** Table name. */
 	table_name_t				name;
+	/** Hash chain node. */
+	hash_node_t				name_hash;
+
+	/** Memory heap */
+	mem_heap_t*				heap;
 
 	/** NULL or the directory path specified by DATA DIRECTORY. */
 	char*					data_dir_path;
@@ -1709,12 +1696,6 @@ struct dict_table_t {
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and
 				MySQL FRM information mismatch. */
-	/** Hash chain node. */
-	hash_node_t				name_hash;
-
-	/** Hash chain node. */
-	hash_node_t				id_hash;
-
 	/** The FTS_DOC_ID_INDEX, or NULL if no fulltext indexes exist */
 	dict_index_t*				fts_doc_id_index;
 
@@ -1963,6 +1944,11 @@ public:
 inline void dict_index_t::set_modified(mtr_t& mtr) const
 {
 	mtr.set_named_space(table->space);
+}
+
+inline bool table_name_t::is_temporary() const
+{
+	return dict_table_t::is_temporary_name(m_name);
 }
 
 inline bool dict_index_t::is_readable() const { return table->is_readable(); }

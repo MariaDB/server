@@ -2154,6 +2154,7 @@ public:
     DBUG_ASSERT(arg_count >= 2);
     reorder_args(0);
   }
+  enum Functype functype() const   { return CASE_SEARCHED_FUNC; }
   void print(String *str, enum_query_type query_type);
   bool fix_length_and_dec();
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
@@ -2206,6 +2207,7 @@ public:
     Predicant_to_list_comparator::cleanup();
     DBUG_VOID_RETURN;
   }
+  enum Functype functype() const   { return CASE_SIMPLE_FUNC; }
   void print(String *str, enum_query_type query_type);
   bool fix_length_and_dec();
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
@@ -2279,7 +2281,7 @@ class Item_func_in :public Item_func_opt_neg,
   {
     for (uint i= 0; i < nitems; i++)
     {
-      if (!items[i]->const_item())
+      if (!items[i]->const_item() || items[i]->is_expensive())
         return false;
     }
     return true;
@@ -2952,6 +2954,8 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd);
+  bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;

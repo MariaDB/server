@@ -107,7 +107,7 @@ let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t[12].ibd.
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 # On Windows, this error message is not output when t2.ibd is a directory!
-#let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*t2.ibd;
+#let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*t2.ibd;
 #--source include/search_pattern_in_file.inc
 
 --rmdir $MYSQLD_DATADIR/test/t2.ibd
@@ -120,7 +120,7 @@ EOF
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 
-let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*t2.ibd;
+let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*t2.ibd;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN= \[ERROR\] InnoDB: Datafile .*t2.*\. Cannot determine the space ID from the first 64 pages;
 --source include/search_pattern_in_file.inc
@@ -156,13 +156,11 @@ call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ib
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*test");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
 call mtr.add_suppression("InnoDB: Cannot read first page of '.*test.[tu]2.ibd' I/O error");
-call mtr.add_suppression("InnoDB: Cannot read first page in datafile: .*test.*ibd");
 call mtr.add_suppression("InnoDB: Datafile '.*test.*ibd' is corrupted");
 call mtr.add_suppression("InnoDB:  Cannot replay file rename. Remove either file and try again");
 call mtr.add_suppression("InnoDB: Cannot rename.*because the target file exists");
 call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 # The following are for the --innodb-force-recovery=1 with broken u* tables:
-call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd");
 call mtr.add_suppression("InnoDB: The size of the file .*u1\\.ibd is only 16384 bytes, should be at least 65536");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
 call mtr.add_suppression("InnoDB: .*you must create directories");
@@ -216,7 +214,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 
-let SEARCH_PATTERN= \[ERROR\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
+let SEARCH_PATTERN= \[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
 --source include/search_pattern_in_file.inc
 
 let SEARCH_PATTERN= \[ERROR\] InnoDB: Datafile .*u1.*\. Cannot determine the space ID from the first 64 pages;
@@ -226,7 +224,7 @@ let SEARCH_PATTERN= \[ERROR\] InnoDB: Datafile .*u1.*\. Cannot determine the spa
 # in innodb-force-recovery mode once
 # Bug#18131883 IMPROVE INNODB ERROR MESSAGES REGARDING FILES
 # has been fixed:
-let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*u2.ibd;
+let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*u2.ibd;
 --source include/search_pattern_in_file.inc
 
 --source include/shutdown_mysqld.inc
@@ -241,7 +239,7 @@ let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*u2.ibd;
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 
-let SEARCH_PATTERN= \[ERROR\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
+let SEARCH_PATTERN= \[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
 --source include/search_pattern_in_file.inc
 
 let SEARCH_PATTERN= InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace;
@@ -254,7 +252,7 @@ let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot rename '.*u5.ibd' to '.*u6.ibd' bec
 
 --source include/restart_mysqld.inc
 
-let SEARCH_PATTERN= \[ERROR\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
+let SEARCH_PATTERN= \[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
 --source include/search_pattern_in_file.inc
 
 let SEARCH_PATTERN= InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace;

@@ -55,6 +55,23 @@ enum events_waits_class
 /** A wait event record. */
 struct PFS_events_waits : public PFS_events
 {
+  /** Executing thread. */
+  PFS_thread *m_thread;
+  /** Table share, for table operations only. */
+  PFS_table_share *m_weak_table_share;
+  /** File, for file operations only. */
+  PFS_file *m_weak_file;
+  /** Address in memory of the object instance waited on. */
+  const void *m_object_instance_addr;
+  /** Socket, for socket operations only. */
+  PFS_socket *m_weak_socket;
+  /**
+    Number of bytes read/written.
+    This member is populated for file READ/WRITE operations only.
+  */
+  size_t m_number_of_bytes;
+  /** Flags */
+  ulong m_flags;
   /**
     The type of wait.
     Readers:
@@ -67,34 +84,17 @@ struct PFS_events_waits : public PFS_events
     - TRUNCATE EVENTS_WAITS_HISTORY_LONG
   */
   events_waits_class m_wait_class;
-  /** Executing thread. */
-  PFS_thread *m_thread;
   /** Object type */
   enum_object_type m_object_type;
-  /** Table share, for table operations only. */
-  PFS_table_share *m_weak_table_share;
-  /** File, for file operations only. */
-  PFS_file *m_weak_file;
-  /** Socket, for socket operations only. */
-  PFS_socket *m_weak_socket;
   /** For weak pointers, target object version. */
   uint32 m_weak_version;
-  /** Address in memory of the object instance waited on. */
-  const void *m_object_instance_addr;
   /** Operation performed. */
   enum_operation_type m_operation;
-  /**
-    Number of bytes read/written.
-    This member is populated for file READ/WRITE operations only.
-  */
-  size_t m_number_of_bytes;
   /**
     Index used.
     This member is populated for TABLE IO operations only.
   */
   uint m_index;
-  /** Flags */
-  ulong m_flags;
 };
 
 /** TIMED bit in the state flags bitfield. */

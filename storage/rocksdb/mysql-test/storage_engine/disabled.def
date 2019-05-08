@@ -18,6 +18,7 @@ show_engine          : SHOW ENGINE produces different number of lines depending 
 show_table_status    : MDEV-13152 - Indeterministic row number in SHOW TABLE STATUS on RocksDB table
 tbl_opt_data_dir     : Not supported
 tbl_opt_index_dir    : Not supported
+type_binary_indexes  : MDEV-16387 - Wrong execution plan
 type_spatial         : Not supported
 type_spatial_indexes : Not supported
 update_low_prio      : Not supported

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -34,7 +34,6 @@ Created 12/9/1995 Heikki Tuuri
 #ifndef log0log_h
 #define log0log_h
 
-#include "univ.i"
 #include "dyn0buf.h"
 #include "sync0rw.h"
 #include "log0types.h"
@@ -194,23 +193,13 @@ blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
 log files. Use log_make_checkpoint_at() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint
 @return true if success, false if a checkpoint write was already running */
-bool
-log_checkpoint(
-	bool	sync,
-	bool	write_always);
+bool log_checkpoint(bool sync);
 
 /** Make a checkpoint at or after a specified LSN.
 @param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint */
-void
-log_make_checkpoint_at(
-	lsn_t			lsn,
-	bool			write_always);
+for the latest LSN */
+void log_make_checkpoint_at(lsn_t lsn);
 
 /****************************************************************//**
 Makes a checkpoint at the latest lsn and writes it to first page of each
@@ -450,10 +439,12 @@ to this checkpoint, or 0 if the information has not been written */
 This used to be called LOG_GROUP_ID and always written as 0,
 because InnoDB never supported more than one copy of the redo log. */
 #define LOG_HEADER_FORMAT	0
-/** 4 unused (zero-initialized) bytes. In format version 0, the
+/** Redo log subformat (originally 0). In format version 0, the
 LOG_FILE_START_LSN started here, 4 bytes earlier than LOG_HEADER_START_LSN,
-which the LOG_FILE_START_LSN was renamed to. */
-#define LOG_HEADER_PAD1		4
+which the LOG_FILE_START_LSN was renamed to.
+Subformat 1 is for the fully redo-logged TRUNCATE
+(no MLOG_TRUNCATE records or extra log checkpoints or log files) */
+#define LOG_HEADER_SUBFORMAT	4
 /** LSN of the start of data in this log file (with format version 1;
 in format version 0, it was called LOG_FILE_START_LSN and at offset 4). */
 #define LOG_HEADER_START_LSN	8
@@ -474,11 +465,18 @@ or the MySQL version that created the redo log file. */
 #define LOG_HEADER_FORMAT_3_23		0
 /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
 #define LOG_HEADER_FORMAT_10_2		1
-/** The MariaDB 10.3.2 log format */
+/** The MariaDB 10.3.2 log format.
+To prevent crash-downgrade to earlier 10.2 due to the inability to
+roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
+MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
+1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
+(MDEV-13564 backup-friendly TRUNCATE). */
 #define LOG_HEADER_FORMAT_10_3		103
 /** The redo log format identifier corresponding to the current format version.
 Stored in LOG_HEADER_FORMAT. */
 #define LOG_HEADER_FORMAT_CURRENT	LOG_HEADER_FORMAT_10_3
+/** Future MariaDB 10.4 log format */
+#define LOG_HEADER_FORMAT_10_4		104
 /** Encrypted MariaDB redo log */
 #define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
@@ -549,19 +547,18 @@ struct log_t{
     /** number of files */
     ulint				n_files;
     /** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
-    ulint				format;
+    uint32_t				format;
+    /** redo log subformat: 0 with separately logged TRUNCATE,
+    2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */
+    uint32_t				subformat;
     /** individual log file size in bytes, including the header */
     lsn_t				file_size;
+  private:
     /** lsn used to fix coordinates within the log group */
     lsn_t				lsn;
     /** the byte offset of the above lsn */
     lsn_t				lsn_offset;
-
-    /** unaligned buffers */
-    byte*				file_header_bufs_ptr;
-    /** buffers for each file header in the group */
-    byte*				file_header_bufs[SRV_N_LOG_FILES_MAX];
-
+  public:
     /** used only in recovery: recovery scan succeeded up to this
     lsn in this log group */
     lsn_t				scanned_lsn;
@@ -578,8 +575,9 @@ struct log_t{
     /** Set the field values to correspond to a given lsn. */
     void set_fields(lsn_t lsn)
     {
-      lsn_offset = calc_lsn_offset(lsn);
-      this->lsn = lsn;
+      lsn_t c_lsn_offset = calc_lsn_offset(lsn);
+      set_lsn(lsn);
+      set_lsn_offset(c_lsn_offset);
     }
 
     /** Read a log segment to log_sys.buf.
@@ -596,11 +594,12 @@ struct log_t{
     /** Close the redo log buffer. */
     void close()
     {
-      ut_free(file_header_bufs_ptr);
       n_files = 0;
-      file_header_bufs_ptr = NULL;
-      memset(file_header_bufs, 0, sizeof file_header_bufs);
     }
+    void set_lsn(lsn_t a_lsn);
+    lsn_t get_lsn() const { return lsn; }
+    void set_lsn_offset(lsn_t a_lsn);
+    lsn_t get_lsn_offset() const { return lsn_offset; }
   } log;
 
 	/** The fields involved in the log buffer flush @{ */
@@ -736,6 +735,17 @@ inline lsn_t log_t::files::calc_lsn_offset(lsn_t lsn) const
   l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
   l%= group_size;
   return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
+}
+
+inline void log_t::files::set_lsn(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      lsn = a_lsn;
+}
+
+inline void log_t::files::set_lsn_offset(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
+      lsn_offset = a_lsn;
 }
 
 /** Test if flush order mutex is owned. */

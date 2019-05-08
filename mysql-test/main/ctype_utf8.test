@@ -2181,5 +2181,80 @@ SET sql_mode=DEFAULT;
 
 
 --echo #
+--echo # MDEV-19239 ERROR 1300 (HY000): Invalid utf8 character string in 10.3.13-MariaDB
+--echo #
+
+#
+# Test that the following query does not fail on "Invalid utf8 character string"
+#
+
+SET NAMES utf8;
+--error ER_NO_SUCH_TABLE
+SELECT
+  x.消息ID,
+  x.消息TITLE,
+  x.消息类型,
+  x.发送时间,
+  x.阅读时间,x.老师ID,
+  IF(x.四天内最近一次登录时间='2100-01-01 00:00:00','',x.四天内最近一次登录时间) 四天内最近一次登录时间
+FROM (
+  SELECT
+    msg.*,
+    CASE
+      WHEN login.login_time BETWEEN msg.发送时间 AND DATE_ADD(msg.发送时间,INTERVAL 4 DAY)
+        THEN login.login_time
+      WHEN (login.login_time NOT BETWEEN msg.发送时间 AND DATE_ADD(msg.发送时间,INTERVAL 4 DAY)) AND login.login_time>0
+        THEN '2100-01-01 00:00:00' ELSE ''
+      END 四天内最近一次登录时间
+  FROM (
+    SELECT
+      me.id 消息ID,
+      me.title 消息TITLE,
+      CASE
+        WHEN me.type=1
+          THEN 'Interview Message'
+        WHEN me.type=2
+          THEN 'Orientation Message'
+        WHEN me.type=3
+          THEN 'Warning Message'
+        WHEN me.type=4
+          THEN 'Fail Message'
+        WHEN me.type=5
+          THEN 'FM Message'
+        WHEN me.type=6
+          THEN 'Training Message'
+        WHEN me.type=7
+          THEN 'TUrgent Message'
+      END 消息类型,
+      FROM_UNIXTIME(me.sending_time) 发送时间,
+      IF(tar.is_read=1,FROM_UNIXTIME(tar.read_time),'') 阅读时间,
+      tar.tid 老师ID
+    FROM ebk_message me
+    LEFT JOIN ebk_message_target tar
+    ON me.id=tar.msg_id
+      WHERE
+        FROM_UNIXTIME(me.sending_time,'%Y-%m-%d') BETWEEN 'start' AND 'end' AND me.status=1 AND tar.tid>0
+      GROUP BY
+        tar.tid,
+        me.sending_time,me.id) msg
+    LEFT JOIN (
+      SELECT tid,FROM_UNIXTIME(login_time) login_time
+      FROM ebk_teacher_login_log
+      WHERE FROM_UNIXTIME(login_time,'%Y-%m-%d') BETWEEN 'start' AND DATE_ADD('end',INTERVAL 4 DAY)
+      ORDER BY tid,FROM_UNIXTIME(login_time)) login
+    ON
+      msg.老师ID=login.tid
+    ORDER BY msg.消息ID,msg.发送时间,msg.老师ID,login_time) x
+    GROUP BY x.消息ID,x.发送时间,x.老师ID;
+
+
+SET NAMES utf8;
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1);
+SELECT x AS 5天内最近一次登录时间 FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

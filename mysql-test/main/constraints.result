@@ -1,4 +1,3 @@
-drop table if exists t1;
 create table t1 (a int check (a>0));
 show create table t1;
 Table	Create Table
@@ -74,3 +73,76 @@ CREATE TABLE t_illegal (col_1 INT CHECK something (whatever));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something (whatever))' at line 1
 CREATE TABLE t_illegal (col_1 INT CHECK something);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something)' at line 1
+CREATE TABLE long_enough_name (
+pk int(11) NOT NULL,
+f1 int(11) DEFAULT NULL,
+f2 int(11) NOT NULL,
+f3 int(11) DEFAULT NULL,
+f4 timestamp NOT NULL DEFAULT current_timestamp(),
+f5 varchar(32) COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+f6 smallint(6) NOT NULL DEFAULT 1,
+f7 int(11) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY idx1 (f7),
+KEY idx2 (f1),
+KEY idx3 (f2),
+KEY idx4 (f3),
+CONSTRAINT constr CHECK (f6 >= 0)
+);
+SELECT * FROM long_enough_name AS tbl;
+pk	f1	f2	f3	f4	f5	f6	f7
+SHOW CREATE TABLE long_enough_name;
+Table	Create Table
+long_enough_name	CREATE TABLE `long_enough_name` (
+  `pk` int(11) NOT NULL,
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) NOT NULL,
+  `f3` int(11) DEFAULT NULL,
+  `f4` timestamp NOT NULL DEFAULT current_timestamp(),
+  `f5` varchar(32) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+  `f6` smallint(6) NOT NULL DEFAULT 1,
+  `f7` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx1` (`f7`),
+  KEY `idx2` (`f1`),
+  KEY `idx3` (`f2`),
+  KEY `idx4` (`f3`),
+  CONSTRAINT `constr` CHECK (`f6` >= 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE long_enough_name;
+CREATE TABLE test.t(t int COMMENT 't_comment' CHECK(t>0));
+SHOW CREATE TABLE test.t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL COMMENT 't_comment' CHECK (`t` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP table test.t;
+SET @OLD_SQL_MODE=@@SQL_MODE;
+SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
+CREATE TABLE test.t (f int foo=bar check(f>0));
+Warnings:
+Warning	1911	Unknown option 'foo'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `f` int(11) DEFAULT NULL `foo`=bar CHECK (`f` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP table test.t;
+SET @@SQL_MODE=@OLD_SQL_MODE;
+create table t1 (a int check (a>10)) select 100 as 'a';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a text default(length(now())) check (length(a) > 1));
+insert into t1 values ();
+insert into t1 values ("ccc");
+insert into t1 values ("");
+ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+select * from t1;
+a
+19
+ccc
+drop table t1;

@@ -648,4 +648,12 @@ SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
 connection server_1;
 DROP TABLE t1, t2, t3;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+Check that no more than the expected last four GTIDs are in mysql.gtid_slave_pos
+select count(4) <= 4 from mysql.gtid_slave_pos order by domain_id, sub_id;
+count(4) <= 4
+1
+connection server_1;
 include/rpl_end.inc

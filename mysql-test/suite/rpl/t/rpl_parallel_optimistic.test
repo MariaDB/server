@@ -553,5 +553,29 @@ SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 
 --connection server_1
 DROP TABLE t1, t2, t3;
+--source include/save_master_gtid.inc
 
+--connection server_2
+--source include/sync_with_master_gtid.inc
+# Check for left-over rows in table mysql.gtid_slave_pos (MDEV-12147).
+#
+# There was a bug when a transaction got a conflict and was rolled back. It
+# might have also handled deletion of some old rows, and these deletions would
+# then also be rolled back. And since the deletes were never re-tried, old no
+# longer needed rows would accumulate in the table without limit.
+# 
+# The earlier part of this test file have plenty of transactions being rolled
+# back. But the last DROP TABLE statement runs on its own and should never
+# conflict, thus at this point the mysql.gtid_slave_pos table should be clean.
+#
+# To support @@gtid_pos_auto_engines, when a row is inserted in the table, it
+# is associated with the engine of the table at insertion time, and it will
+# only be deleted during record_gtid from a table of the same engine. Since we
+# alter the table from MyISAM to InnoDB at the start of this test, we should
+# end up with 4 rows: two left-over from when the table was MyISAM, and two
+# left-over from the InnoDB part.
+--echo Check that no more than the expected last four GTIDs are in mysql.gtid_slave_pos
+select count(4) <= 4 from mysql.gtid_slave_pos order by domain_id, sub_id;
+
+--connection server_1
 --source include/rpl_end.inc

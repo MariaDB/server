@@ -1020,8 +1020,8 @@ i
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	set i@0 1
-1	set [upper_bound]@1 3
-2	jump_if_not 6(6) i@0 <= [upper_bound]@1
+1	set [target_bound]@1 3
+2	jump_if_not 6(6) i@0 <= [target_bound]@1
 3	stmt 0 "SELECT i"
 4	set i@0 i@0 + 1
 5	jump 2
@@ -1058,11 +1058,11 @@ i	j
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	set i@0 1
-1	set [upper_bound]@1 3
-2	jump_if_not 17(17) i@0 <= [upper_bound]@1
+1	set [target_bound]@1 3
+2	jump_if_not 17(17) i@0 <= [target_bound]@1
 3	set j@2 1
-4	set [upper_bound]@3 3
-5	jump_if_not 13(13) j@2 <= [upper_bound]@3
+4	set [target_bound]@3 3
+5	jump_if_not 13(13) j@2 <= [target_bound]@3
 6	jump_if_not 8(8) i@0 = 3
 7	jump 17
 8	jump_if_not 10(10) j@2 = 3

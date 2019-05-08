@@ -24,8 +24,6 @@ Query graph
 Created 5/27/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "que0que.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
@@ -37,9 +35,6 @@ Created 5/27/1996 Heikki Tuuri
 #include "dict0crea.h"
 #include "log0log.h"
 #include "eval0proc.h"
-#include "lock0lock.h"
-#include "eval0eval.h"
-#include "pars0types.h"
 
 #define QUE_MAX_LOOPS_WITHOUT_CHECK	16
 
@@ -689,7 +684,8 @@ que_thr_stop(
 		trx->lock.wait_thr = thr;
 		thr->state = QUE_THR_LOCK_WAIT;
 
-	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY) {
+	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY
+		   && thd_rpl_stmt_based(trx->mysql_thd)) {
 
 		return(FALSE);
 
@@ -1233,8 +1229,6 @@ que_eval_sql(
 	if (reserve_dict_mutex) {
 		mutex_exit(&dict_sys->mutex);
 	}
-
-	ut_a(trx->error_state != 0);
 
 	DBUG_RETURN(trx->error_state);
 }

@@ -30,6 +30,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "que0types.h"
 
+#include <queue>
+
 /** A dummy undo record used as a return value when we have a whole undo log
 which needs no purge */
 extern trx_undo_rec_t	trx_purge_dummy_rec;
@@ -139,27 +141,6 @@ namespace undo {
 
 	typedef std::vector<ulint>		undo_spaces_t;
 	typedef	std::vector<trx_rseg_t*>	rseg_for_trunc_t;
-
-	/** Magic Number to indicate truncate action is complete. */
-	const ib_uint32_t			s_magic = 76845412;
-
-	/** Truncate Log file Prefix. */
-	const char* const			s_log_prefix = "undo_";
-
-	/** Truncate Log file Extension. */
-	const char* const			s_log_ext = "trunc.log";
-
-	/** Populate log file name based on space_id
-	@param[in]	space_id	id of the undo tablespace.
-	@return DB_SUCCESS or error code */
-	dberr_t populate_log_file_name(
-		ulint	space_id,
-		char*&	log_file_name);
-
-	/** Create the truncate log file.
-	@param[in]	space_id	id of the undo tablespace to truncate.
-	@return DB_SUCCESS or error code. */
-	dberr_t init(ulint space_id);
 
 	/** Mark completion of undo truncate action by writing magic number to
 	the log file and then removing it from the disk.
@@ -320,23 +301,6 @@ namespace undo {
 		ulint get_rseg_truncate_frequency() const
 		{
 			return(m_purge_rseg_truncate_frequency);
-		}
-
-		/* Start writing log information to a special file.
-		On successfull completion, file is removed.
-		On crash, file is used to complete the truncate action.
-		@param	space_id	space id of undo tablespace
-		@return DB_SUCCESS or error code. */
-		dberr_t start_logging(ulint space_id)
-		{
-			return(init(space_id));
-		}
-
-		/* Mark completion of logging./
-		@param	space_id	space id of undo tablespace */
-		void done_logging(ulint space_id)
-		{
-			return(done(space_id));
 		}
 
 	private:

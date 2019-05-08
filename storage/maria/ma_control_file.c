@@ -583,8 +583,8 @@ int ma_control_file_end(void)
 
   close_error= mysql_file_close(control_file_fd, MYF(MY_WME));
   /*
-    As mysql_file_close() frees structures even if close() fails, we do the same,
-    i.e. we mark the file as closed in all cases.
+    As mysql_file_close() frees structures even if close() fails, we do the
+    same, i.e. we mark the file as closed in all cases.
   */
   control_file_fd= -1;
   /*

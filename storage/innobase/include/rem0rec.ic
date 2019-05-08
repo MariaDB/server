@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -355,7 +355,6 @@ rec_set_next_offs_old(
 	rec_t*	rec,	/*!< in: old-style physical record */
 	ulint	next)	/*!< in: offset of the next record */
 {
-	ut_ad(rec);
 	ut_ad(srv_page_size > next);
 	compile_time_assert(REC_NEXT_MASK == 0xFFFFUL);
 	compile_time_assert(REC_NEXT_SHIFT == 0);
@@ -374,7 +373,6 @@ rec_set_next_offs_new(
 {
 	ulint	field_value;
 
-	ut_ad(rec);
 	ut_ad(srv_page_size > next);
 
 	if (!next) {
@@ -874,7 +872,6 @@ rec_offs_set_n_alloc(
 				must be allocated */
 	ulint	n_alloc)	/*!< in: number of elements */
 {
-	ut_ad(offsets);
 	ut_ad(n_alloc > REC_OFFS_HEADER_SIZE);
 	UNIV_MEM_ALLOC(offsets, n_alloc * sizeof *offsets);
 	offsets[0] = n_alloc;
@@ -896,7 +893,6 @@ rec_get_nth_field_offs(
 	ulint	offs;
 	ulint	length;
 	ut_ad(n < rec_offs_n_fields(offsets));
-	ut_ad(len);
 
 	if (n == 0) {
 		offs = 0;
@@ -953,21 +949,6 @@ rec_offs_any_null_extern(
 	}
 
 	return(NULL);
-}
-
-/******************************************************//**
-Returns nonzero if the extern bit is set in nth field of rec.
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-rec_offs_nth_extern_old(
-/*================*/
-	const rec_t*	rec,	/*!< in: record */
-	ulint		    n	/*!< in: index of the field */)
-{
-	if(rec_get_1byte_offs_flag(rec))
-		return 0;
-	return (rec_2_get_field_end_info(rec,n) & REC_2BYTE_EXTERN_MASK);
 }
 
 /******************************************************//**
@@ -1203,7 +1184,6 @@ rec_set_nth_field(
 	byte*	data2;
 	ulint	len2;
 
-	ut_ad(rec);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(!rec_offs_nth_default(offsets, n));
 
@@ -1407,8 +1387,6 @@ rec_get_converted_size(
 	ulint	data_size;
 	ulint	extra_size;
 
-	ut_ad(index);
-	ut_ad(dtuple);
 	ut_ad(dtuple_check_typed(dtuple));
 #ifdef UNIV_DEBUG
 	if (dict_index_is_ibuf(index)) {

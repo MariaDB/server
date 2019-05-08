@@ -27,7 +27,6 @@ Created 2007-03-27 Sunny Bains
 #ifndef INNOBASE_FTS0TYPES_H
 #define INNOBASE_FTS0TYPES_H
 
-#include "univ.i"
 #include "fts0fts.h"
 #include "fut0fut.h"
 #include "pars0pars.h"
@@ -163,7 +162,7 @@ struct fts_cache_t {
 					the document from the table. Each
 					element is of type fts_doc_t */
 
-	ulint		total_size;	/*!< total size consumed by the ilist
+	size_t		total_size;	/*!< total size consumed by the ilist
 					field of all nodes. SYNC is run
 					whenever this gets too big */
 	fts_sync_t*	sync;		/*!< sync structure to sync data to
@@ -245,7 +244,7 @@ struct fts_fetch_t {
 	fts_sql_callback
 			read_record;	/*!< Callback for reading index
 					record */
-	ulint		total_memory;	/*!< Total memory used */
+	size_t		total_memory;	/*!< Total memory used */
 };
 
 /** For horizontally splitting an FTS auxiliary index */

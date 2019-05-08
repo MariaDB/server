@@ -21,6 +21,6 @@ Tables_in_bug
 parent
 alter table parent row_format=dynamic;
 Warnings:
-Warning	1088	InnoDB: Could not add foreign key constraints.
+Warning	1088	failed to load FOREIGN KEY constraints
 drop table parent;
 drop database bug;

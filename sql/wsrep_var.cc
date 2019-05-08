@@ -428,7 +428,8 @@ bool wsrep_reject_queries_update(sys_var *self, THD* thd, enum_var_type type)
             WSREP_INFO("Rejecting client queries due to manual setting");
             break;
         case WSREP_REJECT_ALL_KILL:
-            wsrep_close_client_connections(FALSE);
+            /* close all client connections, but this one */
+            wsrep_close_client_connections(FALSE, thd);
             WSREP_INFO("Rejecting client queries and killing connections due to manual setting");
             break;
         default:
@@ -594,7 +595,9 @@ void wsrep_node_address_init (const char* value)
 
 static void wsrep_slave_count_change_update ()
 {
-  wsrep_slave_count_change += (wsrep_slave_threads - wsrep_prev_slave_threads);
+  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_prev_slave_threads);
+  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
+	  wsrep_slave_threads, wsrep_prev_slave_threads, wsrep_slave_count_change);
   wsrep_prev_slave_threads = wsrep_slave_threads;
 }
 
@@ -614,6 +617,12 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
   if (wsrep == NULL)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
+  if (thd->global_read_lock.is_acquired())
+  {
+    my_message (ER_CANNOT_USER, "Global read lock acquired. Can't set 'wsrep_desync'", MYF(0));
     return true;
   }
 
@@ -750,4 +759,3 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
   v->name= 0;                                   // terminator
   return 0;
 }
-

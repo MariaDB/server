@@ -985,31 +985,31 @@ create table t1 (utf32 varchar(2) character set utf32);
 Wrong character with pad
 insert ignore into t1 values (0x110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong chsaracter without pad
 insert ignore into t1 values (0x00110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong character with pad followed by another wrong character
 insert ignore into t1 values (0x11000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x11\x00\x00\x00\x11\x00...' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x11\x00\x00\x00\x11\x00...' for column `test`.`t1`.`utf32` at row 1
 Good character with pad followed by bad character
 insert ignore into t1 values (0x10000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Good character without pad followed by bad character
 insert ignore into t1 values (0x0010000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong character with the second byte higher than 0x10
 insert ignore into t1 values (0x00800037);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x80\x007' for column `test`.`t1`.`utf32` at row 1
 Wrong character with pad with the second byte higher than 0x10
 insert ignore into t1 values (0x00800037);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x80\x007' for column `test`.`t1`.`utf32` at row 1
 drop table t1;
 select _utf32'a' collate utf32_general_ci = 0xfffd;
 _utf32'a' collate utf32_general_ci = 0xfffd
@@ -1561,12 +1561,12 @@ CREATE TABLE t1 (utf32 CHAR(5) CHARACTER SET utf32, latin1 CHAR(5) CHARACTER SET
 INSERT INTO t1 (utf32) VALUES (0xc581);
 UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x00\xC5\x81' for column 'latin1' at row 1
+Warning	1366	Incorrect string value: '\x00\x00\xC5\x81' for column `test`.`t1`.`latin1` at row 1
 DELETE FROM t1;
 INSERT INTO t1 (utf32) VALUES (0x100cc);
 UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x01\x00\xCC' for column 'latin1' at row 1
+Warning	1366	Incorrect string value: '\x00\x01\x00\xCC' for column `test`.`t1`.`latin1` at row 1
 DROP TABLE t1;
 #
 # Bug#55912 FORMAT with locale set fails for numbers < 1000

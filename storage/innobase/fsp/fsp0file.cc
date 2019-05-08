@@ -24,16 +24,11 @@ Tablespace data file implementation
 Created 2013-7-26 by Kevin Lewis
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fil0fil.h"
 #include "fsp0types.h"
-#include "fsp0sysspace.h"
 #include "os0file.h"
 #include "page0page.h"
 #include "srv0start.h"
-#include "ut0new.h"
-#include "fil0crypt.h"
 
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
@@ -518,9 +513,9 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 	if (error_txt != NULL) {
 err_exit:
-		ib::error() << error_txt << " in datafile: " << m_filepath
+		ib::info() << error_txt << " in datafile: " << m_filepath
 			<< ", Space ID:" << m_space_id  << ", Flags: "
-			<< m_flags << ". " << TROUBLESHOOT_DATADICT_MSG;
+			<< m_flags;
 		m_is_valid = false;
 		free_first_page();
 		return(DB_CORRUPTION);
@@ -567,8 +562,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (m_space_id == ULINT_UNDEFINED) {
-		/* The space_id can be most anything, except -1. */
+	if (m_space_id >= SRV_LOG_SPACE_FIRST_ID) {
 		error_txt = "A bad Space ID was found";
 		goto err_exit;
 	}

@@ -46,6 +46,9 @@ WHERE INDEX_NUMBER =
     (SELECT INDEX_NUMBER FROM INFORMATION_SCHEMA.ROCKSDB_DDL
      WHERE TABLE_NAME = 't2' AND INDEX_NAME = "PRIMARY");
 
+# The number of sst files should be 1 or more
+select count(*) > 0 from information_schema.rocksdb_sst_props;
+
 # cleanup
 DROP TABLE t1;
 DROP TABLE t2;

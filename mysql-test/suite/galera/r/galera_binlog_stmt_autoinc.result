@@ -1,0 +1,161 @@
+connection node_1;
+connection node_2;
+connection node_2;
+SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
+connection node_1;
+SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
+CREATE TABLE t1 (
+i int(11) NOT NULL AUTO_INCREMENT,
+c char(32) DEFAULT 'dummy_text',
+PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+insert into t1(i) values(null);
+select * from t1;
+i	c
+1	dummy_text
+insert into t1(i) values(null), (null), (null);
+select * from t1;
+i	c
+1	dummy_text
+3	dummy_text
+5	dummy_text
+7	dummy_text
+connection node_2;
+select * from t1;
+i	c
+1	dummy_text
+3	dummy_text
+5	dummy_text
+7	dummy_text
+SET GLOBAL wsrep_forced_binlog_format='none';
+connection node_1;
+SET GLOBAL wsrep_forced_binlog_format='none';
+drop table t1;
+SET SESSION binlog_format='STATEMENT';
+show variables like 'binlog_format';
+Variable_name	Value
+binlog_format	STATEMENT
+SET GLOBAL wsrep_auto_increment_control='OFF';
+SET SESSION auto_increment_increment = 3;
+SET SESSION auto_increment_offset = 1;
+CREATE TABLE t1 (
+i int(11) NOT NULL AUTO_INCREMENT,
+c char(32) DEFAULT 'dummy_text',
+PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+insert into t1(i) values(null);
+select * from t1;
+i	c
+1	dummy_text
+insert into t1(i) values(null), (null), (null);
+select * from t1;
+i	c
+1	dummy_text
+4	dummy_text
+7	dummy_text
+10	dummy_text
+connection node_2;
+select * from t1;
+i	c
+1	dummy_text
+4	dummy_text
+7	dummy_text
+10	dummy_text
+connection node_1;
+SET GLOBAL wsrep_auto_increment_control='ON';
+SET SESSION binlog_format='ROW';
+show variables like 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+show variables like '%auto_increment%';
+Variable_name	Value
+auto_increment_increment	2
+auto_increment_offset	1
+wsrep_auto_increment_control	ON
+SET GLOBAL wsrep_auto_increment_control='OFF';
+show variables like '%auto_increment%';
+Variable_name	Value
+auto_increment_increment	3
+auto_increment_offset	1
+wsrep_auto_increment_control	OFF
+SET GLOBAL wsrep_auto_increment_control='ON';
+drop table t1;
+connection node_2;
+SET GLOBAL wsrep_forced_binlog_format='ROW';
+connection node_1;
+SET GLOBAL wsrep_forced_binlog_format='ROW';
+CREATE TABLE t1 (
+i int(11) NOT NULL AUTO_INCREMENT,
+c char(32) DEFAULT 'dummy_text',
+PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+insert into t1(i) values(null);
+select * from t1;
+i	c
+1	dummy_text
+insert into t1(i) values(null), (null), (null);
+select * from t1;
+i	c
+1	dummy_text
+3	dummy_text
+5	dummy_text
+7	dummy_text
+connection node_2;
+select * from t1;
+i	c
+1	dummy_text
+3	dummy_text
+5	dummy_text
+7	dummy_text
+SET GLOBAL wsrep_forced_binlog_format='none';
+connection node_1;
+SET GLOBAL wsrep_forced_binlog_format='none';
+drop table t1;
+SET SESSION binlog_format='ROW';
+show variables like 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+SET GLOBAL wsrep_auto_increment_control='OFF';
+SET SESSION auto_increment_increment = 3;
+SET SESSION auto_increment_offset = 1;
+CREATE TABLE t1 (
+i int(11) NOT NULL AUTO_INCREMENT,
+c char(32) DEFAULT 'dummy_text',
+PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+insert into t1(i) values(null);
+select * from t1;
+i	c
+1	dummy_text
+insert into t1(i) values(null), (null), (null);
+select * from t1;
+i	c
+1	dummy_text
+4	dummy_text
+7	dummy_text
+10	dummy_text
+connection node_2;
+select * from t1;
+i	c
+1	dummy_text
+4	dummy_text
+7	dummy_text
+10	dummy_text
+connection node_1;
+SET GLOBAL wsrep_auto_increment_control='ON';
+show variables like 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+show variables like '%auto_increment%';
+Variable_name	Value
+auto_increment_increment	2
+auto_increment_offset	1
+wsrep_auto_increment_control	ON
+SET GLOBAL wsrep_auto_increment_control='OFF';
+show variables like '%auto_increment%';
+Variable_name	Value
+auto_increment_increment	3
+auto_increment_offset	1
+wsrep_auto_increment_control	OFF
+SET GLOBAL wsrep_auto_increment_control='ON';
+drop table t1;

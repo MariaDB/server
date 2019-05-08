@@ -32,6 +32,10 @@
 /****************************************************************************/
 #include "mycat.h"
 
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+bool MongoEnabled(void);
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
+
 /****************************************************************************/
 /*  Structures used to pass info between CONNECT and ha_connect.            */
 /****************************************************************************/
@@ -347,11 +351,7 @@ PFIL  CondFilter(PGLOBAL g, Item *cond);
 //PFIL  CheckFilter(PGLOBAL g);
 
 /** admin commands - called from mysql_admin_table */
-virtual int check(THD* thd, HA_CHECK_OPT* check_opt)
-{
-	// TODO: implement it
-	return HA_ADMIN_OK;	// Just to avoid error message with checktables
-}	// end of check
+virtual int check(THD* thd, HA_CHECK_OPT* check_opt);
 
  /**
    Number of rows in table. It will only be called if

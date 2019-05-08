@@ -26,13 +26,10 @@ Created 4/18/1996 Heikki Tuuri
 #ifndef dict0boot_h
 #define dict0boot_h
 
-#include "univ.i"
-
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "ut0byte.h"
 #include "buf0buf.h"
-#include "fsp0fsp.h"
 #include "dict0dict.h"
 
 typedef	byte	dict_hdr_t;

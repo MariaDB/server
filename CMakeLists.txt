@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2017, MariaDB
+# Copyright (c) 2008, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,8 @@ ENDIF()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
-SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
+SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
+  ${CMAKE_SOURCE_DIR}/cmake ${CMAKE_SOURCE_DIR}/cmake/Internal/CPack)
 
 # Use a default manufacturer if no manufacturer was identified.
 IF(NOT DEFINED MANUFACTURER) 
@@ -213,6 +214,14 @@ IF (WITH_TSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=thread" DEBUG RELWITHDEBINFO)
 ENDIF()
 
+OPTION(WITH_UBSAN "Enable undefined behavior sanitizer" OFF)
+IF (WITH_UBSAN)
+  IF(SECURITY_HARDENED)
+    MESSAGE(FATAL_ERROR "WITH_UBSAN and SECURITY_HARDENED are mutually exclusive")
+  ENDIF()
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize=alignment" DEBUG RELWITHDEBINFO)
+ENDIF()
+
 IF(NOT WITH_TSAN)
   # enable security hardening features, like most distributions do
   # in our benchmarks that costs about ~1% of performance, depending on the load
@@ -242,8 +251,14 @@ ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
 
-OPTION(ENABLED_LOCAL_INFILE
- "If we should should enable LOAD DATA LOCAL by default" ${IF_WIN})
+SET(ENABLED_LOCAL_INFILE "AUTO" CACHE STRING "If we should should enable LOAD DATA LOCAL by default (OFF/ON/AUTO)")
+IF (ENABLED_LOCAL_INFILE MATCHES "^(0|FALSE)$")
+  SET(ENABLED_LOCAL_INFILE OFF)
+ELSEIF(ENABLED_LOCAL_INFILE MATCHES "^(1|TRUE)$")
+  SET(ENABLED_LOCAL_INFILE ON)
+ELSEIF (NOT ENABLED_LOCAL_INFILE MATCHES "^(ON|OFF|AUTO)$")
+  MESSAGE(FATAL_ERROR "ENABLED_LOCAL_INFILE must be one of OFF, ON, AUTO")
+ENDIF()
 
 # Set DBUG_OFF and other optional release-only flags for non-debug project types
 FOREACH(BUILD_TYPE RELEASE RELWITHDEBINFO MINSIZEREL)
@@ -334,6 +349,8 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
+SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 CHECK_PCRE()
 
@@ -485,6 +502,8 @@ IF(UNIX)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY Docs/README-wsrep COMPONENT Readme)
 ENDIF()
 
+INCLUDE(build_depends)
+
 INCLUDE(CPack)
 
 IF(WIN32 AND SIGNCODE)
@@ -495,5 +514,5 @@ ENDIF()
 
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
-You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
+You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
 ENDIF()

@@ -1344,14 +1344,12 @@ QUICK_RANGE_SELECT::~QUICK_RANGE_SELECT()
   - Use rowids from unique to run a disk-ordered sweep
 */
 
-QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param,
-                                                 TABLE *table)
+QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param, TABLE *table)
   :unique(NULL), pk_quick_select(NULL), thd(thd_param)
 {
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT");
   index= MAX_KEY;
   head= table;
-  bzero(&read_record, sizeof(read_record));
   init_sql_alloc(&alloc, "QUICK_INDEX_SORT_SELECT",
                  thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
@@ -1562,6 +1560,7 @@ failure:
   head->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
   delete file;
   file= save_file;
+  free_file= false;
   DBUG_RETURN(1);
 }
 
@@ -2734,12 +2733,17 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+    Field *field= *field_ptr;
+    if (bitmap_is_set(used_fields, field->field_index) &&
+        is_eits_usable(field))
       parts++;
   }
 
   KEY_PART *key_part;
   uint keys= 0;
+
+  if (!parts)
+    return TRUE;
 
   if (!(key_part= (KEY_PART *)  alloc_root(param->mem_root,
                                            sizeof(KEY_PART) * parts)))
@@ -2749,9 +2753,12 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
   uint max_key_len= 0;
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+    Field *field= *field_ptr;
+    if (bitmap_is_set(used_fields, field->field_index))
     {
-      Field *field= *field_ptr;
+      if (!is_eits_usable(field))
+        continue;
+
       uint16 store_length;
       uint16 max_key_part_length= (uint16) table->file->max_key_part_length();
       key_part->key= keys;
@@ -2909,7 +2916,18 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   table->cond_selectivity= 1.0;
 
-  if (!*cond || table_records == 0)
+  if (table_records == 0)
+    DBUG_RETURN(FALSE);
+
+  QUICK_SELECT_I *quick;
+  if ((quick=table->reginfo.join_tab->quick) &&
+      quick->get_type() == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+  {
+    table->cond_selectivity*= (quick->records/table_records);
+    DBUG_RETURN(FALSE);
+  }
+
+  if (!*cond)
     DBUG_RETURN(FALSE);
 
   if (table->pos_in_table_list->schema_table)
@@ -3026,7 +3044,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   */
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
-      !bitmap_is_clear_all(used_fields))
+      !bitmap_is_clear_all(used_fields) &&
+      thd->variables.use_stat_tables > 0)
   {
     PARAM param;
     MEM_ROOT alloc;
@@ -3113,6 +3132,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     thd->mem_root= param.old_root;
     free_root(&alloc, MYF(0));
 
+  }
+
+  if (quick && (quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
+     quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE))
+  {
+    table->cond_selectivity*= (quick->records/table_records);
   }
 
   bitmap_union(used_fields, &handled_columns);
@@ -5082,6 +5107,16 @@ typedef struct st_partial_index_intersect_info
   key_map filtered_scans;    /* scans to be filtered by cpk conditions       */
          
   MY_BITMAP *intersect_fields;     /* bitmap of fields used in intersection  */
+
+  void init()
+  {
+    common_info= NULL;
+    intersect_fields= NULL;
+    records_sent_to_unique= records= length= in_memory= use_cpk_filter= 0;
+    cost= index_read_cost= in_memory_cost= 0.0;
+    filtered_scans.init();
+    filtered_scans.clear_all();
+  }
 } PARTIAL_INDEX_INTERSECT_INFO;
 
 
@@ -5218,8 +5253,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   if (!n_index_scans)
     return 1;
 
-  bzero(init, sizeof(*init));
-  init->filtered_scans.init();
+  init->init();
   init->common_info= common;
   init->cost= cutoff_cost;
 
@@ -14644,6 +14678,32 @@ void QUICK_GROUP_MIN_MAX_SELECT::add_keys_and_lengths(String *key_names,
   add_key_and_length(key_names, used_lengths, &first);
 }
 
+
+/* Check whether the number for equality ranges exceeds the set threshold */ 
+
+bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
+                             uint limit)
+{
+  KEY_MULTI_RANGE range;
+  range_seq_t seq_it;
+  uint count = 0;
+
+  if (limit == 0)
+  {
+    /* 'Statistics instead of index dives' feature is turned off */
+   return false;
+  }
+  seq_it= seq->init(seq_init_param, 0, 0);
+  while (!seq->next(seq_it, &range))
+  {
+    if ((range.range_flag & EQ_RANGE) && !(range.range_flag & NULL_RANGE))
+    {
+      if (++count >= limit)
+        return true;
+    }
+  }
+  return false;
+}
 
 #ifndef DBUG_OFF
 

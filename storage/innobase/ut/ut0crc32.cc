@@ -2,7 +2,7 @@
 
 Copyright (c) 2009, 2010 Facebook, Inc. All Rights Reserved.
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -83,7 +83,6 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "my_config.h"
 #include <string.h>
 
-#include "univ.i"
 #include "ut0crc32.h"
 
 #ifdef _MSC_VER
@@ -470,6 +469,7 @@ ut_crc32_64_sw(
 	*len -= 8;
 }
 
+#ifdef INNODB_BUG_ENDIAN_CRC32
 /** Calculate CRC32 over 64-bit byte string using a software implementation.
 The byte string is converted to a 64-bit integer using big endian byte order.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
@@ -495,6 +495,7 @@ ut_crc32_64_legacy_big_endian_sw(
 	*data += 8;
 	*len -= 8;
 }
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 
 /** Calculates CRC32 in software, without using CPU instructions.
 @param[in]	buf	data over which to calculate CRC32
@@ -546,16 +547,14 @@ ut_crc32_sw(
 	return(~crc);
 }
 
+#ifdef INNODB_BUG_ENDIAN_CRC32
 /** Calculates CRC32 in software, without using CPU instructions.
 This function uses big endian byte ordering when converting byte sequence to
 integers.
 @param[in]	buf	data over which to calculate CRC32
 @param[in]	len	data length
 @return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_legacy_big_endian(
-	const byte*	buf,
-	ulint		len)
+uint32_t ut_crc32_legacy_big_endian(const byte* buf, ulint len)
 {
 	uint32_t	crc = 0xFFFFFFFFU;
 
@@ -597,6 +596,7 @@ ut_crc32_legacy_big_endian(
 
 	return(~crc);
 }
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 
 /********************************************************************//**
 Initializes the data structures used by ut_crc32*(). Does not do any
@@ -637,6 +637,9 @@ ut_crc32_init()
 
 	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
+#ifdef INNODB_BUG_ENDIAN_CRC32
+		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
+#endif /* INNODB_BUG_ENDIAN_CRC32 */
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
 #endif

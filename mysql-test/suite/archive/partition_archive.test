@@ -47,7 +47,7 @@ engine=archive
 partition by list (a)
 (partition p0 values in (1), partition p1 values in (2));
 insert into t1 values (1), (2);
---replace_regex /#sql-[0-9a-f_]+/#sql-temporary/ /Not owner/Operation not permitted/
+--replace_regex /Not owner/Operation not permitted/
 --error ER_CANT_CREATE_TABLE
 create index inx on t1 (a);
 alter table t1 add partition (partition p2 values in (3));
@@ -138,7 +138,6 @@ CREATE TABLE t1 (fld1 INT PRIMARY KEY) ENGINE= MYISAM PARTITION BY HASH(fld1)
 PARTITIONS 5;
 SHOW CREATE TABLE t1;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t1 ENGINE= ARCHIVE;
 

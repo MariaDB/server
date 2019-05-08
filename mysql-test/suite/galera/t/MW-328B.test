@@ -7,6 +7,7 @@
 # gets the deadlock error
 #
 
+--source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source suite/galera/t/MW-328-header.inc

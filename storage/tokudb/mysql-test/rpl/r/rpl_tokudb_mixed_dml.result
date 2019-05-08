@@ -521,24 +521,24 @@ connection master;
 SET PASSWORD FOR 'user_test_rpl'@'localhost' = '*0000000000000000000000000000000000000000';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*0000000000000000000000000000000000000000	N
+localhost	user_test_rpl	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl		mysql_native_password	*0000000000000000000000000000000000000000	N
+localhost	user_test_rpl	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection master;
 
 ******************** RENAME USER ********************
 RENAME USER 'user_test_rpl'@'localhost' TO 'user_test_rpl_2'@'localhost';
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl_2		mysql_native_password	*0000000000000000000000000000000000000000	N
+localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection slave;
 USE test_rpl;
 SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 host	user	password	plugin	authentication_string	select_priv
-localhost	user_test_rpl_2		mysql_native_password	*0000000000000000000000000000000000000000	N
+localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection master;
 
 ******************** DROP USER ********************

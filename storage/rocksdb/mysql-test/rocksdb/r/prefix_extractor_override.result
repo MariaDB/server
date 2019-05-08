@@ -24,11 +24,9 @@ CF_NAME	OPTION_TYPE	VALUE
 __system__	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
 cf1	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
 default	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+SET @@global.rocksdb_update_cf_options = 'cf1={prefix_extractor=capped:26};';
 
-Restarting with new Prefix Extractor...
-
-
-Changed Prefix Extractor (after restart):
+Changed Prefix Extractor (after update_cf_options set, without restart):
 
 SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
 CF_NAME	OPTION_TYPE	VALUE
@@ -65,6 +63,7 @@ COUNT(*)
 select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 variable_value-@u
 2
+SET @@global.rocksdb_update_cf_options = '';
 set global rocksdb_compact_cf='cf1';
 select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=30 AND id3=30;

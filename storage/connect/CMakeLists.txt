@@ -40,6 +40,10 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
 add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 
+macro(DISABLE_WARNING W)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=${W}")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-${W}" DEBUG)
+endmacro()
 
 #
 # OS specific C flags, definitions and source files.
@@ -47,14 +51,15 @@ add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 IF(UNIX)
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wall -Wmissing-declarations")
   if(NOT WITH_WARNINGS)
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-function")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-variable")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-value")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-parentheses")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-strict-aliasing")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-misleading-indentation")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-format-truncation")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+    DISABLE_WARNING("unused-function")
+    DISABLE_WARNING("unused-variable")
+    DISABLE_WARNING("unused-value")
+    DISABLE_WARNING("parentheses")
+    DISABLE_WARNING("strict-aliasing")
+    DISABLE_WARNING("misleading-indentation")
+    DISABLE_WARNING("format-truncation")
+    DISABLE_WARNING("implicit-fallthrough")
+    DISABLE_WARNING("type-limits")
   endif(NOT WITH_WARNINGS)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
@@ -113,6 +118,7 @@ IF(CONNECT_WITH_LIBXML2)
   FIND_PACKAGE(LibXml2)
   IF (LIBXML2_FOUND)
     INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
+    SET(ZLIB_LIBRARY "z") # see ZLIB_INCLUDE_DIR below
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp libdoc.h)
     add_definitions(-DLIBXML2_SUPPORT)
@@ -128,7 +134,6 @@ IF(WIN32)
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
     add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
-    message(STATUS "MSXML library version: msxml6")
     SET(MSXML_FOUND 1)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
   ENDIF(CONNECT_WITH_MSXML)
@@ -168,7 +173,8 @@ IF(CONNECT_WITH_ODBC)
     # the library 'libiodbc' gets compiled with 'sql'h.
     # This will also need changes in the sources (e.g. #include <isql.h>).
 
-    find_path(ODBC_INCLUDE_DIR sql.h
+    find_file(ODBC_INCLUDES sql.h
+    PATHS
     /usr/include
     /usr/include/odbc
     /usr/local/include
@@ -178,7 +184,7 @@ IF(CONNECT_WITH_ODBC)
     #"C:/Program Files/Microsoft SDKs/Windows/v7.0A/include"
     #"C:/Program Files/Microsoft SDKs/Windows/v6.0a/include"
     #"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/include"
-    DOC "Specify the directory containing sql.h."
+    DOC "Specify the path to sql.h."
     )
 
     find_library(ODBC_LIBRARY
@@ -197,9 +203,10 @@ IF(CONNECT_WITH_ODBC)
     DOC "Specify the ODBC driver manager library here."
     )
 
-    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDE_DIR)
+    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDES)
 
-    IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
+    IF(ODBC_INCLUDES AND ODBC_LIBRARY)
+      get_filename_component(ODBC_INCLUDE_DIR "${ODBC_INCLUDES}" PATH)
       set(CMAKE_REQUIRED_LIBRARIES ${ODBC_LIBRARY})
       set(CMAKE_REQUIRED_INCLUDES ${ODBC_INCLUDE_DIR})
       CHECK_CXX_SOURCE_COMPILES(
@@ -328,6 +335,14 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
 
 IF(NOT TARGET connect)
   RETURN()
+ENDIF()
+
+# Don't link with bundled zlib and systel libxml2 at the same time.
+# System libxml2 uses system zlib, might conflict with the bundled one.
+IF (XML_LIBRARY AND BUILD_BUNDLED_ZLIB)
+  GET_PROPERTY(INCS TARGET connect PROPERTY INCLUDE_DIRECTORIES)
+  LIST(REMOVE_ITEM INCS ${ZLIB_INCLUDE_DIR})
+  SET_PROPERTY(TARGET connect PROPERTY INCLUDE_DIRECTORIES ${INCS})
 ENDIF()
 
 IF(WIN32)

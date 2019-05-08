@@ -77,10 +77,13 @@ push @::global_suppressions,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(JOINED\). Message ignored.|,
      qr|WSREP: Unsupported protocol downgrade: incremental data collection disabled. Expect abort.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
+     qr(WSREP: Last Applied Action message in non-primary configuration from member [0-9]*),
      qr(WSREP: discarding established .*),
      qr|WSREP: .*core_handle_uuid_msg.*|,
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0. WSREP_SYNC_WAIT_BEFORE_READ is on),
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
+     qr(WSREP: Failed to remove page file .*),
+     qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
    );
 
 $ENV{PATH}="$epath:$ENV{PATH}";
@@ -96,10 +99,8 @@ if (which(socat)) {
 
 sub skip_combinations {
   my %skip = ();
-  $skip{'include/have_xtrabackup.inc'} = 'Need innobackupex'
-             unless which(innobackupex);
-  $skip{'include/have_xtrabackup.inc'} = 'Need socat or nc'
-             unless $ENV{MTR_GALERA_TFMT};
+  $skip{'include/have_filekeymanagement.inc'} = 'needs file_key_management plugin'
+             unless $ENV{FILE_KEY_MANAGEMENT_SO};
   $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
              unless which(mariabackup);
   $skip{'include/have_mariabackup.inc'} = 'Need ss'

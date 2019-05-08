@@ -238,17 +238,17 @@ int Geometry::as_wkt(String *wkt, const char **end)
 
 
 static const uchar type_keyname[]= "type";
-static const int type_keyname_len= 4;
+static const uint type_keyname_len= 4;
 static const uchar coord_keyname[]= "coordinates";
-static const int coord_keyname_len= 11;
+static const uint coord_keyname_len= 11;
 static const uchar geometries_keyname[]= "geometries";
-static const int geometries_keyname_len= 10;
+static const uint geometries_keyname_len= 10;
 static const uchar features_keyname[]= "features";
-static const int features_keyname_len= 8;
+static const uint features_keyname_len= 8;
 static const uchar geometry_keyname[]= "geometry";
-static const int geometry_keyname_len= 8;
+static const uint geometry_keyname_len= 8;
 
-static const int max_keyname_len= 11; /*'coordinates' keyname is the longest.*/
+static const uint max_keyname_len= 11; /*'coordinates' keyname is the longest.*/
 
 static const uchar feature_type[]= "feature";
 static const int feature_type_len= 7;

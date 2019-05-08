@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -22,8 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Full Text Search interface
 ***********************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "trx0roll.h"
 #include "row0mysql.h"
 #include "row0upd.h"
@@ -40,7 +38,6 @@ Full Text Search interface
 #include "dict0stats.h"
 #include "btr0pcur.h"
 #include "sync0sync.h"
-#include "ut0new.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 
@@ -67,7 +64,7 @@ ulong	fts_max_total_cache_size;
 
 /** This is FTS result cache limit for each query and would be
 a configurable variable */
-ulong	fts_result_cache_limit;
+size_t	fts_result_cache_limit;
 
 /** Variable specifying the maximum FTS max token size */
 ulong	fts_max_token_size;
@@ -729,6 +726,7 @@ fts_reset_get_doc(
 		memset(get_doc, 0x0, sizeof(*get_doc));
 
 		get_doc->index_cache = ind_cache;
+		get_doc->cache = cache;
 	}
 
 	ut_ad(ib_vector_size(cache->get_docs)
@@ -1469,7 +1467,8 @@ fts_drop_table(
 		/* Pass nonatomic=false (dont allow data dict unlock),
 		because the transaction may hold locks on SYS_* tables from
 		previous calls to fts_drop_table(). */
-		error = row_drop_table_for_mysql(table_name, trx, true, false, false);
+		error = row_drop_table_for_mysql(table_name, trx,
+						 SQLCOM_DROP_DB, false, false);
 
 		if (error != DB_SUCCESS) {
 			ib::error() << "Unable to drop FTS index aux table "
@@ -1512,8 +1511,8 @@ fts_rename_one_aux_table(
 	       table_new_name_len - new_db_name_len);
 	fts_table_new_name[table_new_name_len] = 0;
 
-	return(row_rename_table_for_mysql(
-		fts_table_old_name, fts_table_new_name, trx, false));
+	return row_rename_table_for_mysql(
+		fts_table_old_name, fts_table_new_name, trx, false, false);
 }
 
 /****************************************************************//**
@@ -1743,7 +1742,7 @@ fts_create_in_mem_aux_table(
 {
 	dict_table_t*	new_table = dict_mem_table_create(
 		aux_table_name, NULL, n_cols, 0, table->flags,
-		table->space->id == TRX_SYS_SPACE
+		table->space_id == TRX_SYS_SPACE
 		? 0 : table->space->purpose == FIL_TYPE_TEMPORARY
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
 
@@ -1772,7 +1771,7 @@ fts_create_one_common_table(
 	const char*		fts_suffix,
 	mem_heap_t*		heap)
 {
-	dict_table_t*		new_table = NULL;
+	dict_table_t*		new_table;
 	dberr_t			error;
 	bool			is_config = strcmp(fts_suffix, "CONFIG") == 0;
 
@@ -1825,11 +1824,13 @@ fts_create_one_common_table(
 	}
 
 	if (error != DB_SUCCESS) {
-		trx->error_state = error;
 		dict_mem_table_free(new_table);
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS common table "
 			<< fts_table_name;
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(fts_table_name, trx, SQLCOM_DROP_DB);
+		trx->error_state = error;
 	}
 	return(new_table);
 }
@@ -1943,8 +1944,8 @@ func_exit:
 	if (error != DB_SUCCESS) {
 		for (it = common_tables.begin(); it != common_tables.end();
 		     ++it) {
-			row_drop_table_for_mysql(
-				(*it)->name.m_name, trx, true, FALSE);
+			row_drop_table_for_mysql((*it)->name.m_name, trx,
+						 SQLCOM_DROP_DB);
 		}
 	}
 
@@ -1970,7 +1971,7 @@ fts_create_one_index_table(
 	mem_heap_t*		heap)
 {
 	dict_field_t*		field;
-	dict_table_t*		new_table = NULL;
+	dict_table_t*		new_table;
 	char			table_name[MAX_FULL_NAME_LEN];
 	dberr_t			error;
 	CHARSET_INFO*		charset;
@@ -2034,11 +2035,13 @@ fts_create_one_index_table(
 	}
 
 	if (error != DB_SUCCESS) {
-		trx->error_state = error;
 		dict_mem_table_free(new_table);
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS index table "
 			<< table_name;
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(table_name, trx, SQLCOM_DROP_DB);
+		trx->error_state = error;
 	}
 
 	return(new_table);
@@ -2113,8 +2116,8 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 
 		for (it = aux_idx_tables.begin(); it != aux_idx_tables.end();
 		     ++it) {
-			row_drop_table_for_mysql(
-				(*it)->name.m_name, trx, true, FALSE);
+			row_drop_table_for_mysql((*it)->name.m_name, trx,
+						 SQLCOM_DROP_DB);
 		}
 	}
 
@@ -3338,12 +3341,11 @@ fts_fetch_doc_from_tuple(
                const dict_field_t*     ifield;
                const dict_col_t*       col;
                ulint                   pos;
-               dfield_t*               field;
 
                ifield = dict_index_get_nth_field(index, i);
                col = dict_field_get_col(ifield);
                pos = dict_col_get_no(col);
-               field = dtuple_get_nth_field(tuple, pos);
+		const dfield_t* field = dtuple_get_nth_field(tuple, pos);
 
                if (!get_doc->index_cache->charset) {
                        get_doc->index_cache->charset = fts_get_charset(
@@ -3732,7 +3734,7 @@ fts_get_max_doc_id(
 			goto func_exit;
 		}
 
-		ut_ad(!rec_is_default_row(rec, index));
+		ut_ad(!rec_is_metadata(rec, index));
 		offsets = rec_get_offsets(
 			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
 
@@ -4781,12 +4783,12 @@ fts_tokenize_document(
 	ut_a(!doc->tokens);
 	ut_a(doc->charset);
 
-	doc->tokens = rbt_create_arg_cmp(
-		sizeof(fts_token_t), innobase_fts_text_cmp, (void*) doc->charset);
+	doc->tokens = rbt_create_arg_cmp(sizeof(fts_token_t),
+					 innobase_fts_text_cmp,
+					 (void*) doc->charset);
 
 	if (parser != NULL) {
 		fts_tokenize_param_t	fts_param;
-
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = 0;
 
@@ -6231,7 +6233,7 @@ fts_rename_one_aux_table_to_hex_format(
 	}
 
 	error = row_rename_table_for_mysql(aux_table->name, new_name, trx,
-					   FALSE);
+					   false, false);
 
 	if (error != DB_SUCCESS) {
 		ib::warn() << "Failed to rename aux table '"
@@ -6370,7 +6372,7 @@ fts_rename_aux_tables_to_hex_format_low(
 			DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS_AUX_HEX_NAME);
 			err = row_rename_table_for_mysql(table->name.m_name,
 							 aux_table->name,
-							 trx_bg, FALSE);
+							 trx_bg, false, false);
 
 			trx_bg->dict_operation_lock_mode = 0;
 			dict_table_close(table, TRUE, FALSE);
@@ -6689,7 +6691,8 @@ fts_drop_obsolete_aux_table_from_vector(
 		trx_start_for_ddl(trx_drop, TRX_DICT_OP_TABLE);
 
 		err = row_drop_table_for_mysql(
-			aux_drop_table->name, trx_drop, false, true);
+			aux_drop_table->name, trx_drop,
+			SQLCOM_DROP_TABLE, true);
 
 		trx_drop->dict_operation_lock_mode = 0;
 

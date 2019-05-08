@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,13 +27,11 @@ Created 9/20/1997 Heikki Tuuri
 #ifndef log0recv_h
 #define log0recv_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "buf0types.h"
 #include "hash0hash.h"
 #include "log0log.h"
 #include "mtr0types.h"
-#include "ut0new.h"
 
 #include <list>
 #include <vector>
@@ -42,7 +40,7 @@ Created 9/20/1997 Heikki Tuuri
 extern bool	recv_writer_thread_active;
 
 /** @return whether recovery is currently running. */
-#define recv_recovery_is_on() recv_recovery_on
+#define recv_recovery_is_on() UNIV_UNLIKELY(recv_recovery_on)
 
 /** Find the latest checkpoint in the log header.
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
@@ -51,12 +49,9 @@ dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Apply the hashed log records to the page, if the page lsn is less than the
-lsn of a log record.
-@param just_read_in	whether the page recently arrived to the I/O handler
-@param block		the page in the buffer pool */
-void
-recv_recover_page(bool just_read_in, buf_block_t* block);
+/** Apply any buffered redo log to a page that was just read from a data file.
+@param[in,out]	bpage	buffer pool page */
+ATTRIBUTE_COLD void recv_recover_page(buf_page_t* bpage);
 
 /** Start recovering from a redo log checkpoint.
 @see recv_recovery_from_checkpoint_finish
@@ -74,16 +69,6 @@ Initiates the rollback of active transactions. */
 void
 recv_recovery_rollback_active(void);
 /*===============================*/
-/******************************************************//**
-Resets the logs. The contents of log files will be lost! */
-void
-recv_reset_logs(
-/*============*/
-	lsn_t		lsn);		/*!< in: reset to this lsn
-					rounded up to be divisible by
-					OS_FILE_LOG_BLOCK_SIZE, after
-					which we add
-					LOG_BLOCK_HDR_SIZE */
 /** Clean up after recv_sys_init() */
 void
 recv_sys_close();
@@ -139,10 +124,15 @@ bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
 /** Moves the parsing buffer data left to the buffer start. */
 void recv_sys_justify_left_parsing_buf();
 
-/** Report optimized DDL operation (without redo log), corresponding to MLOG_INDEX_LOAD.
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
 @param[in]	space_id	tablespace identifier
 */
-extern void(*log_optimized_ddl_op)(ulint space_id);
+extern void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report backup-unfriendly TRUNCATE operation (with separate log file),
+corresponding to MLOG_TRUNCATE. */
+extern void (*log_truncate)();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -179,32 +169,6 @@ struct recv_t{
 				this log record */
 	UT_LIST_NODE_T(recv_t)
 			rec_list;/*!< list of log records for this page */
-};
-
-/** States of recv_addr_t */
-enum recv_addr_state {
-	/** not yet processed */
-	RECV_NOT_PROCESSED,
-	/** page is being read */
-	RECV_BEING_READ,
-	/** log records are being applied on the page */
-	RECV_BEING_PROCESSED,
-	/** log records have been applied on the page */
-	RECV_PROCESSED,
-	/** log records have been discarded because the tablespace
-	does not exist */
-	RECV_DISCARDED
-};
-
-/** Hashed page file address struct */
-struct recv_addr_t{
-	enum recv_addr_state state;
-				/*!< recovery state of the page */
-	unsigned	space:32;/*!< space id */
-	unsigned	page_no:32;/*!< page number */
-	UT_LIST_BASE_NODE_T(recv_t)
-			rec_list;/*!< list of log records for this page */
-	hash_node_t	addr_hash;/*!< hash node in the hash bucket chain */
 };
 
 struct recv_dblwr_t {
@@ -287,6 +251,15 @@ struct recv_sys_t{
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
 	ulint		n_addrs;/*!< number of not processed hashed file
 				addresses in the hash table */
+
+	/** Undo tablespaces for which truncate has been logged
+	(indexed by id - srv_undo_space_id_start) */
+	struct trunc {
+		/** log sequence number of MLOG_FILE_CREATE2, or 0 if none */
+		lsn_t		lsn;
+		/** truncated size of the tablespace, or 0 if not truncated */
+		unsigned	pages;
+	} truncated_undo_spaces[127];
 
 	recv_dblwr_t	dblwr;
 

@@ -341,7 +341,15 @@ static bool set_up_field_array(THD *thd, TABLE *table,
   while ((field= *(ptr++))) 
   {
     if (field->flags & GET_FIXED_FIELDS_FLAG)
+    {
+      if (table->versioned(VERS_TRX_ID)
+          && unlikely(field->flags & VERS_SYSTEM_FIELD))
+      {
+        my_error(ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED, MYF(0));
+        DBUG_RETURN(TRUE);
+      }
       num_fields++;
+    }
   }
   if (unlikely(num_fields > MAX_REF_PARTS))
   {
@@ -857,7 +865,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     const bool save_agg_field= thd->lex->current_select->non_agg_field_used();
     const bool save_agg_func=  thd->lex->current_select->agg_func_used();
     const nesting_map saved_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func= 0;
+    thd->lex->allow_sum_func.clear_all();
 
     if (likely(!(error= func_expr->fix_fields_if_needed(thd, (Item**)&func_expr))))
       func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, NULL);
@@ -2575,6 +2583,18 @@ static int add_key_with_algorithm(String *str, partition_info *part_info)
   return err;
 }
 
+char *generate_partition_syntax_for_frm(THD *thd, partition_info *part_info,
+                                        uint *buf_length,
+                                        HA_CREATE_INFO *create_info,
+                                        Alter_info *alter_info)
+{
+  sql_mode_t old_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode &= ~MODE_ANSI_QUOTES;
+  char *res= generate_partition_syntax(thd, part_info, buf_length,
+                                             true, create_info, alter_info);
+  thd->variables.sql_mode= old_mode;
+  return res;
+}
 
 /*
   Generate the partition syntax from the partition data structure.

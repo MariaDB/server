@@ -47,7 +47,6 @@ Updated 14/02/2015
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "row0mysql.h"
-#include "ha_prototypes.h"  // IB_LOG_
 #include "buf0lru.h"
 #include "ibuf0ibuf.h"
 #include "sync0sync.h"
@@ -329,14 +328,14 @@ ulint fil_page_decompress(byte* tmp_buf, byte* buf)
 	case PAGE_ZLIB_ALGORITHM:
 		{
 			uLong len = srv_page_size;
-			if (Z_OK != uncompress(tmp_buf, &len,
+			if (Z_OK == uncompress(tmp_buf, &len,
 					       buf + header_len,
 					       uLong(actual_size))
-			    && len != srv_page_size) {
-				return 0;
+			    && len == srv_page_size) {
+				break;
 			}
 		}
-		break;
+		return 0;
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
 		if (LZ4_decompress_safe(reinterpret_cast<const char*>(buf)

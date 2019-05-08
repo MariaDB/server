@@ -27,12 +27,7 @@ Created 2/17/1996 Heikki Tuuri
 #ifndef btr0sea_h
 #define btr0sea_h
 
-#include "univ.i"
-
-#include "rem0rec.h"
 #include "dict0dict.h"
-#include "btr0types.h"
-#include "mtr0mtr.h"
 #ifdef BTR_CUR_HASH_ADAPT
 #include "ha0ha.h"
 
@@ -122,7 +117,7 @@ void btr_search_drop_page_hash_index(buf_block_t* block);
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.
 @param[in]	page_id		page id */
-void btr_search_drop_page_hash_when_freed(const page_id_t& page_id);
+void btr_search_drop_page_hash_when_freed(const page_id_t page_id);
 
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in]	cursor	cursor which was positioned to the place to insert

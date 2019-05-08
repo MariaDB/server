@@ -218,7 +218,7 @@ insert into t1 set dt='2007-03-23 13:49:38',da=dt;
 Warnings:
 Note	1265	Data truncated for column 'da' at row 1
 insert into t1 values ('2007-03-32','2007-03-23 13:49:38');
-ERROR 22007: Incorrect date value: '2007-03-32' for column 'da' at row 1
+ERROR 22007: Incorrect date value: '2007-03-32' for column `test`.`t1`.`da` at row 1
 select * from t1;
 da	dt
 1962-03-03	1962-03-03 00:00:00
@@ -586,7 +586,7 @@ insert into t1 set dt='2007-03-23 13:49:38',da=dt;
 Warnings:
 Note	1265	Data truncated for column 'da' at row 1
 insert into t1 values ('2007-03-32','2007-03-23 13:49:38');
-ERROR 22007: Incorrect date value: '2007-03-32' for column 'da' at row 1
+ERROR 22007: Incorrect date value: '2007-03-32' for column `test`.`t1`.`da` at row 1
 select * from t1;
 da	dt
 1962-03-03	1962-03-03 00:00:00

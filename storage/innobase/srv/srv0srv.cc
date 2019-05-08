@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -46,14 +46,11 @@ Created 10/8/1995 Heikki Tuuri
 // #include "mysql/psi/mysql_stage.h"
 // #include "mysql/psi/psi.h"
 
-#include "ha_prototypes.h"
-
 #include "btr0sea.h"
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "dict0boot.h"
 #include "dict0load.h"
-#include "fsp0sysspace.h"
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "log0recv.h"
@@ -1074,8 +1071,6 @@ srv_init()
 	trx_i_s_cache_init(trx_i_s_cache);
 
 	ut_crc32_init();
-
-	dict_mem_init();
 }
 
 /*********************************************************************//**
@@ -1583,7 +1578,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_system_rows_deleted =
 		srv_stats.n_system_rows_deleted;
 
-	export_vars.innodb_num_open_files = fil_n_file_opened;
+	export_vars.innodb_num_open_files = fil_system.n_open;
 
 	export_vars.innodb_truncated_status_writes =
 		srv_truncated_status_writes;
@@ -2184,6 +2179,16 @@ srv_master_do_active_tasks(void)
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
 
+	/* The periodic log_checkpoint() call here makes it harder to
+	reproduce bugs in crash recovery or mariabackup --prepare, or
+	in code that writes the redo log records. Omitting the call
+	here should not affect correctness, because log_free_check()
+	should still be invoking checkpoints when needed. In a
+	production server, those calls could cause "furious flushing"
+	and stall the server. Normally we want to perform checkpoints
+	early and often to avoid those situations. */
+	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
+
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
@@ -2191,7 +2196,7 @@ srv_master_do_active_tasks(void)
 	/* Make a new checkpoint */
 	if (cur_time % SRV_MASTER_CHECKPOINT_INTERVAL == 0) {
 		srv_main_thread_op_info = "making checkpoint";
-		log_checkpoint(TRUE, FALSE);
+		log_checkpoint(true);
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_CHECKPOINT_MICROSECOND, counter_time);
 	}
@@ -2263,13 +2268,23 @@ srv_master_do_idle_tasks(void)
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
 
+	/* The periodic log_checkpoint() call here makes it harder to
+	reproduce bugs in crash recovery or mariabackup --prepare, or
+	in code that writes the redo log records. Omitting the call
+	here should not affect correctness, because log_free_check()
+	should still be invoking checkpoints when needed. In a
+	production server, those calls could cause "furious flushing"
+	and stall the server. Normally we want to perform checkpoints
+	early and often to avoid those situations. */
+	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
+
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
 
 	/* Make a new checkpoint */
 	srv_main_thread_op_info = "making checkpoint";
-	log_checkpoint(TRUE, FALSE);
+	log_checkpoint(true);
 	MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_CHECKPOINT_MICROSECOND,
 				       counter_time);
 }
@@ -2417,7 +2432,24 @@ static bool srv_purge_should_exit()
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	return !trx_sys.any_active_transactions() && !trx_sys.history_size();
+	ulint history_size = trx_sys.history_size();
+
+	if (history_size) {
+#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+		static ib_time_t progress_time;
+		ib_time_t time = ut_time();
+		if (time - progress_time >= 15) {
+			progress_time = time;
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"InnoDB: to purge " ULINTPF " transactions",
+				history_size);
+		}
+#endif
+		return false;
+	}
+
+	return !trx_sys.any_active_transactions();
 }
 
 /*********************************************************************//**
@@ -2583,14 +2615,6 @@ srv_do_purge(ulint* n_total_purged)
 			(++count % rseg_truncate_frequency) == 0);
 
 		*n_total_purged += n_pages_purged;
-
-		if (n_pages_purged) {
-			service_manager_extend_timeout(
-				INNODB_EXTEND_TIMEOUT_INTERVAL,
-				"InnoDB " ULINTPF " pages purged", n_pages_purged);
-			/* The previous round still did some work. */
-			continue;
-		}
 	} while (n_pages_purged > 0 && !purge_sys.paused()
 		 && !srv_purge_should_exit());
 

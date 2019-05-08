@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -638,16 +638,6 @@ struct TABLE_SHARE
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
 
-  const char* orig_table_name;          /* Original table name for this tmp table */
-  const char* error_table_name() const  /* Get table name for error messages */
-  {
-    return tmp_table ? (
-      orig_table_name ?
-        orig_table_name :
-        "(temporary)") :
-      table_name.str;
-  }
-
   /* 
      Set of keys in use, implemented as a Bitmap.
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.
@@ -720,6 +710,9 @@ struct TABLE_SHARE
   uint column_bitmap_size;
   uchar frm_version;
 
+  enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
+  enum_v_keys check_set_initialized;
+
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
@@ -731,7 +724,6 @@ struct TABLE_SHARE
   bool table_creation_was_logged;
   bool non_determinstic_insert;
   bool vcols_need_refixing;
-  bool check_set_initialized;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
 
@@ -752,9 +744,6 @@ struct TABLE_SHARE
 
   /* For sequence tables, the current sequence state */
   SEQUENCE *sequence;
-
-  /* Name of the tablespace used for this table */
-  char *tablespace;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* filled in when reading from frm */
@@ -800,6 +789,8 @@ struct TABLE_SHARE
 
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
 
   /*
     Set share's table cache key and update its db and table name appropriately.
@@ -851,12 +842,6 @@ struct TABLE_SHARE
   {
     memcpy(key_buff, key, key_length);
     set_table_cache_key(key_buff, key_length);
-  }
-
-  inline bool honor_global_locks()
-  {
-    return ((table_category == TABLE_CATEGORY_USER)
-            || (table_category == TABLE_CATEGORY_SYSTEM));
   }
 
   inline bool require_write_privileges()
@@ -1359,6 +1344,8 @@ public:
   SplM_opt_info *spl_opt_info;
   key_map keys_usable_for_splitting;
 
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
@@ -1507,6 +1494,7 @@ public:
   bool is_splittable() { return spl_opt_info != NULL; }
   void set_spl_opt_info(SplM_opt_info *spl_info);
   void deny_splitting();
+  double get_materialization_cost(); // Now used only if is_splittable()==true
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
   /**
@@ -1939,12 +1927,21 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   inline void init_one_table(const LEX_CSTRING *db_arg,
                              const LEX_CSTRING *table_name_arg,
                              const LEX_CSTRING *alias_arg,
                              enum thr_lock_type lock_type_arg)
   {
-    bzero((char*) this, sizeof(*this));
+    enum enum_mdl_type mdl_type;
+    if (lock_type_arg >= TL_WRITE_ALLOW_WRITE)
+      mdl_type= MDL_SHARED_WRITE;
+    else if (lock_type_arg == TL_READ_NO_INSERT)
+      mdl_type= MDL_SHARED_NO_WRITE;
+    else
+      mdl_type= MDL_SHARED_READ;
+
+    reset();
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
     DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
@@ -1952,9 +1949,7 @@ struct TABLE_LIST
     table_name= *table_name_arg;
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
-    mdl_request.init(MDL_key::TABLE, db.str, table_name.str,
-                     (lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                     MDL_SHARED_WRITE : MDL_SHARED_READ,
+    mdl_request.init(MDL_key::TABLE, db.str, table_name.str, mdl_type,
                      MDL_TRANSACTION);
   }
 
@@ -1989,6 +1984,7 @@ struct TABLE_LIST
     prev_global= *last_ptr;
     *last_ptr= &next_global;
   }
+
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers
@@ -2072,7 +2068,7 @@ struct TABLE_LIST
   /* Index names in a "... JOIN ... USE/IGNORE INDEX ..." clause. */
   List<Index_hint> *index_hints;
   TABLE        *table;                          /* opened table */
-  uint          table_id; /* table id (from binlog) for opened table */
+  ulonglong         table_id; /* table id (from binlog) for opened table */
   /*
     select_result for derived table to pass it from table creation to table
     filling procedure
@@ -2461,8 +2457,7 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  bool is_table_ref_id_equal(TABLE_SHARE *s) const
+  inline bool is_table_ref_id_equal(TABLE_SHARE *s) const
   {
     return (m_table_ref_type == s->get_table_ref_type() &&
             m_table_ref_version == s->get_table_ref_version());
@@ -2474,12 +2469,10 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  void set_table_ref_id(TABLE_SHARE *s)
+  inline void set_table_ref_id(TABLE_SHARE *s)
   { set_table_ref_id(s->get_table_ref_type(), s->get_table_ref_version()); }
 
-  inline
-  void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
+  inline void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
                         ulong table_ref_version_arg)
   {
     m_table_ref_type= table_ref_type_arg;
@@ -2603,6 +2596,16 @@ struct TABLE_LIST
   void set_lock_type(THD* thd, enum thr_lock_type lock);
   void check_pushable_cond_for_table(Item *cond);
   Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
+
+  void remove_join_columns()
+  {
+    if (join_columns)
+    {
+      join_columns->empty();
+      join_columns= NULL;
+      is_join_columns_complete= FALSE;
+    }
+  }
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

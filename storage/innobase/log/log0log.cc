@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -31,7 +31,7 @@ Database log
 Created 12/9/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <debug_sync.h>
 #include <my_service_manager.h>
 
@@ -193,10 +193,8 @@ void log_buffer_extend(ulong len)
 
 	log_sys.is_extending = true;
 
-	while (ut_calc_align_down(log_sys.buf_free,
-				  OS_FILE_LOG_BLOCK_SIZE)
-	       != ut_calc_align_down(log_sys.buf_next_to_write,
-				     OS_FILE_LOG_BLOCK_SIZE)) {
+	while ((log_sys.buf_free ^ log_sys.buf_next_to_write)
+	       & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
 		/* Buffer might have >1 blocks to write still. */
 		log_mutex_exit_all();
 
@@ -205,9 +203,8 @@ void log_buffer_extend(ulong len)
 		log_mutex_enter_all();
 	}
 
-	ulong move_start = ut_calc_align_down(
-		log_sys.buf_free,
-		OS_FILE_LOG_BLOCK_SIZE);
+	ulong move_start = ut_2pow_round(log_sys.buf_free,
+					 ulong(OS_FILE_LOG_BLOCK_SIZE));
 	ulong move_end = log_sys.buf_free;
 
 	/* store the last log block in buffer */
@@ -330,7 +327,7 @@ log_margin_checkpoint_age(
 		if (!flushed_enough) {
 			os_thread_sleep(100000);
 		}
-		log_checkpoint(true, false);
+		log_checkpoint(true);
 
 		log_mutex_enter();
 	}
@@ -670,19 +667,10 @@ void log_t::files::create(ulint n_files)
   format= srv_encrypt_log
     ? LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED
     : LOG_HEADER_FORMAT_CURRENT;
+  subformat= 2;
   file_size= srv_log_file_size;
   lsn= LOG_START_LSN;
   lsn_offset= LOG_FILE_HDR_SIZE;
-
-  byte* ptr= static_cast<byte*>(ut_zalloc_nokey(LOG_FILE_HDR_SIZE * n_files
-						+ OS_FILE_LOG_BLOCK_SIZE));
-  file_header_bufs_ptr= ptr;
-  ptr= static_cast<byte*>(ut_align(ptr, OS_FILE_LOG_BLOCK_SIZE));
-
-  memset(file_header_bufs, 0, sizeof file_header_bufs);
-
-  for (ulint i = 0; i < n_files; i++, ptr += LOG_FILE_HDR_SIZE)
-    file_header_bufs[i] = ptr;
 }
 
 /******************************************************//**
@@ -695,7 +683,6 @@ log_file_header_flush(
 	lsn_t		start_lsn)	/*!< in: log file data starts at this
 					lsn */
 {
-	byte*	buf;
 	lsn_t	dest_offset;
 
 	ut_ad(log_write_mutex_own());
@@ -704,10 +691,12 @@ log_file_header_flush(
 	ut_ad((log_sys.log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
 	      == LOG_HEADER_FORMAT_CURRENT);
 
-	buf = log_sys.log.file_header_bufs[nth_file];
+	// man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
+	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
+	byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
 
-	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 	mach_write_to_4(buf + LOG_HEADER_FORMAT, log_sys.log.format);
+	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, log_sys.log.subformat);
 	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
 	strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
 	       LOG_HEADER_CREATOR_CURRENT);
@@ -908,8 +897,8 @@ log_buffer_switch()
 	ut_ad(log_write_mutex_own());
 
 	const byte*	old_buf = log_sys.buf;
-	ulint		area_end = ut_calc_align(log_sys.buf_free,
-						 OS_FILE_LOG_BLOCK_SIZE);
+	ulong		area_end = ut_calc_align(
+		log_sys.buf_free, ulong(OS_FILE_LOG_BLOCK_SIZE));
 
 	if (log_sys.first_in_use) {
 		log_sys.first_in_use = false;
@@ -957,12 +946,6 @@ log_write_up_to(
 		allowed yet (the variable name .._no_ibuf_.. is misleading) */
 
 		return;
-	}
-
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-					       "log write up to: " LSN_PF,
-					       lsn);
 	}
 
 loop:
@@ -1050,8 +1033,9 @@ loop:
 	start_offset = log_sys.buf_next_to_write;
 	end_offset = log_sys.buf_free;
 
-	area_start = ut_calc_align_down(start_offset, OS_FILE_LOG_BLOCK_SIZE);
-	area_end = ut_calc_align(end_offset, OS_FILE_LOG_BLOCK_SIZE);
+	area_start = ut_2pow_round(start_offset,
+				   ulint(OS_FILE_LOG_BLOCK_SIZE));
+	area_end = ut_calc_align(end_offset, ulint(OS_FILE_LOG_BLOCK_SIZE));
 
 	ut_ad(area_end - area_start > 0);
 
@@ -1090,6 +1074,13 @@ loop:
 				srv_log_buffer_size - area_end);
 			::memset(write_buf + area_end, 0, pad_size);
 		}
+	}
+
+	if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE)) {
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+					       "InnoDB log write: "
+					       LSN_PF "," LSN_PF,
+					       log_sys.write_lsn, lsn);
 	}
 
 	if (log_sys.is_encrypted()) {
@@ -1200,14 +1191,11 @@ synchronization objects!
 this lsn
 @return false if there was a flush batch of the same type running,
 which means that we could not start this flush batch */
-static
-bool
-log_preflush_pool_modified_pages(
-	lsn_t			new_oldest)
+static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 {
 	bool	success;
 
-	if (recv_recovery_on) {
+	if (recv_recovery_is_on()) {
 		/* If the recovery is running, we must first apply all
 		log records to their respective file pages to get the
 		right modify lsn values to these pages: otherwise, there
@@ -1421,13 +1409,8 @@ blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
 log files. Use log_make_checkpoint_at() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint
 @return true if success, false if a checkpoint write was already running */
-bool
-log_checkpoint(
-	bool	sync,
-	bool	write_always)
+bool log_checkpoint(bool sync)
 {
 	lsn_t	oldest_lsn;
 
@@ -1470,9 +1453,15 @@ log_checkpoint(
 	flushed up to oldest_lsn. */
 
 	ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
-	if (!write_always
-	    && oldest_lsn
-	    <= log_sys.last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
+	if (oldest_lsn
+	    > log_sys.last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
+		/* Some log has been written since the previous checkpoint. */
+	} else if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+		/* MariaDB 10.3 startup expects the redo log file to be
+		logically empty (not even containing a MLOG_CHECKPOINT record)
+		after a clean shutdown. Perform an extra checkpoint at
+		shutdown. */
+	} else {
 		/* Do nothing, because nothing was logged (other than
 		a MLOG_CHECKPOINT marker) since the previous checkpoint. */
 		log_mutex_exit();
@@ -1503,20 +1492,6 @@ log_checkpoint(
 	log_mutex_exit();
 
 	log_write_up_to(flush_lsn, true);
-
-	DBUG_EXECUTE_IF(
-		"using_wa_checkpoint_middle",
-		if (write_always) {
-			DEBUG_SYNC_C("wa_checkpoint_middle");
-
-			const my_bool b = TRUE;
-			buf_flush_page_cleaner_disabled_debug_update(
-				NULL, NULL, NULL, &b);
-			dict_stats_disabled_debug_update(
-				NULL, NULL, NULL, &b);
-			srv_master_thread_disabled_debug_update(
-				NULL, NULL, NULL, &b);
-		});
 
 	log_mutex_enter();
 
@@ -1550,13 +1525,8 @@ log_checkpoint(
 
 /** Make a checkpoint at or after a specified LSN.
 @param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint */
-void
-log_make_checkpoint_at(
-	lsn_t			lsn,
-	bool			write_always)
+for the latest LSN */
+void log_make_checkpoint_at(lsn_t lsn)
 {
 	/* Preflush pages synchronously */
 
@@ -1564,7 +1534,7 @@ log_make_checkpoint_at(
 		/* Flush as much as we can */
 	}
 
-	while (!log_checkpoint(true, write_always)) {
+	while (!log_checkpoint(true)) {
 		/* Force a checkpoint */
 	}
 }
@@ -1644,7 +1614,7 @@ loop:
 	}
 
 	if (do_checkpoint) {
-		log_checkpoint(checkpoint_sync, FALSE);
+		log_checkpoint(checkpoint_sync);
 
 		if (checkpoint_sync) {
 
@@ -1893,7 +1863,7 @@ wait_suspend_loop:
 	if (!srv_read_only_mode) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"ensuring dirty buffer pool are written to log");
-		log_make_checkpoint_at(LSN_MAX, TRUE);
+		log_make_checkpoint_at(LSN_MAX);
 
 		log_mutex_enter();
 

@@ -1,1 +1,2 @@
 --log-output=TABLE
+--general-log=OFF

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,7 +44,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "srv0srv.h"
 #include "srv0mon.h"
-#include "lock0lock.h"
 
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool->LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
@@ -557,13 +556,15 @@ the list as they age towards the tail of the LRU.
 @param[in]	id		tablespace identifier
 @param[in]	observer	flush observer (to check for interrupt),
 				or NULL if the files should not be written to
-@return	whether all dirty pages were freed */
+@param[in]	first		first page to be flushed or evicted
+@return	whether all matching dirty pages were removed */
 static	MY_ATTRIBUTE((warn_unused_result))
 bool
 buf_flush_or_remove_pages(
 	buf_pool_t*	buf_pool,
 	ulint		id,
-	FlushObserver*	observer)
+	FlushObserver*	observer,
+	ulint		first)
 {
 	buf_page_t*	prev;
 	buf_page_t*	bpage;
@@ -604,6 +605,8 @@ rescan:
 		} else if (id != bpage->id.space()) {
 			/* Skip this block, because it is for a
 			different tablespace. */
+		} else if (bpage->id.page_no() < first) {
+			/* Skip this block, because it is below the limit. */
 		} else if (!buf_flush_or_remove_page(
 				   buf_pool, bpage, observer != NULL)) {
 
@@ -667,18 +670,20 @@ the tail of the LRU list.
 @param[in]	id		tablespace identifier
 @param[in]	observer	flush observer,
 				or NULL if the files should not be written to
-*/
+@param[in]	first		first page to be flushed or evicted */
 static
 void
 buf_flush_dirty_pages(
 	buf_pool_t*	buf_pool,
 	ulint		id,
-	FlushObserver*	observer)
+	FlushObserver*	observer,
+	ulint		first)
 {
 	for (;;) {
 		buf_pool_mutex_enter(buf_pool);
 
-		bool freed = buf_flush_or_remove_pages(buf_pool, id, observer);
+		bool freed = buf_flush_or_remove_pages(buf_pool, id, observer,
+						       first);
 
 		buf_pool_mutex_exit(buf_pool);
 
@@ -693,20 +698,24 @@ buf_flush_dirty_pages(
 	}
 
 	ut_ad((observer && observer->is_interrupted())
+	      || first
 	      || buf_pool_get_dirty_pages_count(buf_pool, id, observer) == 0);
 }
 
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in]	observer	flush observer,
-				or NULL if nothing is to be written */
-void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer)
+				or NULL if nothing is to be written
+@param[in]	first		first page to be flushed or evicted */
+void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer,
+				   ulint first)
 {
 	/* Pages in the system tablespace must never be discarded. */
 	ut_ad(id || observer);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_flush_dirty_pages(buf_pool_from_array(i), id, observer);
+		buf_flush_dirty_pages(buf_pool_from_array(i), id, observer,
+				      first);
 	}
 
 	if (observer && !observer->is_interrupted()) {
@@ -1586,10 +1595,6 @@ buf_LRU_free_page(
 		goto func_exit;
 	}
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(bpage->id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 	if (zip || !bpage->zip.data) {
 		/* This would completely free the block. */
 		/* Do not completely free dirty blocks. */
@@ -2150,7 +2155,8 @@ buf_LRU_block_free_hashed_page(
 	buf_page_mutex_enter(block);
 
 	if (buf_pool->flush_rbt == NULL) {
-		block->page.id.reset();
+		block->page.id
+		    = page_id_t(ULINT32_UNDEFINED, ULINT32_UNDEFINED);
 	}
 
 	buf_block_set_state(block, BUF_BLOCK_MEMORY);

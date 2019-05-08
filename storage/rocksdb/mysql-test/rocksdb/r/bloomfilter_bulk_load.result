@@ -1,0 +1,15 @@
+create table r1 (id bigint primary key, value bigint) engine=rocksdb;
+create table r2 (id bigint, value bigint, primary key (id) comment 'cf2') engine=rocksdb;
+set session rocksdb_bulk_load=1;
+set session rocksdb_bulk_load=0;
+select variable_value into @h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+insert into r1 values (100, 100);
+select variable_value-@h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+variable_value-@h
+1
+select variable_value into @h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+insert into r2 values (100, 100);
+select variable_value-@h from information_schema.global_status where variable_name='rocksdb_block_cache_filter_hit';
+variable_value-@h
+0
+DROP TABLE r1, r2;

@@ -365,7 +365,7 @@ int test_write(MI_INFO *file,int id,int lock_type)
       mi_extra(file,HA_EXTRA_WRITE_CACHE,0);
   }
 
-  sprintf((char*) record.id,"%7ld",(long) getpid());
+  my_snprintf((char*) record.id, sizeof(record.id), "%7ld", (long) getpid());
   strnmov((char*) record.text,"Testing...", sizeof(record.text));
 
   tries=(uint) rnd(100)+10;

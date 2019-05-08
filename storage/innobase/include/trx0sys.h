@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,8 +27,6 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0sys_h
 #define trx0sys_h
 
-#include "univ.i"
-
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "trx0types.h"
@@ -49,9 +47,7 @@ typedef UT_LIST_BASE_NODE_T(trx_t) trx_ut_list_t;
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-inline
-bool
-trx_sys_hdr_page(const page_id_t& page_id)
+inline bool trx_sys_hdr_page(const page_id_t& page_id)
 {
 	return(page_id.space() == TRX_SYS_SPACE
 	       && page_id.page_no() == TRX_SYS_PAGE_NO);
@@ -435,6 +431,7 @@ class rw_trx_hash_t
     if (trx_t *trx= element->trx)
     {
       ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED) ||
+            trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
             (trx_state_eq(trx, TRX_STATE_ACTIVE) &&
              (!srv_was_started ||
               srv_read_only_mode ||
@@ -519,6 +516,7 @@ class rw_trx_hash_t
     ut_ad(!trx_is_autocommit_non_locking(trx));
     mutex_enter(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
+          trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
           trx_state_eq(trx, TRX_STATE_PREPARED));
     mutex_exit(&trx->mutex);
   }

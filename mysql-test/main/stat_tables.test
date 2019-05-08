@@ -358,49 +358,33 @@ DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
 
 --echo #
---echo # MDEV-16757: manual addition of min/max statistics for BLOB
+--echo # MDEV-17023: Crash during read_histogram_for_table with optimizer_use_condition_selectivity set to 4
 --echo #
 
-SET use_stat_tables= PREFERABLY;
-
-CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
-INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
-ANALYZE TABLE t1;
---sorted_result
-SELECT * FROM mysql.column_stats;
-DELETE FROM mysql.column_stats
-  WHERE db_name='test' AND table_name='t1' AND column_name='t';
-INSERT INTO mysql.column_stats VALUES
-  ('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
---sorted_result
-SELECT * FROM mysql.column_stats;
-
-SELECT pk FROM t1;
-
-DROP TABLE t1;
-
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables= PREFERABLY;
+explain
+SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 
 --echo #
---echo # MDEV-16760: CREATE OR REPLACE TABLE after ANALYZE TABLE
+--echo # MDEV-17734: AddressSanitizer: use-after-poison in create_key_parts_for_pseudo_indexes
 --echo #
 
-SET use_stat_tables= PREFERABLY;
+set @@use_stat_tables= PREFERABLY;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @save_use_stat_tables= @@use_stat_tables;
+create table t1 (a int, b int);
+insert into t1(a,b) values (1,2),(1,3),(1,4),(1,5),(2,6),(2,7),(3,8),(3,9),(3,9),(4,10);
 
-CREATE TABLE t1 (pk int PRIMARY KEY, c varchar(32));
-INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
-ANALYZE TABLE t1;
-SELECT * FROM t1;
-SELECT * FROM mysql.column_stats;
-
-CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
-SELECT * FROM t1;
-SELECT * FROM mysql.column_stats;
-
-DROP TABLE t1;
-
+analyze table t1 persistent for columns (a) indexes ();
+select * from t1 where a=1 and b=3;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
-
+drop table t1;
 
 --echo #
 --echo # MDEV-16711:CREATE OR REPLACE TABLE introducing BLOB column
@@ -417,4 +401,99 @@ SELECT MAX(pk) FROM t1;
 
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-17605: SHOW INDEXES with use_stat_tables='preferably'
+--echo #
+
+set use_stat_tables='preferably';
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+create index i_p_retailprice on part(p_retailprice);
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
+ANALYZE TABLE lineitem;
+FLUSH TABLE mysql.table_stats, mysql.index_stats;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+select * from mysql.table_stats;
+select * from mysql.index_stats;
+
+SHOW INDEXES FROM lineitem;
+
+SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name='lineitem';
+
+SELECT
+  COUNT(DISTINCT l_orderkey), COUNT(DISTINCT l_orderkey,l_linenumber),
+  COUNT(DISTINCT l_shipDATE),
+  COUNT(DISTINCT l_partkey), COUNT(DISTINCT l_partkey,l_suppkey),
+  COUNT(DISTINCT l_suppkey), COUNT(DISTINCT l_receiptDATE),
+  COUNT(DISTINCT l_orderkey, l_quantity), COUNT(DISTINCT l_commitDATE)
+FROM lineitem;
+
+set optimizer_switch=@save_optimizer_switch;
+
+DROP DATABASE dbt3_s001;
+USE test;
+
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
+
+set @save_optimizer_switch=@@optimizer_switch;
 set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-18899: Server crashes in Field::set_warning_truncated_wrong_value
+--echo #
+
+set names utf8;
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables=preferably;
+set @save_histogram_size= @@histogram_size;
+set histogram_size=255;
+
+create table t1 ( a varchar(255) character set utf8);
+insert into t1 values (REPEAT('ӥ',255)), (REPEAT('ç',255));
+
+analyze table t1;
+select HEX(RIGHT(min_value, 1)), length(min_value) from mysql.column_stats where db_name='test' and table_name='t1';
+select HEX(RIGHT(max_value, 1)), length(max_value) from mysql.column_stats where db_name='test' and table_name='t1';
+analyze select * from t1 where a  >= 'ӥ';
+
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+update mysql.column_stats set min_value= REPEAT('ӥ',255) where db_name='test' and table_name='t1';
+select HEX(RIGHT(min_value, 1)), length(min_value) from mysql.column_stats where db_name='test' and table_name='t1';
+analyze select * from t1 where a  >= 'ӥ';
+
+set names latin1;
+drop table t1;
+
+CREATE TABLE t1 (col1 date);
+INSERT INTO t1 VALUES('2004-01-01'),('2004-02-29');
+INSERT INTO t1 VALUES('0000-10-31');
+analyze table t1;
+update mysql.column_stats set min_value='2004-0-31123' where db_name='test' and table_name='t1';
+select min_value from mysql.column_stats where db_name='test' and table_name='t1';
+select * from t1;
+drop table t1;
+
+set @@sql_mode= @save_sql_mode;
+set use_stat_tables=@save_use_stat_tables;
+set @@histogram_size= @save_histogram_size;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;

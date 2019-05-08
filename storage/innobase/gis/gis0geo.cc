@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,9 +70,9 @@ static
 int
 rtree_add_point_to_mbr(
 /*===================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr)		/*!< in/out: mbr, which
 				must be of length n_dims * 2. */
@@ -108,9 +109,9 @@ static
 int
 rtree_get_point_mbr(
 /*================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
@@ -126,9 +127,9 @@ static
 int
 rtree_get_linestring_mbr(
 /*=====================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
@@ -155,9 +156,9 @@ static
 int
 rtree_get_polygon_mbr(
 /*==================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
@@ -190,9 +191,9 @@ static
 int
 rtree_get_geometry_mbr(
 /*===================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr,		/*!< in/out: mbr. */
 	int	top)		/*!< in: if it is the top,
@@ -287,7 +288,7 @@ stored in "well-known binary representation" (wkb) format.
 int
 rtree_mbr_from_wkb(
 /*===============*/
-	uchar*	wkb,		/*!< in: wkb */
+	const uchar*	wkb,		/*!< in: wkb */
 	uint	size,		/*!< in: size of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr)		/*!< in/out: mbr, which must

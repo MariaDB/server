@@ -3879,12 +3879,6 @@ apply_event_and_update_pos_setup(Log_event* ev, THD* thd, rpl_group_info *rgi)
   thd->variables.server_id = ev->server_id;
   thd->set_time();                            // time the query
   thd->lex->current_select= 0;
-  if (!ev->when)
-  {
-    my_hrtime_t hrtime= my_hrtime();
-    ev->when= hrtime_to_my_time(hrtime);
-    ev->when_sec_part= hrtime_sec_part(hrtime);
-  }
   thd->variables.option_bits=
     (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
     (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ? OPTION_SKIP_REPLICATION : 0);
@@ -4304,6 +4298,19 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         This is the case for pre-10.0 events without GTID, and for handling
         slave_skip_counter.
       */
+      if (!(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
+      {
+        /*
+          Ignore FD's timestamp as it does not reflect the slave execution
+          state but likely to reflect a deep past. Consequently when the first
+          data modification event execution last long all this time
+          Seconds_Behind_Master is zero.
+        */
+        if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+          rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
+
+        DBUG_ASSERT(rli->last_master_timestamp >= 0);
+      }
     }
 
     if (typ == GTID_EVENT)

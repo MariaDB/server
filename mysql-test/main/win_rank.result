@@ -17,34 +17,34 @@ insert into t1 values
 ( 7 , 2, 20),
 ( 9 , 4, 20),
 (10 , 4, 20);
-select pk, a, b, rank() over (order by a) as rank,
+select a, rank() over (order by a) as rank,
 dense_rank() over (order by a) as dense_rank
 from t1;
-pk	a	b	rank	dense_rank
-1	0	10	1	1
-2	0	10	1	1
-3	1	10	3	2
-4	1	10	3	2
-8	2	10	5	3
-5	2	20	5	3
-6	2	20	5	3
-7	2	20	5	3
-9	4	20	9	4
-10	4	20	9	4
-select pk, a, b, rank() over (partition by b order by a) as rank,
+a	rank	dense_rank
+0	1	1
+0	1	1
+1	3	2
+1	3	2
+2	5	3
+2	5	3
+2	5	3
+2	5	3
+4	9	4
+4	9	4
+select a, b, rank() over (partition by b order by a) as rank,
 dense_rank() over (partition by b order by a) as dense_rank
 from t1;
-pk	a	b	rank	dense_rank
-1	0	10	1	1
-2	0	10	1	1
-3	1	10	3	2
-4	1	10	3	2
-8	2	10	5	3
-5	2	20	1	1
-6	2	20	1	1
-7	2	20	1	1
-9	4	20	4	2
-10	4	20	4	2
+a	b	rank	dense_rank
+0	10	1	1
+0	10	1	1
+1	10	3	2
+1	10	3	2
+2	10	5	3
+2	20	1	1
+2	20	1	1
+2	20	1	1
+4	20	4	2
+4	20	4	2
 drop table t1;
 #
 # Test with null values in the table.
@@ -59,46 +59,49 @@ insert into t2 values (2,'b');
 insert into t2 values (-1,'');
 select *, rank() over (order by s1) as rank,
 dense_rank() over (order by s1) as dense_rank
-from t2;
+from t2
+order by s1, s2;
 s1	s2	rank	dense_rank
-1	a	5	3
 NULL	NULL	1	1
-1	NULL	5	3
 NULL	a	1	1
 NULL	c	1	1
-2	b	7	4
 -1		4	2
+1	NULL	5	3
+1	a	5	3
+2	b	7	4
 select *, rank() over (partition by s2 order by s1) as rank,
 dense_rank() over (partition by s2 order by s1) as dense_rank
-from t2;
+from t2
+order by s1, s2;
 s1	s2	rank	dense_rank
-1	a	2	2
 NULL	NULL	1	1
-1	NULL	2	2
 NULL	a	1	1
 NULL	c	1	1
-2	b	1	1
 -1		1	1
+1	NULL	2	2
+1	a	2	2
+2	b	1	1
 select *, rank() over (order by s2) as rank,
 dense_rank() over (order by s2) as dense_rank
-from t2;
+from t2
+order by s2, s1;
 s1	s2	rank	dense_rank
-1	a	4	3
 NULL	NULL	1	1
 1	NULL	1	1
-NULL	a	4	3
-NULL	c	7	5
-2	b	6	4
 -1		3	2
+NULL	a	4	3
+1	a	4	3
+2	b	6	4
+NULL	c	7	5
 select *, rank() over (partition by s1 order by s2) as rank,
 dense_rank() over (partition by s1 order by s2) as dense_rank
 from t2;
 s1	s2	rank	dense_rank
-1	a	2	2
 NULL	NULL	1	1
-1	NULL	1	1
 NULL	a	2	2
 NULL	c	3	3
-2	b	1	1
 -1		1	1
+1	NULL	1	1
+1	a	2	2
+2	b	1	1
 drop table t2;

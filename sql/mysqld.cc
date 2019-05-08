@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -208,9 +208,6 @@ typedef fp_except fp_except_t;
 #ifndef HAVE_FCNTL
 #define fcntl(X,Y,Z) 0
 #endif
-
-extern "C" my_bool reopen_fstreams(const char *filename,
-                                   FILE *outstream, FILE *errstream);
 
 inline void setup_fpu()
 {
@@ -799,6 +796,7 @@ char *master_info_file;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
+char *opt_binlog_index_name=0;
 
 /* Static variables */
 
@@ -808,7 +806,6 @@ my_bool opt_expect_abort= 0, opt_bootstrap= 0;
 static my_bool opt_myisam_log;
 static int cleanup_done;
 static ulong opt_specialflag;
-static char *opt_binlog_index_name;
 char *mysql_home_ptr, *pidfile_name_ptr;
 /** Initial command line arguments (count), after load_defaults().*/
 static int defaults_argc;
@@ -941,6 +938,7 @@ PSI_mutex_key key_LOCK_relaylog_end_pos;
 PSI_mutex_key key_LOCK_thread_id;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
+PSI_mutex_key key_LOCK_rpl_semi_sync_master_enabled;
 PSI_mutex_key key_LOCK_binlog;
 
 PSI_mutex_key key_LOCK_stats,
@@ -1038,6 +1036,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
   { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0},
   { &key_LOCK_ack_receiver, "Ack_receiver::mutex", 0},
+  { &key_LOCK_rpl_semi_sync_master_enabled, "LOCK_rpl_semi_sync_master_enabled", 0},
   { &key_LOCK_binlog, "LOCK_binlog", 0}
 };
 
@@ -1493,9 +1492,9 @@ static	 NTService  Service;	      ///< Service object for WinNT
 #endif /* __WIN__ */
 
 #ifdef _WIN32
+#include <sddl.h> /* ConvertStringSecurityDescriptorToSecurityDescriptor */
 static char pipe_name[512];
 static SECURITY_ATTRIBUTES saPipeSecurity;
-static SECURITY_DESCRIPTOR sdPipeDescriptor;
 static HANDLE hPipe = INVALID_HANDLE_VALUE;
 #endif
 
@@ -1807,7 +1806,14 @@ static void close_connections(void)
                           (ulong) tmp->thread_id,
                           (tmp->main_security_ctx.user ?
                            tmp->main_security_ctx.user : ""));
-      close_connection(tmp,ER_SERVER_SHUTDOWN);
+      /*
+        close_connection() might need a valid current_thd
+        for memory allocation tracking.
+      */
+      THD* save_thd= current_thd;
+      set_current_thd(tmp);
+      close_connection(tmp);
+      set_current_thd(save_thd);
     }
 #endif
 
@@ -2750,21 +2756,20 @@ static void network_init(void)
 
     strxnmov(pipe_name, sizeof(pipe_name)-1, "\\\\.\\pipe\\",
 	     mysqld_unix_port, NullS);
-    bzero((char*) &saPipeSecurity, sizeof(saPipeSecurity));
-    bzero((char*) &sdPipeDescriptor, sizeof(sdPipeDescriptor));
-    if (!InitializeSecurityDescriptor(&sdPipeDescriptor,
-				      SECURITY_DESCRIPTOR_REVISION))
+    /*
+      Create a security descriptor for pipe.
+      - Use low integrity level, so that it is possible to connect
+      from any process.
+      - Give Everyone read/write access to pipe.
+    */
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
+         "S:(ML;; NW;;; LW) D:(A;; FRFW;;; WD)",
+         SDDL_REVISION_1, &saPipeSecurity.lpSecurityDescriptor, NULL))
     {
       sql_perror("Can't start server : Initialize security descriptor");
       unireg_abort(1);
     }
-    if (!SetSecurityDescriptorDacl(&sdPipeDescriptor, TRUE, NULL, FALSE))
-    {
-      sql_perror("Can't start server : Set security descriptor");
-      unireg_abort(1);
-    }
     saPipeSecurity.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saPipeSecurity.lpSecurityDescriptor = &sdPipeDescriptor;
     saPipeSecurity.bInheritHandle = FALSE;
     if ((hPipe= CreateNamedPipe(pipe_name,
         PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
@@ -2993,10 +2998,6 @@ static bool cache_thread(THD *thd)
       _db_pop_();
 #endif
 
-    /* Clear warnings. */
-    if (!thd->get_stmt_da()->is_warning_info_empty())
-      thd->get_stmt_da()->clear_warning_info(thd->query_id);
-
     set_timespec(abstime, THREAD_CACHE_TIMEOUT);
     while (!abort_loop && ! wake_thread && ! kill_cached_threads)
     {
@@ -3041,9 +3042,8 @@ static bool cache_thread(THD *thd)
         Create new instrumentation for the new THD job,
         and attach it to this running pthread.
       */
-      PSI_thread *psi= PSI_CALL_new_thread(key_thread_one_connection,
-                                                   thd, thd->thread_id);
-      PSI_CALL_set_thread(psi);
+      PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection,
+                                              thd, thd->thread_id));
 
       /* reset abort flag for the thread */
       thd->mysys_var->abort= 0;
@@ -4076,14 +4076,16 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
 
-  if (is_thread_specific)  /* If thread specific memory */
-  {
-    /*
-      When thread specfic is set, both mysqld_server_initialized and thd
-      must be set
-    */
-    DBUG_ASSERT(mysqld_server_initialized && thd);
+  /*
+    When thread specific is set, both mysqld_server_initialized and thd
+    must be set, and we check that with DBUG_ASSERT.
 
+    However, do not crash, if current_thd is NULL, in release version.
+  */
+  DBUG_ASSERT(!is_thread_specific || (mysqld_server_initialized && thd));
+
+  if (is_thread_specific && likely(thd))  /* If thread specific memory */
+  {
     DBUG_PRINT("info", ("thd memory_used: %lld  size: %lld",
                         (longlong) thd->status_var.local_memory_used,
                         size));
@@ -4365,6 +4367,8 @@ static int init_common_variables()
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
+  mysql_real_data_home_len= uint(strlen(mysql_real_data_home));
+
   if (!opt_abort)
   {
     if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
@@ -4475,6 +4479,11 @@ static int init_common_variables()
     /* MyISAM requires two file handles per table. */
     wanted_files= (extra_files + max_connections + extra_max_connections +
                    tc_size * 2);
+#if defined(HAVE_POOL_OF_THREADS) && !defined(__WIN__)
+    // add epoll or kevent fd for each threadpool group, in case pool of threads is used
+    wanted_files+= (thread_handling > SCHEDULER_NO_THREADS) ? 0 : threadpool_size;
+#endif
+
     min_tc_size= MY_MIN(tc_size, TABLE_OPEN_CACHE_MIN);
     org_max_connections= max_connections;
     org_tc_size= tc_size;
@@ -4752,6 +4761,20 @@ static int init_common_variables()
   }
 
   global_system_variables.in_subquery_conversion_threshold= IN_SUBQUERY_CONVERSION_THRESHOLD;
+
+#ifdef WITH_WSREP
+  /*
+    We need to initialize auxiliary variables, that will be
+    further keep the original values of auto-increment options
+    as they set by the user. These variables used to restore
+    user-defined values of the auto-increment options after
+    setting of the wsrep_auto_increment_control to 'OFF'.
+  */
+  global_system_variables.saved_auto_increment_increment=
+    global_system_variables.auto_increment_increment;
+  global_system_variables.saved_auto_increment_offset=
+    global_system_variables.auto_increment_offset;
+#endif /* WITH_WSREP */
 
   return 0;
 }
@@ -5396,14 +5419,8 @@ static int init_server_components()
 #endif
 
 #ifndef EMBEDDED_LIBRARY
-  {
-    if (Session_tracker::server_boot_verify(system_charset_info))
-    {
-      sql_print_error("The variable session_track_system_variables has "
-		      "invalid values.");
-      unireg_abort(1);
-    }
-  }
+  if (session_tracker_init())
+    return 1;
 #endif //EMBEDDED_LIBRARY
 
   /* we do want to exit if there are any other unknown options */
@@ -5523,7 +5540,8 @@ static int init_server_components()
     initialized. This initialization was not possible before, as plugins
     (and thus some global system variables) are initialized after wsrep
     startup threads are created.
-    Note: This only needs to be done for rsync, xtrabackup based SST methods.
+    Note: This only needs to be done for rsync and mariabackup based SST
+    methods.
   */
   if (wsrep_before_SE())
     wsrep_plugins_post_init();
@@ -7007,6 +7025,7 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     connect->host= my_localhost;
     create_new_thread(connect);
   }
+  LocalFree(saPipeSecurity.lpSecurityDescriptor);
   CloseHandle(connectOverlapped.hEvent);
   DBUG_LEAVE;
   decrement_handler_count();
@@ -8608,7 +8627,7 @@ SHOW_VAR status_vars[]= {
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used_initial",      (char*) &start_memory_used, SHOW_LONGLONG},
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
-  {"Open_files",               (char*) &my_file_opened,         SHOW_LONG_NOFLUSH},
+  {"Open_files",               (char*) &my_file_opened,         SHOW_SINT},
   {"Open_streams",             (char*) &my_stream_opened,       SHOW_LONG_NOFLUSH},
   {"Open_table_definitions",   (char*) &show_table_definitions, SHOW_SIMPLE_FUNC},
   {"Open_tables",              (char*) &show_open_tables,       SHOW_SIMPLE_FUNC},
@@ -9280,7 +9299,8 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     val= p--;
     while (my_isspace(mysqld_charset, *p) && p > argument)
       *p-- = 0;
-    if (p == argument)
+    /* Db name can be one char also */
+    if (p == argument && my_isspace(mysqld_charset, *p))
     {
       sql_print_error("Bad syntax in replicate-rewrite-db - empty FROM db!\n");
       return 1;
@@ -9742,7 +9762,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     global_system_variables.binlog_format= BINLOG_FORMAT_ROW;
   }
 
-  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS &&
+  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS && WSREP_ON &&
       global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
   {
 

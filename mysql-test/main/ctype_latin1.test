@@ -267,6 +267,18 @@ SET NAMES latin1;
 
 
 --echo #
+--echo # MDEV-17298 ASAN unknown-crash / READ of size 1 in my_strntoul_8bit upon INSERT .. SELECT
+--echo #
+
+SET NAMES latin1;
+CREATE TABLE t1 (a CHAR);
+CREATE TABLE t2 (b ENUM('foo','bar'));
+INSERT INTO t1 VALUES ('1');
+INSERT INTO t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
+
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 

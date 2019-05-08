@@ -1378,5 +1378,19 @@ group_concat(a,b limit ?)
 1a,1b,2x,2y
 drop table t2;
 #
+# MDEV-18943: Group Concat with limit not working with views
+#
+create table t1 (a int, b varchar(10));
+insert into t1 values(1,'a'),(1,'b'),(NULL,'c'),(2,'x'),(2,'y');
+select group_concat(a,b limit 2) from t1;
+group_concat(a,b limit 2)
+1a,1b
+create view v1 as select group_concat(a,b limit 2) from t1;
+select * from v1;
+group_concat(a,b limit 2)
+1a,1b
+drop view v1;
+drop table t1;
+#
 # End of 10.3 tests
 #

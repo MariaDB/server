@@ -447,6 +447,51 @@ SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6);
 SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
 
 --echo #
+--echo # MDEV-17121 JSON_ARRAY_APPEND
+--echo #
+
+select json_array_append('[             ]', '$', 'aue');
+
+--echo #
+--echo # MDEV-17018 JSON_SEARCH and User-Defined Variables.
+--echo #
+
+SET @`json` := '["A", [{"B": "1"}], {"C": "AB"}, {"D": "BC"}]', @`value` := 'AB';
+SELECT JSON_SEARCH(@`json`, 'one', @`value`);
+SET @`json` := NULL, @`value` := NULL;
+
+--echo #
+--echo # MDEV-17001 JSON_MERGE returns nullwhen merging empty array.
+--echo #
+
+SELECT JSON_MERGE('[1]', '[]');
+
+--echo #
+--echo # MDEV-16174 Assertion `0' failed in Type_handler_string_result::
+--echo #       make_sort_key(uchar*, Item*, const SORT_FIELD_ATTR*, Sort_param*)
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (fld varchar(16) NOT NULL);
+CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=default;
+
+--echo #
+--echo # MDEV-17454 JSON_VALID( '{"a":1]' ) evaluates to 1
+--echo #
+
+select JSON_VALID( '{"a":1]' );
+
+--echo #
+--echo # MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
+--echo #
+SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'));
+SELECT CHARSET(JSON_ARRAY());
+SELECT CHARSET(JSON_OBJECT());
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

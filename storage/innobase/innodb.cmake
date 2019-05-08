@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2017, MariaDB Corporation.
+# Copyright (c) 2017, 2019, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ INCLUDE(lzma.cmake)
 INCLUDE(bzip2.cmake)
 INCLUDE(snappy.cmake)
 INCLUDE(numa)
+INCLUDE(TestBigEndian)
 
 MYSQL_CHECK_LZ4()
 MYSQL_CHECK_LZO()
@@ -32,6 +33,7 @@ MYSQL_CHECK_LZMA()
 MYSQL_CHECK_BZIP2()
 MYSQL_CHECK_SNAPPY()
 MYSQL_CHECK_NUMA()
+TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
 
 INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
 
@@ -119,6 +121,11 @@ ELSEIF(WITH_INNODB_ROOT_GUESS)
   ADD_DEFINITIONS(-DBTR_CUR_ADAPT)
 ENDIF()
 
+OPTION(WITH_INNODB_BUG_ENDIAN_CRC32 "Weaken innodb_checksum_algorithm=crc32 by supporting upgrade from big-endian systems running 5.6/10.0/10.1" ${IS_BIG_ENDIAN})
+IF(WITH_INNODB_BUG_ENDIAN_CRC32)
+  ADD_DEFINITIONS(-DINNODB_BUG_ENDIAN_CRC32)
+ENDIF()
+
 OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
 IF(WITH_INNODB_EXTRA_DEBUG)
   ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG)
@@ -139,6 +146,12 @@ IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
 ENDIF()
 
 IF(NOT MSVC)
+  # Work around MDEV-18417, MDEV-18656, MDEV-18417
+  IF(WITH_ASAN AND CMAKE_COMPILER_IS_GNUCC AND
+     CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+    SET_SOURCE_FILES_PROPERTIES(trx/trx0rec.cc PROPERTIES COMPILE_FLAGS -O1)
+  ENDIF()
+
   CHECK_FUNCTION_EXISTS(posix_memalign HAVE_POSIX_MEMALIGN)
   IF(HAVE_POSIX_MEMALIGN)
     ADD_DEFINITIONS(-DHAVE_POSIX_MEMALIGN)

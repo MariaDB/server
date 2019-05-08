@@ -146,6 +146,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     /* Use the original server id for logging. */
     thd->set_server_id(ev->server_id);
     thd->set_time();                            // time the query
+    thd->transaction.start_time.reset(thd);
     wsrep_xid_init(&thd->transaction.xid_state.xid,
                    thd->wsrep_trx_meta.gtid.uuid,
                    thd->wsrep_trx_meta.gtid.seqno);

@@ -39,7 +39,7 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-#define DUMP_VERSION "10.16"
+#define DUMP_VERSION "10.17"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -2141,7 +2141,7 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
       {
         create_stmt_ptr= (*row)[i];
         create_stmt_len= lengths[i];
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
         body_found= 1;
 #endif
       }
@@ -4298,7 +4298,8 @@ static int dump_tablespaces(char* ts_where)
                       " EXTRA"
                       " FROM INFORMATION_SCHEMA.FILES"
                       " WHERE FILE_TYPE = 'UNDO LOG'"
-                      " AND FILE_NAME IS NOT NULL",
+                      " AND FILE_NAME IS NOT NULL"
+                      " AND LOGFILE_GROUP_NAME IS NOT NULL",
                       256, 1024);
   if(ts_where)
   {
@@ -4313,7 +4314,7 @@ static int dump_tablespaces(char* ts_where)
   }
   dynstr_append_checked(&sqlbuf,
                 " GROUP BY LOGFILE_GROUP_NAME, FILE_NAME"
-                ", ENGINE"
+                ", ENGINE, TOTAL_EXTENTS, INITIAL_SIZE"
                 " ORDER BY LOGFILE_GROUP_NAME");
 
   if (mysql_query(mysql, sqlbuf.str) ||

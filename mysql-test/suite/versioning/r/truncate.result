@@ -100,5 +100,11 @@ ERROR 42S02: 'v' is a view
 unlock tables;
 drop view v;
 drop table t;
+create table t1 (i int) with system versioning;
+create procedure pr() delete history from t1 before system_time now();
+call pr;
+call pr;
+drop procedure pr;
+drop table t1;
 drop database test;
 create database test;

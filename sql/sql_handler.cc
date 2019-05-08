@@ -417,8 +417,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     sql_handler->reset();
   }    
   sql_handler->table= table;
-  memcpy(&sql_handler->mdl_request, &tables->mdl_request,
-         sizeof(tables->mdl_request));
 
   if (!(sql_handler->lock= get_lock_data(thd, &sql_handler->table, 1,
                                          GET_LOCK_STORE_LOCKS)))
@@ -430,6 +428,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   thd->restore_active_arena(&sql_handler->arena, &backup_arena);
   if (unlikely(error))
     goto err;
+
+  sql_handler->mdl_request.move_from(tables->mdl_request);
 
   /* Always read all columns */
   table->read_set= &table->s->all_set;
@@ -469,9 +469,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   {
     table_list->table->open_by_handler= 1;
   }
-
-  /* Safety, cleanup the pointer to satisfy MDL assertions. */
-  tables->mdl_request.ticket= NULL;
 
   if (! reopen)
     my_ok(thd);
@@ -670,7 +667,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
             (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
-                 table->file->index_type(handler->keyno), keyinfo->name);
+                 table->file->index_type(handler->keyno), keyinfo->name.str);
         return 1;
       }
 

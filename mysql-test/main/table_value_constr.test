@@ -1123,5 +1123,3 @@ PREPARE stmt FROM "SELECT * FROM (VALUES(1 + 1,2,'abc')) t";
 EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
-
-

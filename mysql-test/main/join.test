@@ -1185,10 +1185,11 @@ CREATE TABLE t (f INT);
 #
 # The following shouldn't fail as the table is now matching the using
 #
---error ER_BAD_FIELD_ERROR
 CALL p;
 DROP TABLE t;
 CREATE TABLE t (i INT);
+--error ER_BAD_FIELD_ERROR
+CALL p;
 --error ER_BAD_FIELD_ERROR
 CALL p;
 DROP PROCEDURE p;

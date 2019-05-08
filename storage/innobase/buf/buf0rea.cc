@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,7 +24,7 @@ The database buffer read
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql/service_thd_wait.h>
 
 #include "buf0rea.h"
@@ -117,7 +117,7 @@ buf_read_page_low(
 	bool			sync,
 	ulint			type,
 	ulint			mode,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			unzip,
 	bool			ignore_missing_space = false)
@@ -176,17 +176,6 @@ buf_read_page_low(
 		dst = ((buf_block_t*) bpage)->frame;
 	}
 
-	DBUG_EXECUTE_IF(
-		"innodb_invalid_read_after_truncate",
-		if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-			if (!strcmp(space->name, "test/t1")
-			    && page_id.page_no() == space->size - 1) {
-				type = 0;
-				sync = true;
-			}
-			space->release();
-		});
-
 	IORequest	request(type | IORequest::READ);
 
 	*err = fil_io(
@@ -197,13 +186,13 @@ buf_read_page_low(
 		thd_wait_end(NULL);
 	}
 
-	if (*err != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		if (*err == DB_TABLESPACE_TRUNCATED) {
 			/* Remove the page which is outside the
 			truncated tablespace bounds when recovering
 			from a crash happened during a truncation */
 			buf_read_page_handle_error(bpage);
-			if (recv_recovery_on) {
+			if (recv_recovery_is_on()) {
 				mutex_enter(&recv_sys->mutex);
 				ut_ad(recv_sys->n_addrs > 0);
 				recv_sys->n_addrs--;
@@ -250,7 +239,7 @@ pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
 ulint
 buf_read_ahead_random(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf)
 {
@@ -332,19 +321,6 @@ buf_read_ahead_random(
 	that is, reside near the start of the LRU list. */
 
 	for (i = low; i < high; i++) {
-		DBUG_EXECUTE_IF(
-			"innodb_invalid_read_after_truncate",
-			if (fil_space_t* space = fil_space_acquire(
-				    page_id.space())) {
-				bool skip = !strcmp(space->name, "test/t1");
-				space->release();
-				if (skip) {
-					high = space->size;
-					buf_pool_mutex_exit(buf_pool);
-					goto read_ahead;
-				}
-			});
-
 		const buf_page_t*	bpage = buf_page_hash_get(
 			buf_pool, page_id_t(page_id.space(), i));
 
@@ -443,7 +419,7 @@ after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t
 buf_read_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	ulint		count;
@@ -481,7 +457,7 @@ released by the i/o-handler thread.
 @param[in]	sync		true if synchronous aio is desired */
 void
 buf_read_page_background(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			sync)
 {
@@ -553,7 +529,7 @@ which could result in a deadlock if the OS does not support asynchronous io.
 @return number of page read requests issued */
 ulint
 buf_read_ahead_linear(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf)
 {

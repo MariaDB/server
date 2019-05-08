@@ -92,7 +92,8 @@ inline toku_compression_method row_format_to_toku_compression_method(
 
 inline enum row_type row_format_to_row_type(
     tokudb::sysvars::row_format_t row_format) {
-#if TOKU_INCLUDE_ROW_TYPE_COMPRESSION
+#if defined(TOKU_INCLUDE_ROW_TYPE_COMPRESSION) && \
+    TOKU_INCLUDE_ROW_TYPE_COMPRESSION
     switch (row_format) {
     case tokudb::sysvars::SRV_ROW_FORMAT_UNCOMPRESSED:
         return ROW_TYPE_TOKU_UNCOMPRESSED;
@@ -111,13 +112,15 @@ inline enum row_type row_format_to_row_type(
     case tokudb::sysvars::SRV_ROW_FORMAT_DEFAULT:
         return ROW_TYPE_DEFAULT;
     }
-#endif
+#endif  // defined(TOKU_INCLUDE_ROW_TYPE_COMPRESSION) &&
+        // TOKU_INCLUDE_ROW_TYPE_COMPRESSION
     return ROW_TYPE_DEFAULT;
 }
 
 inline tokudb::sysvars::row_format_t row_type_to_row_format(
     enum row_type type) {
-#if TOKU_INCLUDE_ROW_TYPE_COMPRESSION
+#if defined(TOKU_INCLUDE_ROW_TYPE_COMPRESSION) && \
+    TOKU_INCLUDE_ROW_TYPE_COMPRESSION
     switch (type) {
     case ROW_TYPE_TOKU_UNCOMPRESSED:
         return tokudb::sysvars::SRV_ROW_FORMAT_UNCOMPRESSED;
@@ -138,7 +141,8 @@ inline tokudb::sysvars::row_format_t row_type_to_row_format(
     default:
         return tokudb::sysvars::SRV_ROW_FORMAT_DEFAULT;
     }
-#endif
+#endif  // defined(TOKU_INCLUDE_ROW_TYPE_COMPRESSION) &&
+        // TOKU_INCLUDE_ROW_TYPE_COMPRESSION
     return tokudb::sysvars::SRV_ROW_FORMAT_DEFAULT;
 }
 
@@ -158,7 +162,8 @@ inline toku_compression_method row_type_to_toku_compression_method(
 void tokudb_checkpoint_lock(THD * thd);
 void tokudb_checkpoint_unlock(THD * thd);
 
-inline uint64_t tokudb_get_lock_wait_time_callback(uint64_t default_wait_time) {
+inline uint64_t tokudb_get_lock_wait_time_callback(
+    TOKUDB_UNUSED(uint64_t default_wait_time)) {
     THD *thd = current_thd;
     return tokudb::sysvars::lock_timeout(thd);
 }
@@ -168,7 +173,8 @@ inline uint64_t tokudb_get_loader_memory_size_callback(void) {
     return tokudb::sysvars::loader_memory_size(thd);
 }
 
-inline uint64_t tokudb_get_killed_time_callback(uint64_t default_killed_time) {
+inline uint64_t tokudb_get_killed_time_callback(
+    TOKUDB_UNUSED(uint64_t default_killed_time)) {
     THD *thd = current_thd;
     return tokudb::sysvars::killed_time(thd);
 }
@@ -178,12 +184,12 @@ inline int tokudb_killed_callback(void) {
     return thd_kill_level(thd);
 }
 
-inline bool tokudb_killed_thd_callback(void *extra, uint64_t deleted_rows) {
+inline bool tokudb_killed_thd_callback(void* extra,
+                                       TOKUDB_UNUSED(uint64_t deleted_rows)) {
     THD *thd = static_cast<THD *>(extra);
     return thd_kill_level(thd) != 0;
 }
 
-extern HASH tokudb_open_tables;
 extern const char* tokudb_hton_name;
 extern int tokudb_hton_initialized;
 extern tokudb::thread::rwlock_t tokudb_hton_initialized_lock;
@@ -196,8 +202,8 @@ void tokudb_split_dname(
     String& table_name,
     String& dictionary_name);
 
-void tokudb_pretty_left_key(const DB* db, const DBT* key, String* out);
-void tokudb_pretty_right_key(const DB* db, const DBT* key, String* out);
+void tokudb_pretty_left_key(const DBT* key, String* out);
+void tokudb_pretty_right_key(const DBT* key, String* out);
 const char *tokudb_get_index_name(DB* db);
 
 #endif //#ifdef _HATOKU_HTON

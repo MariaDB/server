@@ -103,3 +103,11 @@ t_partition	CREATE TABLE `t_partition` (
  PARTITION BY HASH (`f1`)
 PARTITIONS 2
 drop table t_partition;
+create table t1 (a int) partition by range(a) (partition p0 values less than (5));
+set sql_mode='ansi_quotes';
+alter table t1 add partition (partition p1 values less than (10));
+set sql_mode= default;
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	0	0	0	0	2048	0	NULL	X	X	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+drop table t1;

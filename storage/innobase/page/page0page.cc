@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -236,7 +236,7 @@ page_set_autoinc(
 		      mtr, block, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
 	ut_ad(index->is_primary());
 	ut_ad(index->page == block->page.id.page_no());
-	ut_ad(index->table->space->id == block->page.id.space());
+	ut_ad(index->table->space_id == block->page.id.space());
 
 	byte*	field = PAGE_HEADER + PAGE_ROOT_AUTO_INC
 		+ buf_block_get_frame(block);
@@ -525,6 +525,8 @@ page_create_empty(
 	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
 	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!index->is_dummy);
+	ut_ad(block->page.id.space() == index->table->space->id);
 
 	/* Multiple transactions cannot simultaneously operate on the
 	same temp-table in parallel.
@@ -535,7 +537,7 @@ page_create_empty(
 	    && page_is_leaf(page)) {
 		max_trx_id = page_get_max_trx_id(page);
 		ut_ad(max_trx_id);
-	} else if (page_is_root(page)) {
+	} else if (block->page.id.page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
 		max_trx_id = page_get_max_trx_id(page);
 	} else {
@@ -1231,6 +1233,7 @@ delete_all:
 	page_header_set_field(page, NULL, PAGE_GARBAGE, size
 			      + page_header_get_field(page, PAGE_GARBAGE));
 
+	ut_ad(page_get_n_recs(page) > n_recs);
 	page_header_set_field(page, NULL, PAGE_N_RECS,
 			      (ulint)(page_get_n_recs(page) - n_recs));
 }
@@ -2810,7 +2813,7 @@ page_find_rec_max_not_deleted(
 	const rec_t*	prev_rec = NULL; // remove warning
 
 	/* Because the page infimum is never delete-marked
-	and never the 'default row' pseudo-record (MIN_REC_FLAG)),
+	and never the metadata pseudo-record (MIN_REC_FLAG)),
 	prev_rec will always be assigned to it first. */
 	ut_ad(!rec_get_info_bits(rec, page_rec_is_comp(rec)));
 	ut_ad(page_is_leaf(page));
@@ -2835,43 +2838,4 @@ page_find_rec_max_not_deleted(
 		} while (rec != page + PAGE_OLD_SUPREMUM);
 	}
 	return(prev_rec);
-}
-
-/** Issue a warning when the checksum that is stored in the page is valid,
-but different than the global setting innodb_checksum_algorithm.
-@param[in]	current_algo	current checksum algorithm
-@param[in]	page_checksum	page valid checksum
-@param[in]	page_id		page identifier */
-void
-page_warn_strict_checksum(
-	srv_checksum_algorithm_t	curr_algo,
-	srv_checksum_algorithm_t	page_checksum,
-	const page_id_t&		page_id)
-{
-	srv_checksum_algorithm_t	curr_algo_nonstrict;
-	switch (curr_algo) {
-	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_CRC32;
-		break;
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_INNODB;
-		break;
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		curr_algo_nonstrict = SRV_CHECKSUM_ALGORITHM_NONE;
-		break;
-	default:
-		ut_error;
-	}
-
-	ib::warn() << "innodb_checksum_algorithm is set to \""
-		<< buf_checksum_algorithm_name(curr_algo) << "\""
-		<< " but the page " << page_id << " contains a valid checksum \""
-		<< buf_checksum_algorithm_name(page_checksum) << "\". "
-		<< " Accepting the page as valid. Change"
-		<< " innodb_checksum_algorithm to \""
-		<< buf_checksum_algorithm_name(curr_algo_nonstrict)
-		<< "\" to silently accept such pages or rewrite all pages"
-		<< " so that they contain \""
-		<< buf_checksum_algorithm_name(curr_algo_nonstrict)
-		<< "\" checksum.";
 }

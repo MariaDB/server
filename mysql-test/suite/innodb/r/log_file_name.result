@@ -48,7 +48,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /\[ERROR\] InnoDB: Cannot read first page of .*t2.ibd/ in mysqld.1.err
+NOT FOUND /\[Note\] InnoDB: Cannot read first page of .*t2.ibd/ in mysqld.1.err
 FOUND 1 /\[ERROR\] InnoDB: Datafile .*t2.*\. Cannot determine the space ID from the first 64 pages/ in mysqld.1.err
 SELECT * FROM t2;
 a
@@ -82,18 +82,18 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /\[ERROR\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
+FOUND 1 /\[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
 FOUND 1 /\[ERROR\] InnoDB: Datafile .*u1.*\. Cannot determine the space ID from the first 64 pages/ in mysqld.1.err
-FOUND 1 /\[ERROR\] InnoDB: Cannot read first page of .*u2.ibd/ in mysqld.1.err
+NOT FOUND /\[Note\] InnoDB: Cannot read first page of .*u2.ibd/ in mysqld.1.err
 # Fault 7: Missing or wrong data file and innodb_force_recovery
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /\[ERROR\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
+FOUND 1 /\[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
 FOUND 1 /InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace/ in mysqld.1.err
 FOUND 1 /\[ERROR\] InnoDB: Cannot rename '.*u5.ibd' to '.*u6.ibd' because the target file exists/ in mysqld.1.err
-FOUND 1 /\[ERROR\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
+FOUND 1 /\[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
 FOUND 1 /InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace/ in mysqld.1.err
 FOUND 1 /\[Warning\] InnoDB: Tablespace \d+ was not found at .*u[1-5].ibd, and innodb_force_recovery was set. All redo log for this tablespace will be ignored!/ in mysqld.1.err
 DROP TABLE u1,u2,u3,u6;

@@ -76,7 +76,10 @@ public:
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
                   NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC, DYNCOL_FUNC,
-                  JSON_EXTRACT_FUNC };
+                  JSON_EXTRACT_FUNC,
+                  CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
+                  CASE_SIMPLE_FUNC    // Used by ColumnStore/spider
+                };
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd)
@@ -393,7 +396,10 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
-    { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
+  {
+    DBUG_ASSERT(fixed == 1);
+    return Converter_double_to_longlong(val_real(), unsigned_flag).result();
+  }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date_from_real(ltime, fuzzydate); }
   const Type_handler *type_handler() const { return &type_handler_double; }
@@ -2096,7 +2102,8 @@ class Item_func_udf_float :public Item_udf_func
   longlong val_int()
   {
     DBUG_ASSERT(fixed == 1);
-    return (longlong) rint(Item_func_udf_float::val_real());
+    return Converter_double_to_longlong(Item_func_udf_float::val_real(),
+                                        unsigned_flag).result();
   }
   my_decimal *val_decimal(my_decimal *dec_buf)
   {
@@ -2397,7 +2404,6 @@ class Item_func_set_user_var :public Item_func_user_var
        user variable it the first connection context).
   */
   my_thread_id entry_thread_id;
-  char buffer[MAX_FIELD_WIDTH];
   String value;
   my_decimal decimal_buff;
   bool null_item;
@@ -3155,8 +3161,11 @@ Item *get_system_var(THD *thd, enum_var_type var_type,
 extern bool check_reserved_words(const LEX_CSTRING *name);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
-bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
+
+bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
+                 Item_result type, CHARSET_INFO *cs,
+                 bool unsigned_arg);
 
 #endif /* ITEM_FUNC_INCLUDED */

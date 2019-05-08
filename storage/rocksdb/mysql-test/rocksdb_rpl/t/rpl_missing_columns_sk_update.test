@@ -1,0 +1,69 @@
+source include/master-slave.inc;
+source include/have_binlog_format_row.inc;
+
+# Create a table with SKs on master
+connection master;
+set @@sql_log_bin = 0;
+CREATE TABLE `t1` (
+  `a` int(10) unsigned NOT NULL DEFAULT '0',
+  `b` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `c` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `d` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `e` varbinary(64) DEFAULT NULL,
+  `f` int(10) NOT NULL DEFAULT '0',
+  `g` int(10) NOT NULL DEFAULT '0',
+  `h` int(10) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`a`,`b`),
+  KEY `key1` (`a`, `e`(1)),
+  KEY `key2` (`a`,`h`)
+) ENGINE=RocksDB;
+set @@sql_log_bin = 1;
+
+# Create same table on slaves but with two extra columns in the middle (x, y)
+connection slave;
+set @@sql_log_bin = 0;
+CREATE TABLE `t1` (
+  `a` int(10) unsigned NOT NULL DEFAULT '0',
+  `b` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `c` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `d` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `e` varbinary(64) DEFAULT NULL,
+  `f` int(10) NOT NULL DEFAULT '0',
+  `g` int(10) NOT NULL DEFAULT '0',
+  `x` TINYINT(3) UNSIGNED DEFAULT NULL,
+  `y` INT(10) DEFAULT NULL,
+  `h` int(10) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`a`,`b`),
+  KEY `key1` (`a`, `e`(1)),
+  KEY `key2` (`a`,`h`)
+) ENGINE=RocksDB;
+set @@sql_log_bin = 1;
+
+# Insert something in the table
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1, 1, 'a', 1, 1, 1);
+SELECT * FROM t1;
+sync_slave_with_master;
+
+connection slave;
+SELECT * FROM t1;
+
+# Update a column that belongs to an SK
+connection master;
+UPDATE t1 SET h = 10 WHERE h = 1;
+SELECT * FROM t1;
+sync_slave_with_master;
+
+# Check if all keys are updated on the slave
+connection slave;
+SELECT * FROM t1;
+SELECT COUNT(*) FROM t1 FORCE INDEX (key1) WHERE h = 10 AND a = 1;
+SELECT COUNT(*) FROM t1 FORCE INDEX (key2) WHERE h = 10 AND a = 1;
+SELECT COUNT(*) FROM t1 FORCE INDEX (PRIMARY) WHERE h = 10 AND a = 1;
+
+# Cleanup
+connection master;
+DROP TABLE t1;
+sync_slave_with_master;
+
+source include/rpl_end.inc;

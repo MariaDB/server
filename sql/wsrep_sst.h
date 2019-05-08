@@ -31,6 +31,7 @@
 #define WSREP_SST_OPT_CONF_EXTRA  "--defaults-extra-file"
 #define WSREP_SST_OPT_PARENT   "--parent"
 #define WSREP_SST_OPT_BINLOG   "--binlog"
+#define WSREP_SST_OPT_BINLOG_INDEX "--binlog-index"
 
 // mysqldump-specific options
 #define WSREP_SST_OPT_USER     "--user"
@@ -48,6 +49,9 @@
 #define WSREP_SST_MYSQLDUMP    "mysqldump"
 #define WSREP_SST_RSYNC        "rsync"
 #define WSREP_SST_SKIP         "skip"
+#define WSREP_SST_MARIABACKUP  "mariabackup"
+#define WSREP_SST_XTRABACKUP   "xtrabackup"
+#define WSREP_SST_XTRABACKUPV2 "xtrabackupv2"
 #define WSREP_SST_DEFAULT      WSREP_SST_RSYNC
 #define WSREP_SST_ADDRESS_AUTO "AUTO"
 #define WSREP_SST_AUTH_MASK    "********"

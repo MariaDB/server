@@ -21,6 +21,7 @@
 */
 
 #include "mariadb.h"
+#include <inttypes.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "rpl_rli.h"
@@ -1877,6 +1878,35 @@ static char* xid_to_str(char *buf, XID *xid)
 }
 #endif
 
+#ifdef WITH_WSREP
+static my_xid wsrep_order_and_check_continuity(XID *list, int len)
+{
+  wsrep_sort_xid_array(list, len);
+  wsrep_uuid_t uuid;
+  wsrep_seqno_t seqno;
+  if (wsrep_get_SE_checkpoint(uuid, seqno))
+  {
+    WSREP_ERROR("Could not read wsrep SE checkpoint for recovery");
+    return 0;
+  }
+  long long cur_seqno= seqno;
+  for (int i= 0; i < len; ++i)
+  {
+    if (!wsrep_is_wsrep_xid(list + i) ||
+        wsrep_xid_seqno(*(list + i)) != cur_seqno + 1)
+    {
+      WSREP_WARN("Discovered discontinuity in recovered wsrep "
+                 "transaction XIDs. Truncating the recovery list to "
+                 "%d entries", i);
+      break;
+    }
+    ++cur_seqno;
+  }
+  WSREP_INFO("Last wsrep seqno to be recovered %lld", cur_seqno);
+  return (cur_seqno < 0 ? 0 : cur_seqno);
+}
+#endif /* WITH_WSREP */
+
 /**
   recover() step of xa.
 
@@ -1914,6 +1944,19 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
     {
       sql_print_information("Found %d prepared transaction(s) in %s",
                             got, hton_name(hton)->str);
+#ifdef WITH_WSREP
+      /* If wsrep_on=ON, XIDs are first ordered and then the range of
+         recovered XIDs is checked for continuity. All the XIDs which
+         are in continuous range can be safely committed if binlog
+         is off since they have already ordered and certified in the
+         cluster. */
+      my_xid wsrep_limit= 0;
+      if (WSREP_ON)
+      {
+        wsrep_limit= wsrep_order_and_check_continuity(info->list, got);
+      }
+#endif /* WITH_WSREP */
+
       for (int i=0; i < got; i ++)
       {
         my_xid x= IF_WSREP(WSREP_ON && wsrep_is_wsrep_xid(&info->list[i]) ?
@@ -1930,15 +1973,21 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           info->found_foreign_xids++;
           continue;
         }
-        if (info->dry_run)
+        if (IF_WSREP(!(wsrep_emulate_bin_log &&
+                       wsrep_is_wsrep_xid(info->list + i) &&
+                       x <= wsrep_limit) && info->dry_run,
+                     info->dry_run))
         {
           info->found_my_xids++;
           continue;
         }
         // recovery mode
-        if (info->commit_list ?
-            my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
-            tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
+        if (IF_WSREP((wsrep_emulate_bin_log &&
+                      wsrep_is_wsrep_xid(info->list + i) &&
+                      x <= wsrep_limit), false) ||
+            (info->commit_list ?
+             my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
+             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT))
         {
 #ifndef DBUG_OFF
           int rc=
@@ -1999,6 +2048,7 @@ int ha_recover(HASH *commit_list)
   for (info.len= MAX_XID_LIST_SIZE ; 
        info.list==0 && info.len > MIN_XID_LIST_SIZE; info.len/=2)
   {
+    DBUG_EXECUTE_IF("min_xa_len", info.len = 16;);
     info.list=(XID *)my_malloc(info.len*sizeof(XID), MYF(0));
   }
   if (!info.list)
@@ -2791,8 +2841,7 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   DBUG_ENTER("handler::ha_rnd_pos");
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
-  /* TODO: Find out how to solve ha_rnd_pos when finding duplicate update. */
-  /* DBUG_ASSERT(inited == RND); */
+  DBUG_ASSERT(inited == RND);
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
     { result= rnd_pos(buf, pos); })
@@ -3047,11 +3096,17 @@ compute_next_insert_id(ulonglong nr,struct system_variables *variables)
     nr= nr + 1; // optimization of the formula below
   else
   {
-    nr= (((nr+ variables->auto_increment_increment -
-           variables->auto_increment_offset)) /
-         (ulonglong) variables->auto_increment_increment);
-    nr= (nr* (ulonglong) variables->auto_increment_increment +
-         variables->auto_increment_offset);
+    /*
+       Calculating the number of complete auto_increment_increment extents:
+    */
+    nr= (nr + variables->auto_increment_increment -
+         variables->auto_increment_offset) /
+        (ulonglong) variables->auto_increment_increment;
+    /*
+       Adding an offset to the auto_increment_increment extent boundary:
+    */
+    nr= nr * (ulonglong) variables->auto_increment_increment +
+        variables->auto_increment_offset;
   }
 
   if (unlikely(nr <= save_nr))
@@ -3070,6 +3125,51 @@ void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
   */
   if ((next_insert_id > 0) && (nr >= next_insert_id))
     set_next_insert_id(compute_next_insert_id(nr, &table->in_use->variables));
+}
+
+
+/** @brief
+  Computes the largest number X:
+  - smaller than or equal to "nr"
+  - of the form: auto_increment_offset + N * auto_increment_increment
+  where N>=0.
+
+  SYNOPSIS
+    prev_insert_id
+      nr            Number to "round down"
+      variables     variables struct containing auto_increment_increment and
+                    auto_increment_offset
+
+  RETURN
+    The number X if it exists, "nr" otherwise.
+*/
+inline ulonglong
+prev_insert_id(ulonglong nr, struct system_variables *variables)
+{
+  if (unlikely(nr < variables->auto_increment_offset))
+  {
+    /*
+      There's nothing good we can do here. That is a pathological case, where
+      the offset is larger than the column's max possible value, i.e. not even
+      the first sequence value may be inserted. User will receive warning.
+    */
+    DBUG_PRINT("info",("auto_increment: nr: %lu cannot honour "
+                       "auto_increment_offset: %lu",
+                       (ulong) nr, variables->auto_increment_offset));
+    return nr;
+  }
+  if (variables->auto_increment_increment == 1)
+    return nr; // optimization of the formula below
+  /*
+     Calculating the number of complete auto_increment_increment extents:
+  */
+  nr= (nr - variables->auto_increment_offset) /
+      (ulonglong) variables->auto_increment_increment;
+  /*
+     Adding an offset to the auto_increment_increment extent boundary:
+  */
+  return (nr * (ulonglong) variables->auto_increment_increment +
+          variables->auto_increment_offset);
 }
 
 
@@ -3309,10 +3409,32 @@ int handler::update_auto_increment()
   if (unlikely(tmp))                            // Out of range value in store
   {
     /*
-      It's better to return an error here than getting a confusing
-      'duplicate key error' later.
+      First, test if the query was aborted due to strict mode constraints
+      or new field value greater than maximum integer value:
     */
-    result= HA_ERR_AUTOINC_ERANGE;
+    if (thd->killed == KILL_BAD_DATA ||
+        nr > table->next_number_field->get_max_int_value())
+    {
+      /*
+        It's better to return an error here than getting a confusing
+        'duplicate key error' later.
+      */
+      result= HA_ERR_AUTOINC_ERANGE;
+    }
+    else
+    {
+      /*
+        Field refused this value (overflow) and truncated it, use the result
+        of the truncation (which is going to be inserted); however we try to
+        decrease it to honour auto_increment_* variables.
+        That will shift the left bound of the reserved interval, we don't
+        bother shifting the right bound (anyway any other value from this
+        interval will cause a duplicate key).
+      */
+      nr= prev_insert_id(table->next_number_field->val_int(), variables);
+      if (unlikely(table->next_number_field->store((longlong)nr, TRUE)))
+        nr= table->next_number_field->val_int();
+    }
   }
   if (append)
   {
@@ -3398,6 +3520,10 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   ulonglong nr;
   int error;
   MY_BITMAP *old_read_set;
+  bool rnd_inited= (inited ==  RND);
+
+  if (rnd_inited && ha_rnd_end())
+    return;
 
   old_read_set= table->prepare_for_keyread(table->s->next_number_index);
 
@@ -3407,6 +3533,10 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
     DBUG_ASSERT(0);
     (void) extra(HA_EXTRA_NO_KEYREAD);
     *first_value= ULONGLONG_MAX;
+    if (rnd_inited && ha_rnd_init_with_error(0))
+    {
+      //TODO: it would be nice to return here an error
+    }
     return;
   }
 
@@ -3453,6 +3583,10 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   ha_index_end();
   table->restore_column_maps_after_keyread(old_read_set);
   *first_value= nr;
+  if (rnd_inited && ha_rnd_init_with_error(0))
+  {
+    //TODO: it would be nice to return here an error
+  }
   return;
 }
 
@@ -4579,6 +4713,7 @@ handler::ha_create_partitioning_metadata(const char *name,
               (!old_name && strcmp(name, table_share->path.str)));
 
 
+  mark_trx_read_write();
   return create_partitioning_metadata(name, old_name, action_flag);
 }
 
@@ -4741,10 +4876,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->create_time=          stats.create_time;
   stat_info->update_time=          stats.update_time;
   stat_info->check_time=           stats.check_time;
-  stat_info->check_sum=            0;
-  if (table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
-    stat_info->check_sum= checksum();
-  return;
+  stat_info->check_sum=            stats.checksum;
 }
 
 
@@ -4863,6 +4995,98 @@ end:
       mysql_mutex_unlock(&LOCK_global_index_stats);
     }
   }
+}
+
+
+static void flush_checksum(ha_checksum *row_crc, uchar **checksum_start,
+                           size_t *checksum_length)
+{
+  if (*checksum_start)
+  {
+    *row_crc= my_checksum(*row_crc, *checksum_start, *checksum_length);
+    *checksum_start= NULL;
+    *checksum_length= 0;
+  }
+}
+
+
+/* calculating table's checksum */
+int handler::calculate_checksum()
+{
+  int error;
+  THD *thd=ha_thd();
+  DBUG_ASSERT(table->s->last_null_bit_pos < 8);
+  uchar null_mask= table->s->last_null_bit_pos
+                   ? 256 -  (1 << table->s->last_null_bit_pos) : 0;
+
+  table->use_all_columns();
+  stats.checksum= 0;
+
+  if ((error= ha_rnd_init(1)))
+    return error;
+
+  for (;;)
+  {
+    if (thd->killed)
+      return HA_ERR_ABORTED_BY_USER;
+
+    ha_checksum row_crc= 0;
+    error= table->file->ha_rnd_next(table->record[0]);
+    if (error)
+      break;
+
+    if (table->s->null_bytes)
+    {
+      /* fix undefined null bits */
+      table->record[0][table->s->null_bytes-1] |= null_mask;
+      if (!(table->s->db_create_options & HA_OPTION_PACK_RECORD))
+        table->record[0][0] |= 1;
+
+      row_crc= my_checksum(row_crc, table->record[0], table->s->null_bytes);
+    }
+
+    uchar *checksum_start= NULL;
+    size_t checksum_length= 0;
+    for (uint i= 0; i < table->s->fields; i++ )
+    {
+      Field *f= table->field[i];
+
+      if (! thd->variables.old_mode && f->is_real_null(0))
+      {
+        flush_checksum(&row_crc, &checksum_start, &checksum_length);
+        continue;
+      }
+     /*
+       BLOB and VARCHAR have pointers in their field, we must convert
+       to string; GEOMETRY is implemented on top of BLOB.
+       BIT may store its data among NULL bits, convert as well.
+     */
+      switch (f->type()) {
+        case MYSQL_TYPE_BLOB:
+        case MYSQL_TYPE_VARCHAR:
+        case MYSQL_TYPE_GEOMETRY:
+        case MYSQL_TYPE_BIT:
+        {
+          flush_checksum(&row_crc, &checksum_start, &checksum_length);
+          String tmp;
+          f->val_str(&tmp);
+          row_crc= my_checksum(row_crc, (uchar*) tmp.ptr(), tmp.length());
+          break;
+        }
+        default:
+          if (!checksum_start)
+            checksum_start= f->ptr;
+          DBUG_ASSERT(checksum_start + checksum_length == f->ptr);
+          checksum_length+= f->pack_length();
+          break;
+      }
+    }
+    flush_checksum(&row_crc, &checksum_start, &checksum_length);
+
+    stats.checksum+= row_crc;
+  }
+  table->file->ha_rnd_end();
+  return error == HA_ERR_END_OF_FILE ? 0 : error;
 }
 
 
@@ -6507,7 +6731,7 @@ void ha_fake_trx_id(THD *thd)
 
   if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
   {
-    WSREP_DEBUG("fake trx id skipped: %lu", thd->wsrep_ws_handle.trx_id);
+    WSREP_DEBUG("fake trx id skipped: %" PRIu64, thd->wsrep_ws_handle.trx_id);
     DBUG_VOID_RETURN;
   }
 
@@ -6853,7 +7077,6 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   if (!f)
     return NULL;
 
-  memset(f, 0, sizeof(*f));
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
@@ -6913,28 +7136,6 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   return false;
 }
 
-bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
-{
-  if (ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING))
-    return true;
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_info *info= thd->work_part_info;
-  if (info && !(used_fields & HA_CREATE_USED_ENGINE))
-  {
-    if (handlerton *hton= info->default_engine_type)
-      return ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING);
-
-    List_iterator_fast<partition_element> it(info->partitions);
-    while (partition_element *partition_element= it++)
-    {
-      if (partition_element->find_engine_flag(HTON_NATIVE_SYS_VERSIONING))
-        return true;
-    }
-  }
-#endif
-  return false;
-}
 
 bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table,
@@ -7011,7 +7212,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(options & HA_VERSIONED_TABLE))
     return false;
   return vers_info.check_sys_fields(create_table.table_name, create_table.db,
-                                    alter_info, vers_native(thd));
+                                    alter_info);
 }
 
 
@@ -7120,8 +7321,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
   {
-    bool native= create_info->vers_native(thd);
-    if (check_sys_fields(table_name, share->db, alter_info, native))
+    if (check_sys_fields(table_name, share->db, alter_info))
       return true;
   }
 
@@ -7228,7 +7428,7 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
 
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
-                                       Alter_info *alter_info, bool native)
+                                       Alter_info *alter_info)
 {
   if (check_conditions(table_name, db))
     return true;
@@ -7259,8 +7459,7 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
     {
       f_check_unit= VERS_TIMESTAMP;
     }
-    else if (native
-      && f->type_handler() == &type_handler_longlong
+    else if (f->type_handler() == &type_handler_longlong
       && (f->flags & UNSIGNED_FLAG)
       && f->length == (MY_INT64_NUM_DECIMAL_DIGITS - 1))
     {

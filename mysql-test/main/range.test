@@ -2018,5 +2018,38 @@ set optimizer_switch=@save_optimizer_switch;
 drop table t1,t2,t3;
 
 --echo #
+--echo # MDEV-16934: using system variable eq_range_index_dive_limit
+--echo #             to reduce the number of index dives
+--echo #
+
+create table t1 (a int, b varchar(31), index idx(a));
+
+insert into t1 values
+  (7,'xxxx'), (1,'yy'), (3,'aaa'), (1,'bbb'), (2,'zz'),
+  (4,'vvvvv'), (7,'ddd'), (9,'zzzzz'), (1,'cc'), (5,'ffff');
+insert into t1 select a+10, concat(b,'zz') from t1;
+insert into t1 select a+15, concat(b,'yy') from t1;
+insert into t1 select a+100, concat(b,'xx') from t1;
+
+analyze table t1;
+
+select cast(count(a)/count(distinct a) as unsigned) as rec_per_key from t1;
+
+let $q=
+select * from t1 where a in (8, 15, 31, 1, 9);
+
+set eq_range_index_dive_limit=0;
+eval explain $q;
+eval $q;
+
+set eq_range_index_dive_limit=2;
+eval explain $q;
+eval $q;
+
+set eq_range_index_dive_limit=default;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

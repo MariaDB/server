@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,7 +35,6 @@ Created 2011-05-26 Marko Makela
 #include "que0que.h"
 #include "srv0mon.h"
 #include "handler0alter.h"
-#include "ut0new.h"
 #include "ut0stage.h"
 #include "trx0rec.h"
 
@@ -436,7 +435,7 @@ row_log_online_op(
 			if (!log_tmp_block_encrypt(
 				    buf, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space->id)) {
+				    index->table->space_id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto write_failed;
 			}
@@ -446,11 +445,12 @@ row_log_online_op(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write(
+		if (os_file_write(
 			    request,
 			    "(modification log)",
 			    log->fd,
-			    buf, byte_offset, srv_sort_buf_size)) {
+			    buf, byte_offset, srv_sort_buf_size)
+		    != DB_SUCCESS) {
 write_failed:
 			/* We set the flag directly instead of invoking
 			dict_set_corrupted_index_cache_only(index) here,
@@ -574,7 +574,7 @@ row_log_table_close_func(
 			if (!log_tmp_block_encrypt(
 				    log->tail.block, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space->id)) {
+				    index->table->space_id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto err_exit;
 			}
@@ -584,11 +584,12 @@ row_log_table_close_func(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write(
+		if (os_file_write(
 			    request,
 			    "(modification log)",
 			    log->fd,
-			    buf, byte_offset, srv_sort_buf_size)) {
+			    buf, byte_offset, srv_sort_buf_size)
+		    != DB_SUCCESS) {
 write_failed:
 			log->error = DB_ONLINE_LOG_TOO_BIG;
 		}
@@ -964,13 +965,14 @@ row_log_table_low(
 		break;
 	case FIL_PAGE_TYPE_INSTANT:
 		ut_ad(index->is_instant());
-		ut_ad(page_is_root(page_align(rec)));
+		ut_ad(!page_has_siblings(page_align(rec)));
+		ut_ad(page_get_page_no(page_align(rec)) == index->page);
 		break;
 	default:
 		ut_ad(!"wrong page type");
 	}
 #endif /* UNIV_DEBUG */
-	ut_ad(!rec_is_default_row(rec, index));
+	ut_ad(!rec_is_metadata(rec, index));
 	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(!page_is_comp(page_align(rec)) == !rec_offs_comp(offsets));
 	/* old_pk=row_log_table_get_pk() [not needed in INSERT] is a prefix
@@ -2233,7 +2235,10 @@ func_exit_committed:
 		row, NULL, index, heap, ROW_BUILD_NORMAL);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
-		false, NULL, heap, dup->table);
+		false, NULL, heap, dup->table, &error);
+	if (error != DB_SUCCESS) {
+		goto func_exit;
+	}
 
 	if (!update->n_fields) {
 		/* Nothing to do. */
@@ -2859,9 +2864,9 @@ all_done:
 		IORequest		request(IORequest::READ);
 		byte*			buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling(
+		if (os_file_read_no_error_handling(
 			    request, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size, 0)) {
+			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for table " << index->table->name;
@@ -2872,7 +2877,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space->id)) {
+				    ofs, index->table->space_id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}
@@ -3762,9 +3767,9 @@ all_done:
 
 		byte*	buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling(
+		if (os_file_read_no_error_handling(
 			    request, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size, 0)) {
+			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for index " << index->name;
@@ -3775,7 +3780,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space->id)) {
+				    ofs, index->table->space_id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}

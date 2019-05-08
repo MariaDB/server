@@ -851,7 +851,7 @@ DROP TABLE t1;
 create table t1 (a int,b char(5),primary key (a), key (b(1)));
 insert ignore into t1 values ('a','b');
 Warnings:
-Warning	1366	Incorrect integer value: 'a' for column 'a' at row 1
+Warning	1366	Incorrect integer value: 'a' for column `test`.`t1`.`a` at row 1
 select 1 from t1 where a and b >= 'aa';
 1
 drop table t1;

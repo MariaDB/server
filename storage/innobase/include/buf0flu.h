@@ -27,7 +27,6 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0flu_h
 #define buf0flu_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
 #include "buf0types.h"

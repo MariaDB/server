@@ -224,6 +224,7 @@ public:
   };
 
   Gcalc_operation_reducer(size_t blk_size=8192);
+  Gcalc_operation_reducer(const Gcalc_operation_reducer &gor);
   void init(Gcalc_function *fn, modes mode= default_mode);
   Gcalc_operation_reducer(Gcalc_function *fn, modes mode= default_mode,
 		       size_t blk_size=8192);

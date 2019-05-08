@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation // gcc: Class implementation
@@ -127,9 +127,9 @@ Rdb_key_def::Rdb_key_def(const Rdb_key_def &k)
                   m_total_index_flags_length == 0);
   if (k.m_pack_info) {
     const size_t size = sizeof(Rdb_field_packing) * k.m_key_parts;
-    m_pack_info =
-        reinterpret_cast<Rdb_field_packing *>(my_malloc(size, MYF(0)));
-    memcpy(m_pack_info, k.m_pack_info, size);
+    void *pack_info= my_malloc(size, MYF(0));
+    memcpy(pack_info, k.m_pack_info, size);
+    m_pack_info = reinterpret_cast<Rdb_field_packing *>(pack_info);
   }
 
   if (k.m_pk_part_no) {
@@ -1090,7 +1090,7 @@ uint Rdb_key_def::pack_record(
       // Insert TTL timestamp
       if (has_ttl() && ttl_bytes) {
         write_index_flag_field(unpack_info,
-                               reinterpret_cast<const uchar *const>(ttl_bytes),
+                               reinterpret_cast<const uchar *>(ttl_bytes),
                                Rdb_key_def::TTL_FLAG);
       }
     }
@@ -4583,7 +4583,7 @@ void Rdb_binlog_manager::update_slave_gtid_info(
   }
 }
 
-bool Rdb_dict_manager::init(rocksdb::DB *const rdb_dict,
+bool Rdb_dict_manager::init(rocksdb::TransactionDB *const rdb_dict,
                             Rdb_cf_manager *const cf_manager) {
   DBUG_ASSERT(rdb_dict != nullptr);
   DBUG_ASSERT(cf_manager != nullptr);
@@ -4657,7 +4657,9 @@ int Rdb_dict_manager::commit(rocksdb::WriteBatch *const batch,
   int res = HA_EXIT_SUCCESS;
   rocksdb::WriteOptions options;
   options.sync = sync;
-  rocksdb::Status s = m_db->Write(options, batch);
+  rocksdb::TransactionDBWriteOptimizations optimize;
+  optimize.skip_concurrency_control = true;
+  rocksdb::Status s = m_db->Write(options, optimize, batch);
   res = !s.ok(); // we return true when something failed
   if (res) {
     rdb_handle_io_error(s, RDB_IO_ERROR_DICT_COMMIT);

@@ -8,6 +8,10 @@
 # on the presence of the log tables (which are CSV-based).
 --source include/have_csv.inc
 
+# Without aria_used_for_temp_tables some I_S tables will be MyISAM,
+# while the test expects them to be Aria
+-- source include/have_aria_used_for_temp_tables.inc
+
 -- source include/have_innodb.inc
 
 # Save the initial number of concurrent sessions

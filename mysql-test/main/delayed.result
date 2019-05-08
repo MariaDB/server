@@ -284,9 +284,9 @@ CREATE TABLE t2 (
 );
 SET SQL_MODE='NO_ZERO_DATE,STRICT_ALL_TABLES,NO_ZERO_IN_DATE';
 INSERT DELAYED INTO t2 VALUES (0,'0000-00-00');
-ERROR 22007: Incorrect date value: '0000-00-00' for column 'f1' at row 1
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t2`.`f1` at row 1
 INSERT DELAYED INTO t2 VALUES (0,'2007-00-00');
-ERROR 22007: Incorrect date value: '2007-00-00' for column 'f1' at row 1
+ERROR 22007: Incorrect date value: '2007-00-00' for column `test`.`t2`.`f1` at row 1
 DROP TABLE t1,t2;
 set @old_delayed_updates = @@global.low_priority_updates;
 set global low_priority_updates = 1;

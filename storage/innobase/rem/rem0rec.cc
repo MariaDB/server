@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,15 +26,9 @@ Created 5/30/1994 Heikki Tuuri
 
 #include "rem0rec.h"
 #include "page0page.h"
-#include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "fts0fts.h"
-#ifdef WITH_WSREP
-#include <ha_prototypes.h>
-#endif /* WITH_WSREP */
-#include "gis0geo.h"
 #include "trx0sys.h"
-#include "mach0data.h"
 
 /*			PHYSICAL RECORD (OLD STYLE)
 			===========================
@@ -787,10 +781,6 @@ rec_get_offsets_func(
 	ulint	n;
 	ulint	size;
 
-	ut_ad(rec);
-	ut_ad(index);
-	ut_ad(heap);
-
 	if (dict_table_is_comp(index->table)) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
@@ -901,9 +891,6 @@ rec_get_offsets_reverse(
 	ulint		null_mask;
 	ulint		n_node_ptr_field;
 
-	ut_ad(extra);
-	ut_ad(index);
-	ut_ad(offsets);
 	ut_ad(dict_table_is_comp(index->table));
 	ut_ad(!index->is_instant());
 
@@ -1012,8 +999,6 @@ rec_get_nth_field_offs_old(
 	ulint	os;
 	ulint	next_os;
 
-	ut_ad(len);
-	ut_a(rec);
 	ut_a(n < rec_get_n_fields_old(rec));
 
 	if (rec_get_1byte_offs_flag(rec)) {
@@ -1110,9 +1095,7 @@ rec_get_converted_size_comp_prefix_low(
 		col = dict_field_get_col(field);
 
 #ifdef UNIV_DEBUG
-		dtype_t*	type;
-
-		type = dfield_get_type(&fields[i]);
+		const dtype_t* type = dfield_get_type(&fields[i]);
 		if (dict_index_is_spatial(index)) {
 			if (DATA_GEOMETRY_MTYPE(col->mtype) && i == 0) {
 				ut_ad(type->prtype & DATA_GIS_MBR);
@@ -1905,7 +1888,7 @@ rec_copy_prefix_to_buf(
 	case REC_STATUS_COLUMNS_ADDED:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
-		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
+		ut_ad(index->is_instant() || page_rec_is_metadata(rec));
 		nulls++;
 		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);
@@ -2066,7 +2049,6 @@ rec_validate(
 	ulint		len_sum		= 0;
 	ulint		i;
 
-	ut_a(rec);
 	n_fields = rec_offs_n_fields(offsets);
 
 	if ((n_fields == 0) || (n_fields > REC_MAX_N_FIELDS)) {
@@ -2123,8 +2105,6 @@ rec_print_old(
 	ulint		len;
 	ulint		n;
 	ulint		i;
-
-	ut_ad(rec);
 
 	n = rec_get_n_fields_old(rec);
 
@@ -2299,8 +2279,6 @@ rec_print_mbr_rec(
 	const rec_t*	rec,	/*!< in: physical record */
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
-	ut_ad(rec);
-	ut_ad(offsets);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(!rec_offs_any_default(offsets));
 
@@ -2369,8 +2347,6 @@ rec_print_new(
 	const rec_t*	rec,	/*!< in: physical record */
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
-	ut_ad(rec);
-	ut_ad(offsets);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
 #ifdef UNIV_DEBUG
@@ -2404,8 +2380,6 @@ rec_print(
 	const rec_t*		rec,	/*!< in: physical record */
 	const dict_index_t*	index)	/*!< in: record descriptor */
 {
-	ut_ad(index);
-
 	if (!dict_table_is_comp(index->table)) {
 		rec_print_old(file, rec);
 		return;
@@ -2565,6 +2539,8 @@ rec_offs_make_nth_extern(
 	rec_offs_base(offsets)[1 + n] |= REC_OFFS_EXTERNAL;
 }
 #ifdef WITH_WSREP
+# include "ha_prototypes.h"
+
 int
 wsrep_rec_get_foreign_key(
 	byte 		*buf,     /* out: extracted key */

@@ -94,6 +94,10 @@ if (!$VERSION_COMPILE_OS_WIN)
     CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 }
+let $MASTER_1_COMMENT6_P_1_1=
+  COMMENT='database "auto_test_remote", table "ta_ob"'
+  PARTITION BY LIST COLUMNS (e) PARTITIONS 1
+  (PARTITION pt1 values in (510411) COMMENT = 'srv "s_2_1"');
 if ($VERSION_COMPILE_OS_WIN)
 {
   let $MASTER_1_COMMENT_FT_2_1=

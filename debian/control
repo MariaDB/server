@@ -571,7 +571,7 @@ Description: OQGraph storage engine for MariaDB
 Package: mariadb-plugin-tokudb
 Architecture: amd64
 Depends: mariadb-server-10.3 (= ${binary:Version}),
-         libjemalloc1 (>= 3.0.0~),
+         libjemalloc1 (>= 3.0.0~) | libjemalloc2,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
@@ -688,7 +688,7 @@ Breaks: mariadb-backup-10.1,
         mariadb-backup-10.2
 Replaces: mariadb-backup-10.1,
           mariadb-backup-10.2
-Depends: mariadb-client-core-10.3,
+Depends: mariadb-client-core-10.3 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server

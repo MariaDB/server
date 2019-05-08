@@ -14,7 +14,6 @@ constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
 --error ER_CANT_CREATE_TABLE
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 
@@ -104,6 +103,9 @@ WHERE table_name = 't2';
 
 --source include/restart_mysqld.inc
 
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 
@@ -138,7 +140,123 @@ SET FOREIGN_KEY_CHECKS=DEFAULT;
 LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
+
 SET FOREIGN_KEY_CHECKS=1;
+
+--echo #
+--echo # MDEV-17531 Crash in RENAME TABLE with FOREIGN KEY and FULLTEXT INDEX
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Possible reasons:");
+call mtr.add_suppression("InnoDB: \\([12]\\) Table ");
+call mtr.add_suppression("InnoDB: If table `test`\\.`t2` is a temporary table");
+call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15\\.");
+--enable_query_log
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE DATABASE best;
+CREATE TABLE t3 (a INT PRIMARY KEY,
+CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
+CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
+FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
+--replace_regex /Table '.*t2'/Table 't2'/
+--error ER_TABLE_EXISTS_ERROR
+RENAME TABLE best.t2 TO test.t2;
+SHOW CREATE TABLE best.t2;
+DROP DATABASE best;
+
+--echo #
+--echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+--echo #
+connect (con1, localhost, root,,);
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+
+connection default;
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send INSERT INTO t3 SET a=1;
+
+connection con1;
+# Check that the above SELECT is blocked
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'update' and info = 'INSERT INTO t3 SET a=1';
+--source include/wait_condition.inc
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+connection con1;
+ROLLBACK;
+connection default;
+
+DROP TABLE t3,t1;
+
+--echo #
+--echo # MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+--echo # or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
+--echo #
+CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
+ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a b TIME;
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18256 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+--echo # upon DROP FOREIGN KEY
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY fk1 (b) REFERENCES t1 (a))
+ENGINE=InnoDB;
+ALTER TABLE t2 DROP FOREIGN KEY fk1, DROP FOREIGN KEY fk1;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+DROP TABLE t1;
+
+CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
+ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18630 Conditional jump or move depends on uninitialised value
+--echo # in ib_push_warning / dict_create_foreign_constraints_low
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
+SHOW WARNINGS;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18139 ALTER IGNORE ... ADD FOREIGN KEY causes bogus error
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, KEY(f1)) ENGINE=InnoDB;
+CREATE TABLE t2 (f INT, KEY(f)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t2 (f);
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (f3) REFERENCES t1 (f1);
+DROP TABLE t1, t2;
+
+--echo # Start of 10.2 tests
 
 --echo #
 --echo # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
@@ -183,7 +301,7 @@ INSERT INTO matchmaking_group_maps VALUES (10,55),(11,66);
 BEGIN;
 UPDATE users SET name = 'qux' WHERE id = 1;
 
---connect (con1,localhost,root,,)
+--connection con1
 SET innodb_lock_wait_timeout= 1;
 DELETE FROM matchmaking_groups WHERE id = 10;
 
@@ -228,7 +346,6 @@ DELETE FROM t1 WHERE id = 1;
 
 --connection con1
 COMMIT;
---disconnect con1
 
 --connection default
 SELECT * FROM t2;
@@ -287,5 +404,97 @@ engine=innodb;
 insert into t1 values(1, 1);
 insert into t2(f1) values(1);
 drop table t2, t1;
+
+#
+# MDEV-12669 Circular foreign keys cause a loop and OOM upon LOCK TABLE
+#
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE staff (
+  staff_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  store_id TINYINT UNSIGNED NOT NULL,
+  PRIMARY KEY  (staff_id),
+  KEY idx_fk_store_id (store_id),
+  CONSTRAINT fk_staff_store FOREIGN KEY (store_id) REFERENCES store (store_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE store (
+  store_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  manager_staff_id TINYINT UNSIGNED NOT NULL,
+  PRIMARY KEY  (store_id),
+  UNIQUE KEY idx_unique_manager (manager_staff_id),
+  CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+LOCK TABLE staff WRITE;
+UNLOCK TABLES;
+DROP TABLES staff, store;
+SET FOREIGN_KEY_CHECKS=1;
+
+--echo #
+--echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, FOREIGN KEY (a) REFERENCES t1(a))
+ENGINE=InnoDB;
+
+connection con1;
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+
+connection default;
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send INSERT INTO t2 SET a=1;
+
+connection con1;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'update' and info = 'INSERT INTO t2 SET a=1';
+--source include/wait_condition.inc
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+connection con1;
+ROLLBACK;
+connection default;
+
+DROP TABLE t2,t1;
+
+--echo #
+--echo # MDEV-18272 InnoDB index corruption after failed DELETE CASCADE
+--echo #
+CREATE TABLE t1 (
+  pk TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  a TINYINT UNSIGNED NOT NULL, b TINYINT UNSIGNED NOT NULL, KEY(b),
+  CONSTRAINT FOREIGN KEY (a) REFERENCES t1 (b) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (a,b) VALUES
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
+(0,1),(0,1),(1,0);
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+DELETE IGNORE FROM t1 WHERE b = 1;
+
+SELECT a FROM t1 FORCE INDEX(a);
+# This would wrongly return the empty result if
+# the "goto rollback_to_savept" in row_mysql_handle_errors() is reverted.
+SELECT * FROM t1;
+# Allow purge to continue by closing the read view.
+disconnect con1;
+
+# Wait for purge. With the fix reverted, the server would crash here.
+--source include/wait_all_purged.inc
+CHECK TABLE t1;
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+
+--echo # End of 10.2 tests
 
 --source include/wait_until_count_sessions.inc

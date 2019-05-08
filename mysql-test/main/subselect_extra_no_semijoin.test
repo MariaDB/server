@@ -7,3 +7,32 @@ set  @optimizer_switch_for_subselect_extra_test='semijoin=off,firstmatch=off,loo
 set optimizer_switch= @subselect_extra_no_sj_tmp;
 
 set @optimizer_switch_for_subselect_extra_test=null;
+
+--echo #
+--echo # MDEV-6439: Server crashes in Explain_union::print_explain with explain in slow log, tis620 charset
+--echo #
+
+## Using a separate client connection is easier than restoring state
+connect(con1,localhost,root,,);
+
+SET NAMES tis620;
+set @tmp= @@global.slow_query_log;
+SET GLOBAL slow_query_log = 1;
+SET long_query_time = 0.000001;
+SET log_slow_verbosity = 'explain';
+
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM;
+SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' UNION SELECT 'bar' );
+
+create table t2 (b int);
+insert into t2 values (1),(2),(3);
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' FROM t2);
+
+drop table t1,t2;
+SET GLOBAL slow_query_log=@tmp;
+disconnect con1;
+connection default;

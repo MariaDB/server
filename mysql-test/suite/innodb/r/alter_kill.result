@@ -2,47 +2,29 @@
 # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
 #
 SET GLOBAL innodb_file_per_table=1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 connect  con1,localhost,root;
 CREATE TABLE bug16720368 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO bug16720368 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+InnoDB		0 transactions not purged
 connection default;
 # Cleanly shutdown mysqld
 disconnect con1;
 # Corrupt FIL_PAGE_OFFSET in bug16720368.ibd,
-# and update the checksum to the "don't care" value.
+# and recompute innodb_checksum_algorithm=crc32
 # Restart mysqld
-# This will succeed after a clean shutdown, due to
-# fil_open_single_table_tablespace(check_space_id=FALSE).
 SELECT COUNT(*) FROM bug16720368;
-COUNT(*)
-8
+ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
+INSERT INTO bug16720368 VALUES(1);
+ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
 INSERT INTO bug16720368_1 VALUES(1);
-# The table is unaccessible, because after a crash we will
-# validate the tablespace header.
-SELECT COUNT(*) FROM bug16720368;
-ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
-INSERT INTO bug16720368 VALUES(0,1);
-ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
-# The table is readable thanks to innodb-force-recovery.
-SELECT COUNT(*) FROM bug16720368;
-COUNT(*)
-8
-INSERT INTO bug16720368 VALUES(0,1);
-# Shut down the server cleanly to hide the corruption.
-# The table is accessible, because after a clean shutdown we will
-# NOT validate the tablespace header.
-# We can modify the existing pages, but we cannot allocate or free
-# any pages, because that would hit the corruption on page 0.
-SELECT COUNT(*) FROM bug16720368;
-COUNT(*)
-9
 # Shut down the server to uncorrupt the data.
 # Restart the server after uncorrupting the file.
 INSERT INTO bug16720368 VALUES(9,1);
 SELECT COUNT(*) FROM bug16720368;
 COUNT(*)
-10
+9
 DROP TABLE bug16720368, bug16720368_1;
 #
 # Bug#16735660 ASSERT TABLE2 == NULL, ROLLBACK OF RESURRECTED TXNS,

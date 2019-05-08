@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1813,10 +1813,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
     return 0;
   if (negated != ((Item_func_opt_neg *) item_func)->negated)
     return 0;
-  for (uint i=0; i < arg_count ; i++)
-    if (!args[i]->eq(item_func->arguments()[i], binary_cmp))
-      return 0;
-  return 1;
+  return Item_args::eq(item_func, binary_cmp);
 }
 
 
@@ -2070,7 +2067,7 @@ bool Item_func_between::fix_length_and_dec()
   if (!args[0] || !args[1] || !args[2])
     return TRUE;
   if (m_comparator.aggregate_for_comparison(Item_func_between::func_name(),
-                                            args, 3, true))
+                                            args, 3, false))
   {
     DBUG_ASSERT(current_thd->is_error());
     return TRUE;
@@ -2174,23 +2171,19 @@ longlong Item_func_between::val_int_cmp_string()
 
 longlong Item_func_between::val_int_cmp_int()
 {
-  longlong value= args[0]->val_int(), a, b;
+  Longlong_hybrid value= args[0]->to_longlong_hybrid();
   if ((null_value= args[0]->null_value))
     return 0;					/* purecov: inspected */
-  a= args[1]->val_int();
-  b= args[2]->val_int();
+  Longlong_hybrid a= args[1]->to_longlong_hybrid();
+  Longlong_hybrid b= args[2]->to_longlong_hybrid();
   if (!args[1]->null_value && !args[2]->null_value)
-    return (longlong) ((value >= a && value <= b) != negated);
+    return (longlong) ((value.cmp(a) >= 0 && value.cmp(b) <= 0) != negated);
   if (args[1]->null_value && args[2]->null_value)
     null_value= true;
   else if (args[1]->null_value)
-  {
-    null_value= value <= b;			// not null if false range.
-  }
+    null_value= value.cmp(b) <= 0;              // not null if false range.
   else
-  {
-    null_value= value >= a;
-  }
+    null_value= value.cmp(a) >= 0;
   return (longlong) (!null_value && negated);
 }
 
@@ -4275,12 +4268,21 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
     if (field_item->field_type() == MYSQL_TYPE_LONGLONG ||
         field_item->field_type() == MYSQL_TYPE_YEAR)
     {
-      bool all_converted= TRUE;
+      bool all_converted= true;
       Item **arg, **arg_end;
       for (arg=args+1, arg_end=args+arg_count; arg != arg_end ; arg++)
       {
-         if (!convert_const_to_int(thd, field_item, &arg[0]))
-          all_converted= FALSE;
+          /*
+            Explicit NULLs should not affect data cmp_type resolution:
+            - we ignore NULLs when calling collect_cmp_type()
+            - we ignore NULLs here
+            So this expression:
+              year_column IN (DATE'2001-01-01', NULL)
+            switches from TIME_RESULT to INT_RESULT.
+          */
+          if (arg[0]->type() != Item::NULL_ITEM &&
+              !convert_const_to_int(thd, field_item, &arg[0]))
+           all_converted= false;
       }
       if (all_converted)
         m_comparator.set_handler(&type_handler_longlong);
@@ -4543,7 +4545,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   List_iterator<Item> li(list);
   Item *item;
   uchar buff[sizeof(char*)];			// Max local vars in function
-  longlong is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
   not_null_tables_cache= 0;
   used_tables_and_const_cache_init();
 
@@ -4607,7 +4609,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
-      if (item->val_int() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && top_level())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -4659,7 +4661,7 @@ bool
 Item_cond::eval_not_null_tables(void *opt_arg)
 {
   Item *item;
-  longlong is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
   List_iterator<Item> li(list);
   not_null_tables_cache= (table_map) 0;
   and_tables_cache= ~(table_map) 0;
@@ -4669,7 +4671,7 @@ Item_cond::eval_not_null_tables(void *opt_arg)
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
-      if (item->val_int() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && top_level())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -4982,6 +4984,36 @@ Item *Item_cond::build_clone(THD *thd)
 }
 
 
+bool Item_cond::excl_dep_on_table(table_map tab_map)
+{
+  if (used_tables() & OUTER_REF_TABLE_BIT)
+    return false;
+  if (!(used_tables() & ~tab_map))
+    return true;
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (!item->excl_dep_on_table(tab_map))
+      return false;
+  }
+  return true;
+}
+
+
+bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
+{
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (!item->excl_dep_on_grouping_fields(sel))
+      return false;
+  }
+  return true;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);
@@ -5118,7 +5150,11 @@ longlong Item_func_isnull::val_int()
 
 void Item_func_isnull::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, precedence());
+  if (const_item() && !args[0]->maybe_null &&
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
+    str->append("/*always not null*/ 1");
+  else
+    args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" is null"));
 }
 

@@ -49,7 +49,6 @@ static LSN current_group_end_lsn;
 /** Current group of REDOs is about this table and only this one */
 static MARIA_HA *current_group_table;
 #endif
-static TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 static my_bool skip_DDLs; /**< if REDO phase should skip DDL records */
 /** @brief to avoid writing a checkpoint if recovery did nothing. */
 static my_bool checkpoint_useful;
@@ -62,6 +61,7 @@ static uint recovery_warnings; /**< count of warnings */
 static uint recovery_found_crashed_tables;
 HASH tables_to_redo;                          /* For maria_read_log */
 ulong maria_recovery_force_crash_counter;
+TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 
 #define prototype_redo_exec_hook(R)                                          \
   static int exec_REDO_LOGREC_ ## R(const TRANSLOG_HEADER_BUFFER *rec)
@@ -471,6 +471,13 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
     procent_printed= 1;
     fprintf(stderr, " (%.1f seconds); ", phase_took);
     fflush(stderr);
+  }
+
+  if (max_long_trid > max_trid_in_control_file)
+  {
+    if (ma_control_file_write_and_force(last_checkpoint_lsn, last_logno,
+                                        max_long_trid, recovery_failures))
+      goto err;
   }
 
   if (take_checkpoints && checkpoint_useful)
@@ -1403,6 +1410,11 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (cmp_translog_addr(lsn_of_file_id, share->state.create_rename_lsn) <= 0)
   {
+    /*
+      This can happen if the table was dropped and re-created since this
+      redo entry or if the table had a bulk insert directly after create,
+      in which case the create_rename_lsn changed.
+    */
     tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
            " LOGREC_FILE_ID's LSN " LSN_FMT ", ignoring open request",
            LSN_IN_PARTS(share->state.create_rename_lsn),
@@ -3551,8 +3563,8 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     info->state may point to a state that was deleted by
     _ma_trnman_end_trans_hook()
    */
-  share->state.common= *info->state;
-  info->state= &share->state.common;
+  share->state.no_logging= *info->state;
+  info->state= &share->state.no_logging;
   info->switched_transactional= TRUE;
 
   /*
@@ -3608,12 +3620,24 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     _ma_copy_nontrans_state_information(info);
     _ma_reset_history(info->s);
 
+    /* Reset state to point to state.common, as on open() */
+    info->state=  &share->state.common;
+    *info->state=  share->state.state;
+
     if (flush_pages)
     {
       /* Ensure that recover is not executing any redo before this */
       if (!maria_in_recovery)
+      {
+        if (share->id != 0)
+        {
+          mysql_mutex_lock(&share->intern_lock);
+          translog_deassign_id_from_share(share);
+          mysql_mutex_unlock(&share->intern_lock);
+        }
         share->state.is_of_horizon= share->state.create_rename_lsn=
           share->state.skip_redo_lsn= translog_get_horizon();
+      }
       /*
         We are going to change callbacks; if a page is flushed at this moment
         this can cause race conditions, that's one reason to flush pages

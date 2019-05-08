@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,12 +37,11 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0purge.h"
 #include "trx0rseg.h"
 #include "row0row.h"
-#include "fsp0sysspace.h"
 #include "row0mysql.h"
 
-/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT */
-const dtuple_t trx_undo_default_rec = {
-	REC_INFO_DEFAULT_ROW, 0, 0,
+/** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
+const dtuple_t trx_undo_metadata = {
+	REC_INFO_METADATA, 0, 0,
 	NULL, 0, NULL,
 	UT_LIST_NODE_T(dtuple_t)()
 #ifdef UNIV_DEBUG
@@ -398,8 +397,6 @@ trx_undo_report_insert_virtual(
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(table);
 	     col_no++) {
-		dfield_t*       vfield = NULL;
-
 		const dict_v_col_t*     col
 			= dict_table_get_nth_v_col(table, col_no);
 
@@ -422,7 +419,8 @@ trx_undo_report_insert_virtual(
 				return(false);
 			}
 
-			vfield = dtuple_get_nth_v_field(row, col->v_pos);
+			const dfield_t* vfield = dtuple_get_nth_v_field(
+				row, col->v_pos);
 			ulint	flen = vfield->len;
 
 			if (flen != UNIV_SQL_NULL) {
@@ -506,11 +504,11 @@ trx_undo_page_report_insert(
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
 	if (UNIV_UNLIKELY(clust_entry->info_bits != 0)) {
-		ut_ad(clust_entry->info_bits == REC_INFO_DEFAULT_ROW);
+		ut_ad(clust_entry->info_bits == REC_INFO_METADATA);
 		ut_ad(index->is_instant());
 		ut_ad(undo_block->frame[first_free + 2]
 		      == TRX_UNDO_INSERT_REC);
-		undo_block->frame[first_free + 2] = TRX_UNDO_INSERT_DEFAULT;
+		undo_block->frame[first_free + 2] = TRX_UNDO_INSERT_METADATA;
 		goto done;
 	}
 
@@ -1330,8 +1328,6 @@ already_logged:
 
 		for (col_no = 0; col_no < dict_table_get_n_v_cols(table);
 		     col_no++) {
-			dfield_t*	vfield = NULL;
-
 			const dict_v_col_t*     col
 				= dict_table_get_nth_v_col(table, col_no);
 
@@ -1359,6 +1355,8 @@ already_logged:
 				if (!ptr) {
 					 return(0);
 				}
+
+				const dfield_t* vfield = NULL;
 
 				if (update) {
 					ut_ad(!row);
@@ -1677,11 +1675,7 @@ trx_undo_rec_get_partial_row(
 	bool		first_v_col = true;
 	bool		is_undo_log = true;
 
-	ut_ad(index);
-	ut_ad(ptr);
-	ut_ad(row);
-	ut_ad(heap);
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 
 	*row = dtuple_create_with_vcol(
 		heap, dict_table_get_n_cols(index->table),
@@ -1897,8 +1891,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 @param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed
 @return	DB_SUCCESS or error code */
-dberr_t
-trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 {
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id);
@@ -2238,7 +2231,7 @@ trx_undo_prev_version_build(
 				dtuple if it is not yet created. This heap
 				diffs from "heap" above in that it could be
 				prebuilt->old_vers_heap for selection */
-	const dtuple_t**vrow,	/*!< out: virtual column info, if any */
+	dtuple_t**	vrow,	/*!< out: virtual column info, if any */
 	ulint		v_status)
 				/*!< in: status determine if it is going
 				into this function by purge thread or not.
@@ -2439,7 +2432,7 @@ void
 trx_undo_read_v_cols(
 	const dict_table_t*	table,
 	const byte*		ptr,
-	const dtuple_t*		row,
+	dtuple_t*		row,
 	bool			in_purge)
 {
 	const byte*     end_ptr;

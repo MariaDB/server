@@ -175,6 +175,7 @@ extern uint protocol_version, mysqld_port, dropping_tables;
 extern ulong delay_key_write_options;
 extern char *opt_logname, *opt_slow_logname, *opt_bin_logname, 
             *opt_relay_logname;
+extern char *opt_binlog_index_name;
 extern char *opt_backup_history_logname, *opt_backup_progress_logname,
             *opt_backup_settings_name;
 extern const char *log_output_str;
@@ -195,9 +196,6 @@ struct vers_asof_timestamp_t
 {
   ulong type;
   MYSQL_TIME ltime;
-  vers_asof_timestamp_t() :
-    type(SYSTEM_TIME_UNSPECIFIED)
-  {}
 };
 
 enum vers_alter_history_enum
@@ -790,26 +788,6 @@ inline void table_case_convert(char * name, uint length)
   if (lower_case_table_names)
     files_charset_info->cset->casedn(files_charset_info,
                                      name, length, name, length);
-}
-
-inline void thread_safe_increment32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_increment64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
 }
 
 extern void set_server_version(char *buf, size_t size);

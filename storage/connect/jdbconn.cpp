@@ -322,10 +322,6 @@ static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, PCSZ db,
 {
 	JCATPARM *cap;
 
-#if defined(_DEBUG)
-	assert(qrp);
-#endif
-
 	if ((cap = (JCATPARM *)PlgDBSubAlloc(g, NULL, sizeof(JCATPARM)))) {
 		memset(cap, 0, sizeof(JCATPARM));
 		cap->Id = fid;

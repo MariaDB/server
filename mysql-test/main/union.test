@@ -1485,6 +1485,41 @@ eval SET NAMES $old_charset;
 SET @advertAcctId = 1000003;
 select @advertAcctId as a from dual union all select 1.0 from dual;
 
+--echo #
+--echo # MDEV-13784: query causes seg fault
+--echo #
+
+CREATE TABLE t1 (`bug_id` int NOT NULL PRIMARY KEY, `product_id` int NOT NULL);
+INSERT INTO t1 VALUES (45199,1184);
+
+CREATE TABLE t2 (`product_id` int NOT NULL,`userid` int NOT NULL, PRIMARY KEY (`product_id`,`userid`));
+INSERT INTO t2 VALUES (1184,103),(1184,624),(1184,1577),(1184,1582);
+
+CREATE TABLE t3 (`id` int NOT NULL  PRIMARY KEY,`name` varchar(64));
+
+
+CREATE TABLE t4 ( `userid` int NOT NULL PRIMARY KEY, `login_name` varchar(255));
+INSERT INTO t4 VALUES (103,'foo'),(624,'foo'),(1577,'foo'),(1582,'foo');
+CREATE TABLE t5 (`id` int NOT NULL PRIMARY KEY, `name` varchar(64));
+
+explain select
+(
+  select login_name from t4 where userId = (
+    select userid from t2 where product_id = t1.product_id
+    union
+    select userid from t2 where product_id = (
+      select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+select
+(
+  select login_name from t4 where userId = (
+    select userid from t2 where product_id = t1.product_id
+    union
+    select userid from t2 where product_id = (
+      select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+drop table t1, t2, t3, t4, t5;
+
 --echo End of 5.5 tests
 
 --echo #
@@ -1775,6 +1810,36 @@ SET @a= CAST('10' AS CHAR);
 SELECT c1 FROM t1 UNION SELECT - @a FROM t2;
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-18700: EXPLAIN EXTENDED for query with UNION ALL
+--echo #             after INTERSECT/EXCEPT operations
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (1), (7), (3), (2), (7), (4);
+
+create table t2 (a int);
+insert into t2 values (4), (5), (9), (1), (8), (9);
+
+create table t3 (a int);
+insert into t3 values (8), (1), (8), (2), (3), (7), (2);
+
+explain extended
+select * from t2 where a < 5
+intersect
+select * from t3 where a < 5
+union all
+select * from t1 where a > 4;
+
+explain extended
+select * from t2 where a < 5
+except
+select * from t3 where a < 5
+union all
+select * from t1 where a > 4;
+
+drop table t1,t2,t3;
 
 --echo #
 --echo # End of 10.3 tests

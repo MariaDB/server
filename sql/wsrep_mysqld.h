@@ -30,6 +30,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "mdl.h"
 #include "mysqld.h"
 #include "sql_table.h"
+#include "wsrep_mysqld_c.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -160,7 +161,6 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd);
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 
-extern void wsrep_close_client_connections(my_bool wait_to_end);
 extern int  wsrep_wait_committing_connections_close(int wait_time);
 extern void wsrep_close_applier(THD *thd);
 extern void wsrep_wait_appliers_close(THD *thd);
@@ -285,8 +285,10 @@ extern PSI_mutex_key key_LOCK_wsrep_desync;
 extern PSI_file_key key_file_wsrep_gra_log;
 #endif /* HAVE_PSI_INTERFACE */
 struct TABLE_LIST;
+class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
-                             const TABLE_LIST* table_list);
+                             const TABLE_LIST* table_list,
+                             Alter_info* alter_info = NULL);
 void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(
@@ -306,7 +308,8 @@ void thd_binlog_trx_reset(THD * thd);
 typedef void (*wsrep_thd_processor_fun)(THD *);
 pthread_handler_t start_wsrep_THD(void *arg);
 int wsrep_wait_committing_connections_close(int wait_time);
-void wsrep_close_client_connections(my_bool wait_to_end);
+extern void wsrep_close_client_connections(my_bool wait_to_end,
+                                           THD *except_caller_thd = NULL);
 void wsrep_close_applier(THD *thd);
 void wsrep_close_applier_threads(int count);
 void wsrep_wait_appliers_close(THD *thd);

@@ -1283,7 +1283,7 @@ public:
     ++cur_key_idx;
   }
 
-  void sort_keys();
+  bool sort_keys();
   double null_selectivity();
 
   /*

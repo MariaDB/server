@@ -1,7 +1,8 @@
 Code status:
 ------------
 
-* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.3)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.3 branch)
+* [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.3)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.3 branch)
+* [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
 
 ## MariaDB: drop-in replacement for MySQL
 
@@ -64,10 +65,14 @@ and COPYING.thirdparty files.
 Bug Reports:
 ------------
 
-Bug and/or error reports regarding MariaDB should be submitted at
-https://mariadb.org/jira
+Bug and/or error reports regarding MariaDB should be submitted at:
+https://jira.mariadb.org
 
-Bugs in the MySQL code can also be submitted at https://bugs.mysql.com
+For reporting security vulnerabilities see:
+https://mariadb.org/about/security-policy/
+
+Bugs in the MySQL code can also be submitted at:
+https://bugs.mysql.com
 
 The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server

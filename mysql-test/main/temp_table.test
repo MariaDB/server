@@ -115,8 +115,10 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES ('2002-10-24 14:50:32'),('2002-10-24 14:50:33'),('2002-10-24 14:50:34'),('2002-10-24 14:50:34'),('2002-10-24 14:50:34'),('2002-10-24 14:50:35'),('2002-10-24 14:50:35'),('2002-10-24 14:50:35'),('2002-10-24 14:50:35'),('2002-10-24 14:50:36'),('2002-10-24 14:50:36'),('2002-10-24 14:50:36'),('2002-10-24 14:50:36'),('2002-10-24 14:50:37'),('2002-10-24 14:50:37'),('2002-10-24 14:50:37'),('2002-10-24 14:50:37'),('2002-10-24 14:50:38'),('2002-10-24 14:50:38'),('2002-10-24 14:50:38'),('2002-10-24 14:50:39'),('2002-10-24 14:50:39'),('2002-10-24 14:50:39'),('2002-10-24 14:50:39'),('2002-10-24 14:50:40'),('2002-10-24 14:50:40'),('2002-10-24 14:50:40');
 
 flush status;
+--disable_ps_protocol
 select * from t1 group by d;
 show status like "created_tmp%tables";
+--enable_ps_protocol
 drop table t1;
 
 # Fix for BUG#8921: Check that temporary table is ingored by view commands.
@@ -594,4 +596,30 @@ DROP TABLE nonexisting_table, t1;
 
 --echo # Cleanup
 DROP DATABASE temp_db;
+USE test;
 
+
+--echo #
+--echo # MDEV-17167 - InnoDB: Failing assertion: table->get_ref_count() == 0
+--echo #              upon truncating a temporary table
+--echo #
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB;
+SELECT * FROM t1 AS t1a1, t1 AS t2a2;
+TRUNCATE TABLE t1;
+
+LOCK TABLES t1 WRITE;
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+UNLOCK TABLES;
+
+LOCK TABLES t1 AS t1a1 WRITE, t1 AS t1a2 WRITE;
+TRUNCATE TABLE t1;
+SELECT * FROM t1 AS t1a1, t1 AS t1a2;
+UNLOCK TABLES;
+
+CREATE TABLE t2(a INT) ENGINE=InnoDB;
+LOCK TABLES t2 WRITE;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+
+DROP TABLE t1, t2;

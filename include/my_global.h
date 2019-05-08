@@ -246,7 +246,9 @@
   AIX includes inttypes.h from sys/types.h
   Explicitly request format macros before the first inclusion of inttypes.h
 */
-#define __STDC_FORMAT_MACROS  
+#if !defined(__STDC_FORMAT_MACROS)
+#define __STDC_FORMAT_MACROS
+#endif  // !defined(__STDC_FORMAT_MACROS)
 #endif
 
 
@@ -984,7 +986,6 @@ typedef unsigned long my_off_t;
   TODO Convert these to use Bitmap class.
  */
 typedef ulonglong table_map;          /* Used for table bits in join */
-typedef ulong nesting_map;  /* Used for flags of nesting constructs */
 
 /* often used type names - opaque declarations */
 typedef const struct charset_info_st CHARSET_INFO;
@@ -1052,7 +1053,9 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 
 #include <my_byteorder.h>
 
-#ifdef HAVE_CHARSET_utf8
+#ifdef HAVE_CHARSET_utf8mb4
+#define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb4"
+#elif defined(HAVE_CHARSET_utf8)
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8"
 #else
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET MYSQL_DEFAULT_CHARSET_NAME
@@ -1070,7 +1073,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 static inline char *dlerror(void)
 {
   static char win_errormsg[2048];
-  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
     0, GetLastError(), 0, win_errormsg, 2048, NULL);
   return win_errormsg;
 }

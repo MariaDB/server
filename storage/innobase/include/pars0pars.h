@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,7 +27,6 @@ Created 11/19/1996 Heikki Tuuri
 #ifndef pars0pars_h
 #define pars0pars_h
 
-#include "univ.i"
 #include "que0types.h"
 #include "pars0types.h"
 #include "row0types.h"
@@ -102,11 +101,11 @@ pars_sql(
 /*************************************************************//**
 Retrieves characters to the lexical analyzer.
 @return number of characters copied or 0 on EOF */
-int
+size_t
 pars_get_lex_chars(
 /*===============*/
 	char*	buf,		/*!< in/out: buffer where to copy */
-	int	max_size);	/*!< in: maximum number of characters which fit
+	size_t	max_size);	/*!< in: maximum number of characters which fit
 				in the buffer */
 /*************************************************************//**
 Called by yyparse on error. */

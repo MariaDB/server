@@ -663,6 +663,17 @@ Gcalc_operation_reducer::Gcalc_operation_reducer(size_t blk_size) :
 {}
 
 
+Gcalc_operation_reducer::Gcalc_operation_reducer(
+                           const Gcalc_operation_reducer &gor) :
+  Gcalc_dyn_list(gor),
+#ifndef GCALC_DBUG_OFF
+  n_res_points(0),
+#endif /*GCALC_DBUG_OFF*/
+  m_res_hook((Gcalc_dyn_list::Item **)&m_result),
+  m_first_active_thread(NULL)
+{}
+
+
 void Gcalc_operation_reducer::init(Gcalc_function *fn, modes mode)
 {
   m_fn= fn;

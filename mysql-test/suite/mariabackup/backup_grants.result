@@ -1,0 +1,6 @@
+CREATE user backup@localhost;
+FOUND 1 /missing required privilege RELOAD/ in backup.log
+FOUND 1 /missing required privilege PROCESS/ in backup.log
+FOUND 1 /GRANT USAGE ON/ in backup.log
+GRANT RELOAD, PROCESS on *.* to backup@localhost;
+DROP USER backup@localhost;

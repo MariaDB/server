@@ -26,5 +26,5 @@ partition pn values less than (maxvalue));
 insert t1 set i= 0;
 set statement sql_mode= '' for update t1 set i= 1, v= 2;
 Warnings:
-Warning	1906	The value specified for generated column 'v' in table 't1' ignored
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
 drop table t1;

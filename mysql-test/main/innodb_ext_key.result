@@ -1089,6 +1089,7 @@ from
 t0 A, t0 B, t0 C;
 drop table t0,t1;
 # 
+# 
 # MDEV-10360: Extended keys: index properties depend on index order
 # 
 create table t0 (a int);

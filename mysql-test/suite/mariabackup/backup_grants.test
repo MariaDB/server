@@ -1,0 +1,31 @@
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+CREATE user backup@localhost;
+
+# backup possible for unprivileges user, with --no-lock
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --no-lock  --target-dir=$targetdir;
+--enable_result_log
+rmdir $targetdir;
+
+# backup fails without --no-lock, because of FTWRL
+--disable_result_log
+error 1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+--enable_result_log
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log;
+--let SEARCH_PATTERN=  missing required privilege RELOAD
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=  missing required privilege PROCESS
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= GRANT USAGE ON
+--source include/search_pattern_in_file.inc
+# backup succeeds with RELOAD privilege
+GRANT RELOAD, PROCESS on *.* to backup@localhost;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup -ubackup --target-dir=$targetdir;
+--enable_result_log
+
+DROP USER backup@localhost;
+# Cleanup
+rmdir $targetdir;

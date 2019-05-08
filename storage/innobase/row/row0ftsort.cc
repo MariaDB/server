@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,16 +24,11 @@ Create Full Text Index with (parallel) merge sort
 Created 10/13/2010 Jimmy Yang
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "dict0dict.h"
-#include "row0merge.h"
-#include "pars0pars.h"
 #include "row0ftsort.h"
+#include "dict0dict.h"
 #include "row0merge.h"
 #include "row0row.h"
 #include "btr0cur.h"
-#include "btr0bulk.h"
 #include "fts0plugin.h"
 #include "log0crypt.h"
 
@@ -102,7 +97,7 @@ row_merge_create_fts_sort_index(
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
 	field->col->mtype = charset == &my_charset_latin1
 		? DATA_VARCHAR : DATA_VARMYSQL;
@@ -117,7 +112,7 @@ row_merge_create_fts_sort_index(
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
 	*opt_doc_id_size = FALSE;
 
@@ -151,21 +146,16 @@ row_merge_create_fts_sort_index(
 
 	field->col->prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
 
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
-
 	/* The third field is on the word's position in the original doc */
 	field = dict_index_get_nth_field(new_index, 2);
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
 	field->col->len = 4 ;
 	field->fixed_len = 4;
 	field->col->prtype = DATA_NOT_NULL;
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
 
 	return(new_index);
 }
@@ -905,12 +895,12 @@ loop:
 				     merge_file[t_ctx.buf_used]->offset++,
 				     block[t_ctx.buf_used],
 				     crypt_block[t_ctx.buf_used],
-				     table->space->id)) {
+				     table->space_id)) {
 			error = DB_TEMP_FILE_WRITE_FAIL;
 			goto func_exit;
 		}
 
-		UNIV_MEM_INVALID(block[t_ctx.buf_used][0], srv_sort_buf_size);
+		UNIV_MEM_INVALID(block[t_ctx.buf_used], srv_sort_buf_size);
 		buf[t_ctx.buf_used] = row_merge_buf_empty(buf[t_ctx.buf_used]);
 		mycount[t_ctx.buf_used] += t_ctx.rows_added[t_ctx.buf_used];
 		t_ctx.rows_added[t_ctx.buf_used] = 0;
@@ -999,17 +989,16 @@ exit:
 						merge_file[i]->offset++,
 						block[i],
 						crypt_block[i],
-						table->space->id)) {
+						table->space_id)) {
 					error = DB_TEMP_FILE_WRITE_FAIL;
 					goto func_exit;
 				}
 
-				UNIV_MEM_INVALID(block[i][0],
-						 srv_sort_buf_size);
+				UNIV_MEM_INVALID(block[i], srv_sort_buf_size);
 
 				if (crypt_block[i]) {
-					UNIV_MEM_INVALID(crypt_block[i][0],
-						 srv_sort_buf_size);
+					UNIV_MEM_INVALID(crypt_block[i],
+							 srv_sort_buf_size);
 				}
 			}
 
@@ -1037,7 +1026,7 @@ exit:
 				       psort_info->psort_common->dup,
 				       merge_file[i], block[i], &tmpfd[i],
 				       false, 0.0/* pct_progress */, 0.0/* pct_cost */,
-				       crypt_block[i], table->space->id);
+				       crypt_block[i], table->space_id);
 
 		if (error != DB_SUCCESS) {
 			os_file_close(tmpfd[i]);
@@ -1584,12 +1573,6 @@ row_fts_merge_insert(
 	dict_table_t*		aux_table;
 	dict_index_t*		aux_index;
 	trx_t*			trx;
-	byte			trx_id_buf[6];
-	roll_ptr_t		roll_ptr = 0;
-	dfield_t*		field;
-
-	ut_ad(index);
-	ut_ad(table);
 
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
@@ -1689,7 +1672,7 @@ row_fts_merge_insert(
 	/* Create bulk load instance */
 	ins_ctx.btr_bulk = UT_NEW_NOKEY(
 		BtrBulk(aux_index, trx, psort_info[0].psort_common->trx
-			->flush_observer));
+			->get_flush_observer()));
 
 	/* Create tuple for insert */
 	ins_ctx.tuple = dtuple_create(heap, dict_index_get_n_fields(aux_index));
@@ -1697,17 +1680,14 @@ row_fts_merge_insert(
 			      dict_index_get_n_fields(aux_index));
 
 	/* Set TRX_ID and ROLL_PTR */
-	trx_write_trx_id(trx_id_buf, trx->id);
-	field = dtuple_get_nth_field(ins_ctx.tuple, 2);
-	dfield_set_data(field, &trx_id_buf, 6);
+	dfield_set_data(dtuple_get_nth_field(ins_ctx.tuple, 2),
+			&reset_trx_id, DATA_TRX_ID_LEN);
+	dfield_set_data(dtuple_get_nth_field(ins_ctx.tuple, 3),
+			&reset_trx_id[DATA_TRX_ID_LEN], DATA_ROLL_PTR_LEN);
 
-	field = dtuple_get_nth_field(ins_ctx.tuple, 3);
-	dfield_set_data(field, &roll_ptr, 7);
+	ut_d(ins_ctx.aux_index_id = id);
 
-#ifdef UNIV_DEBUG
-	ins_ctx.aux_index_id = id;
-#endif
-	const ulint space = table->space->id;
+	const ulint space = table->space_id;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		if (psort_info[i].merge_file[id]->n_rec == 0) {
@@ -1824,6 +1804,10 @@ exit:
 
 	if (fts_enable_diag_print) {
 		ib::info() << "InnoDB_FTS: inserted " << count << " records";
+	}
+
+	if (psort_info[0].psort_common->trx->get_flush_observer()) {
+		row_merge_write_redo(aux_index);
 	}
 
 	return(error);

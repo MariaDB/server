@@ -256,6 +256,14 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   bitmap_union(table->read_set, &unique_map);
   /* Tell the engine about the new set. */
   table->file->column_bitmaps_signal();
+
+  if ((error= table->file->ha_index_or_rnd_end()) ||
+      (error= table->file->ha_rnd_init(0)))
+  {
+    table->file->print_error(error, MYF(0));
+    DBUG_VOID_RETURN;
+  }
+
   /* Read record that is identified by table->file->ref. */
   (void) table->file->ha_rnd_pos(table->record[1], table->file->ref);
   /* Copy the newly read columns into the new record. */
@@ -279,7 +287,6 @@ static void prepare_record_for_error_message(int error, TABLE *table)
     order_num		number of elemen in ORDER BY clause
     order		ORDER BY clause list
     limit		limit clause
-    handle_duplicates	how to handle duplicates
 
   RETURN
     0  - OK
@@ -294,8 +301,8 @@ int mysql_update(THD *thd,
 		 List<Item> &values,
                  COND *conds,
                  uint order_num, ORDER *order,
-		 ha_rows limit,
-		 enum enum_duplicates handle_duplicates, bool ignore,
+                 ha_rows limit,
+                 bool ignore,
                  ha_rows *found_return, ha_rows *updated_return)
 {
   bool		using_limit= limit != HA_POS_ERROR;
@@ -355,6 +362,8 @@ int mysql_update(THD *thd,
   }
   if (lock_tables(thd, table_list, table_count, 0))
     DBUG_RETURN(1);
+
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
 
   THD_STAGE_INFO(thd, stage_init_update);
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
@@ -957,6 +966,7 @@ update_begin:
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
+              table->mark_columns_per_binlog_row_image();
               error= vers_insert_history_row(table);
               restore_record(table, record[2]);
             }
@@ -1255,7 +1265,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
   table_list->register_want_access(SELECT_ACL);
 #endif
 
-  thd->lex->allow_sum_func= 0;
+  thd->lex->allow_sum_func.clear_all();
 
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
@@ -1688,6 +1698,7 @@ int mysql_multi_update_prepare(THD *thd)
   {
     DBUG_RETURN(TRUE);
   }
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
   /* @todo: downgrade the metadata locks here. */
 
   /*
@@ -2266,7 +2277,7 @@ multi_update::~multi_update()
   TABLE_LIST *table;
   for (table= update_tables ; table; table= table->next_local)
   {
-    table->table->no_keyread= table->table->no_cache= 0;
+    table->table->no_keyread= 0;
     if (ignore)
       table->table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   }
@@ -2585,7 +2596,7 @@ int multi_update::do_updates()
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
     {
-      if (unlikely((local_error= tbl->file->ha_rnd_init(1))))
+      if (unlikely((local_error= tbl->file->ha_rnd_init(0))))
       {
         err_table= tbl;
         goto err;

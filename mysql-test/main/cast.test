@@ -724,3 +724,9 @@ $$
 DELIMITER ;$$
 
 SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-10307 CAST(11068046444225730969 AS SIGNED) does not return a warning
+--echo #
+
+SELECT CAST(11068046444225730969 AS SIGNED);

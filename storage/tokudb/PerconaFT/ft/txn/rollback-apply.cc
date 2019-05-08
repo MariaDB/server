@@ -230,8 +230,10 @@ int toku_rollback_commit(TOKUTXN txn, LSN lsn) {
 
         //If this transaction needs an fsync (if it commits)
         //save that in the parent.  Since the commit really happens in the root txn.
+        toku_txn_lock(txn->parent);
         txn->parent->force_fsync_on_commit |= txn->force_fsync_on_commit;
         txn->parent->roll_info.num_rollentries       += txn->roll_info.num_rollentries;
+        toku_txn_unlock(txn->parent);
     } else {
         r = apply_txn(txn, lsn, toku_commit_rollback_item);
         assert(r==0);

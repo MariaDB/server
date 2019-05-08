@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 /* C++ standard header files */
@@ -1261,7 +1261,7 @@ private:
 class Rdb_dict_manager {
 private:
   mysql_mutex_t m_mutex;
-  rocksdb::DB *m_db = nullptr;
+  rocksdb::TransactionDB *m_db = nullptr;
   rocksdb::ColumnFamilyHandle *m_system_cfh = nullptr;
   /* Utility to put INDEX_INFO and CF_DEFINITION */
 
@@ -1287,7 +1287,8 @@ public:
   Rdb_dict_manager &operator=(const Rdb_dict_manager &) = delete;
   Rdb_dict_manager() = default;
 
-  bool init(rocksdb::DB *const rdb_dict, Rdb_cf_manager *const cf_manager);
+  bool init(rocksdb::TransactionDB *const rdb_dict,
+            Rdb_cf_manager *const cf_manager);
 
   inline void cleanup() { mysql_mutex_destroy(&m_mutex); }
 
