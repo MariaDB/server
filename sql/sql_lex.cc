@@ -2292,6 +2292,7 @@ void st_select_lex_unit::init_query()
   with_element= 0;
   columns_are_renamed= false;
   intersect_mark= NULL;
+  with_wrapped_tvc= false;
 }
 
 void st_select_lex::init_query()
@@ -3427,6 +3428,19 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
 bool st_select_lex_unit::union_needs_tmp_table()
 {
   if (with_element && with_element->is_recursive)
+    return true;
+  if (!with_wrapped_tvc)
+  {
+    for (st_select_lex *sl= first_select(); sl; sl=sl->next_select())
+    {
+      if (sl->tvc && sl->tvc->to_be_wrapped_as_with_tail())
+      {
+        with_wrapped_tvc= true;
+        break;
+      }
+    }
+  }
+  if (with_wrapped_tvc)
     return true;
   return union_distinct != NULL ||
     global_parameters()->order_list.elements != 0 ||
@@ -8238,6 +8252,8 @@ bool LEX::tvc_finalize()
                                   current_select->options))))
     return true;
   many_values.empty();
+  if (!current_select->master_unit()->fake_select_lex)
+    current_select->master_unit()->add_fake_select_lex(thd);
   return false;
 }
 

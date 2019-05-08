@@ -267,7 +267,7 @@ public:
   Item* build_clone(THD *thd) { return 0; }
   Item* get_copy(THD *thd) { return 0; }
 
-  bool wrap_tvc_in_derived_table(THD *thd, st_select_lex *tvc_sl);
+  bool wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;

@@ -269,7 +269,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   {
     if (sl->tvc)
     {
-      wrap_tvc_in_derived_table(thd, sl);
+      wrap_tvc_into_select(thd, sl);
     }
   }
   

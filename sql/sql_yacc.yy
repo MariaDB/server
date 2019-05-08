@@ -9192,7 +9192,7 @@ select_paren:
           {
             Lex->current_select->set_braces(true);
           }
-          table_value_constructor
+          table_value_constructor select_part3
           {
             DBUG_ASSERT(Lex->current_select->braces);
           }
@@ -9212,6 +9212,12 @@ select_paren:
         | '(' select_paren ')'
         ;
 
+select_parent_union_query_term_proper:
+          SELECT_SYM select_options_and_item_list select_part3_union_query_term
+          opt_select_lock_type
+        | table_value_constructor select_part3_union_query_term
+        ;
+
 select_paren_union_query_term:
           {
             /*
@@ -9220,12 +9226,17 @@ select_paren_union_query_term:
             */
             Lex->current_select->set_braces(true);
           }
-          SELECT_SYM select_options_and_item_list select_part3_union_query_term
-          opt_select_lock_type
+          select_parent_union_query_term_proper
           {
             DBUG_ASSERT(Lex->current_select->braces);
           }
         | '(' select_paren_union_query_term ')'
+        ;
+
+select_parent_view_proper:
+          SELECT_SYM select_options_and_item_list select_part3_view
+          opt_select_lock_type
+        | table_value_constructor select_part3_view
         ;
 
 select_paren_view:
@@ -9236,8 +9247,7 @@ select_paren_view:
             */
             Lex->current_select->set_braces(true);
           }
-          SELECT_SYM select_options_and_item_list select_part3_view
-          opt_select_lock_type
+          select_parent_view_proper
           {
             DBUG_ASSERT(Lex->current_select->braces);
           }

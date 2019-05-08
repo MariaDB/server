@@ -801,6 +801,12 @@ public:
   */
   Item_int *intersect_mark;
   /**
+     TRUE if the unit contained TVC at the top level that has been wrapped
+     into SELECT:
+     VALUES (v1) ... (vn) => SELECT * FROM (VALUES (v1) ... (vn)) as tvc
+  */
+  bool with_wrapped_tvc;
+  /**
     Pointer to 'last' select, or pointer to select where we stored
     global parameters for union.
 
