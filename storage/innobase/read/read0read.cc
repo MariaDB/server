@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -430,8 +431,16 @@ ReadView::copy_trx_ids(const trx_ids_t& trx_ids)
 
 		trx_t*	trx = trx_get_rw_trx_by_id(*it);
 		ut_ad(trx != NULL);
-		ut_ad(trx->state == TRX_STATE_ACTIVE
-		      || trx->state == TRX_STATE_PREPARED);
+		switch (trx->state) {
+		case TRX_STATE_ACTIVE:
+		case TRX_STATE_PREPARED:
+		case TRX_STATE_PREPARED_RECOVERED:
+		case TRX_STATE_COMMITTED_IN_MEMORY:
+			continue;
+		case TRX_STATE_NOT_STARTED:
+			break;
+		}
+		ut_ad(!"invalid state");
 	}
 #endif /* UNIV_DEBUG */
 }
