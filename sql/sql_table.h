@@ -140,6 +140,8 @@ static const uint NO_HA_TABLE=     1 << 4;
 static const uint SKIP_SYMDIR_ACCESS= 1 << 5;
 /** Don't check foreign key constraints while renaming table */
 static const uint NO_FK_CHECKS=    1 << 6;
+/* Don't delete .par table in quick_rm_table() */
+static const uint NO_PAR_TABLE=   1 << 7;
 
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);

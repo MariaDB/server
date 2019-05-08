@@ -72,7 +72,8 @@
 #define PAR_ENGINES_OFFSET 12
 #define PARTITION_ENABLED_TABLE_FLAGS (HA_FILE_BASED | \
                                        HA_REC_NOT_IN_SEQ | \
-                                       HA_CAN_REPAIR)
+                                       HA_CAN_REPAIR | \
+                                       HA_REUSES_FILE_NAMES)
 #define PARTITION_DISABLED_TABLE_FLAGS (HA_CAN_GEOMETRY | \
                                         HA_DUPLICATE_POS | \
                                         HA_CAN_INSERT_DELAYED | \
