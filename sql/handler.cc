@@ -5634,6 +5634,8 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
     error= ext_table_discovery_simple(dirp, result) ||
            plugin_foreach(thd, discover_names,
                             MYSQL_STORAGE_ENGINE_PLUGIN, &args);
+    if (args.possible_duplicates > 0)
+      result->remove_duplicates();
   }
   else
   {
