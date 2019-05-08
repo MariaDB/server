@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,17 +70,6 @@ typedef std::set<
 	table_id_t,
 	std::less<table_id_t>,
 	ut_allocator<table_id_t> >	table_id_set;
-
-/** Set flush observer for the transaction
-@param[in/out]	trx		transaction struct
-@param[in]	observer	flush observer */
-void
-trx_set_flush_observer(
-	trx_t*		trx,
-	FlushObserver*	observer)
-{
-	trx->flush_observer = observer;
-}
 
 /*************************************************************//**
 Set detailed error message for the transaction. */
@@ -172,7 +161,7 @@ trx_init(
 
 	trx->lock.table_cached = 0;
 
-	trx->flush_observer = NULL;
+	ut_ad(trx->get_flush_observer() == NULL);
 }
 
 /** For managing the life-cycle of the trx_t instance that we get
@@ -477,6 +466,7 @@ trx_free_at_shutdown(trx_t *trx)
 {
 	ut_ad(trx->is_recovered);
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
+	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		 && (!srv_was_started
 		     || srv_operation == SRV_OPERATION_RESTORE
@@ -863,6 +853,21 @@ static trx_rseg_t* trx_assign_rseg_low()
 	ut_ad(rseg->trx_ref_count > 0);
 	ut_ad(rseg->is_persistent());
 	return(rseg);
+}
+
+/** Set the innodb_log_optimize_ddl page flush observer
+@param[in,out]	space	tablespace
+@param[in,out]	stage	performance_schema accounting */
+void trx_t::set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage)
+{
+	flush_observer = UT_NEW_NOKEY(FlushObserver(space, this, stage));
+}
+
+/** Remove the flush observer */
+void trx_t::remove_flush_observer()
+{
+	UT_DELETE(flush_observer);
+	flush_observer = NULL;
 }
 
 /** Assign a rollback segment for modifying temporary tables.
@@ -1482,7 +1487,8 @@ void trx_commit_low(trx_t* trx, mtr_t* mtr)
 
 		DBUG_EXECUTE_IF("ib_crash_during_trx_commit_in_mem",
 				if (trx->has_logged()) {
-					log_make_checkpoint_at(LSN_MAX, TRUE);
+					log_write_up_to(mtr->commit_lsn(),
+							true);
 					DBUG_SUICIDE();
 				});
 		/*--------------*/
@@ -1547,7 +1553,7 @@ trx_commit_or_rollback_prepare(
 
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
-
+	case TRX_STATE_PREPARED_RECOVERED:
 		/* If the trx is in a lock wait state, moves the waiting
 		query thread to the suspended state */
 
@@ -1658,7 +1664,7 @@ trx_commit_for_mysql(
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
-
+	case TRX_STATE_PREPARED_RECOVERED:
 		trx->op_info = "committing";
 
 		trx_commit(trx);
@@ -1704,6 +1710,7 @@ trx_mark_sql_stat_end(
 
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	case TRX_STATE_NOT_STARTED:
@@ -1758,6 +1765,7 @@ trx_print_low(
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		fprintf(f, ", ACTIVE (PREPARED) %lu sec",
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
@@ -2037,6 +2045,7 @@ struct trx_recover_for_mysql_callback_arg
 static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
   trx_recover_for_mysql_callback_arg *arg)
 {
+  DBUG_ASSERT(arg->len > 0);
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
@@ -2048,17 +2057,38 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
     if (trx_state_eq(trx, TRX_STATE_PREPARED))
     {
       ut_ad(trx->is_recovered);
+      ut_ad(trx->id);
       if (arg->count == 0)
         ib::info() << "Starting recovery for XA transactions...";
-      ib::info() << "Transaction " << trx_get_id_for_print(trx)
-                 << " in prepared state after recovery";
-      ib::info() << "Transaction contains changes to " << trx->undo_no
-                 << " rows";
-      arg->xid_list[arg->count++]= *trx->xid;
+      XID& xid= arg->xid_list[arg->count];
+      if (arg->count++ < arg->len)
+      {
+        trx->state= TRX_STATE_PREPARED_RECOVERED;
+        ib::info() << "Transaction " << trx->id
+                   << " in prepared state after recovery";
+        ib::info() << "Transaction contains changes to " << trx->undo_no
+                   << " rows";
+        xid= *trx->xid;
+      }
     }
   }
   mutex_exit(&element->mutex);
-  return arg->count == arg->len;
+  /* Do not terminate upon reaching arg->len; count all transactions */
+  return false;
+}
+
+
+static my_bool trx_recover_reset_callback(rw_trx_hash_element_t *element,
+  void*)
+{
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    if (trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED))
+      trx->state= TRX_STATE_PREPARED;
+  }
+  mutex_exit(&element->mutex);
+  return false;
 }
 
 
@@ -2082,9 +2112,18 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
   trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
                                       (trx_recover_for_mysql_callback), &arg);
   if (arg.count)
+  {
     ib::info() << arg.count
-               << " transactions in prepared state after recovery";
-  return int(arg.count);
+        << " transactions in prepared state after recovery";
+    /* After returning the full list, reset the state, because
+    init_server_components() wants to recover the collection of
+    transactions twice, by first calling tc_log->open() and then
+    ha_recover() directly. */
+    if (arg.count <= len)
+      trx_sys.rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
+                                  (trx_recover_reset_callback), NULL);
+  }
+  return int(std::min(arg.count, len));
 }
 
 
@@ -2102,9 +2141,17 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_PREPARED) &&
+    if (trx->is_recovered &&
+	(trx_state_eq(trx, TRX_STATE_PREPARED) ||
+	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
         arg->xid->eq(reinterpret_cast<XID*>(trx->xid)))
     {
+#ifdef WITH_WSREP
+      /* The commit of a prepared recovered Galera
+      transaction needs a valid trx->xid for
+      invoking trx_sys_update_wsrep_checkpoint(). */
+      if (!wsrep_is_wsrep_xid(trx->xid))
+#endif
       /* Invalidate the XID, so that subsequent calls will not find it. */
       trx->xid->null();
       arg->trx= trx;
@@ -2162,6 +2209,7 @@ trx_start_if_not_started_xa_low(
 		}
 		return;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}
@@ -2189,6 +2237,7 @@ trx_start_if_not_started_low(
 		return;
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}
@@ -2255,6 +2304,7 @@ trx_start_for_ddl_low(
 
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}

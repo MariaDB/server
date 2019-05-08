@@ -109,10 +109,14 @@ extern struct wsrep_service_st {
   bool                        (*wsrep_thd_ignore_table_func)(THD *thd);
   long long                   (*wsrep_thd_trx_seqno_func)(THD *thd);
   struct wsrep_ws_handle *    (*wsrep_thd_ws_handle_func)(THD *thd);
+  void                        (*wsrep_thd_auto_increment_variables_func)(THD *thd, unsigned long long *offset, unsigned long long *increment);
+  void                        (*wsrep_set_load_multi_commit_func)(THD *thd, bool split);
+  bool                        (*wsrep_is_load_multi_commit_func)(THD *thd);
   int                         (*wsrep_trx_is_aborting_func)(MYSQL_THD thd);
   int                         (*wsrep_trx_order_before_func)(MYSQL_THD, MYSQL_THD);
   void                        (*wsrep_unlock_rollback_func)();
   void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
+  my_bool                     (*wsrep_thd_is_applier_func)(MYSQL_THD);
 } *wsrep_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -153,10 +157,14 @@ extern struct wsrep_service_st {
 #define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
 #define wsrep_thd_trx_seqno(T) wsrep_service->wsrep_thd_trx_seqno_func(T)
 #define wsrep_thd_ws_handle(T) wsrep_service->wsrep_thd_ws_handle_func(T)
+#define wsrep_thd_auto_increment_variables(T,O,I) wsrep_service->wsrep_thd_auto_increment_variables_func(T,O,I)
+#define wsrep_set_load_multi_commit(T,S) wsrep_service->wsrep_set_load_multi_commit_func(T,S)
+#define wsrep_is_load_multi_commit(T) wsrep_service->wsrep_is_load_multi_commit_func(T)
 #define wsrep_trx_is_aborting(T) wsrep_service->wsrep_trx_is_aborting_func(T)
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
 #define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
+#define wsrep_thd_is_applier(T) wsrep_service->wsrep_thd_is_applier_func(T)
 
 #define wsrep_debug get_wsrep_debug()
 #define wsrep_log_conflicts get_wsrep_log_conflicts()
@@ -207,6 +215,9 @@ my_bool wsrep_thd_is_BF(MYSQL_THD thd, my_bool sync);
 my_bool wsrep_thd_is_wsrep(MYSQL_THD thd);
 struct wsrep *get_wsrep();
 struct wsrep_ws_handle *wsrep_thd_ws_handle(THD *thd);
+void wsrep_thd_auto_increment_variables(THD *thd, unsigned long long *offset, unsigned long long *increment);
+void wsrep_set_load_multi_commit(THD *thd, bool split);
+bool wsrep_is_load_multi_commit(THD *thd);
 void wsrep_aborting_thd_enqueue(THD *thd);
 void wsrep_lock_rollback();
 void wsrep_post_commit(THD* thd, bool all);
@@ -217,7 +228,7 @@ void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state);
 bool wsrep_thd_ignore_table(THD *thd);
 void wsrep_unlock_rollback();
 void wsrep_set_data_home_dir(const char *data_dir);
-
+my_bool wsrep_thd_is_applier(MYSQL_THD thd);
 #endif
 
 #ifdef __cplusplus

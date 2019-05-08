@@ -241,7 +241,6 @@ struct SplM_plan_info;
 class SplM_opt_info;
 
 typedef struct st_join_table {
-  st_join_table() {}
   TABLE		*table;
   TABLE_LIST    *tab_list;
   KEYUSE	*keyuse;			/**< pointer to first used key */
@@ -659,7 +658,8 @@ typedef struct st_join_table {
   void add_keyuses_for_splitting();
   SplM_plan_info *choose_best_splitting(double record_count,
                                         table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+                     bool is_const_table);
 } JOIN_TAB;
 
 
@@ -2133,9 +2133,9 @@ public:
   static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *, THD *) throw(){}
 
-  Virtual_tmp_table(THD *thd)
+  Virtual_tmp_table(THD *thd) : m_alloced_field_count(0)
   {
-    bzero(this, sizeof(*this));
+    reset();
     temp_pool_slot= MY_BIT_NONE;
     in_use= thd;
     copy_blobs= true;

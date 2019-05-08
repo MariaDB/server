@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3445,6 +3445,29 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
         DBUG_RETURN(1);
       else
         goto end;
+    }
+  }
+
+  if (!tables->derived && is_infoschema_db(&tables->db))
+  {
+    /*
+      Check whether the information schema contains a table
+      whose name is tables->schema_table_name
+    */
+    ST_SCHEMA_TABLE *schema_table;
+    schema_table= find_schema_table(thd, &tables->schema_table_name);
+    if (!schema_table ||
+        (schema_table->hidden &&
+         ((sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0 ||
+          /*
+            this check is used for show columns|keys from I_S hidden table
+          */
+          lex->sql_command == SQLCOM_SHOW_FIELDS ||
+          lex->sql_command == SQLCOM_SHOW_KEYS)))
+    {
+      my_error(ER_UNKNOWN_TABLE, MYF(0),
+               tables->schema_table_name.str, INFORMATION_SCHEMA_NAME.str);
+      DBUG_RETURN(1);
     }
   }
   /*

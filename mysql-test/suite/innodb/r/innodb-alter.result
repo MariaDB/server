@@ -439,15 +439,15 @@ tt	CREATE TABLE `tt` (
   FULLTEXT KEY `ct` (`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 CREATE TABLE tu (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
 ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
 DROP TABLE tu;
 CREATE TABLE tv (
@@ -456,7 +456,7 @@ UNIQUE INDEX FTS_DOC_ID_INDEX(FTS_DOC_ID),
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
 ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
 DROP TABLE tv;
 ALTER TABLE t1o CHANGE c1 dB_row_Id INT, ALGORITHM=COPY;
@@ -498,8 +498,6 @@ ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
 ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
-ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL;
 ALTER TABLE t1o DROP COLUMN FTS_DOC_ID, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try ALGORITHM=COPY
 ALTER TABLE t1o DROP COLUMN FTS_DOC_ID;
@@ -515,7 +513,7 @@ ERROR 42000: Incorrect column name 'FTS_DOC_ID'
 ALTER TABLE t1o ADD FULLTEXT INDEX(ct),
 CHANGE c1 FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 CREATE TABLE t1n LIKE t1o;
 ALTER TABLE t1n ADD FULLTEXT INDEX(ct);
 ALTER TABLE t1n CHANGE c1 Fts_DOC_ID INT, ALGORITHM=INPLACE;
@@ -588,7 +586,7 @@ t1n	CREATE TABLE `t1n` (
 DROP TABLE t1n;
 ALTER TABLE t1o MODIFY c1 BIGINT UNSIGNED NOT NULL, DROP INDEX ct,
 ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 ALTER TABLE t1o MODIFY c1 BIGINT UNSIGNED NOT NULL, DROP INDEX ct;
 ALTER TABLE t1o CHANGE c1 FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
@@ -879,6 +877,27 @@ NAME
 a
 b
 DROP TABLE t1;
+# and an MDEV-18041 regression related to indexes prefixes
+create table `test` (
+`test_old` varchar(255) NOT NULL,
+`other` varchar(255) NOT NULL,
+PRIMARY KEY (`test_old`,`other`),
+UNIQUE KEY uk (`test_old`(100), `other`)
+) ENGINE=InnoDB;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+name	pos
+test_old	0
+other	1
+test_old	0
+other	1
+alter table `test` CHANGE COLUMN `test_old` `test_new` varchar(255) NOT NULL;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+name	pos
+test_new	0
+other	1
+test_new	0
+other	1
+drop table `test`;
 #
 # BUG 20029625 - HANDLE_FATAL_SIGNAL (SIG=11) IN
 #                DICT_MEM_TABLE_COL_RENAME_LOW

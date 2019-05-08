@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -39,10 +39,6 @@ Created 1/20/1994 Heikki Tuuri
 #define _IB_TO_STR(s)	#s
 #define IB_TO_STR(s)	_IB_TO_STR(s)
 
-#define INNODB_VERSION_MAJOR	5
-#define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	24
-
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
 calculated in make_version_string() in sql/sql_show.cc like this:
@@ -56,8 +52,6 @@ component, i.e. we show M.N.P as M.N */
 	IB_TO_STR(MYSQL_VERSION_MAJOR) "."	\
 	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
 	IB_TO_STR(MYSQL_VERSION_PATCH)
-
-#define REFMAN "http://dev.mysql.com/doc/refman/5.7/en/"
 
 /** How far ahead should we tell the service manager the timeout
 (time in seconds) */
@@ -209,9 +203,6 @@ using the call command. */
 this will break redo log file compatibility, but it may be useful when
 debugging redo log application problems. */
 #define UNIV_IBUF_DEBUG				/* debug the insert buffer */
-#define UNIV_IBUF_COUNT_DEBUG			/* debug the insert buffer;
-this limits the database to IBUF_COUNT_N_SPACES and IBUF_COUNT_N_PAGES,
-and the insert buffer must be empty when the database is started */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance
                                                 related stuff. */
@@ -590,12 +581,14 @@ typedef void* os_thread_ret_t;
 #include "ut0ut.h"
 #include "sync0types.h"
 
+#include <my_valgrind.h>
+/* define UNIV macros in terms of my_valgrind.h */
+#define UNIV_MEM_INVALID(addr, size) 	MEM_UNDEFINED(addr, size)
+#define UNIV_MEM_FREE(addr, size) 	MEM_NOACCESS(addr, size)
+#define UNIV_MEM_ALLOC(addr, size) 	UNIV_MEM_INVALID(addr, size)
 #ifdef UNIV_DEBUG_VALGRIND
 # include <valgrind/memcheck.h>
 # define UNIV_MEM_VALID(addr, size) VALGRIND_MAKE_MEM_DEFINED(addr, size)
-# define UNIV_MEM_INVALID(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
-# define UNIV_MEM_FREE(addr, size) VALGRIND_MAKE_MEM_NOACCESS(addr, size)
-# define UNIV_MEM_ALLOC(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
 # define UNIV_MEM_DESC(addr, size) VALGRIND_CREATE_BLOCK(addr, size, #addr)
 # define UNIV_MEM_UNDESC(b) VALGRIND_DISCARD(b)
 # define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {		\
@@ -630,9 +623,6 @@ typedef void* os_thread_ret_t;
 	} while (0)
 #else
 # define UNIV_MEM_VALID(addr, size) do {} while(0)
-# define UNIV_MEM_INVALID(addr, size) do {} while(0)
-# define UNIV_MEM_FREE(addr, size) do {} while(0)
-# define UNIV_MEM_ALLOC(addr, size) do {} while(0)
 # define UNIV_MEM_DESC(addr, size) do {} while(0)
 # define UNIV_MEM_UNDESC(b) do {} while(0)
 # define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {} while(0)

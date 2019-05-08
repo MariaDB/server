@@ -1667,7 +1667,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 		int     j = 0, n = args->attribute_lengths[i];
 		my_bool b;  // true if attribute is zero terminated
 		PSZ     p;
-                const char *s = args->attributes[i];
+		PCSZ    s = args->attributes[i];
 
 		if (s && *s && (n || *s == '\'')) {
 			if ((b = (!n || !s[n])))
@@ -3056,7 +3056,7 @@ my_bool json_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-  PlugSubSet(g, g->Sarea, g->Sarea_Size);
+  PlugSubSet(g->Sarea, g->Sarea_Size);
 	g->Activityp = (PACTIVITY)JsonNew(g, TYPE_JAR);
   g->N = (int)n;
   return false;
@@ -3099,7 +3099,7 @@ void json_array_grp_clear(UDF_INIT *initid, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-  PlugSubSet(g, g->Sarea, g->Sarea_Size);
+  PlugSubSet(g->Sarea, g->Sarea_Size);
 	g->Activityp = (PACTIVITY)JsonNew(g, TYPE_JAR);
 	g->N = GetJsonGroupSize();
 } // end of json_array_grp_clear
@@ -3133,7 +3133,7 @@ my_bool json_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-  PlugSubSet(g, g->Sarea, g->Sarea_Size);
+  PlugSubSet(g->Sarea, g->Sarea_Size);
   g->Activityp = (PACTIVITY)JsonNew(g, TYPE_JOB);
   g->N = (int)n;
   return false;
@@ -3170,7 +3170,7 @@ void json_object_grp_clear(UDF_INIT *initid, char*, char*)
 {
   PGLOBAL g = (PGLOBAL)initid->ptr;
 
-  PlugSubSet(g, g->Sarea, g->Sarea_Size);
+  PlugSubSet(g->Sarea, g->Sarea_Size);
 	g->Activityp = (PACTIVITY)JsonNew(g, TYPE_JOB);
 	g->N = GetJsonGroupSize();
 } // end of json_object_grp_clear
@@ -4419,7 +4419,7 @@ char *json_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
-	PlugSubSet(g, g->Sarea, g->Sarea_Size);
+	PlugSubSet(g->Sarea, g->Sarea_Size);
 	fn = MakePSZ(g, args, 0);
 
 	if (args->arg_count > 1) {
@@ -5663,7 +5663,7 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (bsp && !bsp->Changed)
 		goto fin;
 
-	PlugSubSet(g, g->Sarea, g->Sarea_Size);
+	PlugSubSet(g->Sarea, g->Sarea_Size);
 	g->Xchk = NULL;
 	fn = MakePSZ(g, args, 0);
 	pretty = (args->arg_count > 2 && args->args[2]) ? (int)*(longlong*)args->args[2] : 3;
@@ -5805,6 +5805,52 @@ char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	return str;
 } // end of envar
+
+#if defined(DEVELOPMENT)
+extern char *GetUserVariable(PGLOBAL g, const uchar *varname);
+
+/*********************************************************************************/
+/*  Utility function returning a user variable value.                            */
+/*********************************************************************************/
+my_bool uvar_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count != 1) {
+		strcpy(message, "Unique argument must be a user variable name");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen, true);
+
+	initid->maybe_null = true;
+	return JsonInit(initid, args, message, true, reslen, memlen, 2048);
+} // end of uvar_init
+
+char *uvar(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *)
+{
+	char   *str, varname[256];
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	int     n = MY_MIN(args->lengths[0], sizeof(varname) - 1);
+
+	PlugSubSet(g->Sarea, g->Sarea_Size);
+	memcpy(varname, args->args[0], n);
+	varname[n] = 0;
+
+	if (!(str = GetUserVariable(g, (const uchar*)&varname))) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = strlen(str);
+
+	return str;
+} // end of uvar
+
+void uvar_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of uvar_deinit
+#endif   // DEVELOPMENT
 
 /*********************************************************************************/
 /*  Returns the distinct number of B occurences in A.                            */

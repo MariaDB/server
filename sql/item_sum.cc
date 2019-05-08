@@ -2046,6 +2046,18 @@ double Item_sum_std::val_real()
 {
   DBUG_ASSERT(fixed == 1);
   double nr= Item_sum_variance::val_real();
+  if (std::isnan(nr))
+  {
+    /*
+      variance_fp_recurrence_next() can overflow in some cases and return "nan":
+
+      CREATE OR REPLACE TABLE t1 (a DOUBLE);
+      INSERT INTO t1 VALUES (1.7e+308), (-1.7e+308), (0);
+      SELECT STDDEV_SAMP(a) FROM t1;
+    */
+    null_value= true; // Convert "nan" to NULL
+    return 0;
+  }
   if (std::isinf(nr))
     return DBL_MAX;
   DBUG_ASSERT(nr >= 0.0);
@@ -2093,8 +2105,9 @@ static void variance_fp_recurrence_next(double *m, double *s, ulonglong *count, 
   else
   {
     double m_kminusone= *m;
-    *m= m_kminusone + (nr - m_kminusone) / (double) *count;
-    *s= *s + (nr - m_kminusone) * (nr - *m);
+    volatile double diff= nr - m_kminusone;
+    *m= m_kminusone + diff / (double) *count;
+    *s= *s + diff * (nr - *m);
   }
 }
 
@@ -4159,7 +4172,19 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
   }
   str->append(STRING_WITH_LEN(" separator \'"));
   str->append_for_single_quote(separator->ptr(), separator->length());
-  str->append(STRING_WITH_LEN("\')"));
+  str->append(STRING_WITH_LEN("\'"));
+
+  if (limit_clause)
+  {
+    str->append(STRING_WITH_LEN(" limit "));
+    if (offset_limit)
+    {
+      offset_limit->print(str, query_type);
+      str->append(',');
+    }
+    row_limit->print(str, query_type);
+  }
+  str->append(STRING_WITH_LEN(")"));
 }
 
 

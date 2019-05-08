@@ -26,6 +26,7 @@ class Relay_log_info;
 
 class Format_description_log_event;
 
+bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream);
 void setup_log_handling();
 bool trans_has_updated_trans_table(const THD* thd);
 bool stmt_has_updated_trans_table(const THD *thd);

@@ -263,7 +263,7 @@ TruncateLogParser::scan(
 	while (fil_file_readdir_next_file(
 			&err, dir_path, dir, &fileinfo) == 0) {
 
-		ulint nm_len = strlen(fileinfo.name);
+		const size_t nm_len = strlen(fileinfo.name);
 
 		if (fileinfo.type == OS_FILE_TYPE_FILE
 		    && nm_len > sizeof "ib_trunc.log"
@@ -286,18 +286,13 @@ TruncateLogParser::scan(
 				err = DB_OUT_OF_MEMORY;
 				break;
 			}
-			memset(log_file_name, 0, sz);
 
-			strncpy(log_file_name, dir_path, dir_len);
-			ulint	log_file_name_len = strlen(log_file_name);
-			if (log_file_name[log_file_name_len - 1]
-				!= OS_PATH_SEPARATOR) {
-
-				log_file_name[log_file_name_len]
-					= OS_PATH_SEPARATOR;
-				log_file_name_len = strlen(log_file_name);
+			memcpy(log_file_name, dir_path, dir_len);
+			char* e = log_file_name + dir_len;
+			if (e[-1] != OS_PATH_SEPARATOR) {
+				*e++ = OS_PATH_SEPARATOR;
 			}
-			strcat(log_file_name, fileinfo.name);
+			strcpy(e, fileinfo.name);
 			log_files.push_back(log_file_name);
 		}
 	}
@@ -1194,7 +1189,7 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 
 	if (err == DB_SUCCESS && s_tables.size() > 0) {
 
-		log_make_checkpoint_at(LSN_MAX, TRUE);
+		log_make_checkpoint_at(LSN_MAX);
 	}
 
 	for (ulint i = 0; i < s_tables.size(); ++i) {

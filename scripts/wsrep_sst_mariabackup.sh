@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
-# Copyright (C) 2017 MariaDB
+# Copyright (C) 2017-2019 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 
 . $(dirname $0)/wsrep_sst_common
 
+OS=$(uname)
 ealgo=""
 ekey=""
 ekeyfile=""
@@ -82,7 +83,7 @@ fi
 pcmd="pv $pvopts"
 declare -a RC
 
-INNOBACKUPEX_BIN=mariabackup
+INNOBACKUPEX_BIN=$(which mariabackup)
 XBSTREAM_BIN=mbstream
 XBCRYPT_BIN=xbcrypt # Not available in MariaBackup
 
@@ -90,6 +91,9 @@ DATA="${WSREP_SST_OPT_DATA}"
 INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
 MAGIC_FILE="${DATA}/${INFO_FILE}"
+INNOAPPLYLOG="${DATA}/mariabackup.prepare.log"
+INNOMOVELOG="${DATA}/mariabackup.move.log"
+INNOBACKUPLOG="${DATA}/mariabackup.backup.log"
 
 # Setting the path for ss and ip
 export PATH="/usr/sbin:/sbin:$PATH"
@@ -327,6 +331,7 @@ read_cnf()
     rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
     cpat=$(parse_cnf sst cpat '.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
+    [[ $OS == "FreeBSD" ]] && cpat=$(parse_cnf sst cpat '.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
     ealgo=$(parse_cnf xtrabackup encrypt "")
     ekey=$(parse_cnf xtrabackup encrypt-key "")
     ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
@@ -350,6 +355,8 @@ read_cnf()
     ssyslog=$(parse_cnf sst sst-syslog 0)
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag+="-"
+    sstlogarchive=$(parse_cnf sst sst-log-archive 1)
+    sstlogarchivedir=$(parse_cnf sst sst-log-archive-dir "/tmp/sst_log_archive")
 
     if [[ $speciald -eq 0 ]];then 
         wsrep_log_error "sst-special-dirs equal to 0 is not supported, falling back to 1"
@@ -509,12 +516,24 @@ kill_xtrabackup()
 setup_ports()
 {
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
-        SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
-        REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-        lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
-        sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
+        if [ "${WSREP_SST_OPT_ADDR#\[}" != "$WSREP_SST_OPT_ADDR" ]; then
+            remain=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\][:/]' '{ print $2 }')
+            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\]:' '{ print $1 }')"]"
+            SST_PORT=$(echo $remain | awk -F '[:/]' '{ print $1 }')
+            lsn=$(echo $remain | awk -F '[:/]' '{ print $3 }')
+            sst_ver=$(echo $remain | awk -F '[:/]' '{ print $4 }')
+        else
+            SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
+            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
+            lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
+            sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
+        fi
     else
-        SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
+        if [ "${WSREP_SST_OPT_ADDR#\[}" != "$WSREP_SST_OPT_ADDR" ]; then
+            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F '\\]:' '{ print $2 }')
+        else
+            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
+        fi
     fi
 }
 
@@ -527,7 +546,11 @@ wait_for_listen()
     local MODULE=$3
     for i in {1..50}
     do
-        ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+	if [ "$OS" = "FreeBSD" ];then
+            sockstat -46lp $PORT | grep -qE "^[^ ]* *(socat|nc) *[^ ]* *[^ ]* *[^ ]* *[^ ]*:$PORT" && break
+        else
+            ss -p state listening "( sport = :$PORT )" | grep -qE 'socat|nc' && break
+        fi
         sleep 0.2
     done
     echo "ready ${ADDR}/${MODULE}//$sst_ver"
@@ -639,13 +662,12 @@ monitor_process()
 
     while true ; do
 
-        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+        if ! ps -p "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
             wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
-            kill -- -"${WSREP_SST_OPT_PARENT}"
             exit 32
         fi
 
-        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+        if ! ps -p "${sst_stream_pid}" &>/dev/null; then
             break
         fi
 
@@ -685,10 +707,7 @@ if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
 fi
 # if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
-fi
-if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir "")
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
 fi
 if [ ! -z "$INNODB_DATA_HOME_DIR" ]; then
    INNOEXTRA+=" --innodb-data-home-dir=$INNODB_DATA_HOME_DIR"
@@ -727,10 +746,68 @@ if [[ $ssyslog -eq 1 ]];then
         INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
-else 
-    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
-    INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
-    INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
+else
+
+if [[ "$sstlogarchive" -eq 1 ]]
+then
+    ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S.%N")
+    newfile=""
+
+    if [[ ! -z "$sstlogarchivedir" ]]
+    then
+        if [[ ! -d "$sstlogarchivedir" ]]
+        then
+            mkdir -p "$sstlogarchivedir"
+        fi
+    fi
+
+    if [ -e "${INNOAPPLYLOG}" ]
+    then
+        if [[ ! -z "$sstlogarchivedir" ]]
+        then
+            newfile=$sstlogarchivedir/$(basename "${INNOAPPLYLOG}").${ARCHIVETIMESTAMP}
+        else
+            newfile=${INNOAPPLYLOG}.${ARCHIVETIMESTAMP}
+        fi
+   
+        wsrep_log_info "Moving ${INNOAPPLYLOG} to ${newfile}"
+        mv "${INNOAPPLYLOG}" "${newfile}"
+        gzip "${newfile}"
+    fi
+
+    if [ -e "${INNOMOVELOG}" ]
+    then
+        if [[ ! -z "$sstlogarchivedir" ]]
+        then
+            newfile=$sstlogarchivedir/$(basename "${INNOMOVELOG}").${ARCHIVETIMESTAMP}
+        else
+            newfile=${INNOMOVELOG}.${ARCHIVETIMESTAMP}
+        fi
+
+        wsrep_log_info "Moving ${INNOMOVELOG} to ${newfile}"
+        mv "${INNOMOVELOG}" "${newfile}"
+        gzip "${newfile}"
+    fi
+
+    if [ -e "${INNOBACKUPLOG}" ]
+    then
+        if [[ ! -z "$sstlogarchivedir" ]]
+        then
+            newfile=$sstlogarchivedir/$(basename "${INNOBACKUPLOG}").${ARCHIVETIMESTAMP}
+        else
+            newfile=${INNOBACKUPLOG}.${ARCHIVETIMESTAMP}
+        fi
+
+        wsrep_log_info "Moving ${INNOBACKUPLOG} to ${newfile}"
+        mv "${INNOBACKUPLOG}" "${newfile}"
+        gzip "${newfile}"
+    fi
+
+fi
+ 
+    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &> ${INNOAPPLYLOG}"
+    INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &> ${INNOMOVELOG}"
+    INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> ${INNOBACKUPLOG}"
 fi
 
 get_stream
@@ -749,7 +826,7 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -827,7 +904,7 @@ then
 
         if [ ${RC[0]} -ne 0 ]; then
           wsrep_log_error "${INNOBACKUPEX_BIN} finished with error: ${RC[0]}. " \
-                          "Check ${DATA}/innobackup.backup.log"
+                          "Check syslog or ${INNOBACKUPLOG} for details"
           exit 22
         elif [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]];then 
           wsrep_log_error "$tcmd finished with error: ${RC[1]}"
@@ -872,8 +949,8 @@ then
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
     ib_home_dir=$INNODB_DATA_HOME_DIR
-    ib_log_dir=$(parse_cnf mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf mysqld innodb-undo-directory "")
+    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
 
     stagemsg="Joiner-Recv"
 
@@ -892,7 +969,11 @@ then
     if [ -z "${SST_PORT}" ]
     then
         SST_PORT=4444
-        ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $1 }'):${SST_PORT}"
+        if [ "${ADDR#\[}" != "$ADDR" ]; then
+            ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F '\\]:' '{ print $1 }')]:${SST_PORT}"
+        else
+            ADDR="$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $1 }'):${SST_PORT}"
+        fi
     fi
 
     wait_for_listen ${SST_PORT} ${ADDR} ${MODULE} &
@@ -939,11 +1020,14 @@ then
         jpid=$!
         wsrep_log_info "Proceeding with SST"
 
-
         wsrep_log_info "Cleaning the existing datadir and innodb-data/log directories"
-        find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1  -regex $cpat  -prune  -o -exec rm -rfv {} 1>&2 \+
+	if [ "${OS}" = "FreeBSD" ]; then
+            find -E $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+        else
+            find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
+	fi
 
-        tempdir=$(parse_cnf mysqld log-bin "")
+        tempdir=$(parse_cnf --mysqld log-bin "")
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)
@@ -1048,13 +1132,12 @@ then
 
         if [ $? -ne 0 ];
         then
-            wsrep_log_error "${INNOBACKUPEX_BIN} apply finished with errors. Check ${DATA}/innobackup.prepare.log" 
+            wsrep_log_error "${INNOBACKUPEX_BIN} apply finished with errors. Check syslog or ${INNOAPPLYLOG} for details" 
             exit 22
         fi
 
         MAGIC_FILE="${TDATA}/${INFO_FILE}"
         set +e
-        rm $TDATA/innobackup.prepare.log $TDATA/innobackup.move.log
         set -e
         wsrep_log_info "Moving the backup to ${TDATA}"
         timeit "Xtrabackup move stage" "$INNOMOVE"
@@ -1064,7 +1147,7 @@ then
             DATA=${TDATA}
         else 
             wsrep_log_error "Move failed, keeping ${DATA} for further diagnosis"
-            wsrep_log_error "Check ${DATA}/innobackup.move.log for details"
+            wsrep_log_error "Check syslog or ${INNOMOVELOG} for details"
             exit 22
         fi
 

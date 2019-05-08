@@ -19,9 +19,26 @@ sub convert_to_mariadb_101
     {
 	warn "$file: changing $flags to $badflags\n";
 	substr ($_, 54, 4) = pack("N", $badflags);
-	# Replace the innodb_checksum_algorithm=none checksum
-	substr ($_, 0, 4) = pack("N", 0xdeadbeef);
-	substr ($_, $page_size - 8, 4) = pack("N", 0xdeadbeef);
+	# Compute and replace the innodb_checksum_algorithm=crc32 checksum
+	my $polynomial = 0x82f63b78; # CRC-32C
+	if ($page_size == 1024)
+	{
+	    # ROW_FORMAT=COMPRESSED
+	    substr($_,0,4)=pack("N",
+				mycrc32(substr($_, 4, 12), 0, $polynomial) ^
+				mycrc32(substr($_, 24, 2), 0, $polynomial) ^
+				mycrc32(substr($_, 34, $page_size - 34), 0,
+					$polynomial));
+	}
+	else
+	{
+	    my $ck=pack("N",
+			mycrc32(substr($_, 4, 22), 0, $polynomial) ^
+			mycrc32(substr($_, 38, $page_size - 38 - 8), 0,
+				$polynomial));
+	    substr($_, 0, 4) = $ck;
+	    substr ($_, $page_size - 8, 4) = $ck;
+	}
 	syswrite(FILE, $_, $page_size)==$page_size||die "Unable to write $file\n";
     }
     close(FILE);

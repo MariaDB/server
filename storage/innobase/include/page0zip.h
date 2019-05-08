@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -496,16 +496,14 @@ page_zip_copy_recs(
 	dict_index_t*		index,		/*!< in: index of the B-tree */
 	mtr_t*			mtr);		/*!< in: mini-transaction */
 
-/**********************************************************************//**
-Parses a log record of compressing an index page.
-@return end of log record or NULL */
-byte*
-page_zip_parse_compress(
-/*====================*/
-	byte*		ptr,		/*!< in: buffer */
-	byte*		end_ptr,	/*!< in: buffer end */
-	page_t*		page,		/*!< out: uncompressed page */
-	page_zip_des_t*	page_zip);	/*!< out: compressed page */
+/** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log
+@param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
+			      buf_block_t* block);
 
 #endif /* !UNIV_INNOCHECKSUM */
 

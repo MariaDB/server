@@ -92,6 +92,7 @@ TRUNCATE TABLE t3;
 --source include/shutdown_mysqld.inc
 --perl
 use strict;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
 my $ps= $ENV{INNODB_PAGE_SIZE};
 my $file= "$ENV{bugdir}/ibdata1";
 open(FILE, "+<", $file) || die "Unable to open $file\n";
@@ -120,8 +121,11 @@ for (my $offset= 0x65; $offset;
 	$start= $end & 0x7f;
     }
 }
-substr($page,0,4)=pack("N",0xdeadbeef);
-substr($page,$ps-8,4)=pack("N",0xdeadbeef);
+my $polynomial = 0x82f63b78; # CRC-32C
+my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+substr($page,0,4)=$ck;
+substr($page,$ps-8,4)=$ck;
 sysseek(FILE, $sys_tables_root*$ps, 0) || die "Unable to seek $file";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file\n";

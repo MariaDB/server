@@ -185,8 +185,7 @@ static void init_net(NET *net, unsigned char *buff, unsigned int buff_len)
 
 void Ack_receiver::run()
 {
-  // skip LOCK_global_system_variables due to the 3rd arg
-  THD *thd= new THD(next_thread_id(), false, true);
+  THD *thd= new THD(next_thread_id());
   NET net;
   unsigned char net_buff[REPLY_MESSAGE_MAX_LENGTH];
 

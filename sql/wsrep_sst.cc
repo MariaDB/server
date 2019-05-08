@@ -60,11 +60,6 @@ bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
   return 0;
 }
 
-bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
-{
-    return 0;
-}
-
 static const char* data_home_dir = NULL;
 
 void wsrep_set_data_home_dir(const char *data_dir)
@@ -225,7 +220,7 @@ bool wsrep_sst_wait ()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 
@@ -1477,7 +1472,7 @@ void wsrep_SE_init_wait()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 

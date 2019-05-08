@@ -318,7 +318,6 @@ int main(int argc,char *argv[])
   char **commands, **save_argv, **temp_argv;
 
   MY_INIT(argv[0]);
-  mysql_init(&mysql);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   save_argv = argv;				/* Save for free_defaults */
@@ -347,6 +346,7 @@ int main(int argc,char *argv[])
 
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
+  mysql_init(&mysql);
   if (opt_compress)
     mysql_options(&mysql,MYSQL_OPT_COMPRESS,NullS);
   if (opt_connect_timeout)

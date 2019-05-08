@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -489,8 +489,29 @@ create_log_files(
 		return(DB_ERROR);
 	}
 	ut_d(recv_no_log_write = false);
-	recv_reset_logs(lsn);
+	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
+
+	log_sys.log.set_lsn(log_sys.lsn);
+	log_sys.log.set_lsn_offset(LOG_FILE_HDR_SIZE);
+
+	log_sys.buf_next_to_write = 0;
+	log_sys.write_lsn = log_sys.lsn;
+
+	log_sys.next_checkpoint_no = 0;
+	log_sys.last_checkpoint_lsn = 0;
+
+	memset(log_sys.buf, 0, srv_log_buffer_size);
+	log_block_init(log_sys.buf, log_sys.lsn);
+	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
+
+	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
+	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
+
+	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
+		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
 	log_mutex_exit();
+
+	log_make_checkpoint_at(LSN_MAX);
 
 	return(DB_SUCCESS);
 }
@@ -1400,10 +1421,6 @@ dberr_t srv_start(bool create_new_db)
 
 #ifdef UNIV_IBUF_DEBUG
 	ib::info() << "!!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!";
-# ifdef UNIV_IBUF_COUNT_DEBUG
-	ib::info() << "!!!!!!!! UNIV_IBUF_COUNT_DEBUG switched on !!!!!!!!!";
-	ib::error() << "Crash recovery will fail with UNIV_IBUF_COUNT_DEBUG";
-# endif
 #endif
 
 #ifdef UNIV_LOG_LSN_DEBUG
@@ -1730,6 +1747,10 @@ dberr_t srv_start(bool create_new_db)
 				break;
 			}
 
+			if (stat_info.type != OS_FILE_TYPE_FILE) {
+				break;
+			}
+
 			if (!srv_file_check_mode(logfilename)) {
 				return(srv_init_abort(DB_ERROR));
 			}
@@ -1980,7 +2001,8 @@ files_checked:
 
 			recv_apply_hashed_log_recs(true);
 
-			if (recv_sys->found_corrupt_log) {
+			if (recv_sys->found_corrupt_log
+			    || recv_sys->found_corrupt_fs) {
 				return(srv_init_abort(DB_CORRUPTION));
 			}
 
@@ -2252,19 +2274,8 @@ files_checked:
 			every table in the InnoDB data dictionary that has
 			an .ibd file.
 
-			We also determine the maximum tablespace id used.
-
-			The 'validate' flag indicates that when a tablespace
-			is opened, we also read the header page and validate
-			the contents to the data dictionary. This is time
-			consuming, especially for databases with lots of ibd
-			files.  So only do it after a crash and not forcing
-			recovery.  Open rw transactions at this point is not
-			a good reason to validate. */
-			bool validate = recv_needed_recovery
-				&& srv_force_recovery == 0;
-
-			dict_check_tablespaces_and_store_max_id(validate);
+			We also determine the maximum tablespace id used. */
+			dict_check_tablespaces_and_store_max_id();
 		}
 
 		/* Fix-up truncate of table if server crashed while truncate
@@ -2319,6 +2330,7 @@ files_checked:
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
 		lock_sys.timeout_thread_active = true;
 
+		DBUG_EXECUTE_IF("innodb_skip_monitors", goto skip_monitors;);
 		/* Create the thread which warns of long semaphore waits */
 		srv_error_monitor_active = true;
 		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
@@ -2335,6 +2347,9 @@ files_checked:
 		srv_start_state |= SRV_START_STATE_LOCK_SYS
 			| SRV_START_STATE_MONITOR;
 
+#ifndef DBUG_OFF
+skip_monitors:
+#endif
 		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
 		      || !purge_sys.enabled());
 

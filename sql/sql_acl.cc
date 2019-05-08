@@ -681,7 +681,7 @@ enum enum_acl_tables
   ROLES_MAPPING_TABLE,
   TABLES_MAX // <== always the last
 };
-// bits for open_grant_tables
+
 static const int Table_user= 1 << USER_TABLE;
 static const int Table_db= 1 << DB_TABLE;
 static const int Table_tables_priv= 1 << TABLES_PRIV_TABLE;
@@ -762,7 +762,7 @@ class Grant_table_base
 
   Grant_table_base() : start_privilege_column(0), num_privilege_cols(0)
   {
-    bzero(&tl, sizeof(tl));
+    tl.reset();
   };
 
   /* Initialization sequence common for all grant tables. This should be called
@@ -1492,8 +1492,7 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   else
     return true;
 
-  if (user->auth_string.length)
-    set_user_salt(user, user->auth_string.str, user->auth_string.length);
+  set_user_salt(user, user->auth_string.str, user->auth_string.length);
   return false;
 }
 
@@ -1967,6 +1966,11 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
                                 "password will be ignored.",
                                 safe_str(user.user.str),
                                 safe_str(user.host.hostname));
+            }
+            else if (password_len)
+            {
+              user.auth_string.str= password;
+              user.auth_string.length= password_len;
             }
 
             fix_user_plugin_ptr(&user);
@@ -5875,7 +5879,7 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   ulong access= 0, update_flags= 0;
   for (int *p= dbs.front(); p <= dbs.back(); p++)
   {
-    if (first<0 || (!dbname && strcmp(acl_dbs.at(*p).db, acl_dbs.at(*p-1).db)))
+    if (first<0 || (!dbname && strcmp(acl_dbs.at(p[0]).db, acl_dbs.at(p[-1]).db)))
     { // new db name series
       update_flags|= update_role_db(merged, first, access, grantee->user.str);
       merged= -1;
@@ -6609,7 +6613,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 {
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
-  bool create_new_users= 0, result;
+  bool create_new_users= 0;
+  int result;
   const char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
 
@@ -7046,7 +7051,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   List_iterator <LEX_USER> str_list (list);
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
   char tmp_db[SAFE_NAME_LEN+1];
-  bool create_new_users=0, result;
+  bool create_new_users=0;
+  int result;
   DBUG_ENTER("mysql_grant");
 
   if (lower_case_table_names && db)
@@ -8431,13 +8437,13 @@ static const char *command_array[]=
   "LOCK TABLES", "EXECUTE", "REPLICATION SLAVE", "REPLICATION CLIENT",
   "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE", "ALTER ROUTINE",
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE",
-  "DELETE VERSIONING ROWS"
+  "DELETE HISTORY"
 };
 
 static uint command_lengths[]=
 {
   6, 6, 6, 6, 6, 4, 6, 8, 7, 4, 5, 10, 5, 5, 14, 5, 23, 11, 7, 17, 18, 11, 9,
-  14, 13, 11, 5, 7, 17, 22,
+  14, 13, 11, 5, 7, 17, 14,
 };
 
 
@@ -8477,60 +8483,6 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 
 }
 
-/** checks privileges for SHOW GRANTS and SHOW CREATE USER
-
-  @note that in case of SHOW CREATE USER the parser guarantees
-  that a role can never happen here, so *rolename will never
-  be assigned to
-*/
-static bool check_show_access(THD *thd, LEX_USER *lex_user,
-                              const char **username,
-                              const char **hostname, const char **rolename)
-{
-  DBUG_ENTER("check_show_access");
-
-  if (lex_user->user.str == current_user.str)
-  {
-    *username= thd->security_ctx->priv_user;
-    *hostname= thd->security_ctx->priv_host;
-  }
-  else if (lex_user->user.str == current_role.str)
-  {
-    *rolename= thd->security_ctx->priv_role;
-  }
-  else if (lex_user->user.str == current_user_and_current_role.str)
-  {
-    *username= thd->security_ctx->priv_user;
-    *hostname= thd->security_ctx->priv_host;
-    *rolename= thd->security_ctx->priv_role;
-  }
-  else
-  {
-    Security_context *sctx= thd->security_ctx;
-    bool do_check_access;
-
-    lex_user= get_current_user(thd, lex_user);
-    if (!lex_user)
-      DBUG_RETURN(TRUE);
-
-    if (lex_user->is_role())
-    {
-      *rolename= lex_user->user.str;
-      do_check_access= strcmp(*rolename, sctx->priv_role);
-    }
-    else
-    {
-      *username= lex_user->user.str;
-      *hostname= lex_user->host.str;
-      do_check_access= strcmp(*username, sctx->priv_user) ||
-                       strcmp(*hostname, sctx->priv_host);
-    }
-
-    if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
-      DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
 
 bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 {
@@ -8542,7 +8494,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   uint head_length;
   DBUG_ENTER("mysql_show_create_user");
 
-  if (check_show_access(thd, lex_user, &username, &hostname, NULL))
+  if (get_show_user(thd, lex_user, &username, &hostname, NULL))
     DBUG_RETURN(TRUE);
 
   List<Item> field_list;
@@ -8618,6 +8570,57 @@ void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
   fields->push_back(field, thd->mem_root);
 }
 
+/** checks privileges for SHOW GRANTS and SHOW CREATE USER
+
+  @note that in case of SHOW CREATE USER the parser guarantees
+  that a role can never happen here, so *rolename will never
+  be assigned to
+*/
+bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
+                   const char **hostname, const char **rolename)
+{
+  if (lex_user->user.str == current_user.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    return 0;
+  }
+  if (lex_user->user.str == current_role.str)
+  {
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+  if (lex_user->user.str == current_user_and_current_role.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+
+  Security_context *sctx= thd->security_ctx;
+  bool do_check_access;
+
+  if (!(lex_user= get_current_user(thd, lex_user)))
+    return 1;
+
+  if (lex_user->is_role())
+  {
+    *rolename= lex_user->user.str;
+    do_check_access= strcmp(*rolename, sctx->priv_role);
+  }
+  else
+  {
+    *username= lex_user->user.str;
+    *hostname= lex_user->host.str;
+    do_check_access= strcmp(*username, sctx->priv_user) ||
+                     strcmp(*hostname, sctx->priv_host);
+  }
+
+  if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
+    return 1;
+  return 0;
+}
 
 /*
   SHOW GRANTS;  Send grants for a user to the client
@@ -8642,15 +8645,16 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
-  if (check_show_access(thd, lex_user, &username, &hostname, &rolename))
+  if (get_show_user(thd, lex_user, &username, &hostname, &rolename))
     DBUG_RETURN(TRUE);
+
   DBUG_ASSERT(rolename || username);
 
   List<Item> field_list;
-  if (!username)
-    end= strxmov(buff,"Grants for ",rolename, NullS);
-  else
+  if (username)
     end= strxmov(buff,"Grants for ",username,"@",hostname, NullS);
+  else
+    end= strxmov(buff,"Grants for ",rolename, NullS);
 
   mysql_show_grants_get_fields(thd, &field_list, buff, (uint) (end-buff));
 
@@ -10139,6 +10143,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name;
   List_iterator <LEX_USER> user_list(list);
   bool binlog= false;
+  bool some_users_dropped= false;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -10205,6 +10210,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
           result= true;
           continue;
         }
+        else
+          some_users_dropped= true;
         // Proceed with the creation
       }
       else if (thd->lex->create_info.if_not_exists())
@@ -10273,12 +10280,21 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
   }
 
+  if (result && some_users_dropped && !handle_as_role)
+  {
+    /* Rebuild in-memory structs, since 'acl_users' has been modified */
+    rebuild_check_host();
+    rebuild_role_grants();
+  }
+
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
+  {
     my_error(ER_CANNOT_USER, MYF(0),
              (handle_as_role) ? "CREATE ROLE" : "CREATE USER",
              wrong_users.c_ptr_safe());
+  }
 
   if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
@@ -10505,6 +10521,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   DBUG_ENTER("mysql_alter_user");
   int result= 0;
   String wrong_users;
+  bool some_users_altered= false;
 
   /* The only table we're altering is the user table. */
   Grant_tables tables(Table_user, TL_WRITE);
@@ -10530,6 +10547,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
       result= TRUE;
       continue;
     }
+    some_users_altered= true;
   }
 
   /* Unlock ACL data structures. */
@@ -10554,6 +10572,10 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
                wrong_users.c_ptr_safe());
     }
   }
+
+  if (some_users_altered)
+    result|= write_bin_log(thd, FALSE, thd->query(),
+                                     thd->query_length());
   DBUG_RETURN(result);
 }
 

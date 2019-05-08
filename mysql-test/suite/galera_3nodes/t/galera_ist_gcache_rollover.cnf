@@ -1,11 +1,11 @@
 !include ../galera_3nodes.cnf
 
 [mysqld.1]
-wsrep_provider_options='base_port=@mysqld.1.#galera_port;pc.ignore_sb=true;gcache.size=1M'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.ignore_sb=true;gcache.size=1M'
 
 [mysqld.2]
-wsrep_provider_options='base_port=@mysqld.2.#galera_port;pc.ignore_sb=true;gcache.size=1M'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.ignore_sb=true;gcache.size=1M'
 
 [mysqld.3]
-wsrep_provider_options='base_port=@mysqld.3.#galera_port;pc.ignore_sb=true;gcache.size=1M'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.ignore_sb=true;gcache.size=1M'
 

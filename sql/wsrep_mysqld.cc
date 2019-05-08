@@ -79,6 +79,7 @@ my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to t
 my_bool wsrep_auto_increment_control;           // Control auto increment variables
 my_bool wsrep_drupal_282555_workaround;         // Retry autoinc insert after dupkey
 my_bool wsrep_certify_nonPK;                    // Certify, even when no primary key
+ulong   wsrep_certification_rules      = WSREP_CERTIFICATION_RULES_STRICT;
 my_bool wsrep_recovery;                         // Recovery
 my_bool wsrep_replicate_myisam;                 // Enable MyISAM replication
 my_bool wsrep_log_conflicts;
@@ -825,7 +826,7 @@ void wsrep_init_startup (bool first)
     Pre-initialize global_system_variables.table_plugin with a dummy engine
     (placeholder) required during the initialization of wsrep threads (THDs).
     (see: plugin_thdvar_init())
-    Note: This only needs to be done for rsync & xtrabackup based SST methods.
+    Note: This only needs to be done for rsync & mariabackup based SST methods.
     In case of mysqldump SST method, the wsrep threads are created after the
     server plugins & global system variables are initialized.
   */

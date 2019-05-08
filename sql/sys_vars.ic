@@ -615,7 +615,7 @@ public:
     char *new_val= global_update_prepare(thd, var);
     if (new_val)
     {
-      if (sysvartrack_reprint_value(thd, new_val,
+      if (sysvartrack_global_update(thd, new_val,
                                     var->save_result.string_value.length))
         new_val= 0;
     }
@@ -623,9 +623,7 @@ public:
     return (new_val == 0 && var->save_result.string_value.str != 0);
   }
   bool session_update(THD *thd, set_var *var)
-  {
-    return sysvartrack_update(thd, var);
-  }
+  { return thd->session_tracker.sysvars.update(thd, var); }
   void session_save_default(THD *thd, set_var *var)
   {
      var->save_result.string_value.str= global_var(char*);
@@ -642,19 +640,6 @@ public:
                                     var->save_result.string_value.length);
        DBUG_ASSERT(res == 0);
      }
-  }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
-  {
-    DBUG_ASSERT(thd != NULL);
-    size_t len= sysvartrack_value_len(thd);
-    char *res= (char *)thd->alloc(len + sizeof(char *));
-    if (res)
-    {
-      char *buf= res + sizeof(char *);
-      *((char**) res)= buf;
-      sysvartrack_value_construct(thd, buf, len);
-    }
-    return (uchar *)res;
   }
 };
 #endif //EMBEDDED_LIBRARY
@@ -2229,14 +2214,6 @@ public:
       return TRUE;
     if (var->type == OPT_DEFAULT || !thd->in_active_multi_stmt_transaction())
     {
-#ifndef EMBEDDED_LIBRARY
-      Transaction_state_tracker *tst= NULL;
-
-      if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
-        tst= (Transaction_state_tracker *)
-          thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-#endif //EMBEDDED_LIBRARY
-
       thd->tx_isolation= (enum_tx_isolation) var->save_result.ulonglong_value;
 
 #ifndef EMBEDDED_LIBRARY
@@ -2260,13 +2237,11 @@ public:
           DBUG_ASSERT(0);
           return TRUE;
         }
-        if (tst)
-          tst->set_isol_level(thd, l);
+        if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+          thd->session_tracker.transaction_info.set_isol_level(thd, l);
       }
-      else if (tst)
-      {
-        tst->set_isol_level(thd, TX_ISOL_INHERIT);
-      }
+      else if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+        thd->session_tracker.transaction_info.set_isol_level(thd, TX_ISOL_INHERIT);
 #endif //EMBEDDED_LIBRARY
     }
     return FALSE;

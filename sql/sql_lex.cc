@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -698,7 +698,6 @@ void LEX::start(THD *thd_arg)
   describe= 0;
   analyze_stmt= 0;
   explain_json= false;
-  subqueries= FALSE;
   context_analysis_only= 0;
   derived_tables= 0;
   safe_to_cache_query= 1;
@@ -1588,9 +1587,27 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
             return(FLOAT_NUM);
           }
         }
+        /*
+          We've found:
+          - A sequence of digits
+          - Followed by 'e' or 'E'
+          - Followed by some byte XX which is not a known mantissa start,
+            and it's known to be a valid identifier part.
+            XX can be either a 8bit identifier character, or a multi-byte head.
+        */
         yyUnget();
+        return scan_ident_start(thd, &yylval->ident_cli);
       }
-      // fall through
+      /*
+        We've found:
+        - A sequence of digits
+        - Followed by some character XX, which is neither 'e' nor 'E',
+          and it's known to be a valid identifier part.
+          XX can be a 8bit identifier character, or a multi-byte head.
+      */
+      yyUnget();
+      return scan_ident_start(thd, &yylval->ident_cli);
+
     case MY_LEX_IDENT_START:                    // We come here after '.'
       return scan_ident_start(thd, &yylval->ident_cli);
 
@@ -2317,7 +2334,7 @@ void st_select_lex::init_query()
   hidden_bit_fields= 0;
   subquery_in_having= explicit_limit= 0;
   is_item_list_lookup= 0;
-  first_execution= 1;
+  changed_elements= 0;
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
   parsing_place= NO_MATTER;
@@ -2897,8 +2914,6 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" union "));
         if (union_all)
           str->append(STRING_WITH_LEN("all "));
-        else if (union_distinct == sl)
-          union_all= TRUE;
         break;
       case INTERSECT_TYPE:
         str->append(STRING_WITH_LEN(" intersect "));
@@ -2907,6 +2922,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" except "));
         break;
       }
+      if (sl == union_distinct)
+        union_all= TRUE;
     }
     if (sl->braces)
       str->append('(');
@@ -3473,12 +3490,8 @@ void LEX::set_trg_event_type_for_tables()
     On a LOCK TABLE, all triggers must be pre-loaded for this TABLE_LIST
     when opening an associated TABLE.
   */
-    new_trg_event_map= static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_INSERT)) |
-                      static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_UPDATE)) |
-                      static_cast<uint8>
-                        (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map= trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
+                       trg2bit(TRG_EVENT_DELETE);
     break;
   /*
     Basic INSERT. If there is an additional ON DUPLIATE KEY UPDATE
@@ -3509,20 +3522,17 @@ void LEX::set_trg_event_type_for_tables()
   */
   case SQLCOM_CREATE_TABLE:
   case SQLCOM_CREATE_SEQUENCE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_INSERT));
+    new_trg_event_map|= trg2bit(TRG_EVENT_INSERT);
     break;
   /* Basic update and multi-update */
   case SQLCOM_UPDATE:                           /* fall through */
   case SQLCOM_UPDATE_MULTI:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_UPDATE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_UPDATE);
     break;
   /* Basic delete and multi-delete */
   case SQLCOM_DELETE:                           /* fall through */
   case SQLCOM_DELETE_MULTI:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     break;
   default:
     break;
@@ -3530,12 +3540,10 @@ void LEX::set_trg_event_type_for_tables()
 
   switch (duplicates) {
   case DUP_UPDATE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_UPDATE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_UPDATE);
     break;
   case DUP_REPLACE:
-    new_trg_event_map|= static_cast<uint8>
-                          (1 << static_cast<int>(TRG_EVENT_DELETE));
+    new_trg_event_map|= trg2bit(TRG_EVENT_DELETE);
     break;
   case DUP_ERROR:
   default:
@@ -3852,10 +3860,11 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
                                             Item **having_conds)
 {
   DBUG_ENTER("st_select_lex::fix_prepare_information");
-  if (!thd->stmt_arena->is_conventional() && first_execution)
+  if (!thd->stmt_arena->is_conventional() &&
+      !(changed_elements & TOUCHED_SEL_COND))
   {
     Query_arena_stmt on_stmt_arena(thd);
-    first_execution= 0;
+    changed_elements|= TOUCHED_SEL_COND;
     if (group_list.first)
     {
       if (!group_list_ptrs)
@@ -4049,6 +4058,8 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
           inner_join->select_options|= SELECT_DESCRIBE;
         }
         res= inner_join->optimize();
+        if (!inner_join->cleaned)
+          sl->update_used_tables();
         sl->update_correlated_cache();
         is_correlated_unit|= sl->is_correlated;
         inner_join->select_options= save_options;
@@ -4104,14 +4115,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
 
 bool st_select_lex::handle_derived(LEX *lex, uint phases)
 {
-  for (TABLE_LIST *cursor= (TABLE_LIST*) table_list.first;
-       cursor;
-       cursor= cursor->next_local)
-  {
-    if (cursor->is_view_or_derived() && cursor->handle_derived(lex, phases))
-      return TRUE;
-  }
-  return FALSE;
+  return lex->handle_list_of_derived(table_list.first, phases);
 }
 
 
@@ -7250,8 +7254,7 @@ bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
 {
   sys_var *tmp;
   if (unlikely(check_reserved_words(name1)) ||
-      unlikely(!(tmp= find_sys_var_ex(thd, name2->str, name2->length, true,
-                                      false))))
+      unlikely(!(tmp= find_sys_var(thd, name2->str, name2->length, true))))
   {
     my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
              (int) name1->length, name1->str);
@@ -7645,7 +7648,7 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
     my_error(ER_SP_BADSTATEMENT, MYF(0), "[NO]WAIT");
     return 1;
   }
-  if ((sysvar= find_sys_var_ex(thd, var_name, var_name_length, true, false)))
+  if ((sysvar= find_sys_var(thd, var_name, var_name_length, true)))
   {
     Item *item= new (thd->mem_root) Item_uint(thd, value);
     set_var *var= new (thd->mem_root) set_var(thd, OPT_SESSION, sysvar,

@@ -36,11 +36,6 @@
 #include "sql_select.h"
 #include "debug_sync.h"
 
-/// How to write record_ref.
-#define WRITE_REF(file,from) \
-if (my_b_write((file),(uchar*) (from),param->ref_length)) \
-  DBUG_RETURN(1);
-
 	/* functions defined in this file */
 
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,

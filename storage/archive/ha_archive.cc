@@ -1671,7 +1671,6 @@ void ha_archive::update_create_info(HA_CREATE_INFO *create_info)
   DBUG_VOID_RETURN;
 }
 
-
 /*
   Hints for optimizer, see ha_tina for more information
 */
@@ -1679,22 +1678,7 @@ int ha_archive::info(uint flag)
 {
   DBUG_ENTER("ha_archive::info");
 
-  mysql_mutex_lock(&share->mutex);
-  if (share->dirty)
-  {
-    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
-    DBUG_ASSERT(share->archive_write_open);
-    azflush(&(share->archive_write), Z_SYNC_FLUSH);
-    share->dirty= FALSE;
-  }
-
-  /* 
-    This should be an accurate number now, though bulk and delayed inserts can
-    cause the number to be inaccurate.
-  */
-  stats.records= share->rows_recorded;
-  mysql_mutex_unlock(&share->mutex);
-
+  flush_and_clear_pending_writes();
   stats.deleted= 0;
 
   DBUG_PRINT("ha_archive", ("Stats rows is %d\n", (int)stats.records));
@@ -1734,6 +1718,38 @@ int ha_archive::info(uint flag)
   }
 
   DBUG_RETURN(0);
+}
+
+
+int ha_archive::external_lock(THD *thd, int lock_type)
+{
+  if (lock_type == F_RDLCK)
+  {
+    // We are going to read from the table. Flush any pending writes that we
+    // may have
+    flush_and_clear_pending_writes();
+  }
+  return 0;
+}
+
+
+void ha_archive::flush_and_clear_pending_writes()
+{
+  mysql_mutex_lock(&share->mutex);
+  if (share->dirty)
+  {
+    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
+    DBUG_ASSERT(share->archive_write_open);
+    azflush(&(share->archive_write), Z_SYNC_FLUSH);
+    share->dirty= FALSE;
+  }
+
+  /* 
+    This should be an accurate number now, though bulk and delayed inserts can
+    cause the number to be inaccurate.
+  */
+  stats.records= share->rows_recorded;
+  mysql_mutex_unlock(&share->mutex);
 }
 
 

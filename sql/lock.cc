@@ -252,16 +252,11 @@ static void track_table_access(THD *thd, TABLE **tables, size_t count)
 {
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
   {
-    Transaction_state_tracker *tst= (Transaction_state_tracker *)
-      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-
     while (count--)
     {
-      TABLE *t= tables[count];
-
-      if (t)
-        tst->add_trx_state(thd,  t->reginfo.lock_type,
-                           t->file->has_transaction_manager());
+      if (TABLE *t= tables[count])
+        thd->session_tracker.transaction_info.add_trx_state(thd,
+          t->reginfo.lock_type, t->file->has_transaction_manager());
     }
   }
 }

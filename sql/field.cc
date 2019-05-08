@@ -6958,8 +6958,11 @@ Field_longstr::check_string_copy_error(const String_copier *copier,
   if (likely(!(pos= copier->most_important_error_pos())))
     return FALSE;
 
-  convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
-  set_warning_truncated_wrong_value("string", tmp);
+  if (!is_stat_field)
+  {
+    convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
+    set_warning_truncated_wrong_value("string", tmp);
+  }
   return TRUE;
 }
 
@@ -8945,7 +8948,7 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
         (uint32) geom_type != wkb_type)
     {
       const char *db= table->s->db.str;
-      const char *tab_name= table->s->error_table_name();
+      const char *tab_name= table->s->table_name.str;
 
       if (!db)
         db= "";
@@ -11047,6 +11050,7 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   interval=     dup_field->interval;
   vcol_info=    dup_field->vcol_info;
   invisible=    dup_field->invisible;
+  check_constraint= dup_field->check_constraint;
 }
 
 
@@ -11250,7 +11254,7 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
 {
   THD *thd= get_thd();
   const char *db_name= table->s->db.str;
-  const char *table_name= table->s->error_table_name();
+  const char *table_name= table->s->table_name.str;
 
   if (!db_name)
     db_name= "";

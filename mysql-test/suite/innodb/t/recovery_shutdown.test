@@ -51,6 +51,12 @@ FLUSH TABLES;
 --let $shutdown_timeout=60
 --source include/restart_mysqld.inc
 
+# Perform a slow shutdown in order to roll back all recovered transactions
+# and to avoid locking conflicts with the DROP TABLE below.
+--disable_query_log
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+
 --disable_query_log
 let $c = $trx;
 while ($c)

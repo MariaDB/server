@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2010, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -881,7 +881,12 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 #endif /* EMBEDDED_LIBRARY */
   {
     if (duplic != DUP_ERROR || ignore)
+    {
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
+      if (table->file->ha_table_flags() & HA_DUPLICATE_POS &&
+          table->file->ha_rnd_init_with_error(0))
+        goto abort;
+    }
     /**
       This is a simple check for the case when the table has a trigger
       that reads from it, or when the statement invokes a stored function
@@ -944,7 +949,10 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   {
     DBUG_PRINT("info", ("iteration %llu", iteration));
     if (iteration && bulk_parameters_set(thd))
-      goto abort;
+    {
+      error= 1;
+      goto values_loop_end;
+    }
 
     while ((values= its++))
     {
@@ -1101,7 +1109,11 @@ values_loop_end:
       error=1;
     }
     if (duplic != DUP_ERROR || ignore)
+    {
       table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+        table->file->ha_rnd_end();
+    }
 
     transactional_table= table->file->has_transactions();
 
@@ -1491,7 +1503,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE); 
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE); 
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_PREPARE))
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE); 
   /*
     For subqueries in VALUES() we should not see the table in which we are
@@ -1584,7 +1596,6 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
     }
     select_lex->fix_prepare_information(thd, &fake_conds, &fake_conds);
-    select_lex->first_execution= 0;
   }
   /*
     Only call prepare_for_posistion() if we are not performing a DELAYED
@@ -1745,6 +1756,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	goto err;
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
       {
+        DBUG_ASSERT(table->file->inited == handler::RND);
 	if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
 	  goto err;
       }
@@ -1952,7 +1964,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
           else
             error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
-          thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
           /*
             Since we pretend that we have done insert we should call
             its after triggers.
@@ -2008,7 +2019,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
     if (table->file->insert_id_for_cur_row == 0)
       table->file->insert_id_for_cur_row= insert_id_for_cur_row;
       
-    thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
     /*
       Restore column maps if they where replaced during an duplicate key
       problem.
@@ -3274,6 +3284,9 @@ bool Delayed_insert::handle_inserts(void)
     max_rows= ULONG_MAX;                     // Do as much as possible
   }
 
+  if (table->file->ha_rnd_init_with_error(0))
+    goto err;
+
   /*
     We can't use row caching when using the binary log because if
     we get a crash, then binary log will contain rows that are not yet
@@ -3447,6 +3460,8 @@ bool Delayed_insert::handle_inserts(void)
         mysql_cond_broadcast(&cond_client);     // If waiting clients
     }
   }
+
+  table->file->ha_rnd_end();
 
   if (WSREP((&thd)))
     thd_proc_info(&thd, "Insert done");
@@ -3745,7 +3760,12 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
   thd->cuted_fields=0;
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
+  {
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
+    if (table->file->ha_table_flags() & HA_DUPLICATE_POS &&
+        table->file->ha_rnd_init_with_error(0))
+      DBUG_RETURN(1);
+  }
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
@@ -3922,6 +3942,9 @@ bool select_insert::prepare_eof()
   if (likely(!error) && unlikely(thd->is_error()))
     error= thd->get_stmt_da()->sql_errno();
 
+  if (info.ignore || info.handle_duplicates != DUP_ERROR)
+      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+        table->file->ha_rnd_end();
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
@@ -4032,6 +4055,11 @@ void select_insert::abort_result_set() {
     */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
       table->file->ha_end_bulk_insert();
+
+    if (table->file->inited)
+      table->file->ha_rnd_end();
+    table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+    table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
     /*
       If at least one row has been inserted/modified and will stay in
@@ -4453,7 +4481,12 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   restore_record(table,s->default_values);      // Get empty record
   thd->cuted_fields=0;
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
+  {
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
+    if (table->file->ha_table_flags() & HA_DUPLICATE_POS &&
+        table->file->ha_rnd_init_with_error(0))
+      DBUG_RETURN(1);
+  }
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
@@ -4493,14 +4526,12 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   DBUG_ASSERT(thd->is_current_stmt_binlog_format_row());
   DBUG_ASSERT(tables && *tables && count > 0);
 
-  char buf[2048];
-  String query(buf, sizeof(buf), system_charset_info);
+  StringBuffer<2048> query(system_charset_info);
   int result;
   TABLE_LIST tmp_table_list;
 
-  memset(&tmp_table_list, 0, sizeof(tmp_table_list));
+  tmp_table_list.reset();
   tmp_table_list.table = *tables;
-  query.length(0);      // Have to zero it since constructor doesn't
 
   result= show_create_table(thd, &tmp_table_list, &query,
                             create_info, WITH_DB_NAME);
@@ -4636,9 +4667,6 @@ bool select_create::send_eof()
   */
   exit_done= 1;                                 // Avoid double calls
 
-  table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
-  table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-
   send_ok_packet();
 
   if (m_plock)
@@ -4714,13 +4742,6 @@ void select_create::abort_result_set()
     thd->locked_tables_list.unlock_locked_table(thd,
                                                 create_info->mdl_ticket);
   }
-  if (m_plock)
-  {
-    mysql_unlock_tables(thd, *m_plock);
-    *m_plock= NULL;
-    m_plock= NULL;
-  }
-
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -4731,9 +4752,21 @@ void select_create::abort_result_set()
       thd->restore_tmp_table_share(saved_tmp_table_share);
     }
 
+    if (table->file->inited &&
+        (info.ignore || info.handle_duplicates != DUP_ERROR) &&
+        (table->file->ha_table_flags() & HA_DUPLICATE_POS))
+      table->file->ha_rnd_end();
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->auto_increment_field_not_null= FALSE;
+
+    if (m_plock)
+    {
+      mysql_unlock_tables(thd, *m_plock);
+      *m_plock= NULL;
+      m_plock= NULL;
+    }
+
     drop_open_table(thd, table, &create_table->db, &create_table->table_name);
     table=0;                                    // Safety
     if (thd->log_current_statement && mysql_bin_log.is_open())

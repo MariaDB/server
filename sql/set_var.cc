@@ -1016,13 +1016,13 @@ int set_var_collation_client::update(THD *thd)
 
   /* Mark client collation variables as changed */
 #ifndef EMBEDDED_LIBRARY
-  if (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
+  if (thd->session_tracker.sysvars.is_enabled())
   {
-    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+    thd->session_tracker.sysvars.
       mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_client_ptr);
-    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+    thd->session_tracker.sysvars.
       mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_results_ptr);
-    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+    thd->session_tracker.sysvars.
       mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_connection_ptr);
   }
   thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);

@@ -611,8 +611,9 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
     called at the first execution of the statement, while first_execution
     shows whether this is called at the first execution of the union that
     may form just a subselect.
-  */    
-  if (!fake_select_lex->first_execution && first_execution)
+  */
+  if ((fake_select_lex->changed_elements & TOUCHED_SEL_COND) &&
+      first_execution)
   {
     for (ORDER *order= global_parameters()->order_list.first;
          order;
@@ -1239,15 +1240,6 @@ cont:
           allocation in setup_ref_array().
         */
         fake_select_lex->n_child_sum_items+= global_parameters()->n_sum_items;
-
-	saved_error= fake_select_lex->join->
-	  prepare(fake_select_lex->table_list.first,
-		  0, 0,
-                  global_parameters()->order_list.elements, // og_num
-                  global_parameters()->order_list.first,    // order
-                  false, NULL, NULL, NULL,
-		  fake_select_lex, this);
-	fake_select_lex->table_list.empty();
       }
     }
     else
@@ -1257,6 +1249,24 @@ cont:
         reset field items to point at fields from the created temporary table.
       */
       table->reset_item_list(&item_list, intersect_mark ? 1 : 0);
+    }
+    if (fake_select_lex != NULL &&
+        (thd->stmt_arena->is_stmt_prepare() ||
+         (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
+    {
+      if (!fake_select_lex->join &&
+          !(fake_select_lex->join=
+            new JOIN(thd, item_list, thd->variables.option_bits, result)))
+      {
+         fake_select_lex->table_list.empty();
+         DBUG_RETURN(TRUE);
+      }
+      saved_error= fake_select_lex->join->
+        prepare(fake_select_lex->table_list.first, 0, 0,
+                global_parameters()->order_list.elements, // og_num
+                global_parameters()->order_list.first,    // order
+                false, NULL, NULL, NULL, fake_select_lex, this);
+      fake_select_lex->table_list.empty();
     }
   }
 
@@ -2038,4 +2048,44 @@ void st_select_lex_unit::set_unique_exclude()
       unit->set_unique_exclude();
     }
   }
+}
+
+/**
+  @brief
+  Check if the derived table is guaranteed to have distinct rows because of
+  UNION operations used to populate it.
+
+  @detail
+    UNION operation removes duplicate rows from its output. That is, a query like
+
+      select * from t1 UNION select * from t2
+
+    will not produce duplicate rows in its output, even if table t1 (and/or t2)
+    contain duplicate rows. EXCEPT and INTERSECT operations also have this
+    property.
+
+    On the other hand, UNION ALL operation doesn't remove duplicates. (The SQL
+    standard also defines EXCEPT ALL and INTERSECT ALL, but we don't support
+    them).
+
+    st_select_lex_unit computes its value left to right. That is, if there is
+     a st_select_lex_unit object describing
+
+      (select #1) OP1 (select #2) OP2 (select #3)
+
+    then ((select #1) OP1 (select #2)) is computed first, and OP2 is computed
+    second.
+
+    How can one tell if st_select_lex_unit is guaranteed to have distinct
+    output rows? This depends on whether the last operation was duplicate-
+    removing or not:
+    - UNION ALL is not duplicate-removing
+    - all other operations are duplicate-removing
+*/
+
+bool st_select_lex_unit::check_distinct_in_union()
+{
+  if (union_distinct && !union_distinct->next_select())
+    return true;
+  return false;
 }

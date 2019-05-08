@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -557,14 +557,13 @@ btr_set_min_rec_mark(
 	rec_t*	rec,	/*!< in/out: record */
 	mtr_t*	mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
-/*************************************************************//**
-Deletes on the upper level the node pointer to a page. */
-void
-btr_node_ptr_delete(
-/*================*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: page whose node pointer is deleted */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Seek to the parent page of a B-tree page.
+@param[in,out]	index	b-tree
+@param[in]	block	child page
+@param[in,out]	mtr	mini-transaction
+@param[out]	cursor	cursor pointing to the x-latched parent page */
+void btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
+			 btr_cur_t* cursor)
 	MY_ATTRIBUTE((nonnull));
 #ifdef UNIV_DEBUG
 /************************************************************//**
@@ -683,16 +682,6 @@ btr_page_alloc(
 					for x-latching and initializing
 					the page */
 	MY_ATTRIBUTE((warn_unused_result));
-/**************************************************************//**
-Frees a file page used in an index tree. NOTE: cannot free field external
-storage pages because the page must contain info on its level. */
-void
-btr_page_free(
-/*==========*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
 /** Empty an index page (possibly the root page). @see btr_page_create().
 @param[in,out]	block		page to be emptied
 @param[in,out]	page_zip	compressed page frame, or NULL
@@ -718,18 +707,16 @@ btr_page_create(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the B-tree level of the page */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Frees a file page used in an index tree. Can be used also to BLOB
-external storage pages. */
-void
-btr_page_free_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index tree */
-	buf_block_t*	block,	/*!< in: block to be freed, x-latched */
-	ulint		level,	/*!< in: page level (ULINT_UNDEFINED=BLOB) */
-	bool		blob,   /*!< in: blob page */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull(1,2)));
+
+/** Free an index page.
+@param[in,out]	index	index tree
+@param[in,out]	block	block to be freed
+@param[in,out]	mtr	mini-transaction
+@param[in]	blob	whether this is freeing a BLOB page */
+MY_ATTRIBUTE((nonnull))
+void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
+		   bool blob = false);
+
 /**************************************************************//**
 Gets the root node of a tree and x- or s-latches it.
 @return root page, x- or s-latched */

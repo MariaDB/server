@@ -32,10 +32,7 @@
 static void trans_track_end_trx(THD *thd)
 {
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
-  {
-    ((Transaction_state_tracker *)
-     thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER))->end_trx(thd);
-  }
+    thd->session_tracker.transaction_info.end_trx(thd);
 }
 #else
 #define trans_track_end_trx(A) do{}while(0)
@@ -51,11 +48,8 @@ void trans_reset_one_shot_chistics(THD *thd)
 #ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
   {
-    Transaction_state_tracker *tst= (Transaction_state_tracker *)
-      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-
-    tst->set_read_flags(thd, TX_READ_INHERIT);
-    tst->set_isol_level(thd, TX_ISOL_INHERIT);
+    thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_INHERIT);
+    thd->session_tracker.transaction_info.set_isol_level(thd, TX_ISOL_INHERIT);
   }
 #endif //EMBEDDED_LIBRARY
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
@@ -162,19 +156,10 @@ static bool xa_trans_force_rollback(THD *thd)
 bool trans_begin(THD *thd, uint flags)
 {
   int res= FALSE;
-#ifndef EMBEDDED_LIBRARY
-  Transaction_state_tracker *tst= NULL;
-#endif //EMBEDDED_LIBRARY
   DBUG_ENTER("trans_begin");
 
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
-
-#ifndef EMBEDDED_LIBRARY
-  if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
-    tst= (Transaction_state_tracker *)
-      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-#endif //EMBEDDED_LIBRARY
 
   thd->locked_tables_list.unlock_locked_tables(thd);
 
@@ -221,8 +206,8 @@ bool trans_begin(THD *thd, uint flags)
   {
     thd->tx_read_only= true;
 #ifndef EMBEDDED_LIBRARY
-    if (tst)
-      tst->set_read_flags(thd, TX_READ_ONLY);
+    if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+      thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_ONLY);
 #endif //EMBEDDED_LIBRARY
   }
   else if (flags & MYSQL_START_TRANS_OPT_READ_WRITE)
@@ -246,8 +231,8 @@ bool trans_begin(THD *thd, uint flags)
       just from the session's default.
     */
 #ifndef EMBEDDED_LIBRARY
-    if (tst)
-      tst->set_read_flags(thd, TX_READ_WRITE);
+    if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+      thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_WRITE);
 #endif //EMBEDDED_LIBRARY
   }
 
@@ -264,16 +249,16 @@ bool trans_begin(THD *thd, uint flags)
   DBUG_PRINT("info", ("setting SERVER_STATUS_IN_TRANS"));
 
 #ifndef EMBEDDED_LIBRARY
-  if (tst)
-    tst->add_trx_state(thd, TX_EXPLICIT);
+  if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+    thd->session_tracker.transaction_info.add_trx_state(thd, TX_EXPLICIT);
 #endif //EMBEDDED_LIBRARY
 
   /* ha_start_consistent_snapshot() relies on OPTION_BEGIN flag set. */
   if (flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT)
   {
 #ifndef EMBEDDED_LIBRARY
-    if (tst)
-      tst->add_trx_state(thd, TX_WITH_SNAPSHOT);
+    if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+      thd->session_tracker.transaction_info.add_trx_state(thd, TX_WITH_SNAPSHOT);
 #endif //EMBEDDED_LIBRARY
     res= ha_start_consistent_snapshot(thd);
   }

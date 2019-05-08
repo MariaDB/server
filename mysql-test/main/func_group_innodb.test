@@ -192,4 +192,23 @@ EXPLAIN SELECT MIN(c) FROM t1 GROUP BY b;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17589: Stack-buffer-overflow with indexed varchar (utf8) field
+--echo #
+
+CREATE TABLE t1 (v1 varchar(1020), v2 varchar(2), v3 varchar(2),
+                KEY k1 (v3,v2,v1)) ENGINE=InnoDB CHARACTER SET=utf8 ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES ('king', 'qu','qu'), ('bad','go','go');
+explain
+SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
+SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
+drop table t1;
+
+CREATE TABLE t1 (v1 varchar(1024) CHARACTER SET utf8, KEY v1 (v1)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES ('king'), ('bad');
+explain
+SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
+SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
+drop table t1;
+
 --echo End of 5.5 tests

@@ -2377,31 +2377,8 @@ ER_TABLE_NOT_LOCKED
         spa "Tabla '%-.192s' no fue trabada con LOCK TABLES"
         swe "Tabell '%-.192s' är inte låst med LOCK TABLES"
         ukr "Таблицю '%-.192s' не було блоковано з LOCK TABLES"
-ER_BLOB_CANT_HAVE_DEFAULT 42000 
-        cze "Blob položka '%-.192s' nemůže mít defaultní hodnotu"
-        dan "BLOB feltet '%-.192s' kan ikke have en standard værdi"
-        nla "Blob veld '%-.192s' can geen standaardwaarde bevatten"
-        eng "BLOB/TEXT column '%-.192s' can't have a default value"
-        est "BLOB-tüüpi tulp '%-.192s' ei saa omada vaikeväärtust"
-        fre "BLOB '%-.192s' ne peut avoir de valeur par défaut"
-        ger "BLOB/TEXT-Feld '%-.192s' darf keinen Vorgabewert (DEFAULT) haben"
-        greek "Τα Blob πεδία '%-.192s' δεν μπορούν να έχουν προκαθορισμένες τιμές (default value)"
-        hindi "BLOB/TEXT कॉलम '%-.192s' का डिफ़ॉल्ट मान नहीं हो सकता"
-        hun "A(z) '%-.192s' blob objektumnak nem lehet alapertelmezett erteke"
-        ita "Il campo BLOB '%-.192s' non puo` avere un valore di default"
-        jpn "BLOB/TEXT 列 '%-.192s' にはデフォルト値を指定できません。"
-        kor "BLOB 칼럼 '%-.192s' 는 디폴트 값을 가질 수 없습니다."
-        nor "Blob feltet '%-.192s' kan ikke ha en standard verdi"
-        norwegian-ny "Blob feltet '%-.192s' kan ikkje ha ein standard verdi"
-        pol "Pole typu blob '%-.192s' nie może mieć domy?lnej warto?ci"
-        por "Coluna BLOB '%-.192s' não pode ter um valor padrão (default)"
-        rum "Coloana BLOB '%-.192s' nu poate avea o valoare default"
-        rus "Невозможно указывать значение по умолчанию для столбца BLOB '%-.192s'"
-        serbian "BLOB kolona '%-.192s' ne može imati default vrednost"
-        slo "Pole BLOB '%-.192s' nemôže mať implicitnú hodnotu"
-        spa "Campo Blob '%-.192s' no puede tener valores patron"
-        swe "BLOB fält '%-.192s' kan inte ha ett DEFAULT-värde"
-        ukr "Стовбець BLOB '%-.192s' не може мати значення по замовчуванню"
+ER_UNUSED_17
+        eng "You should never see it"
 ER_WRONG_DB_NAME 42000 
         cze "Nepřípustné jméno databáze '%-.100s'"
         dan "Ugyldigt database navn '%-.100s'"
@@ -7034,7 +7011,7 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_RENAME
   eng "Columns participating in a foreign key are renamed"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE
-  eng "Cannot change column type INPLACE"
+  eng "Cannot change column type"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_CHECK
   eng "Adding foreign keys needs foreign_key_checks=OFF"
@@ -7175,7 +7152,7 @@ ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
   eng "Cannot define foreign key with %s clause on a generated column"
 ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
-  eng "The value specified for generated column '%s' in table '%s' ignored"
+  eng "The value specified for generated column '%s' in table '%s' has been ignored"
 ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
   eng "This is not yet supported for generated columns"
 ER_UNUSED_20
@@ -7623,7 +7600,7 @@ ER_ERROR_EVALUATING_EXPRESSION
 ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
-        eng "Expression for field %`-.64s is refering to uninitialized field %`s"
+        eng "Expression for field %`-.64s is referring to uninitialized field %`s"
 ER_PARTITION_DEFAULT_ERROR
         eng "Only one DEFAULT partition allowed"
         ukr "Припустимо мати тільки один DEFAULT розділ" 
@@ -7827,7 +7804,7 @@ ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %s for system-versioned table %`s"
 
 ER_VERS_ENGINE_UNSUPPORTED
-        eng "Transaction system versioning for %`s is not supported"
+        eng "Transaction-precise system versioning for %`s is not supported"
 
 ER_UNUSED_23
         eng "You should never see it"
@@ -7907,8 +7884,8 @@ ER_UNUSED_24
 ER_VERS_TEMPORARY
 	eng "TEMPORARY tables do not support system versioning"
 
-ER_VERS_NOT_SUPPORTED
-        eng "%s is not supported for %s system-versioned tables"
+ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+        eng "Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE

@@ -444,6 +444,15 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
 DROP TABLE t1;
 #
+# MDEV-16958 Assertion `field_length < 5' failed in Field_year::val_str or data corruption upon SELECT with UNION and aggregate functions
+#
+CREATE TABLE t1 (f YEAR);
+INSERT IGNORE INTO t1 VALUES (1971),(1972);
+SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1 UNION SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1;
+f
+1972
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 #

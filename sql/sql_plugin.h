@@ -196,9 +196,6 @@ extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 extern bool plugin_dl_foreach(THD *thd, const LEX_CSTRING *dl,
                               plugin_foreach_func *func, void *arg);
 
-sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
-                         bool throw_error, bool locked);
-
 extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 #endif
 

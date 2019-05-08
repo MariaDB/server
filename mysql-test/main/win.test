@@ -2229,7 +2229,44 @@ SELECT DISTINCT MIN(b1) OVER () FROM t1;
 drop table t1;
 
 --echo #
---echo # Start of 10.3 tests
+--echo # MDEV-15424: Unreasonal SQL Error (1356) on select from view
+--echo #
+
+create table t1 (id int, n1 int);
+insert into t1 values (1,1), (2,1), (3,2), (4,4);
+
+create view v1 as SELECT ifnull(max(n1) over (partition by n1),'aaa') FROM t1;
+explain select * from v1;
+select * from v1;
+drop table t1;
+drop view v1;
+
+--echo #
+--echo # MDEV-18431: Select max + row_number giving incorrect result
+--echo #
+
+create table t1 (id int, v int);
+insert into t1 values (1, 1), (1,2), (1,3), (2, 1), (2, 2);
+
+select e.id,
+ (select max(t1.v) from t1 where t1.id=e.id) as a,
+ row_number() over (partition by e.id order by e.v) as b,
+ (select max(t1.v) from t1 where t1.id=e.id) + (row_number() over (partition by e.id order by e.v)) as sum_a_b
+from t1 e;
+drop table t1;
+
+--echo #
+--echo # MDEV-15837: Assertion `item1->type() == Item::FIELD_ITEM && item2->type() == Item::FIELD_ITEM'
+--echo # failed in compare_order_elements function
+--echo #
+
+CREATE TABLE t1 (a1 int);
+insert into t1 values (1),(2),(3);
+SELECT  rank() OVER (ORDER BY 1), ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4))) FROM t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -2245,3 +2282,7 @@ CREATE TABLE t1 (d time);
 INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
 SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -192,35 +192,6 @@ uint	ibuf_debug;
 /** The insert buffer control structure */
 ibuf_t*	ibuf			= NULL;
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-/** Number of tablespaces in the ibuf_counts array */
-#define IBUF_COUNT_N_SPACES	4
-/** Number of pages within each tablespace in the ibuf_counts array */
-#define IBUF_COUNT_N_PAGES	130000
-
-/** Buffered entry counts for file pages, used in debugging */
-static ulint	ibuf_counts[IBUF_COUNT_N_SPACES][IBUF_COUNT_N_PAGES];
-
-/** Checks that the indexes to ibuf_counts[][] are within limits.
-@param[in]	page_id	page id */
-UNIV_INLINE
-void
-ibuf_count_check(
-	const page_id_t		page_id)
-{
-	if (page_id.space() < IBUF_COUNT_N_SPACES
-	    && page_id.page_no() < IBUF_COUNT_N_PAGES) {
-		return;
-	}
-
-	ib::fatal() << "UNIV_IBUF_COUNT_DEBUG limits space_id and page_no"
-		" and breaks crash recovery. space_id=" << page_id.space()
-		<< ", should be 0<=space_id<" << IBUF_COUNT_N_SPACES
-		<< ". page_no=" << page_id.page_no()
-		<< ", should be 0<=page_no<" << IBUF_COUNT_N_PAGES;
-}
-#endif
-
 /** @name Offsets to the per-page bits in the insert buffer bitmap */
 /* @{ */
 #define	IBUF_BITMAP_FREE	0	/*!< Bits indicating the
@@ -407,35 +378,6 @@ ibuf_tree_root_get(
 
 	return(root);
 }
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-
-/** Gets the ibuf count for a given page.
-@param[in]	page_id	page id
-@return number of entries in the insert buffer currently buffered for
-this page */
-ulint ibuf_count_get(const page_id_t page_id)
-{
-	ibuf_count_check(page_id);
-
-	return(ibuf_counts[page_id.space()][page_id.page_no()]);
-}
-
-/** Sets the ibuf count for a given page.
-@param[in]	page_id	page id
-@param[in]	val	value to set */
-static
-void
-ibuf_count_set(
-	const page_id_t		page_id,
-	ulint			val)
-{
-	ibuf_count_check(page_id);
-	ut_a(val < srv_page_size);
-
-	ibuf_counts[page_id.space()][page_id.page_no()] = val;
-}
-#endif
 
 /******************************************************************//**
 Closes insert buffer and frees the data structures. */
@@ -733,10 +675,6 @@ ibuf_bitmap_page_set_bits(
 	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
 	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(page_id.space()));
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a((bit != IBUF_BITMAP_BUFFERED) || (val != FALSE)
-	     || (0 == ibuf_count_get(page_id)));
-#endif
 
 	bit_offset = (page_id.page_no() % page_size.physical())
 		* IBUF_BITS_PER_PAGE + bit;
@@ -2139,8 +2077,9 @@ ibuf_remove_free_page(void)
 	the free list was so long that they cannot have taken the last
 	page from it. */
 
+	compile_time_assert(IBUF_SPACE_ID == 0);
 	fseg_free_page(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
-		       IBUF_SPACE_ID, page_no, false, &mtr);
+		       fil_system.sys_space, page_no, false, &mtr);
 
 	const page_id_t	page_id(IBUF_SPACE_ID, page_no);
 
@@ -3491,9 +3430,6 @@ fail_exit:
 	which it cannot do until we have buffered the IBUF_OP_DELETE
 	and done mtr_commit(&mtr) to release the latch. */
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a((buffered == 0) || ibuf_count_get(page_id));
-#endif
 	ibuf_mtr_start(&bitmap_mtr);
 	index->set_modified(bitmap_mtr);
 
@@ -3636,17 +3572,6 @@ fail_exit:
 	}
 
 func_exit:
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	if (err == DB_SUCCESS) {
-
-		ib::info() << "Incrementing ibuf count of page " << page_id
-			<< " from " << ibuf_count_get(space, page_no)
-			<< " by 1";
-
-		ibuf_count_set(page_id, ibuf_count_get(page_id) + 1);
-	}
-#endif
-
 	ibuf_mtr_commit(&mtr);
 	btr_pcur_close(&pcur);
 
@@ -4338,14 +4263,6 @@ ibuf_delete_rec(
 			ibuf->empty = true;
 		}
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-		ib::info() << "Decrementing ibuf count of space " << space
-			<< " page " << page_no << " from "
-			<< ibuf_count_get(page_id) << " by 1";
-
-		ibuf_count_set(page_id, ibuf_count_get(page_id) - 1);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 		return(FALSE);
 	}
 
@@ -4380,10 +4297,6 @@ ibuf_delete_rec(
 	btr_cur_pessimistic_delete(&err, TRUE, btr_pcur_get_btr_cur(pcur), 0,
 				   false, mtr);
 	ut_a(err == DB_SUCCESS);
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ibuf_count_set(page_id, ibuf_count_get(page_id) - 1);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
 
 	ibuf_size_update(root);
 	mutex_exit(&ibuf_mutex);
@@ -4432,7 +4345,8 @@ ibuf_merge_or_delete_for_page(
 	ulint		dops[IBUF_OP_COUNT];
 
 	ut_ad(block == NULL || page_id == block->page.id);
-	ut_ad(block == NULL || buf_block_get_io_fix(block) == BUF_IO_READ);
+	ut_ad(block == NULL || buf_block_get_io_fix(block) == BUF_IO_READ
+	      || recv_recovery_is_on());
 
 	if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE
 	    || trx_sys_hdr_page(page_id)
@@ -4766,10 +4680,6 @@ reset_bit:
 	my_atomic_addlint(&ibuf->n_merges, 1);
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(page_id) == 0);
-#endif
 }
 
 /*********************************************************************//**
@@ -4887,11 +4797,6 @@ ibuf_print(
 /*=======*/
 	FILE*	file)	/*!< in: file where to print */
 {
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ulint		i;
-	ulint		j;
-#endif
-
 	mutex_enter(&ibuf_mutex);
 
 	fprintf(file,
@@ -4907,22 +4812,6 @@ ibuf_print(
 
 	fputs("discarded operations:\n ", file);
 	ibuf_print_ops(ibuf->n_discarded_ops, file);
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	for (i = 0; i < IBUF_COUNT_N_SPACES; i++) {
-		for (j = 0; j < IBUF_COUNT_N_PAGES; j++) {
-			ulint	count = ibuf_count_get(page_id_t(i, j, 0));
-
-			if (count > 0) {
-				fprintf(stderr,
-					"Ibuf count for page "
-					ULINTPF ":" ULINTPF ""
-					" is " ULINTPF "\n",
-					i, j, count);
-			}
-		}
-	}
-#endif /* UNIV_IBUF_COUNT_DEBUG */
 
 	mutex_exit(&ibuf_mutex);
 }

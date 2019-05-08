@@ -215,7 +215,8 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   LEX *lex= thd->lex;
   TABLE_LIST decoy;
 
-  memcpy (&decoy, view, sizeof (TABLE_LIST));
+  decoy= *view;
+  decoy.mdl_request.key.mdl_key_init(&view->mdl_request.key);
   if (tdc_open_view(thd, &decoy, OPEN_VIEW_NO_PARSE))
     return TRUE;
 
@@ -330,12 +331,11 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     {
       if (!tbl->table_in_first_from_clause)
       {
-        if (check_access(thd, SELECT_ACL, tbl->db.str,
-                         &tbl->grant.privilege,
-                         &tbl->grant.m_internal,
-                         0, 0) ||
-            check_grant(thd, SELECT_ACL, tbl, FALSE, 1, FALSE))
+        if (check_single_table_access(thd, SELECT_ACL, tbl, FALSE))
+        {
+          tbl->hide_view_error(thd);
           goto err;
+        }
       }
     }
   }
@@ -911,15 +911,8 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
 
     View definition query is stored in the client character set.
   */
-  char view_query_buff[4096];
-  String view_query(view_query_buff,
-                    sizeof (view_query_buff),
-                    thd->charset());
-
-  char is_query_buff[4096];
-  String is_query(is_query_buff,
-                  sizeof (is_query_buff),
-                  system_charset_info);
+  StringBuffer<4096> view_query(thd->charset());
+  StringBuffer<4096> is_query(system_charset_info);
 
   char md5[MD5_BUFF_LENGTH];
   bool can_be_merged;
@@ -1719,7 +1712,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     view_select->linkage= DERIVED_TABLE_TYPE;
     table->updatable= 0;
     table->effective_with_check= VIEW_CHECK_NONE;
-    old_lex->subqueries= TRUE;
 
     table->derived= &lex->unit;
   }
@@ -2180,7 +2172,7 @@ mysql_rename_view(THD *thd,
       view definition parsing or use temporary 'view_def'
       object for it.
     */
-    bzero(&view_def, sizeof(view_def));
+    view_def.reset();
     view_def.timestamp.str= view_def.timestamp_buffer;
     view_def.view_suid= TRUE;
 

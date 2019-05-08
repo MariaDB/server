@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2016 Kentoku Shiba
+# Copyright (C) 2010-2018 Kentoku Shiba
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -167,8 +167,8 @@ drop procedure if exists mysql.spider_fix_system_tables;
 delimiter //
 create procedure mysql.spider_fix_one_table
   (tab_name char(255) charset utf8 collate utf8_bin,
-   test_col_name char(255) charset utf8 collate utf8_bin,
-   _sql text charset utf8 collate utf8_bin)
+    test_col_name char(255) charset utf8 collate utf8_bin,
+    _sql text charset utf8 collate utf8_bin)
 begin
   set @col_exists := 0;
   select 1 into @col_exists from INFORMATION_SCHEMA.COLUMNS
@@ -184,6 +184,13 @@ end;//
 
 create procedure mysql.spider_fix_system_tables()
 begin
+  select substring_index(substring_index(version(), '-', 2), '-', -1)
+    into @server_name;
+  select substring_index(version(), '.', 1)
+    into @server_major_version;
+  select substring_index(substring_index(version(), '.', 2), '.', -1)
+    into @server_minor_version;
+
   -- Fix for 0.5
   call mysql.spider_fix_one_table('spider_tables', 'server',
    'alter table mysql.spider_tables
@@ -399,6 +406,81 @@ begin
   if @col_type != 'char(199)' then
     alter table mysql.spider_table_crd
     modify table_name char(199) not null default '';
+  end if;
+
+  -- Fix for MariaDB 10.4: Crash-Safe system tables
+  if @server_name = 'MariaDB' and
+    (
+      @server_major_version > 10 or
+      (
+        @server_major_version = 10 and
+        @server_minor_version >= 4
+      )
+    )
+  then
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_link_failed_log';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_link_failed_log
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_link_mon_servers';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_link_mon_servers
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_table_crd';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_table_crd
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_table_position_for_recovery';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_table_position_for_recovery
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_table_sts';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_table_sts
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_tables';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_tables
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_xa';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_xa
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_xa_failed_log';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_xa_failed_log
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_xa_member';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_xa_member
+        engine=Aria transactional=1;
+    end if;
   end if;
 end;//
 delimiter ;

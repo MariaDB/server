@@ -661,13 +661,13 @@ static MYSQL_THDVAR_ULONGLONG(
     ~0ULL,
     1);
 
-static MYSQL_THDVAR_STR(
-    last_lock_timeout,
-    PLUGIN_VAR_MEMALLOC,
-    "last lock timeout",
-    NULL,
-    NULL,
-    NULL);
+static MYSQL_THDVAR_STR(last_lock_timeout,
+                        PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_NOCMDOPT |
+                            PLUGIN_VAR_READONLY,
+                        "last lock timeout",
+                        NULL,
+                        NULL,
+                        NULL);
 
 static MYSQL_THDVAR_BOOL(
     load_save_space,
@@ -892,6 +892,7 @@ static MYSQL_THDVAR_ULONGLONG(
     1);
 #endif // defined(TOKU_INCLUDE_RFR) && TOKU_INCLUDE_RFR
 
+#if defined(TOKU_INCLUDE_UPSERT)
 static MYSQL_THDVAR_BOOL(
     enable_fast_update,
     PLUGIN_VAR_THDLOCAL,
@@ -907,6 +908,7 @@ static MYSQL_THDVAR_BOOL(
     NULL,
     NULL,
     false);
+#endif
 
 #if TOKU_INCLUDE_XA
 static MYSQL_THDVAR_BOOL(

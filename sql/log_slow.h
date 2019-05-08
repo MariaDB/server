@@ -38,6 +38,7 @@
 #define QPLAN_TMP_DISK        (1U << 10)
 
 /* ... */
+#define QPLAN_STATUS          (1UL << 31) /* not in the slow_log_filter */
 #define QPLAN_MAX             (1UL << 31) /* reserved as placeholder */
 
 /* Bits for log_slow_disabled_statements */

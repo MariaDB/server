@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5924,7 +5924,8 @@ static bool is_candidate_key(KEY *key)
   KEY_PART_INFO *key_part;
   KEY_PART_INFO *key_part_end= key->key_part + key->user_defined_key_parts;
 
-  if (!(key->flags & HA_NOSAME) || (key->flags & HA_NULL_PART_KEY))
+  if (!(key->flags & HA_NOSAME) || (key->flags & HA_NULL_PART_KEY) ||
+      (key->flags & HA_KEY_HAS_PART_KEY_SEG))
     return false;
 
   for (key_part= key->key_part; key_part < key_part_end; key_part++)
@@ -6285,7 +6286,7 @@ drop_create_field:
             Key_part_spec *kp;
             if ((kp= part_it++))
               chkname= kp->field_name.str;
-            if (keyname == NULL)
+            if (chkname == NULL)
               continue;
           }
           if (key->type == chk_key->type &&
@@ -6492,17 +6493,14 @@ static int compare_uint(const uint *s, const uint *t)
    @retval false success
 */
 
-static bool fill_alter_inplace_info(THD *thd,
-                                    TABLE *table,
-                                    bool varchar,
+static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
                                     Alter_inplace_info *ha_alter_info)
 {
-  Field **f_ptr, *field;
+  Field **f_ptr, *field, *old_field;
   List_iterator_fast<Create_field> new_field_it;
   Create_field *new_field;
   KEY_PART_INFO *key_part, *new_part;
   KEY_PART_INFO *end;
-  uint candidate_key_count= 0;
   Alter_info *alter_info= ha_alter_info->alter_info;
   DBUG_ENTER("fill_alter_inplace_info");
   DBUG_PRINT("info", ("alter_info->flags: %llu", alter_info->flags));
@@ -6796,11 +6794,23 @@ static bool fill_alter_inplace_info(THD *thd,
     Go through keys and check if the original ones are compatible
     with new table.
   */
+  uint old_field_len= 0;
   KEY *table_key;
   KEY *table_key_end= table->key_info + table->s->keys;
   KEY *new_key;
   KEY *new_key_end=
     ha_alter_info->key_info_buffer + ha_alter_info->key_count;
+  /*
+    Primary key index for the new table
+  */
+  const KEY* const new_pk= (ha_alter_info->key_count > 0 &&
+                            (!my_strcasecmp(system_charset_info,
+                                ha_alter_info->key_info_buffer->name.str,
+                                primary_key_name) ||
+                            is_candidate_key(ha_alter_info->key_info_buffer))) ?
+                           ha_alter_info->key_info_buffer : NULL;
+  const KEY *const old_pk= table->s->primary_key == MAX_KEY ? NULL :
+                           table->key_info + table->s->primary_key;
 
   DBUG_PRINT("info", ("index count old: %d  new: %d",
                       table->s->keys, ha_alter_info->key_count));
@@ -6855,17 +6865,34 @@ static bool fill_alter_inplace_info(THD *thd,
          key_part < end;
          key_part++, new_part++)
     {
-      /*
-        Key definition has changed if we are using a different field or
-        if the used key part length is different. It makes sense to
-        check lengths first as in case when fields differ it is likely
-        that lengths differ too and checking fields is more expensive
-        in general case.
-      */
-      if (key_part->length != new_part->length)
-        goto index_changed;
-
       new_field= get_field_by_index(alter_info, new_part->fieldnr);
+      old_field= table->field[key_part->fieldnr - 1];
+      /*
+        If there is a change in index length due to column expansion
+        like varchar(X) changed to varchar(X + N) and has a compatible
+        packed data representation, we mark it for fast/INPLACE change
+        in index definition. InnoDB supports INPLACE for this cases
+
+        Key definition has changed if we are using a different field or
+        if the user key part length is different.
+      */
+      old_field_len= old_field->pack_length();
+
+      if (old_field->type() == MYSQL_TYPE_VARCHAR)
+      {
+        old_field_len= (old_field->pack_length()
+                        - ((Field_varstring*) old_field)->length_bytes);
+      }
+
+      if (key_part->length == old_field_len &&
+          key_part->length < new_part->length &&
+	  (key_part->field->is_equal((Create_field*) new_field)
+           == IS_EQUAL_PACK_LENGTH))
+      {
+        ha_alter_info->handler_flags |= ALTER_COLUMN_INDEX_LENGTH;
+      }
+      else if (key_part->length != new_part->length)
+        goto index_changed;
 
       /*
         For prefix keys KEY_PART_INFO::field points to cloned Field
@@ -6876,6 +6903,15 @@ static bool fill_alter_inplace_info(THD *thd,
           new_field->field->field_index != key_part->fieldnr - 1)
         goto index_changed;
     }
+
+    /*
+      Rebuild the index if following condition get satisfied:
+
+      (i) Old table doesn't have primary key, new table has it and vice-versa
+      (ii) Primary key changed to another existing index
+    */
+    if ((new_key == new_pk) != (table_key == old_pk))
+      goto index_changed;
 
     /* Check that key comment is not changed. */
     if (table_key->comment.length != new_key->comment.length ||
@@ -6936,22 +6972,6 @@ static bool fill_alter_inplace_info(THD *thd,
 
   /* Now let us calculate flags for storage engine API. */
 
-  /* Count all existing candidate keys. */
-  for (table_key= table->key_info; table_key < table_key_end; table_key++)
-  {
-    /*
-      Check if key is a candidate key, This key is either already primary key
-      or could be promoted to primary key if the original primary key is
-      dropped.
-      In MySQL one is allowed to create primary key with partial fields (i.e.
-      primary key which is not considered candidate). For simplicity we count
-      such key as a candidate key here.
-    */
-    if (((uint) (table_key - table->key_info) == table->s->primary_key) ||
-        is_candidate_key(table_key))
-      candidate_key_count++;
-  }
-
   /* Figure out what kind of indexes we are dropping. */
   KEY **dropped_key;
   KEY **dropped_key_end= ha_alter_info->index_drop_buffer +
@@ -6964,21 +6984,10 @@ static bool fill_alter_inplace_info(THD *thd,
 
     if (table_key->flags & HA_NOSAME)
     {
-      /*
-        Unique key. Check for PRIMARY KEY. Also see comment about primary
-        and candidate keys above.
-      */
-      if ((uint) (table_key - table->key_info) == table->s->primary_key)
-      {
+      if (table_key == old_pk)
         ha_alter_info->handler_flags|= ALTER_DROP_PK_INDEX;
-        candidate_key_count--;
-      }
       else
-      {
         ha_alter_info->handler_flags|= ALTER_DROP_UNIQUE_INDEX;
-        if (is_candidate_key(table_key))
-          candidate_key_count--;
-      }
     }
     else
       ha_alter_info->handler_flags|= ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX;
@@ -6991,24 +7000,10 @@ static bool fill_alter_inplace_info(THD *thd,
 
     if (new_key->flags & HA_NOSAME)
     {
-      bool is_pk= !my_strcasecmp(system_charset_info,
-                                 new_key->name.str, primary_key_name);
-
-      if ((!(new_key->flags & HA_KEY_HAS_PART_KEY_SEG) &&
-           !(new_key->flags & HA_NULL_PART_KEY)) ||
-          is_pk)
-      {
-        /* Candidate key or primary key! */
-        if (candidate_key_count == 0 || is_pk)
-          ha_alter_info->handler_flags|= ALTER_ADD_PK_INDEX;
-        else
-          ha_alter_info->handler_flags|= ALTER_ADD_UNIQUE_INDEX;
-        candidate_key_count++;
-      }
+      if (new_key == new_pk)
+        ha_alter_info->handler_flags|= ALTER_ADD_PK_INDEX;
       else
-      {
         ha_alter_info->handler_flags|= ALTER_ADD_UNIQUE_INDEX;
-      }
     }
     else
       ha_alter_info->handler_flags|= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX;
@@ -8169,11 +8164,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     if (alter)
     {
-      if (def->real_field_type() == MYSQL_TYPE_BLOB)
-      {
-        my_error(ER_BLOB_CANT_HAVE_DEFAULT, MYF(0), def->change.str);
-        goto err;
-      }
       if ((def->default_value= alter->default_value)) // Use new default
         def->flags&= ~NO_DEFAULT_VALUE_FLAG;
       else
@@ -8428,7 +8418,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!drop)
       {
-        check->expr->walk(&Item::rename_fields_processor, 1, &column_rename_param);
+        if (alter_info->flags & ALTER_RENAME_COLUMN)
+        {
+          check->expr->walk(&Item::rename_fields_processor, 1,
+                            &column_rename_param);
+          table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+        }
         new_constraint_list.push_back(check, thd->mem_root);
       }
     }
@@ -9310,6 +9305,64 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   THD_STAGE_INFO(thd, stage_setup);
 
+  if (alter_info->flags & ALTER_DROP_CHECK_CONSTRAINT)
+  {
+    /*
+      ALTER TABLE DROP CONSTRAINT
+      should be replaced with ... DROP [FOREIGN] KEY
+      if the constraint is the FOREIGN KEY or UNIQUE one.
+    */
+
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+    List <FOREIGN_KEY_INFO> fk_child_key_list;
+    table->file->get_foreign_key_list(thd, &fk_child_key_list);
+
+    alter_info->flags&= ~ALTER_DROP_CHECK_CONSTRAINT;
+
+    while ((drop= drop_it++))
+    {
+      if (drop->type == Alter_drop::CHECK_CONSTRAINT)
+      {
+        {
+          /* Test if there is a FOREIGN KEY with this name. */
+          FOREIGN_KEY_INFO *f_key;
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+
+          while ((f_key= fk_key_it++))
+          {
+            if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                  drop->name) == 0)
+            {
+              drop->type= Alter_drop::FOREIGN_KEY;
+              alter_info->flags|= ALTER_DROP_FOREIGN_KEY;
+              goto do_continue;
+            }
+          }
+        }
+
+        {
+          /* Test if there is an UNIQUE with this name. */
+          uint n_key;
+
+          for (n_key=0; n_key < table->s->keys; n_key++)
+          {
+            if ((table->key_info[n_key].flags & HA_NOSAME) &&
+                my_strcasecmp(system_charset_info,
+                              drop->name, table->key_info[n_key].name.str) == 0) // Merge todo: review '.str'
+            {
+              drop->type= Alter_drop::KEY;
+              alter_info->flags|= ALTER_DROP_INDEX;
+              goto do_continue;
+            }
+          }
+        }
+      }
+      alter_info->flags|= ALTER_DROP_CHECK_CONSTRAINT;
+do_continue:;
+    }
+  }
+
   handle_if_exists_options(thd, table, alter_info);
 
   /*
@@ -9637,7 +9690,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
           thd->create_and_open_tmp_table(new_db_type, &frm,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db.str,
-                                         alter_ctx.tmp_name.str,
+                                         alter_ctx.new_name.str,
                                          false, true)))
       goto err_new_table_cleanup;
 
@@ -9753,59 +9806,29 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     goto err_new_table_cleanup;
 
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
-                      alter_ctx.new_db.str, alter_ctx.tmp_name.str,
+                      alter_ctx.new_db.str, alter_ctx.new_name.str,
                       create_info, &frm))
     goto err_new_table_cleanup;
 
   /* Mark that we have created table in storage engine. */
   no_ha_table= false;
 
-  if (create_info->tmp_table())
-  {
-    TABLE *tmp_table=
-      thd->create_and_open_tmp_table(new_db_type, &frm,
-                                     alter_ctx.get_tmp_path(),
-                                     alter_ctx.new_db.str,
-                                     alter_ctx.tmp_name.str,
-                                     true, true);
-    if (!tmp_table)
-    {
-      goto err_new_table_cleanup;
-    }
-    /* in case of alter temp table send the tracker in OK packet */
-    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
-  }
-
+  new_table=
+    thd->create_and_open_tmp_table(new_db_type, &frm, alter_ctx.get_tmp_path(),
+                                   alter_ctx.new_db.str,
+                                   alter_ctx.new_name.str,
+                                   true, true);
+  if (!new_table)
+    goto err_new_table_cleanup;
 
   /* Open the table since we need to copy the data. */
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
-    TABLE_LIST tbl;
-    tbl.init_one_table(&alter_ctx.new_db, &alter_ctx.tmp_name, 0, TL_READ_NO_INSERT);
-    /*
-      Table can be found in the list of open tables in THD::all_temp_tables
-      list.
-    */
-    if ((tbl.table= thd->find_temporary_table(&tbl)) == NULL)
-      goto err_new_table_cleanup;
-    new_table= tbl.table;
-    DBUG_ASSERT(new_table);
+    /* in case of alter temp table send the tracker in OK packet */
+    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   }
   else
   {
-    /*
-      table is a normal table: Create temporary table in same directory.
-      Open our intermediate table.
-    */
-    new_table=
-      thd->create_and_open_tmp_table(new_db_type, &frm,
-                                     alter_ctx.get_tmp_path(),
-                                     alter_ctx.new_db.str,
-                                     alter_ctx.tmp_name.str,
-                                     true, true);
-    if (!new_table)
-      goto err_new_table_cleanup;
-
     /*
       Normally, an attempt to modify an FK parent table will cause
       FK children to be prelocked, so the table-being-altered cannot
@@ -9829,6 +9852,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       new_table->file->get_foreign_key_list(thd, &fk_list);
       while ((fk= fk_list_it++))
       {
+        MDL_request mdl_request;
+
         if (lower_case_table_names)
         {
          char buf[NAME_LEN];
@@ -9840,22 +9865,16 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
          len = my_casedn_str(files_charset_info, buf);
          thd->make_lex_string(fk->referenced_table, buf, len);
         }
-        if (table_already_fk_prelocked(table_list, fk->referenced_db,
-                                       fk->referenced_table, TL_READ_NO_INSERT))
-          continue;
 
-        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-        tl->init_one_table_for_prelocking(fk->referenced_db, fk->referenced_table,
-                           NULL, TL_READ_NO_INSERT, TABLE_LIST::PRELOCK_FK,
-                           NULL, 0, &thd->lex->query_tables_last);
+        mdl_request.init(MDL_key::TABLE,
+                         fk->referenced_db->str, fk->referenced_table->str,
+                         MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
+        if (thd->mdl_context.acquire_lock(&mdl_request,
+                                          thd->variables.lock_wait_timeout))
+          goto err_new_table_cleanup;
       }
-
-      if (open_tables(thd, &table_list->next_global, &tables_opened, 0,
-                      &alter_prelocking_strategy))
-        goto err_new_table_cleanup;
     }
   }
-  new_table->s->orig_table_name= table->s->table_name.str;
 
   /*
     Note: In case of MERGE table, we do not attach children. We do not
@@ -10315,11 +10334,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         to->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
+      bool save_abort_on_warning= thd->abort_on_warning;
+      thd->abort_on_warning= false;
       my_snprintf(warn_buff, sizeof(warn_buff), 
                   "ORDER BY ignored as there is a user-defined clustered index"
                   " in the table '%-.192s'", from->s->table_name.str);
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                    warn_buff);
+      thd->abort_on_warning= save_abort_on_warning;
     }
     else
     {
@@ -10401,14 +10423,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       error= 1;
       break;
     }
-    if (to->next_number_field)
-    {
-      if (auto_increment_field_copied)
-        to->auto_increment_field_not_null= TRUE;
-      else
-        to->next_number_field->reset();
-    }
-    
+
     for (Copy_field *copy_ptr=copy ; copy_ptr != copy_end ; copy_ptr++)
     {
       copy_ptr->do_copy(copy_ptr);
@@ -10446,6 +10461,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (keep_versioned && to->versioned(VERS_TRX_ID))
       to->vers_write= false;
 
+    if (to->next_number_field)
+    {
+      if (auto_increment_field_copied)
+        to->auto_increment_field_not_null= TRUE;
+      else
+        to->next_number_field->reset();
+    }
     error= to->file->ha_write_row(to->record[0]);
     to->auto_increment_field_not_null= FALSE;
     if (unlikely(error))
@@ -10600,25 +10622,11 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   if (table_copy)
     alter_info.requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;
 
-  thd->prepare_logs_for_admin_command();
-
   bool res= mysql_alter_table(thd, &null_clex_str, &null_clex_str, &create_info,
                                 table_list, &alter_info, 0,
                                 (ORDER *) 0, 0);
   table_list->next_global= next_table;
   DBUG_RETURN(res);
-}
-
-
-static void flush_checksum(ha_checksum *row_crc, uchar **checksum_start,
-                           size_t *checksum_length)
-{
-  if (*checksum_start)
-  {
-    *row_crc= my_checksum(*row_crc, *checksum_start, *checksum_length);
-    *checksum_start= NULL;
-    *checksum_length= 0;
-  }
 }
 
 
@@ -10698,93 +10706,31 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
       if (!(check_opt->flags & T_EXTEND) &&
           (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) && thd->variables.old_mode) ||
            ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) && !thd->variables.old_mode)))
-        protocol->store((ulonglong)t->file->checksum());
+      {
+        if (t->file->info(HA_STATUS_VARIABLE))
+          protocol->store_null();
+        else
+          protocol->store((longlong)t->file->stats.checksum);
+      }
       else if (check_opt->flags & T_QUICK)
         protocol->store_null();
       else
       {
-        /* calculating table's checksum */
-        ha_checksum crc= 0;
-        uchar null_mask=256 -  (1 << t->s->last_null_bit_pos);
-
-        t->use_all_columns();
-
-        if (t->file->ha_rnd_init(1))
+        int error= t->file->calculate_checksum();
+        if (thd->killed)
+        {
+          /*
+             we've been killed; let handler clean up, and remove the
+             partial current row from the recordset (embedded lib)
+          */
+          t->file->ha_rnd_end();
+          thd->protocol->remove_last_row();
+          goto err;
+        }
+        if (error)
           protocol->store_null();
         else
-        {
-          for (;;)
-          {
-            if (thd->killed)
-            {
-              /* 
-                 we've been killed; let handler clean up, and remove the 
-                 partial current row from the recordset (embedded lib) 
-              */
-              t->file->ha_rnd_end();
-              thd->protocol->remove_last_row();
-              goto err;
-            }
-            ha_checksum row_crc= 0;
-            int error= t->file->ha_rnd_next(t->record[0]);
-            if (unlikely(error))
-            {
-              break;
-            }
-            if (t->s->null_bytes)
-            {
-              /* fix undefined null bits */
-              t->record[0][t->s->null_bytes-1] |= null_mask;
-              if (!(t->s->db_create_options & HA_OPTION_PACK_RECORD))
-                t->record[0][0] |= 1;
-
-              row_crc= my_checksum(row_crc, t->record[0], t->s->null_bytes);
-            }
-
-            uchar *checksum_start= NULL;
-            size_t checksum_length= 0;
-            for (uint i= 0; i < t->s->fields; i++ )
-            {
-              Field *f= t->field[i];
-
-              if (! thd->variables.old_mode && f->is_real_null(0))
-              {
-                flush_checksum(&row_crc, &checksum_start, &checksum_length);
-                continue;
-              }
-             /*
-               BLOB and VARCHAR have pointers in their field, we must convert
-               to string; GEOMETRY is implemented on top of BLOB.
-               BIT may store its data among NULL bits, convert as well.
-             */
-              switch (f->type()) {
-                case MYSQL_TYPE_BLOB:
-                case MYSQL_TYPE_VARCHAR:
-                case MYSQL_TYPE_GEOMETRY:
-                case MYSQL_TYPE_BIT:
-                {
-                  flush_checksum(&row_crc, &checksum_start, &checksum_length);
-                  String tmp;
-                  f->val_str(&tmp);
-                  row_crc= my_checksum(row_crc, (uchar*) tmp.ptr(),
-                           tmp.length());
-                  break;
-                }
-                default:
-                  if (!checksum_start)
-                    checksum_start= f->ptr;
-                  DBUG_ASSERT(checksum_start + checksum_length == f->ptr);
-                  checksum_length+= f->pack_length();
-                  break;
-              }
-            }
-            flush_checksum(&row_crc, &checksum_start, &checksum_length);
-
-            crc+= row_crc;
-          }
-          protocol->store((ulonglong)crc);
-          t->file->ha_rnd_end();
-        }
+          protocol->store((longlong)t->file->stats.checksum);
       }
       trans_rollback_stmt(thd);
       close_thread_tables(thd);

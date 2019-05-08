@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3977,7 +3977,7 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
     // if the log entry matches, null string matching anything
     if (!log_name ||
         (log_name_len == fname_len &&
-	 !memcmp(full_fname, full_log_name, log_name_len)))
+	 !strncmp(full_fname, full_log_name, log_name_len)))
     {
       DBUG_PRINT("info", ("Found log file entry"));
       linfo->index_file_start_offset= offset;
@@ -6474,8 +6474,25 @@ err:
               it's list before dump-thread tries to send it
             */
             update_binlog_end_pos(offset);
+            /*
+              If a transaction with the LOAD DATA statement is divided
+              into logical mini-transactions (of the 10K rows) and binlog
+              is rotated, then the last portion of data may be lost due to
+              wsrep handler re-registration at the boundary of the split.
+              Since splitting of the LOAD DATA into mini-transactions is
+              logical, we should not allow these mini-transactions to fall
+              into separate binlogs. Therefore, it is necessary to prohibit
+              the rotation of binlog in the middle of processing LOAD DATA:
+            */
+#ifdef WITH_WSREP
+            if (!thd->wsrep_split_flag)
+            {
+#endif /* WITH_WSREP */
             if (unlikely((error= rotate(false, &check_purge))))
               check_purge= false;
+#ifdef WITH_WSREP
+            }
+#endif /* WITH_WSREP */
           }
         }
       }
@@ -7201,8 +7218,25 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
         likely(!(error= flush_and_sync(0))))
     {
       update_binlog_end_pos();
+      /*
+        If a transaction with the LOAD DATA statement is divided
+        into logical mini-transactions (of the 10K rows) and binlog
+        is rotated, then the last portion of data may be lost due to
+        wsrep handler re-registration at the boundary of the split.
+        Since splitting of the LOAD DATA into mini-transactions is
+        logical, we should not allow these mini-transactions to fall
+        into separate binlogs. Therefore, it is necessary to prohibit
+        the rotation of binlog in the middle of processing LOAD DATA:
+      */
+#ifdef WITH_WSREP
+      if (!thd->wsrep_split_flag)
+      {
+#endif /* WITH_WSREP */
       if (unlikely((error= rotate(false, &check_purge))))
         check_purge= false;
+#ifdef WITH_WSREP
+      }
+#endif /* WITH_WSREP */
     }
 
     offset= my_b_tell(&log_file);
@@ -7869,6 +7903,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     */
     for (current= queue; current != NULL; current= current->next)
     {
+      set_current_thd(current->thd);
       binlog_cache_mngr *cache_mngr= current->cache_mngr;
 
       /*
@@ -7904,6 +7939,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         cache_mngr->delayed_error= false;
       }
     }
+    set_current_thd(leader->thd);
 
     bool synced= 0;
     if (unlikely(flush_and_sync(&synced)))
@@ -7969,6 +8005,20 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       mark_xids_active(binlog_id, xid_count);
     }
 
+    /*
+      If a transaction with the LOAD DATA statement is divided
+      into logical mini-transactions (of the 10K rows) and binlog
+      is rotated, then the last portion of data may be lost due to
+      wsrep handler re-registration at the boundary of the split.
+      Since splitting of the LOAD DATA into mini-transactions is
+      logical, we should not allow these mini-transactions to fall
+      into separate binlogs. Therefore, it is necessary to prohibit
+      the rotation of binlog in the middle of processing LOAD DATA:
+    */
+#ifdef WITH_WSREP
+    if (!leader->thd->wsrep_split_flag)
+    {
+#endif /* WITH_WSREP */
     if (rotate(false, &check_purge))
     {
       /*
@@ -7988,6 +8038,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, errno);
       check_purge= false;
     }
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
     /* In case of binlog rotate, update the correct current binlog offset. */
     commit_offset= my_b_write_tell(&log_file);
   }
@@ -8591,14 +8644,14 @@ void sql_perror(const char *message)
   redirect stdout and stderr to a file. The streams are reopened
   only for appending (writing at end of file).
 */
-extern "C" my_bool reopen_fstreams(const char *filename,
-                                   FILE *outstream, FILE *errstream)
+bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream)
 {
-  if (outstream && !my_freopen(filename, "a", outstream))
+  if ((outstream && !my_freopen(filename, "a", outstream)) ||
+      (errstream && !my_freopen(filename, "a", errstream)))
+  {
+    my_error(ER_CANT_CREATE_FILE, MYF(0), filename, errno);
     return TRUE;
-
-  if (errstream && !my_freopen(filename, "a", errstream))
-    return TRUE;
+  }
 
   /* The error stream must be unbuffered. */
   if (errstream)
@@ -9636,9 +9689,9 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
   */
   if (!xid || !need_unlog)
     DBUG_RETURN(BINLOG_COOKIE_DUMMY(cache_mngr->delayed_error));
-  else
-    DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
-                                   cache_mngr->delayed_error));
+
+  DBUG_RETURN(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
+                                 cache_mngr->delayed_error));
 }
 
 /*

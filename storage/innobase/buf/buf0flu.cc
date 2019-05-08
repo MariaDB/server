@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1043,11 +1043,6 @@ buf_flush_write_block_low(
 	ut_ad(!buf_page_get_mutex(bpage)->is_owned());
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_WRITE);
 	ut_ad(bpage->oldest_modification != 0);
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(bpage->id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 	ut_ad(bpage->newest_modification != 0);
 
 	/* Force the log to the disk before writing the modified block */
@@ -3572,7 +3567,7 @@ buf_flush_request_force(
 
 /** Functor to validate the flush list. */
 struct	Check {
-	void	operator()(const buf_page_t* elem)
+	void operator()(const buf_page_t* elem) const
 	{
 		ut_a(elem->in_flush_list);
 	}
@@ -3589,11 +3584,10 @@ buf_flush_validate_low(
 {
 	buf_page_t*		bpage;
 	const ib_rbt_node_t*	rnode = NULL;
-	Check			check;
 
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
 
-	ut_list_validate(buf_pool->flush_list, check);
+	ut_list_validate(buf_pool->flush_list, Check());
 
 	bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
 

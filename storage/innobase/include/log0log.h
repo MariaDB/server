@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -193,23 +193,13 @@ blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
 log files. Use log_make_checkpoint_at() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint
 @return true if success, false if a checkpoint write was already running */
-bool
-log_checkpoint(
-	bool	sync,
-	bool	write_always);
+bool log_checkpoint(bool sync);
 
 /** Make a checkpoint at or after a specified LSN.
 @param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint */
-void
-log_make_checkpoint_at(
-	lsn_t			lsn,
-	bool			write_always);
+for the latest LSN */
+void log_make_checkpoint_at(lsn_t lsn);
 
 /****************************************************************//**
 Makes a checkpoint at the latest lsn and writes it to first page of each
@@ -563,16 +553,12 @@ struct log_t{
     uint32_t				subformat;
     /** individual log file size in bytes, including the header */
     lsn_t				file_size;
+  private:
     /** lsn used to fix coordinates within the log group */
     lsn_t				lsn;
     /** the byte offset of the above lsn */
     lsn_t				lsn_offset;
-
-    /** unaligned buffers */
-    byte*				file_header_bufs_ptr;
-    /** buffers for each file header in the group */
-    byte*				file_header_bufs[SRV_N_LOG_FILES_MAX];
-
+  public:
     /** used only in recovery: recovery scan succeeded up to this
     lsn in this log group */
     lsn_t				scanned_lsn;
@@ -589,8 +575,9 @@ struct log_t{
     /** Set the field values to correspond to a given lsn. */
     void set_fields(lsn_t lsn)
     {
-      lsn_offset = calc_lsn_offset(lsn);
-      this->lsn = lsn;
+      lsn_t c_lsn_offset = calc_lsn_offset(lsn);
+      set_lsn(lsn);
+      set_lsn_offset(c_lsn_offset);
     }
 
     /** Read a log segment to log_sys.buf.
@@ -607,11 +594,12 @@ struct log_t{
     /** Close the redo log buffer. */
     void close()
     {
-      ut_free(file_header_bufs_ptr);
       n_files = 0;
-      file_header_bufs_ptr = NULL;
-      memset(file_header_bufs, 0, sizeof file_header_bufs);
     }
+    void set_lsn(lsn_t a_lsn);
+    lsn_t get_lsn() const { return lsn; }
+    void set_lsn_offset(lsn_t a_lsn);
+    lsn_t get_lsn_offset() const { return lsn_offset; }
   } log;
 
 	/** The fields involved in the log buffer flush @{ */
@@ -747,6 +735,17 @@ inline lsn_t log_t::files::calc_lsn_offset(lsn_t lsn) const
   l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
   l%= group_size;
   return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
+}
+
+inline void log_t::files::set_lsn(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      lsn = a_lsn;
+}
+
+inline void log_t::files::set_lsn_offset(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
+      lsn_offset = a_lsn;
 }
 
 /** Test if flush order mutex is owned. */

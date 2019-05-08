@@ -5,7 +5,6 @@
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 --source include/have_mariabackup.inc
 
 --let $node_1=node_1
@@ -33,11 +32,11 @@ END|
 DELIMITER ;|
 
 --send CALL p1();
---sleep 2
+--sleep 1
 
 --connection node_2
 --send CALL p1();
---sleep 2
+--sleep 1
 
 # Kill and restart node #2
 
@@ -45,10 +44,7 @@ DELIMITER ;|
 --connection node_2a
 --source include/kill_galera.inc
 
---sleep 10
 --source include/start_mysqld.inc
---sleep 25
---source include/wait_until_connected_again.inc
 
 INSERT INTO t1 VALUES (DEFAULT);
 
@@ -71,8 +67,6 @@ INSERT INTO t1 VALUES (DEFAULT);
 # CR_SERVER_LOST
 --error 2013,2006
 --reap
-
---sleep 10
 
 # Confirm that the count is correct and that the cluster is intact
 

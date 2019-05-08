@@ -591,6 +591,20 @@ INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
 SELECT d, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP HAVING CASE d WHEN '2017-05-25' THEN 0 ELSE 1 END;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17299 Assertion `maybe_null' failed in make_sortkey
+--echo #
+
+CREATE TABLE t1 (pk int NOT NULL, d1 date, d2 date NOT NULL);
+INSERT INTO t1 values (1,'2018-06-22','2018-06-22'),(2,'2018-07-11','2018-07-11');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT group_concat(d1/(CASE 'b' WHEN 'j' THEN 'c' END))
+  FROM v1 GROUP BY greatest(pk, 0, d2);
+CREATE TABLE t2 AS SELECT greatest(pk, 0, d2) AS c1 FROM t1 LIMIT 0;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP VIEW v1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.1 tests

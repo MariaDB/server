@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -662,11 +662,11 @@ PageBulk::latch()
 	/* In case the block is S-latched by page_cleaner. */
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
 				     __FILE__, __LINE__, &m_mtr)) {
-		m_block = buf_page_get_gen(
-			page_id_t(m_index->table->space_id, m_page_no),
-			page_size_t(m_index->table->space->flags),
-			RW_X_LATCH, m_block, BUF_GET_IF_IN_POOL,
-			__FILE__, __LINE__, &m_mtr, &m_err);
+		m_block = buf_page_get_gen(page_id_t(m_index->table->space_id,
+						     m_page_no),
+					   univ_page_size, RW_X_LATCH,
+					   m_block, BUF_GET_IF_IN_POOL,
+					   __FILE__, __LINE__, &m_mtr, &m_err);
 
 		if (m_err != DB_SUCCESS) {
 			return (m_err);
@@ -833,6 +833,7 @@ BtrBulk::insert(
 						level, m_flush_observer));
 		err = new_page_bulk->init();
 		if (err != DB_SUCCESS) {
+			UT_DELETE(new_page_bulk);
 			return(err);
 		}
 
@@ -1031,7 +1032,7 @@ BtrBulk::finish(dberr_t	err)
 		root_page_bulk.copyIn(first_rec);
 
 		/* Remove last page. */
-		btr_page_free_low(m_index, last_block, m_root_level, false, &mtr);
+		btr_page_free(m_index, last_block, &mtr);
 
 		/* Do not flush the last page. */
 		last_block->page.flush_observer = NULL;
@@ -1044,6 +1045,7 @@ BtrBulk::finish(dberr_t	err)
 
 	ut_ad(!sync_check_iterate(dict_sync_check()));
 
-	ut_ad(err != DB_SUCCESS || btr_validate_index(m_index, NULL, false));
+	ut_ad(err != DB_SUCCESS
+	      || btr_validate_index(m_index, NULL, false) == DB_SUCCESS);
 	return(err);
 }

@@ -272,13 +272,8 @@ ALTER TABLE t1o ADD FULLTEXT INDEX(cu),
 ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
 
 # Replace the hidden FTS_DOC_ID column with a user-visible one.
-# This used to work if there is at most one fulltext index.
-# Currently, we disallow native ALTER TABLE if the table
-# contains any FULLTEXT indexes.
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
 ALGORITHM=INPLACE;
-ALTER TABLE t1o ADD COLUMN FTS_DOC_ID BIGINT UNSIGNED NOT NULL;
 # Replace the user-visible FTS_DOC_ID column with a hidden one.
 # We do not support this in-place.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
@@ -544,6 +539,19 @@ SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
   INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
   WHERE T.NAME='test/t1';
 DROP TABLE t1;
+
+--echo # and an MDEV-18041 regression related to indexes prefixes
+create table `test` (
+  `test_old` varchar(255) NOT NULL,
+  `other` varchar(255) NOT NULL,
+  PRIMARY KEY (`test_old`,`other`),
+  UNIQUE KEY uk (`test_old`(100), `other`)
+) ENGINE=InnoDB;
+
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+alter table `test` CHANGE COLUMN `test_old` `test_new` varchar(255) NOT NULL;
+select name, pos from information_schema.innodb_SYS_FIELDS where name in ('test_old', 'other', 'test_new');
+drop table `test`;
 
 
 --echo #

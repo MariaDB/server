@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -946,7 +946,6 @@ dict_index_get_nth_field_pos(
 	ulint			n_fields;
 	ulint			pos;
 
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	field2 = dict_index_get_nth_field(index2, n);
@@ -1054,8 +1053,6 @@ dict_table_col_in_clustered_key(
 	const dict_col_t*	col;
 	ulint			pos;
 	ulint			n_fields;
-
-	ut_ad(table);
 
 	col = dict_table_get_nth_col(table, n);
 
@@ -1226,8 +1223,7 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 {
-	ut_ad(table);
-	ut_ad(table->n_def == (table->n_cols - DATA_N_SYS_COLS));
+	ut_ad(table->n_def == table->n_cols - DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!table->cached);
 
@@ -1572,13 +1568,8 @@ dict_table_rename_in_cache(
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	/* store the old/current name to an automatic variable */
-	if (strlen(table->name.m_name) + 1 <= sizeof(old_name)) {
-		strcpy(old_name, table->name.m_name);
-	} else {
-		ib::fatal() << "Too long table name: "
-			<< table->name
-			<< ", max length is " << MAX_FULL_NAME_LEN;
-	}
+	ut_a(strlen(table->name.m_name) < sizeof old_name);
+	strcpy(old_name, table->name.m_name);
 
 	fold = ut_fold_string(new_name);
 
@@ -1768,7 +1759,7 @@ dict_table_rename_in_cache(
 
 			ulint	db_len;
 			char*	old_id;
-			char    old_name_cs_filename[MAX_TABLE_NAME_LEN+20];
+			char    old_name_cs_filename[MAX_FULL_NAME_LEN+1];
 			uint    errors = 0;
 
 			/* All table names are internally stored in charset
@@ -1785,7 +1776,8 @@ dict_table_rename_in_cache(
 			in old_name_cs_filename */
 
 			strncpy(old_name_cs_filename, old_name,
-				MAX_TABLE_NAME_LEN);
+				MAX_FULL_NAME_LEN);
+			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
 			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
 
 				innobase_convert_to_system_charset(
@@ -1807,7 +1799,9 @@ dict_table_rename_in_cache(
 					/* Old name already in
 					my_charset_filename */
 					strncpy(old_name_cs_filename, old_name,
-						MAX_TABLE_NAME_LEN);
+						MAX_FULL_NAME_LEN);
+					old_name_cs_filename[MAX_FULL_NAME_LEN]
+						= '\0';
 				}
 			}
 
@@ -1833,7 +1827,7 @@ dict_table_rename_in_cache(
 
 				/* This is a generated >= 4.0.18 format id */
 
-				char	table_name[MAX_TABLE_NAME_LEN] = "";
+				char	table_name[MAX_TABLE_NAME_LEN + 1];
 				uint	errors = 0;
 
 				if (strlen(table->name.m_name)
@@ -1848,6 +1842,7 @@ dict_table_rename_in_cache(
 				/* Convert the table name to UTF-8 */
 				strncpy(table_name, table->name.m_name,
 					MAX_TABLE_NAME_LEN);
+				table_name[MAX_TABLE_NAME_LEN] = '\0';
 				innobase_convert_to_system_charset(
 					strchr(table_name, '/') + 1,
 					strchr(table->name.m_name, '/') + 1,
@@ -1857,9 +1852,10 @@ dict_table_rename_in_cache(
 					/* Table name could not be converted
 					from charset my_charset_filename to
 					UTF-8. This means that the table name
-					is already in UTF-8 (#mysql#50). */
+					is already in UTF-8 (#mysql50#). */
 					strncpy(table_name, table->name.m_name,
 						MAX_TABLE_NAME_LEN);
+					table_name[MAX_TABLE_NAME_LEN] = '\0';
 				}
 
 				/* Replace the prefix 'databasename/tablename'
@@ -1952,7 +1948,6 @@ dict_table_change_id_in_cache(
 	dict_table_t*	table,	/*!< in/out: table object already in cache */
 	table_id_t	new_id)	/*!< in: new id to set */
 {
-	ut_ad(table);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
@@ -1979,7 +1974,6 @@ dict_table_remove_from_cache_low(
 	dict_foreign_t*	foreign;
 	dict_index_t*	index;
 
-	ut_ad(table);
 	ut_ad(dict_lru_validate());
 	ut_a(table->get_ref_count() == 0);
 	ut_a(table->n_rec_locks == 0);
@@ -2334,7 +2328,6 @@ dict_index_add_to_cache(
 	ulint		n_ord;
 	ulint		i;
 
-	ut_ad(index);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(index->n_def == index->n_fields);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
@@ -2973,7 +2966,6 @@ dict_index_build_internal_clust(
 	/* Add to new_index non-system columns of table not yet included
 	there */
 	for (i = 0; i + DATA_N_SYS_COLS < ulint(table->n_cols); i++) {
-
 		dict_col_t*	col = dict_table_get_nth_col(table, i);
 		ut_ad(col->mtype != DATA_SYS);
 
@@ -4305,7 +4297,6 @@ dict_create_foreign_constraints_low(
 	const char*	create_table_name;
 	const char*	orig;
 	char	create_name[MAX_TABLE_NAME_LEN + 1];
-	char	operation[8];
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -4316,40 +4307,32 @@ dict_create_foreign_constraints_low(
 	orig = ptr;
 	ptr = dict_accept(cs, ptr, "ALTER", &success);
 
-	strcpy((char *)operation, success ? "Alter " : "Create ");
+	const char* const operation = success ? "Alter " : "Create ";
 
 	if (!success) {
 		orig = ptr;
 		ptr = dict_scan_to(ptr, "CREATE");
 		ptr = dict_scan_to(ptr, "TABLE");
 		ptr = dict_accept(cs, ptr, "TABLE", &success);
+		create_table_name = NULL;
 
 		if (success) {
 			ptr = dict_scan_table_name(cs, ptr, &table_to_create, name,
-					&success, heap, &create_table_name);
+						   &success, heap, &create_table_name);
 		}
 
-		if (success) {
-			char *bufend;
-			bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-					create_table_name, strlen(create_table_name),
-					trx->mysql_thd);
-			create_name[bufend-create_name]='\0';
-			ptr = orig;
-		} else {
-			char *bufend;
-			ptr = orig;
-			bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-					name, strlen(name), trx->mysql_thd);
-			create_name[bufend-create_name]='\0';
-		}
-
-		goto loop;
+		ptr = orig;
+		const char* n = create_table_name ? create_table_name : name;
+		char *bufend = innobase_convert_name(create_name, MAX_TABLE_NAME_LEN,
+						     n, strlen(n), trx->mysql_thd);
+		create_name[bufend-create_name] = '\0';
+	} else {
+		strncpy(create_name, name, sizeof create_name);
+		create_name[(sizeof create_name) - 1] = '\0';
 	}
 
 	if (table == NULL) {
 		mutex_enter(&dict_foreign_err_mutex);
-		dict_foreign_error_report_low(ef, create_name);
 		dict_foreign_error_report_low(ef, create_name);
 		fprintf(ef, "%s table %s with foreign key constraint"
 			" failed. Table %s not found from data dictionary."
@@ -4372,11 +4355,19 @@ dict_create_foreign_constraints_low(
 	}
 
 	orig = ptr;
-	ptr = dict_accept(cs, ptr, "TABLE", &success);
-
-	if (!success) {
-
-		goto loop;
+	for (;;) {
+		ptr = dict_accept(cs, ptr, "TABLE", &success);
+		if (success) {
+			break;
+		}
+		ptr = dict_accept(cs, ptr, "ONLINE", &success);
+		if (success) {
+			continue;
+		}
+		ptr = dict_accept(cs, ptr, "IGNORE", &success);
+		if (!success) {
+			goto loop;
+		}
 	}
 
 	/* We are doing an ALTER TABLE: scan the table name we are altering */
@@ -4385,19 +4376,13 @@ dict_create_foreign_constraints_low(
 	ptr = dict_scan_table_name(cs, ptr, &table_to_alter, name,
 				   &success, heap, &referenced_table_name);
 
-	if (table_to_alter) {
-		char *bufend;
-		bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-				table_to_alter->name.m_name, strlen(table_to_alter->name.m_name),
-				trx->mysql_thd);
+	{
+		const char* n = table_to_alter
+			? table_to_alter->name.m_name : referenced_table_name;
+		char* bufend = innobase_convert_name(
+			create_name, MAX_TABLE_NAME_LEN, n, strlen(n),
+			trx->mysql_thd);
 		create_name[bufend-create_name]='\0';
-	} else {
-		char *bufend;
-		bufend = innobase_convert_name((char *)create_name, MAX_TABLE_NAME_LEN,
-				referenced_table_name, strlen(referenced_table_name),
-				trx->mysql_thd);
-		create_name[bufend-create_name]='\0';
-
 	}
 
 	if (!success) {
@@ -5212,7 +5197,6 @@ dict_foreign_parse_drop_constraints(
 	const char*		id;
 	CHARSET_INFO*		cs;
 
-	ut_a(trx);
 	ut_a(trx->mysql_thd);
 
 	cs = innobase_get_charset(trx->mysql_thd);
@@ -5378,9 +5362,8 @@ dict_index_check_search_tuple(
 	const dict_index_t*	index,	/*!< in: index tree */
 	const dtuple_t*		tuple)	/*!< in: tuple used in a search */
 {
-	ut_a(index);
-	ut_a(dtuple_get_n_fields_cmp(tuple)
-	     <= dict_index_get_n_unique_in_tree(index));
+	ut_ad(dtuple_get_n_fields_cmp(tuple)
+	      <= dict_index_get_n_unique_in_tree(index));
 	return(TRUE);
 }
 #endif /* UNIV_DEBUG */
@@ -6097,23 +6080,16 @@ dict_ind_free()
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 {
 	dict_index_t*	index;
 
 	index = dict_table_get_first_index(table);
 
 	while (index != NULL) {
-		if (index->is_committed() == committed
-		    && strcmp(index->name, name) == 0) {
-
+		if (index->is_committed() && !strcmp(index->name, name)) {
 			return(index);
 		}
 
@@ -6922,8 +6898,6 @@ dict_index_zip_success(
 /*===================*/
 	dict_index_t*	index)	/*!< in/out: index to be updated. */
 {
-	ut_ad(index);
-
 	ulint zip_threshold = zip_failure_threshold_pct;
 	if (!zip_threshold) {
 		/* Disabled by user. */
@@ -6944,8 +6918,6 @@ dict_index_zip_failure(
 /*===================*/
 	dict_index_t*	index)	/*!< in/out: index to be updated. */
 {
-	ut_ad(index);
-
 	ulint zip_threshold = zip_failure_threshold_pct;
 	if (!zip_threshold) {
 		/* Disabled by user. */
@@ -6970,8 +6942,6 @@ dict_index_zip_pad_optimal_page_size(
 	ulint	pad;
 	ulint	min_sz;
 	ulint	sz;
-
-	ut_ad(index);
 
 	if (!zip_failure_threshold_pct) {
 		/* Disabled by user. */
@@ -7020,32 +6990,16 @@ UNIV_INTERN
 ulint
 dict_sys_get_size()
 {
-	ulint size = 0;
+	/* No mutex; this is a very crude approximation anyway */
+	ulint size = UT_LIST_GET_LEN(dict_sys->table_LRU)
+		+ UT_LIST_GET_LEN(dict_sys->table_non_LRU);
+	size *= sizeof(dict_table_t)
+		+ sizeof(dict_index_t) * 2
+		+ (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
+		+ sizeof(dict_field_t) * 5 /* total number of key fields */
+		+ 200; /* arbitrary, covering names and overhead */
 
-	ut_ad(dict_sys);
-
-	mutex_enter(&dict_sys->mutex);
-
-	for(ulint i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
-		dict_table_t* table;
-
-		for (table = static_cast<dict_table_t*>(HASH_GET_FIRST(dict_sys->table_hash,i));
-		     table != NULL;
-		     table = static_cast<dict_table_t*>(HASH_GET_NEXT(name_hash, table))) {
-			dict_index_t* index;
-			size += mem_heap_get_size(table->heap) + strlen(table->name.m_name) +1;
-
-			for(index = dict_table_get_first_index(table);
-			    index != NULL;
-			    index = dict_table_get_next_index(index)) {
-				size += mem_heap_get_size(index->heap);
-			}
-		}
-	}
-
-	mutex_exit(&dict_sys->mutex);
-
-	return (size);
+	return size;
 }
 
 /** Look for any dictionary objects that are found in the given tablespace.

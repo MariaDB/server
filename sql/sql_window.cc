@@ -455,6 +455,22 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
   for ( ; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
   {
     int cmp;
+    // remove all constants as we don't need them for comparision
+    while(elem1 && ((*elem1->item)->real_item())->const_item())
+    {
+      elem1= elem1->next;
+      continue;
+    }
+
+    while(elem2 && ((*elem2->item)->real_item())->const_item())
+    {
+      elem2= elem2->next;
+      continue;
+    }
+
+    if (!elem1 || !elem2)
+      break;
+
     if ((cmp= compare_order_elements(elem1, elem2)))
       return cmp;
   }

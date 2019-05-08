@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -726,6 +726,7 @@ fts_reset_get_doc(
 		memset(get_doc, 0x0, sizeof(*get_doc));
 
 		get_doc->index_cache = ind_cache;
+		get_doc->cache = cache;
 	}
 
 	ut_ad(ib_vector_size(cache->get_docs)
@@ -3340,12 +3341,11 @@ fts_fetch_doc_from_tuple(
                const dict_field_t*     ifield;
                const dict_col_t*       col;
                ulint                   pos;
-               dfield_t*               field;
 
                ifield = dict_index_get_nth_field(index, i);
                col = dict_field_get_col(ifield);
                pos = dict_col_get_no(col);
-               field = dtuple_get_nth_field(tuple, pos);
+		const dfield_t* field = dtuple_get_nth_field(tuple, pos);
 
                if (!get_doc->index_cache->charset) {
                        get_doc->index_cache->charset = fts_get_charset(
@@ -4783,12 +4783,12 @@ fts_tokenize_document(
 	ut_a(!doc->tokens);
 	ut_a(doc->charset);
 
-	doc->tokens = rbt_create_arg_cmp(
-		sizeof(fts_token_t), innobase_fts_text_cmp, (void*) doc->charset);
+	doc->tokens = rbt_create_arg_cmp(sizeof(fts_token_t),
+					 innobase_fts_text_cmp,
+					 (void*) doc->charset);
 
 	if (parser != NULL) {
 		fts_tokenize_param_t	fts_param;
-
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = 0;
 

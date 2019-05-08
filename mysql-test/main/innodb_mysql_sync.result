@@ -489,7 +489,9 @@ DROP TABLE t1;
 SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded';
 #Setup a table with FULLTEXT index.
 connection default;
-CREATE TABLE t1(fld1 CHAR(10), FULLTEXT(fld1)) ENGINE= INNODB;
+CREATE TABLE t1(fld1 CHAR(10), FULLTEXT(fld1), FULLTEXT(fld1)) ENGINE= INNODB;
+Warnings:
+Note	1831	Duplicate index `fld1_2`. This is deprecated and will be disallowed in a future release
 INSERT INTO t1 VALUES("String1");
 #OPTIMIZE TABLE operation.
 OPTIMIZE TABLE t1;

@@ -1058,7 +1058,9 @@ public:
           else
           {
             table_field->collected_stats->min_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
+            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
+                           MY_MIN(val.length(), stat_field->field_length)).length();
+            stat_field->store(val.ptr(), length, &my_charset_bin);
           }
           break;
         case COLUMN_STAT_MAX_VALUE:
@@ -1067,7 +1069,9 @@ public:
           else
           {
             table_field->collected_stats->max_value->val_str(&val);
-            stat_field->store(val.ptr(), val.length(), &my_charset_bin);
+            size_t length= Well_formed_prefix(val.charset(), val.ptr(),
+                            MY_MIN(val.length(), stat_field->field_length)).length();
+            stat_field->store(val.ptr(), length, &my_charset_bin);
           }
           break;
         case COLUMN_STAT_NULLS_RATIO:
@@ -2181,7 +2185,10 @@ inline bool statistics_for_command_is_needed(THD *thd)
 {
   if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
     return FALSE;
-  
+
+  if (thd->force_read_stats)
+    return TRUE;
+
   switch(thd->lex->sql_command) {
   case SQLCOM_SELECT:
   case SQLCOM_INSERT:
@@ -3053,7 +3060,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       }
     }
   }
-      
+
   table->stats_is_read= TRUE;
 
   DBUG_RETURN(0);
@@ -4077,6 +4084,7 @@ bool is_eits_usable(Field *field)
          partition list of a table. We assume the selecticivity for
          such columns would be handled during partition pruning.
   */
+  DBUG_ASSERT(field->table->stats_is_read);
   Column_statistics* col_stats= field->read_stats;
   return col_stats && !col_stats->no_stat_values_provided() &&        //(1)
     field->type() != MYSQL_TYPE_GEOMETRY &&                           //(2)

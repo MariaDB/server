@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -508,24 +508,28 @@ fsp_reserve_free_extents(
 	mtr_t*		mtr,
 	ulint		n_pages = 2);
 
-/**********************************************************************//**
-Frees a single page of a segment. */
+/** Free a page in a file segment.
+@param[in,out]	seg_header	file segment header
+@param[in,out]	space		tablespace
+@param[in]	offset		page number
+@param[in]	ahi		whether we may need to drop the adaptive
+hash index
+@param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page_func(
-	fseg_header_t*	seg_header, /*!< in: segment header */
-	ulint		space_id, /*!< in: space id */
-	ulint		page,	/*!< in: page offset */
+	fseg_header_t*	seg_header,
+	fil_space_t*	space,
+	ulint		offset,
 #ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
+	bool		ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
+	mtr_t*		mtr);
 #ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, ahi, mtr)
+# define fseg_free_page(header, space, offset, ahi, mtr)	\
+	fseg_free_page_func(header, space, offset, ahi, mtr)
 #else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, mtr)
+# define fseg_free_page(header, space, offset, ahi, mtr)	\
+	fseg_free_page_func(header, space, offset, mtr)
 #endif /* BTR_CUR_HASH_ADAPT */
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace
@@ -627,15 +631,30 @@ fsp_descr_page(
 	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
-/***********************************************************//**
-Parses a redo log record of a file page init.
-@return end of log record or NULL */
-byte*
-fsp_parse_init_file_page(
-/*=====================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr, /*!< in: buffer end */
-	buf_block_t*	block);	/*!< in: block or NULL */
+/** Initialize a file page whose prior contents should be ignored.
+@param[in,out]	block	buffer pool block */
+void fsp_apply_init_file_page(buf_block_t* block);
+
+/** Initialize a file page.
+@param[in]	space	tablespace
+@param[in,out]	block	file page
+@param[in,out]	mtr	mini-transaction */
+inline void fsp_init_file_page(
+#ifdef UNIV_DEBUG
+	const fil_space_t* space,
+#endif
+	buf_block_t* block, mtr_t* mtr)
+{
+	ut_d(space->modify_check(*mtr));
+	ut_ad(space->id == block->page.id.space());
+	fsp_apply_init_file_page(block);
+	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
+}
+
+#ifndef UNIV_DEBUG
+# define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
+#endif
+
 #ifdef UNIV_BTR_PRINT
 /*******************************************************************//**
 Writes info of a segment. */

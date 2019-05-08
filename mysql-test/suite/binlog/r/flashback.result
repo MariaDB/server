@@ -684,6 +684,24 @@ world.city	563256876
 DROP TABLE test.test;
 DROP TABLE world.city;
 DROP DATABASE world;
+# < CASE 7 >
+# Test Case for MDEV-17260
+#
+RESET MASTER;
+CREATE TABLE t1 ( f INT PRIMARY KEY ) ENGINE=innodb;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6);
+# 6- Rows must be present
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+6
+FLUSH LOGS;
+DELETE  FROM t1;
+FLUSH LOGS;
+# 0- Rows must be present
+include/assert.inc [Table t1 should have 0 rows.]
+# 6- Rows must be present upon restoring from flashback
+include/assert.inc [Table t1 should have six rows.]
+DROP TABLE t1;
 SET binlog_format=statement;
 Warnings:
 Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT

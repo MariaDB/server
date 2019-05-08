@@ -2132,6 +2132,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_lock_wait_timeout
         opt_delete_gtid_domain
         asrow_attribute
+        opt_constraint_no_id
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -6382,7 +6383,7 @@ create_table_option:
               from the global list.
             */
             LEX *lex=Lex;
-            lex->create_info.merge_list= lex->select_lex.table_list;
+            lex->create_info.merge_list= lex->select_lex.table_list.first;
             lex->select_lex.table_list= lex->save_list;
             /*
               When excluding union list from the global list we assume that
@@ -6391,7 +6392,7 @@ create_table_option:
             */
             TABLE_LIST *last_non_sel_table= lex->create_last_non_select_table;
             DBUG_ASSERT(last_non_sel_table->next_global ==
-                        lex->create_info.merge_list.first);
+                        lex->create_info.merge_list);
             last_non_sel_table->next_global= 0;
             Lex->query_tables_last= &last_non_sel_table->next_global;
 
@@ -6716,6 +6717,11 @@ check_constraint:
               MYSQL_YYABORT;
             $$= v;
           }
+        ;
+
+opt_constraint_no_id:
+          /* Empty */  {}
+        | CONSTRAINT   {}
         ;
 
 opt_constraint:
@@ -8377,7 +8383,7 @@ alter_list_item:
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             lex->alter_info.flags|= ALTER_DROP_FOREIGN_KEY;
           }
-        | DROP PRIMARY_SYM KEY_SYM
+        | DROP opt_constraint_no_id PRIMARY_SYM KEY_SYM
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
@@ -8887,8 +8893,17 @@ binlog_base64_event:
           {
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $2;
+            Lex->ident.str=    NULL;
+            Lex->ident.length= 0;
           }
-        ;
+          |
+          BINLOG_SYM '@' ident_or_text ',' '@' ident_or_text
+          {
+            Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
+            Lex->comment= $3;
+            Lex->ident=   $6;
+          }
+          ;
 
 check_view_or_table:
           table_or_tables table_list opt_mi_check_type
@@ -14754,6 +14769,7 @@ load:
           LOAD data_or_xml
           {
             LEX *lex= thd->lex;
+            mysql_init_select(lex);
 
             if (unlikely(lex->sphead))
             {
@@ -17587,19 +17603,21 @@ subselect_end:
             lex->current_select = lex->current_select->return_after_parsing();
             lex->nest_level--;
             lex->current_select->n_child_sum_items += child->n_sum_items;
-            /*
-              A subselect can add fields to an outer select. Reserve space for
-              them.
-            */
-            lex->current_select->select_n_where_fields+=
-            child->select_n_where_fields;
 
             /*
-              Aggregate functions in having clause may add fields to an outer
-              select. Count them also.
+              A subquery (and all the subsequent query blocks in a UNION) can
+              add columns to an outer query block. Reserve space for them.
+              Aggregate functions in having clause can also add fields to an
+              outer select.
             */
-            lex->current_select->select_n_having_items+=
-            child->select_n_having_items;
+            for (SELECT_LEX *temp= child->master_unit()->first_select();
+                 temp != NULL; temp= temp->next_select())
+            {
+              lex->current_select->select_n_where_fields+=
+                temp->select_n_where_fields;
+              lex->current_select->select_n_having_items+=
+                temp->select_n_having_items;
+            }
           }
         ;
 

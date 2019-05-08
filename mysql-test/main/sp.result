@@ -6798,7 +6798,7 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 create table t1 (a integer)$
 call p1$
 a
-alter table t1 add b integer;
+alter table t1 add b integer$
 call p1$
 a
 drop table t1;
@@ -7643,6 +7643,22 @@ c1	c2	count(c3)
 2012-03-01 02:00:00	3	1
 DROP PROCEDURE p1;
 # End of 5.5 test
+CREATE PROCEDURE sp() ALTER TABLE non_existing_table OPTIMIZE PARTITION p0;
+CALL sp;
+Table	Op	Msg_type	Msg_text
+test.non_existing_table	optimize	Error	Table 'test.non_existing_table' doesn't exist
+test.non_existing_table	optimize	status	Operation failed
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() SHOW USER_STATISTICS;
+CALL sp;
+User	Total_connections	Concurrent_connections	Connected_time	Busy_time	Cpu_time	Bytes_received	Bytes_sent	Binlog_bytes_written	Rows_read	Rows_sent	Rows_deleted	Rows_inserted	Rows_updated	Select_commands	Update_commands	Other_commands	Commit_transactions	Rollback_transactions	Denied_connections	Lost_connections	Access_denied	Empty_queries	Total_ssl_connections	Max_statement_time_exceeded
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
 #
 # Bug#12663165 SP DEAD CODE REMOVAL DOESN'T UNDERSTAND CONTINUE HANDLERS
 #
@@ -7927,6 +7943,39 @@ CALL sp;
 c	a	b	a	b
 DROP PROCEDURE sp;
 DROP TABLE t1;
+#
+# MDEV-17055: Server crashes in find_order_in_list upon
+# 2nd (3rd) execution of SP with UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (c INT);
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 ORDER BY a, b LIMIT 1;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1, t2;
 # End of 5.5 test
 #
 #  MDEV-7040: Crash in field_conv, memcpy_field_possible, part#2

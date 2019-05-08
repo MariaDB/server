@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -860,10 +860,9 @@ dict_table_get_sys_col(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #else /* UNIV_DEBUG */
-#define dict_table_get_nth_col(table, pos)				\
-	(&(table)->cols[pos])
-#define dict_table_get_sys_col(table, sys)				\
-	(&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS])
+#define dict_table_get_nth_col(table, pos)	(&(table)->cols[pos])
+#define dict_table_get_sys_col(table, sys)	\
+	&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS]
 /* Get nth virtual columns */
 #define dict_table_get_nth_v_col(table, pos)	(&(table)->v_cols[pos])
 #endif /* UNIV_DEBUG */
@@ -1529,31 +1528,21 @@ dict_tables_have_same_db(
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed=true)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 		MY_ATTRIBUTE((warn_unused_result));
 
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 inline
 const dict_index_t*
-dict_table_get_index_on_name(
-	const dict_table_t*	table,
-	const char*		name,
-	bool			committed=true)
+dict_table_get_index_on_name(const dict_table_t* table, const char* name)
 {
-	return(dict_table_get_index_on_name(
-		       const_cast<dict_table_t*>(table), name, committed));
+	return dict_table_get_index_on_name(const_cast<dict_table_t*>(table),
+					    name);
 }
 
 /***************************************************************

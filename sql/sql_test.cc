@@ -596,13 +596,13 @@ update:     %10lu\n",
 	 tmp.ha_update_count);
   printf("\nTable status:\n\
 Opened tables: %10lu\n\
-Open tables:   %10lu\n\
-Open files:    %10lu\n\
+Open tables:   %10u\n\
+Open files:    %10u\n\
 Open streams:  %10lu\n",
 	 tmp.opened_tables,
-	 (ulong) tc_records(),
-	 (ulong) my_file_opened,
-	 (ulong) my_stream_opened);
+	 tc_records(),
+	 my_file_opened,
+	 my_stream_opened);
 
 #ifndef DONT_USE_THR_ALARM
   ALARM_INFO alarm_info;

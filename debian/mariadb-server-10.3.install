@@ -36,8 +36,6 @@ usr/bin/wsrep_sst_common
 usr/bin/wsrep_sst_mariabackup
 usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
-usr/bin/wsrep_sst_xtrabackup
-usr/bin/wsrep_sst_xtrabackup-v2
 usr/lib/mysql/plugin/auth_ed25519.so
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_socket.so
@@ -90,8 +88,7 @@ usr/share/man/man1/resolveip.1
 usr/share/man/man1/wsrep_sst_common.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
-usr/share/man/man1/wsrep_sst_xtrabackup-v2.1
-usr/share/man/man1/wsrep_sst_xtrabackup.1
+usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/mysql/errmsg-utf8.txt
 usr/share/mysql/fill_help_tables.sql
 usr/share/mysql/maria_add_gis_sp_bootstrap.sql

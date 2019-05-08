@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -284,6 +285,7 @@ public:
 		m_trx(trx),
 		m_flush_observer(observer)
 	{
+		ut_ad(!dict_index_is_spatial(index));
 #ifdef UNIV_DEBUG
 		if (m_flush_observer)
 		my_atomic_addlint(&m_index->table->space->redo_skipped_count,

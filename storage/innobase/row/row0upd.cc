@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -853,7 +853,7 @@ row_upd_index_write_log(
 
 				mlog_catenate_string(
 					mtr,
-					static_cast<byte*>(
+					static_cast<const byte*>(
 						dfield_get_data(new_val)),
 					len);
 
@@ -1034,8 +1034,9 @@ the equal ordering fields. NOTE: we compare the fields as binary strings!
 @param[in]	heap		memory heap from which allocated
 @param[in]	mysql_table	NULL, or mysql table object when
 				user thread invokes dml
+@param[out]	error		error number in case of failure
 @return own: update vector of differing fields, excluding roll ptr and
-trx id */
+trx id,if error is not equal to DB_SUCCESS, return NULL */
 upd_t*
 row_upd_build_difference_binary(
 	dict_index_t*	index,
@@ -1045,11 +1046,10 @@ row_upd_build_difference_binary(
 	bool		no_sys,
 	trx_t*		trx,
 	mem_heap_t*	heap,
-	TABLE*		mysql_table)
+	TABLE*		mysql_table,
+	dberr_t*	error)
 {
 	upd_field_t*	upd_field;
-	dfield_t*	dfield;
-	const byte*	data;
 	ulint		len;
 	upd_t*		update;
 	ulint		n_diff;
@@ -1080,9 +1080,9 @@ row_upd_build_difference_binary(
 	}
 
 	for (i = 0; i < n_fld; i++) {
-		data = rec_get_nth_cfield(rec, index, offsets, i, &len);
-
-		dfield = dtuple_get_nth_field(entry, i);
+		const byte* data = rec_get_nth_cfield(rec, index, offsets, i,
+						      &len);
+		const dfield_t* dfield = dtuple_get_nth_field(entry, i);
 
 		/* NOTE: we compare the fields as binary strings!
 		(No collation) */
@@ -1150,12 +1150,18 @@ row_upd_build_difference_binary(
 					index->table, NULL, NULL, &ext, heap);
 			}
 
-			dfield = dtuple_get_nth_v_field(entry, i);
-
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&v_heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
+			if (vfield == NULL) {
+				if (v_heap) mem_heap_free(v_heap);
+				*error = DB_COMPUTE_VALUE_FAILED;
+				return(NULL);
+			}
+
+			const dfield_t* dfield = dtuple_get_nth_v_field(
+				entry, i);
 
 			if (!dfield_data_is_binary_equal(
 				dfield, vfield->len,
@@ -1745,7 +1751,7 @@ row_upd_changes_ord_field_binary_func(
 			double		mbr2[SPDIMS * 2];
 			rtr_mbr_t*	old_mbr;
 			rtr_mbr_t*	new_mbr;
-			uchar*		dptr = NULL;
+			const uchar*	dptr = NULL;
 			ulint		flen = 0;
 			ulint		dlen = 0;
 			mem_heap_t*	temp_heap = NULL;
@@ -1766,7 +1772,7 @@ row_upd_changes_ord_field_binary_func(
 				/* For off-page stored data, we
 				need to read the whole field data. */
 				flen = dfield_get_len(dfield);
-				dptr = static_cast<byte*>(
+				dptr = static_cast<const byte*>(
 					dfield_get_data(dfield));
 				temp_heap = mem_heap_create(1000);
 
@@ -1776,7 +1782,7 @@ row_upd_changes_ord_field_binary_func(
 					flen,
 					temp_heap);
 			} else {
-				dptr = static_cast<uchar*>(dfield->data);
+				dptr = static_cast<const uchar*>(dfield->data);
 				dlen = dfield->len;
 			}
 
@@ -1819,13 +1825,13 @@ row_upd_changes_ord_field_binary_func(
 					flen = BTR_EXTERN_FIELD_REF_SIZE;
 					ut_ad(dfield_get_len(new_field) >=
 					      BTR_EXTERN_FIELD_REF_SIZE);
-					dptr = static_cast<byte*>(
+					dptr = static_cast<const byte*>(
 						dfield_get_data(new_field))
 						+ dfield_get_len(new_field)
 						- BTR_EXTERN_FIELD_REF_SIZE;
 				} else {
 					flen = dfield_get_len(new_field);
-					dptr = static_cast<byte*>(
+					dptr = static_cast<const byte*>(
 						dfield_get_data(new_field));
 				}
 
@@ -1839,7 +1845,8 @@ row_upd_changes_ord_field_binary_func(
 					flen,
 					temp_heap);
 			} else {
-				dptr = static_cast<uchar*>(upd_field->new_val.data);
+				dptr = static_cast<const byte*>(
+					upd_field->new_val.data);
 				dlen = upd_field->new_val.len;
 			}
 			rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
@@ -1897,7 +1904,7 @@ row_upd_changes_ord_field_binary_func(
 			ut_a(dict_index_is_clust(index)
 			     || ind_field->prefix_len <= dfield_len);
 
-			buf = static_cast<byte*>(dfield_get_data(dfield));
+			buf= static_cast<const byte*>(dfield_get_data(dfield));
 copy_dfield:
 			ut_a(dfield_len > 0);
 			dfield_copy(&dfield_ext, dfield);
@@ -2681,7 +2688,6 @@ row_upd_clust_rec_by_insert(
 	rec_t*		rec;
 	ulint*		offsets			= NULL;
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
 	trx = thr_get_trx(thr);
@@ -2832,7 +2838,6 @@ row_upd_clust_rec(
 	dberr_t		err;
 	const dtuple_t*	rebuilt_old_pk	= NULL;
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!thr_get_trx(thr)->in_rollback);
 	ut_ad(!node->table->skip_alter_undo);
@@ -2968,7 +2973,6 @@ row_upd_del_mark_clust_rec(
 	rec_t*		rec;
 	trx_t*		trx = thr_get_trx(thr);
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(node->is_delete == PLAIN_DELETE);
 
@@ -3193,6 +3197,7 @@ row_upd_clust_step(
 
 	if (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE) {
 
+		node->index = NULL;
 		err = row_upd_clust_rec(
 			flags, node, index, offsets, &heap, thr, &mtr);
 		goto exit_func;

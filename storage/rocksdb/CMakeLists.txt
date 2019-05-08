@@ -5,8 +5,8 @@ MACRO(SKIP_ROCKSDB_PLUGIN msg)
   RETURN()
 ENDMACRO()
 
-IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
-  SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
+IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/CMakeLists.txt")
+  SKIP_ROCKSDB_PLUGIN("Missing CMakeLists.txt in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
 CHECK_LIBRARY_EXISTS(rt timer_delete "" HAVE_TIMER_DELETE)
@@ -221,7 +221,9 @@ TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib dbug)
 
-INSTALL_SCRIPT(myrocks_hotbackup COMPONENT rocksdb-engine)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/myrocks_hotbackup.py
+  ${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup @ONLY)
+INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup COMPONENT rocksdb-engine)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
