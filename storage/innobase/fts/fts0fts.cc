@@ -334,7 +334,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 	MY_ATTRIBUTE((nonnull(1)));
@@ -2045,7 +2044,6 @@ fts_create_index_tables_low(
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table_id;
-	fts_table.parent = table_name;
 	fts_table.table = index->table;
 
 #ifdef FTS_DOC_STATS_DEBUG
@@ -2632,7 +2630,6 @@ fts_update_next_doc_id(
 /*===================*/
 	trx_t*			trx,		/*!< in/out: transaction */
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id)		/*!< in: DOC ID to set */
 {
 	table->fts->cache->synced_doc_id = doc_id;
@@ -2641,7 +2638,7 @@ fts_update_next_doc_id(
 	table->fts->cache->first_doc_id = table->fts->cache->next_doc_id;
 
 	fts_update_sync_doc_id(
-		table, table_name, table->fts->cache->synced_doc_id, trx);
+		table, table->fts->cache->synced_doc_id, trx);
 
 }
 
@@ -2712,8 +2709,6 @@ retry:
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
 
-	fts_table.parent = table->name;
-
 	trx = trx_allocate_for_background();
 
 	trx->op_info = "update the next FTS document id";
@@ -2770,7 +2765,7 @@ retry:
 
 	if (doc_id_cmp > *doc_id) {
 		error = fts_update_sync_doc_id(
-			table, table->name, cache->synced_doc_id, trx);
+			table, cache->synced_doc_id, trx);
 	}
 
 	*doc_id = cache->next_doc_id;
@@ -2808,7 +2803,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 {
@@ -2825,11 +2819,6 @@ fts_update_sync_doc_id(
 	fts_table.table_id = table->id;
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
-	if (table_name) {
-		fts_table.parent = table_name;
-	} else {
-		fts_table.parent = table->name;
-	}
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
@@ -6260,7 +6249,6 @@ fts_rename_one_aux_table_to_hex_format(
 
 	ut_a(fts_table.suffix != NULL);
 
-	fts_table.parent = parent_table->name;
 	fts_table.table_id = aux_table->parent_id;
 	fts_table.index_id = aux_table->index_id;
 	fts_table.table = parent_table;

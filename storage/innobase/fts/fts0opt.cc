@@ -1603,12 +1603,10 @@ fts_optimize_create(
 
 	optim->trx = trx_allocate_for_background();
 
-	optim->fts_common_table.parent = table->name;
 	optim->fts_common_table.table_id = table->id;
 	optim->fts_common_table.type = FTS_COMMON_TABLE;
 	optim->fts_common_table.table = table;
 
-	optim->fts_index_table.parent = table->name;
 	optim->fts_index_table.table_id = table->id;
 	optim->fts_index_table.type = FTS_INDEX_TABLE;
 	optim->fts_index_table.table = table;

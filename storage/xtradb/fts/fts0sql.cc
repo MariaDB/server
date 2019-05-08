@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -112,13 +113,14 @@ fts_get_table_name_prefix(
 	int		prefix_name_len;
 	char		table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
 
+#if 0 /* FIXME: protect the access to dict_table_t::name */
+	ut_ad(mutex_own(&dict_sys->mutex));
+#endif
 	slash = static_cast<const char*>(
-		memchr(fts_table->parent, '/', strlen(fts_table->parent)));
-
-	if (slash) {
-		/* Print up to and including the separator. */
-		dbname_len = static_cast<int>(slash - fts_table->parent) + 1;
-	}
+		strchr(fts_table->table->name, '/'));
+	ut_ad(slash);
+	/* Print up to and including the separator. */
+	dbname_len = static_cast<int>(slash - fts_table->table->name) + 1;
 
 	len = fts_get_table_id(fts_table, table_id);
 
@@ -127,7 +129,7 @@ fts_get_table_name_prefix(
 	prefix_name = static_cast<char*>(mem_alloc(prefix_name_len));
 
 	len = sprintf(prefix_name, "%.*sFTS_%s",
-		      dbname_len, fts_table->parent, table_id);
+		      dbname_len, fts_table->table->name, table_id);
 
 	ut_a(len > 0);
 	ut_a(len == prefix_name_len - 1);

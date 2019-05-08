@@ -1500,7 +1500,6 @@ row_fts_merge_insert(
 	ins_ctx.fts_table.type = FTS_INDEX_TABLE;
 	ins_ctx.fts_table.index_id = index->id;
 	ins_ctx.fts_table.table_id = table->id;
-	ins_ctx.fts_table.parent = index->table->name;
 	ins_ctx.fts_table.table = index->table;
 	space = table->space;
 

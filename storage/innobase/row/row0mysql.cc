@@ -3831,7 +3831,7 @@ next_rec:
 					os_thread_sleep(10000000););
 
 			table->fts->fts_status |= TABLE_DICT_LOCKED;
-			fts_update_next_doc_id(trx, table, NULL, 0);
+			fts_update_next_doc_id(trx, table, 0);
 			fts_cache_clear(table->fts->cache);
 			fts_cache_init(table->fts->cache);
 			table->fts->fts_status &= ~TABLE_DICT_LOCKED;
