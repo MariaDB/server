@@ -17,9 +17,10 @@ CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE)
 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t1 VALUES(0,2);
-BEGIN;
 INSERT INTO t2 VALUES(2,1);
 ALTER TABLE t2 ADD COLUMN (c3 TEXT NOT NULL DEFAULT 'De finibus bonorum');
+BEGIN;
+INSERT INTO t2 VALUES(3,4,'accusantium doloremque laudantium');
 
 connect ddl, localhost, root;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
@@ -29,7 +30,7 @@ ALTER TABLE t1 ADD COLUMN (c3 TEXT NOT NULL DEFAULT ' et malorum');
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-INSERT INTO t2 VALUES(3,4,'accusantium doloremque laudantium');
+COMMIT;
 
 --source include/kill_mysqld.inc
 disconnect ddl;
