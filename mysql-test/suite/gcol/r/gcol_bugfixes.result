@@ -535,7 +535,6 @@ CREATE TABLE t (a INTEGER) engine=innodb;
 ALTER TABLE t ADD b INTEGER AS (SUBSTR('','a',1));
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'a'
-Warning	1292	Truncated incorrect INTEGER value: 'a'
 DROP TABLE t;
 set sql_mode= @save_old_sql_mode;
 # Bug#21875520 Problems with virtual column indexes

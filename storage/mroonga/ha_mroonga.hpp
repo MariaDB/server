@@ -641,7 +641,6 @@ protected:
   bool commit_inplace_alter_table(TABLE *altered_table,
                                   Alter_inplace_info *ha_alter_info,
                                   bool commit);
-  void notify_table_changed();
 #endif
 
 private:
@@ -1201,8 +1200,6 @@ private:
   bool storage_commit_inplace_alter_table(TABLE *altered_table,
                                           Alter_inplace_info *ha_alter_info,
                                           bool commit);
-  void wrapper_notify_table_changed();
-  void storage_notify_table_changed();
 #else
   alter_table_operations wrapper_alter_table_flags(alter_table_operations flags);
   alter_table_operations storage_alter_table_flags(alter_table_operations flags);
