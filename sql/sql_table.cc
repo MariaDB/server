@@ -10224,7 +10224,7 @@ do_continue:;
 
   backup_name.length= my_snprintf(backup_name_buff, sizeof(backup_name_buff),
                                   "%s2-%lx-%lx", tmp_file_prefix,
-                                    current_pid, (long) thd->thread_id);
+                                  current_pid, (long) thd->thread_id);
   if (lower_case_table_names)
     my_casedn_str(files_charset_info, backup_name_buff);
   if (mysql_rename_table(old_db_type, &alter_ctx.db, &alter_ctx.table_name,
