@@ -1760,7 +1760,7 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   char tmp_name[FN_REFLEN];
-  my_snprintf(tmp_name, sizeof (tmp_name), "%s-%s", tmp_file_prefix,
+  my_snprintf(tmp_name, sizeof (tmp_name), "%s_%s", tmp_file_prefix,
               lpt->table_name.str);
   return build_table_filename(buff, bufflen, lpt->db.str, tmp_name, "",
                               FN_IS_TMP);
@@ -10223,8 +10223,8 @@ do_continue:;
   backup_name.str= backup_name_buff;
 
   backup_name.length= my_snprintf(backup_name_buff, sizeof(backup_name_buff),
-                                  "%s2-%lx-%lx", tmp_file_prefix,
-                                    current_pid, (long) thd->thread_id);
+                                  "%s2_%lx_%lx", tmp_file_prefix,
+                                  current_pid, (long) thd->thread_id);
   if (lower_case_table_names)
     my_casedn_str(files_charset_info, backup_name_buff);
   if (mysql_rename_table(old_db_type, &alter_ctx.db, &alter_ctx.table_name,
