@@ -101,7 +101,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       ha_open() sets the following for us. We have to set this for the
       underlying handler
     */
-    file->cached_table_flags= file->table_flags();
+    file->cached_table_flags= (file->table_flags() | HA_REUSES_FILE_NAMES);
 
     file->reset_statistics();
     internal_tmp_table= file->internal_tmp_table=
