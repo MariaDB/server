@@ -4134,7 +4134,15 @@ row_merge_file_create_low(
 		__FILE__, __LINE__);
 	
 #endif
-	fd = innobase_mysql_tmpfile(path);
+	{
+		os_file_t f = innobase_mysql_tmpfile(path);
+#if defined _WIN32
+		fd = my_get_osfhandle(f);
+#else
+		fd = f;
+#endif
+		my_invalidate_fd(f);
+	}
 #ifdef UNIV_PFS_IO
 	register_pfs_file_open_end(locker, fd, 
 		(fd == OS_FILE_CLOSED)?NULL:&fd);
@@ -4178,7 +4186,7 @@ row_merge_file_destroy_low(
 	const pfs_os_file_t& fd)	/*!< in: merge file descriptor */
 {
 	if (fd != OS_FILE_CLOSED) {
-		my_close(fd, MYF(0));
+		os_file_close(fd);
 	}
 }
 /*********************************************************************//**

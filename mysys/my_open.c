@@ -64,6 +64,24 @@ File my_open(const char *FileName, int Flags, myf MyFlags)
 
 
 /*
+  Invalidate file info entry
+
+  SYNOPSIS
+    my_invalidate_fd()
+      fd	File sescriptor
+
+*/
+
+void my_invalidate_fd(File fd)
+{
+  DBUG_ENTER("my_invalidate_fd");
+  DBUG_ASSERT(fd >= MY_FILE_MIN && fd < (int)my_file_limit);
+  my_file_info[fd].type= UNOPEN;
+  DBUG_VOID_RETURN;
+}
+
+
+/*
   Close a file
 
   SYNOPSIS
