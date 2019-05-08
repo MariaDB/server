@@ -7499,11 +7499,10 @@ static bool mysql_inplace_alter_table(THD *thd,
 {
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN | MYSQL_OPEN_IGNORE_KILLED);
   handlerton *db_type= table->s->db_type();
-  MDL_ticket *mdl_ticket= table->mdl_ticket;
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res;
-
+  handlerton *hton;
   DBUG_ENTER("mysql_inplace_alter_table");
 
   /* Downgrade DDL lock while we are waiting for exclusive lock below */
@@ -7709,6 +7708,28 @@ static bool mysql_inplace_alter_table(THD *thd,
     }
   }
 
+  /* Notify the engine that the table definition has changed */
+
+  hton= table->file->ht;
+  if (hton->notify_tabledef_changed)
+  {
+    char db_buff[FN_REFLEN], table_buff[FN_REFLEN];
+    LEX_CSTRING tmp_db, tmp_table;
+    tmp_db.str=    db_buff;
+    tmp_table.str= table_buff;
+    tmp_db.length=    tablename_to_filename(table_list->db.str,
+                                         db_buff, sizeof(db_buff));
+    tmp_table.length= tablename_to_filename(table_list->table_name.str,
+                                            table_buff, sizeof(table_buff));
+    if ((hton->notify_tabledef_changed)(hton, &tmp_db, &tmp_table,
+                                        table->s->frm_image,
+                                        &table->s->tabledef_version))
+    {
+      my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
+      DBUG_RETURN(true);
+    }
+  }
+
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
                             HA_EXTRA_PREPARE_FOR_RENAME :
@@ -7732,24 +7753,6 @@ static bool mysql_inplace_alter_table(THD *thd,
     // Since changes were done in-place, we can't revert them.
     DBUG_RETURN(true);
   }
-
-  table_list->mdl_request.ticket= mdl_ticket;
-  if (open_table(thd, table_list, &ot_ctx))
-    DBUG_RETURN(true);
-
-  /*
-    Tell the handler that the changed frm is on disk and table
-    has been re-opened
-  */
-  table_list->table->file->ha_notify_table_changed();
-
-  /*
-    We might be going to reopen table down on the road, so we have to
-    restore state of the TABLE object which we used for obtaining of
-    handler object to make it usable for later reopening.
-  */
-  close_thread_table(thd, &thd->open_tables);
-  table_list->table= NULL;
 
   // Rename altered table if requested.
   if (alter_ctx->is_table_renamed())

@@ -10202,19 +10202,6 @@ end:
 }
 
 
-void ha_partition::notify_table_changed()
-{
-  handler **file;
-
-  DBUG_ENTER("ha_partition::notify_table_changed");
-
-  for (file= m_file; *file; file++)
-    (*file)->ha_notify_table_changed();
-
-  DBUG_VOID_RETURN;
-}
-
-
 uint ha_partition::min_of_the_max_uint(
                        uint (handler::*operator_func)(void) const) const
 {

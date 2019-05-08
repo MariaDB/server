@@ -15515,34 +15515,6 @@ bool ha_mroonga::commit_inplace_alter_table(
   }
   DBUG_RETURN(result);
 }
-
-void ha_mroonga::wrapper_notify_table_changed()
-{
-  MRN_DBUG_ENTER_METHOD();
-  MRN_SET_WRAP_SHARE_KEY(share, table->s);
-  MRN_SET_WRAP_TABLE_KEY(this, table);
-  wrap_handler->ha_notify_table_changed();
-  MRN_SET_BASE_SHARE_KEY(share, table->s);
-  MRN_SET_BASE_TABLE_KEY(this, table);
-  DBUG_VOID_RETURN;
-}
-
-void ha_mroonga::storage_notify_table_changed()
-{
-  MRN_DBUG_ENTER_METHOD();
-  DBUG_VOID_RETURN;
-}
-
-void ha_mroonga::notify_table_changed()
-{
-  MRN_DBUG_ENTER_METHOD();
-  if (share->wrapper_mode) {
-    wrapper_notify_table_changed();
-  } else {
-    storage_notify_table_changed();
-  }
-  DBUG_VOID_RETURN;
-}
 #else
 alter_table_operations ha_mroonga::wrapper_alter_table_flags(alter_table_operations flags)
 {
