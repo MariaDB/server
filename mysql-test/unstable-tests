@@ -620,7 +620,6 @@ rpl.rpl_non_direct_mixed_mixing_engines                            : MDEV-14489 
 rpl.rpl_non_direct_row_mixing_engines                              : MDEV-16561 - Timeout in master_pos_wait
 rpl.rpl_non_direct_stm_mixing_engines                              : MDEV-14489 - Failed sync_slave_with_master
 rpl.rpl_parallel                                                   : MDEV-10653 - Timeouts
-rpl.rpl_parallel2                                                  : MDEV-17390 - Operation cannot be performed
 rpl.rpl_parallel_conflicts                                         : MDEV-15272 - Server crash
 rpl.rpl_parallel_mdev6589                                          : MDEV-12979 - Assertion failure
 rpl.rpl_parallel_multilevel2                                       : MDEV-14723 - Timeout
