@@ -4337,17 +4337,12 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   table->temp_pool_slot = temp_pool_slot;
   table->copy_blobs= 1;
   table->in_use= thd;
-  table->quick_keys.init();
-  table->covering_keys.init();
-  table->keys_in_use_for_query.init();
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
   share->blob_field= blob_field;
   share->table_charset= NULL;
   share->primary_key= MAX_KEY;               // Indicate no primary key
-  share->keys_for_keyread.init();
-  share->keys_in_use.init();
 
   /* Create the field */
   {
@@ -4361,9 +4356,9 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     if (!field)
       DBUG_RETURN(0);
     field->table= table;
-    field->key_start.init(0);
-    field->part_of_key.init(0);
-    field->part_of_sortkey.init(0);
+    field->key_start.clear_all();
+    field->part_of_key.clear_all();
+    field->part_of_sortkey.clear_all();
     field->unireg_check= Field::NONE;
     field->flags= (NOT_NULL_FLAG | BINARY_FLAG | NO_DEFAULT_VALUE_FLAG);
     field->reset_fields();

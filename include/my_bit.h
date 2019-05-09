@@ -122,6 +122,14 @@ static inline uint64 my_set_bits(int n)
   return (((1ULL << (n - 1)) - 1) << 1) | 1;
 }
 
+/* Create a mask of the significant bits for the last byte (1,3,7,..255) */
+static inline uchar last_byte_mask(uint bits)
+{
+  /* Get the number of used bits-1 (0..7) in the last byte */
+  unsigned int const used = (bits - 1U) & 7U;
+  /* Return bitmask for the significant bits */
+  return ((2U << used) - 1);
+}
 C_MODE_END
 
 #endif /* MY_BIT_INCLUDED */

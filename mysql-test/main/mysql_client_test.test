@@ -32,6 +32,10 @@ echo ok;
 --echo
 --echo # cat MYSQL_TMP_DIR/test_explain_meta.out.log
 --echo # ------------------------------------
+
+# For MAX_INDEXES=128,  max_len for possible_keys column is twice as large vs MAX_INDEXES=64
+--replace_result 24576 12288
+
 --cat_file $MYSQL_TMP_DIR/test_explain_meta.out.log
 --echo # ------------------------------------
 --echo

@@ -5504,7 +5504,6 @@ typedef struct st_partial_index_intersect_info
     intersect_fields= NULL;
     records_sent_to_unique= records= length= in_memory= use_cpk_filter= 0;
     cost= index_read_cost= in_memory_cost= 0.0;
-    filtered_scans.init();
     filtered_scans.clear_all();
   }
 } PARTIAL_INDEX_INTERSECT_INFO;

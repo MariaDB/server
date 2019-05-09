@@ -4819,10 +4819,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   {
     TABLE_LIST *embedding= tables->embedding;
     stat_vector[i]=s;
-    s->keys.init();
-    s->const_keys.init();
-    s->checked_keys.init();
-    s->needed_reg.init();
     table_vector[i]=s->table=table=tables->table;
     s->tab_list= tables;
     table->pos_in_table_list= tables;
@@ -17942,10 +17938,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->temp_pool_slot = temp_pool_slot;
   table->copy_blobs= 1;
   table->in_use= thd;
-  table->quick_keys.init();
-  table->covering_keys.init();
-  table->intersect_keys.init();
-  table->keys_in_use_for_query.init();
   table->no_rows_with_nulls= param->force_not_null_cols;
   table->update_handler= NULL;
   table->check_unique_buf= NULL;
@@ -17955,8 +17947,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   share->blob_field= blob_field;
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key
-  share->keys_for_keyread.init();
-  share->keys_in_use.init();
   if (param->schema_table)
     share->db= INFORMATION_SCHEMA_NAME;
 

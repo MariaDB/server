@@ -38,17 +38,6 @@
 #include <m_string.h>
 #include <my_bit.h>
 
-
-/* Create a mask of the significant bits for the last byte (1,3,7,..255) */
-
-static inline uchar last_byte_mask(uint bits)
-{
-  /* Get the number of used bits-1 (0..7) in the last byte */
-  unsigned int const used= (bits - 1U) & 7U;
-  /* Return bitmask for the significant bits */
-  return ((2U << used) - 1);
-}
-
 /*
   Create a mask with the upper 'unused' bits set and the lower 'used'
   bits clear. The bits within each byte is stored in big-endian order.

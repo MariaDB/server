@@ -25,73 +25,197 @@
 
 #include <my_sys.h>
 #include <my_bitmap.h>
+#include <my_bit.h>
 
-template <uint default_width> class Bitmap
+template <uint width> class Bitmap
 {
-  MY_BITMAP map;
-  uint32 buffer[(default_width+31)/32];
+  uint32 buffer[(width + 31) / 32];
 public:
-  Bitmap() { init(); }
-  Bitmap(const Bitmap& from) { *this=from; }
-  explicit Bitmap(uint prefix_to_set) { init(prefix_to_set); }
-  void init() { my_bitmap_init(&map, buffer, default_width, 0); }
-  void init(uint prefix_to_set) { init(); set_prefix(prefix_to_set); }
-  uint length() const { return default_width; }
-  Bitmap& operator=(const Bitmap& map2)
+  Bitmap()
   {
-    init();
-    memcpy(buffer, map2.buffer, sizeof(buffer));
-    return *this;
+    clear_all();
   }
-  void set_bit(uint n) { bitmap_set_bit(&map, n); }
-  void clear_bit(uint n) { bitmap_clear_bit(&map, n); }
-  void set_prefix(uint n) { bitmap_set_prefix(&map, n); }
-  void set_all() { bitmap_set_all(&map); }
-  void clear_all() { bitmap_clear_all(&map); }
-  void intersect(Bitmap& map2) { bitmap_intersect(&map, &map2.map); }
-  void intersect(ulonglong map2buff)
+  explicit Bitmap(uint prefix)
   {
-    // Use a spearate temporary buffer, as bitmap_init() clears all the bits.
-    ulonglong buf2;
-    MY_BITMAP map2;
+    set_prefix(prefix);
+  }
+  void init(uint prefix)
+  {
+    set_prefix(prefix);
+  }
 
-    my_bitmap_init(&map2, (uint32 *) &buf2, sizeof(ulonglong) * 8, 0);
+  uint length() const
+  {
+    return width;
+  }
+  void set_bit(uint n)
+  {
+    DBUG_ASSERT(n < width);
+    ((uchar*)buffer)[n / 8] |= (1 << (n & 7));
+  }
+  void clear_bit(uint n)
+  {
+    DBUG_ASSERT(n < width);
+    ((uchar*)buffer)[n / 8] &= ~(1 << (n & 7));
+  }
+  void set_prefix(uint prefix_size)
+  {
+    set_if_smaller(prefix_size, width);
+    uint prefix_bytes, prefix_bits, d;
+    uchar* m = (uchar*)buffer;
 
-    // Store the original bits.
-    if (sizeof(ulonglong) >= 8)
+    if ((prefix_bytes = prefix_size / 8))
+      memset(m, 0xff, prefix_bytes);
+    m += prefix_bytes;
+    if ((prefix_bits = prefix_size & 7))
     {
-      int8store(const_cast<uchar *>(static_cast<uchar *>
-                                    (static_cast<void *>(&buf2))),
-                map2buff);
+      *(m++) = (1 << prefix_bits) - 1;
+      // As the prefix bits are set, lets count this byte too as a prefix byte.
+      prefix_bytes++;
+    }
+    if ((d = (width + 7) / 8 - prefix_bytes))
+      memset(m, 0, d);
+  }
+  void set_all()
+  {
+    set_prefix(width);
+  }
+  void clear_all()
+  {
+    memset(buffer, 0x00, sizeof(buffer));
+  }
+  void intersect(Bitmap & map2)
+  {
+    for (uint i = 0; i < array_elements(buffer); i++)
+      buffer[i] &= map2.buffer[i];
+  }
+
+private:
+  /*
+     Intersect with a bitmap represented as as longlong.
+     In addition, pad the rest of the bitmap with 0 or 1 bits
+     depending on pad_with_ones parameter.
+  */
+  void intersect_and_pad(ulonglong map2buff, bool pad_with_ones)
+  {
+    compile_time_assert(sizeof(ulonglong) == 8);
+    uint32 tmp[2];
+    int8store(tmp, map2buff);
+
+    buffer[0] &= tmp[0];
+    if (array_elements(buffer) > 1)
+      buffer[1] &= tmp[1];
+
+    if (array_elements(buffer) <= 2)
+      return;
+    if (pad_with_ones)
+    {
+      memset((char*)buffer + 8, 0xff , sizeof(buffer) - 8);
+      if (width != sizeof(buffer) * 8)
+      {
+        ((uchar*)buffer)[sizeof(buffer)-1] = last_byte_mask(width);
+      }
     }
     else
-    {
-      DBUG_ASSERT(sizeof(buffer) >= 4);
-      int4store(const_cast<uchar *>(static_cast<uchar *>
-                                    (static_cast<void *>(&buf2))),
-                static_cast<uint32>(map2buff));
-    }
+      memset((char*)buffer + 8, 0 , sizeof(buffer) - 8);
 
-    bitmap_intersect(&map, &map2);
+  }
+
+public:
+  void intersect(ulonglong map2buff)
+  {
+    intersect_and_pad(map2buff, 0);
   }
   /* Use highest bit for all bits above sizeof(ulonglong)*8. */
   void intersect_extended(ulonglong map2buff)
   {
-    intersect(map2buff);
-    if (map.n_bits > sizeof(ulonglong) * 8)
-      bitmap_set_above(&map, sizeof(ulonglong),
-                       MY_TEST(map2buff & (1LL << (sizeof(ulonglong) * 8 - 1))));
+    intersect_and_pad(map2buff, (map2buff & (1ULL << 63)));
   }
-  void subtract(Bitmap& map2) { bitmap_subtract(&map, &map2.map); }
-  void merge(Bitmap& map2) { bitmap_union(&map, &map2.map); }
-  bool is_set(uint n) const { return bitmap_is_set(&map, n); }
-  bool is_prefix(uint n) const { return bitmap_is_prefix(&map, n); }
-  bool is_clear_all() const { return bitmap_is_clear_all(&map); }
-  bool is_set_all() const { return bitmap_is_set_all(&map); }
-  bool is_subset(const Bitmap& map2) const { return bitmap_is_subset(&map, &map2.map); }
-  bool is_overlapping(const Bitmap& map2) const { return bitmap_is_overlapping(&map, &map2.map); }
-  bool operator==(const Bitmap& map2) const { return bitmap_cmp(&map, &map2.map); }
-  bool operator!=(const Bitmap& map2) const { return !(*this == map2); }
+  void subtract(Bitmap & map2)
+  {
+    for (size_t i = 0; i < array_elements(buffer); i++)
+      buffer[i] &= ~(map2.buffer[i]);
+  }
+  void merge(Bitmap & map2)
+  {
+    for (size_t i = 0; i < array_elements(buffer); i++)
+      buffer[i] |= map2.buffer[i];
+  }
+  bool is_set(uint n) const
+  {
+    DBUG_ASSERT(n < width);
+    return ((uchar*)buffer)[n / 8] & (1 << (n & 7));
+  }
+  bool is_prefix(uint prefix_size) const
+  {
+    uint prefix_mask = last_byte_mask(prefix_size);
+    uchar* m = (uchar*)buffer;
+    uchar* end_prefix = m + (prefix_size - 1) / 8;
+    uchar* end;
+    DBUG_ASSERT(prefix_size <= width);
+
+    /* Empty prefix is always true */
+    if (!prefix_size)
+      return true;
+
+    while (m < end_prefix)
+      if (*m++ != 0xff)
+        return false;
+
+    end = ((uchar*)buffer) + (width + 7) / 8 - 1;
+    if (m == end)
+      return ((*m & last_byte_mask(width)) == prefix_mask);
+
+    if (*m != prefix_mask)
+      return false;
+
+    while (++m < end)
+      if (*m != 0)
+        return false;
+    return ((*m & last_byte_mask(width)) == 0);
+  }
+  bool is_clear_all() const
+  {
+    for (size_t i= 0; i < array_elements(buffer); i++)
+      if (buffer[i])
+        return false;
+    return true;
+  }
+  bool is_set_all() const
+  {
+    if (width == sizeof(buffer) * 8)
+    {
+      for (size_t i = 0; i < array_elements(buffer); i++)
+        if (buffer[i] != 0xFFFFFFFFU)
+          return false;
+      return true;
+    }
+    else
+      return is_prefix(width);
+  }
+
+  bool is_subset(const Bitmap & map2) const
+  {
+    for (size_t i= 0; i < array_elements(buffer); i++)
+      if (buffer[i] & ~(map2.buffer[i]))
+        return false;
+    return true;
+  }
+  bool is_overlapping(const Bitmap & map2) const
+  {
+    for (size_t i = 0; i < array_elements(buffer); i++)
+      if (buffer[i] & map2.buffer[i])
+        return true;
+    return false;
+  }
+  bool operator==(const Bitmap & map2) const
+  {
+    return memcmp(buffer, map2.buffer, sizeof(buffer)) == 0;
+  }
+  bool operator!=(const Bitmap & map2) const
+  {
+    return !(*this == map2);
+  }
   char *print(char *buf) const
   {
     char *s=buf;
@@ -111,33 +235,34 @@ public:
   }
   ulonglong to_ulonglong() const
   {
-    if (sizeof(buffer) >= 8)
-      return uint8korr(static_cast<const uchar *>
-                       (static_cast<const void *>(buffer)));
     DBUG_ASSERT(sizeof(buffer) >= 4);
-    return (ulonglong)
-      uint4korr(static_cast<const uchar *>
-                (static_cast<const void *>(buffer)));
+    uchar *b=(uchar *)buffer;
+    if (sizeof(buffer) >= 8)
+      return uint8korr(b);
+    return (ulonglong) uint4korr(b);
   }
   uint bits_set()
   {
-    return bitmap_bits_set(&map);
+    uint res = 0;
+    for (size_t i = 0; i < array_elements(buffer); i++)
+      res += my_count_bits_uint32(buffer[i]);
+    return res;
   }
   class Iterator
   {
     Bitmap &map;
     uint no;
   public:
-    Iterator(Bitmap<default_width> &map2): map(map2), no(0) {}
+    Iterator(Bitmap<width> &map2): map(map2), no(0) {}
     int operator++(int) {
-      if (no == default_width) return BITMAP_END;
+      if (no == width) return BITMAP_END;
       while (!map.is_set(no))
       {
-        if ((++no) == default_width) return BITMAP_END;
+        if ((++no) == width) return BITMAP_END;
       }
-      return no ++;
+      return no++;
     }
-    enum { BITMAP_END= default_width };
+    enum { BITMAP_END = width };
   };
 };
 
@@ -175,7 +300,6 @@ template <> class Bitmap<64>
 public:
   Bitmap<64>() { }
   explicit Bitmap<64>(uint prefix_to_set) { set_prefix(prefix_to_set); }
-  void init() { }
   void init(uint prefix_to_set) { set_prefix(prefix_to_set); }
   uint length() const { return 64; }
   void set_bit(uint n) { map|= ((ulonglong)1) << n; }
@@ -224,5 +348,12 @@ public:
   }
 };
 
+#if MAX_INDEXES <= 64
+typedef Bitmap<64>  key_map;          /* Used for finding keys */
+#elif MAX_INDEXES > 128
+#error "MAX_INDEXES values greater than 128 is not supported."
+#else
+typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
+#endif
 
 #endif /* SQL_BITMAP_INCLUDED */

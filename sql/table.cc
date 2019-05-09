@@ -3585,10 +3585,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     goto err;
 
   outparam->alias.set(tmp_alias, alias->length, table_alias_charset);
-  outparam->quick_keys.init();
-  outparam->covering_keys.init();
-  outparam->intersect_keys.init();
-  outparam->keys_in_use_for_query.init();
 
   /* Allocate handler */
   outparam->file= 0;
