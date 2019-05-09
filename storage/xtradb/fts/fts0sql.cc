@@ -36,8 +36,7 @@ Created 2007-03-27 Sunny Bains
 #include "fts0vlc.ic"
 #endif
 
-/** SQL statements for creating the ancillary FTS tables. %s must be replaced
-with the indexed table's id. */
+/** SQL statements for creating the ancillary FTS tables. */
 
 /** Preamble to all SQL statements. */
 static const char* fts_sql_begin=
@@ -96,77 +95,47 @@ fts_get_table_id(
 	return(len);
 }
 
-/******************************************************************//**
-Construct the prefix name of an FTS table.
-@return own: table name, must be freed with mem_free() */
-UNIV_INTERN
-char*
-fts_get_table_name_prefix(
-/*======================*/
-	const fts_table_t*
-			fts_table)	/*!< in: Auxiliary table type */
+/** Construct the name of an internal FTS table for the given table.
+@param[in]	fts_table	metadata on fulltext-indexed table
+@param[in]	dict_locked	whether dict_sys->mutex is being held
+@return	the prefix, must be freed with ut_free() */
+UNIV_INTERN char* fts_get_table_name_prefix(const fts_table_t* fts_table)
 {
-	int		len;
-	const char*	slash;
-	char*		prefix_name;
-	int		dbname_len = 0;
-	int		prefix_name_len;
 	char		table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
-
-#if 0 /* FIXME: protect the access to dict_table_t::name */
-	ut_ad(mutex_own(&dict_sys->mutex));
-#endif
-	slash = static_cast<const char*>(
-		strchr(fts_table->table->name, '/'));
+	const size_t table_id_len = size_t(fts_get_table_id(fts_table,
+							    table_id)) + 1;
+	mutex_enter(&dict_sys->mutex);
+	const char* slash = strchr(fts_table->table->name, '/');
 	ut_ad(slash);
-	/* Print up to and including the separator. */
-	dbname_len = static_cast<int>(slash - fts_table->table->name) + 1;
-
-	len = fts_get_table_id(fts_table, table_id);
-
-	prefix_name_len = dbname_len + 4 + len + 1;
-
-	prefix_name = static_cast<char*>(mem_alloc(prefix_name_len));
-
-	len = sprintf(prefix_name, "%.*sFTS_%s",
-		      dbname_len, fts_table->table->name, table_id);
-
-	ut_a(len > 0);
-	ut_a(len == prefix_name_len - 1);
-
-	return(prefix_name);
+	/* Include the separator as well. */
+	const size_t dbname_len = (slash - fts_table->table->name) + 1;
+	ut_ad(dbname_len > 1);
+	const size_t prefix_name_len = dbname_len + 4 + table_id_len;
+	char* prefix_name = static_cast<char*>(ut_malloc(prefix_name_len));
+	memcpy(prefix_name, fts_table->table->name, dbname_len);
+	mutex_exit(&dict_sys->mutex);
+	memcpy(prefix_name + dbname_len, "FTS_", 4);
+	memcpy(prefix_name + dbname_len + 4, table_id, table_id_len);
+	return prefix_name;
 }
 
-/******************************************************************//**
-Construct the name of an ancillary FTS table.
-@return own: table name, must be freed with mem_free() */
+/** Construct the name of an internal FTS table for the given table.
+@param[in]	fts_table	metadata on fulltext-indexed table
+@param[out]	table_name	a name up to MAX_FULL_NAME_LEN */
 UNIV_INTERN
-char*
-fts_get_table_name(
-/*===============*/
-	const fts_table_t*	fts_table)
-					/*!< in: Auxiliary table type */
+void fts_get_table_name(const fts_table_t* fts_table, char* table_name)
 {
-	int		len;
-	char*		name;
-	int		name_len;
-	char*		prefix_name;
-
-	prefix_name = fts_get_table_name_prefix(fts_table);
-
-	name_len = static_cast<int>(
-		strlen(prefix_name) + 1 + strlen(fts_table->suffix) + 1);
-
-	name = static_cast<char*>(mem_alloc(name_len));
-
-	len = sprintf(name, "%s_%s", prefix_name, fts_table->suffix);
-
-	ut_a(len > 0);
-	ut_a(len == name_len - 1);
-
-	mem_free(prefix_name);
-
-	return(name);
+	const char* slash = strchr(fts_table->table->name, '/');
+	ut_ad(slash);
+	/* Include the separator as well. */
+	const size_t dbname_len = (slash - fts_table->table->name) + 1;
+	ut_ad(dbname_len > 1);
+	memcpy(table_name, fts_table->table->name, dbname_len);
+	memcpy(table_name += dbname_len, "FTS_", 4);
+	table_name += 4;
+	table_name += fts_get_table_id(fts_table, table_name);
+	*table_name++ = '_';
+	strcpy(table_name, fts_table->suffix);
 }
 
 /******************************************************************//**
@@ -182,24 +151,9 @@ fts_parse_sql(
 {
 	char*		str;
 	que_t*		graph;
-	char*		str_tmp;
 	ibool		dict_locked;
 
-	if (fts_table != NULL) {
-		char*	table_name;
-
-		table_name = fts_get_table_name(fts_table);
-		str_tmp = ut_strreplace(sql, "%s", table_name);
-		mem_free(table_name);
-	} else {
-		ulint	sql_len = strlen(sql) + 1;
-
-		str_tmp = static_cast<char*>(mem_alloc(sql_len));
-		strcpy(str_tmp, sql);
-	}
-
-	str = ut_str3cat(fts_sql_begin, str_tmp, fts_sql_end);
-	mem_free(str_tmp);
+	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 
 	dict_locked = (fts_table && fts_table->table->fts
 		       && (fts_table->table->fts->fts_status
@@ -225,7 +179,7 @@ fts_parse_sql(
 }
 
 /******************************************************************//**
-Parse an SQL string. %s is replaced with the table's id.
+Parse an SQL string.
 @return query graph */
 UNIV_INTERN
 que_t*
@@ -237,28 +191,10 @@ fts_parse_sql_no_dict_lock(
 {
 	char*		str;
 	que_t*		graph;
-	char*		str_tmp = NULL;
 
-#ifdef UNIV_DEBUG
 	ut_ad(mutex_own(&dict_sys->mutex));
-#endif
 
-	if (fts_table != NULL) {
-		char*		table_name;
-
-		table_name = fts_get_table_name(fts_table);
-		str_tmp = ut_strreplace(sql, "%s", table_name);
-		mem_free(table_name);
-	}
-
-	if (str_tmp != NULL) {
-		str = ut_str3cat(fts_sql_begin, str_tmp, fts_sql_end);
-		mem_free(str_tmp);
-	} else {
-		str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
-	}
-
-	//fprintf(stderr, "%s\n", str);
+	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 
 	graph = pars_sql(info, str);
 	ut_a(graph);
