@@ -361,12 +361,7 @@ else()
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-parameter")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-strict-aliasing")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-deprecated")
-    if(("${MYSQL_VARIANT}" STREQUAL "MariaDB") OR
-        ("${MYSQL_VARIANT}" STREQUAL "MySQL" AND
-         ${MYSQL_VERSION} VERSION_LESS "5.7.0"))
-      MY_CHECK_AND_SET_COMPILER_FLAG("-fno-exceptions")
-      MY_CHECK_AND_SET_COMPILER_FLAG("-fno-rtti")
-    endif()
+    MY_CHECK_AND_SET_COMPILER_FLAG("-fno-exceptions")
     MY_CHECK_AND_SET_COMPILER_FLAG("-felide-constructors")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
   endif()

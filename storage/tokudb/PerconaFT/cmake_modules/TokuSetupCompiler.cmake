@@ -73,7 +73,6 @@ set_cflags_if_supported(
   -Wno-error=tautological-constant-out-of-range-compare
   -Wno-error=maybe-uninitialized
   -Wno-error=extern-c-compat
-  -fno-rtti
   -fno-exceptions
   -Wno-error=nonnull-compare
   )
