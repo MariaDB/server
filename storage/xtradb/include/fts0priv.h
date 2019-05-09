@@ -136,9 +136,11 @@ fts_eval_sql(
 
 /** Construct the name of an internal FTS table for the given table.
 @param[in]	fts_table	metadata on fulltext-indexed table
-@param[out]	table_name	a name up to MAX_FULL_NAME_LEN */
+@param[out]	table_name	a name up to MAX_FULL_NAME_LEN
+@param[in]	dict_locked	whether dict_sys->mutex is being held */
 UNIV_INTERN
-void fts_get_table_name(const fts_table_t* fts_table, char* table_name)
+void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
+			bool dict_locked = false)
 	MY_ATTRIBUTE((nonnull));
 /******************************************************************//**
 Construct the column specification part of the SQL string for selecting the

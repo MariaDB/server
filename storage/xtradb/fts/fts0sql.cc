@@ -121,16 +121,25 @@ UNIV_INTERN char* fts_get_table_name_prefix(const fts_table_t* fts_table)
 
 /** Construct the name of an internal FTS table for the given table.
 @param[in]	fts_table	metadata on fulltext-indexed table
-@param[out]	table_name	a name up to MAX_FULL_NAME_LEN */
+@param[out]	table_name	a name up to MAX_FULL_NAME_LEN
+@param[in]	dict_locked	whether dict_sys->mutex is being held */
 UNIV_INTERN
-void fts_get_table_name(const fts_table_t* fts_table, char* table_name)
+void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
+			bool dict_locked)
 {
+	if (!dict_locked) {
+		mutex_enter(&dict_sys->mutex);
+	}
+	ut_ad(mutex_own(&dict_sys->mutex));
 	const char* slash = strchr(fts_table->table->name, '/');
 	ut_ad(slash);
 	/* Include the separator as well. */
 	const size_t dbname_len = (slash - fts_table->table->name) + 1;
 	ut_ad(dbname_len > 1);
 	memcpy(table_name, fts_table->table->name, dbname_len);
+	if (!dict_locked) {
+		mutex_exit(&dict_sys->mutex);
+	}
 	memcpy(table_name += dbname_len, "FTS_", 4);
 	table_name += 4;
 	table_name += fts_get_table_id(fts_table, table_name);

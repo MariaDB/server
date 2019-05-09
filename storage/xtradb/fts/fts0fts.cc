@@ -1593,7 +1593,7 @@ fts_rename_aux_tables(
 	for (i = 0; fts_common_tables[i] != NULL; ++i) {
 		fts_table.suffix = fts_common_tables[i];
 
-		fts_get_table_name(&fts_table, old_table_name);
+		fts_get_table_name(&fts_table, old_table_name, true);
 
 		err = fts_rename_one_aux_table(new_name, old_table_name, trx);
 
@@ -1616,7 +1616,7 @@ fts_rename_aux_tables(
 
 		for (ulint j = 0; fts_index_selector[j].value; ++j) {
 			fts_table.suffix = fts_get_suffix(j);
-			fts_get_table_name(&fts_table, old_table_name);
+			fts_get_table_name(&fts_table, old_table_name, true);
 
 			err = fts_rename_one_aux_table(
 				new_name, old_table_name, trx);
@@ -1656,7 +1656,7 @@ fts_drop_common_tables(
 
 		fts_table->suffix = fts_common_tables[i];
 
-		fts_get_table_name(fts_table, table_name);
+		fts_get_table_name(fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1693,7 +1693,7 @@ fts_drop_index_split_tables(
 
 		fts_table.suffix = fts_get_suffix(i);
 
-		fts_get_table_name(&fts_table, table_name);
+		fts_get_table_name(&fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1741,7 +1741,7 @@ fts_drop_index_tables(
 
 		fts_table.suffix = index_tables[i];
 
-		fts_get_table_name(&fts_table, table_name);
+		fts_get_table_name(&fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1856,7 +1856,7 @@ fts_create_common_tables(
 	for (i = 0; fts_common_tables[i] != NULL; ++i) {
 
 		fts_table.suffix = fts_common_tables[i];
-		fts_get_table_name(&fts_table, full_name[i]);
+		fts_get_table_name(&fts_table, full_name[i], true);
 
 		pars_info_bind_id(info, true,
 				  fts_common_tables[i], full_name[i]);
@@ -1878,7 +1878,7 @@ fts_create_common_tables(
 	info = pars_info_create();
 
 	fts_table.suffix = "CONFIG";
-	fts_get_table_name(&fts_table, fts_name);
+	fts_get_table_name(&fts_table, fts_name, true);
 	pars_info_bind_id(info, true, "config_table", fts_name);
 
 	graph = fts_parse_sql_no_dict_lock(
@@ -1957,7 +1957,7 @@ fts_create_one_index_table(
 
 	ut_ad(index->type & DICT_FTS);
 
-	fts_get_table_name(fts_table, table_name);
+	fts_get_table_name(fts_table, table_name, true);
 
 	if (srv_file_per_table) {
 		flags2 = DICT_TF2_USE_TABLESPACE;
@@ -2039,7 +2039,7 @@ fts_create_index_tables_low(
 	info = pars_info_create();
 
 	fts_table.suffix = "DOC_ID";
-	fts_get_table_name(&fts_table, fts_name);
+	fts_get_table_name(&fts_table, fts_name, true);
 
 	pars_info_bind_id(info, true, "doc_id_table", fts_name);
 
@@ -2068,7 +2068,7 @@ fts_create_index_tables_low(
 			break;
 		}
 
-		fts_get_table_name(&fts_table, fts_name);
+		fts_get_table_name(&fts_table, fts_name, true);
 
 		pars_info_bind_id(info, true, "table", fts_name);
 
@@ -2835,7 +2835,8 @@ fts_update_sync_doc_id(
 
 	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
 
-	fts_get_table_name(&fts_table, fts_name);
+	fts_get_table_name(&fts_table, fts_name,
+			   table->fts->fts_status & TABLE_DICT_LOCKED);
 	pars_info_bind_id(info, true, "table_name", fts_name);
 
 	graph = fts_parse_sql(
