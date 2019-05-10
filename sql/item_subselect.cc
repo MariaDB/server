@@ -2906,7 +2906,6 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
                                 !upper_not->is_top_level_item())) ||
       first_select->is_part_of_union() ||
       first_select->group_list.elements ||
-      first_select->order_list.elements ||
       join->having ||
       first_select->with_sum_func ||
       !first_select->leaf_tables.elements||
@@ -2914,8 +2913,31 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
       with_recursive_reference)
     DBUG_RETURN(FALSE);
 
-  DBUG_ASSERT(first_select->order_list.elements == 0 &&
-              first_select->group_list.elements == 0 &&
+  /*
+    EXISTS-to-IN coversion and ORDER BY ... LIMIT clause:
+
+    - "[ORDER BY ...] LIMIT n" clause with a non-zero n does not affect
+      the result of the EXISTS(...) predicate, and so we can discard
+      it during the conversion.
+    - "[ORDER BY ...] LIMIT m, n" can turn a non-empty resultset into empty
+      one, so it affects tthe EXISTS(...) result and cannot be discarded.
+
+    Disallow exists-to-in conversion if
+    (1). three is a LIMIT which is not a basic constant
+    (1a)  or is a "LIMIT 0" (see MDEV-19429)
+    (2).  there is an OFFSET clause
+  */
+  if ((first_select->select_limit &&                        // (1)
+       (!first_select->select_limit->basic_const_item() ||  // (1)
+        first_select->select_limit->val_uint() == 0)) ||    // (1a)
+      first_select->offset_limit)                           // (2)
+  {
+    DBUG_RETURN(FALSE);
+  }
+
+  /* Disallow the conversion if offset + limit exists */
+
+  DBUG_ASSERT(first_select->group_list.elements == 0 &&
               first_select->having == NULL);
 
   if (find_inner_outer_equalities(&join->conds, eqs))
@@ -2946,9 +2968,6 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   if ((uint)eqs.elements() > (first_select->item_list.elements +
                               first_select->select_n_reserved))
     goto out;
-  /* It is simple query */
-  DBUG_ASSERT(first_select->join->all_fields.elements ==
-              first_select->item_list.elements);
 
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
