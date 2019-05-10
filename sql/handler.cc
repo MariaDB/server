@@ -7211,8 +7211,9 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
-  return vers_info.check_sys_fields(create_table.table_name, create_table.db,
-                                    alter_info);
+  return vers_info.check_sys_fields(
+      create_table.table_name, create_table.db, alter_info,
+      ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING));
 }
 
 
@@ -7321,7 +7322,11 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
   {
-    if (check_sys_fields(table_name, share->db, alter_info))
+    const bool can_native=
+        ha_check_storage_engine_flag(create_info->db_type,
+                                     HTON_NATIVE_SYS_VERSIONING) ||
+        create_info->db_type->db_type == DB_TYPE_PARTITION_DB;
+    if (check_sys_fields(table_name, share->db, alter_info, can_native))
       return true;
   }
 
@@ -7426,78 +7431,83 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
   return false;
 }
 
+static bool is_versioning_timestamp(const Create_field *f)
+{
+  return (f->type_handler() == &type_handler_datetime2 ||
+          f->type_handler() == &type_handler_timestamp2) &&
+         f->length == MAX_DATETIME_FULL_WIDTH;
+}
+
+static bool is_some_bigint(const Create_field *f)
+{
+  return f->type_handler() == &type_handler_longlong ||
+         f->type_handler() == &type_handler_vers_trx_id;
+}
+
+static bool is_versioning_bigint(const Create_field *f)
+{
+  return is_some_bigint(f) && f->flags & UNSIGNED_FLAG &&
+         f->length == MY_INT64_NUM_DECIMAL_DIGITS - 1;
+}
+
+static bool require_timestamp(const Create_field *f, Lex_table_name table_name)
+{
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str, "TIMESTAMP(6)",
+           table_name.str);
+  return true;
+}
+static bool require_bigint(const Create_field *f, Lex_table_name table_name)
+{
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
+           "BIGINT(20) UNSIGNED", table_name.str);
+  return true;
+}
+
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
-                                       Alter_info *alter_info)
+                                       Alter_info *alter_info, bool can_native)
 {
   if (check_conditions(table_name, db))
     return true;
 
+  const Create_field *row_start= NULL;
+  const Create_field *row_end= NULL;
+
   List_iterator<Create_field> it(alter_info->create_list);
-  uint found_flag= 0;
   while (Create_field *f= it++)
   {
-    vers_sys_type_t f_check_unit= VERS_UNDEFINED;
-    uint sys_flag= f->flags & VERS_SYSTEM_FIELD;
-
-    if (!sys_flag)
-      continue;
-
-    if (sys_flag & found_flag)
-    {
-      my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                found_flag & VERS_SYS_START_FLAG ? "START" : "END",
-               f->field_name.str);
-      return true;
-    }
-
-    sys_flag|= found_flag;
-
-    if ((f->type_handler() == &type_handler_datetime2 ||
-          f->type_handler() == &type_handler_timestamp2) &&
-        f->length == MAX_DATETIME_FULL_WIDTH)
-    {
-      f_check_unit= VERS_TIMESTAMP;
-    }
-    else if (f->type_handler() == &type_handler_longlong
-      && (f->flags & UNSIGNED_FLAG)
-      && f->length == (MY_INT64_NUM_DECIMAL_DIGITS - 1))
-    {
-      f_check_unit= VERS_TRX_ID;
-    }
-    else
-    {
-      if (!check_unit)
-        check_unit= VERS_TIMESTAMP;
-      goto error;
-    }
-
-    if (f_check_unit)
-    {
-      if (check_unit)
-      {
-        if (check_unit == f_check_unit)
-        {
-          if (check_unit == VERS_TRX_ID && !TR_table::use_transaction_registry)
-          {
-            my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
-            return true;
-          }
-          return false;
-        }
-      error:
-        my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                 check_unit == VERS_TIMESTAMP ?
-                 "TIMESTAMP(6)" :
-                 "BIGINT(20) UNSIGNED",
-                 table_name.str);
-        return true;
-      }
-      check_unit= f_check_unit;
-    }
+    if (!row_start && f->flags & VERS_SYS_START_FLAG)
+      row_start= f;
+    else if (!row_end && f->flags & VERS_SYS_END_FLAG)
+      row_end= f;
   }
 
-  my_error(ER_MISSING, MYF(0), table_name.str, found_flag & VERS_SYS_START_FLAG ?
-           "ROW END" : found_flag ? "ROW START" : "ROW START/END");
-  return true;
+  const bool expect_timestamp=
+      !can_native || !is_some_bigint(row_start) || !is_some_bigint(row_end);
+
+  if (expect_timestamp)
+  {
+    if (!is_versioning_timestamp(row_start))
+      return require_timestamp(row_start, table_name);
+
+    if (!is_versioning_timestamp(row_end))
+      return require_timestamp(row_end, table_name);
+  }
+  else
+  {
+    if (!is_versioning_bigint(row_start))
+      return require_bigint(row_start, table_name);
+
+    if (!is_versioning_bigint(row_end))
+      return require_bigint(row_end, table_name);
+  }
+
+  if (is_versioning_bigint(row_start) && is_versioning_bigint(row_end) &&
+      !TR_table::use_transaction_registry)
+  {
+    my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
+    return true;
+  }
+
+  return false;
 }
