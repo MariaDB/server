@@ -3107,26 +3107,107 @@ private:
   with other servers.
 */
 
+/**
+  Function serializes XID which is characterized by by four last arguments
+  of the function.
+  Serialized XID is presented in valid hex format and is returned to
+  the caller in a buffer pointed by the first argument.
+  The buffer size provived by the caller must be not less than
+  8 + 2 * XIDDATASIZE +  4 * sizeof(XID::formatID) + 1, see
+  MYSQL_{,XID} definitions.
+
+  @param buf  pointer to a buffer allocated for storing serialized data
+  @param fmt  formatID value
+  @param gln  gtrid_length value
+  @param bln  bqual_length value
+  @param dat  data value
+
+  @return  the value of the buffer pointer
+*/
+
+inline char *serialize_xid(char *buf, long fmt, long gln, long bln,
+                           const char *dat)
+{
+  int i;
+  char *c= buf;
+  /*
+    Build a string like following pattern:
+      X'hex11hex12...hex1m',X'hex21hex22...hex2n',11
+    and store it into buf.
+    Here hex1i and hex2k are hexadecimals representing XID's internal
+    raw bytes (1 <= i <= m, 1 <= k <= n), and `m' and `n' even numbers
+    half of which corresponding to the lengths of XID's components.
+  */
+  c[0]= 'X';
+  c[1]= '\'';
+  c+= 2;
+  for (i= 0; i < gln; i++)
+  {
+    c[0]=_dig_vec_lower[((uchar*) dat)[i] >> 4];
+    c[1]=_dig_vec_lower[((uchar*) dat)[i] & 0x0f];
+    c+= 2;
+  }
+  c[0]= '\'';
+  c[1]= ',';
+  c[2]= 'X';
+  c[3]= '\'';
+  c+= 4;
+
+  for (; i < gln + bln; i++)
+  {
+    c[0]=_dig_vec_lower[((uchar*) dat)[i] >> 4];
+    c[1]=_dig_vec_lower[((uchar*) dat)[i] & 0x0f];
+    c+= 2;
+  }
+  c[0]= '\'';
+  sprintf(c+1, ",%lu", fmt);
+
+ return buf;
+}
+
+/*
+  The size of the string containing serialized Xid representation
+  is computed as a sum of
+  eight as the number of formatting symbols (X'',X'',)
+  plus 2 x XIDDATASIZE (2 due to hex format),
+  plus space for decimal digits of XID::formatID,
+  plus one for 0x0.
+*/
+static const uint ser_buf_size=
+  8 + 2 * MYSQL_XIDDATASIZE + 4 * sizeof(long) + 1;
+
+struct event_mysql_xid_t :  MYSQL_XID
+{
+  char buf[ser_buf_size];
+  char *serialize()
+  {
+    return serialize_xid(buf, formatID, gtrid_length, bqual_length, data);
+  }
+};
+
+#ifndef MYSQL_CLIENT
+struct event_xid_t : XID
+{
+  char buf[ser_buf_size];
+
+  char *serialize(char *buf_arg)
+  {
+    return serialize_xid(buf_arg, formatID, gtrid_length, bqual_length, data);
+  }
+  char *serialize()
+  {
+    return serialize(buf);
+  }
+};
+#endif
+
 class XA_prepare_log_event: public Xid_apply_log_event
 {
 protected:
-  /* The event_xid_t members were copied from handler.h */
-  struct event_xid_t
-  {
-    long formatID;
-    long gtrid_length;
-    long bqual_length;
-    char data[MYSQL_XIDDATASIZE];  // not \0-terminated !
-    char *serialize(char *buf) const;
-  };
 
-  /* size of serialization buffer is explained in $MYSQL/sql/xa.h. */
-  static const uint ser_buf_size=
-    8 + 2 * MYSQL_XIDDATASIZE + 4 * sizeof(long) + 1;
-
-  /* Total size of buffers to hold serialized members of XID struct */
-  static const int xid_bufs_size= 12;
-  event_xid_t m_xid;
+  /* Constant contribution to subheader in write() by members of XID struct. */
+  static const int xid_subheader_no_data= 12;
+  event_mysql_xid_t m_xid;
   void *xid;
   bool one_phase;
 
@@ -3149,7 +3230,7 @@ public:
   Log_event_type get_type_code() { return XA_PREPARE_LOG_EVENT; }
   int get_data_size()
   {
-    return xid_bufs_size + m_xid.gtrid_length + m_xid.bqual_length;
+    return xid_subheader_no_data + m_xid.gtrid_length + m_xid.bqual_length;
   }
 
 #ifdef MYSQL_SERVER
@@ -3476,9 +3557,9 @@ public:
   uint64 commit_id;
   uint32 domain_id;
 #ifdef MYSQL_SERVER
-  XID xid;
+  event_xid_t xid;
 #else
-  struct st_mysql_xid xid;
+  event_mysql_xid_t xid;
 #endif
   uchar flags2;
 

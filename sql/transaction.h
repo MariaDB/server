@@ -40,5 +40,4 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name);
 bool trans_release_savepoint(THD *thd, LEX_CSTRING name);
 
 void trans_reset_one_shot_chistics(THD *thd);
-
 #endif /* TRANSACTION_H */

@@ -7978,11 +7978,25 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
-  if (thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE &&
+  if (thd->transaction.xid_state.xid_cache_element &&
       thd->lex->xa_opt != XA_ONE_PHASE)
   {
+    DBUG_ASSERT(thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE);
+
     flags2|= FL_PREPARED_XA;
-    xid= thd->transaction.xid_state.xid_cache_element->xid;
+
+    // No array assignment: xid.data= thd->transaction.xid_state.xid_cache_element->xid.data;
+    //xid= * static_cast<event_xid_t*>
+    //  (&thd->transaction.xid_state.xid_cache_element->xid);
+
+    xid.formatID= thd->transaction.xid_state.xid_cache_element->xid.formatID;
+    xid.gtrid_length= thd->transaction.xid_state.xid_cache_element->xid.gtrid_length;
+    xid.bqual_length= thd->transaction.xid_state.xid_cache_element->xid.bqual_length;
+    if (xid.formatID != -1) // TODO: -1 why
+    {
+      long data_length= xid.bqual_length + xid.gtrid_length;
+      memcpy(xid.data, thd->transaction.xid_state.xid_cache_element->xid.data, data_length);
+    }
   }
 }
 
@@ -8099,9 +8113,14 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
 void
 Gtid_log_event::pack_info(Protocol *protocol)
 {
-  char buf[6+5+10+1+10+1+20+1+4+20+1+5+128];
+  char buf[6+5+10+1+10+1+20+1+4+20+1+5+128 /* todo: const:s */];
   char *p;
-  p = strmov(buf, (flags2 & FL_STANDALONE ? "GTID " : "BEGIN GTID "));
+  p = strmov(buf, (flags2 & FL_STANDALONE  ? "GTID " :
+                   flags2 & FL_PREPARED_XA ? "XA START " : "BEGIN GTID "));
+  if (flags2 & FL_PREPARED_XA)
+  {
+    p += sprintf(p, "%s GTID ", xid.serialize());
+  }
   p= longlong10_to_str(domain_id, p, 10);
   *p++= '-';
   p= longlong10_to_str(server_id, p, 10);
@@ -8111,12 +8130,6 @@ Gtid_log_event::pack_info(Protocol *protocol)
   {
     p= strmov(p, " cid=");
     p= longlong10_to_str(commit_id, p, 10);
-  }
-
-  if (flags2 & FL_PREPARED_XA)
-  {
-    p= strmov(p, " XID :");
-    p= strnmov(p, xid.data, xid.bqual_length + xid.gtrid_length);
   }
 
   protocol->store(buf, p-buf, &my_charset_bin);
@@ -8310,18 +8323,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   }
   if ((flags2 & FL_PREPARED_XA) && !is_flashback)
   {
-    my_b_write_string(&cache, "XA START '");
-    my_b_write(&cache, (uchar *) xid.data, xid.gtrid_length);
-    my_b_write_string(&cache, "'");
-    if (xid.bqual_length > 0 || xid.formatID != 1)
-    {
-      my_b_write_string(&cache, ", '");
-      my_b_write(&cache, (uchar *) xid.data+xid.gtrid_length, xid.bqual_length);
-      my_b_write_string(&cache, "'");
-      if (xid.formatID != 1)
-        if (my_b_printf(&cache, ", %d", xid.formatID))
-          goto err;
-    }
+    my_b_write_string(&cache, "XA START ");
+    my_b_write(&cache, (uchar*) xid.serialize(), strlen(xid.buf));
     if (my_b_printf(&cache, "%s\n", print_event_info->delimiter))
       goto err;
   }
@@ -9170,88 +9173,6 @@ int Xid_log_event::do_commit()
 #endif /* !MYSQL_CLIENT */
 
 
-#ifdef TODO7974
-/**
-  Function serializes XID which is characterized by by four last arguments
-  of the function.
-  Serialized XID is presented in valid hex format and is returned to
-  the caller in a buffer pointed by the first argument.
-  The buffer size provived by the caller must be not less than
-  8 + 2 * XIDDATASIZE +  4 * sizeof(XID::formatID) + 1, see
-  XID::serialize_xid() that is a caller and plugin.h for XID declaration.
-
-  @param buf  pointer to a buffer allocated for storing serialized data
-
-  @return  the value of the buffer pointer
-*/
-
-char *XA_prepare_log_event::event_xid_t::serialize(char *buf) const
-{
-  int i;
-  char *c= buf;
-  /*
-    Build a string like following pattern:
-      X'hex11hex12...hex1m',X'hex21hex22...hex2n',11
-    and store it into buf.
-    Here hex1i and hex2k are hexadecimals representing XID's internal
-    raw bytes (1 <= i <= m, 1 <= k <= n), and `m' and `n' even numbers
-    half of which corresponding to the lengths of XID's components.
-  */
-  c[0]= 'X';
-  c[1]= '\'';
-  c+= 2;
-  for (i= 0; i < gtrid_length; i++)
-  {
-    c[0]=_dig_vec_lower[((uchar*) data)[i] >> 4];
-    c[1]=_dig_vec_lower[((uchar*) data)[i] & 0x0f];
-    c+= 2;
-  }
-  c[0]= '\'';
-  c[1]= ',';
-  c[2]= 'X';
-  c[3]= '\'';
-  c+= 4;
-
-  for (; i < gtrid_length + bqual_length; i++)
-  {
-    c[0]=_dig_vec_lower[((uchar*) data)[i] >> 4];
-    c[1]=_dig_vec_lower[((uchar*) data)[i] & 0x0f];
-    c+= 2;
-  }
-  c[0]= '\'';
-  sprintf(c+1, ",%lu", formatID);
-
- return buf;
-}
-#endif /*TODO7974*/
-
-char *XA_prepare_log_event::event_xid_t::serialize(char *buf) const
-{
-  char *c= buf;
-
-  c[0]= '\'';
-  memcpy(c+1, data, gtrid_length);
-  c[gtrid_length+1]= '\'';
-  c+= gtrid_length + 2;
-
-  if (bqual_length)
-  {
-    c[0]= ',';
-    c[1]= '\'';
-    memcpy(c+2, data+gtrid_length, bqual_length);
-    c[bqual_length+2]= '\'';
-    c+= bqual_length+3;
-  }
-
-  if (formatID != 1)
-    sprintf(c, ",%lu", formatID);
-  else
-    c[0]=0;
-
- return buf;
-}
-
-
 /**************************************************************************
   XA_prepare_log_event methods
 **************************************************************************/
@@ -9295,15 +9216,15 @@ XA_prepare_log_event(const char* buf,
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 void XA_prepare_log_event::pack_info(Protocol *protocol)
 {
-  char buf[ser_buf_size];
-  char query[sizeof("XA COMMIT ONE PHASE") + 1 + sizeof(buf)];
+  //char buf[ser_buf_size];
+  char query[sizeof("XA COMMIT ONE PHASE") + 1 + ser_buf_size]; //sizeof(buf)];
 
   /* RHS of the following assert is unknown to client sources */
-  compile_time_assert(ser_buf_size == XID::ser_buf_size);
-  m_xid.serialize(buf);
+  // TODO: why ? compile_time_assert(ser_buf_size == XID::ser_buf_size);
+  //m_xid.serialize();
   sprintf(query,
           (one_phase ? "XA COMMIT %s ONE PHASE" :  "XA PREPARE %s"),
-          buf);
+          m_xid.serialize());
 
   protocol->store(query, strlen(query), &my_charset_bin);
 }
@@ -9321,9 +9242,9 @@ bool XA_prepare_log_event::write()
   int4store(data+(1+4), static_cast<XID*>(xid)->gtrid_length);
   int4store(data+(1+4+4), static_cast<XID*>(xid)->bqual_length);
 
-  DBUG_ASSERT(xid_bufs_size == sizeof(data) - 1);
+  DBUG_ASSERT(xid_subheader_no_data == sizeof(data) - 1);
 
-  return write_header(sizeof(one_phase_byte) + xid_bufs_size +
+  return write_header(sizeof(one_phase_byte) + xid_subheader_no_data +
                       static_cast<XID*>(xid)->gtrid_length +
                       static_cast<XID*>(xid)->bqual_length) ||
          write_data(data, sizeof(data)) ||
@@ -9340,19 +9261,19 @@ bool XA_prepare_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F, this);
-  char buf[ser_buf_size];
+  //char buf[ser_buf_size];
 
-  m_xid.serialize(buf);
+  m_xid.serialize();
 
   if (!print_event_info->short_form)
   {
     print_header(&cache, print_event_info, FALSE);
-    if (my_b_printf(&cache, "\tXID = %s\n", buf))
+    if (my_b_printf(&cache, "\tXID = %s\n", m_xid.buf))
       goto error;
   }
 
   if (my_b_printf(&cache, "XA PREPARE %s\n%s\n",
-                   buf, print_event_info->delimiter))
+                   m_xid.buf, print_event_info->delimiter))
     goto error;
 
   return cache.flush_data();

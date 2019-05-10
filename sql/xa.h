@@ -1,3 +1,5 @@
+#ifndef XA_INCLUDED
+#define XA_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2019, MariaDB Corporation.
@@ -67,6 +69,7 @@ class XID_cache_element
 public:
   static const int32 ACQUIRED= 1 << 30;
   static const int32 RECOVERED= 1 << 29;
+  static const int32 BINLOGGED= 1 << 28;
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
   enum xa_states xa_state;
@@ -160,7 +163,11 @@ struct XID_STATE {
     The recovered transaction after server restart sets it to TRUE always.
     That can cause inconsistencies (shoud be fixed?).
   */
-  bool is_binlogged;
+  bool is_binlogged()
+  {
+    return xid_cache_element &&
+      xid_cache_element->is_set(XID_cache_element::BINLOGGED);
+  }
 
   bool check_has_uncommitted_xa() const;
   bool is_explicit_XA() const { return xid_cache_element != 0; }
@@ -171,12 +178,19 @@ struct XID_STATE {
   {
     //TODO: what's an equivalent
     //xid.null();
-    is_binlogged= false;
+    //is_binlogged= false;
+    unset_binlogged();
   }
   void set_binlogged()
-  { is_binlogged= true; }
+  {
+    if (xid_cache_element)
+      xid_cache_element->set(XID_cache_element::BINLOGGED);
+  }
   void unset_binlogged()
-  { is_binlogged= false; }
+  {
+    if (xid_cache_element)
+      xid_cache_element->set(~XID_cache_element::BINLOGGED);
+  }
 };
 
 void xid_cache_init(void);
@@ -193,3 +207,7 @@ bool trans_xa_rollback(THD *thd);
 bool trans_xa_detach(THD *thd);
 bool mysql_xa_recover(THD *thd);
 bool applier_reset_xa_trans(THD *thd);
+void    attach_native_trx(THD *thd);
+my_bool detach_native_trx(THD *thd, plugin_ref plugin, void *unused);
+
+#endif /* XA_INCLUDED */

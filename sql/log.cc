@@ -91,6 +91,9 @@ static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
 static int binlog_commit(handlerton *hton, THD *thd, bool all);
 static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
+static int binlog_xa_recover(handlerton *hton, XID *xid_list, uint len);
+static int binlog_commit_by_xid(handlerton *hton, XID *xid);
+static int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
@@ -1695,6 +1698,9 @@ int binlog_init(void *p)
   binlog_hton->commit= binlog_commit;
   binlog_hton->rollback= binlog_rollback;
   binlog_hton->prepare= binlog_prepare;
+  binlog_hton->recover= binlog_xa_recover;
+  binlog_hton->commit_by_xid= binlog_commit_by_xid;
+  binlog_hton->rollback_by_xid= binlog_rollback_by_xid;
   binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
   binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
   return 0;
@@ -1967,24 +1973,58 @@ static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 }
 
 
-static int serialize_xid(XID *xid, char *buf)
+static int binlog_xa_recover(handlerton *hton __attribute__((unused)),
+                             XID *xid_list __attribute__((unused)),
+                             uint len __attribute__((unused)))
 {
-  size_t size;
-  buf[0]= '\'';
-  memcpy(buf+1, xid->data, xid->gtrid_length);
-  size= xid->gtrid_length + 2;
-  buf[size-1]= '\'';
-  if (xid->bqual_length == 0 && xid->formatID == 1)
-    return size;
+  /* Does nothing. */
+  return 0;
+}
 
-  memcpy(buf+size, ", '", 3);
-  memcpy(buf+size+3, xid->data+xid->gtrid_length, xid->bqual_length);
-  size+= 3 + xid->bqual_length;
-  buf[size]= '\'';
-  size++;
-  if (xid->formatID != 1)
-    size+= sprintf(buf+size, ", %ld", xid->formatID);
-  return size;
+inline int binlog_write_by_xid(THD *thd, XID *xid, char *buf,
+                               const char *query, size_t q_len)
+{
+  int res= 0;
+
+  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+      thd->transaction.xid_state.is_binlogged())
+  {
+    size_t buflen;
+
+    memcpy(buf, query, q_len);
+    buflen= q_len + strlen(static_cast<event_xid_t*>(xid)->serialize(buf+q_len));
+    res= thd->binlog_query(THD::THD::STMT_QUERY_TYPE, buf, buflen,
+                           FALSE, TRUE, TRUE, 0);
+
+    DBUG_ASSERT(!res || thd->is_error());
+  }
+
+  return res;
+}
+
+static int binlog_commit_by_xid(handlerton *hton, XID *xid)
+{
+  THD *thd= current_thd;
+  const char query[]= "XA COMMIT ";
+  const size_t q_len= sizeof(query) - 1; // do not count trailing 0
+  char buf[q_len + ser_buf_size];
+
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
+
+  return binlog_write_by_xid(thd, xid, buf, query, q_len);
+}
+
+
+static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
+{
+  THD *thd= current_thd;
+  const char query[]= "XA ROLLBACK ";
+  const size_t q_len= sizeof(query) - 1; // do not count trailing 0
+  char buf[q_len + ser_buf_size];
+
+  DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
+
+  return binlog_write_by_xid(thd, xid, buf, query, q_len);
 }
 
 
@@ -9942,20 +9982,26 @@ int TC_LOG_BINLOG::log_xa_prepare(THD *thd, bool all)
   binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   XID *xid= &thd->transaction.xid_state.xid_cache_element->xid;
   {
+    // todo assert wsrep_simulate || is_open()
+
     /*
       Log the XA END event first.
       We don't do that in trans_xa_end() as XA COMMIT ONE PHASE
       is logged as simple BEGIN/COMMIT so the XA END should
       not get to the log.
     */
-    const size_t xc_len= sizeof("XA END ") - 1; // do not count trailing 0
-    char buf[xc_len + xid_t::ser_buf_size];
+    const char query[]= "XA END ";
+    const size_t q_len= sizeof(query) - 1; // do not count trailing 0
+    char buf[q_len + ser_buf_size];
     size_t buflen;
     binlog_cache_data *cache_data;
     IO_CACHE *file;
 
-    memcpy(buf, "XA END ", xc_len);
-    buflen= xc_len + serialize_xid(xid, buf+xc_len);
+    // TODO binlog_query
+
+    memcpy(buf, query, q_len);
+    buflen= q_len +
+      strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
     cache_data= cache_mngr->get_binlog_cache_data(true);
     file= &cache_data->cache_log;
     thd->lex->sql_command= SQLCOM_XA_END;

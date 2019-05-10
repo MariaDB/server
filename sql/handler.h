@@ -831,16 +831,6 @@ struct xid_t {
   long gtrid_length;
   long bqual_length;
   char data[XIDDATASIZE];  // not \0-terminated !
-  /*
-    The size of the string containing serialized Xid representation
-    is computed as a sum of
-    eight as the number of formatting symbols (X'',X'',)
-    plus 2 x XIDDATASIZE (2 due to hex format),
-    plus space for decimal digits of XID::formatID,
-    plus one for 0x0.
-  */
-  static const uint ser_buf_size=
-    8 + 2 * XIDDATASIZE + 4 * sizeof(long) + 1;
 
   xid_t() {}                                /* Remove gcc warning */
   bool eq(struct xid_t *xid)
