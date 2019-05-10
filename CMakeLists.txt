@@ -191,6 +191,13 @@ INCLUDE(check_compiler_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 IF (WITH_ASAN)
+  IF(SECURITY_HARDENED)
+    MESSAGE(WARNING "WITH_ASAN and SECURITY_HARDENED are mutually exclusive")
+  ENDIF()
+
+  # this flag might be set by default on some OS
+  MY_CHECK_AND_SET_COMPILER_FLAG("-U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+
   # gcc 4.8.1 and new versions of clang
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -O1 -Wno-error -fPIC"
     DEBUG RELWITHDEBINFO)
@@ -225,7 +232,7 @@ ENDIF()
 
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
-IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6")
+IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6" OR WITH_ASAN)
   SET(security_default OFF)
 ELSE()
   SET(security_default ON)
