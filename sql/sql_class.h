@@ -2132,10 +2132,12 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
   Destructor unblocks close_conneciton() if there are no more THD's left.
 */
-struct THD_count
+class THD_count
 {
-  THD_count() { thread_count++; }
-  ~THD_count() { thread_count--; }
+  THD *orig_thd;
+  THD_count();
+  ~THD_count();
+  friend class THD;
 };
 
 

@@ -137,7 +137,7 @@ class Session_sysvars_tracker: public State_tracker
     bool track_all;
     void init()
     {
-      my_hash_init(&m_registered_sysvars, &my_charset_bin, 0, 0, 0,
+      my_hash_init(&m_registered_sysvars, &my_charset_bin, 4, 0, 0,
                    (my_hash_get_key) sysvars_get_key, my_free,
                    HASH_UNIQUE | (mysqld_server_initialized ?
                                   HASH_THREAD_SPECIFIC : 0));
@@ -164,8 +164,7 @@ class Session_sysvars_tracker: public State_tracker
     }
   public:
     vars_list(): track_all(false) { init(); }
-    ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
-    void deinit() { free_hash(); }
+    ~vars_list() { free_hash(); }
 
     sysvar_node_st *insert_or_search(const sys_var *svar)
     {
@@ -208,7 +207,6 @@ public:
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
   void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
-  void deinit() { orig_list.deinit(); }
   /* callback */
   static uchar *sysvars_get_key(const char *entry, size_t *length,
                                 my_bool not_used __attribute__((unused)));

@@ -600,6 +600,43 @@ extern "C" void thd_kill_timeout(THD* thd)
   thd->awake(KILL_TIMEOUT);
 }
 
+
+THD_count::THD_count()
+{
+  THD *thd= static_cast<THD*>(this);
+  thread_count++;
+  /*
+    We set THR_THD to temporally point to this THD to register all the
+    variables that allocates memory for this THD
+  */
+  orig_thd= current_thd;
+  set_current_thd(thd);
+  thd->status_var.local_memory_used= sizeof(THD);
+  thd->status_var.max_local_memory_used= thd->status_var.local_memory_used;
+  thd->status_var.global_memory_used= 0;
+  thd->variables.max_mem_used= global_system_variables.max_mem_used;
+}
+
+
+THD_count::~THD_count()
+{
+  THD *thd= static_cast<THD*>(this);
+  /* Ensure everything is freed */
+  thd->status_var.local_memory_used-= sizeof(THD);
+  if (thd->status_var.local_memory_used != 0)
+  {
+    DBUG_PRINT("error", ("memory_used: %lld",
+                         thd->status_var.local_memory_used));
+    SAFEMALLOC_REPORT_MEMORY(thd->thread_id);
+    DBUG_ASSERT(thd->status_var.local_memory_used == 0 ||
+                !debug_assert_on_not_freed_memory);
+  }
+  update_global_memory_status(thd->status_var.global_memory_used);
+  set_current_thd(orig_thd);
+  thread_count--;
+}
+
+
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
@@ -690,15 +727,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   ulong tmp;
   bzero(&variables, sizeof(variables));
 
-  /*
-    We set THR_THD to temporally point to this THD to register all the
-    variables that allocates memory for this THD
-  */
-  THD *old_THR_THD= current_thd;
-  set_current_thd(this);
-  status_var.local_memory_used= sizeof(THD);
-  status_var.max_local_memory_used= status_var.local_memory_used;
-  status_var.global_memory_used= 0;
   variables.pseudo_thread_id= thread_id;
   variables.max_mem_used= global_system_variables.max_mem_used;
   main_da.init();
@@ -866,8 +894,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   force_read_stats= FALSE;
   save_prep_leaf_list= FALSE;
   org_charset= 0;
-  /* Restore THR_THD */
-  set_current_thd(old_THR_THD);
+  set_current_thd(orig_thd);
 }
 
 
@@ -1648,7 +1675,6 @@ void THD::reset_for_reuse()
 
 THD::~THD()
 {
-  THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
   /* Make sure threads are not available via server_threads.  */
@@ -1658,7 +1684,11 @@ THD::~THD()
     In error cases, thd may not be current thd. We have to fix this so
     that memory allocation counting is done correctly
   */
-  set_current_thd(this);
+  orig_thd= current_thd;
+  if (orig_thd == this)
+    orig_thd= 0;
+  else
+    set_current_thd(this);
   if (!status_in_global)
     add_status_to_global();
 
@@ -1716,23 +1746,6 @@ THD::~THD()
     lf_hash_put_pins(tdc_hash_pins);
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
-  /* Ensure everything is freed */
-  status_var.local_memory_used-= sizeof(THD);
-
-  /* trick to make happy memory accounting system */
-#ifndef EMBEDDED_LIBRARY
-  session_tracker.sysvars.deinit();
-#endif //EMBEDDED_LIBRARY
-
-  if (status_var.local_memory_used != 0)
-  {
-    DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
-    SAFEMALLOC_REPORT_MEMORY(thread_id);
-    DBUG_ASSERT(status_var.local_memory_used == 0 ||
-                !debug_assert_on_not_freed_memory);
-  }
-  update_global_memory_status(status_var.global_memory_used);
-  set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
 }
 
