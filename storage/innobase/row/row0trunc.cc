@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1531,7 +1531,7 @@ row_truncate_update_system_tables(
 					os_thread_sleep(10000000););
 
 			table->fts->fts_status |= TABLE_DICT_LOCKED;
-			fts_update_next_doc_id(trx, table, NULL, 0);
+			fts_update_next_doc_id(trx, table, 0);
 			fts_cache_clear(table->fts->cache);
 			fts_cache_init(table->fts->cache);
 			table->fts->fts_status &= uint(~TABLE_DICT_LOCKED);

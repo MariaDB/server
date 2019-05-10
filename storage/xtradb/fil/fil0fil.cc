@@ -2819,6 +2819,29 @@ fil_close_tablespace(
 	return(err);
 }
 
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+UNIV_INTERN bool fil_table_accessible(const dict_table_t* table)
+{
+	if (UNIV_UNLIKELY(!table->is_readable() || table->corrupted)) {
+		return(false);
+	}
+
+	if (fil_space_t* space = fil_space_acquire(table->space)) {
+		bool accessible = !space->is_stopping();
+		fil_space_release(space);
+		return(accessible);
+	} else {
+		return(false);
+	}
+}
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	drop_ahi	whether to drop the adaptive hash index

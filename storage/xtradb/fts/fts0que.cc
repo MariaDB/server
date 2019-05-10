@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2052,13 +2052,22 @@ fts_query_find_term(
 	fts_select_t		select;
 	doc_id_t		match_doc_id;
 	trx_t*			trx = query->trx;
+	char			table_name[MAX_FULL_NAME_LEN];
 
 	trx->op_info = "fetching FTS index matching nodes";
 
 	if (*graph) {
 		info = (*graph)->info;
 	} else {
+		ulint	selected;
+
 		info = pars_info_create();
+
+		selected = fts_select_index(*word->f_str);
+		query->fts_index_table.suffix = fts_get_suffix(selected);
+
+		fts_get_table_name(&query->fts_index_table, table_name);
+		pars_info_bind_id(info, true, "index_table_name", table_name);
 	}
 
 	select.found = FALSE;
@@ -2077,11 +2086,6 @@ fts_query_find_term(
 	fts_bind_doc_id(info, "max_doc_id", &match_doc_id);
 
 	if (!*graph) {
-		ulint		selected;
-
-		selected = fts_select_index(*word->f_str);
-
-		query->fts_index_table.suffix = fts_get_suffix(selected);
 
 		*graph = fts_parse_sql(
 			&query->fts_index_table,
@@ -2089,7 +2093,7 @@ fts_query_find_term(
 			"DECLARE FUNCTION my_func;\n"
 			"DECLARE CURSOR c IS"
 			" SELECT doc_count, ilist\n"
-			" FROM \"%s\"\n"
+			" FROM $index_table_name\n"
 			" WHERE word LIKE :word AND "
 			"	first_doc_id <= :min_doc_id AND "
 			"	last_doc_id >= :max_doc_id\n"
@@ -2188,6 +2192,7 @@ fts_query_total_docs_containing_term(
 	que_t*			graph;
 	ulint			selected;
 	trx_t*			trx = query->trx;
+	char			table_name[MAX_FULL_NAME_LEN]
 
 	trx->op_info = "fetching FTS index document count";
 
@@ -2202,13 +2207,17 @@ fts_query_total_docs_containing_term(
 
 	query->fts_index_table.suffix = fts_get_suffix(selected);
 
+	fts_get_table_name(&query->fts_index_table, table_name);
+
+	pars_info_bind_id(info, true, "index_table_name", table_name);
+
 	graph = fts_parse_sql(
 		&query->fts_index_table,
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
 		" SELECT doc_count\n"
-		" FROM %s\n"
+		" FROM $index_table_name\n"
 		" WHERE word = :word "
 		" ORDER BY first_doc_id;\n"
 		"BEGIN\n"
@@ -2267,6 +2276,7 @@ fts_query_terms_in_document(
 	que_t*		graph;
 	doc_id_t	read_doc_id;
 	trx_t*		trx = query->trx;
+	char		table_name[MAX_FULL_NAME_LEN];
 
 	trx->op_info = "fetching FTS document term count";
 
@@ -2282,13 +2292,17 @@ fts_query_terms_in_document(
 
 	query->fts_index_table.suffix = "DOC_ID";
 
+	fts_get_table_name(&query->fts_index_table, table_name);
+
+	pars_info_bind_id(info, true, "index_table_name", table_name);
+
 	graph = fts_parse_sql(
 		&query->fts_index_table,
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
 		" SELECT count\n"
-		" FROM \"%s\"\n"
+		" FROM $index_table_name\n"
 		" WHERE doc_id = :doc_id "
 		"BEGIN\n"
 		"\n"
@@ -3891,7 +3905,6 @@ fts_query(
 
 	query.fts_common_table.type = FTS_COMMON_TABLE;
 	query.fts_common_table.table_id = index->table->id;
-	query.fts_common_table.parent = index->table->name;
 	query.fts_common_table.table = index->table;
 
 	charset = fts_index_get_charset(index);
@@ -3899,7 +3912,6 @@ fts_query(
 	query.fts_index_table.type = FTS_INDEX_TABLE;
 	query.fts_index_table.index_id = index->id;
 	query.fts_index_table.table_id = index->table->id;
-	query.fts_index_table.parent = index->table->name;
 	query.fts_index_table.charset = charset;
 	query.fts_index_table.table = index->table;
 

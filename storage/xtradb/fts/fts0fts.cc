@@ -167,38 +167,39 @@ struct fts_aux_table_t {
 	char*		name;		/*!< Name of the table */
 };
 
-/** SQL statements for creating the ancillary common FTS tables. */
+/** SQL statements for creating the ancillary common FTS tables.
+The table name here shall be consistent with fts_common_tables. */
 static const char* fts_create_common_tables_sql = {
 	"BEGIN\n"
 	""
-	"CREATE TABLE \"%s_DELETED\" (\n"
+	"CREATE TABLE $DELETED (\n"
 	"  doc_id BIGINT UNSIGNED\n"
 	") COMPACT;\n"
-	"CREATE UNIQUE CLUSTERED INDEX IND ON \"%s_DELETED\"(doc_id);\n"
+	"CREATE UNIQUE CLUSTERED INDEX IND ON $DELETED (doc_id);\n"
 	""
-	"CREATE TABLE \"%s_DELETED_CACHE\" (\n"
-	"  doc_id BIGINT UNSIGNED\n"
-	") COMPACT;\n"
-	"CREATE UNIQUE CLUSTERED INDEX IND "
-		"ON \"%s_DELETED_CACHE\"(doc_id);\n"
-	""
-	"CREATE TABLE \"%s_BEING_DELETED\" (\n"
+	"CREATE TABLE $DELETED_CACHE (\n"
 	"  doc_id BIGINT UNSIGNED\n"
 	") COMPACT;\n"
 	"CREATE UNIQUE CLUSTERED INDEX IND "
-		"ON \"%s_BEING_DELETED\"(doc_id);\n"
+		"ON $DELETED_CACHE(doc_id);\n"
 	""
-	"CREATE TABLE \"%s_BEING_DELETED_CACHE\" (\n"
+	"CREATE TABLE $BEING_DELETED (\n"
 	"  doc_id BIGINT UNSIGNED\n"
 	") COMPACT;\n"
 	"CREATE UNIQUE CLUSTERED INDEX IND "
-		"ON \"%s_BEING_DELETED_CACHE\"(doc_id);\n"
+		"ON $BEING_DELETED(doc_id);\n"
 	""
-	"CREATE TABLE \"%s_CONFIG\" (\n"
+	"CREATE TABLE $BEING_DELETED_CACHE (\n"
+	"  doc_id BIGINT UNSIGNED\n"
+	") COMPACT;\n"
+	"CREATE UNIQUE CLUSTERED INDEX IND "
+		"ON $BEING_DELETED_CACHE(doc_id);\n"
+	""
+	"CREATE TABLE $CONFIG (\n"
 	"  key CHAR(50),\n"
 	"  value CHAR(200) NOT NULL\n"
 	") COMPACT;\n"
-	"CREATE UNIQUE CLUSTERED INDEX IND ON \"%s_CONFIG\"(key);\n"
+	"CREATE UNIQUE CLUSTERED INDEX IND ON $CONFIG(key);\n"
 };
 
 #ifdef FTS_DOC_STATS_DEBUG
@@ -207,11 +208,11 @@ mainly designed for the statistics work in the future */
 static const char* fts_create_index_tables_sql = {
 	"BEGIN\n"
 	""
-	"CREATE TABLE \"%s_DOC_ID\" (\n"
+	"CREATE TABLE $doc_id_table (\n"
 	"   doc_id BIGINT UNSIGNED,\n"
 	"   word_count INTEGER UNSIGNED NOT NULL\n"
 	") COMPACT;\n"
-	"CREATE UNIQUE CLUSTERED INDEX IND ON \"%s_DOC_ID\"(doc_id);\n"
+	"CREATE UNIQUE CLUSTERED INDEX IND ON $doc_id_table(doc_id);\n"
 };
 #endif
 
@@ -220,11 +221,11 @@ static const char* fts_create_index_sql = {
 	"BEGIN\n"
 	""
 	"CREATE UNIQUE CLUSTERED INDEX FTS_INDEX_TABLE_IND "
-		"ON \"%s\"(word, first_doc_id);\n"
+		"ON $table (word, first_doc_id);\n"
 };
 
 /** FTS auxiliary table suffixes that are common to all FT indexes. */
-static const char* fts_common_tables[] = {
+const char* fts_common_tables[] = {
 	"BEING_DELETED",
 	"BEING_DELETED_CACHE",
 	"CONFIG",
@@ -248,19 +249,19 @@ const  fts_index_selector_t fts_index_selector[] = {
 static const char* fts_config_table_insert_values_sql =
 	"BEGIN\n"
 	"\n"
-	"INSERT INTO \"%s\" VALUES('"
+	"INSERT INTO $config_table VALUES('"
 		FTS_MAX_CACHE_SIZE_IN_MB "', '256');\n"
 	""
-	"INSERT INTO \"%s\" VALUES('"
+	"INSERT INTO $config_table VALUES('"
 		FTS_OPTIMIZE_LIMIT_IN_SECS  "', '180');\n"
 	""
-	"INSERT INTO \"%s\" VALUES ('"
+	"INSERT INTO $config_table VALUES ('"
 		FTS_SYNCED_DOC_ID "', '0');\n"
 	""
-	"INSERT INTO \"%s\" VALUES ('"
+	"INSERT INTO $config_table VALUES ('"
 		FTS_TOTAL_DELETED_COUNT "', '0');\n"
 	"" /* Note: 0 == FTS_TABLE_STATE_RUNNING */
-	"INSERT INTO \"%s\" VALUES ('"
+	"INSERT INTO $config_table VALUES ('"
 		FTS_TABLE_STATE "', '0');\n";
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -334,7 +335,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 	MY_ATTRIBUTE((nonnull(1)));
@@ -1586,18 +1586,16 @@ fts_rename_aux_tables(
 
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
+	dberr_t err = DB_SUCCESS;
+	char old_table_name[MAX_FULL_NAME_LEN];
+
 	/* Rename common auxiliary tables */
 	for (i = 0; fts_common_tables[i] != NULL; ++i) {
-		char*	old_table_name;
-		dberr_t	err = DB_SUCCESS;
-
 		fts_table.suffix = fts_common_tables[i];
 
-		old_table_name = fts_get_table_name(&fts_table);
+		fts_get_table_name(&fts_table, old_table_name, true);
 
 		err = fts_rename_one_aux_table(new_name, old_table_name, trx);
-
-		mem_free(old_table_name);
 
 		if (err != DB_SUCCESS) {
 			return(err);
@@ -1617,12 +1615,8 @@ fts_rename_aux_tables(
 		FTS_INIT_INDEX_TABLE(&fts_table, NULL, FTS_INDEX_TABLE, index);
 
 		for (ulint j = 0; fts_index_selector[j].value; ++j) {
-			dberr_t	err;
-			char*	old_table_name;
-
 			fts_table.suffix = fts_get_suffix(j);
-
-			old_table_name = fts_get_table_name(&fts_table);
+			fts_get_table_name(&fts_table, old_table_name, true);
 
 			err = fts_rename_one_aux_table(
 				new_name, old_table_name, trx);
@@ -1630,8 +1624,6 @@ fts_rename_aux_tables(
 			DBUG_EXECUTE_IF("fts_rename_failure",
 					err = DB_DEADLOCK;
 					fts_sql_rollback(trx););
-
-			mem_free(old_table_name);
 
 			if (err != DB_SUCCESS) {
 				return(err);
@@ -1660,11 +1652,11 @@ fts_drop_common_tables(
 
 	for (i = 0; fts_common_tables[i] != NULL; ++i) {
 		dberr_t	err;
-		char*	table_name;
+		char	table_name[MAX_FULL_NAME_LEN];
 
 		fts_table->suffix = fts_common_tables[i];
 
-		table_name = fts_get_table_name(fts_table);
+		fts_get_table_name(fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1672,8 +1664,6 @@ fts_drop_common_tables(
 		if (err != DB_SUCCESS && err != DB_FAIL) {
 			error = err;
 		}
-
-		mem_free(table_name);
 	}
 
 	return(error);
@@ -1699,11 +1689,11 @@ fts_drop_index_split_tables(
 
 	for (i = 0; fts_index_selector[i].value; ++i) {
 		dberr_t	err;
-		char*	table_name;
+		char	table_name[MAX_FULL_NAME_LEN];
 
 		fts_table.suffix = fts_get_suffix(i);
 
-		table_name = fts_get_table_name(&fts_table);
+		fts_get_table_name(&fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1711,8 +1701,6 @@ fts_drop_index_split_tables(
 		if (err != DB_SUCCESS && err != DB_FAIL) {
 			error = err;
 		}
-
-		mem_free(table_name);
 	}
 
 	return(error);
@@ -1749,11 +1737,11 @@ fts_drop_index_tables(
 	FTS_INIT_INDEX_TABLE(&fts_table, NULL, FTS_INDEX_TABLE, index);
 
 	for (ulint i = 0; index_tables[i] != NULL; ++i) {
-		char*	table_name;
+		char	table_name[MAX_FULL_NAME_LEN];
 
 		fts_table.suffix = index_tables[i];
 
-		table_name = fts_get_table_name(&fts_table);
+		fts_get_table_name(&fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1761,8 +1749,6 @@ fts_drop_index_tables(
 		if (err != DB_SUCCESS && err != DB_FAIL) {
 			error = err;
 		}
-
-		mem_free(table_name);
 	}
 #endif /* FTS_DOC_STATS_DEBUG */
 
@@ -1832,26 +1818,6 @@ fts_drop_tables(
 }
 
 /*********************************************************************//**
-Prepare the SQL, so that all '%s' are replaced by the common prefix.
-@return sql string, use mem_free() to free the memory */
-static
-char*
-fts_prepare_sql(
-/*============*/
-	fts_table_t*	fts_table,	/*!< in: table name info */
-	const char*	my_template)	/*!< in: sql template */
-{
-	char*		sql;
-	char*		name_prefix;
-
-	name_prefix = fts_get_table_name_prefix(fts_table);
-	sql = ut_strreplace(my_template, "%s", name_prefix);
-	mem_free(name_prefix);
-
-	return(sql);
-}
-
-/*********************************************************************//**
 Creates the common ancillary tables needed for supporting an FTS index
 on the given table. row_mysql_lock_data_dictionary must have been called
 before this.
@@ -1865,12 +1831,15 @@ fts_create_common_tables(
 	const char*	name,		/*!< in: table name normalized.*/
 	bool		skip_doc_id_index)/*!< in: Skip index on doc id */
 {
-	char*		sql;
 	dberr_t		error;
 	que_t*		graph;
 	fts_table_t	fts_table;
 	mem_heap_t*	heap = mem_heap_create(1024);
 	pars_info_t*	info;
+	char		fts_name[MAX_FULL_NAME_LEN];
+	char		full_name[sizeof(fts_common_tables) / sizeof(char*)]
+				[MAX_FULL_NAME_LEN];
+	ulint		i;
 
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
@@ -1882,9 +1851,19 @@ fts_create_common_tables(
 	}
 
 	/* Create the FTS tables that are common to an FTS index. */
-	sql = fts_prepare_sql(&fts_table, fts_create_common_tables_sql);
-	graph = fts_parse_sql_no_dict_lock(NULL, NULL, sql);
-	mem_free(sql);
+	info = pars_info_create();
+
+	for (i = 0; fts_common_tables[i] != NULL; ++i) {
+
+		fts_table.suffix = fts_common_tables[i];
+		fts_get_table_name(&fts_table, full_name[i], true);
+
+		pars_info_bind_id(info, true,
+				  fts_common_tables[i], full_name[i]);
+	}
+
+	graph = fts_parse_sql_no_dict_lock(NULL, info,
+					   fts_create_common_tables_sql);
 
 	error = fts_eval_sql(trx, graph);
 
@@ -1896,9 +1875,14 @@ fts_create_common_tables(
 	}
 
 	/* Write the default settings to the config table. */
+	info = pars_info_create();
+
 	fts_table.suffix = "CONFIG";
+	fts_get_table_name(&fts_table, fts_name, true);
+	pars_info_bind_id(info, true, "config_table", fts_name);
+
 	graph = fts_parse_sql_no_dict_lock(
-		&fts_table, NULL, fts_config_table_insert_values_sql);
+		&fts_table, info, fts_config_table_insert_values_sql);
 
 	error = fts_eval_sql(trx, graph);
 
@@ -1966,12 +1950,14 @@ fts_create_one_index_table(
 {
 	dict_field_t*		field;
 	dict_table_t*		new_table = NULL;
-	char*			table_name = fts_get_table_name(fts_table);
+	char			table_name[MAX_FULL_NAME_LEN];
 	dberr_t			error;
 	CHARSET_INFO*		charset;
 	ulint			flags2 = 0;
 
 	ut_ad(index->type & DICT_FTS);
+
+	fts_get_table_name(fts_table, table_name, true);
 
 	if (srv_file_per_table) {
 		flags2 = DICT_TF2_USE_TABLESPACE;
@@ -2016,8 +2002,6 @@ fts_create_one_index_table(
 			"Fail to create FTS index table %s", table_name);
 	}
 
-	mem_free(table_name);
-
 	return(new_table);
 }
 
@@ -2040,23 +2024,27 @@ fts_create_index_tables_low(
 	que_t*		graph;
 	fts_table_t	fts_table;
 	dberr_t		error = DB_SUCCESS;
+	pars_info_t*	info;
 	mem_heap_t*	heap = mem_heap_create(1024);
+	char		fts_name[MAX_FULL_NAME_LEN];
 
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table_id;
-	fts_table.parent = table_name;
 	fts_table.table = index->table;
 
 #ifdef FTS_DOC_STATS_DEBUG
-	char*		sql;
-
 	/* Create the FTS auxiliary tables that are specific
 	to an FTS index. */
-	sql = fts_prepare_sql(&fts_table, fts_create_index_tables_sql);
+	info = pars_info_create();
 
-	graph = fts_parse_sql_no_dict_lock(NULL, NULL, sql);
-	mem_free(sql);
+	fts_table.suffix = "DOC_ID";
+	fts_get_table_name(&fts_table, fts_name, true);
+
+	pars_info_bind_id(info, true, "doc_id_table", fts_name);
+
+	graph = fts_parse_sql_no_dict_lock(NULL, info,
+					   fts_create_index_tables_sql);
 
 	error = fts_eval_sql(trx, graph);
 	que_graph_free(graph);
@@ -2064,6 +2052,8 @@ fts_create_index_tables_low(
 
 	for (i = 0; fts_index_selector[i].value && error == DB_SUCCESS; ++i) {
 		dict_table_t*	new_table;
+
+		info = pars_info_create();
 
 		/* Create the FTS auxiliary tables that are specific
 		to an FTS index. We need to preserve the table_id %s
@@ -2078,8 +2068,12 @@ fts_create_index_tables_low(
 			break;
 		}
 
+		fts_get_table_name(&fts_table, fts_name, true);
+
+		pars_info_bind_id(info, true, "table", fts_name);
+
 		graph = fts_parse_sql_no_dict_lock(
-			&fts_table, NULL, fts_create_index_sql);
+			&fts_table, info, fts_create_index_sql);
 
 		error = fts_eval_sql(trx, graph);
 		que_graph_free(graph);
@@ -2632,7 +2626,6 @@ fts_update_next_doc_id(
 /*===================*/
 	trx_t*			trx,		/*!< in/out: transaction */
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id)		/*!< in: DOC ID to set */
 {
 	table->fts->cache->synced_doc_id = doc_id;
@@ -2641,7 +2634,7 @@ fts_update_next_doc_id(
 	table->fts->cache->first_doc_id = table->fts->cache->next_doc_id;
 
 	fts_update_sync_doc_id(
-		table, table_name, table->fts->cache->synced_doc_id, trx);
+		table, table->fts->cache->synced_doc_id, trx);
 
 }
 
@@ -2704,6 +2697,7 @@ fts_cmp_set_sync_doc_id(
 	fts_table_t	fts_table;
 	que_t*		graph = NULL;
 	fts_cache_t*	cache = table->fts->cache;
+	char		table_name[MAX_FULL_NAME_LEN];
 retry:
 	ut_a(table->fts->doc_col != ULINT_UNDEFINED);
 
@@ -2711,8 +2705,6 @@ retry:
 	fts_table.table_id = table->id;
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
-
-	fts_table.parent = table->name;
 
 	trx = trx_allocate_for_background();
 
@@ -2723,10 +2715,13 @@ retry:
 	pars_info_bind_function(
 		info, "my_func", fts_fetch_store_doc_id, doc_id);
 
+	fts_get_table_name(&fts_table, table_name);
+	pars_info_bind_id(info, true, "config_table", table_name);
+
 	graph = fts_parse_sql(
 		&fts_table, info,
 		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS SELECT value FROM \"%s\""
+		"DECLARE CURSOR c IS SELECT value FROM $config_table"
 		" WHERE key = 'synced_doc_id' FOR UPDATE;\n"
 		"BEGIN\n"
 		""
@@ -2770,7 +2765,7 @@ retry:
 
 	if (doc_id_cmp > *doc_id) {
 		error = fts_update_sync_doc_id(
-			table, table->name, cache->synced_doc_id, trx);
+			table, cache->synced_doc_id, trx);
 	}
 
 	*doc_id = cache->next_doc_id;
@@ -2808,7 +2803,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 {
@@ -2820,16 +2814,12 @@ fts_update_sync_doc_id(
 	dberr_t		error;
 	ibool		local_trx = FALSE;
 	fts_cache_t*	cache = table->fts->cache;
+	char		fts_name[MAX_FULL_NAME_LEN];
 
 	fts_table.suffix = "CONFIG";
 	fts_table.table_id = table->id;
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
-	if (table_name) {
-		fts_table.parent = table_name;
-	} else {
-		fts_table.parent = table->name;
-	}
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
@@ -2845,10 +2835,14 @@ fts_update_sync_doc_id(
 
 	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
 
+	fts_get_table_name(&fts_table, fts_name,
+			   table->fts->fts_status & TABLE_DICT_LOCKED);
+	pars_info_bind_id(info, true, "table_name", fts_name);
+
 	graph = fts_parse_sql(
 		&fts_table, info,
 		"BEGIN "
-		"UPDATE \"%s\" SET value = :doc_id"
+		"UPDATE $table_name SET value = :doc_id"
 		" WHERE key = 'synced_doc_id';");
 
 	error = fts_eval_sql(trx, graph);
@@ -2995,6 +2989,7 @@ fts_delete(
 
 	/* Note the deleted document for OPTIMIZE to purge. */
 	if (error == DB_SUCCESS) {
+		char	table_name[MAX_FULL_NAME_LEN];
 
 		trx->op_info = "adding doc id to FTS DELETED";
 
@@ -3002,10 +2997,13 @@ fts_delete(
 
 		fts_table.suffix = "DELETED";
 
+		fts_get_table_name(&fts_table, table_name);
+		pars_info_bind_id(info, true, "deleted", table_name);
+
 		graph = fts_parse_sql(
 			&fts_table,
 			info,
-			"BEGIN INSERT INTO \"%s\" VALUES (:doc_id);");
+			"BEGIN INSERT INTO $deleted VALUES (:doc_id);");
 
 		error = fts_eval_sql(trx, graph);
 
@@ -3824,11 +3822,15 @@ fts_write_node(
 	ib_time_t	start_time;
 	doc_id_t	last_doc_id;
 	doc_id_t	first_doc_id;
+	char		table_name[MAX_FULL_NAME_LEN];
 
 	if (*graph) {
 		info = (*graph)->info;
 	} else {
 		info = pars_info_create();
+
+		fts_get_table_name(fts_table, table_name);
+		pars_info_bind_id(info, true, "index_table_name", table_name);
 	}
 
 	pars_info_bind_varchar_literal(info, "token", word->f_str, word->f_len);
@@ -3854,11 +3856,12 @@ fts_write_node(
 		DATA_BLOB, DATA_BINARY_TYPE);
 
 	if (!*graph) {
+
 		*graph = fts_parse_sql(
 			fts_table,
 			info,
 			"BEGIN\n"
-			"INSERT INTO \"%s\" VALUES "
+			"INSERT INTO $index_table_name VALUES "
 			"(:token, :first_doc_id,"
 			" :last_doc_id, :doc_count, :ilist);");
 	}
@@ -3885,6 +3888,7 @@ fts_sync_add_deleted_cache(
 	pars_info_t*	info;
 	que_t*		graph;
 	fts_table_t	fts_table;
+	char		table_name[MAX_FULL_NAME_LEN];
 	doc_id_t	dummy = 0;
 	dberr_t		error = DB_SUCCESS;
 	ulint		n_elems = ib_vector_size(doc_ids);
@@ -3900,10 +3904,13 @@ fts_sync_add_deleted_cache(
 	FTS_INIT_FTS_TABLE(
 		&fts_table, "DELETED_CACHE", FTS_COMMON_TABLE, sync->table);
 
+	fts_get_table_name(&fts_table, table_name);
+	pars_info_bind_id(info, true, "table_name", table_name);
+
 	graph = fts_parse_sql(
 		&fts_table,
 		info,
-		"BEGIN INSERT INTO \"%s\" VALUES (:doc_id);");
+		"BEGIN INSERT INTO $table_name VALUES (:doc_id);");
 
 	for (i = 0; i < n_elems && error == DB_SUCCESS; ++i) {
 		fts_update_t*	update;
@@ -4080,6 +4087,7 @@ fts_sync_write_doc_stat(
 	doc_id_t	doc_id;
 	dberr_t		error = DB_SUCCESS;
 	ib_uint32_t	word_count;
+	char		table_name[MAX_FULL_NAME_LEN];
 
 	if (*graph) {
 		info = (*graph)->info;
@@ -4102,10 +4110,15 @@ fts_sync_write_doc_stat(
 		FTS_INIT_INDEX_TABLE(
 			&fts_table, "DOC_ID", FTS_INDEX_TABLE, index);
 
+		fts_get_table_name(&fts_table, table_name);
+
+		pars_info_bind_id(info, true, "doc_id_table", table_name);
+
 		*graph = fts_parse_sql(
 			&fts_table,
 			info,
-			"BEGIN INSERT INTO \"%s\" VALUES (:doc_id, :count);");
+			"BEGIN "
+			"INSERT INTO $doc_id_table VALUES (:doc_id, :count);");
 	}
 
 	for (;;) {
@@ -4227,6 +4240,7 @@ fts_is_word_in_index(
 {
 	pars_info_t*	info;
 	dberr_t		error;
+	char		table_name[MAX_FULL_NAME_LEN];
 
 	trx->op_info = "looking up word in FTS index";
 
@@ -4236,6 +4250,8 @@ fts_is_word_in_index(
 		info = pars_info_create();
 	}
 
+	fts_get_table_name(fts_table, table_name);
+	pars_info_bind_id(info, true, "table_name", table_name);
 	pars_info_bind_function(info, "my_func", fts_lookup_word, found);
 	pars_info_bind_varchar_literal(info, "word", word->f_str, word->f_len);
 
@@ -4246,7 +4262,7 @@ fts_is_word_in_index(
 			"DECLARE FUNCTION my_func;\n"
 			"DECLARE CURSOR c IS"
 			" SELECT doc_count\n"
-			" FROM \"%s\"\n"
+			" FROM $table_name\n"
 			" WHERE word = :word "
 			" ORDER BY first_doc_id;\n"
 			"BEGIN\n"
@@ -4995,6 +5011,7 @@ fts_get_rows_count(
 	que_t*		graph;
 	dberr_t		error;
 	ulint		count = 0;
+	char		table_name[MAX_FULL_NAME_LEN];
 
 	trx = trx_allocate_for_background();
 
@@ -5004,13 +5021,16 @@ fts_get_rows_count(
 
 	pars_info_bind_function(info, "my_func", fts_read_ulint, &count);
 
+	fts_get_table_name(fts_table, table_name);
+	pars_info_bind_id(info, true, "table_name", table_name);
+
 	graph = fts_parse_sql(
 		fts_table,
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
 		" SELECT COUNT(*) "
-		" FROM \"%s\";\n"
+		" FROM $table_name;\n"
 		"BEGIN\n"
 		"\n"
 		"OPEN c;\n"
@@ -6219,7 +6239,7 @@ fts_rename_one_aux_table_to_hex_format(
 {
 	const char*     ptr;
 	fts_table_t	fts_table;
-	char*		new_name;
+	char		new_name[MAX_FULL_NAME_LEN];
 	dberr_t		error;
 
 	ptr = strchr(aux_table->name, '/');
@@ -6260,12 +6280,11 @@ fts_rename_one_aux_table_to_hex_format(
 
 	ut_a(fts_table.suffix != NULL);
 
-	fts_table.parent = parent_table->name;
 	fts_table.table_id = aux_table->parent_id;
 	fts_table.index_id = aux_table->index_id;
 	fts_table.table = parent_table;
 
-	new_name = fts_get_table_name(&fts_table);
+	fts_get_table_name(&fts_table, new_name);
 	ut_ad(strcmp(new_name, aux_table->name) != 0);
 
 	if (trx_get_dict_operation(trx) == TRX_DICT_OP_NONE) {
@@ -6285,8 +6304,6 @@ fts_rename_one_aux_table_to_hex_format(
 			"Renamed aux table \'%s\' to \'%s\'.",
 			aux_table->name, new_name);
 	}
-
-	mem_free(new_name);
 
 	return (error);
 }

@@ -15101,6 +15101,10 @@ get_foreign_key_info(
 	LEX_STRING*		referenced_key_name;
 	LEX_STRING*		name = NULL;
 
+	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
+		return NULL;
+	}
+
 	ptr = dict_remove_db_name(foreign->id);
 	f_key_info.foreign_id = thd_make_lex_string(
 		thd, 0, ptr, strlen(ptr), 1);

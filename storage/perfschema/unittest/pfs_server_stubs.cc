@@ -43,3 +43,5 @@ enum sys_var::where get_sys_var_value_origin(void *ptr)
 {
   return sys_var::AUTO;
 }
+
+MY_TIMER_INFO sys_timer_info;

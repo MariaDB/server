@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -841,6 +841,18 @@ fil_op_log_parse_or_replay(
 				only be parsed but not replayed */
 	ulint	log_flags);	/*!< in: redo log flags
 				(stored in the page number parameter) */
+
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+UNIV_INTERN bool fil_table_accessible(const dict_table_t* table)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	drop_ahi	whether to drop the adaptive hash index

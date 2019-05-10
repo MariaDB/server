@@ -33,6 +33,8 @@ void test_timers()
   ulonglong t4_b;
   ulonglong t5_b;
 
+  my_timer_init(&sys_timer_info);
+
   init_timers();
 
   t1_a= get_timer_pico_value(TIMER_NAME_CYCLE);
