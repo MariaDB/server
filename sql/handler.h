@@ -1924,7 +1924,6 @@ extern const LEX_CSTRING null_clex_str;
 struct Vers_parse_info
 {
   Vers_parse_info() :
-    check_unit(VERS_UNDEFINED),
     versioned_fields(false),
     unversioned_fields(false)
   {}
@@ -1933,7 +1932,6 @@ struct Vers_parse_info
   {
     system_time= start_end_t(null_clex_str, null_clex_str);
     as_row= start_end_t(null_clex_str, null_clex_str);
-    check_unit= VERS_UNDEFINED;
     versioned_fields= false;
     unversioned_fields= false;
   }
@@ -1951,7 +1949,6 @@ struct Vers_parse_info
 
   start_end_t system_time;
   start_end_t as_row;
-  vers_sys_type_t check_unit;
 
   void set_system_time(Lex_ident start, Lex_ident end)
   {
@@ -1993,7 +1990,7 @@ public:
                        TABLE_LIST &src_table, TABLE_LIST &table);
   bool check_sys_fields(const Lex_table_name &table_name,
                         const Lex_table_name &db,
-                        Alter_info *alter_info);
+                        Alter_info *alter_info, bool can_native);
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.
