@@ -7465,7 +7465,8 @@ static bool require_bigint(const Create_field *f, Lex_table_name table_name)
 
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
-                                       Alter_info *alter_info, bool can_native)
+                                       Alter_info *alter_info,
+                                       bool can_native) const
 {
   if (check_conditions(table_name, db))
     return true;
