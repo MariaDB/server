@@ -605,11 +605,7 @@ THD_count::THD_count()
 {
   THD *thd= static_cast<THD*>(this);
   thread_count++;
-  /*
-    We set THR_THD to temporally point to this THD to register all the
-    variables that allocates memory for this THD
-  */
-  orig_thd= current_thd;
+  DBUG_ASSERT(!current_thd);
   set_current_thd(thd);
   thd->status_var.local_memory_used= sizeof(THD);
   thd->status_var.max_local_memory_used= thd->status_var.local_memory_used;
@@ -632,7 +628,8 @@ THD_count::~THD_count()
                 !debug_assert_on_not_freed_memory);
   }
   update_global_memory_status(thd->status_var.global_memory_used);
-  set_current_thd(orig_thd);
+  DBUG_ASSERT(current_thd == thd);
+  set_current_thd(0);
   thread_count--;
 }
 
@@ -894,7 +891,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   force_read_stats= FALSE;
   save_prep_leaf_list= FALSE;
   org_charset= 0;
-  set_current_thd(orig_thd);
 }
 
 
@@ -1680,15 +1676,6 @@ THD::~THD()
   /* Make sure threads are not available via server_threads.  */
   assert_not_linked();
 
-  /*
-    In error cases, thd may not be current thd. We have to fix this so
-    that memory allocation counting is done correctly
-  */
-  orig_thd= current_thd;
-  if (orig_thd == this)
-    orig_thd= 0;
-  else
-    set_current_thd(this);
   if (!status_in_global)
     add_status_to_global();
 

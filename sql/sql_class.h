@@ -2134,7 +2134,6 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 */
 class THD_count
 {
-  THD *orig_thd;
   THD_count();
   ~THD_count();
   friend class THD;
