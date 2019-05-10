@@ -105,6 +105,14 @@ OPTION(USE_ARIA_FOR_TMP_TABLES "Use Aria for temporary tables" ON)
 #
 INCLUDE (CheckIncludeFiles)
 
+IF (CMAKE_VERSION VERSION_LESS "3.1")
+  IF (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    SET (CMAKE_C_FLAGS "-std=gnu99 ${CMAKE_C_FLAGS}")
+  ENDIF ()
+ELSE ()
+  SET (CMAKE_C_STANDARD 99)
+ENDIF ()
+
 SET(S3_SOURCES ha_s3.cc s3_func.c
     libmarias3/src/debug.c libmarias3/src/error.c libmarias3/src/marias3.c
     libmarias3/src/request.c libmarias3/src/response.c)
