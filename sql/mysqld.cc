@@ -6293,7 +6293,6 @@ void create_new_thread(CONNECT *connect)
 void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 {
   CONNECT *connect;
-  bool is_unix_sock;
 
 #ifdef HAVE_LIBWRAP
   {
@@ -6342,8 +6341,8 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 
   if ((connect= new CONNECT()))
   {
-    is_unix_sock= (mysql_socket_getfd(sock) ==
-      mysql_socket_getfd(unix_sock));
+    bool is_unix_sock= mysql_socket_getfd(sock) ==
+                       mysql_socket_getfd(unix_sock);
 
     if (!(connect->vio=
       mysql_socket_vio_new(new_sock,
@@ -6364,9 +6363,6 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
     statistic_increment(connection_errors_internal, &LOCK_status);
     return;
   }
-
-  if (is_unix_sock)
-    connect->host= my_localhost;
 
   if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
   {

@@ -1517,7 +1517,10 @@ THD *CONNECT::create_thd(THD *thd)
 
   init_net_server_extension(thd);
 
-  thd->security_ctx->host= host;
+  thd->security_ctx->host= thd->net.vio->type == VIO_TYPE_NAMEDPIPE ||
+                           thd->net.vio->type == VIO_TYPE_SOCKET ?
+                           my_localhost : 0;
+
   thd->extra_port=         extra_port;
   thd->scheduler=          scheduler;
   thd->real_id=            real_id;

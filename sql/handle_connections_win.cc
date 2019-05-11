@@ -376,7 +376,6 @@ struct Pipe_Listener : public Listener
       statistic_increment(connection_errors_internal, &LOCK_status);
       return;
     }
-    connect->host= my_localhost;
     create_new_thread(connect);
   }
 

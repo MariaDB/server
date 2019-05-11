@@ -32,7 +32,6 @@ class CONNECT : public ilink {
 public:
   /* To be copied to THD */
   Vio *vio;                           /* Copied to THD with my_net_init() */
-  const char *host;
   scheduler_functions *scheduler;
   my_thread_id thread_id;
   pthread_t    real_id;
@@ -43,7 +42,7 @@ public:
   ulonglong    prior_thr_create_utime;
 
   CONNECT()
-    :vio(0), host(0), scheduler(thread_scheduler), thread_id(0), real_id(0),
+    :vio(0), scheduler(thread_scheduler), thread_id(0), real_id(0),
     extra_port(0),
     thread_count_incremented(0), prior_thr_create_utime(0)
   {
