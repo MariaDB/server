@@ -6188,37 +6188,31 @@ void handle_connection_in_main_thread(CONNECT *connect)
 
 void create_thread_to_handle_connection(CONNECT *connect)
 {
-  char error_message_buff[MYSQL_ERRMSG_SIZE];
-  int error;
   DBUG_ENTER("create_thread_to_handle_connection");
 
-  /* Check if we can get thread from the cache */
+  mysql_mutex_lock(&LOCK_thread_cache);
   if (cached_thread_count > wake_thread)
   {
-    mysql_mutex_lock(&LOCK_thread_cache);
-    /* Recheck condition when we have the lock */
-    if (cached_thread_count > wake_thread)
-    {
-      /* Get thread from cache */
-      thread_cache.push_back(connect);
-      wake_thread++;
-      mysql_cond_signal(&COND_thread_cache);
-      mysql_mutex_unlock(&LOCK_thread_cache);
-      DBUG_PRINT("info",("Thread created"));
-      DBUG_VOID_RETURN;
-    }
+    /* Get thread from cache */
+    thread_cache.push_back(connect);
+    wake_thread++;
+    mysql_cond_signal(&COND_thread_cache);
     mysql_mutex_unlock(&LOCK_thread_cache);
+    DBUG_PRINT("info",("Thread created"));
+    DBUG_VOID_RETURN;
   }
+  mysql_mutex_unlock(&LOCK_thread_cache);
 
   /* Create new thread to handle connection */
   inc_thread_created();
   DBUG_PRINT("info",(("creating thread %lu"), (ulong) connect->thread_id));
   connect->prior_thr_create_utime= microsecond_interval_timer();
 
-  if ((error= mysql_thread_create(key_thread_one_connection,
-                                  &connect->real_id, &connection_attrib,
-                                  handle_one_connection, (void*) connect)))
+  if (auto error= mysql_thread_create(key_thread_one_connection,
+                                      &connect->real_id, &connection_attrib,
+                                      handle_one_connection, (void*) connect))
   {
+    char error_message_buff[MYSQL_ERRMSG_SIZE];
     /* purecov: begin inspected */
     DBUG_PRINT("error", ("Can't create thread to handle request (error %d)",
                 error));
