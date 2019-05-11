@@ -29,6 +29,7 @@ connection slave;
 stop slave;
 set global rpl_semi_sync_slave_enabled = 1;
 start slave;
+include/wait_for_slave_to_start.inc
 show status like 'rpl_semi_sync_slave%';
 Variable_name	Value
 Rpl_semi_sync_slave_send_ack	0

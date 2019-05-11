@@ -31,6 +31,7 @@ echo [ enable semi-sync on slave ];
 stop slave;
 set global rpl_semi_sync_slave_enabled = 1;
 start slave;
+--source include/wait_for_slave_to_start.inc
 show status like 'rpl_semi_sync_slave%';
 
 connection master;
