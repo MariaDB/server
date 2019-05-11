@@ -2670,8 +2670,7 @@ static bool cache_thread(THD *thd)
   DBUG_ASSERT(thd);
 
   mysql_mutex_lock(&LOCK_thread_cache);
-  if (cached_thread_count < thread_cache_size &&
-      ! abort_loop && !kill_cached_threads)
+  if (cached_thread_count < thread_cache_size && !kill_cached_threads)
   {
     /* Don't kill the thread, just put it in cache for reuse */
     DBUG_PRINT("info", ("Adding thread to cache"));
@@ -2689,7 +2688,7 @@ static bool cache_thread(THD *thd)
 #endif
 
     set_timespec(abstime, THREAD_CACHE_TIMEOUT);
-    while (!abort_loop && ! wake_thread && ! kill_cached_threads)
+    while (! wake_thread && ! kill_cached_threads)
     {
       int error= mysql_cond_timedwait(&COND_thread_cache, &LOCK_thread_cache,
                                        &abstime);
@@ -6260,14 +6259,14 @@ void create_new_thread(CONNECT *connect)
   mysql_mutex_lock(&LOCK_connection_count);
 
   if (*connect->scheduler->connection_count >=
-      *connect->scheduler->max_connections + 1|| abort_loop)
+      *connect->scheduler->max_connections + 1)
   {
     DBUG_PRINT("error",("Too many connections"));
 
     mysql_mutex_unlock(&LOCK_connection_count);
     statistic_increment(denied_connections, &LOCK_status);
     statistic_increment(connection_errors_max_connection, &LOCK_status);
-    connect->close_with_error(0, NullS, abort_loop ? ER_SERVER_SHUTDOWN : ER_CON_COUNT_ERROR);
+    connect->close_with_error(0, NullS, ER_CON_COUNT_ERROR);
     DBUG_VOID_RETURN;
   }
 
