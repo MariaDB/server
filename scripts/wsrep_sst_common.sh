@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
-# MA  02110-1301  USA.
+# MA  02110-1335  USA.
 
 # This is a common command line parser to be sourced by other SST scripts
 
