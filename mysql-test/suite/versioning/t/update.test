@@ -177,4 +177,19 @@ connection default;
 reap;
 drop table t1;
 
+--echo #
+--echo # MDEV-19406 Assertion on updating view of join with versioned table
+--echo #
+--disable_warnings
+create or replace table t1 (pk int primary key, a date, b int, index(b)) engine=innodb with system versioning;
+create or replace table t2 (c int);
+create or replace view v as select * from t1 join t2;
+
+insert into t1 (pk) values (1);
+update t1 set a= '2012-12-12';
+update v set a= '2000-01-01' order by b limit 1; # point of failure
+drop view v;
+drop table t1, t2;
+--enable_warnings
+
 source suite/versioning/common_finish.inc;

@@ -13450,6 +13450,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   {
     ulong sec_part;
     bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
+    table->file->column_bitmaps_signal();
     // Check whether a row came from unversioned table and fix vers fields.
     if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
       table->vers_update_fields();
@@ -14010,6 +14011,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       table->vers_end_field()->set_max();
       m_vers_from_plain= true;
     }
+    table->file->column_bitmaps_signal();
   }
 
   DBUG_PRINT("info",("looking for the following record"));
