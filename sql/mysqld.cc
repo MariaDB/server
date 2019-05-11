@@ -2668,6 +2668,7 @@ static bool cache_thread(THD *thd)
   struct timespec abstime;
   DBUG_ENTER("cache_thread");
   DBUG_ASSERT(thd);
+  set_timespec(abstime, THREAD_CACHE_TIMEOUT);
 
   mysql_mutex_lock(&LOCK_thread_cache);
   if (cached_thread_count < thread_cache_size && !kill_cached_threads)
@@ -2687,7 +2688,6 @@ static bool cache_thread(THD *thd)
       _db_pop_();
 #endif
 
-    set_timespec(abstime, THREAD_CACHE_TIMEOUT);
     while (! wake_thread && ! kill_cached_threads)
     {
       int error= mysql_cond_timedwait(&COND_thread_cache, &LOCK_thread_cache,
