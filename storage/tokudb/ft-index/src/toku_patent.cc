@@ -24,7 +24,7 @@ COPYING CONDITIONS NOTICE:
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-  02110-1301, USA.
+  02110-1335  USA.
 
 COPYRIGHT NOTICE:
 
@@ -111,7 +111,7 @@ const char *toku_patent_string = "COPYING CONDITIONS NOTICE:\n\
   You should have received a copy of the GNU General Public License\n\
   along with this program; if not, write to the Free Software\n\
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA\n\
-  02110-1301, USA.\n\
+  02110-1335  USA.\n\
 \n\
 COPYRIGHT NOTICE:\n\
 \n\
