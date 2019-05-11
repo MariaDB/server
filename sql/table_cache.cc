@@ -945,7 +945,7 @@ end:
       table existed?
       Let's return an invalid pointer here to catch dereferencing attempts.
     */
-    share= (TABLE_SHARE*) 1;
+    share= UNUSABLE_TABLE_SHARE;
   }
   DBUG_RETURN(share);
 

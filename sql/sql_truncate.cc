@@ -319,7 +319,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     TABLE_SHARE *share= tdc_acquire_share(thd, table_ref, GTS_TABLE | GTS_VIEW);
     if (share == NULL)
       DBUG_RETURN(TRUE);
-    DBUG_ASSERT(share != (TABLE_SHARE*)1);
+    DBUG_ASSERT(share != UNUSABLE_TABLE_SHARE);
 
     versioned= share->versioned;
     sequence= share->table_type == TABLE_TYPE_SEQUENCE;

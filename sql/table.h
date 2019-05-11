@@ -1025,6 +1025,8 @@ struct TABLE_SHARE
   void set_overlapped_keys();
 };
 
+/* not NULL, but cannot be dereferenced */
+#define UNUSABLE_TABLE_SHARE ((TABLE_SHARE*)1)
 
 /**
    Class is used as a BLOB field value storage for
