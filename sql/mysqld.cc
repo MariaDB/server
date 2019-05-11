@@ -6301,10 +6301,6 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
   CONNECT *connect;
   bool is_unix_sock;
 
-#ifdef FD_CLOEXEC
-  (void) fcntl(mysql_socket_getfd(new_sock), F_SETFD, FD_CLOEXEC);
-#endif
-
 #ifdef HAVE_LIBWRAP
   {
     if (mysql_socket_getfd(sock) == mysql_socket_getfd(base_ip_sock) ||
@@ -6387,16 +6383,29 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 }
 
 #ifndef _WIN32
+static void set_non_blocking_if_supported(MYSQL_SOCKET sock)
+{
+#if !defined(NO_FCNTL_NONBLOCK)
+  if (!(test_flags & TEST_BLOCKING))
+  {
+    int flags= fcntl(mysql_socket_getfd(sock), F_GETFL, 0);
+#if defined(O_NONBLOCK)
+    fcntl(mysql_socket_getfd(sock), F_SETFL, flags | O_NONBLOCK);
+#elif defined(O_NDELAY)
+    fcntl(mysql_socket_getfd(sock), F_SETFL, flags | O_NDELAY);
+#endif
+  }
+#endif
+}
+
+
 void handle_connections_sockets()
 {
   MYSQL_SOCKET sock= mysql_socket_invalid();
   MYSQL_SOCKET new_sock= mysql_socket_invalid();
   uint error_count=0;
   struct sockaddr_storage cAddr;
-  int ip_flags __attribute__((unused))=0;
-  int socket_flags __attribute__((unused))= 0;
-  int extra_ip_flags __attribute__((unused))=0;
-  int flags=0,retval;
+  int retval;
 #ifdef HAVE_POLL
   int socket_count= 0;
   struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
@@ -6418,16 +6427,16 @@ void handle_connections_sockets()
   if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
   {
     setup_fds(base_ip_sock);
-    ip_flags = fcntl(mysql_socket_getfd(base_ip_sock), F_GETFL, 0);
+    set_non_blocking_if_supported(base_ip_sock);
   }
   if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
   {
     setup_fds(extra_ip_sock);
-    extra_ip_flags = fcntl(mysql_socket_getfd(extra_ip_sock), F_GETFL, 0);
+    set_non_blocking_if_supported(extra_ip_sock);
   }
 #ifdef HAVE_SYS_UN_H
   setup_fds(unix_sock);
-  socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
+  set_non_blocking_if_supported(unix_sock);
 #endif
 
   sd_notify(0, "READY=1\n"
@@ -6469,39 +6478,19 @@ void handle_connections_sockets()
       if (fds[i].revents & POLLIN)
       {
         sock= pfs_fds[i];
-        flags= fcntl(mysql_socket_getfd(sock), F_GETFL, 0);
         break;
       }
     }
 #else  // HAVE_POLL
     if (FD_ISSET(mysql_socket_getfd(base_ip_sock),&readFDs))
-    {
       sock=  base_ip_sock;
-      flags= ip_flags;
-    }
     else
     if (FD_ISSET(mysql_socket_getfd(extra_ip_sock),&readFDs))
-    {
       sock=  extra_ip_sock;
-      flags= extra_ip_flags;
-    }
     else
-    {
       sock = unix_sock;
-      flags= socket_flags;
-    }
 #endif // HAVE_POLL
 
-#if !defined(NO_FCNTL_NONBLOCK)
-    if (!(test_flags & TEST_BLOCKING))
-    {
-#if defined(O_NONBLOCK)
-      fcntl(mysql_socket_getfd(sock), F_SETFL, flags | O_NONBLOCK);
-#elif defined(O_NDELAY)
-      fcntl(mysql_socket_getfd(sock), F_SETFL, flags | O_NDELAY);
-#endif
-    }
-#endif /* NO_FCNTL_NONBLOCK */
     for (uint retry=0; retry < MAX_ACCEPT_RETRY; retry++)
     {
       size_socket length= sizeof(struct sockaddr_storage);
@@ -6511,16 +6500,6 @@ void handle_connections_sockets()
       if (mysql_socket_getfd(new_sock) != INVALID_SOCKET ||
 	  (socket_errno != SOCKET_EINTR && socket_errno != SOCKET_EAGAIN))
 	break;
-#if !defined(NO_FCNTL_NONBLOCK)
-      if (!(test_flags & TEST_BLOCKING))
-      {
-	if (retry == MAX_ACCEPT_RETRY - 1)
-        {
-          // Try without O_NONBLOCK
-	  fcntl(mysql_socket_getfd(sock), F_SETFL, flags);
-        }
-      }
-#endif
     }
 
     if (mysql_socket_getfd(new_sock) == INVALID_SOCKET)
@@ -6537,10 +6516,6 @@ void handle_connections_sockets()
 	sleep(1);				// Give other threads some time
       continue;
     }
-#if !defined(NO_FCNTL_NONBLOCK)
-	if (!(test_flags & TEST_BLOCKING))
-		fcntl(mysql_socket_getfd(sock), F_SETFL, flags);
-#endif
     handle_accepted_socket(new_sock, sock);
   }
   sd_notify(0, "STOPPING=1\n"
