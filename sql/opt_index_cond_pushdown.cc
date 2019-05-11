@@ -264,6 +264,10 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
                                  bool other_tbls_ok, bool exclude_index)
 {
+  if (exclude_index && 
+      uses_index_fields_only(cond, table, keyno, other_tbls_ok))
+    return 0;
+
   if (cond->type() == Item::COND_ITEM)
   {
     table_map tbl_map= 0;
@@ -272,7 +276,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
       /* Create new top level AND item */
       Item_cond_and *new_cond= new (thd->mem_root) Item_cond_and(thd);
       if (!new_cond)
-	return (COND*) 0;
+        return (COND*) 0;
       List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
       Item *item;
       while ((item=li++))
@@ -318,14 +322,7 @@ static Item *make_cond_remainder(THD *thd, Item *cond, TABLE *table, uint keyno,
       return new_cond;
     }
   }
-  else
-  {
-    if (exclude_index && 
-        uses_index_fields_only(cond, table, keyno, other_tbls_ok))
-      return 0;
-    else
-      return cond;
-  }
+  return cond;
 }
 
 
