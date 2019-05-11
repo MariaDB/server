@@ -7869,7 +7869,7 @@ ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
         eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
 ER_VERS_DB_NOT_SUPPORTED
-      eng "System versioning tables in the %`s database are not suported"
+      eng "System-versioned tables in the %`s database are not suported"
 
 ER_VERS_TRT_IS_DISABLED
         eng "Transaction registry is disabled"
@@ -7883,11 +7883,11 @@ ER_VERS_ALREADY_VERSIONED
 ER_UNUSED_24
 	eng "You should never see it"
 
-ER_VERS_TEMPORARY
-	eng "TEMPORARY tables do not support system versioning"
+ER_VERS_NOT_SUPPORTED
+	eng "System-versioned tables do not support %s"
 
 ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
-        eng "Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END"
+        eng "Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE
@@ -7931,5 +7931,3 @@ ER_PERIOD_CONSTRAINT_DROP
         eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
 ER_TOO_LONG_KEYPART 42000 S1009
         eng "Specified key part was too long; max key part length is %u bytes"
-ER_TRUNCATE_ILLEGAL_VERS
-        eng "Cannot truncate a versioned table"

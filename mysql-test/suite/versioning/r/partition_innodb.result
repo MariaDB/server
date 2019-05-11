@@ -31,7 +31,7 @@ partition by key() (
 partition p1,
 partition p2
 );
-ERROR HY000: Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
 create or replace table t (
 a int primary key,
 row_start bigint unsigned as row start invisible,
@@ -42,7 +42,7 @@ partition by key(a, row_start) (
 partition p1,
 partition p2
 );
-ERROR HY000: Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
 create or replace table t (
 a int primary key,
 row_start bigint unsigned as row start invisible,
@@ -53,7 +53,7 @@ partition by hash(a + row_end * 2) (
 partition p1,
 partition p2
 );
-ERROR HY000: Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
 create or replace table t (
 a int primary key,
 row_start bigint unsigned as row start invisible,
@@ -63,7 +63,7 @@ period for system_time(row_start, row_end)
 partition by range columns (a, row_start) (
 partition p1 values less than (100, 100)
 );
-ERROR HY000: Transaction-precise system versioned tables do not support partitioning by ROW START or ROW END
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
 # Test cleanup
 drop database test;
 create database test;

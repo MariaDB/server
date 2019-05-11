@@ -7355,7 +7355,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (DBUG_EVALUATE_IF("sysvers_force", 0, share->tmp_table))
   {
-    my_error(ER_VERS_TEMPORARY, MYF(0));
+    my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
     return true;
   }
 

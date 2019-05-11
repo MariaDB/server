@@ -6355,7 +6355,7 @@ versioning_option:
             {
               if (DBUG_EVALUATE_IF("sysvers_force", 0, 1))
               {
-                my_error(ER_VERS_TEMPORARY, MYF(0));
+                my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
                 MYSQL_YYABORT;
               }
             }

@@ -368,11 +368,11 @@ alter table t1 engine=myisam;
 
 --echo # MDEV-14692 crash in MDL_context::upgrade_shared_lock()
 create or replace temporary table t (a int);
---error ER_VERS_TEMPORARY
+--error ER_VERS_NOT_SUPPORTED
 alter table t change column if exists b c bigint unsigned generated always as row start;
---error ER_VERS_TEMPORARY
+--error ER_VERS_NOT_SUPPORTED
 alter table t change column if exists b c bigint unsigned generated always as row end;
---error ER_VERS_TEMPORARY
+--error ER_VERS_NOT_SUPPORTED
 alter table t add system versioning;
 drop table t;
 

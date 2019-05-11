@@ -125,7 +125,7 @@ create or replace table t2 (id int) with system versioning;
 flush tables t1, t2;
 
 truncate table t1;
---error ER_TRUNCATE_ILLEGAL_VERS
+--error ER_VERS_NOT_SUPPORTED
 truncate table t2;
 
 -- echo # fetch table shares
@@ -133,14 +133,14 @@ describe t1;
 describe t2;
 
 truncate table t1;
---error ER_TRUNCATE_ILLEGAL_VERS
+--error ER_VERS_NOT_SUPPORTED
 truncate table t2;
 
 --echo # enter locked tables mode
 lock tables t1 WRITE, t2 WRITE;
 
 truncate t1;
---error ER_TRUNCATE_ILLEGAL_VERS
+--error ER_VERS_NOT_SUPPORTED
 truncate t2;
 
 unlock tables;

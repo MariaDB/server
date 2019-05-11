@@ -446,11 +446,11 @@ alter table t1 engine=myisam;
 # MDEV-14692 crash in MDL_context::upgrade_shared_lock()
 create or replace temporary table t (a int);
 alter table t change column if exists b c bigint unsigned generated always as row start;
-ERROR HY000: TEMPORARY tables do not support system versioning
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
 alter table t change column if exists b c bigint unsigned generated always as row end;
-ERROR HY000: TEMPORARY tables do not support system versioning
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
 alter table t add system versioning;
-ERROR HY000: TEMPORARY tables do not support system versioning
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
 drop table t;
 # MDEV-14744 trx_id-based and transaction-based mixup in assertion
 create or replace table t (c text) engine=innodb with system versioning;
@@ -526,9 +526,9 @@ ERROR HY000: Table `t` is already system-versioned
 #
 use mysql;
 create or replace table t (x int) with system versioning;
-ERROR HY000: System versioning tables in the `mysql` database are not suported
+ERROR HY000: System-versioned tables in the `mysql` database are not suported
 alter table db add system versioning;
-ERROR HY000: System versioning tables in the `mysql` database are not suported
+ERROR HY000: System-versioned tables in the `mysql` database are not suported
 use test;
 # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;

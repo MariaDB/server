@@ -310,7 +310,7 @@ show create table t3;
 
 --echo ## Errors
 
---error ER_VERS_TEMPORARY
+--error ER_VERS_NOT_SUPPORTED
 create or replace temporary table t (x28 int) with system versioning;
 
 --error ER_VERS_DUPLICATE_ROW_START_END

@@ -427,7 +427,7 @@ t3	CREATE TABLE `t3` (
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 ## Errors
 create or replace temporary table t (x28 int) with system versioning;
-ERROR HY000: TEMPORARY tables do not support system versioning
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
 create or replace table t1 (
 x29 int unsigned,
 Sys_start0 timestamp(6) as row start invisible,

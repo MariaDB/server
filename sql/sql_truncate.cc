@@ -340,7 +340,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
 
   if (versioned)
   {
-    my_error(ER_TRUNCATE_ILLEGAL_VERS, MYF(0));
+    my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "TRUNCATE TABLE");
     DBUG_RETURN(TRUE);
   }
 

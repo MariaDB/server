@@ -50,7 +50,7 @@ x
 # and not covered by tests
 # As of standard, TRUNCATE on versioned tables is forbidden
 truncate tf;
-ERROR HY000: Got error 10000 'Error on remote system: 4160: Cannot truncate a versioned table' from FEDERATED
+ERROR HY000: Got error 10000 'Error on remote system: 4137: System-versioned tables do not support TRUNCATE TABLE' from FEDERATED
 delete history from t1;
 select * from t1 for system_time all;
 x
