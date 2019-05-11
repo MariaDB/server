@@ -1521,7 +1521,6 @@ THD *CONNECT::create_thd(THD *thd)
                            thd->net.vio->type == VIO_TYPE_SOCKET ?
                            my_localhost : 0;
 
-  thd->extra_port=         extra_port;
   thd->scheduler=          scheduler;
   thd->real_id=            real_id;
   DBUG_RETURN(thd);

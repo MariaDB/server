@@ -6365,10 +6365,7 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
   }
 
   if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
-  {
-    connect->extra_port= 1;
     connect->scheduler= extra_thread_scheduler;
-  }
   create_new_thread(connect);
 }
 

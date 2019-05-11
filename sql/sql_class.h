@@ -3059,7 +3059,6 @@ public:
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
   bool       slave_thread;
-  bool       extra_port;                        /* If extra connection */
   bool	     no_errors;
 
   /**
