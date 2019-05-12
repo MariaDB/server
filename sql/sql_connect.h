@@ -34,14 +34,13 @@ public:
   Vio *vio;                           /* Copied to THD with my_net_init() */
   scheduler_functions *scheduler;
   my_thread_id thread_id;
-  pthread_t    real_id;
 
   /* Own variables */
   bool thread_count_incremented;
   ulonglong    prior_thr_create_utime;
 
   CONNECT()
-    :vio(0), scheduler(thread_scheduler), thread_id(0), real_id(0),
+    :vio(0), scheduler(thread_scheduler), thread_id(0),
     thread_count_incremented(0), prior_thr_create_utime(0)
   {
   };

@@ -1522,6 +1522,6 @@ THD *CONNECT::create_thd(THD *thd)
                            my_localhost : 0;
 
   thd->scheduler=          scheduler;
-  thd->real_id=            real_id;
+  thd->real_id= pthread_self(); /* Duplicates THD::store_globals() setting. */
   DBUG_RETURN(thd);
 }

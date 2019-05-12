@@ -6208,8 +6208,9 @@ void create_thread_to_handle_connection(CONNECT *connect)
   DBUG_PRINT("info",(("creating thread %lu"), (ulong) connect->thread_id));
   connect->prior_thr_create_utime= microsecond_interval_timer();
 
+  pthread_t tmp;
   if (auto error= mysql_thread_create(key_thread_one_connection,
-                                      &connect->real_id, &connection_attrib,
+                                      &tmp, &connection_attrib,
                                       handle_one_connection, (void*) connect))
   {
     char error_message_buff[MYSQL_ERRMSG_SIZE];
