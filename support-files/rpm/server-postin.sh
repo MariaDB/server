@@ -17,9 +17,7 @@ fi
 if [ $1 = 1 ] ; then
   if [ -x /usr/bin/systemctl ] ; then
           /usr/bin/systemctl daemon-reload >/dev/null 2>&1
-  fi
-
-  if [ -x /sbin/chkconfig ] ; then
+  elif [ -x /sbin/chkconfig ] ; then
           /sbin/chkconfig --add mysql
   fi
 
@@ -56,7 +54,7 @@ if [ $1 = 1 ] ; then
 
   if [ ! -e $datadir/mysql ]; then
     # Create data directory
-    mkdir -p $datadir/{mysql,test}
+    mkdir -p $datadir
 
     # Initiate databases
     %{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}

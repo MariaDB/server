@@ -2124,6 +2124,20 @@ WHERE t1.a=tab.c AND
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-19139: pushdown condition with Item_func_set_user_var
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE VIEW v1 AS SELECT a, MAX(b) FROM t1 GROUP BY a;
+
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+EXPLAIN FORMAT=JSON
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
 --echo # End of 10.2 tests
 
 --echo #

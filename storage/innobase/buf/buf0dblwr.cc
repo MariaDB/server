@@ -649,18 +649,13 @@ bad:
 		ulint decomp = fil_page_decompress(buf, page);
 		if (!decomp || (decomp != srv_page_size
 				&& page_size.is_compressed())) {
-			goto bad_doublewrite;
+			continue;
 		}
 
 		if (expect_encrypted && mach_read_from_4(
 			    page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
 		    ? !fil_space_verify_crypt_checksum(page, page_size)
 		    : buf_page_is_corrupted(true, page, page_size, space)) {
-			if (!is_all_zero) {
-bad_doublewrite:
-				ib::warn() << "A doublewrite copy of page "
-					<< page_id << " is corrupted.";
-			}
 			/* Theoretically we could have another good
 			copy for this page in the doublewrite
 			buffer. If not, we will report a fatal error

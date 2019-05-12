@@ -770,8 +770,7 @@ class Grant_table_base
   void init(enum thr_lock_type lock_type, bool is_optional)
   {
     tl.open_type= OT_BASE_ONLY;
-    if (lock_type >= TL_WRITE_ALLOW_WRITE)
-      tl.updating= 1;
+    tl.i_s_requested_object= OPEN_TABLE_ONLY;
     if (is_optional)
       tl.open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
   }
@@ -1772,6 +1771,12 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   if (user_table.init_read_record(&read_record_info, thd))
     DBUG_RETURN(true);
 
+  if (user_table.num_fields() < 13) // number of columns in 3.21
+  {
+    sql_print_error("Fatal error: mysql.user table is damaged or in "
+                    "unsupported 3.20 format.");
+    DBUG_RETURN(true);
+  }
   username_char_length= MY_MIN(user_table.user()->char_length(),
                                USERNAME_CHAR_LENGTH);
   if (user_table.password()) // Password column might be missing. (MySQL 5.7.6+)
@@ -12092,7 +12097,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
 };
 
 /**
-  a helper function to report an access denied error in all the proper places
+  a helper function to report an access denied error in most proper places
 */
 static void login_failed_error(THD *thd)
 {
@@ -13526,10 +13531,26 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /* Change a database if necessary */
   if (mpvio.db.length)
   {
-    if (mysql_change_db(thd, &mpvio.db, FALSE))
+    uint err = mysql_change_db(thd, &mpvio.db, FALSE);
+    if(err)
     {
-      /* mysql_change_db() has pushed the error message. */
-      status_var_increment(thd->status_var.access_denied_errors);
+      if (err == ER_DBACCESS_DENIED_ERROR)
+      {
+        /*
+          Got an "access denied" error, which must be handled
+          other access denied errors (see login_failed_error()).
+          mysql_change_db() already sent error to client, and
+          wrote to general log, we only need to increment the counter
+          and maybe write a warning to error log.
+        */
+        status_var_increment(thd->status_var.access_denied_errors);
+        if (global_system_variables.log_warnings > 1)
+        {
+          Security_context* sctx = thd->security_ctx;
+          sql_print_warning(ER_THD(thd, err),
+            sctx->priv_user, sctx->priv_host, mpvio.db.str);
+        }
+      }
       DBUG_RETURN(1);
     }
   }

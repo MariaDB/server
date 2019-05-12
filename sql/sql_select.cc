@@ -1219,8 +1219,9 @@ JOIN::prepare(TABLE_LIST *tables_init,
             item->max_length)))
         real_order= TRUE;
 
-      if (item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM)
-        item->split_sum_func(thd, ref_ptrs, all_fields, 0);
+      if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
+          item->with_window_func)
+        item->split_sum_func(thd, ref_ptrs, all_fields, SPLIT_SUM_SELECT);
     }
     if (!real_order)
       order= NULL;
@@ -9381,7 +9382,7 @@ JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab,
   }
 
   /* If no more JOIN_TAB's on the top level */
-  if (++tab == join->join_tab + join->top_join_tab_count + join->aggr_tables)
+  if (++tab >= join->join_tab + join->exec_join_tab_cnt() + join->aggr_tables)
     return NULL;
 
   if (include_bush_roots == WITHOUT_BUSH_ROOTS && tab->bush_children)
@@ -17023,28 +17024,28 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
 
     /* Fall through */
   case Item::COND_ITEM:
+  case Item::SUBSELECT_ITEM:
+  case Item::REF_ITEM:
+  case Item::EXPR_CACHE_ITEM:
+    if (make_copy_field)
+    {
+      DBUG_ASSERT(((Item_result_field*)item)->result_field);
+      *from_field= ((Item_result_field*)item)->result_field;
+    }
+    /* Fall through */
   case Item::FIELD_AVG_ITEM:
   case Item::FIELD_STD_ITEM:
-  case Item::SUBSELECT_ITEM:
-    /* The following can only happen with 'CREATE TABLE ... SELECT' */
   case Item::PROC_ITEM:
   case Item::INT_ITEM:
   case Item::REAL_ITEM:
   case Item::DECIMAL_ITEM:
   case Item::STRING_ITEM:
   case Item::DATE_ITEM:
-  case Item::REF_ITEM:
   case Item::NULL_ITEM:
   case Item::VARBIN_ITEM:
   case Item::CACHE_ITEM:
   case Item::WINDOW_FUNC_ITEM: // psergey-winfunc:
-  case Item::EXPR_CACHE_ITEM:
   case Item::PARAM_ITEM:
-    if (make_copy_field)
-    {
-      DBUG_ASSERT(((Item_result_field*)item)->result_field);
-      *from_field= ((Item_result_field*)item)->result_field;
-    }
     return create_tmp_field_from_item(thd, item, table,
                                       (make_copy_field ? 0 : copy_func),
                                        modify_item);
@@ -23215,6 +23216,10 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
+    if (from_window_spec && (*order->item)->with_sum_func &&
+        (*order->item)->type() != Item::SUM_FUNC_ITEM)
+      (*order->item)->split_sum_func(thd, ref_pointer_array,
+                                     all_fields, SPLIT_SUM_SELECT);
   }
   return 0;
 }
@@ -23282,6 +23287,10 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
         my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
+    if (from_window_spec && (*ord->item)->with_sum_func &&
+        (*ord->item)->type() != Item::SUM_FUNC_ITEM)
+      (*ord->item)->split_sum_func(thd, ref_pointer_array,
+                                   all_fields, SPLIT_SUM_SELECT);
   }
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       context_analysis_place == IN_GROUP_BY)
@@ -27441,27 +27450,6 @@ AGGR_OP::end_send()
     }
     else
     {
-      /*
-         In case we have window functions present, an extra step is required
-         to compute all the fields from the temporary table.
-         In case we have a compound expression such as: expr + expr,
-         where one of the terms has a window function inside it, only
-         after computing window function values we actually know the true
-         final result of the compounded expression.
-
-         Go through all the func items and save their values once again in the
-         corresponding temp table fields. Do this for each row in the table.
-      */
-      if (join_tab->window_funcs_step)
-      {
-        Item **func_ptr= join_tab->tmp_table_param->items_to_copy;
-        Item *func;
-        for (; (func = *func_ptr) ; func_ptr++)
-        {
-          if (func->with_window_func)
-            func->save_in_result_field(true);
-        }
-      }
       rc= evaluate_join_record(join, join_tab, 0);
     }
   }

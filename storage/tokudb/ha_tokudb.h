@@ -41,7 +41,7 @@ class ha_tokudb;
 
 typedef struct loader_context {
     THD* thd;
-    char write_status_msg[200];
+    char write_status_msg[1024];
     ha_tokudb* ha;
 } *LOADER_CONTEXT;
 

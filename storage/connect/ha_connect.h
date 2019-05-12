@@ -511,7 +511,8 @@ private:
 protected:
   bool check_privileges(THD *thd, PTOS options, const char *dbn, bool quick=false);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
-  char *GetDBfromName(const char *name);
+	int  check_stmt(PGLOBAL g, MODE newmode, bool cras);
+	char *GetDBfromName(const char *name);
 
   // Members
   static ulong  num;                  // Tracable handler number

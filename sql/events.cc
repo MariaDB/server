@@ -418,6 +418,12 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
 
   thd->restore_stmt_binlog_format(save_binlog_format);
 
+  if (!ret && Events::opt_event_scheduler == Events::EVENTS_OFF)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, 
+      "Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.");
+  }
+
   DBUG_RETURN(ret);
 
 WSREP_ERROR_LABEL:

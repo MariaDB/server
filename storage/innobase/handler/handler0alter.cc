@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -289,11 +289,15 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		UT_DELETE(m_stage);
 		if (instant_table) {
+			ut_ad(!instant_table->id);
 			while (dict_index_t* index
 			       = UT_LIST_GET_LAST(instant_table->indexes)) {
 				UT_LIST_REMOVE(instant_table->indexes, index);
 				rw_lock_free(&index->lock);
 				dict_mem_index_free(index);
+			}
+			if (instant_table->fts) {
+				fts_free(instant_table);
 			}
 			dict_mem_table_free(instant_table);
 		}
@@ -342,6 +346,23 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		DBUG_ASSERT(!instant_table || !instant_table->can_be_evicted);
 		return instant_table;
+	}
+
+	/** Share context between partitions.
+	@param[in] ctx	context from another partition of the table */
+	void set_shared_data(const inplace_alter_handler_ctx& ctx)
+	{
+		if (add_autoinc != ULINT_UNDEFINED) {
+			const ha_innobase_inplace_ctx& ha_ctx =
+				static_cast<const ha_innobase_inplace_ctx&>
+				(ctx);
+			/* When adding an AUTO_INCREMENT column to a
+			partitioned InnoDB table, we must share the
+			sequence for all partitions. */
+			ut_ad(ha_ctx.add_autoinc == add_autoinc);
+			ut_ad(ha_ctx.sequence.last());
+			sequence = ha_ctx.sequence;
+		}
 	}
 
 private:
@@ -4836,7 +4857,7 @@ prepare_inplace_alter_table_dict(
 		(ha_alter_info->handler_ctx);
 
 	DBUG_ASSERT((ctx->add_autoinc != ULINT_UNDEFINED)
-		    == (ctx->sequence.m_max_value > 0));
+		    == (ctx->sequence.max_value() > 0));
 	DBUG_ASSERT(!ctx->num_to_drop_index == !ctx->drop_index);
 	DBUG_ASSERT(!ctx->num_to_drop_fk == !ctx->drop_fk);
 	DBUG_ASSERT(!add_fts_doc_id || add_fts_doc_id_idx);

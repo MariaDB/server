@@ -159,8 +159,9 @@ static void die(const char *fmt, ...)
 
 #define WRITE_LOG(fmt,...) {\
   char log_buf[1024]; \
+  DWORD nbytes; \
   snprintf(log_buf,sizeof(log_buf), fmt, __VA_ARGS__);\
-  WriteFile(logfile_handle,log_buf, (DWORD)strlen(log_buf), 0 , 0);\
+  WriteFile(logfile_handle,log_buf, (DWORD)strlen(log_buf), &nbytes , 0);\
 }
 
 /*

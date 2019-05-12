@@ -272,7 +272,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 			if (MakeSelector(g, filp, s)) {
 				strcpy(g->Message, "Failed making selector");
-				return NULL;
+				return true;
 			} else
 				s->Append('}');
 
@@ -340,7 +340,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 				if (MakeSelector(g, filp, s)) {
 					strcpy(g->Message, "Failed making selector");
-					return NULL;
+					return true;
 				}	// endif Selector
 
 				tdbp->SetFilter(NULL);     // Not needed anymore

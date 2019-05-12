@@ -996,6 +996,27 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
     (void) from->realloc(from_length);
     return from;
   }
+  if (from->uses_buffer_owned_by(to))
+  {
+    DBUG_ASSERT(!from->alloced);
+    DBUG_ASSERT(to->alloced);
+    /*
+      "from" is a constant string pointing to a fragment of alloced string "to":
+        to=  xxxFFFyyy
+      - FFF is the part of "to" pointed by "from"
+      - xxx is the part of "to" before "from"
+      - yyy is the part of "to" after "from"
+    */
+    uint32 xxx_length= (uint32) (from->ptr() - to->ptr());
+    uint32 yyy_length= (uint32) (to->end() - from->end());
+    DBUG_ASSERT(to->length() >= yyy_length);
+    to->length(to->length() - yyy_length); // Remove the "yyy" part
+    DBUG_ASSERT(to->length() >= xxx_length);
+    to->replace(0, xxx_length, "", 0);     // Remove the "xxx" part
+    to->realloc(from_length);
+    to->str_charset= from->str_charset;
+    return to;
+  }
   if (to->realloc(from_length))
     return from;				// Actually an error
   if ((to->str_length=MY_MIN(from->str_length,from_length)))

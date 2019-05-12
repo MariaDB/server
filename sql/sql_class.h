@@ -38,6 +38,7 @@
 #include "thr_timer.h"
 #include "thr_malloc.h"
 #include "log_slow.h"      /* LOG_SLOW_DISABLE_... */
+#include <my_tree.h>
 
 #include "sql_digest_stream.h"            // sql_digest_state
 

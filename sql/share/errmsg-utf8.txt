@@ -6134,8 +6134,8 @@ ER_EVENT_RECURSION_FORBIDDEN
         eng "Recursion of EVENT DDL statements is forbidden when body is present"
         ger "Rekursivität von EVENT-DDL-Anweisungen ist unzulässig wenn ein Hauptteil (Body) existiert"
 ER_EVENTS_DB_ERROR
-        eng "Cannot proceed because system tables used by Event Scheduler were found damaged at server start"
-        ger "Kann nicht weitermachen, weil die Tabellen, die von Events verwendet werden, beim Serverstart als beschädigt markiert wurden"
+        eng "Cannot proceed, because event scheduler is disabled"
+        ger "Die Operation kann nicht fortgesetzt werden, da Event Scheduler deaktiviert ist."
 ER_ONLY_INTEGERS_ALLOWED
         eng "Only integers allowed as number here"
         ger "An dieser Stelle sind nur Ganzzahlen zulässig"

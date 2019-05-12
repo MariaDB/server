@@ -712,8 +712,6 @@ log_file_header_flush(
 
 	log_sys.n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
-
 	srv_stats.os_log_pending_writes.inc();
 
 	const ulint	page_no = ulint(dest_offset >> srv_page_size_shift);
@@ -829,8 +827,6 @@ loop:
 
 	log_sys.n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
-
 	srv_stats.os_log_pending_writes.inc();
 
 	ut_a((next_offset >> srv_page_size_shift) <= ULINT_MAX);
@@ -874,7 +870,6 @@ log_write_flush_to_disk_low()
 		fil_flush(SRV_LOG_SPACE_FIRST_ID);
 	}
 
-	MONITOR_DEC(MONITOR_PENDING_LOG_FLUSH);
 
 	log_mutex_enter();
 	if (do_flush) {
@@ -1018,7 +1013,6 @@ loop:
 	if (flush_to_disk) {
 		log_sys.n_pending_flushes++;
 		log_sys.current_flush_lsn = log_sys.lsn;
-		MONITOR_INC(MONITOR_PENDING_LOG_FLUSH);
 		os_event_reset(log_sys.flush_event);
 
 		if (log_sys.buf_free == log_sys.buf_next_to_write) {

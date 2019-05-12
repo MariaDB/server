@@ -1,0 +1,11 @@
+--- mysql-test/suite/sys_vars/r/innodb_ft_result_cache_limit.result	2019-05-07 15:09:57.220599318 +0530
++++ mysql-test/suite/sys_vars/r/innodb_ft_result_cache_limit.reject	2019-05-07 15:10:20.012718538 +0530
+@@ -1,5 +1,7 @@
+ set global innodb_ft_result_cache_limit=5000000000;
++Warnings:
++Warning	1292	Truncated incorrect innodb_ft_result_cache_limit value: '5000000000'
+ select @@innodb_ft_result_cache_limit;
+ @@innodb_ft_result_cache_limit
+-5000000000
++4294967295
+ set global innodb_ft_result_cache_limit=2000000000;

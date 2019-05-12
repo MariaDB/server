@@ -1572,6 +1572,25 @@ CREATE TABLE t2 AS SELECT WITHIN(g1,g1) as w1,WITHIN(g2,g2) AS w2 FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
 
+
+#
+# MDEV-3934 Assertion `((keypart_map+1) & keypart_map) == 0' failed in _mi_pack_key with an index on a POINT column
+#
+
+CREATE TABLE t1 (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      point_data POINT NOT NULL,
+      PRIMARY KEY (id),
+      KEY idx_point_data(point_data)
+) ENGINE=MyISAM;
+INSERT t1 (point_data) VALUES
+    (GeomFromText('Point(37.0248492 23.8512726)')),
+    (GeomFromText('Point(38.0248492 23.8512726)'));
+SELECT id FROM t1
+WHERE ST_Contains(point_data, GeomFromText('Point(38.0248492 23.8512726)'));
+DROP TABLE t1;
+
+
 --echo #
 --echo # Start of 10.2 tests
 --echo #
@@ -1762,8 +1781,22 @@ INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;
 DROP TABLE t1;
 
+#
+# MDEV-13923 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failed upon altering table with geometry field
+#
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+create table t1 (p point default "qwer");
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+create table t1 (p point default 0);
+--error ER_INVALID_DEFAULT
+create table t1 (p point not null default st_geometryfromtext('point 0)'));
+create table t1 (p point not null default st_geometryfromtext('point(0 0)'));
+insert into t1 values(default);
+select st_astext(p) from t1;
+drop table t1;
+
 --echo #
---echo # Start of 10.3 tests
+--echo # End of 10.2 tests
 --echo #
 
 --echo #

@@ -3406,9 +3406,6 @@ mysql_execute_command(THD *thd)
         my_message(ER_SLAVE_IGNORED_TABLE, ER_THD(thd, ER_SLAVE_IGNORED_TABLE),
                    MYF(0));
       }
-      
-      for (table=all_tables; table; table=table->next_global)
-        table->updating= TRUE;
     }
     
     /*
@@ -4602,6 +4599,16 @@ end_with_restore_list:
       res= 0;
 
     unit->set_limit(select_lex);
+    /*
+      We can not use mysql_explain_union() because of parameters of
+      mysql_select in mysql_multi_update so just set the option if needed
+    */
+    if (thd->lex->describe)
+    {
+      select_lex->set_explain_type(FALSE);
+      select_lex->options|= SELECT_DESCRIBE;
+    }
+
     res= mysql_multi_update_prepare(thd);
 
 #ifdef HAVE_REPLICATION
@@ -8680,9 +8687,8 @@ bool st_select_lex::add_window_spec(THD *thd,
     query
 */
 
-void st_select_lex::set_lock_for_tables(thr_lock_type lock_type)
+void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update)
 {
-  bool for_update= lock_type >= TL_READ_NO_INSERT;
   DBUG_ENTER("set_lock_for_tables");
   DBUG_PRINT("enter", ("lock_type: %d  for_update: %d", lock_type,
 		       for_update));

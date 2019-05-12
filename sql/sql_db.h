@@ -26,7 +26,7 @@ bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,
                     const Schema_specification_st *create);
 bool mysql_rm_db(THD *thd, const LEX_CSTRING *db, bool if_exists);
 bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db);
-bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
+uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                      bool force_switch);
 
 bool mysql_opt_change_db(THD *thd,

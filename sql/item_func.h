@@ -2466,6 +2466,7 @@ public:
   void cleanup();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_set_user_var>(thd, this); }
+  bool excl_dep_on_table(table_map tab_map) { return false; }
 };
 
 

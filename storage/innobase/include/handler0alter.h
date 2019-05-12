@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -83,9 +84,13 @@ struct ib_sequence_t {
 		return(m_next_value);
 	}
 
-	/** Maximum calumn value if adding an AUTOINC column else 0. Once
-	we reach the end of the sequence it will be set to ~0. */
-	const ulonglong	m_max_value;
+	/** @return maximum column value
+	@retval	0	if not adding AUTO_INCREMENT column */
+	ulonglong max_value() const { return m_max_value; }
+
+private:
+	/** Maximum value if adding an AUTO_INCREMENT column, else 0 */
+	ulonglong	m_max_value;
 
 	/** Value of auto_increment_increment */
 	ulong		m_increment;

@@ -1750,6 +1750,7 @@ class Item_func_group_concat : public Item_sum
   String *separator;
   TREE tree_base;
   TREE *tree;
+  size_t tree_len;
   Item **ref_pointer_array;
 
   /**
@@ -1796,6 +1797,9 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+
+  bool repack_tree(THD *thd);
+
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,
@@ -1852,8 +1856,8 @@ public:
   String* val_str(String* str);
   Item *copy_or_same(THD* thd);
   void no_rows_in_result() {}
-  virtual void print(String *str, enum_query_type query_type);
-  virtual bool change_context_processor(void *cntx)
+  void print(String *str, enum_query_type query_type);
+  bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }

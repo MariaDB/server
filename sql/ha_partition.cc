@@ -1,6 +1,6 @@
 /*
-  Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2018, MariaDB
+  Copyright (c) 2005, 2019, Oracle and/or its affiliates.
+  Copyright (c) 2009, 2019, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -10079,7 +10079,12 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
 
   for (index= 0; index < m_tot_parts && !error; index++)
   {
-    ha_alter_info->handler_ctx= part_inplace_ctx->handler_ctx_array[index];
+    if ((ha_alter_info->handler_ctx=
+	 part_inplace_ctx->handler_ctx_array[index]) != NULL
+	&& index != 0)
+      ha_alter_info->handler_ctx->set_shared_data
+	(*part_inplace_ctx->handler_ctx_array[index - 1]);
+
     if (m_file[index]->ha_inplace_alter_table(altered_table,
                                               ha_alter_info))
       error= true;

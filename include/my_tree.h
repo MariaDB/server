@@ -59,7 +59,7 @@ typedef struct st_tree_element {
 #define ELEMENT_CHILD(element, offs) (*(TREE_ELEMENT**)((char*)element + offs))
 
 typedef struct st_tree {
-  TREE_ELEMENT *root,null_element;
+  TREE_ELEMENT *root;
   TREE_ELEMENT **parents[MAX_TREE_HEIGHT];
   uint offset_to_key,elements_in_tree,size_of_element;
   size_t memory_limit, allocated;

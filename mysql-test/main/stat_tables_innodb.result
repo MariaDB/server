@@ -719,6 +719,24 @@ USE test;
 delete from mysql.table_stats;
 delete from mysql.column_stats;
 delete from mysql.index_stats;
+#
+# MDEV-19352: Server crash in alloc_histograms_for_table_share upon query from information schema
+#
+use test;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity= 4;
+set use_stat_tables='preferably';
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE VIEW v AS SELECT * FROM t1 JOIN t2;
+INSERT INTO t2 SELECT * FROM x;
+ERROR 42S02: Table 'test.x' doesn't exist
+select * from information_schema.tables where table_name='v';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+def	test	v	VIEW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW	NULL	NULL
+drop table t1,t2;
+drop view v;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set @save_optimizer_switch=@@optimizer_switch;
 set use_stat_tables=@save_use_stat_tables;
 #

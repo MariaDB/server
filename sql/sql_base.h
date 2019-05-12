@@ -240,8 +240,19 @@ lock_table_names(THD *thd, TABLE_LIST *table_list,
                           table_list_end, lock_wait_timeout, flags);
 }
 bool open_tables(THD *thd, const DDL_options_st &options,
-                 TABLE_LIST **tables, uint *counter, uint flags,
+                 TABLE_LIST **tables, uint *counter,
+                 Sroutine_hash_entry **sroutine_to_open, uint flags,
                  Prelocking_strategy *prelocking_strategy);
+
+static inline bool
+open_tables(THD *thd, const DDL_options_st &options, TABLE_LIST **tables,
+            uint *counter, uint flags, Prelocking_strategy *prelocking_strategy)
+{
+  return open_tables(thd, options, tables, counter,
+                     &thd->lex->sroutines_list.first, flags,
+                     prelocking_strategy);
+}
+
 static inline bool
 open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
             Prelocking_strategy *prelocking_strategy)
@@ -504,6 +515,10 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
 
 
 bool restart_trans_for_tables(THD *thd, TABLE_LIST *table);
+
+bool extend_table_list(THD *thd, TABLE_LIST *tables,
+                       Prelocking_strategy *prelocking_strategy,
+                       bool has_prelocking_list);
 
 /**
   A context of open_tables() function, used to recover

@@ -45,8 +45,8 @@ https://launchpad.net/~maria-discuss
 and the #maria IRC channel on Freenode.
 
 
-License:
---------
+Licensing:
+----------
 
 ***************************************************************************
 
@@ -57,8 +57,8 @@ General Public License (GPLv2). (I.e. Without the "any later version"
 clause.) This is inherited from MySQL. Please see the README file in
 the MySQL distribution for more information.
 
-License information can be found in the COPYING, COPYING.LESSER,
-and COPYING.thirdparty files.
+License information can be found in the COPYING file. Third party
+license information can be found in the THIRDPARTY file.
 
 ***************************************************************************
 

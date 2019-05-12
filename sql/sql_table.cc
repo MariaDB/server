@@ -8811,6 +8811,52 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     }
   }
 
+  /*
+    Normally, an attempt to modify an FK parent table will cause
+    FK children to be prelocked, so the table-being-altered cannot
+    be modified by a cascade FK action, because ALTER holds a lock
+    and prelocking will wait.
+
+    But if a new FK is being added by this very ALTER, then the target
+    table is not locked yet (it's a temporary table). So, we have to
+    lock FK parents explicitly.
+  */
+  if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+  {
+    List_iterator<Key> fk_list_it(alter_info->key_list);
+
+    while (Key *key= fk_list_it++)
+    {
+      if (key->type != Key::FOREIGN_KEY)
+        continue;
+
+      Foreign_key *fk= static_cast<Foreign_key*>(key);
+      char dbuf[NAME_LEN];
+      char tbuf[NAME_LEN];
+      const char *ref_db= (fk->ref_db.str ?
+                           fk->ref_db.str :
+                           alter_ctx->new_db.str);
+      const char *ref_table= fk->ref_table.str;
+      MDL_request mdl_request;
+
+      if (lower_case_table_names)
+      {
+        strmake_buf(dbuf, ref_db);
+        my_casedn_str(system_charset_info, dbuf);
+        strmake_buf(tbuf, ref_table);
+        my_casedn_str(system_charset_info, tbuf);
+        ref_db= dbuf;
+        ref_table= tbuf;
+      }
+
+      mdl_request.init(MDL_key::TABLE, ref_db, ref_table, MDL_SHARED_NO_WRITE,
+                       MDL_TRANSACTION);
+      if (thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
+        DBUG_RETURN(true);
+    }
+  }
+
   DBUG_RETURN(false);
 }
 
@@ -9812,6 +9858,7 @@ do_continue:;
 
   /* Mark that we have created table in storage engine. */
   no_ha_table= false;
+  DEBUG_SYNC(thd, "alter_table_intermediate_table_created");
 
   new_table=
     thd->create_and_open_tmp_table(new_db_type, &frm, alter_ctx.get_tmp_path(),
@@ -9826,54 +9873,6 @@ do_continue:;
   {
     /* in case of alter temp table send the tracker in OK packet */
     SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
-  }
-  else
-  {
-    /*
-      Normally, an attempt to modify an FK parent table will cause
-      FK children to be prelocked, so the table-being-altered cannot
-      be modified by a cascade FK action, because ALTER holds a lock
-      and prelocking will wait.
-
-      But if a new FK is being added by this very ALTER, then the target
-      table is not locked yet (it's a temporary table). So, we have to
-      lock FK parents explicitly.
-    */
-    if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
-    {
-      List <FOREIGN_KEY_INFO> fk_list;
-      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
-      FOREIGN_KEY_INFO *fk;
-
-      /* tables_opened can be > 1 only for MERGE tables */
-      DBUG_ASSERT(tables_opened == 1);
-      DBUG_ASSERT(&table_list->next_global == thd->lex->query_tables_last);
-
-      new_table->file->get_foreign_key_list(thd, &fk_list);
-      while ((fk= fk_list_it++))
-      {
-        MDL_request mdl_request;
-
-        if (lower_case_table_names)
-        {
-         char buf[NAME_LEN];
-         size_t len;
-         strmake_buf(buf, fk->referenced_db->str);
-         len = my_casedn_str(files_charset_info, buf);
-         thd->make_lex_string(fk->referenced_db, buf, len);
-         strmake_buf(buf, fk->referenced_table->str);
-         len = my_casedn_str(files_charset_info, buf);
-         thd->make_lex_string(fk->referenced_table, buf, len);
-        }
-
-        mdl_request.init(MDL_key::TABLE,
-                         fk->referenced_db->str, fk->referenced_table->str,
-                         MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
-        if (thd->mdl_context.acquire_lock(&mdl_request,
-                                          thd->variables.lock_wait_timeout))
-          goto err_new_table_cleanup;
-      }
-    }
   }
 
   /*

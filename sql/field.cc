@@ -2397,7 +2397,7 @@ int Field::set_default()
   /* Copy constant value stored in s->default_values */
   my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
                                         table->record[0]);
-  memcpy(ptr, ptr + l_offset, pack_length());
+  memcpy(ptr, ptr + l_offset, pack_length_in_rec());
   if (maybe_null_in_table())
     *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
                 (null_ptr[l_offset] & null_bit));

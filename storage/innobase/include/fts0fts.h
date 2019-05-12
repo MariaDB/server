@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -176,7 +176,6 @@ do {								\
 	(fts_table)->suffix = m_suffix;				\
         (fts_table)->type = m_type;				\
         (fts_table)->table_id = m_table->id;			\
-        (fts_table)->parent = m_table->name.m_name;		\
         (fts_table)->table = m_table;				\
 } while (0);
 
@@ -185,7 +184,6 @@ do {								\
 	(fts_table)->suffix = m_suffix;				\
         (fts_table)->type = m_type;				\
         (fts_table)->table_id = m_index->table->id;		\
-        (fts_table)->parent = m_index->table->name.m_name;	\
         (fts_table)->table = m_index->table;			\
         (fts_table)->index_id = m_index->id;			\
 } while (0);
@@ -290,10 +288,6 @@ struct fts_result_t {
 table id and the index id to generate the column specific FTS auxiliary
 table name. */
 struct fts_table_t {
-	const char*	parent;		/*!< Parent table name, this is
-					required only for the database
-					name */
-
 	fts_table_type_t
 			type;		/*!< The auxiliary table type */
 
@@ -448,8 +442,8 @@ fts_update_next_doc_id(
 /*===================*/
 	trx_t*			trx,		/*!< in/out: transaction */
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
-	doc_id_t		doc_id);	/*!< in: DOC ID to set */
+	doc_id_t		doc_id)		/*!< in: DOC ID to set */
+	MY_ATTRIBUTE((nonnull(2)));
 
 /******************************************************************//**
 Create a new fts_doc_ids_t.

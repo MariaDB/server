@@ -3293,12 +3293,13 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
       if (table_share->stats_cb.stats_is_read)
         tl->table->stats_is_read= TRUE;
       if (thd->variables.optimizer_use_condition_selectivity > 3 && 
-          table_share && !table_share->stats_cb.histograms_are_read)
+          table_share && table_share->stats_cb.stats_can_be_read &&
+          !table_share->stats_cb.histograms_are_read)
       {
         (void) read_histograms_for_table(thd, tl->table, stat_tables);
         table_share->stats_cb.histograms_are_read= TRUE;
       }
-      if (table_share->stats_cb.stats_is_read)
+      if (table_share->stats_cb.histograms_are_read)
         tl->table->histograms_are_read= TRUE;
     }
   }  
@@ -4077,6 +4078,14 @@ bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
 
 bool is_eits_usable(Field *field)
 {
+  Column_statistics* col_stats= field->read_stats;
+  
+  // check if column_statistics was allocated for this field
+  if (!col_stats)
+    return false;
+
+  DBUG_ASSERT(field->table->stats_is_read);
+
   /*
     (1): checks if we have EITS statistics for a particular column
     (2): Don't use EITS for GEOMETRY columns
@@ -4084,10 +4093,9 @@ bool is_eits_usable(Field *field)
          partition list of a table. We assume the selecticivity for
          such columns would be handled during partition pruning.
   */
-  DBUG_ASSERT(field->table->stats_is_read);
-  Column_statistics* col_stats= field->read_stats;
-  return col_stats && !col_stats->no_stat_values_provided() &&        //(1)
-    field->type() != MYSQL_TYPE_GEOMETRY &&                           //(2)
+
+  return !col_stats->no_stat_values_provided() &&        //(1)
+    field->type() != MYSQL_TYPE_GEOMETRY &&              //(2)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     (!field->table->part_info ||
      !field->table->part_info->field_in_partition_expr(field)) &&     //(3)

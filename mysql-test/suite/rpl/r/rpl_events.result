@@ -31,6 +31,8 @@ test	justonce	SLAVESIDE_DISABLED	1
 DROP EVENT IF EXISTS test.slave_once;
 CREATE EVENT test.slave_once ON SCHEDULE EVERY 5 MINUTE STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
 INSERT IGNORE INTO t1(id, c) VALUES (3, 'from slave_once');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 "Checking event status on the slave for originator value = slave's server_id"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'slave_once';
 db	name	status	originator
@@ -78,6 +80,8 @@ db	name	status	originator
 "Creating event test.slave_terminate on the slave"
 CREATE EVENT test.slave_terminate ON SCHEDULE EVERY 3 SECOND STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
 INSERT IGNORE INTO t1(id, c) VALUES (6, 'from slave_terminate');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 "Checking event status on the slave"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'slave_terminate';
 db	name	status	originator
@@ -87,6 +91,8 @@ DROP EVENT test.slave_terminate;
 "Creating event test.slave_terminate with DISABLE ON SLAVE on the slave"
 CREATE EVENT test.slave_terminate ON SCHEDULE EVERY 3 SECOND DISABLE ON SLAVE DO
 INSERT IGNORE INTO t1(c) VALUES (7, 'from slave_terminate');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 "Checking event status on the slave"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'slave_terminate';
 db	name	status	originator

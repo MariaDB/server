@@ -1652,7 +1652,6 @@ row_fts_merge_insert(
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table->id;
-	fts_table.parent = index->table->name.m_name;
 	fts_table.table = index->table;
 	fts_table.suffix = fts_get_suffix(id);
 

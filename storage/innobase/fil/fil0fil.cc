@@ -2497,8 +2497,7 @@ but only by InnoDB table locks, which may be broken by
 lock_remove_all_on_table().)
 @param[in]	table	persistent table
 checked @return whether the table is accessible */
-bool
-fil_table_accessible(const dict_table_t* table)
+bool fil_table_accessible(const dict_table_t* table)
 {
 	if (UNIV_UNLIKELY(!table->is_readable() || table->corrupted)) {
 		return(false);

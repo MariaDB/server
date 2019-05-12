@@ -44,22 +44,23 @@ SET @def_var= @@session.transaction_prealloc_size;
 SET SESSION transaction_prealloc_size=1024*1024*1024*1;
 # Embedded server is shows "cleaning up" as STATE, while non-embedded shows "init"
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
---replace_regex /localhost[:0-9]*/localhost/
+--replace_result Execute Query
 SHOW PROCESSLIST;
 SET SESSION transaction_prealloc_size=1024*1024*1024*2;
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
---replace_regex /localhost[:0-9]*/localhost/
+--replace_result Execute Query
 SHOW PROCESSLIST;
 SET SESSION transaction_prealloc_size=1024*1024*1024*3;
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
---replace_regex /localhost[:0-9]*/localhost/
+--replace_result Execute Query
 SHOW PROCESSLIST;
 SET SESSION transaction_prealloc_size=1024*1024*1024*4;
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
---replace_regex /localhost[:0-9]*/localhost/
+--replace_result Execute Query
 SHOW PROCESSLIST;
 SET SESSION transaction_prealloc_size=1024*1024*1024*5;
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
+--replace_result Execute Query
 SHOW PROCESSLIST;
 --enable_warnings
 

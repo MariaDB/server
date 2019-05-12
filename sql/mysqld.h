@@ -65,7 +65,7 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define OPT_SESSION SHOW_OPT_SESSION
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
 
-extern MY_TIMER_INFO sys_timer_info;
+extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 
 /*
   Values for --slave-parallel-mode

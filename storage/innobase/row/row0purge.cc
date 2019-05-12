@@ -891,6 +891,14 @@ row_purge_upd_exist_or_extern_func(
 				node->row, NULL, node->index,
 				heap, ROW_BUILD_FOR_PURGE);
 			row_purge_remove_sec_if_poss(node, node->index, entry);
+
+			if (node->vcol_op_failed()) {
+				ut_ad(!node->table);
+				mem_heap_free(heap);
+				return;
+			}
+			ut_ad(node->table);
+
 			mem_heap_empty(heap);
 		}
 
