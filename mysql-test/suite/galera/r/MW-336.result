@@ -3,29 +3,29 @@ INSERT INTO t1 values(0);
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
 # Wait 10 slave threads to start 1
-# Generate 12 replication events
+SET SESSION wsrep_sync_wait=15;
+# Generate 100 replication events
+SET SESSION wsrep_sync_wait=15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-13
+101
 # Wait 9 slave threads to exit 1
 SET GLOBAL wsrep_slave_threads = 10;
 # Wait 10 slave threads to start 2
 SET GLOBAL wsrep_slave_threads = 20;
 # Wait 20 slave threads to start 3
 SET GLOBAL wsrep_slave_threads = 1;
-# Generate 40 replication events
+# Generate 100 replication events
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-53
+201
 # Wait 10 slave threads to exit 3
 SET GLOBAL wsrep_slave_threads = 10;
-SET GLOBAL wsrep_slave_threads = 0;
-Warnings:
-Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+SET GLOBAL wsrep_slave_threads = 1;
 # Wait 10 slave threads to start 3
-# Generate 12 replication events
+# Generate 100 replication events
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-65
+301
 # Wait 10 slave threads to exit 4
 DROP TABLE t1;

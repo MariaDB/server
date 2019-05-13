@@ -19,13 +19,14 @@ SET GLOBAL wsrep_slave_threads = 1;
 --source include/wait_condition.inc
 
 --connection node_2
+SET SESSION wsrep_sync_wait=15;
 # Wait until inserts are replicated
 --let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
 --source include/wait_condition.inc
---echo # Generate 12 replication events
+--echo # Generate 100 replication events
 --disable_query_log
 --disable_result_log
---let $count = 12
+--let $count = 100
 while ($count)
 {
   INSERT INTO t1 VALUES (1);
@@ -35,9 +36,7 @@ while ($count)
 --enable_query_log
 
 --connection node_1
-# Wait until inserts are replicated
---let $wait_condition = SELECT COUNT(*) = 13 FROM t1;
---source include/wait_condition.inc
+SET SESSION wsrep_sync_wait=15;
 
 SELECT COUNT(*) FROM t1;
 
@@ -61,10 +60,10 @@ SET GLOBAL wsrep_slave_threads = 20;
 SET GLOBAL wsrep_slave_threads = 1;
 
 --connection node_2
---echo # Generate 40 replication events
+--echo # Generate 100 replication events
 --disable_query_log
 --disable_result_log
---let $count = 40
+--let $count = 100
 while ($count)
 {
   INSERT INTO t1 VALUES (1);
@@ -74,11 +73,6 @@ while ($count)
 --enable_result_log
 
 --connection node_1
-
-# Wait until inserts are replicated
---let $wait_condition = SELECT COUNT(*) = 53 FROM t1;
---source include/wait_condition.inc
-
 SELECT COUNT(*) FROM t1;
 
 --echo # Wait 10 slave threads to exit 3
@@ -87,7 +81,7 @@ SELECT COUNT(*) FROM t1;
 --source include/wait_condition.inc
 
 SET GLOBAL wsrep_slave_threads = 10;
-SET GLOBAL wsrep_slave_threads = 0;
+SET GLOBAL wsrep_slave_threads = 1;
 
 --echo # Wait 10 slave threads to start 3
 --let $wait_timeout=600
@@ -95,10 +89,10 @@ SET GLOBAL wsrep_slave_threads = 0;
 --source include/wait_condition.inc
 
 --connection node_2
---echo # Generate 12 replication events
+--echo # Generate 100 replication events
 --disable_query_log
 --disable_result_log
---let $count = 12
+--let $count = 100
 while ($count)
 {
   INSERT INTO t1 VALUES (1);
@@ -108,10 +102,6 @@ while ($count)
 --enable_query_log
 
 --connection node_1
-# Wait until inserts are replicated
---let $wait_condition = SELECT COUNT(*) = 65 FROM t1;
---source include/wait_condition.inc
-
 SELECT COUNT(*) FROM t1;
 
 --echo # Wait 10 slave threads to exit 4
