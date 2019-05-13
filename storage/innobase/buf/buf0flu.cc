@@ -63,7 +63,7 @@ static const ulint buf_flush_wait_flushed_sleep_time = 10000;
 #include <my_service_manager.h>
 
 /** Number of pages flushed through non flush_list flushes. */
-static ulint buf_lru_flush_page_count = 0;
+ulint buf_lru_flush_page_count = 0;
 
 /** Flag indicating if the page_cleaner is in active state. This flag
 is set to TRUE by the page_cleaner thread when it is spawned and is set
