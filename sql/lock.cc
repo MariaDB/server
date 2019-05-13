@@ -1034,6 +1034,7 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
       if another thread is trying to simultaneous drop the table
     */
     mysql_ha_cleanup_no_free(thd);
+    DEBUG_SYNC(thd, "ftwrl_before_lock");
 
     DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
                                                  MDL_BACKUP_FTWRL1));

@@ -1736,6 +1736,7 @@ SET DEBUG_SYNC= 'RESET';
 # MDEV-19384 Deadlock between FTWRL under open HANDLER, LOCK TABLE
 # and DROP DATABASE
 #
+SET DEBUG_SYNC= 'ftwrl_before_lock SIGNAL ready WAIT_FOR go';
 CREATE DATABASE mysqltest;
 CREATE TABLE mysqltest.t1(a INT);
 HANDLER mysqltest.t1 OPEN as t1;
@@ -1748,14 +1749,17 @@ SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
 DROP DATABASE mysqltest;
 connect  con3,localhost,root,,;
 SET DEBUG_SYNC= 'now WAIT_FOR ready';
-disconnect con3;
 connection default;
 FLUSH TABLES WITH READ LOCK;
+connection con3;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+disconnect con3;
+connection con1;
+SET DEBUG_SYNC= 'now SIGNAL go';
+disconnect con1;
+connection default;
 UNLOCK TABLES;
 HANDLER t1 CLOSE;
-connection con1;
-UNLOCK TABLES;
-disconnect con1;
 connection con2;
 disconnect con2;
 connection default;
