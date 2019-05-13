@@ -17118,98 +17118,36 @@ innodb_stopword_table_validate(
 	return(ret);
 }
 
-/*************************************************************//**
-Check whether valid argument given to "innodb_fts_internal_tbl_name"
-This function is registered as a callback with MySQL.
-@return 0 for valid stopword table */
-static
-int
-innodb_internal_table_validate(
-/*===========================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
-						variable */
-	void*				save,	/*!< out: immediate result
-						for update function */
-	struct st_mysql_value*		value)	/*!< in: incoming string */
+/** The latest assigned innodb_ft_aux_table name */
+static char* innodb_ft_aux_table;
+
+/** Update innodb_ft_aux_table_id on SET GLOBAL innodb_ft_aux_table.
+@param[out]	save	new value of innodb_ft_aux_table
+@param[in]	value	user-specified value */
+static int innodb_ft_aux_table_validate(THD*, st_mysql_sys_var*,
+					void* save, st_mysql_value* value)
 {
-	const char*	table_name;
-	char		buff[STRING_BUFFER_USUAL_SIZE];
-	int		len = sizeof(buff);
-	int		ret = 1;
-	dict_table_t*	user_table;
+	char buf[STRING_BUFFER_USUAL_SIZE];
+	int len = sizeof buf;
 
-	ut_a(save != NULL);
-	ut_a(value != NULL);
-
-	table_name = value->val_str(value, buff, &len);
-
-	if (!table_name) {
-		*static_cast<const char**>(save) = NULL;
-		return(0);
-	}
-
-	user_table = dict_table_open_on_name(
-		table_name, FALSE, TRUE, DICT_ERR_IGNORE_NONE);
-
-	if (user_table) {
-		if (dict_table_has_fts_index(user_table)) {
-			*static_cast<const char**>(save) = table_name;
-			ret = 0;
+	if (const char* table_name = value->val_str(value, buf, &len)) {
+		if (dict_table_t* table = dict_table_open_on_name(
+			    table_name, FALSE, TRUE, DICT_ERR_IGNORE_NONE)) {
+			const table_id_t id = dict_table_has_fts_index(table)
+				? table->id : 0;
+			dict_table_close(table, FALSE, FALSE);
+			if (id) {
+				innodb_ft_aux_table_id = id;
+				*static_cast<const char**>(save) = table_name;
+				return 0;
+			}
 		}
 
-		dict_table_close(user_table, FALSE, TRUE);
-
-		DBUG_EXECUTE_IF("innodb_evict_autoinc_table",
-			mutex_enter(&dict_sys->mutex);
-			dict_table_remove_from_cache_low(user_table, TRUE);
-			mutex_exit(&dict_sys->mutex);
-		);
-	}
-
-	return(ret);
-}
-
-/****************************************************************//**
-Update global variable "fts_internal_tbl_name" with the "saved"
-stopword table name value. This function is registered as a callback
-with MySQL. */
-static
-void
-innodb_internal_table_update(
-/*=========================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
-{
-	const char*	table_name;
-	char*		old;
-
-	ut_a(save != NULL);
-	ut_a(var_ptr != NULL);
-
-	table_name = *static_cast<const char*const*>(save);
-	old = *(char**) var_ptr;
-
-	if (table_name) {
-		*(char**) var_ptr =  my_strdup(table_name,  MYF(0));
+		return 1;
 	} else {
-		*(char**) var_ptr = NULL;
-	}
-
-	if (old) {
-		my_free(old);
-	}
-
-	fts_internal_tbl_name2 = *(char**) var_ptr;
-	if (fts_internal_tbl_name2 == NULL) {
-		fts_internal_tbl_name = const_cast<char*>("default");
-	} else {
-		fts_internal_tbl_name = fts_internal_tbl_name2;
+		*static_cast<char**>(save) = NULL;
+		innodb_ft_aux_table_id = 0;
+		return 0;
 	}
 }
 
@@ -19476,11 +19414,10 @@ static MYSQL_SYSVAR_BOOL(disable_sort_file_cache, srv_disable_sort_file_cache,
   "Whether to disable OS system file cache for sort I/O",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_STR(ft_aux_table, fts_internal_tbl_name2,
-  PLUGIN_VAR_NOCMDARG,
+static MYSQL_SYSVAR_STR(ft_aux_table, innodb_ft_aux_table,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_MEMALLOC,
   "FTS internal auxiliary table to be checked",
-  innodb_internal_table_validate,
-  innodb_internal_table_update, NULL);
+  innodb_ft_aux_table_validate, NULL, NULL);
 
 static MYSQL_SYSVAR_ULONG(ft_cache_size, fts_max_cache_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

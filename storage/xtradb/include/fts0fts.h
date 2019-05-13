@@ -367,11 +367,6 @@ extern bool		fts_need_sync;
 /** Maximum possible Fulltext word length (in characters) */
 #define FTS_MAX_WORD_LEN_IN_CHAR	HA_FT_MAXCHARLEN
 
-/** Variable specifying the table that has Fulltext index to display its
-content through information schema table */
-extern char*		fts_internal_tbl_name;
-extern char*		fts_internal_tbl_name2;
-
 #define	fts_que_graph_free(graph)			\
 do {							\
 	mutex_enter(&dict_sys->mutex);			\
