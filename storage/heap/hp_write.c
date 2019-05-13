@@ -58,8 +58,6 @@ int heap_write(HP_INFO *info, const uchar *record)
   if (++share->records == share->blength)
     share->blength+= share->blength;
   info->s->key_version++;
-  info->current_ptr=pos;
-  info->current_hash_ptr=0;
   info->update|=HA_STATE_AKTIV;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
   DBUG_EXECUTE("check_heap",heap_check_heap(info, 0););
