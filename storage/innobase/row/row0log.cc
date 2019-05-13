@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2902,7 +2902,7 @@ row_log_table_apply(
 
 	stage->begin_phase_log_table();
 
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own(&dict_operation_lock, RW_LOCK_S));
 	clust_index = dict_table_get_first_index(old_table);
 
 	rw_lock_x_lock(dict_index_get_lock(clust_index));

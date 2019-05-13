@@ -3440,7 +3440,7 @@ innobase_update_gis_column_type(
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	info = pars_info_create();
 
@@ -4970,7 +4970,7 @@ op_ok:
 #endif /* UNIV_DEBUG */
 		ut_ad(ctx->trx->dict_operation_lock_mode == RW_X_LATCH);
 		ut_ad(mutex_own(&dict_sys->mutex));
-		ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+		ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 		DICT_TF2_FLAG_SET(ctx->new_table, DICT_TF2_FTS);
 		if (new_clustered) {
@@ -6157,8 +6157,8 @@ ha_innobase::inplace_alter_table(
 	DBUG_ASSERT(!srv_read_only_mode);
 
 	ut_ad(!sync_check_iterate(sync_check()));
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(&dict_operation_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
@@ -6369,7 +6369,7 @@ innobase_online_rebuild_log_free(
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	rw_lock_x_lock(&clust_index->lock);
 
@@ -6643,7 +6643,7 @@ innobase_drop_foreign_try(
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	/* Drop the constraint from the data dictionary. */
 	static const char sql[] =
@@ -6706,7 +6706,7 @@ innobase_rename_column_try(
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	if (new_clustered) {
 		goto rename_foreign;
@@ -6988,7 +6988,7 @@ innobase_enlarge_column_try(
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	if (is_v) {
 		v_col = dict_table_get_nth_v_col(user_table, nth_col);

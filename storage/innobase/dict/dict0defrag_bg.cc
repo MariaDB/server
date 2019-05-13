@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -244,7 +244,7 @@ dict_stats_save_defrag_summary(
 		return DB_SUCCESS;
 	}
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 
 	ret = dict_stats_save_index_stat(index, now, "n_pages_freed",
@@ -255,7 +255,7 @@ dict_stats_save_defrag_summary(
 					 NULL);
 
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	return (ret);
 }
@@ -295,7 +295,7 @@ dict_stats_save_defrag_stats(
 		return DB_SUCCESS;
 	}
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 
 	mutex_enter(&dict_sys->mutex);
 	ret = dict_stats_save_index_stat(index, now, "n_page_split",
@@ -328,7 +328,7 @@ dict_stats_save_defrag_stats(
 
 end:
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	return (ret);
 }

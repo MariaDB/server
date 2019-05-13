@@ -221,10 +221,6 @@ purge_sys_t::~purge_sys_t()
 	trx_free_for_background(trx);
 	view.close();
 	rw_lock_free(&latch);
-	/* rw_lock_free() already called latch.~rw_lock_t(); tame the
-	debug assertions when the destructor will be called once more. */
-	ut_ad(latch.magic_n == 0);
-	ut_d(latch.magic_n = RW_LOCK_MAGIC_N);
 	mutex_free(&pq_mutex);
 	os_event_destroy(event);
 }

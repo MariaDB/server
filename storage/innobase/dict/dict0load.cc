@@ -903,7 +903,7 @@ dict_update_filepath(
 	dberr_t		err = DB_SUCCESS;
 	trx_t*		trx;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	trx = trx_allocate_for_background();
@@ -971,7 +971,7 @@ dict_replace_tablespace_and_filepath(
 	DBUG_EXECUTE_IF("innodb_fail_to_update_tablespace_dict",
 			return(DB_INTERRUPTED););
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(filepath);
 
@@ -1371,7 +1371,7 @@ static ulint dict_check_sys_tables()
 
 	DBUG_ENTER("dict_check_sys_tables");
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	mtr_start(&mtr);
@@ -1516,7 +1516,7 @@ void dict_check_tablespaces_and_store_max_id()
 
 	DBUG_ENTER("dict_check_tablespaces_and_store_max_id");
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 
 	/* Initialize the max space_id from sys header */
@@ -1535,7 +1535,7 @@ void dict_check_tablespaces_and_store_max_id()
 	fil_set_max_space_id_if_bigger(max_space_id);
 
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	DBUG_VOID_RETURN;
 }
