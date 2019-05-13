@@ -34,7 +34,7 @@
 #define NO_DLL
 #endif
 
-#if !defined(NO_DLL) && defined(WITH_WSREP)
+#ifndef NO_DLL
 
 #include "../../../../wsrep-lib/wsrep-API/v26/wsrep_api.h"
 

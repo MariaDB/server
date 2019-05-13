@@ -394,8 +394,13 @@ sub have_garbd() {
 }
 
 sub check_wsrep_version() {
-  system($My::SafeProcess::wsrep_check_version);
-  return ($? >> 8) == 0;
+  if ($My::SafeProcess::wsrep_check_version ne "") {
+    system($My::SafeProcess::wsrep_check_version);
+    return ($? >> 8) == 0;
+  }
+  else {
+    return 0;
+  }
 }
 
 sub wsrep_version_message() {
