@@ -15,7 +15,6 @@ MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-329 : wsrep_local_replays not stable
-MW-336 : MDEV-13549 Timeout in wait_condition.inc for PROCESSLIST
 MW-416 : MDEV-13549 Galera test failures
 MW-44 : MDEV-15809 Test failure on galera.MW-44
 galera_account_management : MariaDB 10.0 does not support ALTER USER
