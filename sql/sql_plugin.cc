@@ -4352,20 +4352,28 @@ void wsrep_plugins_pre_init()
 
 my_bool post_init_callback(THD *thd, void *)
 {
+  DBUG_ASSERT(!current_thd);
   if (thd->wsrep_applier)
   {
-    // Save options_bits as it will get overwritten in plugin_thdvar_init()
+    // Save options_bits as it will get overwritten in
+    // plugin_thdvar_init() (verified)
     ulonglong option_bits_saved= thd->variables.option_bits;
+
+    set_current_thd(thd);
     plugin_thdvar_init(thd);
+
     // Restore option_bits
     thd->variables.option_bits= option_bits_saved;
   }
+  set_current_thd(0);
   return 0;
 }
 
 
 void wsrep_plugins_post_init()
 {
+  mysql_mutex_lock(&LOCK_global_system_variables);
   server_threads.iterate(post_init_callback);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
 }
 #endif /* WITH_WSREP */
