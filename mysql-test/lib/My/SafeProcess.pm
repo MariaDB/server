@@ -123,7 +123,8 @@ sub find_bin {
   }
   # Wsrep version check utility:
   $wsrep_check_version=
-    my_find_bin($bindir, "lib/My/SafeProcess", "wsrep_check_version");
+    my_find_bin($bindir, "lib/My/SafeProcess", "wsrep_check_version",
+                NOT_REQUIRED);
 }
 
 

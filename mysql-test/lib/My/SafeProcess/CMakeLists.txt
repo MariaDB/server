@@ -22,8 +22,10 @@ ELSE()
   ADD_EXECUTABLE(my_safe_process safe_process.cc)
 ENDIF()
 
-ADD_EXECUTABLE(wsrep_check_version wsrep_check_version.c)
-TARGET_LINK_LIBRARIES(wsrep_check_version ${LIBDL})
+IF(WITH_WSREP)
+  ADD_EXECUTABLE(wsrep_check_version wsrep_check_version.c)
+  TARGET_LINK_LIBRARIES(wsrep_check_version ${LIBDL})
+ENDIF()
 
 IF(NOT INSTALL_MYSQLTESTDIR)
   RETURN()
