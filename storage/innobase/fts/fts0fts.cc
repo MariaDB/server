@@ -2890,22 +2890,6 @@ fts_doc_ids_create(void)
 }
 
 /*********************************************************************//**
-Free a fts_doc_ids_t. */
-
-void
-fts_doc_ids_free(
-/*=============*/
-	fts_doc_ids_t*	fts_doc_ids)
-{
-	mem_heap_t*	heap = static_cast<mem_heap_t*>(
-		fts_doc_ids->self_heap->arg);
-
-	memset(fts_doc_ids, 0, sizeof(*fts_doc_ids));
-
-	mem_heap_free(heap);
-}
-
-/*********************************************************************//**
 Do commit-phase steps necessary for the insertion of a new row. */
 void
 fts_add(
