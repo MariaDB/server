@@ -490,7 +490,7 @@ static void usage(void)
   --ignore-control-file  Don't open the control file. Only use this if you\n\
                          are sure the tables are not in use by another\n\
                          program!\n\
-  --require-control-file  Abort if we can't find/read the maria_log_control\n\
+  --require-control-file  Abort if we can't find/read the aria_log_control\n\
                           file\n\
   -s, --silent	      Only print errors.  One can use two -s to make\n\
 		      maria_chk very silent.\n\
