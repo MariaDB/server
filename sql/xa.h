@@ -69,11 +69,11 @@ class XID_cache_element
 public:
   static const int32 ACQUIRED= 1 << 30;
   static const int32 RECOVERED= 1 << 29;
-  static const int32 BINLOGGED= 1 << 28;
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
   enum xa_states xa_state;
   XID xid;
+  bool binlogged;
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -127,6 +127,7 @@ public:
   {
     DBUG_ASSERT(!element->is_set(ACQUIRED | RECOVERED));
     element->rm_error= 0;
+    element->binlogged= false;
     element->xa_state= new_element->xa_state;
     element->xid.set(new_element->xid);
     new_element->xid_cache_element= element;
@@ -165,8 +166,7 @@ struct XID_STATE {
   */
   bool is_binlogged()
   {
-    return xid_cache_element &&
-      xid_cache_element->is_set(XID_cache_element::BINLOGGED);
+    return xid_cache_element && xid_cache_element->binlogged;
   }
 
   bool check_has_uncommitted_xa() const;
@@ -174,22 +174,22 @@ struct XID_STATE {
   void set_error(uint error);
   void er_xaer_rmfail() const;
   XID *get_xid() const;
-  void reset()
-  {
+  //void reset()
+  //{
     //TODO: what's an equivalent
     //xid.null();
     //is_binlogged= false;
-    unset_binlogged();
-  }
+    //unset_binlogged();
+  // }
   void set_binlogged()
   {
     if (xid_cache_element)
-      xid_cache_element->set(XID_cache_element::BINLOGGED);
+      xid_cache_element->binlogged= true;
   }
   void unset_binlogged()
   {
     if (xid_cache_element)
-      xid_cache_element->set(~XID_cache_element::BINLOGGED);
+      xid_cache_element->binlogged= false;
   }
 };
 

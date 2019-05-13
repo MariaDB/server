@@ -2130,8 +2130,6 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           char buf[XIDDATASIZE*4+6]; // see xid_to_str
           DBUG_PRINT("info", ("ignore xid %s", xid_to_str(buf, info->list+i)));
 #endif
-          // Todo MDEV-7974: remove comments upon merge
-          // xid_cache_insert(info->list+i, XA_PREPARED, TRUE);
           xid_cache_insert(info->list + i);
           info->found_foreign_xids++;
           continue;

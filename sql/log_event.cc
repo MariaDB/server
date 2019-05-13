@@ -7981,7 +7981,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   if (thd->transaction.xid_state.xid_cache_element &&
       thd->lex->xa_opt != XA_ONE_PHASE)
   {
-    DBUG_ASSERT(thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE);
+    DBUG_ASSERT(thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE ||
+                (thd->transaction.xid_state.is_binlogged() &&
+                 thd->transaction.xid_state.xid_cache_element->xa_state == XA_PREPARED));
 
     flags2|= FL_PREPARED_XA;
 
@@ -9296,8 +9298,7 @@ int XA_prepare_log_event::do_commit()
   if (!one_phase)
   {
     thd->lex->sql_command= SQLCOM_XA_PREPARE;
-    if ((res= trans_xa_prepare(thd)) == 0)
-      res= applier_reset_xa_trans(thd);
+    res= trans_xa_prepare(thd);
   }
   else
   {

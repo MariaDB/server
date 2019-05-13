@@ -138,6 +138,7 @@ bool xid_cache_insert(XID *xid)
   {
   case 0:
     new_element.xid_cache_element->set(XID_cache_element::RECOVERED);
+    new_element.xid_cache_element->binlogged= true;
     break;
   case 1:
     res= 0;
@@ -408,10 +409,9 @@ bool trans_xa_prepare(THD *thd)
     }
     else
     {
-      res= 0;
       thd->transaction.xid_state.xid_cache_element->xa_state= XA_PREPARED;
-      if (thd->variables.pseudo_slave_mode)
-        res= applier_reset_xa_trans(thd);
+      res= thd->variables.pseudo_slave_mode || thd->slave_thread ?
+        applier_reset_xa_trans(thd) : 0;
     }
   }
 
@@ -536,7 +536,7 @@ bool trans_xa_commit(THD *thd)
       {
         res= thd->binlog_query(THD::THD::STMT_QUERY_TYPE,
                                thd->query(), thd->query_length(),
-                               FALSE, FALSE, FALSE, 0);
+                               FALSE, FALSE, TRUE, 0);
       }
       else
         res= 0;
@@ -630,7 +630,7 @@ bool trans_xa_rollback(THD *thd)
   {
     res= thd->binlog_query(THD::THD::STMT_QUERY_TYPE,
                            thd->query(), thd->query_length(),
-                           FALSE, FALSE, FALSE, 0);
+                           FALSE, FALSE, TRUE, 0);
   }
   DBUG_RETURN(res != 0 || xa_trans_force_rollback(thd));
 }
