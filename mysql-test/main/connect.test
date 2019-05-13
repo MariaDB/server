@@ -453,3 +453,58 @@ call p1(2);
 drop procedure p1;
 
 SET global secure_auth=default;
+
+--echo #
+--echo # MDEV-19282: Log more specific warning with log_warnings=2 if
+--echo # connection is aborted prior to authentication
+--echo # MDEV-19277: Add status variable that gets incremented if
+--echo # connection is aborted prior to authentication
+--echo #
+
+flush status;
+SHOW GLOBAL STATUS LIKE 'Aborted%';
+
+SET GLOBAL log_warnings=2;
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+--perl
+use Socket;
+use autodie;
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"));
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")));
+exit(0);
+EOF
+
+SHOW GLOBAL STATUS LIKE 'Aborted%';
+
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= unauthenticated
+--source include/search_pattern_in_file.inc
+
+SET @save_connect_timeout= @@connect_timeout;
+SET GLOBAL connect_timeout=2;
+
+--perl
+use Socket;
+use autodie;
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"));
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")));
+sleep 3;
+exit(0);
+EOF
+
+SHOW GLOBAL STATUS LIKE 'Aborted%';
+
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= unauthenticated
+--source include/search_pattern_in_file.inc
+SET GLOBAL log_warnings=default;
+SET GLOBAL connect_timeout= @save_connect_timeout;
+
+--echo # End of 10.4 tests
