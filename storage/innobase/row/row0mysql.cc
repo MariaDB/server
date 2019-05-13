@@ -1454,7 +1454,8 @@ error_exit:
 		doc_id = fts_get_doc_id_from_row(table, node->row);
 
 		if (doc_id <= 0) {
-			ib::error() << "FTS Doc ID must be large than 0";
+			ib::error() << "FTS_DOC_ID must be larger than 0 for table "
+				    << table->name;
 			err = DB_FTS_INVALID_DOCID;
 			trx->error_state = DB_FTS_INVALID_DOCID;
 			goto error_exit;
@@ -1465,8 +1466,7 @@ error_exit:
 				= table->fts->cache->next_doc_id;
 
 			if (doc_id < next_doc_id) {
-
-				ib::error() << "FTS Doc ID must be large than "
+				ib::error() << "FTS_DOC_ID must be larger than "
 					<< next_doc_id - 1 << " for table "
 					<< table->name;
 

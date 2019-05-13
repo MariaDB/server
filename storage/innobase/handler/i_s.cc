@@ -59,6 +59,9 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "fil0crypt.h"
 #include "dict0crea.h"
 
+/** The latest successfully looked up innodb_fts_aux_table */
+UNIV_INTERN table_id_t innodb_ft_aux_table_id;
+
 /** structure associates a name string with a file page type and/or buffer
 page state. */
 struct buf_page_desc_t{
@@ -2885,15 +2888,14 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	/* Prevent DDL to drop fts aux tables. */
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
 	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
 		rw_lock_s_unlock(&dict_operation_lock);
@@ -2915,6 +2917,12 @@ i_s_fts_deleted_generic_fill(
 
 	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
 
+	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
+
+	trx_free_for_background(trx);
+
 	fields = table->field;
 
 	int	ret = 0;
@@ -2929,13 +2937,7 @@ i_s_fts_deleted_generic_fill(
 		BREAK_IF(ret = schema_table_store_record(thd, table));
 	}
 
-	trx_free_for_background(trx);
-
 	fts_doc_ids_free(deleted);
-
-	dict_table_close(user_table, FALSE, FALSE);
-
-	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(ret);
 }
@@ -3296,32 +3298,33 @@ i_s_fts_index_cache_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
+	rw_lock_s_lock(&dict_operation_lock);
+
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
+no_fts:
+		rw_lock_s_unlock(&dict_operation_lock);
 		DBUG_RETURN(0);
 	}
 
-	if (user_table->fts == NULL || user_table->fts->cache == NULL) {
+	if (!user_table->fts || !user_table->fts->cache) {
 		dict_table_close(user_table, FALSE, FALSE);
-
-		DBUG_RETURN(0);
+		goto no_fts;
 	}
 
 	cache = user_table->fts->cache;
 
-	ut_a(cache);
-
 	int			ret = 0;
 	fts_string_t		conv_str;
-	conv_str.f_len = system_charset_info->mbmaxlen
-		* FTS_MAX_WORD_LEN_IN_CHAR;
-	conv_str.f_str = static_cast<byte*>(ut_malloc_nokey(conv_str.f_len));
+	byte			word[HA_FT_MAXBYTELEN + 1];
+	conv_str.f_len = sizeof word;
+	conv_str.f_str = word;
 
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); i++) {
 		fts_index_cache_t*      index_cache;
@@ -3333,9 +3336,8 @@ i_s_fts_index_cache_fill(
 				 index_cache, thd, &conv_str, tables));
 	}
 
-	ut_free(conv_str.f_str);
-
 	dict_table_close(user_table, FALSE, FALSE);
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(ret);
 }
@@ -3743,15 +3745,14 @@ i_s_fts_index_table_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	/* Prevent DDL to drop fts aux tables. */
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
 	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
 		rw_lock_s_unlock(&dict_operation_lock);
@@ -3907,31 +3908,27 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	DEBUG_SYNC_C("i_s_fts_config_fille_check");
-
-	fields = table->field;
-
-	/* Prevent DDL to drop fts aux tables. */
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
 	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
+no_fts:
 		rw_lock_s_unlock(&dict_operation_lock);
-
-		DBUG_RETURN(0);
-	} else if (!dict_table_has_fts_index(user_table)) {
-		dict_table_close(user_table, FALSE, FALSE);
-
-		rw_lock_s_unlock(&dict_operation_lock);
-
 		DBUG_RETURN(0);
 	}
+
+	if (!dict_table_has_fts_index(user_table)) {
+		dict_table_close(user_table, FALSE, FALSE);
+		goto no_fts;
+	}
+
+	fields = table->field;
 
 	trx = trx_allocate_for_background();
 	trx->op_info = "Select for FTS CONFIG TABLE";
@@ -3984,11 +3981,11 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	trx_free_for_background(trx);
-
 	dict_table_close(user_table, FALSE, FALSE);
 
 	rw_lock_s_unlock(&dict_operation_lock);
+
+	trx_free_for_background(trx);
 
 	DBUG_RETURN(ret);
 }

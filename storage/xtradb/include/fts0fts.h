@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -367,11 +367,6 @@ extern bool		fts_need_sync;
 /** Maximum possible Fulltext word length (in characters) */
 #define FTS_MAX_WORD_LEN_IN_CHAR	HA_FT_MAXCHARLEN
 
-/** Variable specifying the table that has Fulltext index to display its
-content through information schema table */
-extern char*		fts_internal_tbl_name;
-extern char*		fts_internal_tbl_name2;
-
 #define	fts_que_graph_free(graph)			\
 do {							\
 	mutex_enter(&dict_sys->mutex);			\
@@ -429,13 +424,11 @@ fts_doc_ids_t*
 fts_doc_ids_create(void);
 /*=====================*/
 
-/******************************************************************//**
-Free a fts_doc_ids_t. */
-UNIV_INTERN
-void
-fts_doc_ids_free(
-/*=============*/
-	fts_doc_ids_t*	doc_ids);		/*!< in: doc_ids to free */
+/** Free fts_doc_ids_t */
+inline void fts_doc_ids_free(fts_doc_ids_t* doc_ids)
+{
+	mem_heap_free(static_cast<mem_heap_t*>(doc_ids->self_heap->arg));
+}
 
 /******************************************************************//**
 Notify the FTS system about an operation on an FTS-indexed table. */

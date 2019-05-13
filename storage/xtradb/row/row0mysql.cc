@@ -1476,8 +1476,9 @@ error_exit:
 		doc_id = fts_get_doc_id_from_row(table, node->row);
 
 		if (doc_id <= 0) {
-			fprintf(stderr,
-				"InnoDB: FTS Doc ID must be large than 0 \n");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"FTS_DOC_ID must be larger than 0"
+				" for table %s", table->name);
 			err = DB_FTS_INVALID_DOCID;
 			trx->error_state = DB_FTS_INVALID_DOCID;
 			goto error_exit;
@@ -1488,12 +1489,10 @@ error_exit:
 				= table->fts->cache->next_doc_id;
 
 			if (doc_id < next_doc_id) {
-				fprintf(stderr,
-					"InnoDB: FTS Doc ID must be large than"
-					" " UINT64PF " for table",
-					next_doc_id - 1);
-				ut_print_name(stderr, trx, TRUE, table->name);
-				putc('\n', stderr);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"FTS_DOC_ID must be larger than "
+					UINT64PF " for table %s",
+					next_doc_id - 1, table->name);
 
 				err = DB_FTS_INVALID_DOCID;
 				trx->error_state = DB_FTS_INVALID_DOCID;
