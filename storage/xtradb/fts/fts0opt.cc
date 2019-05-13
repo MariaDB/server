@@ -1799,8 +1799,6 @@ fts_optimize_words(
 	fetch.read_arg = optim->words;
 	fetch.read_record = fts_optimize_index_fetch_node;
 
-	fprintf(stderr, "%.*s\n", (int) word->f_len, word->f_str);
-
 	while(!optim->done) {
 		dberr_t	error;
 		trx_t*	trx = optim->trx;
