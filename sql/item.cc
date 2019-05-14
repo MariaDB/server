@@ -5224,19 +5224,6 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
     }
   }
 
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      select->having_fix_field  &&
-      select_ref != not_found_item && !group_by_ref &&
-      !ref->alias_name_used)
-  {
-    /*
-      Report the error if fields was found only in the SELECT item list and
-      the strict mode is enabled.
-    */
-    my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
-             ref->name.str, "HAVING");
-    return NULL;
-  }
   if (select_ref != not_found_item || group_by_ref)
   {
     if (select_ref != not_found_item && !ambiguous_fields)
@@ -9073,6 +9060,41 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
+bool Item_field::has_outer_nogb_field_processor(void *arg)
+{
+  table_map curr_level_tabs= *((table_map *)arg);
+  return !(field->table->map & curr_level_tabs) &&
+         !bitmap_is_set(&field->table->tmp_set, field->field_index);
+}
+
+
+bool Item_field::check_usage_in_fd_field_extraction(st_select_lex *sl,
+                                                    List<Field> *fields,
+                                                    Item **err_item)
+{
+  if (field->cmp_type() == STRING_RESULT &&
+      (!((field->charset()->state & MY_CS_BINSORT) &&
+      (field->charset()->state & MY_CS_NOPAD))))
+  {
+    fields->empty();
+    return false;
+  }
+  if (fields->push_back(field, sl->join->thd->mem_root))
+    return false;
+
+  if (!field->check_usage_in_fd_field_extraction(sl, fields, err_item))
+  {
+    if (field->is_outer_select_field(sl))
+    {
+      *err_item= this;
+      fields->empty();
+    }
+    return false;
+  }
+  return true;
+}
+
+
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
@@ -10349,6 +10371,7 @@ void Item_ref::update_used_tables()
   if (!get_depended_from())
     (*ref)->update_used_tables();
 }
+
 
 void Item_direct_view_ref::update_used_tables()
 {

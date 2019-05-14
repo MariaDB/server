@@ -11240,3 +11240,66 @@ bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
 
   return rc;
 }
+
+
+bool Field::is_outer_select_field(st_select_lex *sl)
+{
+  return (table->pos_in_table_list->select_lex->select_number !=
+          sl->select_number);
+}
+
+
+static
+bool outer_select_field_is_in_where(Field *fld,
+                                    st_select_lex *curr_sl)
+{
+  if (!curr_sl)
+    return false;
+
+  /* Field is used in some parent select of sl */
+  if (fld->is_outer_select_field(curr_sl) &&
+      curr_sl->context_analysis_place != NO_MATTER)
+  {
+    st_select_lex *sl= curr_sl;
+    while ((sl->master_unit()->outer_select()->select_number !=
+            fld->table->pos_in_table_list->select_lex->select_number))
+      sl= sl->master_unit()->outer_select();
+    if (sl->context_analysis_place == IN_WHERE)
+      return true;
+  }
+  return false;
+}
+
+
+bool Field::excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                             List<Item> *gb_items,
+                                             bool in_where,
+                                             Item **err_item)
+{
+  if (sl && in_where && !is_outer_select_field(sl))
+    return true;
+  if (outer_select_field_is_in_where(this, sl))
+    return true;
+  if (vcol_info &&
+      vcol_info->expr->excl_func_dep_on_grouping_fields(sl, gb_items,
+                                                        in_where, err_item))
+    return true;
+  return bitmap_is_set(&table->tmp_set, field_index);
+}
+
+
+bool Field::check_usage_in_fd_field_extraction(st_select_lex *sl,
+                                               List<Field> *fields,
+                                               Item **err_item)
+{
+  if (outer_select_field_is_in_where(this, sl))
+    return true;
+  if (vcol_info)
+  {
+    List<Field> vcol_fields;
+    if (vcol_info->expr->check_usage_in_fd_field_extraction(sl, &vcol_fields,
+                                                            err_item))
+      return true;
+  }
+  return bitmap_is_set(&table->tmp_set, field_index);
+}

@@ -6154,6 +6154,11 @@ void TABLE_LIST::set_check_materialized()
                 derived->first_select()->first_inner_unit()->first_select()->
                 exclude_from_table_unique_test);
   }
+  if (derived->first_select()->next_select() ||
+      derived->first_select()->group_list.elements == 0)
+    derived_uniq_ident= false;
+  else
+    derived_uniq_ident= true;
   DBUG_VOID_RETURN;
 }
 

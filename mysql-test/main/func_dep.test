@@ -1,0 +1,4705 @@
+SET SQL_MODE='only_full_group_by';
+
+CREATE TABLE t1(a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (x INT, y BLOB, z BLOB, w BLOB);
+
+INSERT INTO t1 VALUES (1,2,1,1),(1,3,0,4),(2,4,2,2);
+INSERT INTO t2 VALUES (2,'aab','aab','x'),(1,'aa','b',' '),
+                      (1,'ddd','n ','s'), (1,'ddd','ddd ','d');
+
+--echo #
+--echo # Simple cases
+--echo #
+
+SELECT 1 GROUP BY 1;
+
+SELECT 1 FROM t1 GROUP by t1.a;
+
+SELECT 1 FROM t1;
+
+SELECT a FROM t1;
+
+SELECT a+1 FROM t1;
+
+SELECT 1 FROM t1 HAVING 1;
+
+SELECT 1 FROM t1 HAVING 1 > 0;
+
+SELECT 1 FROM t1 WHERE a > 1 HAVING 1;
+
+SELECT 1 FROM t1 GROUP BY a HAVING a>1;
+
+SELECT 1 FROM t1 GROUP BY 1 HAVING 1;
+
+SELECT 1 HAVING 1;
+
+SELECT t1.a IN (1, 'y') FROM t1;
+
+SELECT t1.a IN (1, 'y') FROM t1 GROUP BY t1.a;
+
+SELECT t1.a FROM t1
+WHERE t1.a IN (a, 'y')
+GROUP BY t1.a;
+
+SELECT t1.a FROM t1
+GROUP BY t1.a
+HAVING t1.a IN (a, 'y');
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT a FROM t1 HAVING 1 > 0;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT a FROM t1 WHERE a > 1 HAVING 1;
+
+--echo #
+--echo #
+--echo # SELECT list checking
+--echo #
+--echo #
+
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+WHERE t1.a = t1.c
+GROUP BY t1.a;
+
+SELECT t1.a,t1.c,t1.d,MAX(t1.b)
+FROM t1
+WHERE t1.a = t1.c AND t1.a=t1.d
+GROUP BY t1.a;
+
+SELECT t1.a,t1.c,t1.d,MAX(t1.b)
+FROM t1
+WHERE t1.a = t1.c AND t1.c = t1.d
+GROUP BY t1.a;
+
+SELECT *
+FROM t1
+GROUP BY t1.a,t1.b,t1.c,t1.d;
+
+SELECT t1.a REGEXP '.*'
+FROM t1
+GROUP BY t1.a;
+
+SELECT t1.a & t1.b
+FROM t1
+GROUP BY t1.a,t1.b;
+
+SELECT t1.a | t1.b,~t1.c
+FROM t1
+GROUP BY t1.a,t1.b,t1.c;
+
+SELECT t1.a
+FROM t1
+WHERE 1
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1
+WHERE 1 = 0
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1
+WHERE 1 = 1
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a + t1.c,MAX(t1.b)
+FROM t1
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1
+GROUP BY t1.a + 1;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.c,t1.d,MAX(t1.b)
+FROM t1
+WHERE t1.a = 1 AND t1.c = t1.d
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT *
+FROM t1
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.x = t2.y
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t1,t2
+WHERE t1.a = t2.y
+GROUP BY t1.a;
+
+--echo #
+--echo # NUMERIC functions
+--echo #
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.a + 2 = t1.b + 1/2
+GROUP BY t1.b;
+
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b + t1.c = t1.a
+GROUP BY t1.b,t1.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = t2.y + 1
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b/t1.c = t1.a
+GROUP BY t1.b,t1.c;
+
+SELECT t1.a,t1.c
+FROM t1
+WHERE t1.a % t1.b = t1.c
+GROUP BY t1.a,t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b + t1.c = t1.a + 1/2
+GROUP BY t1.b,t1.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b + 2 = t1.a + 1/2
+GROUP BY t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.b % t1.c = t1.a + 1/2
+GROUP BY t1.b,t1.c;
+
+CREATE TABLE t5 (a DOUBLE, b BLOB);
+INSERT INTO t5 VALUES (1.001, 'ax');
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT a,b FROM t5 WHERE a = b + 1 GROUP BY b;
+
+SELECT a,b FROM t5 WHERE a = b GROUP BY b;
+
+DROP TABLE t5;
+
+--echo # Function in GROUP BY
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1
+GROUP BY t1.a/3;
+
+--echo # PK-key check
+
+CREATE TABLE t3(pk INT PRIMARY KEY, b INT, c INT, d INT);
+INSERT INTO t3 VALUES (1,2,1,1),(2,3,3,4),(3,4,2,2);
+
+SELECT t3.pk,t3.c,MAX(t3.b)
+FROM t3
+GROUP BY t3.pk;
+
+SELECT t3.pk,t3.c,MAX(t3.b)
+FROM t3
+WHERE t3.c = t3.d
+GROUP BY t3.pk;
+
+SELECT t3.pk,t3.c,MAX(t3.b)
+FROM t3
+WHERE t3.pk = t3.d
+GROUP BY t3.d;
+
+SELECT t3.pk,t1.a,MAX(t3.b)
+FROM t3,t1
+WHERE t3.c = t1.a
+GROUP BY t3.pk;
+
+SELECT t3.pk,t3.b,t1.a,MAX(t3.b)
+FROM t3,t1
+WHERE t3.pk = t1.a
+GROUP BY t1.a;
+
+SELECT t1.a,t3.pk,MAX(t1.b)
+FROM t1,t2,t3
+WHERE t1.a = LENGTH(t2.y) AND t1.a = t3.pk
+GROUP BY t3.pk;
+
+SELECT t1.a,t3.pk,MAX(t1.b)
+FROM t1,t2,t3
+WHERE t1.a = LENGTH(t2.y) AND t1.a = t3.b
+GROUP BY t3.pk;
+
+SELECT *
+FROM t3
+GROUP BY t3.pk;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t3.pk,MAX(t1.b)
+FROM t1,t2,t3
+WHERE t1.a = LENGTH(t2.y) AND t1.a = t3.pk
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.pk,t1.a,MAX(t3.b)
+FROM t3,t1
+WHERE t3.c = t1.b
+GROUP BY t3.pk;
+
+DROP TABLE t3;
+
+CREATE TABLE t3(a INT, b INT, c INT, PRIMARY KEY (a,b));
+INSERT INTO t3 VALUES (1,2,1),(2,3,3),(3,4,2);
+
+SELECT *
+FROM t3
+GROUP BY a,b;
+
+SELECT *
+FROM t3
+GROUP BY b,a;
+
+SELECT *
+FROM t3
+WHERE a = 1 AND b = 2
+GROUP BY c;
+
+DROP TABLE t3;
+
+--echo # Unique keys
+
+CREATE TABLE t3 (a INT, b INT, c CHAR(5), d INT, e INT,
+                 UNIQUE idx1 (a,b), UNIQUE idx2 (c));
+INSERT INTO t3 VALUES (1,2,'ccc',4,1), (2,2,'aaa',4,3), (2,3,'ex',1,5);
+
+SELECT t3.a,t3.b,t3.d
+FROM t3
+GROUP BY t3.a,t3.b;
+
+SELECT t3.a,t3.b,t3.d
+FROM t3
+GROUP BY t3.c;
+
+SELECT *
+FROM t3
+GROUP BY t3.c;
+
+SELECT *
+FROM t3
+GROUP BY t3.a,t3.b;
+
+SELECT *
+FROM t3
+GROUP BY t3.b,t3.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a,t3.b
+FROM t3
+GROUP BY t3.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a,t3.b,t3.d
+FROM t3
+WHERE t3.a = t3.d
+GROUP BY t3.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT *
+FROM t3
+GROUP BY t3.a;
+
+DROP TABLE t3;
+
+--echo # Virtual column
+
+CREATE TABLE t3 (a INT, b INT, c INT AS (a*b) VIRTUAL,
+                 d INT AS (b*b*2) VIRTUAL, e INT AS (1*2));
+INSERT INTO t3 VALUES (1,3,default,default,default),
+                      (2,2,default,default,default),
+                      (1,2,default,default,default);
+
+SELECT t3.a,t3.c
+FROM t3
+GROUP BY t3.a,t3.c;
+
+SELECT t3.a,t3.c
+FROM t3
+GROUP BY t3.a,t3.b;
+
+SELECT t3.a,t3.c,t3.d
+FROM t3
+GROUP BY t3.a,t3.b;
+
+SELECT t3.d
+FROM t3
+GROUP BY t3.b;
+
+SELECT t3.e
+FROM t3
+GROUP BY t3.e;
+
+SELECT t3.e
+FROM t3
+GROUP BY t3.e + 1;
+
+SELECT t3.a,t3.c,t3.d
+FROM t3
+WHERE t3.a = t3.b
+GROUP BY t3.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t3
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.d
+FROM t3
+GROUP BY t3.d + 1;
+
+DROP TABLE t3;
+
+--echo # LIKE
+
+CREATE TABLE t3 (a INT, x BLOB, y BLOB, z char(3));
+INSERT INTO t3 VALUES (1,'aab', 'dds', 'ASa'),
+                      (2,'aab', 'aab', 'dd'),
+                      (4,'cs ','dds', 'lkd');
+
+SELECT t3.x LIKE 'aab' AS like_col FROM t3 GROUP BY t3.x;
+
+SELECT t3.x LIKE t3.y AS like_col FROM t3 GROUP BY t3.x,t3.y;
+
+SELECT t3.x LIKE 'aab' AS like_col
+FROM t3
+WHERE t3.x = t3.y
+GROUP BY t3.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.x
+FROM t3
+WHERE t3.x LIKE 'aab' = t3.y
+GROUP BY t3.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.x LIKE t3.y AS like_col
+FROM t3
+GROUP BY t3.x;
+
+DROP TABLE t3;
+
+--echo # COERCIBILITY
+
+SELECT COERCIBILITY(t1.a) FROM t1 GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b
+FROM t1
+WHERE COERCIBILITY(t1.a) = t1.b
+GROUP BY t1.a;
+
+--echo # IN func
+
+CREATE TABLE t3 (a INT, c BOOL, d BOOL, e BOOL);
+INSERT INTO t3 VALUES (1, true, false, false), (2, false, false, true),
+                      (3, false, false, false), (4, true, false, true);
+
+
+SELECT t2.x IN (3, 1) AS in_col FROM t2 GROUP BY t2.x;
+
+SELECT t2.y IN ('aa', t2.z) AS in_col
+FROM t2
+GROUP BY t2.y,t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y IN ('aa', t2.z, t2.w) AS in_col
+FROM t2
+WHERE t2.z = t2.w + 1
+GROUP BY t2.y,t2.z;
+
+SELECT t2.x IN (3, t2.y) AS in_col
+FROM t2
+GROUP BY t2.x,t2.y;
+
+SELECT t2.x IN ('aa', 1) AS in_col FROM t2 GROUP BY t2.x;
+
+SELECT t3.c
+FROM t2,t3
+WHERE t2.x IN (2,3) = t3.c
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE 1 IN (2,3) = t2.y
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE 1 IN (t2.x,3) = t2.y
+GROUP BY t2.x;
+
+--echo # BETWEEN
+
+SELECT t1.a BETWEEN 1 AND 3 AS bw_col,t1.a
+FROM t1
+GROUP BY t1.a;
+
+SELECT t3.c
+FROM t2,t3
+WHERE t2.x BETWEEN 2 AND 3 = t3.c
+GROUP BY t2.x;
+
+--echo # AND,OR,NOT
+
+SELECT t3.c AND t3.d FROM t3 GROUP BY t3.c,t3.d;
+
+SELECT t3.c OR t3.d FROM t3 GROUP BY t3.c,t3.d;
+
+SELECT t3.c OR NOT t3.d FROM t3 GROUP BY t3.c,t3.d;
+
+SELECT (t3.c OR NOT t3.d) AND t3.e
+FROM t3
+GROUP BY t3.c,t3.d,t3.e;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c OR NOT t3.d FROM t3 GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c AND t3.d FROM t3 GROUP BY t3.c;
+
+--echo # IS TRUE
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = (2 IS TRUE)
+GROUP BY t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t3
+WHERE t3.c = 'aa' IS TRUE
+GROUP BY t3.d;
+
+--echo # User defined variable
+
+SET @a= 1;
+
+SELECT @a FROM t1 GROUP BY @a;
+
+SELECT @a:= @a + t1.a FROM t1 GROUP BY t1.a;
+
+SET @b= 1;
+
+SELECT @b:= CASE
+            WHEN @a = t1.a THEN @b + 1
+            ELSE 1
+    END AS num,
+    @a:= 1
+FROM t1
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a FROM t1 GROUP BY t1.a + @a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a FROM t1 GROUP BY @a;
+
+--echo #
+--echo # CONTROL FLOW functions
+--echo #
+
+--echo # CASE
+
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       ELSE 'aab' END AS cASe_col
+FROM t2 GROUP BY cASe_col;
+
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN 'aa'
+       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN t2.z
+       ELSE 'aab' END AS cASe_col, t2.y
+FROM t2 GROUP BY t2.y,t2.z;
+
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+      WHEN 'aa' THEN 'ddd'
+      ELSE 'aab' END = 'ddd'
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+      WHEN 'aa' THEN 'ddd'
+      ELSE 'aab' END = t2.z
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+      WHEN 'aa' THEN 'ddd'
+      ELSE 'aab' END = t2.z
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE CASE t2.y
+      WHEN 'aa' THEN 1
+      ELSE 'aab' END = t2.z
+GROUP BY t2.z;
+
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       WHEN t2.x THEN 'aa'
+       ELSE 'aab' END AS cASe_col, t2.y
+FROM t2 GROUP BY t2.x,t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       WHEN t2.z THEN 'aa'
+       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       WHEN 1 THEN 'aa'
+       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY y;
+
+SELECT CASE t2.y
+       WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN t2.x
+       ELSE 'aab' END AS cASe_col, t2.y
+FROM t2 GROUP BY t2.x,t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT CASE t2.y
+       WHEN 'aa' THEN t2.z
+       ELSE 'ddd' END AS cASe_col, t2.y, MAX(t2.x)
+FROM t2 GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT CASE 'aa'
+       WHEN 'aa' THEN 'ddd'
+       WHEN 'ddd' THEN t2.z
+       ELSE 'aab' END AS cASe_col, t2.y
+FROM t2 GROUP BY t2.x,t2.y;
+
+--echo # NULLIF
+
+SELECT NULLIF(t1.b,t1.c) AS nif_col,t1.b,t1.c
+FROM t1
+GROUP BY t1.b,t1.c;
+
+SELECT t1.a
+FROM t1
+WHERE t1.a = NULLIF(t1.b,t1.c)
+GROUP BY t1.b,t1.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1
+WHERE t1.a BETWEEN 1 AND 3 = NULLIF(t1.b,t1.c)
+GROUP BY t1.b,t1.c;
+
+SELECT t1.a
+FROM t1,t2
+WHERE t1.a = NULLIF(t2.x,t2.y)
+GROUP BY t2.x,t2.y;
+
+--echo # IFNULL
+
+SELECT IFNULL(t1.b,t1.c),t1.b,t1.c
+FROM t1
+GROUP BY t1.b,t1.c;
+
+SELECT t1.b,t1.c,t1.d
+FROM t1
+WHERE IFNULL(t1.c,t1.b) = t1.d
+GROUP BY t1.b,t1.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b,t1.c,t1.d
+FROM t1
+WHERE IFNULL(t1.c,t1.d) = t1.b
+GROUP BY t1.b,t1.c;
+
+--echo # IF
+
+SELECT IF(t1.b > t1.c,t1.b,t1.c),t1.b,t1.c
+FROM t1
+GROUP BY t1.b,t1.c;
+
+SELECT IF(t1.a = t1.c,t1.b,t1.c),t1.a,t1.b,t1.c
+FROM t1
+WHERE t1.a = t1.b - 2
+GROUP BY t1.b,t1.c;
+
+SELECT t1.a,t1.b,t1.c,t1.d
+FROM t1
+WHERE IF(t1.a = t1.c,t1.b,t1.c) = t1.d
+GROUP BY t1.a,t1.b,t1.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b,t1.c,t1.d
+FROM t1
+WHERE IF(t1.a = t1.c,t1.b,'aa') = t1.d
+GROUP BY t1.a,t1.b,t1.c;
+
+DROP TABLE t3;
+
+--echo #
+--echo # STRING functions
+--echo #
+
+--echo # INSERT
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = INSERT('abb', t2.x, 3, 'a')
+GROUP BY t2.x;
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = INSERT(t2.z, t2.x, 3, 'a') AND t2.x = 1
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.y = INSERT('aaa', t2.z, 3, 'a')
+GROUP BY t2.z;
+
+--echo # LENGTH
+
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = LENGTH(t2.y)
+GROUP BY t2.y;
+
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = LENGTH(t2.y)+1
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x/2 = LENGTH(t2.y) + 1/2
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.z,t2.y
+FROM t2
+WHERE t2.z + 2=LENGTH(t2.y) + 1/2
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = LENGTH(t2.y) + 'aa'/2
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = LENGTH(t2.y) + 'aa'
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.z = LENGTH(t2.y)
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.y = LENGTH(t2.x)
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = LENGTH('aaa')
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.y = LENGTH('aaa')
+GROUP BY t2.x;
+
+--echo # CONCAT
+
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = CONCAT(t2.z,t2.w)
+GROUP BY t2.z,t2.w;
+
+SELECT t2.y,t2.z,t2.w
+FROM t2
+WHERE t2.y = CONCAT(t2.z,SUBSTR(t2.w, length(t2.z)))
+GROUP BY t2.z,t2.w;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = CONCAT(t2.z,t2.w)
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y,t2.z,t2.w
+FROM t2
+WHERE t2.y = CONCAT(t2.z,t2.w)
+GROUP BY t2.y,t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = LENGTH(CONCAT(t2.y,t2.z))
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y,t2.z
+FROM t2
+WHERE t2.y = CONCAT(t2.x,t2.z)
+GROUP BY t2.x,t2.z;
+
+--echo # LEFT
+
+SELECT LEFT(t2.y,1)
+FROM t2
+GROUP BY t2.y;
+
+SELECT LEFT(t2.y,t2.x)
+FROM t2
+GROUP BY t2.y,t2.x;
+
+SELECT LEFT(t2.y,t2.z)
+FROM t2
+GROUP BY t2.y,t2.z;
+
+SELECT t2.w
+FROM t2
+WHERE t2.w = LEFT(t2.y,1)
+GROUP BY t2.y;
+
+SELECT t2.w
+FROM t2
+WHERE t2.w = LEFT(t2.y,t2.x)
+GROUP BY t2.y,t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT LEFT(t2.y,t2.x)
+FROM t2
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.w
+FROM t2
+WHERE t2.y = LEFT(t2.w,t2.x)
+GROUP BY t2.y,t2.x;
+
+--echo # ELT
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = ELT(1,t2.z,'aa','bb')
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.y = ELT(1,t2.z,1,'bb')
+GROUP BY t2.z;
+
+--echo # MAKE_SET
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = MAKE_SET(1,t2.z,'aa','bb')
+GROUP BY t2.z;
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = MAKE_SET(1 | 4,t2.z,'aa','bb')
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.y = MAKE_SET(1 | 4,t2.z,1,'bb')
+GROUP BY t2.z;
+
+--echo # FORMAT
+
+SELECT t2.y
+FROM t1,t2
+WHERE t2.y = FORMAT(t1.b,0)
+GROUP BY t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.y = FORMAT(t2.z,0)
+GROUP BY t2.z;
+
+--echo # CHAR
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = CHAR(t2.x,1,2,3)
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.y = CHAR(t2.z,1,2,3)
+GROUP BY t2.z;
+
+--echo # REPEAT
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = REPEAT(t2.w,3)
+GROUP BY t2.w;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.y = REPEAT(3,3)
+GROUP BY t2.z;
+
+--echo # REPLACE
+
+SELECT t2.y,REPLACE(t2.y,'a','b')
+FROM t2
+GROUP BY t2.y;
+
+SELECT t2.y,REPLACE(t2.y,t2.w,'b')
+FROM t2
+GROUP BY t2.y,t2.w;
+
+SELECT t2.w
+FROM t2
+WHERE t2.w = REPLACE(t2.y,t2.z,'b')
+GROUP BY t2.y,t2.z;
+
+SELECT t2.y
+FROM t2
+WHERE t2.y = REPLACE('aaa','a',t2.w)
+GROUP BY t2.w;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y,REPLACE(t2.y,t2.w,'b')
+FROM t2
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.w
+FROM t2
+WHERE t2.y = REPLACE(t2.y,t2.w,'b')
+GROUP BY t2.y;
+
+--echo # SPACE
+
+SELECT t2.w
+FROM t2
+WHERE t2.w = SPACE(t2.x)
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.y = SPACE(t2.z)
+GROUP BY t2.z;
+
+--echo # SUBSTRING
+
+SELECT SUBSTRING(t2.y,1)
+FROM t2
+GROUP BY t2.y;
+
+SELECT t2.w
+FROM t2
+WHERE SUBSTRING(t2.y,3) = t2.w
+GROUP BY t2.y;
+
+SELECT t2.x
+FROM t2
+WHERE LENGTH(SUBSTRING(t2.y,3)) = t2.x
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.w
+FROM t2
+WHERE SUBSTRING(t2.y,'aa') = t2.w
+GROUP BY t2.y;
+
+--echo # SUBSTRING_INDEX
+
+SELECT t2.w
+FROM t2
+WHERE SUBSTRING_INDEX(t2.y,'b',1) = t2.w
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.w
+FROM t2
+WHERE SUBSTRING_INDEX(t2.y,2,1) = t2.w
+GROUP BY t2.y;
+
+--echo # LPAD
+
+SELECT t2.z
+FROM t2
+WHERE t2.z = LPAD(t2.y,1)
+GROUP BY t2.y;
+
+SELECT t2.z
+FROM t2
+WHERE t2.z = LPAD(t2.y,1,'.')
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.z
+FROM t2
+WHERE t2.z = LPAD(t2.x,1)
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.z
+FROM t2
+WHERE t2.z = LPAD(t2.y,1,2)
+GROUP BY t2.y;
+
+--echo # HEX and UNHEX
+
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = UNHEX(HEX('ddd'))
+GROUP BY t2.z;
+
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = UNHEX('646464')
+GROUP BY t2.z;
+
+--echo STRCMP
+
+SELECT t2.x,t2.y,t2.z
+FROM t2
+WHERE t2.x = STRCMP(t2.y,t2.z)
+GROUP BY t2.y,t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x,t2.y
+FROM t2
+WHERE t2.x = STRCMP(t2.y,1)
+GROUP BY t2.y;
+
+--echo # EXPORT_SET
+
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = EXPORT_SET(5,'a','b',',',2)
+GROUP BY t2.z;
+
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = EXPORT_SET(5,'a','b',',')
+GROUP BY t2.z;
+
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = EXPORT_SET(5,'a','b')
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = EXPORT_SET('a','a','b')
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y,t2.z
+FROM t2
+WHERE t2.y = EXPORT_SET(5,'a','b',2)
+GROUP BY t2.z;
+
+--echo # TRIM
+
+CREATE TABLE t3 (a INT, b BLOB, c BLOB);
+INSERT INTO t3 VALUES (1,'aa  ',' aa '), (2,'  aa ','aa ');
+
+SELECT TRIM(t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT TRIM(LEADING FROM t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT LTRIM(t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT t3.b
+FROM t3
+WHERE t3.b = TRIM(t3.c)
+GROUP BY t3.c;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = LTRIM(t3.b)
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = TRIM(t3.b)
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = TRIM(123)
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = TRIM(t3.a)
+GROUP BY t3.a;
+
+DROP TABLE t3;
+
+--echo # FIND_IN_SET
+
+SELECT FIND_IN_SET(t2.w,'.,b,d')
+FROM t2
+GROUP BY t2.w;
+
+SELECT FIND_IN_SET(t2.y,t2.z)
+FROM t2
+GROUP BY t2.y,t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.y
+FROM t2
+WHERE t2.z BETWEEN 'a' AND 'e' = FIND_IN_SET(t2.z,t2.y)
+GROUP BY t2.z;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT FIND_IN_SET(t2.y,t2.z)
+FROM t2
+GROUP BY t2.y;
+
+--echo # FORMAT
+
+CREATE TABLE t3(a INT, b DECIMAL, c DECIMAL);
+INSERT INTO t3 VALUES (1,13.12,13.122), (2,13.12,13.12);
+
+SELECT FORMAT(t3.b,1)
+FROM t3
+GROUP BY t3.b;
+
+SELECT FORMAT(t3.b,t3.a)
+FROM t3
+GROUP BY t3.a,t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a,t3.b
+FROM t3
+WHERE t3.b = FORMAT(t3.c,t3.a)
+GROUP BY t3.a,t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a,t3.b
+FROM t3
+WHERE t3.b = FORMAT(t3.a,t3.c)
+GROUP BY t3.a,t3.c;
+
+--echo # WEIGHT STRING
+
+SELECT HEX(WEIGHT_STRING(t2.y)) from t2 group by t2.y;
+
+DROP TABLE t3;
+
+--echo #
+--echo # STRING types
+--echo #
+
+CREATE TABLE t3 (a VARCHAR(5), b VARCHAR(5));
+INSERT INTO t3 VALUES ('x', 'x '), (' x', 'x');
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = t3.b
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT LENGTH(t3.a)
+FROM t3
+WHERE t3.a = t3.b
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a + 'aa' = t3.b BETWEEN 'a' AND 'a '
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE CONCAT(t3.a,'a')+' ' = t3.b BETWEEN 'a' AND 'a '
+GROUP BY t3.b;
+
+DROP TABLE t3;
+
+CREATE TABLE t3 (a CHAR(5), b CHAR(5));
+INSERT INTO t3 VALUES ('x', 'x'), ('x', 'y');
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = t3.b
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT LENGTH(t3.a)
+FROM t3
+WHERE t3.a = t3.b
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a + 'aa' = t3.b BETWEEN 'a' AND 'a '
+GROUP BY t3.b;
+
+DROP TABLE t3;
+
+CREATE TABLE t3(a BLOB, b BLOB);
+INSERT INTO t3 VALUES ('aA', 'aa');
+
+SELECT t3.a
+FROM t3
+WHERE t3.a = t3.b
+GROUP BY t3.b;
+
+DROP TABLE t3;
+
+--echo #
+--echo # DATE functions
+--echo #
+
+CREATE TABLE t3 (a INT, b DATE, c DATETIME, d TIME);
+INSERT INTO t3 VALUES (1, '2019-02-01', '2019-02-01 15:31:00', '00:01:00'),
+                      (2, '2019-02-01', '2019-02-01 15:00:00', '00:02:00'),
+                      (1, '2019-02-02', '2019-02-01 15:10:00', '00:01:00');
+
+
+--echo # DATEDIFF
+
+SELECT DATEDIFF('2019-01-01',t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT DATEDIFF(t3.c,t3.b)
+FROM t3
+GROUP BY t3.b,t3.c;
+
+SELECT t3.a
+FROM t3
+WHERE DATEDIFF(t3.b,t3.c) = t3.a
+GROUP BY t3.b,t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a,t3.b,t3.c
+FROM t3
+WHERE DATEDIFF(t3.b,t3.c) = t3.a
+GROUP BY t3.a,t3.c;
+
+--echo # DAY
+
+SELECT DAY(t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT t3.a
+FROM t3
+WHERE t3.a = DAY(t3.b)
+GROUP BY t3.b;
+
+--echo # DATE_ADD
+
+SELECT DATE_ADD(t3.b, INTERVAL 1 DAY)
+FROM t3
+GROUP BY t3.b;
+
+--echo # new date type for DATE_ADD, equality hAS DATETIME type
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t3
+WHERE t3.b = DATE_ADD(t3.c, INTERVAL 1 DAY)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = DATE_ADD(t3.b, INTERVAL 1 DAY)
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t3
+WHERE t3.c = DATE_ADD(t3.d, INTERVAL 1 DAY)
+GROUP BY t3.d;
+
+--echo # ADDTIME
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = ADDTIME(t3.c, t3.d)
+GROUP BY t3.c,t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = ADDTIME(t3.d, t3.c)
+GROUP BY t3.c,t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t3
+WHERE t3.c = ADDTIME(t3.b, t3.d)
+GROUP BY t3.b,t3.d;
+
+--echo # CONVERT_TZ
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = CONVERT_TZ(t3.c,'GMT','Africa/Johannesburg')
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = CONVERT_TZ(t3.d,'GMT','Africa/Johannesburg')
+GROUP BY t3.d;
+
+--echo # MAKETIME
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.d
+FROM t3
+WHERE t3.d = MAKETIME(t3.a, t3.b, 13)
+GROUP BY t3.a,t3.b;
+
+--echo # MAKEDATE
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = MAKEDATE(t3.a, 0)
+GROUP BY t3.a;
+
+--echo # TO_DAYS
+SELECT t3.a
+FROM t3
+WHERE t3.a = TO_DAYS(t3.c)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = TO_DAYS(t3.d)
+GROUP BY t3.c;
+
+--echo # DAYOFMONTH
+SELECT t3.a
+FROM t3
+WHERE t3.a = TO_DAYS(t3.c)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = DAYOFMONTH(t3.d)
+GROUP BY t3.c;
+
+--echo # DATE function
+SELECT t3.b
+FROM t3
+WHERE t3.b = DATE(t3.c)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = DATE(t3.d)
+GROUP BY t3.d;
+
+--echo # TIME function
+SELECT t3.d
+FROM t3
+WHERE t3.d = TIME(t3.c)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.d
+FROM t3
+WHERE t3.d = TIME(t3.b)
+GROUP BY t3.b;
+
+--echo # DAYNAME
+
+SELECT DAYNAME(t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE DAYNAME(t3.b) = t3.c
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t3
+WHERE DAYNAME(t3.d) = t3.c
+GROUP BY t3.d;
+
+--echo # EXTRACT
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = EXTRACT(DAY FROM t3.d)
+GROUP BY t3.b;
+
+--echo # FROM_DAYS
+SELECT t3.b
+FROM t3
+WHERE t3.b = FROM_DAYS(t3.a)
+GROUP BY t3.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = FROM_DAYS(t3.d)
+GROUP BY t3.d;
+
+--echo # HOUR
+SELECT t3.a
+FROM t3
+WHERE t3.a = HOUR(t3.d)
+GROUP BY t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = HOUR(t3.b)
+GROUP BY t3.b;
+
+--echo # TIMEDIFF
+SELECT TIMEDIFF(t3.c, '2019-02-01 15:30:00')
+FROM t3
+GROUP BY t3.c;
+
+SELECT t3.d
+FROM t3
+WHERE t3.d = TIMEDIFF(t3.c, t3.c)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.d
+FROM t3
+WHERE t3.b = TIMEDIFF(t3.c, '2019-02-01 15:30:00')
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.d
+FROM t3
+WHERE t3.d = TIMEDIFF(t3.d, '2019-02-01 15:30:00')
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.d
+FROM t3
+WHERE t3.d = TIMEDIFF(t3.b, '2019-02-01 15:30:00')
+GROUP BY t3.b;
+
+--echo # TIMESTAMP
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = TIMESTAMP(t3.c)
+GROUP BY t3.c;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = TIMESTAMP(t3.b)
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = TIMESTAMP(t3.c,t3.d)
+GROUP BY t3.c,t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t3
+WHERE t3.c = TIMESTAMP(t3.d)
+GROUP BY t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.d
+FROM t3
+WHERE t3.d = TIMESTAMP(t3.c,t3.b)
+GROUP BY t3.c,t3.b;
+
+--echo # TIME_TO_SEC
+SELECT t3.a
+FROM t3
+WHERE t3.a = TIME_TO_SEC(t3.d)
+GROUP BY t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = TIME_TO_SEC(t3.c)
+GROUP BY t3.c;
+
+--echo # WEEK
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = WEEK(t3.b, 9)
+GROUP BY t3.b;
+
+--echo # WEEKDAY
+SELECT t3.a
+FROM t3
+WHERE t3.a = WEEKDAY(t3.b)
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = WEEKDAY(t3.d)
+GROUP BY t3.d;
+
+--echo # YEARWEEK
+SELECT t3.a
+FROM t3
+WHERE t3.a = YEARWEEK(t3.b)
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = YEARWEEK(t3.d)
+GROUP BY t3.d;
+
+DROP TABLE t3;
+
+--echo # GREATEST and LEAST
+
+SELECT GREATEST(t1.a,t1.b,t1.c),t1.a,t1.b,t1.c
+FROM t1
+GROUP BY t1.a,t1.b,t1.c;
+
+SELECT LEAST(t1.a,t1.b),t1.a,t1.b
+FROM t1
+WHERE t1.a=t1.c AND t1.c-1=t1.b
+GROUP BY t1.a;
+
+--echo # GEOMETRIC functions
+
+CREATE TABLE gt (a INT, g1 POINT, g2 LINESTRING);
+INSERT INTO gt VALUES
+  (1, PointFromText('POINT(1 1)'), LineFromText('LINESTRING(0 0,0 1,1 1)')),
+  (1, PointFromText('POINT(1 1)'), LineFromText('LINESTRING(1 2,2 1,1 1)'));
+
+SELECT ASTEXT(g1),ASTEXT(g2)
+FROM gt
+GROUP BY g1,g2;
+
+SELECT MBREQUALS(gt1.g1,gt2.g1)
+FROM gt AS gt1, gt AS gt2
+GROUP BY gt1.g1,gt2.g1;
+
+SELECT a,ASTEXT(g1),ASTEXT(g2)
+FROM gt
+WHERE CONTAINS(g2,g1) = a
+GROUP BY g1,g2;
+
+DROP TABLE gt;
+
+--echo #
+--echo #
+--echo # HAVING clause checking
+--echo #
+--echo #
+
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+WHERE t1.a = t1.c
+GROUP BY t1.a
+HAVING t1.c > 1;
+
+SELECT t1.a,t1.c,MAX(t1.b)
+FROM t1
+WHERE t1.a + 1 = t1.c
+GROUP BY t1.a
+HAVING t1.c > 1;
+
+SELECT t1.a,t1.c,t1.d
+FROM t1
+WHERE t1.a = t1.c AND t1.a = t1.d
+GROUP BY t1.a
+HAVING t1.c > 1 AND t1.d < 3;
+
+SELECT t1.a,t1.d
+FROM t1
+WHERE t1.a = t1.d
+GROUP BY t1.a
+HAVING MAX(t1.c) > 1 OR t1.d < 3;
+
+SELECT t1.a,t1.c
+FROM t1
+WHERE t1.a = t1.c
+GROUP BY t1.a
+HAVING 1;
+
+SELECT t1.a,t1.c
+FROM t1
+WHERE t1.a = t1.c
+GROUP BY t1.a
+HAVING 1 = 1;
+
+SELECT t1.a,t1.c
+FROM t1
+WHERE t1.a = t1.c
+GROUP BY t1.a
+HAVING 1 = 0;
+
+--echo #
+--echo # Materialized derived tables/views
+--echo #
+
+CREATE TABLE t3 (a INT, b INT);
+INSERT INTO t3 VALUES (1,2), (1,3), (2,3), (3,1);
+
+CREATE VIEW v1 AS (
+  SELECT t3.a, MAX(t3.b) AS mb
+  FROM t3
+  GROUP BY t3.a
+);
+
+SELECT t1.a,dt.x
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.y) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt
+WHERE t1.a = dt.x
+GROUP BY t1.a,dt.x;
+
+SELECT t1.a,dt.x,dt.m
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.y) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt
+WHERE t1.a = dt.x
+GROUP BY t1.a,dt.x;
+
+SELECT t1.a,dt.x,dt.m
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.y) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt
+WHERE t1.a = dt.x
+GROUP BY t1.a;
+
+SELECT t1.a,dt.x,dt.m
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.y) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt
+WHERE t1.a + 1 = dt.x
+GROUP BY t1.a;
+
+SELECT t1.a,dt.x,dt.m
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt
+WHERE dt.x = LENGTH(dt.m) AND t1.a = dt.x
+GROUP BY t1.a,dt.x;
+
+SELECT t1.a,dt1.x,dt2.a
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt1,
+     (
+      SELECT t1.a,SUM(t1.b) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt2
+WHERE dt1.x = t1.a AND dt1.x = dt2.a
+GROUP BY t1.a;
+
+SELECT t1.a,dt1.m,dt2.s
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt1,
+     (
+      SELECT t1.a,SUM(t1.b) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt2
+WHERE dt1.x = t1.a AND dt1.x = dt2.a
+GROUP BY t1.a;
+
+SELECT t1.a,v1.a,v1.mb
+FROM t1,v1
+WHERE t1.a = v1.a
+GROUP BY t1.a;
+
+SELECT t1.a,dt.m,v1.mb
+FROM t1,
+     v1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt
+WHERE dt.x = t1.a AND dt.x = v1.a
+GROUP BY t1.a;
+
+SELECT t1.a,dt1.m,dt2.s,v1.mb
+FROM t1,
+     v1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt1,
+     (
+      SELECT t1.a,SUM(t1.b) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt2
+WHERE dt1.x = t1.a AND dt1.x = dt2.a AND dt2.a = v1.a
+GROUP BY t1.a;
+
+SELECT t2.z,dt1.m,dt2.s,v1.mb
+FROM t2,
+     v1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt1,
+     (
+      SELECT t1.a,SUM(t1.b) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt2
+WHERE dt1.m = t2.z AND dt1.x = dt2.a AND dt2.a = v1.a
+GROUP BY t2.z;
+
+SELECT t1.a,dt.s,v1.mb
+FROM t1,
+     v1,
+     (
+      SELECT t1.a,SUM(t1.b) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt
+WHERE dt.a = t1.a AND dt.a = v1.mb
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.b
+      FROM t1
+      WHERE t1.a = t1.b
+      GROUP BY t1.a
+      HAVING t1.a > 0 AND t1.b < 2
+     ) AS dt
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.b
+      FROM t1
+      WHERE t1.a = t1.b
+      GROUP BY t1.a
+      HAVING t1.a > 0 AND t1.b < 2 AND SUM(c) < 5
+     ) AS dt
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.b
+      FROM t1
+      WHERE t1.a = t1.b
+      GROUP BY t1.a
+      HAVING SUM(c) > t1.b
+     ) AS dt
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.b
+      FROM t1
+      WHERE t1.a=t1.b
+      GROUP BY t1.a
+     ) AS dt
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.c
+      FROM t1
+      WHERE t1.a = t1.c
+      GROUP BY t1.a
+      HAVING t1.a < 2
+     ) AS dt
+WHERE t1.a = dt.a
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.c
+      FROM t1
+      WHERE t1.a = t1.c
+      GROUP BY t1.a
+      HAVING t1.c < 2
+     ) AS dt
+WHERE t1.a = dt.a
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.c
+      FROM t1
+      WHERE t1.a = t1.c
+      GROUP BY t1.a,t1.b
+      HAVING t1.c < t1.b + 2
+     ) AS dt
+WHERE t1.a = dt.a
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,t1.c
+      FROM t1
+      WHERE t1.a = t1.c
+      GROUP BY t1.a,t1.b
+      HAVING t1.c < t1.b + 2 OR t1.c > 1
+     ) AS dt
+WHERE t1.a = dt.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b,dt.x
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt
+WHERE dt.x = t1.a
+GROUP BY t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,dt1.m,dt2.s
+FROM t1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt1,
+     (
+      SELECT t1.a,SUM(t1.b) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt2
+WHERE dt1.x = t1.a AND t1.b = dt2.s
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,dt1.m,dt2.s,v1.mb
+FROM t1,
+     v1,
+     (
+      SELECT t2.x,MAX(t2.z) AS m
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt1,
+     (
+      SELECT t1.a,SUM(t1.b) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt2
+WHERE LENGTH(dt1.m) = t1.a AND dt1.x = dt2.a AND dt2.s = v1.mb
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,dt.s
+FROM t1,
+     (
+      SELECT t1.a,t1.b,SUM(t1.c) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt
+WHERE dt.a = t1.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,SUM(t1.c) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt1,
+     (
+      SELECT t2.x,t2.z
+      FROM t2
+      GROUP BY t2.x
+     ) AS dt2
+WHERE dt1.a = t1.a AND dt1.a = dt2.x
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1,
+     (
+      SELECT t1.a,SUM(t1.c) AS s
+      FROM t1
+      GROUP BY t1.a
+     ) AS dt1,
+     (
+      SELECT t2.x,MAX(t2.y) AS m,t2.z
+      FROM t2
+      WHERE t2.y=t2.z
+      GROUP BY t2.x
+     ) AS dt2
+WHERE dt1.a = t1.a AND dt1.a = dt2.x
+GROUP BY t1.a;
+
+SELECT t1.a,dt.b
+FROM t1,
+     (
+      SELECT t1.b,MAX(t1.c) AS m
+      FROM t1 GROUP BY t1.b
+      UNION
+      SELECT t3.a,MAX(t3.b) AS m
+      FROM t3
+      GROUP BY t3.a
+     ) AS dt
+WHERE t1.a = dt.b
+GROUP BY t1.a,dt.b;
+
+SELECT t1.a,dt.b
+FROM t1,
+     (
+      SELECT t1.b,MAX(t1.c) AS m
+      FROM t1
+      GROUP BY t1.b
+      UNION
+      SELECT t3.a,MAX(t3.b) AS m
+      FROM t3
+      GROUP BY t3.a
+     ) AS dt
+WHERE t1.a = dt.b
+GROUP BY dt.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,dt.b
+FROM t1,
+     (
+      SELECT t1.b,MAX(t1.c) AS m
+      FROM t1
+      GROUP BY t1.b
+      UNION
+      SELECT t3.b,MAX(t3.b) AS m
+      FROM t3
+      GROUP BY t3.a
+     ) AS dt
+WHERE t1.a = dt.b
+GROUP BY dt.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,dt.b,dt.m
+FROM t1,
+     (
+      SELECT t1.b,MAX(t1.c) AS m
+      FROM t1
+      GROUP BY t1.b
+      UNION
+      SELECT t3.a,MAX(t3.b) AS m
+      FROM t3
+      GROUP BY t3.a
+     ) AS dt
+WHERE t1.a = dt.b
+GROUP BY dt.b;
+
+DROP TABLE t3;
+DROP VIEW v1;
+
+--echo #
+--echo #
+--echo # Materialized subqueries
+--echo #
+--echo #
+
+--echo #
+--echo # Subquery in SELECT list
+--echo #
+
+SELECT (
+        SELECT t1_in.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1) AS x
+FROM t1 AS t1_out;
+
+SELECT (
+        SELECT 1
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_out.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out;
+
+SELECT (
+        SELECT t1_out.a + 1
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+SELECT (
+        SELECT t1_out.a + 1
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+SELECT (
+        SELECT t1_out.a + t1_out.b
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a,t1_out.b;
+
+SELECT (
+        SELECT t1_out.a + t1_in.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+SELECT (
+        SELECT t1_in.a
+        FROM t1 AS t1_in
+        WHERE t1_out.a > 1
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+SELECT (
+        SELECT MAX(t1_out.b)
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        HAVING MAX(t1_out.b) = 1
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+SELECT (
+        SELECT 1
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+HAVING (
+        SELECT 1
+        FROM t1 AS t1_in2
+        GROUP BY t1_in2.a
+        LIMIT 1
+       );
+
+SELECT (
+        SELECT 1
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+HAVING (
+        SELECT t1_in2.a
+        FROM t1 AS t1_in2
+        GROUP BY t1_in2.a
+        LIMIT 1
+       );
+
+SELECT (
+        SELECT t1_in.b
+        FROM t1 AS t1_in
+        WHERE t1_out.a = t1_in.b
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+SELECT (
+        SELECT t1_in.b
+        FROM t1 AS t1_in
+        WHERE t1_out.a = t1_in.a AND t1_out.a = t1_in.b
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_in.b
+        FROM t1 AS t1_in
+        WHERE t1_out.b = t1_in.a AND t1_out.b=t1_in.b
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_in.b
+        FROM t1 AS t1_in
+        WHERE t1_out.b < 1
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_in.a
+        FROM t1 AS t1_in
+        WHERE t1_out.b = 1
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.b
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_in.a
+        FROM t1 AS t1_in
+        GROUP BY t1_out.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       ) AS x
+FROM t1 AS t1_out
+GROUP BY t1_out.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+FROM t1 AS t1_out
+HAVING 1;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_in.b
+        FROM t1 AS t1_in
+        WHERE t1_out.b = t1_in.b
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+FROM t1 AS t1_out
+GROUP BY t1_out.a;
+
+--echo #
+--echo # Subquery in WHERE clause
+--echo #
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_in.a
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_out.b
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_out.b + t1_in.a AS sm
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_out.a + t1_in.a AS sm
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_out.b
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       HAVING t1_out.b > 1
+       LIMIT 1
+      )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_out.b
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+GROUP BY t1_out.a;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_out.b
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       HAVING t1_out.b > 1
+       LIMIT 1
+      )
+GROUP BY t1_out.a;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_in.b
+       FROM t1 AS t1_in
+       WHERE t1_out.b = t1_in.b
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_in.b
+       FROM t1 AS t1_in
+       WHERE t1_out.b = t1_in.b
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (
+       SELECT t1_in.b
+       FROM t1 AS t1_in
+       GROUP BY t1_in.a
+       LIMIT 1
+      )
+;
+
+--echo #
+--echo # Subquery in HAVING clause
+--echo #
+
+SELECT 1
+FROM t1 AS t1_out
+HAVING (
+        SELECT 1
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+SELECT 1
+FROM t1 AS t1_out
+HAVING (
+        SELECT t1_in.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+SELECT 1
+FROM t1 AS t1_out
+HAVING (
+        SELECT t1_in.a+t1_in.b AS s
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a,t1_in.b
+        LIMIT 1
+       )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+GROUP BY t1_out.a
+HAVING (
+        SELECT t1_in.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       );
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE t1_out.a = t1_out.b
+GROUP BY t1_out.b
+HAVING (
+        SELECT t1_out.b
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE t1_out.a = t1_out.b
+GROUP BY t1_out.b
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1_out.a
+FROM t1 AS t1_out
+HAVING (
+        SELECT 1
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1_out.a
+FROM t1 AS t1_out
+HAVING (
+        SELECT t1_in.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1_out.a
+FROM t1 AS t1_out
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1_out.a
+FROM t1 AS t1_out
+HAVING (
+        SELECT t1_out.b
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT 1
+FROM t1 AS t1_out
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_in
+        GROUP BY t1_in.a
+        LIMIT 1
+       )
+;
+
+--echo #
+--echo # UPDATE query
+--echo #
+
+CREATE TABLE t3 (x INT, y INT);
+INSERT INTO t3 VALUES (1,2);
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      WHERE t1.a = t3.x
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      WHERE t3.x = 1
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      WHERE t3.x = 1
+                      GROUP BY t1.a
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1 FROM t1
+                      WHERE t1.a = t3.x
+                      GROUP BY t1.a
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT t3.x
+                      FROM t1
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      WHERE t1.b = t3.x
+                      GROUP BY t1.a
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      GROUP BY t1.a
+                      HAVING t1.a > 1
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      GROUP BY t1.a
+                      HAVING t1.a > t3.x
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT t1.a + t3.x
+                      FROM t1
+                      GROUP BY t1.a
+                      LIMIT 1
+                     );
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      WHERE a = (
+                                 SELECT t3.x
+                                 FROM t2
+                                 GROUP BY t2.x
+                                 LIMIT 1
+                                )
+                      LIMIT 1
+                     )
+;
+
+UPDATE t3 t3 SET y = (
+                      SELECT (
+                              SELECT t3.x
+                              FROM t2
+                              GROUP BY t2.x
+                              LIMIT 1
+                             )
+                      FROM t1
+                      LIMIT 1
+                     )
+;
+
+--error ER_NON_GROUPING_FIELD_USED
+UPDATE t3 t3 SET y = (
+                      SELECT t1.b
+                      FROM t1
+                      GROUP BY t1.a
+                      HAVING t1.a > t3.x
+                      LIMIT 1
+                     );
+
+UPDATE t3 t3 SET y = (
+                      SELECT 1
+                      FROM t1
+                      HAVING t3.x > 1
+                      LIMIT 1
+                     )
+;
+
+--error ER_NON_GROUPING_FIELD_USED
+UPDATE t3 t3 SET y = (
+                      SELECT t1.b > t3.x
+                      FROM t1
+                      GROUP BY t1.a
+                      LIMIT 1
+                     );
+
+DROP TABLE t3;
+
+--echo #
+--echo # Subquery inside another subquery
+--echo #
+
+--echo # SELECT subquery in SELECT subquery
+SELECT (
+        SELECT (
+                SELECT t1_out.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+SELECT (
+        SELECT (
+                SELECT t1_out.a + t2.x
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+      )
+FROM t2
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT (
+                SELECT t1_out.b
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT (
+                SELECT t2.y
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT (
+                SELECT t1_out.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                HAVING t1_out.b > 1
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--echo # WHERE subquery in SELECT subquery
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE t1_out.a = (
+                          SELECT t1_in.a
+                          FROM t1 AS t1_in
+                          GROUP BY t1_in.a
+                          LIMIT 1
+                         )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t1_out.a
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t1_out.b
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t2.y
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t1_out.b
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               HAVING t1_out.b > 1
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE t1_out.a = (
+                          SELECT t2.y
+                          FROM t1 AS t1_in
+                          GROUP BY t1_in.a
+                          LIMIT 1
+                         )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE t1_out.a = (
+                          SELECT t1_in.a
+                          FROM t1 AS t1_in
+                          WHERE t2.y = 'aaa'
+                          GROUP BY t1_in.a
+                          LIMIT 1
+                         )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE t1_out.a = (
+                          SELECT t1_in.a
+                          FROM t1 AS t1_in
+                          WHERE t2.y > 'aaa'
+                          GROUP BY t1_in.a
+                          LIMIT 1
+                         )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--echo # HAVING subquery in SELECT subquery
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        HAVING (
+                SELECT t1_out.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        HAVING (
+                SELECT t1_in.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        HAVING (
+                SELECT t2.x
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               ) LIMIT 1
+       )
+FROM t2;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        HAVING (
+                SELECT t2.y
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        LIMIT 1
+       )
+FROM t2
+GROUP BY t2.x;
+
+--echo # WHERE subquery in WHERE subquery
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       WHERE (
+              SELECT t1_in.a
+              FROM t1 AS t1_in
+              GROUP BY t1_in.a
+              LIMIT 1
+             )
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.x;
+
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       WHERE (
+              SELECT t1_out.a
+              FROM t1 AS t1_in
+              GROUP BY t1_in.a
+              LIMIT 1
+             )
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.x;
+
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       WHERE (
+              SELECT t1_out.b
+              FROM t1 AS t1_in
+              GROUP BY t1_in.a
+              LIMIT 1
+             )
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.x;
+
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT t2.x
+       FROM t1 AS t1_out
+       WHERE (
+              SELECT t1_out.a
+              FROM t1 AS t1_in
+              GROUP BY t1_in.a
+              LIMIT 1
+             )
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.x;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       WHERE (
+              SELECT t2.x
+              FROM t1 AS t1_in
+              GROUP BY t1_in.a
+              LIMIT 1
+             )
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       WHERE (
+              SELECT t2.x
+              FROM t1 AS t1_in
+              GROUP BY t1_in.a
+              HAVING t2.x > 1
+              LIMIT 1
+             )
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.y;
+
+--echo # SELECT subquery in WHERE subquery
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t1_in.a
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.x;
+
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t1_out.a
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.x;
+
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.x;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               HAVING t2.x>1
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       HAVING t2.x > 1
+       LIMIT 1
+      )
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       HAVING t2.x > 1
+       LIMIT 1
+      ) > 1
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       HAVING t2.x > 1
+       LIMIT 1
+      ) = 1
+GROUP BY t2.y;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.x
+FROM t2
+WHERE (
+       SELECT (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       LIMIT 1
+      )
+GROUP BY t2.y;
+
+--echo # HAVING subquery in WHERE subquery
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       HAVING (
+               SELECT t1_in.a
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+      LIMIT 1
+     )
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       HAVING (
+               SELECT t1_out.a
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+      LIMIT 1
+     )
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       HAVING (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+       LIMIT 1
+      )
+GROUP BY t2.y;
+
+SELECT t2.y
+FROM t2
+WHERE (
+       SELECT t1_out.a
+       FROM t1 AS t1_out
+       GROUP BY t1_out.a
+       HAVING (
+               SELECT t2.x
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              ) = 1
+      LIMIT 1
+     )
+GROUP BY t2.y;
+
+--echo # HAVING subquery in HAVING subquery
+SELECT t2.y
+FROM t2
+GROUP BY t2.y
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        HAVING (
+                SELECT t1_in.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               ) = 1
+        LIMIT 1
+       )
+;
+
+SELECT t2.x
+FROM t2
+GROUP BY t2.x
+HAVING (
+        SELECT t2.x
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        HAVING (
+                SELECT t1_in.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               ) = 1
+        LIMIT 1
+       )
+;
+
+SELECT t2.x
+FROM t2
+GROUP BY t2.x
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        HAVING (
+                SELECT t2.x
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               ) = 1
+        LIMIT 1
+       )
+;
+
+--echo # SELECT subquery in HAVING subquery
+SELECT t2.y
+FROM t2
+GROUP BY t2.y
+HAVING (
+        SELECT (
+                SELECT t1_in.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+;
+
+SELECT t2.y
+FROM t2
+GROUP BY t2.y
+HAVING (
+        SELECT (
+                SELECT t1_out.a
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+;
+
+SELECT t2.x
+FROM t2
+GROUP BY t2.x
+HAVING (
+        SELECT (
+                SELECT t2.x
+                FROM t1 AS t1_in
+                GROUP BY t1_in.a
+                LIMIT 1
+               )
+        FROM t1 AS t1_out
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+;
+
+--echo # WHERE subquery in HAVING subquery
+SELECT t2.y
+FROM t2
+GROUP BY t2.y
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t1_in.a
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+;
+
+SELECT t2.y
+FROM t2
+GROUP BY t2.y
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t1_out.a
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+;
+
+SELECT t2.y
+FROM t2
+GROUP BY t2.y
+HAVING (
+        SELECT t1_out.a
+        FROM t1 AS t1_out
+        WHERE (
+               SELECT t1_out.b
+               FROM t1 AS t1_in
+               GROUP BY t1_in.a
+               LIMIT 1
+              )
+        GROUP BY t1_out.a
+        LIMIT 1
+       )
+;
+
+--echo # materialized IN subquery
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (t1_out.a, t1_out.b) IN (
+                               SELECT MAX(t1_in.a),t1_out.b
+                               FROM t1 AS t1_in
+                               GROUP BY t1_in.b
+                              )
+GROUP BY t1_out.a;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE t1_out.a IN (
+                   SELECT MAX(t1_in.a)
+                   FROM t1 AS t1_in
+                   GROUP BY t1_in.b
+                  )
+GROUP BY t1_out.a;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (t1_out.a, t1_out.b) IN (
+                               SELECT MAX(t1_in.a), t1_out.c
+                               FROM t1 AS t1_in
+                               GROUP BY t1_in.b
+                              )
+GROUP BY t1_out.a;
+
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (t1_out.a, t1_out.b) IN (
+                               SELECT MAX(t1_in.a), t1_out.c
+                               FROM t1 AS t1_in
+                               GROUP BY t1_in.b
+                               HAVING t1_out.b>1
+                              )
+GROUP BY t1_out.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1_out.a
+FROM t1 AS t1_out
+WHERE (t1_out.a, t1_out.b) IN (
+                               SELECT MAX(t1_in.a), t1_in.c
+                               FROM t1 AS t1_in
+                               GROUP BY t1_in.b
+                              )
+GROUP BY t1_out.a;
+
+--echo # EXISTS
+
+SELECT t1.a
+FROM t1
+WHERE EXISTS (
+              SELECT MAX(t2.x)
+              FROM t2
+              WHERE t2.x = t1.a
+              GROUP BY t2.x
+             )
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1
+WHERE EXISTS (
+              SELECT t2.y,MAX(t2.y)
+              FROM t2
+              WHERE t2.x = t1.a
+              GROUP BY t2.x
+             )
+GROUP BY t1.a;
+
+set optimizer_switch='exists_to_in=off';
+
+SELECT t1.a
+FROM t1
+WHERE EXISTS (
+              SELECT MAX(t2.x)
+              FROM t2
+              WHERE t2.x = t1.a
+              GROUP BY t2.x
+             )
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1
+WHERE EXISTS (
+              SELECT t2.y
+              FROM t2
+              WHERE t2.x = t1.a
+              GROUP BY t2.x
+             )
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1
+WHERE EXISTS (
+              SELECT t2.y,MAX(t2.y)
+              FROM t2
+              WHERE t2.x = t1.a
+              GROUP BY t2.x
+             )
+GROUP BY t1.a;
+
+set optimizer_switch='exists_to_in=default';
+
+--echo #
+--echo # Prepare statement
+--echo #
+
+PREPARE stmt FROM "
+  SELECT t1.a FROM t1
+  GROUP BY t1.a;
+";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+PREPARE stmt FROM "
+  SELECT t1.a+1 FROM t1
+  GROUP BY t1.a;
+";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+--echo #
+--echo # Using constant fields
+--echo #
+
+SELECT t1.a
+FROM t1
+WHERE t1.a = 2
+GROUP BY t1.b;
+
+SELECT t1.a
+FROM t1
+WHERE t1.a = t1.b AND t1.a = 2
+GROUP BY t1.c;
+
+SELECT t1.a,t1.c
+FROM t1
+WHERE t1.a = t1.c AND t1.a = 1
+GROUP BY t1.b;
+
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.a + 2 = t1.b AND t1.a = 2
+GROUP BY t1.c;
+
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.a + 2 = t1.b AND t1.a = 2
+GROUP BY t1.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b
+FROM t1
+WHERE t1.a + 2/3 = t1.b AND t1.a = 2
+GROUP BY t1.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1
+GROUP BY t1.c
+HAVING t1.a = 2;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo #
+--echo # Using LEFT/RIGHT JOINS
+--echo #
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(2,3);
+
+CREATE TABLE t2(c INT, d INT);
+INSERT INTO t1 VALUES (1,2),(3,3),(1,3);
+
+CREATE TABLE t3 (x INT, y INT);
+INSERT INTO t3 VALUES (1,2),(3,4);
+
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c
+FROM t1 RIGHT JOIN t2 ON t1.a = t2.c
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 RIGHT JOIN t2 ON t1.a = t2.c
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+LEFT JOIN t3 ON t1.a = t3.x
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+LEFT JOIN t3 ON t1.a = t3.x
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c,t3.x
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+GROUP BY t3.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,r.a
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS r ON r.a = t2.c
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,r.a
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS r ON r.a = t2.c
+GROUP BY t1.a,r.a;
+
+SELECT t1.a,t2.c,t3.x
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+GROUP BY t3.x;
+
+SELECT t1.a,t2.c,t3.x
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+GROUP BY t3.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    LEFT JOIN t1 AS t4 ON t2.c = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    LEFT JOIN t1 AS t4 ON t1.a = t4.b
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t4.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a,t3.x;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a,t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t1.a = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    LEFT JOIN t1 AS t4 ON t2.c = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+JOIN t2 ON t1.a = t2.c
+    LEFT JOIN t3 ON t2.c = t3.x
+      LEFT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t3.x;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    JOIN t1 AS t4 ON t1.a = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t2.c = t3.x
+    JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t3.x;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t3.x;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t1.a = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    JOIN t1 AS t4 ON t1.a = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+RIGHT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    JOIN t1 AS t4 ON t1.a = t4.b
+GROUP BY t3.x;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+    JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    LEFT JOIN t1 AS t4 ON t3.x = t4.b
+      LEFT JOIN t2 AS t5 ON t4.b = t5.d
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      LEFT JOIN t2 AS t5 ON t4.b = t5.d
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      LEFT JOIN t2 AS t5 ON t4.b = t5.d
+GROUP BY t4.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      RIGHT JOIN t2 AS t5 ON t3.x = t5.d
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  LEFT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      RIGHT JOIN t2 AS t5 ON t3.x = t5.d
+GROUP BY t5.d;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t1.a = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      RIGHT JOIN t2 AS t5 ON t3.x = t5.d
+GROUP BY t5.d;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      RIGHT JOIN t2 AS t5 ON t3.x = t5.d
+GROUP BY t5.d;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t2.c = t4.b
+      RIGHT JOIN t2 AS t5 ON t2.c = t5.d
+GROUP BY t5.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  RIGHT JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t2.c = t4.b
+      RIGHT JOIN t2 AS t5 ON t2.c = t5.d
+GROUP BY t2.c;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t2.c = t4.b
+      RIGHT JOIN t2 AS t5 ON t2.c = t5.d
+GROUP BY t5.d;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t2.c = t4.b
+      JOIN t2 AS t5 ON t2.c = t5.d
+GROUP BY t5.d;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t2.c = t4.b
+      JOIN t2 AS t5 ON t2.c = t5.d
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      JOIN t2 AS t5 ON t4.b = t5.d
+GROUP BY t2.c;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      JOIN t2 AS t5 ON t4.b = t5.d
+GROUP BY t5.d;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      JOIN t2 AS t5 ON t4.b = t5.d
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      JOIN t2 AS t5 ON t3.x = t5.d
+GROUP BY t4.b;
+
+SELECT t1.a,t2.c,t3.x,t4.b,t5.d
+FROM t1
+LEFT JOIN t2 ON t1.a = t2.c
+  JOIN t3 ON t2.c = t3.x
+    RIGHT JOIN t1 AS t4 ON t3.x = t4.b
+      JOIN t2 AS t5 ON t1.a = t5.d
+GROUP BY t4.b;
+
+--echo #
+--echo # Using OUTER JOINS
+--echo #
+
+SELECT t1.a,t2.c
+FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.c
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c
+FROM t1 RIGHT OUTER JOIN t2 ON t1.a = t2.c
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 LEFT OUTER JOIN t2 ON t1.a = t2.c
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 RIGHT OUTER JOIN t2 ON t1.a = t2.c
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c
+FROM t1
+RIGHT OUTER JOIN t2 ON t1.a = t2.c
+  LEFT OUTER JOIN t3 ON t1.a = t3.x
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1
+RIGHT OUTER JOIN t2 ON t1.a = t2.c
+  LEFT OUTER JOIN t3 ON t1.a = t3.x
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c,t3.x
+FROM t1
+RIGHT OUTER JOIN t2 ON t1.a = t2.c
+  LEFT OUTER JOIN t3 ON t1.a = t3.x
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c,t3.x
+FROM t1
+RIGHT OUTER JOIN t2 ON t1.a = t2.c
+  LEFT OUTER JOIN t3 ON t1.a = t3.x
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x
+FROM t1
+RIGHT OUTER JOIN t2 ON t1.a = t2.c
+  LEFT OUTER JOIN t3 ON t1.a = t3.x
+GROUP BY t3.x;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x
+FROM t1
+LEFT OUTER JOIN t2 ON t1.a = t2.c
+  RIGHT OUTER JOIN t3 ON t2.c = t3.x
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c,t3.x
+FROM t1
+LEFT OUTER JOIN t2 ON t1.a = t2.c
+  RIGHT OUTER JOIN t3 ON t1.a = t3.x
+GROUP BY t1.a;
+
+--echo #
+--echo # Special cases in ON expression
+--echo #
+
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = 12
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON t1.a = t1.b
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON t1.a = t1.b AND t1.b = t2.c
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c AND t1.a > rand()
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c AND t2.c > rand()
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c AND t2.d > rand()
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c AND (t2.d > rand() OR t2.d = 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t2.d > rand() OR t2.d = 1
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c AND t1.a > rand()
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c AND t2.c > rand()
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c AND t2.d > rand()
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c
+WHERE t1.a > rand()
+GROUP BY t1.a;
+
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c
+WHERE t1.a = rand()
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c
+WHERE t1.b = rand()
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = t2.c
+WHERE t1.b = t1.a + rand()
+GROUP BY t1.a;
+
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON t2.c = 2
+GROUP BY t2.d;
+
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON t2.c = 2
+GROUP BY t1.a;
+
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON t2.c = t1.a
+GROUP BY t1.a;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # ROLLUP
+--echo #
+
+CREATE TABLE t3(pk INT PRIMARY KEY, b INT, c INT, d INT);
+INSERT INTO t3 VALUES (1,2,1,5),(2,2,3,2),(3,4,2,4);
+
+SELECT t3.b,MAX(t3.d)
+FROM t3
+GROUP BY t3.b WITH ROLLUP;
+
+SELECT t3.b,t3.c,MAX(t3.d)
+FROM t3
+GROUP BY t3.b,t3.c WITH ROLLUP;
+
+SELECT t3.b+t3.c,MAX(t3.d)
+FROM t3
+GROUP BY t3.b,t3.c WITH ROLLUP;
+
+SELECT t3.b,MAX(t3.d)
+FROM t3
+GROUP BY t3.b WITH ROLLUP;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b,t3.c,MAX(t3.d)
+FROM t3
+GROUP BY t3.b WITH ROLLUP;
+
+SELECT t3.pk,MAX(t3.d)
+FROM t3
+GROUP BY t3.pk WITH ROLLUP;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.pk,t3.b,MAX(t3.d)
+FROM t3
+GROUP BY t3.pk WITH ROLLUP;
+
+DROP TABLE t3;
+
+--echo #
+--echo # ON expression: special cases
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,2), (2,3);
+INSERT INTO t1 VALUES ();
+CREATE TABLE t2(c INT, d INT);
+INSERT INTO t2 VALUES (2,1);
+INSERT INTO t2 VALUES ();
+INSERT INTO t2 VALUES (2,3);
+
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t2.c = 2) AND (t1.a = 2)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t2.c = 2) AND (t1.a = 2)
+GROUP BY t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1
+LEFT JOIN (
+           t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+          ) ON (t1.a = 2)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+                  ) ON (t1.a = 2)
+GROUP BY t1.b;
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c = 1)
+                  ) ON (t1.a = t2.c)
+GROUP BY t1.a;
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c = 1)
+                  ) ON (t1.a = t2.c)
+GROUP BY t1.a;
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c > 1)
+                  ) ON (t1.a = t2.c)
+GROUP BY t1.a;
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c = 1)
+                  ) ON (t1.a = t2.d)
+GROUP BY t2.c;
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+                  ) ON (t1.a = t2.d)
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.c = t2.c) AND
+                                            (t2.d = 1)
+                  ) ON (t1.a = t2.d)
+GROUP BY t2.c;
+
+SELECT t2.d,t3.c,t3.d
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.d = 1) AND
+                                            (t3.d=t2.d)
+                  ) ON (t1.a = t2.d)
+GROUP BY t2.d;
+
+SELECT t1.a,t2.d,t3.c,t3.d
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.d = 1) AND
+                                            (t3.d = t2.d)
+                  ) ON (t1.a = t2.d)
+GROUP BY t1.a;
+
+SELECT t3.c,t3.d
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.d = 1) AND
+                                            (t3.d=t2.d)
+                  ) ON (t1.a = t2.d)
+GROUP BY t3.d;
+
+SELECT t3.c,t3.d
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.d = 1) AND
+                                            (t3.d = t2.c)
+                  ) ON (t1.a = t2.c)
+GROUP BY t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.d = 1) AND
+                                            (t2.c = t2.d)
+                  ) ON 1
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.d = 1) AND
+                                            (t2.c > t2.d)
+                  ) ON 1
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.c > t2.d)
+                  ) ON 1
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.c = t2.d + 1)
+                  ) ON 1
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+                  ) ON 1
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+                  ) ON 1
+GROUP BY "";
+
+SELECT t3.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+                  ) ON 1
+GROUP BY t3.d;
+
+SELECT t3.c
+FROM t1 JOIN (
+              t2 LEFT JOIN t2 AS t3 ON (t2.c = t3.d) AND (t3.c = 2)
+             ) ON 1
+GROUP BY t2.c;
+
+SELECT t3.c
+FROM t1 JOIN (
+              t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+             ) ON (t1.a = 1)
+GROUP BY "";
+
+SELECT t3.c
+FROM t1 JOIN (
+              t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+             ) ON (t1.a = 1)
+GROUP BY t1.a;
+
+SELECT t3.c
+FROM t1 JOIN (
+              t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+             ) ON (t1.a = 1)
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t2.c = 1)
+                  ) ON (t1.a = 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t3.c = 1)
+                  ) ON (t1.a = 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t3.c = 1)
+                  ) ON (t1.a = 1)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t2.c = t2.d)
+                  ) ON (t1.a = t2.d)
+GROUP BY t3.c;
+
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t2.c = t4.b)
+                  ) ON (t1.a = t2.d)
+GROUP BY t2.c;
+
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1) AND
+                                                       (t3.c = t3.c)
+                                ) ON (t2.c = t3.c)
+                  ) ON (t1.a = t2.d)
+GROUP BY t2.c;
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2
+                   JOIN t2 AS t3 ON (t3.c = 2)
+                  ) ON (t1.a = 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 JOIN
+                   t2 AS t3 ON (t3.c = 2)
+                  ) ON (t1.a = 1)
+GROUP BY "";
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 JOIN
+                   t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+                  ) ON (t1.a = 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 JOIN
+                   t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+                  ) ON (t1.a = 1)
+GROUP BY "";
+
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 JOIN
+                   t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+                  ) ON 1
+GROUP BY "";
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+                                                       (t3.a > 0)
+                                ) ON (t2.d = t3.a) AND (t2.d > 1)
+                  ) ON t2.d = t1.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON t4.c = 2
+                                ) ON (t2.d = t3.a) AND (t2.d > 1)
+                  ) ON t2.d = t1.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+                                                       (t3.a > 1)
+                                ) ON t2.d = t3.a AND t2.c > 1
+                  ) ON t2.d = t1.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+                                                       (t3.a > 1)
+                                ) ON (t2.d = t3.a)
+                  ) ON (t2.d = t1.a) AND (t1.b > 2)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON t2.d = t3.a
+                  ) ON t2.d = t1.a AND t1.b > 2
+GROUP BY t1.a;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON t2.d = t3.a
+                  ) ON 1
+GROUP BY t2.d;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON 1
+                  ) ON 1
+GROUP BY t3.a;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON 1
+                  ) ON (t1.a = t2.d)
+GROUP BY t3.a;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON 1
+                  ) ON (t1.a = 1)
+GROUP BY t3.a;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+                                                       (t3.a > 1)
+                                ) ON t2.d = t3.a
+                  ) ON (t2.d = t1.a) AND (t2.c > 2)
+GROUP BY t1.a;
+
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN
+                   t1 AS t3 ON (t2.d = t3.a) AND (t2.d > 1)
+                  ) ON (t2.d = t1.a) AND (t2.c > 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN
+                   t1 AS t3 ON (t3.a = 1) AND (t2.d > 1)
+                  ) ON (t2.d = t1.a) AND (t1.b > 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN
+                   t1 AS t3 ON (t2.d = t3.a) AND (t2.d > 1)
+                  ) ON (t2.d = t1.a) AND (t1.b > 1)
+GROUP BY t1.a;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON 1
+                  ) ON (t1.a = 1)
+GROUP BY t3.a;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON (t2.c = 2)
+                  ) ON (t1.a = 1)
+GROUP BY t3.a;
+
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON (t2.c = 2)
+                  ) ON 1
+GROUP BY t3.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+                  ) ON (t1.a > 2)
+GROUP BY t2.c;
+
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+                  ) ON (t1.a = t2.c)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+                  ) ON (t1.b > 2) and (t1.a = t2.c)
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+                  ) ON (t1.a = t2.c)
+GROUP BY t1.a;
+
+DROP TABLE t1,t2;
+
+SET SQL_MODE=' ';

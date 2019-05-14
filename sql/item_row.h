@@ -150,6 +150,11 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
+  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                        List<Item> *gb_items,
+                                        bool in_where,
+                                        Item **err_item);
+
   bool check_vcol_func_processor(void *arg) {return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_row>(thd, this); }

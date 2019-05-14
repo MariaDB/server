@@ -1551,18 +1551,21 @@ int JOIN::optimize()
     }
     with_two_phase_optimization= false;
   }
-  else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
+  else if (optimization_state == JOIN::OPTIMIZATION_PHASE_2_DONE)
     res= optimize_stage2();
   else
   {
     // to prevent double initialization on EXPLAIN
-    if (optimization_state != JOIN::NOT_OPTIMIZED)
+    if (optimization_state != JOIN::NOT_OPTIMIZED &&
+        optimization_state != JOIN::OPTIMIZATION_PHASE_1_DONE)
       return FALSE;
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
-    res= optimize_inner();
+    res= optimize_inner1();
+    if (!res)
+      res= optimize_inner2();
   }
   if (!with_two_phase_optimization ||
-      init_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
+      init_state == JOIN::OPTIMIZATION_PHASE_2_DONE)
   {
     if (!res && have_query_plan != QEP_DELETED)
       res= build_explain();
@@ -1742,9 +1745,9 @@ int JOIN::init_join_caches()
 */
 
 int
-JOIN::optimize_inner()
+JOIN::optimize_inner1()
 {
-  DBUG_ENTER("JOIN::optimize");
+  DBUG_ENTER("JOIN::optimize_inner1");
   subq_exit_fl= false;
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
 
@@ -1881,9 +1884,42 @@ JOIN::optimize_inner()
 
     sel->where= conds;
 
+    if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+    {
+      TABLE_LIST *tbl;
+      List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+      while ((tbl= li++))
+      {
+        if (tbl->is_materialized_derived())
+        {
+          for (st_select_lex *sl= tbl->get_unit()->first_select();
+               sl;
+               sl= sl->next_select())
+          {
+            if (!sl->join)
+              continue;
+            if (sl->join->optimize_inner1())
+              DBUG_RETURN(1);
+          }
+        }
+      }
+      if (sel->check_func_dep())
+        DBUG_RETURN(1);
+    }
+
     if (arena)
       thd->restore_active_arena(arena, &backup);
   }
+  optimization_state=JOIN::OPTIMIZATION_PHASE_1_DONE;
+  DBUG_RETURN(0);
+}
+
+
+int
+JOIN::optimize_inner2()
+{
+  DBUG_ENTER("JOIN::optimize_inner2");
+  SELECT_LEX *sel= select_lex;
 
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
@@ -2212,7 +2248,7 @@ JOIN::optimize_inner()
 setup_subq_exit:
   with_two_phase_optimization= check_two_phase_optimization(thd);
   if (with_two_phase_optimization)
-    optimization_state= JOIN::OPTIMIZATION_PHASE_1_DONE;
+    optimization_state= JOIN::OPTIMIZATION_PHASE_2_DONE;
   else
   { 
     if (optimize_stage2())
@@ -24049,7 +24085,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
                            all_fields, true, true, from_window_spec))
       return 1;
-    (*ord->item)->marker= UNDEF_POS;		/* Mark found */
+    (*ord->item)->marker= UNDEF_POS;    /* Mark found */
     if ((*ord->item)->with_sum_func() && context_analysis_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
@@ -24067,66 +24103,6 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
         (*ord->item)->type() != Item::SUM_FUNC_ITEM)
       (*ord->item)->split_sum_func(thd, ref_pointer_array,
                                    all_fields, SPLIT_SUM_SELECT);
-  }
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      context_analysis_place == IN_GROUP_BY)
-  {
-    /*
-      Don't allow one to use fields that is not used in GROUP BY
-      For each select a list of field references that aren't under an
-      aggregate function is created. Each field in this list keeps the
-      position of the select list expression which it belongs to.
-
-      First we check an expression from the select list against the GROUP BY
-      list. If it's found there then it's ok. It's also ok if this expression
-      is a constant or an aggregate function. Otherwise we scan the list
-      of non-aggregated fields and if we'll find at least one field reference
-      that belongs to this expression and doesn't occur in the GROUP BY list
-      we throw an error. If there are no fields in the created list for a
-      select list expression this means that all fields in it are used under
-      aggregate functions.
-    */
-    Item *item;
-    Item_field *field;
-    int cur_pos_in_select_list= 0;
-    List_iterator<Item> li(fields);
-    List_iterator<Item_field> naf_it(thd->lex->current_select->join->non_agg_fields);
-
-    field= naf_it++;
-    while (field && (item=li++))
-    {
-      if (item->type() != Item::SUM_FUNC_ITEM && item->marker >= 0 &&
-          !item->const_item() &&
-          !(item->real_item()->type() == Item::FIELD_ITEM &&
-            item->used_tables() & OUTER_REF_TABLE_BIT))
-      {
-        while (field)
-        {
-          /* Skip fields from previous expressions. */
-          if (field->marker < cur_pos_in_select_list)
-            goto next_field;
-          /* Found a field from the next expression. */
-          if (field->marker > cur_pos_in_select_list)
-            break;
-          /*
-            Check whether the field occur in the GROUP BY list.
-            Throw the error later if the field isn't found.
-          */
-          for (ord= order; ord; ord= ord->next)
-            if ((*ord->item)->eq((Item*)field, 0))
-              goto next_field;
-          /*
-            TODO: change ER_WRONG_FIELD_WITH_GROUP to more detailed
-            ER_NON_GROUPING_FIELD_USED
-          */
-          my_error(ER_WRONG_FIELD_WITH_GROUP, MYF(0), field->full_name());
-          return 1;
-next_field:
-          field= naf_it++;
-        }
-      }
-      cur_pos_in_select_list++;
-    }
   }
   if (org_fields != all_fields.elements)
     *hidden_group_fields=1;			// group fields is not used

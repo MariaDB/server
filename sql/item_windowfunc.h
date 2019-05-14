@@ -1325,6 +1325,11 @@ public:
 
  Item *get_copy(THD *thd) { return 0; }
 
+ bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                       List<Item> *gb_items,
+                                       bool in_where,
+                                       Item **item)
+ { return true; }
 };
 
 #endif /* ITEM_WINDOWFUNC_INCLUDED */

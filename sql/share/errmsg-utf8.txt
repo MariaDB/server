@@ -5732,8 +5732,8 @@ ER_VIEW_RECURSIVE
         eng "%`s.%`s contains view recursion"
         ger "%`s.%`s enthält View-Rekursion"
 ER_NON_GROUPING_FIELD_USED 42000
-        eng "Non-grouping field '%-.192s' is used in %-.64s clause"
-        ger "In der %-.192s-Klausel wird das die Nicht-Gruppierungsspalte '%-.64s' verwendet"
+        eng "Non-grouping field '%-.192s' is used in %-.64s"
+        ger "In der %-.192s-Klausel wird das die Nicht-Gruppierungsspalte '%-.64s'"
 ER_TABLE_CANT_HANDLE_SPKEYS
         eng "The storage engine %s doesn't support SPATIAL indexes"
         ger "Der verwendete Tabellentyp (%s) unterstützt keine SPATIAL-Indizes"

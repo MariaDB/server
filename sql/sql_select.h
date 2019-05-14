@@ -1457,7 +1457,8 @@ public:
   enum join_optimization_state { NOT_OPTIMIZED=0,
                                  OPTIMIZATION_IN_PROGRESS=1,
                                  OPTIMIZATION_PHASE_1_DONE=2,
-                                 OPTIMIZATION_DONE=3};
+                                 OPTIMIZATION_PHASE_2_DONE=3,
+                                 OPTIMIZATION_DONE=4};
   // state of JOIN optimization
   enum join_optimization_state optimization_state;
   bool initialized; ///< flag to avoid double init_execution calls
@@ -1624,7 +1625,8 @@ public:
 	      SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
-  int optimize_inner();
+  int optimize_inner1();
+  int optimize_inner2();
   int optimize_stage2();
   bool build_explain();
   int reinit();

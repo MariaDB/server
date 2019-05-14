@@ -2470,6 +2470,7 @@ struct TABLE_LIST
   /* List to carry partition names from PARTITION (...) clause in statement */
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+  bool derived_uniq_ident;
 
   void calc_md5(const char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);

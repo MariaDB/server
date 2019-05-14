@@ -37,6 +37,8 @@ class Item_long_func_date_field: public Item_long_func
 public:
   Item_long_func_date_field(THD *thd, Item *a)
    :Item_long_func(thd, a) { }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 
@@ -47,6 +49,15 @@ class Item_long_func_time_field: public Item_long_func
 public:
   Item_long_func_time_field(THD *thd, Item *a)
    :Item_long_func(thd, a) { }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[0]->type_handler_for_comparison()->mysql_timestamp_type() != MYSQL_TIMESTAMP_TIME)
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -65,6 +76,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_period_add>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -84,6 +96,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_period_diff>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -203,6 +216,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_month>(thd, this); }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 
@@ -225,6 +240,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_monthname>(thd, this); }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 
@@ -379,6 +396,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_week>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 class Item_func_yearweek :public Item_long_func
@@ -408,6 +426,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_yearweek>(thd, this); }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 
@@ -475,6 +495,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_weekday>(thd, this); }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 class Item_func_dayname :public Item_func_weekday
@@ -491,6 +513,8 @@ class Item_func_dayname :public Item_func_weekday
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 
@@ -517,6 +541,7 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  void set_deterministic() { return; }
 };
 
 
@@ -556,6 +581,16 @@ public:
   my_decimal *decimal_op(my_decimal* buf);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_unix_timestamp>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (arg_count > 0 &&
+        (args[0]->cmp_type() != TIME_RESULT ||
+         args[0]->type_handler()->mysql_timestamp_type() != MYSQL_TIMESTAMP_DATETIME))
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -580,6 +615,15 @@ public:
   my_decimal *decimal_op(my_decimal* buf);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_time_to_sec>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[0]->type_handler()->mysql_timestamp_type() != MYSQL_TIMESTAMP_TIME)
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -817,6 +861,14 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_from_days>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (!args[0]->is_number())
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -850,6 +902,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_date_format>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 class Item_func_time_format: public Item_func_date_format
@@ -861,6 +914,7 @@ public:
   bool check_vcol_func_processor(void *arg) { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_time_format>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -876,6 +930,7 @@ class Item_func_from_unixtime :public Item_datetimefunc
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_from_unixtime>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -922,6 +977,7 @@ class Item_func_convert_tz :public Item_datetimefunc
   void cleanup();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_convert_tz>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -941,6 +997,7 @@ public:
   const char *func_name() const { return "sec_to_time"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_sec_to_time>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -961,6 +1018,16 @@ public:
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_date_add_interval>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[0]->type_handler_for_comparison()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME ||
+        !args[1]->is_number())
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -1063,6 +1130,7 @@ class Item_extract :public Item_int_func,
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_extract>(thd, this); }
+  void set_deterministic() { return; } // can use check_valid_arguments_processor()
 };
 
 
@@ -1106,6 +1174,7 @@ public:
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_char_typecast>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -1143,6 +1212,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_date_typecast>(thd, this); }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 
@@ -1164,6 +1235,15 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_time_typecast>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[0]->type_handler_for_comparison()->mysql_timestamp_type() == MYSQL_TIMESTAMP_DATE)
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -1185,6 +1265,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_datetime_typecast>(thd, this); }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 
@@ -1199,6 +1281,7 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_makedate>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -1236,6 +1319,21 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_timestamp>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[0]->type_handler_for_comparison()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME)
+        return;
+    if (arg_count == 2)
+    {
+      if (args[1]->cmp_type() != TIME_RESULT ||
+          args[1]->type_handler_for_comparison()->mysql_timestamp_type() != MYSQL_TIMESTAMP_TIME)
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 
@@ -1263,6 +1361,17 @@ public:
   const char *func_name() const { return sign > 0 ? "addtime" : "subtime"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_add_time>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[0]->type_handler_for_comparison()->mysql_timestamp_type() != MYSQL_TIMESTAMP_DATETIME ||
+        args[1]->cmp_type() != TIME_RESULT ||
+        args[1]->type_handler_for_comparison()->mysql_timestamp_type() != MYSQL_TIMESTAMP_TIME)
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -1285,6 +1394,19 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_timediff>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[1]->cmp_type() != TIME_RESULT ||
+        !((args[0]->type_handler_for_comparison()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME &&
+           args[1]->type_handler_for_comparison()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME) ||
+           (args[0]->type_handler_for_comparison()->mysql_timestamp_type() == MYSQL_TIMESTAMP_DATETIME &&
+           args[1]->type_handler_for_comparison()->mysql_timestamp_type() == MYSQL_TIMESTAMP_DATETIME)))
+      return;
+    is_deterministic= true;
+  }
 };
 
 class Item_func_maketime :public Item_timefunc
@@ -1308,6 +1430,7 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_maketime>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -1357,6 +1480,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_timestamp_diff>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -1384,6 +1508,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_get_format>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -1404,6 +1529,7 @@ public:
   bool fix_length_and_dec();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_str_to_date>(thd, this); }
+  void set_deterministic() { return; }
 };
 
 
@@ -1417,6 +1543,8 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_last_day>(thd, this); }
+  void set_deterministic()
+  { set_deterministic_date(); }
 };
 
 

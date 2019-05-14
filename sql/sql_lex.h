@@ -1568,6 +1568,7 @@ public:
   void add_statistics(SELECT_LEX_UNIT *unit);
   bool make_unique_derived_name(THD *thd, LEX_CSTRING *alias);
   void lex_start(LEX *plex);
+  bool check_func_dep();
 };
 typedef class st_select_lex SELECT_LEX;
 

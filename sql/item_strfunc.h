@@ -67,6 +67,17 @@ public:
   const Type_handler *type_handler() const { return string_type_handler(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->cmp_type() != STRING_RESULT)
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 
@@ -415,6 +426,16 @@ public:
   const char *func_name() const { return "insert"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_insert>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() == STRING_RESULT &&
+        args[1]->is_number() &&
+        args[2]->is_number() &&
+        args[3]->cmp_type() == STRING_RESULT)
+      is_deterministic= true;
+  }
 };
 
 
@@ -461,6 +482,15 @@ public:
   const char *func_name() const { return "left"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_left>(thd, this); }
+  void set_deterministic()
+  {
+    if (are_args_deterministic() &&
+        args[0]->cmp_type() == STRING_RESULT &&
+        args[1]->is_number())
+    {
+      is_deterministic= true;
+    }
+  }
 };
 
 
@@ -474,6 +504,15 @@ public:
   const char *func_name() const { return "right"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_right>(thd, this); }
+  void set_deterministic()
+  {
+    if (are_args_deterministic() &&
+        args[0]->cmp_type() == STRING_RESULT &&
+        args[1]->is_number())
+    {
+      is_deterministic= true;
+    }
+  }
 };
 
 
@@ -491,6 +530,18 @@ public:
   const char *func_name() const { return "substr"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_substr>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic() ||
+        args[0]->cmp_type() != STRING_RESULT)
+      return;
+    for (uint i= 1; i < arg_count; i++)
+    {
+      if (!args[i]->is_number())
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 class Item_func_substr_oracle :public Item_func_substr
@@ -527,7 +578,15 @@ public:
   const char *func_name() const { return "substring_index"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_substr_index>(thd, this); }
-
+  void set_deterministic()
+  {
+    if (!are_args_deterministic() ||
+        args[0]->cmp_type() != STRING_RESULT ||
+        args[1]->cmp_type() != STRING_RESULT ||
+        !args[2]->is_number())
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -989,6 +1048,18 @@ public:
   const char *func_name() const { return "elt"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_elt>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic() ||
+        !args[0]->is_number())
+      return;
+    for (uint i= 1; i < arg_count; i++)
+    {
+      if (args[i]->cmp_type() != STRING_RESULT)
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 
@@ -1003,6 +1074,18 @@ public:
   const char *func_name() const { return "make_set"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_make_set>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic() ||
+        args[0]->cmp_type() != INT_RESULT)
+      return;
+    for (uint i= 1; i < arg_count; i++)
+    {
+      if (args[i]->cmp_type() != STRING_RESULT)
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 
@@ -1020,6 +1103,17 @@ public:
   const char *func_name() const { return "format"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_format>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    for (uint i= 0; i < 2; i++)
+    {
+      if (!args[i]->is_number())
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 
@@ -1045,6 +1139,18 @@ public:
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_char>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    for (uint i= 0; i < arg_count; i++)
+    {
+      /* To not allow truncated incorrect values from strings like '77.3' */
+      if (!args[i]->is_number())
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 class Item_func_chr :public Item_func_char
@@ -1074,6 +1180,15 @@ public:
   const char *func_name() const { return "repeat"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_repeat>(thd, this); }
+  void set_deterministic()
+  {
+    if (are_args_deterministic() &&
+        args[0]->cmp_type() == STRING_RESULT &&
+        args[1]->is_number())
+    {
+      is_deterministic= true;
+    }
+  }
 };
 
 
@@ -1086,6 +1201,12 @@ public:
   const char *func_name() const { return "space"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_space>(thd, this); }
+  void set_deterministic()
+  {
+    if (are_args_deterministic() &&
+        args[0]->is_number())
+      is_deterministic= true;
+  }
 };
 
 
@@ -1116,6 +1237,16 @@ public:
   Item_func_pad(THD *thd, Item *arg1, Item *arg2):
     Item_str_func(thd, arg1, arg2) {}
   bool fix_length_and_dec();
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() == STRING_RESULT &&
+        args[1]->is_number() &&
+        (arg_count == 2 ||
+         args[2]->cmp_type() == STRING_RESULT))
+      is_deterministic= true;
+  }
 };
 
 
@@ -1241,6 +1372,13 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_hex>(thd, this); }
+  void set_deterministic()
+  {
+    if (are_args_deterministic() &&
+        (args[0]->cmp_type() == STRING_RESULT ||
+         args[0]->is_number()))
+      is_deterministic= true;
+  }
 };
 
 class Item_func_unhex :public Item_str_func
@@ -1375,6 +1513,22 @@ class Item_func_export_set: public Item_str_func
   const char *func_name() const { return "export_set"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_export_set>(thd, this); }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic() ||
+        !args[0]->is_number())
+      return;
+    uint string_elems= (arg_count == 3) ? arg_count : 4;
+    for (uint i= 1; i < string_elems; i++)
+    {
+      if (args[i]->cmp_type() != STRING_RESULT)
+        return;
+    }
+    if (arg_count == 5 &&
+        !args[4]->is_number())
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -1521,6 +1675,14 @@ public:
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
   bool const_item() const { return true; }
+  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
+                                          List<Field> *fields,
+                                          Item **err_item)
+  {
+    fields->empty();
+    return false;
+  }
+  void set_deterministic() { return; }
 };
 
 
@@ -1580,6 +1742,14 @@ public:
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_weight_string>(thd, this); }
+  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
+                                          List<Field> *fields,
+                                          Item **err_item)
+  {
+    fields->empty();
+    return false;
+  }
+  void set_deterministic() { return; }
 };
 
 class Item_func_crc32 :public Item_long_func

@@ -367,6 +367,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
     return true;
   if (fix_length_and_dec())
     return TRUE;
+  set_deterministic();
   fixed= 1;
   return FALSE;
 }
@@ -726,6 +727,7 @@ Item *Item_func::get_tmp_table_item(THD *thd)
     return new (thd->mem_root) Item_temptable_field(thd, result_field);
   return copy_or_same(thd);
 }
+
 
 double Item_int_func::val_real()
 {
@@ -6847,4 +6849,31 @@ void Item_func_setval::print(String *str, enum_query_type query_type)
   str->append(',');
   str->append_ulonglong(round);
   str->append(')');
+}
+
+
+/*
+  Check if function arguments with indexes from start to end
+  are of the same type or are comparable.
+*/
+bool Item_func::check_args_same_type(uint start, uint end)
+{
+  DBUG_ASSERT(start < end);
+  if (!are_args_deterministic())
+    return false;
+  if (start == arg_count)
+    return true;
+  Item *args0= args[start];
+  Item_result r0= args0->cmp_type();
+  start++;
+  for (uint i= start; i < end; i++)
+  {
+    Item_result r1= arguments()[i]->cmp_type();
+    if (!((args0->type_handler_for_comparison() ==
+          arguments()[i]->type_handler_for_comparison()) ||
+        ((r0 == REAL_RESULT || r0 == INT_RESULT || r0 == DECIMAL_RESULT) &&
+         (r1 == REAL_RESULT || r1 == INT_RESULT || r1 == DECIMAL_RESULT))))
+      return false;
+  }
+  return true;
 }

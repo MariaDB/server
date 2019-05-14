@@ -142,6 +142,7 @@ SET (SQL_SOURCE
                opt_split.cc
                rowid_filter.cc rowid_filter.h
                opt_trace.cc
+               sql_func_dep.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
