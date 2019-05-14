@@ -1209,7 +1209,7 @@ bool Protocol_text::store(float from, uint32 decimals, String *buffer)
 	      field_types[field_pos] == MYSQL_TYPE_FLOAT);
   field_pos++;
 #endif
-  buffer->set_real((double) from, decimals, thd->charset());
+  Float(from).to_string(buffer, decimals);
   return net_store_data((uchar*) buffer->ptr(), buffer->length());
 }
 

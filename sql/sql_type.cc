@@ -125,6 +125,32 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+bool Float::to_string(String *val_buffer, uint dec) const
+{
+  uint to_length= 70;
+  if (val_buffer->alloc(to_length))
+    return true;
+
+  char *to=(char*) val_buffer->ptr();
+  size_t len;
+
+  if (dec >= FLOATING_POINT_DECIMALS)
+    len= my_gcvt(m_value, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
+  else
+  {
+    /*
+      We are safe here because the buffer length is 70, and
+      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
+      will be not longer than 69 chars + terminating '\0'.
+    */
+    len= my_fcvt(m_value, (int) dec, to, NULL);
+  }
+  val_buffer->length((uint) len);
+  val_buffer->set_charset(&my_charset_numeric);
+  return false;
+}
+
+
 void Time::make_from_item(Item *item, const Options opt)
 {
   if (item->get_date(this, opt.get_date_flags()))
@@ -2708,9 +2734,15 @@ Type_handler_year::Item_get_cache(THD *thd, const Item *item) const
 }
 
 Item_cache *
-Type_handler_real_result::Item_get_cache(THD *thd, const Item *item) const
+Type_handler_double::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_real(thd);
+  return new (thd->mem_root) Item_cache_double(thd);
+}
+
+Item_cache *
+Type_handler_float::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_float(thd);
 }
 
 Item_cache *
@@ -3575,11 +3607,24 @@ Type_handler_int_result::Item_func_hybrid_field_type_get_date(
 /***************************************************************************/
 
 String *
-Type_handler_real_result::Item_func_hybrid_field_type_val_str(
+Type_handler_double::Item_func_hybrid_field_type_val_str(
                                            Item_func_hybrid_field_type *item,
                                            String *str) const
 {
   return item->val_str_from_real_op(str);
+}
+
+
+String *
+Type_handler_float::Item_func_hybrid_field_type_val_str(
+                                           Item_func_hybrid_field_type *item,
+                                           String *str) const
+{
+  Float nr(item->real_op());
+  if (item->null_value)
+    return 0;
+  nr.to_string(str, item->decimals);
+  return str;
 }
 
 
@@ -4042,10 +4087,21 @@ String *Type_handler_decimal_result::
 }
 
 
-String *Type_handler_real_result::
+String *Type_handler_double::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
   return func->val_string_from_real(str);
+}
+
+
+String *Type_handler_float::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  Float nr(func->val_real());
+  if (func->null_value)
+    return 0;
+  nr.to_string(str, func->decimals);
+  return str;
 }
 
 

@@ -25,6 +25,7 @@
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
+#include "sql_type_real.h"
 
 class Field;
 class Column_definition;
@@ -1779,7 +1780,6 @@ public:
                                  const st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
-  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
@@ -1799,8 +1799,6 @@ public:
   longlong Item_val_int_signed_typecast(Item *item) const;
   longlong Item_val_int_unsigned_typecast(Item *item) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
-  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
-                                              String *) const;
   double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
                                               const;
   longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
@@ -1811,7 +1809,6 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
-  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
@@ -2611,6 +2608,11 @@ public:
                           TABLE *table) const;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const;
+
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
 };
 
 
@@ -2643,6 +2645,11 @@ public:
                           TABLE *table) const;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const;
+
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
 };
 
 
