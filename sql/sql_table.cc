@@ -64,7 +64,7 @@ const char *primary_key_name="PRIMARY";
 static bool check_if_keyname_exists(const char *name,KEY *start, KEY *end);
 static char *make_unique_key_name(THD *thd, const char *field_name, KEY *start,
                                   KEY *end);
-static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
+static bool make_unique_constraint_name(THD *thd, LEX_STRING *name,
                                         List<Virtual_column_info> *vcol,
                                         uint *nr);
 static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
@@ -78,6 +78,8 @@ static bool prepare_blob_field(THD *thd, Column_definition *sql_field);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
+static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
+                                  *check_constraint_list);
 
 /**
   @brief Helper function for explain_filename
@@ -4178,15 +4180,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   /* Check table level constraints */
   create_info->check_constraint_list= &alter_info->check_constraint_list;
   {
-    uint nr= 1;
     List_iterator_fast<Virtual_column_info> c_it(alter_info->check_constraint_list);
     Virtual_column_info *check;
     while ((check= c_it++))
     {
-      if (!check->name.length)
-        make_unique_constraint_name(thd, &check->name,
-                                    &alter_info->check_constraint_list,
-                                    &nr);
+      if (!check->name.length || check->automatic_name)
+        continue;
+
       {
         /* Check that there's no repeating constraint names. */
         List_iterator_fast<Virtual_column_info>
@@ -4722,6 +4722,9 @@ int create_table_impl(THD *thd,
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db, table_name, internal_tmp_table, path));
 
+  if (fix_constraints_names(thd, &alter_info->check_constraint_list))
+    DBUG_RETURN(1);
+
   if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
   {
     if (create_info->data_file_name)
@@ -5185,7 +5188,7 @@ make_unique_key_name(THD *thd, const char *field_name,KEY *start,KEY *end)
    Make an unique name for constraints without a name
 */
 
-static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
+static bool make_unique_constraint_name(THD *thd, LEX_STRING *name,
                                         List<Virtual_column_info> *vcol,
                                         uint *nr)
 {
@@ -5208,9 +5211,10 @@ static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
     {
       name->length= (size_t) (real_end - buff);
       name->str= thd->strmake(buff, name->length);
-      return;
+      return (name->str == NULL);
     }
   }
+  return FALSE;
 }
 
 
@@ -5793,10 +5797,11 @@ static bool is_candidate_key(KEY *key)
      from the list if existing found.
 
    RETURN VALUES
-     NONE
+     TRUE error
+     FALSE OK
 */
 
-static void
+static bool
 handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
 {
   Field **f_ptr;
@@ -6199,6 +6204,7 @@ remove_key:
     Virtual_column_info *check;
     TABLE_SHARE *share= table->s;
     uint c;
+
     while ((check=it++))
     {
       if (!(check->flags & Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
@@ -6226,9 +6232,43 @@ remove_key:
     }
   }
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
+
+static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
+                                  *check_constraint_list)
+{
+  List_iterator<Virtual_column_info> it((*check_constraint_list));
+  Virtual_column_info *check;
+  uint nr= 1;
+  DBUG_ENTER("fix_constraints_names");
+  if (!check_constraint_list)
+    DBUG_RETURN(FALSE);
+  // Prevent accessing freed memory during generating unique names
+  while ((check=it++))
+  {
+    if (check->automatic_name)
+    {
+      check->name.str= NULL;
+      check->name.length= 0;
+    }
+  }
+  it.rewind();
+  // Generate unique names if needed
+  while ((check=it++))
+  {
+    if (!check->name.length)
+    {
+      check->automatic_name= TRUE;
+      if (make_unique_constraint_name(thd, &check->name,
+                                      check_constraint_list,
+                                      &nr))
+        DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
 
 /**
   Get Create_field object for newly created table by field index.
@@ -9076,7 +9116,10 @@ do_continue:;
     }
   }
 
-  handle_if_exists_options(thd, table, alter_info);
+  if (handle_if_exists_options(thd, table, alter_info) ||
+      fix_constraints_names(thd, &alter_info->check_constraint_list))
+    DBUG_RETURN(true);
+
 
   /*
     Look if we have to do anything at all.
