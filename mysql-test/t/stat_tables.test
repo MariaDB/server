@@ -469,9 +469,29 @@ CREATE VIEW v AS SELECT * FROM t1 JOIN t2;
 INSERT INTO t2 SELECT * FROM x;
 
 select * from information_schema.tables where table_name='v';
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 
 drop table t1,t2;
 drop view v;
+
+--echo #
+--echo # MDEV-19407: Assertion `field->table->stats_is_read' failed in is_eits_usable
+--echo #
+
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity= 1;
+set @@use_stat_tables='never';
+create table t1(pk int);
+insert into t1 values (4),(3);
+set @@optimizer_use_condition_selectivity= 4;
+set use_stat_tables='preferably';
+
+--error ER_NO_SUCH_TABLE
+INSERT INTO t1 SELECT * FROM x;
+CREATE TABLE t2 SELECT pk FROM t1 WHERE pk>2;
+select * from t2;
+drop table t1,t2;
+
 set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 
 set @save_optimizer_switch=@@optimizer_switch;

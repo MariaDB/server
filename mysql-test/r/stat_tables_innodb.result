@@ -734,8 +734,27 @@ ERROR 42S02: Table 'test.x' doesn't exist
 select * from information_schema.tables where table_name='v';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT
 def	test	v	VIEW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1,t2;
 drop view v;
+#
+# MDEV-19407: Assertion `field->table->stats_is_read' failed in is_eits_usable
+#
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity= 1;
+set @@use_stat_tables='never';
+create table t1(pk int);
+insert into t1 values (4),(3);
+set @@optimizer_use_condition_selectivity= 4;
+set use_stat_tables='preferably';
+INSERT INTO t1 SELECT * FROM x;
+ERROR 42S02: Table 'test.x' doesn't exist
+CREATE TABLE t2 SELECT pk FROM t1 WHERE pk>2;
+select * from t2;
+pk
+4
+3
+drop table t1,t2;
 set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set @save_optimizer_switch=@@optimizer_switch;
 set use_stat_tables=@save_use_stat_tables;

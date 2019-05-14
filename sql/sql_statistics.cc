@@ -2191,6 +2191,9 @@ inline bool statistics_for_command_is_needed(THD *thd)
   case SQLCOM_DELETE_MULTI:
   case SQLCOM_REPLACE:
   case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_CREATE_TABLE:
+  case SQLCOM_SET_OPTION:
+  case SQLCOM_DO:
     break;
   default: 
     return FALSE;
