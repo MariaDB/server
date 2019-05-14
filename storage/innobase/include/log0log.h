@@ -411,8 +411,6 @@ extern my_bool	innodb_log_checksums;
 /* The counting of lsn's starts from this value: this must be non-zero */
 #define LOG_START_LSN		((lsn_t) (16 * OS_FILE_LOG_BLOCK_SIZE))
 
-#define LOG_BUFFER_SIZE		(srv_log_buffer_size * UNIV_PAGE_SIZE)
-
 /* Offsets of a log block header */
 #define	LOG_BLOCK_HDR_NO	0	/* block number which must be > 0 and
 					is allowed to wrap around at 2G; the
@@ -644,8 +642,6 @@ struct log_t{
 					later; this is advanced when a flush
 					operation is completed to all the log
 					groups */
-	volatile bool	is_extending;	/*!< this is set to true during extend
-					the log buffer size */
 	lsn_t		write_lsn;	/*!< last written lsn */
 	lsn_t		current_flush_lsn;/*!< end lsn for the current running
 					write + flush operation */
