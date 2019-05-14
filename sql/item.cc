@@ -9963,11 +9963,20 @@ longlong Item_cache_real::val_int()
 }
 
 
-String* Item_cache_real::val_str(String *str)
+String* Item_cache_double::val_str(String *str)
 {
   if (!has_value())
     return NULL;
   str->set_real(value, decimals, default_charset());
+  return str;
+}
+
+
+String* Item_cache_float::val_str(String *str)
+{
+  if (!has_value())
+    return NULL;
+  Float((float) value).to_string(str, decimals);
   return str;
 }
 

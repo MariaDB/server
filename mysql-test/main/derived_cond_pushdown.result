@@ -7884,7 +7884,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = 2.7100000381469727",
+      "attached_condition": "sq.i = 2.71",
       "materialized": {
         "query_block": {
           "select_id": 2,
