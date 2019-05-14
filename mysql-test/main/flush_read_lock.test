@@ -2106,15 +2106,16 @@ CREATE TABLE mysqltest.t1(a INT);
 HANDLER mysqltest.t1 OPEN as t1;
 
 connect (con1,localhost,root,,);
-SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready1';
 --send LOCK TABLE mysqltest.t1 WRITE
+
 connect (con2,localhost,root,,);
-SET DEBUG_SYNC= 'now WAIT_FOR ready';
-SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+SET DEBUG_SYNC= 'now WAIT_FOR ready1';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready2';
 --send DROP DATABASE mysqltest
 
 connect (con3,localhost,root,,);
-SET DEBUG_SYNC= 'now WAIT_FOR ready';
+SET DEBUG_SYNC= 'now WAIT_FOR ready2';
 
 connection default;
 send FLUSH TABLES WITH READ LOCK;
