@@ -63,8 +63,9 @@ SET DEBUG_SYNC = "now WAIT_FOR agac_reached_2";
 wsrep_last_seen_gtid_no_match
 1
 SET DEBUG_SYNC = "now SIGNAL agac_continue_1";
-SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
 connection node_1;
+connection ctrl;
+SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
 connection node_1a;
 connection ctrl;
 SET DEBUG_SYNC = "RESET";

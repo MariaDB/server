@@ -124,10 +124,13 @@ SET DEBUG_SYNC = "now WAIT_FOR agac_reached_2";
 --enable_query_log
 
 SET DEBUG_SYNC = "now SIGNAL agac_continue_1";
-SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
 
 --connection node_1
 --reap
+
+--connection ctrl
+SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
+
 --connection node_1a
 --reap
 
