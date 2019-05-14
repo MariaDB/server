@@ -1500,7 +1500,8 @@ error_exit:
 		doc_id = fts_get_doc_id_from_row(table, node->row);
 
 		if (doc_id <= 0) {
-			ib::error() << "FTS Doc ID must be large than 0";
+			ib::error() << "FTS_DOC_ID must be larger than 0 for table "
+				    << table->name;
 			err = DB_FTS_INVALID_DOCID;
 			trx->error_state = DB_FTS_INVALID_DOCID;
 			goto error_exit;
@@ -1511,8 +1512,7 @@ error_exit:
 				= table->fts->cache->next_doc_id;
 
 			if (doc_id < next_doc_id) {
-
-				ib::error() << "FTS Doc ID must be large than "
+				ib::error() << "FTS_DOC_ID must be larger than "
 					<< next_doc_id - 1 << " for table "
 					<< table->name;
 
@@ -2120,7 +2120,7 @@ row_mysql_freeze_data_dictionary_func(
 {
 	ut_a(trx->dict_operation_lock_mode == 0);
 
-	rw_lock_s_lock_inline(dict_operation_lock, 0, file, line);
+	rw_lock_s_lock_inline(&dict_operation_lock, 0, file, line);
 
 	trx->dict_operation_lock_mode = RW_S_LATCH;
 }
@@ -2136,7 +2136,7 @@ row_mysql_unfreeze_data_dictionary(
 
 	ut_a(trx->dict_operation_lock_mode == RW_S_LATCH);
 
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	trx->dict_operation_lock_mode = 0;
 }
@@ -2324,7 +2324,7 @@ row_mysql_lock_data_dictionary_func(
 	/* Serialize data dictionary operations with dictionary mutex:
 	no deadlocks or lock waits can occur then in these operations */
 
-	rw_lock_x_lock_inline(dict_operation_lock, 0, file, line);
+	rw_lock_x_lock_inline(&dict_operation_lock, 0, file, line);
 	trx->dict_operation_lock_mode = RW_X_LATCH;
 
 	mutex_enter(&dict_sys->mutex);
@@ -2345,7 +2345,7 @@ row_mysql_unlock_data_dictionary(
 	no deadlocks can occur then in these operations */
 
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	trx->dict_operation_lock_mode = 0;
 }
@@ -2369,7 +2369,7 @@ row_create_table_for_mysql(
 	que_thr_t*	thr;
 	dberr_t		err;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 
@@ -2510,7 +2510,7 @@ row_create_index_for_mysql(
 	ulint		len;
 	dict_table_t*	table = index->table;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	for (i = 0; i < index->n_def; i++) {
@@ -3332,7 +3332,7 @@ row_drop_table_for_mysql(
 	}
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	table = dict_table_open_on_name(
 		name, TRUE, FALSE,

@@ -111,7 +111,7 @@ row_purge_remove_clust_if_poss_low(
 	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 
 	index = dict_table_get_first_index(node->table);
@@ -787,7 +787,7 @@ whose old history can no longer be observed.
 @param[in,out]	mtr	mini-transaction (will be started and committed) */
 static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 {
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
 	mtr->start();
@@ -863,7 +863,7 @@ row_purge_upd_exist_or_extern_func(
 {
 	mem_heap_t*	heap;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 	ut_ad(!node->table->skip_alter_undo);
 
@@ -1062,7 +1062,7 @@ row_purge_parse_undo_rec(
 	for this row */
 
 try_again:
-	rw_lock_s_lock_inline(dict_operation_lock, 0, __FILE__, __LINE__);
+	rw_lock_s_lock_inline(&dict_operation_lock, 0, __FILE__, __LINE__);
 
 	node->table = dict_table_open_on_id(
 		table_id, FALSE, DICT_TABLE_OP_NORMAL);
@@ -1093,7 +1093,7 @@ try_again:
 		if (!mysqld_server_started) {
 
 			dict_table_close(node->table, FALSE, FALSE);
-			rw_lock_s_unlock(dict_operation_lock);
+			rw_lock_s_unlock(&dict_operation_lock);
 			if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 				return(false);
 			}
@@ -1123,7 +1123,7 @@ inaccessible:
 		dict_table_close(node->table, FALSE, FALSE);
 		node->table = NULL;
 err_exit:
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_operation_lock);
 		node->skip(table_id, trx_id);
 		return(false);
 	}
@@ -1259,10 +1259,10 @@ row_purge(
 				node, undo_rec, thr, updated_extern);
 
 			if (!node->vcol_info.is_used()) {
-				rw_lock_s_unlock(dict_operation_lock);
+				rw_lock_s_unlock(&dict_operation_lock);
 			}
 
-			ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
+			ut_ad(!rw_lock_own(&dict_operation_lock, RW_LOCK_S));
 
 			if (purged
 			    || srv_shutdown_state != SRV_SHUTDOWN_NONE

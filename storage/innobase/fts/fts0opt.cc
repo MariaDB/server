@@ -1778,8 +1778,6 @@ fts_optimize_words(
 	fetch.read_arg = optim->words;
 	fetch.read_record = fts_optimize_index_fetch_node;
 
-	ib::info().write(word->f_str, word->f_len);
-
 	while (!optim->done) {
 		dberr_t	error;
 		trx_t*	trx = optim->trx;

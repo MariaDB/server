@@ -2007,13 +2007,7 @@ void log_t::close()
   buf = NULL;
 
   os_event_destroy(flush_event);
-
   rw_lock_free(&checkpoint_lock);
-  /* rw_lock_free() already called checkpoint_lock.~rw_lock_t();
-  tame the debug assertions when the destructor will be called once more. */
-  ut_ad(checkpoint_lock.magic_n == 0);
-  ut_d(checkpoint_lock.magic_n = RW_LOCK_MAGIC_N);
-
   mutex_free(&mutex);
   mutex_free(&write_mutex);
   mutex_free(&log_flush_order_mutex);

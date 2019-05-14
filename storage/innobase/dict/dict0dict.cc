@@ -95,7 +95,7 @@ in S-mode; we cannot trust that MySQL protects implicit or background
 operations a table drop since MySQL does not know of them; therefore
 we need this; NOTE: a transaction which reserves this must keep book
 on the mode in trx_t::dict_operation_lock_mode */
-rw_lock_t*	dict_operation_lock;
+rw_lock_t	dict_operation_lock;
 
 /** Percentage of compression failures that are allowed in a single
 round */
@@ -549,7 +549,7 @@ dict_table_close_and_drop(
 	dberr_t err = DB_SUCCESS;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(trx->dict_operation != TRX_DICT_OP_NONE);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 
@@ -1078,9 +1078,6 @@ void
 dict_init(void)
 /*===========*/
 {
-	dict_operation_lock = static_cast<rw_lock_t*>(
-		ut_zalloc_nokey(sizeof(*dict_operation_lock)));
-
 	dict_sys = static_cast<dict_sys_t*>(ut_zalloc_nokey(sizeof(*dict_sys)));
 
 	UT_LIST_INIT(dict_sys->table_LRU, &dict_table_t::table_LRU);
@@ -1097,7 +1094,7 @@ dict_init(void)
 		/ (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE));
 
 	rw_lock_create(dict_operation_lock_key,
-		       dict_operation_lock, SYNC_DICT_OPERATION);
+		       &dict_operation_lock, SYNC_DICT_OPERATION);
 
 	if (!srv_read_only_mode) {
 		dict_foreign_err_file = os_file_create_tmpfile();
@@ -1325,7 +1322,7 @@ dict_table_can_be_evicted(
 	dict_table_t*	table)		/*!< in: table to test */
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	ut_a(table->can_be_evicted);
 	ut_a(table->foreign_set.empty());
@@ -1393,7 +1390,7 @@ dict_make_room_in_cache(
 	ut_a(pct_check > 0);
 	ut_a(pct_check <= 100);
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(dict_lru_validate());
 
 	i = len = UT_LIST_GET_LEN(dict_sys->table_LRU);
@@ -2030,7 +2027,7 @@ dict_table_remove_from_cache_low(
 		trx_t* trx = trx_create();
 
 		ut_ad(mutex_own(&dict_sys->mutex));
-		ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+		ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 		/* Mimic row_mysql_lock_data_dictionary(). */
 		trx->dict_operation_lock_mode = RW_X_LATCH;
@@ -5956,7 +5953,7 @@ dict_index_set_merge_threshold(
 	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&(dict_sys->mutex));
 
 	heap = mem_heap_create(sizeof(dtuple_t) + 2 * (sizeof(dfield_t)
@@ -6006,7 +6003,7 @@ dict_index_set_merge_threshold(
 	mem_heap_free(heap);
 
 	mutex_exit(&(dict_sys->mutex));
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 }
 
 #ifdef UNIV_DEBUG
@@ -6600,10 +6597,7 @@ dict_close(void)
 	mutex_exit(&dict_sys->mutex);
 	mutex_free(&dict_sys->mutex);
 
-	rw_lock_free(dict_operation_lock);
-
-	ut_free(dict_operation_lock);
-	dict_operation_lock = NULL;
+	rw_lock_free(&dict_operation_lock);
 
 	mutex_free(&dict_foreign_err_mutex);
 
@@ -7014,7 +7008,7 @@ dict_space_is_empty(
 	mtr_t		mtr;
 	bool		found = false;
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -7037,7 +7031,7 @@ dict_space_is_empty(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	return(!found);
 }
@@ -7055,7 +7049,7 @@ dict_space_get_id(
 	ulint		name_len = strlen(name);
 	ulint		id = ULINT_UNDEFINED;
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -7086,7 +7080,7 @@ dict_space_get_id(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	return(id);
 }

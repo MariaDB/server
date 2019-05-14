@@ -328,14 +328,24 @@ the
 www
 select * from information_schema.innodb_ft_deleted;
 DOC_ID
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_deleted but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_being_deleted;
 DOC_ID
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_being_deleted but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_index_cache;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_index_cache but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_index_table;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_index_table but the InnoDB storage engine is not installed
 select * from information_schema.innodb_ft_config;
 KEY	VALUE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_ft_config but the InnoDB storage engine is not installed
 select * from information_schema.innodb_buffer_page;
 POOL_ID	BLOCK_ID	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	PAGE_STATE	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
 Warnings:
