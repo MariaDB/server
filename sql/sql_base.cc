@@ -586,6 +586,12 @@ bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
     Marks all tables in the list which were used by current substatement
     (they are marked by its query_id) as free for reuse.
 
+    Clear 'check_table_binlog_row_based_done' flag. For tables which were used
+    by current substatement the flag is cleared as part of 'ha_reset()' call.
+    For the rest of the open tables not used by current substament if this
+    flag is enabled as part of current substatement execution, clear the flag
+    explicitly.
+
   NOTE
     The reason we reset query_id is that it's not enough to just test
     if table->query_id != thd->query_id to know if a table is in use.
@@ -607,6 +613,8 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
       table->query_id= 0;
       table->file->ha_reset();
     }
+    else if (table->file->check_table_binlog_row_based_done)
+      table->file->clear_cached_table_binlog_row_based_flag();
   }
 }
 

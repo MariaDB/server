@@ -6394,8 +6394,8 @@ int handler::ha_reset()
   table->default_column_bitmaps();
   pushed_cond= NULL;
   tracker= NULL;
-  mark_trx_read_write_done= check_table_binlog_row_based_done=
-    check_table_binlog_row_based_result= 0;
+  mark_trx_read_write_done= 0;
+  clear_cached_table_binlog_row_based_flag();
   /* Reset information about pushed engine conditions */
   cancel_pushed_idx_cond();
   /* Reset information about pushed index conditions */
