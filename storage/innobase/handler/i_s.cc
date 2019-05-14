@@ -2867,7 +2867,7 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	}
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
@@ -3277,7 +3277,7 @@ i_s_fts_index_cache_fill(
 		DBUG_RETURN(0);
 	}
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
@@ -3724,7 +3724,7 @@ i_s_fts_index_table_fill(
 		DBUG_RETURN(0);
 	}
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
@@ -3887,7 +3887,7 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
