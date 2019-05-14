@@ -252,7 +252,7 @@ static my_bool get_dbopt(THD *thd, const char *dbname,
     create->default_table_charset= opt->charset;
     if (opt->comment.length)
     {
-      create->schema_comment= thd->make_clex_string(const_cast<char*>(opt->comment.str),
+      create->schema_comment= thd->make_clex_string(opt->comment.str,
                                                     opt->comment.length);
     }
     error= 0;
@@ -344,7 +344,8 @@ static void del_dbopt(const char *path)
   Create database options file:
 
   DESCRIPTION
-    Currently database default charset, default collation and comment are stored there.
+    Currently database default charset, default collation
+    and comment are stored there.
 
   RETURN VALUES
   0	ok
@@ -361,16 +362,19 @@ static bool write_db_opt(THD *thd, const char *path,
   if (create->schema_comment)
   {
     if (validate_comment_length(thd, create->schema_comment,
-                                DATABASE_COMMENT_MAXLEN, ER_TOO_LONG_DATABASE_COMMENT,
+                                DATABASE_COMMENT_MAXLEN,
+                                ER_TOO_LONG_DATABASE_COMMENT,
                                 thd->lex->name.str))
       return error;
   }
 
-  /* Use existing values of schema_comment and charset for ALTER DATABASE queries */
-  Schema_specification_st tmp;
-  bzero((char*) &tmp,sizeof(tmp));
-  if (thd->lex->sql_command == SQLCOM_ALTER_DB)
+  if (thd->lex->sql_command == SQLCOM_ALTER_DB &&
+      (!create->schema_comment || !create->default_table_charset))
   {
+    /* Use existing values of schema_comment and charset for
+       ALTER DATABASE queries */
+    Schema_specification_st tmp;
+    tmp.init();
     load_db_opt(thd, path, &tmp);
 
     if (!create->schema_comment)

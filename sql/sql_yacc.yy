@@ -1686,8 +1686,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    and until NEXT_SYM / PREVIOUS_SYM.
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
-%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER
-%left   COMMENT_SYM
+%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER COMMENT_SYM
 
 
 /*
@@ -8046,7 +8045,8 @@ opt_ev_sql_stmt:
         ;
 
 ident_or_empty:
-          /* empty */ %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE { $$= Lex_ident_sys(); }
+          /* empty */
+          %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE { $$= Lex_ident_sys(); }
         | ident
         ;
 

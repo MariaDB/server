@@ -1945,7 +1945,8 @@ enum enum_stats_auto_recalc { HA_STATS_AUTO_RECALC_DEFAULT= 0,
 
   It stores the "schema_specification" part of the CREATE/ALTER statements and
   is passed to mysql_create_db() and  mysql_alter_db().
-  Currently consists of the schema default character set, collation and schema_comment.
+  Currently consists of the schema default character set, collation
+  and schema_comment.
 */
 struct Schema_specification_st
 {

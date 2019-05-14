@@ -5323,7 +5323,8 @@ bool store_schema_schemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
   table->field[2]->store(cs->csname, strlen(cs->csname), system_charset_info);
   table->field[3]->store(cs->name, strlen(cs->name), system_charset_info);
   if (schema_comment)
-    table->field[5]->store(schema_comment->str, schema_comment->length, system_charset_info);
+    table->field[5]->store(schema_comment->str, schema_comment->length,
+                           system_charset_info);
   return schema_table_store_record(thd, table);
 }
 
@@ -5391,7 +5392,8 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       load_db_opt_by_name(thd, db_name->str, &create);
       if (store_schema_schemata(thd, table, db_name,
-                                create.default_table_charset, create.schema_comment))
+                                create.default_table_charset,
+                                create.schema_comment))
         DBUG_RETURN(1);
     }
   }
@@ -9054,7 +9056,8 @@ ST_FIELD_INFO schema_fields_info[]=
   {"DEFAULT_COLLATION_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
    SKIP_OPEN_TABLE},
   {"SQL_PATH", FN_REFLEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"SCHEMA_COMMENT", DATABASE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"SCHEMA_COMMENT", DATABASE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
