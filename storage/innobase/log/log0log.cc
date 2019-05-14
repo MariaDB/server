@@ -169,86 +169,50 @@ void
 log_buffer_extend(
 	ulint	len)
 {
-	ulint	move_start;
-	ulint	move_end;
-	byte	tmp_buf[OS_FILE_LOG_BLOCK_SIZE];
+	ulint new_log_buffer_size = len / UNIV_PAGE_SIZE + 1;
+	byte* new_buf_ptr = static_cast<byte*>(ut_zalloc_nokey(
+	    new_log_buffer_size * UNIV_PAGE_SIZE * 2 + OS_FILE_LOG_BLOCK_SIZE));
+	TRASH_ALLOC(new_buf_ptr, new_log_buffer_size * UNIV_PAGE_SIZE * 2
+				     + OS_FILE_LOG_BLOCK_SIZE);
 
 	log_mutex_enter_all();
 
-	while (log_sys->is_extending) {
-		/* Another thread is trying to extend already.
-		Needs to wait for. */
+	if (len <= LOG_BUFFER_SIZE) {
+		/* Already extended enough by the others */
 		log_mutex_exit_all();
-
-		log_buffer_flush_to_disk();
-
-		log_mutex_enter_all();
-
-		if (srv_log_buffer_size > len / UNIV_PAGE_SIZE) {
-			/* Already extended enough by the others */
-			log_mutex_exit_all();
-			return;
-		}
+		ut_free(new_buf_ptr);
+		return;
 	}
 
-	if (len >= log_sys->buf_size / 2) {
-		DBUG_EXECUTE_IF("ib_log_buffer_is_short_crash",
-				DBUG_SUICIDE(););
+	DBUG_EXECUTE_IF("ib_log_buffer_is_short_crash", DBUG_SUICIDE(););
 
-		/* log_buffer is too small. try to extend instead of crash. */
-		ib::warn() << "The transaction log size is too large"
-			" for innodb_log_buffer_size (" << len << " >= "
-			<< LOG_BUFFER_SIZE << " / 2). Trying to extend it.";
-	}
+	ib::warn() << "The transaction log size is too large"
+		      " for innodb_log_buffer_size ("
+		   << len << " >= " << LOG_BUFFER_SIZE
+		   << "). Trying to extend it.";
 
-	log_sys->is_extending = true;
+	byte* old_buf_ptr = log_sys->buf_ptr;
+	const byte* begin = log_sys->buf;
+	const byte* end = begin + log_sys->buf_free;
 
-	while ((log_sys->buf_free ^ log_sys->buf_next_to_write)
-	       & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
-		/* Buffer might have >1 blocks to write still. */
-		log_mutex_exit_all();
-
-		log_buffer_flush_to_disk();
-
-		log_mutex_enter_all();
-	}
-
-	move_start = ut_2pow_round(log_sys->buf_free,
-				   ulint(OS_FILE_LOG_BLOCK_SIZE));
-	move_end = log_sys->buf_free;
-
-	/* store the last log block in buffer */
-	ut_memcpy(tmp_buf, log_sys->buf + move_start,
-		  move_end - move_start);
-
-	log_sys->buf_free -= move_start;
-	log_sys->buf_next_to_write -= move_start;
-
-	/* reallocate log buffer */
-	srv_log_buffer_size = len / UNIV_PAGE_SIZE + 1;
-	ut_free(log_sys->buf_ptr);
-
+	log_sys->buf_ptr = new_buf_ptr;
+	srv_log_buffer_size = new_log_buffer_size;
 	log_sys->buf_size = LOG_BUFFER_SIZE;
+	log_sys->buf
+	    = static_cast<byte*>(ut_align(new_buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
 
-	log_sys->buf_ptr = static_cast<byte*>(
-		ut_zalloc_nokey(log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE));
-	TRASH_ALLOC(log_sys->buf_ptr,
-		    log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE);
-	log_sys->buf = static_cast<byte*>(
-		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
+	if (!log_sys->first_in_use) {
+		log_sys->buf += log_sys->buf_size;
+	}
 
-	log_sys->first_in_use = true;
+	memcpy(log_sys->buf, begin, end - begin);
 
 	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
 
-	/* restore the last log block */
-	ut_memcpy(log_sys->buf, tmp_buf, move_end - move_start);
-
-	ut_ad(log_sys->is_extending);
-	log_sys->is_extending = false;
-
 	log_mutex_exit_all();
+
+	ut_free(old_buf_ptr);
 
 	ib::info() << "innodb_log_buffer_size was extended to "
 		<< LOG_BUFFER_SIZE << ".";
@@ -359,20 +323,6 @@ log_reserve_and_open(
 
 loop:
 	ut_ad(log_mutex_own());
-
-	if (log_sys->is_extending) {
-		log_mutex_exit();
-
-		/* Log buffer size is extending. Writing up to the next block
-		should wait for the extending finished. */
-
-		os_thread_sleep(100000);
-
-		ut_ad(++count < 50);
-
-		log_mutex_enter();
-		goto loop;
-	}
 
 	/* Calculate an upper limit for the space the string may take in the
 	log buffer */

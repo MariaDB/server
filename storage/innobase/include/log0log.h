@@ -644,8 +644,6 @@ struct log_t{
 					later; this is advanced when a flush
 					operation is completed to all the log
 					groups */
-	volatile bool	is_extending;	/*!< this is set to true during extend
-					the log buffer size */
 	lsn_t		write_lsn;	/*!< last written lsn */
 	lsn_t		current_flush_lsn;/*!< end lsn for the current running
 					write + flush operation */
