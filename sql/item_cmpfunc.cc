@@ -5578,6 +5578,34 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
   return FALSE;
 }
 
+
+/** System versioning: in case of non-versioned DML remove versioning
+    conditions. This is needed because versioning condition is added before
+    fix_fields() and non-versioned DML is detected after field is fixed
+    (vers_write is set to false).
+*/
+Item* Item_func_eq::vers_remove_conds_transformer(THD* thd, uchar* t_arg)
+{
+  DBUG_ASSERT(!t_arg);
+  Item **arg, **arg_end;
+  for (arg= args, arg_end= args + arg_count; arg != arg_end; arg++)
+  {
+    DBUG_ASSERT(*arg);
+    Item &i= **arg;
+    if (i.is_fixed() && i.type() == FIELD_ITEM && i.origin == Item::ORIGIN_VERS_COND) {
+      Item_field &f= static_cast<Item_field &>(i);
+      DBUG_ASSERT(f.field);
+      DBUG_ASSERT(f.field->table);
+      DBUG_ASSERT(f.field->table->versioned());
+      DBUG_ASSERT(f.field->vers_sys_field());
+      if (!f.field->table->vers_write)
+        return new (thd->mem_root) Item_bool(thd, true);
+    }
+  }
+  return this;
+}
+
+
 bool Item_func_like::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);

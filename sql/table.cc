@@ -8393,24 +8393,17 @@ void TABLE::vers_update_fields()
 
   DBUG_EXECUTE("vers", vers_print("Update fields", ""););
 
+  if (!vers_write)
+  {
+    DBUG_PRINT("vers", (" SKIPPED!\n"));
+    return;
+  }
+
   if (versioned(VERS_TIMESTAMP))
   {
-    if (!vers_write)
-    {
-      DBUG_PRINT("vers", (" SKIPPED!\n"));
-      return;
-    }
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                             in_use->query_start_sec_part()))
       DBUG_ASSERT(0);
-  }
-  else
-  {
-    if (!vers_write)
-    {
-      DBUG_PRINT("vers", (" SKIPPED!\n"));
-      return;
-    }
   }
 
   vers_end_field()->set_max();

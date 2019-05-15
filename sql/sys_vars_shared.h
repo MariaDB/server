@@ -83,5 +83,6 @@ public:
   ~AutoRLock() { if (lock) lock->unlock(); }
 };
 
+bool vers_check_modify_history(sys_var *self, THD *thd, set_var *var);
 
 #endif /* SYS_VARS_SHARED_INCLUDED */

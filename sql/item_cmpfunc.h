@@ -731,6 +731,7 @@ public:
   friend class  Arg_comparator;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_eq>(thd, this); }
+  virtual Item *vers_remove_conds_transformer(THD *thd, uchar *t_arg);
 };
 
 class Item_func_equal :public Item_bool_rowready_func2

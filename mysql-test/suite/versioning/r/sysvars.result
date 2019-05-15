@@ -141,3 +141,141 @@ SELECT @@global.system_versioning_asof;
 @@global.system_versioning_asof
 2002-01-01 00:00:00.000000
 SET @@global.system_versioning_asof= DEFAULT;
+#
+# MDEV-16546 System versioning setting to allow history modification
+#
+set system_versioning_modify_history= ON;
+create or replace table t (
+a int primary key,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t values (1);
+update t set a= 2;
+## UPDATE of historical row
+update t set row_start= @s1, row_end= @e1 where a= 1 and row_end is not null;
+## UPDATE of current row
+update t set row_start= @s2, row_end= @e2 where a= 2;
+## INSERT historical row
+insert into t (a, row_start, row_end) values (3, @s3, @e3);
+## normal INSERT
+insert into t (a) values (4);
+select * from t;
+a
+4
+## normal UPDATE
+update t set a= 5;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	CURRENT ROW
+## Multi-row INSERT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) values (1, @s1, @e1), (2, @s2, @e2);
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+## INSERT..SELECT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	CURRENT ROW
+## Multi-UPDATE
+update t, t2 set t.row_start= @s1, t2.row_start= @s1, t.row_end= @s1, t2.row_end= @s1 where t.a > 3 and t2.a > 3;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+## REPLACE
+replace t (a, row_start, row_end) values (1, @s3, @e1), (2, @e2, @e2);
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end < row_start
+2	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+## DELETE
+delete from t where a = 1 or row_end = @e2;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+delete from t2 where row_end < row_start;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+## Multi-DELETE
+delete t, t2 from t join t2 where t.row_end = t2.row_end and t.a < 5 and t2.a < 5;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+5	ERROR: row_end == row_start
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+5	ERROR: row_end == row_start
+## Honor secure_timestamp option
+### Check prohibition from command-line (see mysqld_option_err.test for explanations)
+### Check prohibition from SQL
+# restart: --secure-timestamp=YES
+select @@secure_timestamp;
+@@secure_timestamp
+YES
+set system_versioning_modify_history= ON;
+ERROR HY000: Modifying history is prohibited, set `secure_timestamp` to NO or SUPER
+# restart: --secure-timestamp=REPLICATION
+select @@secure_timestamp;
+@@secure_timestamp
+REPLICATION
+set system_versioning_modify_history= ON;
+ERROR HY000: Modifying history is prohibited, set `secure_timestamp` to NO or SUPER
+### Check --secure-timestamp=SUPER
+# restart: --secure-timestamp=SUPER --system-versioning-modify-history=ON
+#### Non-root is not good
+create user nobody;
+connect  non_root, localhost, nobody,,;
+insert into t (a, row_start, row_end) values (6, @s3, @e3);
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+insert into t (a) values (7);
+update t set row_end= @e3 where a = 7;
+Got one of the listed errors
+#### Root is good
+connection default;
+insert into t (a, row_start, row_end) values (6, @s3, @e3);
+update t set row_start= @s3, row_end= @e3 where a = 7;
+### Check --secure-timestamp=NO
+# restart: --secure-timestamp=NO --system-versioning-modify-history=ON
+insert into t (a, row_start, row_end) values (8, @s3, @e3);
+insert into t (a) values (9);
+update t set row_start= @s3, row_end= @e3 where a = 9;
+delete from t where row_end= @e3 and a = 8;
+connect  non_root2, localhost, nobody,,;
+insert into t (a, row_start, row_end) values (10, @s3, @e3);
+insert into t (a) values (11);
+update t set row_start= @s3, row_end= @e3 where a = 11;
+Got one of the listed errors
+drop database test;
+create database test;

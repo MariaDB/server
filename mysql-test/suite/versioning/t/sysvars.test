@@ -1,3 +1,9 @@
+if ($MTR_COMBINATION_IMPLICIT) {
+  if ($MTR_COMBINATION_TRX_ID) {
+    --skip Incompatible combinations
+  }
+}
+
 create table t (a int) with system versioning;
 insert into t values (1);
 update t set a= 2;
@@ -97,3 +103,135 @@ SET sql_mode=TIME_ROUND_FRACTIONAL;
 SET @@global.system_versioning_asof= timestamp'2001-12-31 23:59:59.9999999';
 SELECT @@global.system_versioning_asof;
 SET @@global.system_versioning_asof= DEFAULT;
+
+
+--echo #
+--echo # MDEV-16546 System versioning setting to allow history modification
+--echo #
+--source suite/versioning/engines.inc
+--source suite/versioning/common.inc
+--source suite/versioning/t/sysvars_data.inc
+set system_versioning_modify_history= ON;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t (
+  a int primary key,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+
+if ($MTR_COMBINATION_IMPLICIT) {
+--disable_query_log
+  create or replace table t (a int primary key) with system versioning;
+--enable_query_log
+}
+
+
+insert into t values (1);
+update t set a= 2;
+
+--echo ## UPDATE of historical row
+update t set row_start= @s1, row_end= @e1 where a= 1 and row_end is not null;
+--echo ## UPDATE of current row
+update t set row_start= @s2, row_end= @e2 where a= 2;
+--echo ## INSERT historical row
+insert into t (a, row_start, row_end) values (3, @s3, @e3);
+--echo ## normal INSERT
+# TODO: implement DEFAULT values for row_start, row_end. Hard to do now because of TRX_ID.
+insert into t (a) values (4);
+select * from t;
+--echo ## normal UPDATE
+update t set a= 5;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+--echo ## Multi-row INSERT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) values (1, @s1, @e1), (2, @s2, @e2);
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+--echo ## INSERT..SELECT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+--echo ## Multi-UPDATE
+update t, t2 set t.row_start= @s1, t2.row_start= @s1, t.row_end= @s1, t2.row_end= @s1 where t.a > 3 and t2.a > 3;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+--echo ## REPLACE
+replace t (a, row_start, row_end) values (1, @s3, @e1), (2, @e2, @e2);
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+--echo ## DELETE
+delete from t where a = 1 or row_end = @e2;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+delete from t2 where row_end < row_start;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+--echo ## Multi-DELETE
+delete t, t2 from t join t2 where t.row_end = t2.row_end and t.a < 5 and t2.a < 5;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+
+
+--echo ## Honor secure_timestamp option
+--echo ### Check prohibition from command-line (see mysqld_option_err.test for explanations)
+--let DATA_DIR=$MYSQLTEST_VARDIR/tmp/versioning_sysvars_data
+--let LOG=$DATA_DIR/mysqltest.log
+--let MYSQLD_CMD=$MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$DATA_DIR --skip-grant-tables
+mkdir $DATA_DIR;
+--error 1
+exec $MYSQLD_CMD --secure-timestamp=YES --system-versioning-modify-history=ON >$LOG 2>&1;
+--error 1
+exec $MYSQLD_CMD --secure-timestamp=REPLICATION --system-versioning-modify-history=ON >$LOG 2>&1;
+
+--echo ### Check prohibition from SQL
+--let $restart_parameters= --secure-timestamp=YES
+--source include/restart_mysqld.inc
+select @@secure_timestamp;
+--error ER_VERS_MODIFY_HISTORY
+set system_versioning_modify_history= ON;
+
+--let $restart_parameters= --secure-timestamp=REPLICATION
+--source include/restart_mysqld.inc
+select @@secure_timestamp;
+--error ER_VERS_MODIFY_HISTORY
+set system_versioning_modify_history= ON;
+
+--echo ### Check --secure-timestamp=SUPER
+--let $restart_parameters= --secure-timestamp=SUPER --system-versioning-modify-history=ON
+--source include/restart_mysqld.inc
+--echo #### Non-root is not good
+create user nobody;
+connect (non_root, localhost, nobody,,);
+--source suite/versioning/t/sysvars_data.inc
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into t (a, row_start, row_end) values (6, @s3, @e3);
+insert into t (a) values (7);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN, ER_BAD_FIELD_ERROR
+update t set row_end= @e3 where a = 7;
+--echo #### Root is good
+connection default;
+--source suite/versioning/t/sysvars_data.inc
+insert into t (a, row_start, row_end) values (6, @s3, @e3);
+update t set row_start= @s3, row_end= @e3 where a = 7;
+# select a, row_start, row_end from t for system_time all where a >= 6 order by a;
+
+--echo ### Check --secure-timestamp=NO
+--let $restart_parameters= --secure-timestamp=NO --system-versioning-modify-history=ON
+--source include/restart_mysqld.inc
+--source suite/versioning/t/sysvars_data.inc
+insert into t (a, row_start, row_end) values (8, @s3, @e3);
+insert into t (a) values (9);
+update t set row_start= @s3, row_end= @e3 where a = 9;
+# select a, row_start, row_end from t for system_time all where a >= 8 order by a;
+delete from t where row_end= @e3 and a = 8;
+# select a, row_start, row_end from t for system_time all where a >= 8 order by a;
+
+connect (non_root2, localhost, nobody,,);
+--source suite/versioning/t/sysvars_data.inc
+insert into t (a, row_start, row_end) values (10, @s3, @e3);
+insert into t (a) values (11);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN, ER_BAD_FIELD_ERROR
+update t set row_start= @s3, row_end= @e3 where a = 11;
+# select a, row_start, row_end from t for system_time all where a = 10 order by a;
+
+drop database test;
+create database test;
+

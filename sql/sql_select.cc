@@ -793,6 +793,7 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
   conds->field_end=   newx Item_field(thd, &select->context,
                                       table->db.str, table->alias.str,
                                       thd->make_clex_string(fend));
+  conds->field_start->origin= conds->field_end->origin= Item::ORIGIN_VERS_COND;
 
   Item *cond1= NULL, *cond2= NULL, *cond3= NULL, *curr= NULL;
   if (timestamp)
@@ -951,7 +952,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   {
     for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
-      if (table->table && table->table->versioned())
+      if (table->table && table->table->versioned() && table->table->vers_write)
         versioned_tables++;
       else if (table->vers_conditions.is_set() &&
               (table->is_non_derived() || !table->vers_conditions.used))
