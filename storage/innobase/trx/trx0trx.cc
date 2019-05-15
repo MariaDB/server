@@ -515,6 +515,7 @@ void trx_disconnect_prepared(trx_t *trx)
   trx->mysql_thd= NULL;
   /* todo/fixme: suggest to do it at innodb prepare */
   trx->will_lock= 0;
+  trx_sys.rw_trx_hash.put_pins(trx);
 }
 
 /****************************************************************//**

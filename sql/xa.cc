@@ -624,6 +624,21 @@ bool trans_xa_rollback(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
+  MDL_request mdl_request;
+  mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+      MDL_STATEMENT);
+  if (thd->mdl_context.acquire_lock(&mdl_request,
+        thd->variables.lock_wait_timeout))
+  {
+    /*
+      We can't rollback an XA transaction on lock failure due to
+      Innodb redo log and bin log update is involved in rollback.
+      Return error to user for a retry.
+    */
+    my_error(ER_XAER_RMERR, MYF(0));
+    DBUG_RETURN(true);
+  }
+
   if (xid_state.xid_cache_element->xa_state == XA_PREPARED &&
       xid_state.is_binlogged() &&
       (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()))

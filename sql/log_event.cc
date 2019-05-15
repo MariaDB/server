@@ -7978,7 +7978,12 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
-  if (thd->transaction.xid_state.xid_cache_element &&
+  /*
+    A non-transaction DML in the middle of XA can create own separate from
+    the transaction GTID and event group.
+  */
+  if (is_transactional &&
+      thd->transaction.xid_state.xid_cache_element &&
       thd->lex->xa_opt != XA_ONE_PHASE)
   {
     DBUG_ASSERT(thd->transaction.xid_state.xid_cache_element->xa_state == XA_IDLE ||
@@ -8326,7 +8331,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   if ((flags2 & FL_PREPARED_XA) && !is_flashback)
   {
     my_b_write_string(&cache, "XA START ");
-    my_b_write(&cache, (uchar*) xid.serialize(), strlen(xid.buf));
+    xid.serialize();
+    my_b_write(&cache, (uchar*) xid.buf, strlen(xid.buf));
     if (my_b_printf(&cache, "%s\n", print_event_info->delimiter))
       goto err;
   }

@@ -480,11 +480,12 @@ XA RECOVER;
 
 --source include/wait_until_count_sessions.inc
 
+--echo # MDEV-7974 related
 --echo # Check XA state when lock_wait_timeout happens
 --echo # More tests added to flush_read_lock.test
 connect (con_tmp,localhost,root,,);
 set session lock_wait_timeout=1;
-create table asd (a int);
+create table asd (a int) engine=innodb;
 xa start 'test1';
 insert into asd values(1);
 xa end 'test1';
