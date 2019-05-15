@@ -781,34 +781,29 @@ ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *))
 }
 
 
-
-static my_bool closecon_handlerton(THD *thd, plugin_ref plugin,
-                                   void *unused)
-{
-  handlerton *hton= plugin_hton(plugin);
-  /*
-    there's no need to rollback here as all transactions must
-    be rolled back already
-  */
-  if (hton->state == SHOW_OPTION_YES && thd_get_ha_data(thd, hton))
-  {
-    if (hton->close_connection)
-      hton->close_connection(hton, thd);
-    /* make sure ha_data is reset and ha_data_lock is released */
-    thd_set_ha_data(thd, hton, NULL);
-  }
-  return FALSE;
-}
-
 /**
   @note
     don't bother to rollback here, it's done already
+
+  there's no need to rollback here as all transactions must
+  be rolled back already
 */
 void ha_close_connection(THD* thd)
 {
-  plugin_foreach_with_mask(thd, closecon_handlerton,
-                           MYSQL_STORAGE_ENGINE_PLUGIN,
-                           PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
+  for (auto i= 0; i < MAX_HA; i++)
+  {
+    if (thd->ha_data[i].lock)
+    {
+      handlerton *hton= plugin_hton(thd->ha_data[i].lock);
+      if (hton->close_connection)
+        hton->close_connection(hton, thd);
+      /* make sure SE didn't reset ha_data in close_connection() */
+      DBUG_ASSERT(thd->ha_data[i].lock);
+      /* make sure ha_data is reset and ha_data_lock is released */
+      thd_set_ha_data(thd, hton, 0);
+    }
+    DBUG_ASSERT(!thd->ha_data[i].ha_ptr);
+  }
 }
 
 static my_bool kill_handlerton(THD *thd, plugin_ref plugin,
