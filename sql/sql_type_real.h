@@ -16,6 +16,7 @@
 #ifndef SQL_TYPE_REAL_INCLUDED
 #define SQL_TYPE_REAL_INCLUDED
 
+#include <cmath>
 
 class Float
 {
