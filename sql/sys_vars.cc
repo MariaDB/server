@@ -462,6 +462,37 @@ static Sys_var_enum Sys_vers_alter_history(
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
 
+bool vers_check_modify_history(sys_var *self, THD *thd, set_var *var)
+{
+  const bool modify_history_val= var ?
+    (bool) var->save_result.ulonglong_value :
+    global_system_variables.vers_modify_history;
+  if (modify_history_val == 0)
+    return false; // allow setting to OFF unconditionally
+  if (opt_secure_timestamp >= SECTIME_REPL)
+  {
+    if (thd)
+      my_error(ER_VERS_MODIFY_HISTORY, MYF(0));
+    else
+      sql_print_error("Modifying system versioning history is prohibited, set `secure_timestamp` to NO or SUPER");
+    return true;
+  }
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  if (opt_secure_timestamp == SECTIME_SUPER && thd &&
+      !(thd->security_ctx->master_access & SUPER_ACL))
+  {
+    my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
+    return true;
+  }
+#endif
+  return false;
+}
+
+static Sys_var_mybool Sys_vers_modify_history(
+       "system_versioning_modify_history", "Allow history modification by DML",
+       SESSION_VAR(vers_modify_history), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(vers_check_modify_history));
+
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "

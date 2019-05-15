@@ -9008,7 +9008,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (thread_cache_size > max_connections)
     SYSVAR_AUTOSIZE(thread_cache_size, max_connections);
 
-  return 0;
+  return vers_check_modify_history(NULL, NULL, NULL);
 }
 
 

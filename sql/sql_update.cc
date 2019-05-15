@@ -1049,7 +1049,7 @@ update_begin:
         {
           if (has_vers_fields && table->versioned())
           {
-            if (table->versioned(VERS_TIMESTAMP))
+            if (table->versioned_write(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               table->mark_columns_per_binlog_row_image();
@@ -1277,7 +1277,7 @@ update_end:
   if (likely(error < 0) && likely(!thd->lex->analyze_stmt))
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    if (!table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
+    if ((!table->versioned(VERS_TIMESTAMP) && !table_list->has_period()) || !table->vers_write)
       my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                   (ulong) updated,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
@@ -2557,7 +2557,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           }
           else if (has_vers_fields && table->versioned())
           {
-            if (table->versioned(VERS_TIMESTAMP))
+            if (table->versioned_write(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               if (table->vers_insert_history_row())
@@ -2863,7 +2863,7 @@ int multi_update::do_updates()
 
           if (has_vers_fields && table->versioned())
           {
-            if (table->versioned(VERS_TIMESTAMP))
+            if (table->versioned_write(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               if ((local_error= table->vers_insert_history_row()))

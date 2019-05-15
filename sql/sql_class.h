@@ -769,6 +769,7 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;
+  my_bool vers_modify_history;
 } SV;
 
 /**
@@ -5021,6 +5022,8 @@ public:
   Item *sp_fix_func_item(Item **it_addr);
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
+
+  bool vers_modify_history();
 };
 
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */

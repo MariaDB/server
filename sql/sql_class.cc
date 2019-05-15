@@ -6912,6 +6912,41 @@ static bool protect_against_unsafe_warning_flood(int unsafe_type)
   DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
 }
 
+bool THD::vers_modify_history()
+{
+  if (!variables.vers_modify_history)
+    return false;
+  // Item::transform() doesn't support permanent transformation
+  if (stmt_arena->is_stmt_prepare())
+    return false;
+  // enforced by vers_check_modify_history()
+  DBUG_ASSERT(opt_secure_timestamp < SECTIME_REPL);
+  const bool super= security_ctx->master_access & SUPER_ACL;
+
+  switch (lex->sql_command)
+  {
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+  {
+    if (opt_secure_timestamp == SECTIME_SUPER && !super)
+    {
+      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
+      return false;
+    }
+    return true;
+  }
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_REPLACE:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+    return super;
+  default:;
+  }
+
+  return false;
+}
+
 MYSQL_TIME THD::query_start_TIME()
 {
   MYSQL_TIME res;
