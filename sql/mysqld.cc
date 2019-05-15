@@ -2688,10 +2688,15 @@ static bool cache_thread(THD *thd)
       _db_pop_();
 #endif
 
-    while (! wake_thread && ! kill_cached_threads)
+    while (!wake_thread)
     {
       int error= mysql_cond_timedwait(&COND_thread_cache, &LOCK_thread_cache,
                                        &abstime);
+      if (kill_cached_threads)
+      {
+        mysql_cond_signal(&COND_flush_thread_cache);
+        break;
+      }
       if (error == ETIMEDOUT || error == ETIME)
       {
         /*
@@ -2703,14 +2708,9 @@ static bool cache_thread(THD *thd)
       }
     }
     cached_thread_count--;
-    if (kill_cached_threads)
-      mysql_cond_signal(&COND_flush_thread_cache);
-    if (wake_thread)
+    if (auto connect= thread_cache.get())
     {
-      CONNECT *connect;
-
       wake_thread--;
-      connect= thread_cache.get();
       mysql_mutex_unlock(&LOCK_thread_cache);
 
       if (!(connect->create_thd(thd)))
