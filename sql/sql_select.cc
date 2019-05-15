@@ -14635,8 +14635,20 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         table->table->maybe_null= FALSE;
       table->outer_join= 0;
       if (!(straight_join || table->straight))
-        table->dep_tables= table->embedding && !table->embedding->sj_subq_pred ?
-                             table->embedding->dep_tables : 0;
+      {
+        table->dep_tables= 0;
+        TABLE_LIST *embedding= table->embedding;
+        while (embedding)
+        {
+          if (embedding->nested_join->join_list.head()->outer_join)
+          {
+            if (!embedding->sj_subq_pred)
+              table->dep_tables= embedding->dep_tables;
+            break;
+          }
+          embedding= embedding->embedding;
+        }
+      }
       if (table->on_expr)
       {
         /* Add ON expression to the WHERE or upper-level ON condition. */
