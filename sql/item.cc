@@ -10168,7 +10168,7 @@ String* Item_cache_float::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   if (!has_value())
     return NULL;
-  Float((float) value).to_string(str, decimals);
+  Float(value).to_string(str, decimals);
   return str;
 }
 
