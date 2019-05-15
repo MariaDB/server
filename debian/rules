@@ -116,8 +116,8 @@ override_dh_auto_install:
 
 ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit
-	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.4.mariadb.service
-	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.4.mariadb@.service
+	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.5.mariadb.service
+	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.5.mariadb@.service
 endif
 
 	# make install
@@ -130,12 +130,12 @@ endif
 
 	# nm numeric soft is not enough, therefore extra sort in command
 	# to satisfy Debian reproducible build requirements
-	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.4/mysqld.sym.gz
+	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.5/mysqld.sym.gz
 
 	# rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
 	# install Apport hook
-	install -D -m 644 debian/mariadb-server-10.4.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.4.py
+	install -D -m 644 debian/mariadb-server-10.5.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.5.py
 
 	# Install libmariadbclient18 compatibility links
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so

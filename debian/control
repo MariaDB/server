@@ -1,4 +1,4 @@
-Source: mariadb-10.4
+Source: mariadb-10.5
 Section: database
 Priority: optional
 Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
@@ -232,7 +232,7 @@ Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
  This package includes files needed by all versions of the client library
  (e.g. /etc/mysql/conf.d/mariadb.cnf).
 
-Package: mariadb-client-core-10.4
+Package: mariadb-client-core-10.5
 Architecture: any
 Depends: mariadb-common (>= ${source:Version}),
          ${misc:Depends},
@@ -241,6 +241,7 @@ Conflicts: mariadb-client-10.0,
            mariadb-client-10.1,
            mariadb-client-10.2,
            mariadb-client-10.3,
+           mariadb-client-10.4,
            mariadb-client-5.1,
            mariadb-client-5.2,
            mariadb-client-5.3,
@@ -249,6 +250,7 @@ Conflicts: mariadb-client-10.0,
            mariadb-client-core-10.1,
            mariadb-client-core-10.2,
            mariadb-client-core-10.3,
+           mariadb-client-core-10.4,
            mariadb-client-core-5.1,
            mariadb-client-core-5.2,
            mariadb-client-core-5.3,
@@ -266,6 +268,7 @@ Replaces: mariadb-client-10.0,
           mariadb-client-10.1,
           mariadb-client-10.2,
           mariadb-client-10.3,
+          mariadb-client-10.4,
           mariadb-client-5.1,
           mariadb-client-5.2,
           mariadb-client-5.3,
@@ -274,6 +277,7 @@ Replaces: mariadb-client-10.0,
           mariadb-client-core-10.1,
           mariadb-client-core-10.2,
           mariadb-client-core-10.3,
+          mariadb-client-core-10.4,
           mariadb-client-core-5.1,
           mariadb-client-core-5.2,
           mariadb-client-core-5.3,
@@ -302,10 +306,10 @@ Description: MariaDB database core client binaries
  .
  This package includes the core client files, as used by Akonadi.
 
-Package: mariadb-client-10.4
+Package: mariadb-client-10.5
 Architecture: any
 Depends: debianutils (>=1.6),
-         mariadb-client-core-10.4 (>= ${source:Version}),
+         mariadb-client-core-10.5 (>= ${source:Version}),
          mariadb-common,
          ${misc:Depends},
          ${perl:Depends},
@@ -315,6 +319,7 @@ Conflicts: mariadb-client (<< ${source:Version}),
            mariadb-client-10.1,
            mariadb-client-10.2,
            mariadb-client-10.3,
+           mariadb-client-10.4,
            mariadb-client-5.1,
            mariadb-client-5.2,
            mariadb-client-5.3,
@@ -331,6 +336,7 @@ Replaces: mariadb-client (<< ${source:Version}),
           mariadb-client-10.1,
           mariadb-client-10.2,
           mariadb-client-10.3,
+          mariadb-client-10.4,
           mariadb-client-5.1,
           mariadb-client-5.2,
           mariadb-client-5.3,
@@ -362,7 +368,7 @@ Description: MariaDB database client binaries
  This package includes the client binaries and the additional tools
  innotop and mysqlreport.
 
-Package: mariadb-server-core-10.4
+Package: mariadb-server-core-10.5
 Architecture: any
 Depends: mariadb-common (>= ${source:Version}),
          ${misc:Depends},
@@ -371,6 +377,7 @@ Conflicts: mariadb-server-core-10.0,
            mariadb-server-core-10.1,
            mariadb-server-core-10.2,
            mariadb-server-core-10.3,
+           mariadb-server-core-10.4,
            mariadb-server-core-5.1,
            mariadb-server-core-5.2,
            mariadb-server-core-5.3,
@@ -386,16 +393,21 @@ Breaks: mariadb-client-10.0,
         mariadb-client-10.1,
         mariadb-client-10.2,
         mariadb-client-10.3,
-        mariadb-server-10.3
+        mariadb-server-10.3,
+        mariadb-client-10.4,
+        mariadb-server-10.4
 Replaces: mariadb-client-10.0,
           mariadb-client-10.1,
           mariadb-client-10.2,
           mariadb-client-10.3,
           mariadb-server-10.3,
+          mariadb-client-10.4,
+          mariadb-server-10.4,
           mariadb-server-core-10.0,
           mariadb-server-core-10.1,
           mariadb-server-core-10.2,
           mariadb-server-core-10.3,
+          mariadb-server-core-10.4,
           mariadb-server-core-5.1,
           mariadb-server-core-5.2,
           mariadb-server-core-5.3,
@@ -422,7 +434,7 @@ Description: MariaDB database core server files
  .
  This package includes the core server files, as used by Akonadi.
 
-Package: mariadb-server-10.4
+Package: mariadb-server-10.5
 Architecture: any
 Suggests: mailx,
           mariadb-test,
@@ -438,8 +450,8 @@ Depends: galera-4 (>=26.4),
          libdbi-perl,
          lsb-base (>= 3.0-10),
          lsof,
-         mariadb-client-10.4 (>= ${source:Version}),
-         mariadb-server-core-10.4 (>= ${binary:Version}),
+         mariadb-client-10.5 (>= ${source:Version}),
+         mariadb-server-core-10.5 (>= ${binary:Version}),
          passwd,
          perl (>= 5.6),
          psmisc,
@@ -452,6 +464,7 @@ Conflicts: mariadb-server (<< ${source:Version}),
            mariadb-server-10.1,
            mariadb-server-10.2,
            mariadb-server-10.3,
+           mariadb-server-10.4,
            mariadb-server-5.1,
            mariadb-server-5.2,
            mariadb-server-5.3,
@@ -475,6 +488,7 @@ Replaces: libmariadbclient-dev (<< 5.5.0),
           mariadb-server-10.1,
           mariadb-server-10.2,
           mariadb-server-10.3,
+          mariadb-server-10.4,
           mariadb-server-5.1,
           mariadb-server-5.2,
           mariadb-server-5.3,
@@ -503,11 +517,11 @@ Description: MariaDB database server binaries
 
 Package: mariadb-server
 Architecture: all
-Depends: mariadb-server-10.4 (>= ${source:Version}),
+Depends: mariadb-server-10.5 (>= ${source:Version}),
          ${misc:Depends}
 Description: MariaDB database server (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
- mariadb-server (currently mariadb-server-10.4), as determined by the MariaDB
+ mariadb-server (currently mariadb-server-10.5), as determined by the MariaDB
  maintainers. Install this package if in doubt about which MariaDB
  version you need. That will install the version recommended by the
  package maintainers.
@@ -519,11 +533,11 @@ Description: MariaDB database server (metapackage depending on the latest versio
 
 Package: mariadb-client
 Architecture: all
-Depends: mariadb-client-10.4 (>= ${source:Version}),
+Depends: mariadb-client-10.5 (>= ${source:Version}),
          ${misc:Depends}
 Description: MariaDB database client (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
- mariadb-client (currently mariadb-client-10.4), as determined by the MariaDB
+ mariadb-client (currently mariadb-client-10.5), as determined by the MariaDB
  maintainers.  Install this package if in doubt about which MariaDB version
  you want, as this is the one considered to be in the best shape.
 
@@ -533,7 +547,7 @@ Breaks: mariadb-backup-10.1,
         mariadb-backup-10.2
 Replaces: mariadb-backup-10.1,
           mariadb-backup-10.2
-Depends: mariadb-client-core-10.4 (= ${binary:Version}),
+Depends: mariadb-client-core-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
@@ -546,16 +560,18 @@ Description: Backup tool for MariaDB server
 Package: mariadb-plugin-connect
 Architecture: any
 Depends: libxml2,
-         mariadb-server-10.4 (= ${binary:Version}),
+         mariadb-server-10.5 (= ${binary:Version}),
          unixodbc,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-connect-engine-10.1,
         mariadb-connect-engine-10.2,
-        mariadb-connect-engine-10.3
+        mariadb-connect-engine-10.3,
+        mariadb-connect-engine-10.4
 Replaces: mariadb-connect-engine-10.1,
           mariadb-connect-engine-10.2,
-          mariadb-connect-engine-10.3
+          mariadb-connect-engine-10.3,
+          mariadb-connect-engine-10.4
 Description: Connect storage engine for MariaDB
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
@@ -564,13 +580,15 @@ Description: Connect storage engine for MariaDB
 
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
-Depends: mariadb-server-10.4 (= ${binary:Version}),
+Depends: mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-rocksdb-engine-10.2,
-        mariadb-rocksdb-engine-10.3
+        mariadb-rocksdb-engine-10.3,
+        mariadb-rocksdb-engine-10.4
 Replaces: mariadb-rocksdb-engine-10.2,
-          mariadb-rocksdb-engine-10.3
+          mariadb-rocksdb-engine-10.3,
+          mariadb-rocksdb-engine-10.4
 Recommends: python-mysqldb
 Description: RocksDB storage engine for MariaDB
  The RocksDB storage engine is a high performance storage engine, aimed
@@ -580,15 +598,17 @@ Description: RocksDB storage engine for MariaDB
 Package: mariadb-plugin-oqgraph
 Architecture: any
 Depends: libjudydebian1,
-         mariadb-server-10.4 (= ${binary:Version}),
+         mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-oqgraph-engine-10.1,
         mariadb-oqgraph-engine-10.2,
-        mariadb-oqgraph-engine-10.3
+        mariadb-oqgraph-engine-10.3,
+        mariadb-oqgraph-engine-10.4
 Replaces: mariadb-oqgraph-engine-10.1,
           mariadb-oqgraph-engine-10.2,
-          mariadb-oqgraph-engine-10.3
+          mariadb-oqgraph-engine-10.3,
+          mariadb-oqgraph-engine-10.4
 Description: OQGraph storage engine for MariaDB
  The OQGraph engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
@@ -597,17 +617,19 @@ Description: OQGraph storage engine for MariaDB
 Package: mariadb-plugin-tokudb
 Architecture: amd64
 Depends: libjemalloc1 (>= 3.0.0~) | libjemalloc2,
-         mariadb-server-10.4 (= ${binary:Version}),
+         mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2,
-        mariadb-server-10.3
+        mariadb-server-10.3,
+        mariadb-server-10.4
 Replaces: mariadb-server-10.0,
           mariadb-server-10.1,
           mariadb-server-10.2,
-          mariadb-server-10.3
+          mariadb-server-10.3,
+          mariadb-server-10.4
 Description: TokuDB storage engine for MariaDB
  The TokuDB storage engine is for use in high-performance and write-intensive
  environments, offering increased compression and better performance based
@@ -616,17 +638,19 @@ Description: TokuDB storage engine for MariaDB
 
 Package: mariadb-plugin-mroonga
 Architecture: any-alpha any-amd64 any-arm any-arm64 any-i386 any-ia64 any-mips64el any-mips64r6el any-mipsel any-mipsr6el any-nios2 any-powerpcel any-ppc64el any-sh3 any-sh4 any-tilegx
-Depends: mariadb-server-10.4 (= ${binary:Version}),
+Depends: mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2,
-        mariadb-server-10.3
+        mariadb-server-10.3,
+        mariadb-server-10.4
 Replaces: mariadb-server-10.0,
           mariadb-server-10.1,
           mariadb-server-10.2,
-          mariadb-server-10.3
+          mariadb-server-10.3,
+          mariadb-server-10.4
 Description: Mroonga storage engine for MariaDB
  Mroonga (formerly named Groonga Storage Engine) is a storage engine that
  provides fast CJK-ready full text searching using column store.
@@ -634,17 +658,19 @@ Description: Mroonga storage engine for MariaDB
 
 Package: mariadb-plugin-spider
 Architecture: any
-Depends: mariadb-server-10.4 (= ${binary:Version}),
+Depends: mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2,
-        mariadb-server-10.3
+        mariadb-server-10.3,
+        mariadb-server-10.4
 Replaces: mariadb-server-10.0,
           mariadb-server-10.1,
           mariadb-server-10.2,
-          mariadb-server-10.3
+          mariadb-server-10.3,
+          mariadb-server-10.4
 Description: Spider storage engine for MariaDB
  The Spider storage engine with built-in sharding features. It supports
  partitioning and xa transactions, and allows tables of different MariaDB
@@ -653,17 +679,19 @@ Description: Spider storage engine for MariaDB
 
 Package: mariadb-plugin-cassandra
 Architecture: any
-Depends: mariadb-server-10.4 (= ${binary:Version}),
+Depends: mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-10.2,
-        mariadb-server-10.3
+        mariadb-server-10.3,
+        mariadb-server-10.4
 Replaces: mariadb-server-10.0,
           mariadb-server-10.1,
           mariadb-server-10.2,
-          mariadb-server-10.3
+          mariadb-server-10.3,
+          mariadb-server-10.4
 Description: Cassandra storage engine for MariaDB
  The Cassandra Storage Engine allows access to data in a Cassandra cluster from
  MariaDB, combining the best of SQL and no-SQL worlds. Cassandra SE (storage
@@ -675,15 +703,17 @@ Description: Cassandra storage engine for MariaDB
 Package: mariadb-plugin-gssapi-server
 Architecture: any
 Depends: libgssapi-krb5-2,
-         mariadb-server-10.4 (= ${binary:Version}),
+         mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-gssapi-server-10.1,
         mariadb-gssapi-server-10.2,
-        mariadb-gssapi-server-10.3
+        mariadb-gssapi-server-10.3,
+        mariadb-gssapi-server-10.4
 Replaces: mariadb-gssapi-server-10.1,
           mariadb-gssapi-server-10.2,
-          mariadb-gssapi-server-10.3
+          mariadb-gssapi-server-10.3,
+          mariadb-gssapi-server-10.4
 Description: GSSAPI authentication plugin for MariaDB server
  This plugin includes support for Kerberos on Unix, but can also be used for
  Windows authentication with or without domain environment.
@@ -693,15 +723,17 @@ Description: GSSAPI authentication plugin for MariaDB server
 Package: mariadb-plugin-gssapi-client
 Architecture: any
 Depends: libgssapi-krb5-2,
-         mariadb-client-10.4 (= ${binary:Version}),
+         mariadb-client-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-gssapi-client-10.1,
         mariadb-gssapi-client-10.2,
-        mariadb-gssapi-client-10.3
+        mariadb-gssapi-client-10.3,
+        mariadb-gssapi-client-10.4
 Replaces: mariadb-gssapi-client-10.1,
           mariadb-gssapi-client-10.2,
-          mariadb-gssapi-client-10.3
+          mariadb-gssapi-client-10.3,
+          mariadb-gssapi-client-10.4
 Description: GSSAPI authentication plugin for MariaDB client
  This plugin includes support for Kerberos on Unix, but can also be used for
  Windows authentication with or without domain environment.
@@ -711,7 +743,7 @@ Description: GSSAPI authentication plugin for MariaDB client
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
 Depends: libcrack2 (>= 2.9.0),
-         mariadb-server-10.4 (= ${binary:Version}),
+         mariadb-server-10.5 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: CrackLib Password Validation Plugin for MariaDB
@@ -720,8 +752,8 @@ Description: CrackLib Password Validation Plugin for MariaDB
 
 Package: mariadb-test
 Architecture: any
-Depends: mariadb-client-10.4 (= ${binary:Version}),
-         mariadb-server-10.4 (= ${binary:Version}),
+Depends: mariadb-client-10.5 (= ${binary:Version}),
+         mariadb-server-10.5 (= ${binary:Version}),
          mariadb-test-data (= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
@@ -730,6 +762,7 @@ Breaks: mariadb-server-5.5,
         mariadb-test-10.1,
         mariadb-test-10.2,
         mariadb-test-10.3,
+        mariadb-test-10.4,
         mariadb-test-5.5,
         mysql-testsuite,
         mysql-testsuite-5.5,
@@ -741,6 +774,7 @@ Replaces: mariadb-server-5.5,
           mariadb-test-10.1,
           mariadb-test-10.2,
           mariadb-test-10.3,
+          mariadb-test-10.4,
           mariadb-test-5.5,
           mysql-testsuite,
           mysql-testsuite-5.5,
