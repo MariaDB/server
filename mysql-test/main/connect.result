@@ -415,29 +415,24 @@ SET global secure_auth=default;
 # connection is aborted prior to authentication
 #
 flush status;
-SHOW GLOBAL STATUS LIKE 'Aborted%';
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
-Aborted_clients	0
 Aborted_connects	0
 Aborted_connects_preauth	0
 SET GLOBAL log_warnings=2;
 NOT FOUND /This connection closed normally without authentication/ in mysqld.1.err
-SHOW GLOBAL STATUS LIKE 'Aborted%';
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
-Aborted_clients	0
 Aborted_connects	1
 Aborted_connects_preauth	1
 FOUND 1 /This connection closed normally without authentication/ in mysqld.1.err
-FOUND 52 /unauthenticated/ in mysqld.1.err
 SET @save_connect_timeout= @@connect_timeout;
 SET GLOBAL connect_timeout=2;
-SHOW GLOBAL STATUS LIKE 'Aborted%';
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
-Aborted_clients	0
 Aborted_connects	2
 Aborted_connects_preauth	2
 FOUND 2 /This connection closed normally without authentication/ in mysqld.1.err
-FOUND 53 /unauthenticated/ in mysqld.1.err
 SET GLOBAL log_warnings=default;
 SET GLOBAL connect_timeout= @save_connect_timeout;
 # End of 10.4 tests
