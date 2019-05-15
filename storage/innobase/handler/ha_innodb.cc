@@ -10948,6 +10948,8 @@ create_table_info_t::create_table_def()
 
 	heap = mem_heap_create(1000);
 
+    bool have_vers_start = false, have_vers_end = false;
+
 	for (ulint i = 0; i < n_cols; i++) {
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
@@ -10955,8 +10957,10 @@ create_table_info_t::create_table_def()
 		if (m_form->versioned()) {
 			if (i == m_form->s->row_start_field) {
 				vers_row = DATA_VERS_START;
+				have_vers_start = true;
 			} else if (i == m_form->s->row_end_field) {
 				vers_row = DATA_VERS_END;
+				have_vers_end = true;
 			} else if (!(field->flags
 				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
 				vers_row = DATA_VERSIONED;
@@ -11070,6 +11074,9 @@ err_col:
 				table, 0);
 		}
 	}
+
+	ut_ad(have_vers_start == have_vers_end && table->versioned() == have_vers_start);
+	ut_ad(!table->versioned() || table->vers_start != table->vers_end);
 
 	if (num_v) {
 		for (ulint i = 0; i < n_cols; i++) {
