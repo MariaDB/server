@@ -67,9 +67,9 @@ then
   sed 's/ --with systemd//' -i debian/rules
   sed '/systemd/d' -i debian/rules
   sed '/\.service/d' -i debian/rules
-  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.4.install
-  sed '/galera_recovery/d' -i debian/mariadb-server-10.4.install
-  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.4.install
+  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.5.install
+  sed '/galera_recovery/d' -i debian/mariadb-server-10.5.install
+  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.5.install
 fi
 
 # If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
@@ -113,7 +113,7 @@ then
   sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
   sed -i -e "/Package: mariadb-plugin-spider/,/^$/d" debian/control
   sed -i -e "/Package: mariadb-plugin-oqgraph/,/^$/d" debian/control
-  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.4.install
+  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.5.install
   sed -i -e "/Package: libmariadbd-dev/,/^$/d" debian/control
 fi
 

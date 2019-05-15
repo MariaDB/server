@@ -7,15 +7,15 @@ usr/lib/sysusers.d/sysusers.conf
 usr/lib/tmpfiles.d/tmpfiles.conf
 usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
 usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
-usr/share/doc/mariadb-server-10.4/COPYING
-usr/share/doc/mariadb-server-10.4/COPYING.AGPLv3
-usr/share/doc/mariadb-server-10.4/COPYING.GPLv2
-usr/share/doc/mariadb-server-10.4/COPYING.thirdparty
-usr/share/doc/mariadb-server-10.4/CREDITS
-usr/share/doc/mariadb-server-10.4/EXCEPTIONS-CLIENT
-usr/share/doc/mariadb-server-10.4/INSTALL-BINARY
-usr/share/doc/mariadb-server-10.4/PATENTS
-usr/share/doc/mariadb-server-10.4/README-wsrep
+usr/share/doc/mariadb-server-10.5/COPYING
+usr/share/doc/mariadb-server-10.5/COPYING.AGPLv3
+usr/share/doc/mariadb-server-10.5/COPYING.GPLv2
+usr/share/doc/mariadb-server-10.5/COPYING.thirdparty
+usr/share/doc/mariadb-server-10.5/CREDITS
+usr/share/doc/mariadb-server-10.5/EXCEPTIONS-CLIENT
+usr/share/doc/mariadb-server-10.5/INSTALL-BINARY
+usr/share/doc/mariadb-server-10.5/PATENTS
+usr/share/doc/mariadb-server-10.5/README-wsrep
 usr/share/groonga/COPYING
 usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
 usr/share/groonga-normalizer-mysql/README.md

@@ -48,7 +48,7 @@ stop_server() {
 
 ################################ main() ##########################
 
-this_version=10.4
+this_version=10.5
 max_upgradeable_version=5.7
 
 # Check if a flag file is found that indicates a previous MariaDB or MySQL
@@ -112,7 +112,7 @@ fi
 # Instead simply move the old datadir and create a new for this_version.
 if [ ! -z "$downgrade_detected" ]
 then
-  db_input critical mariadb-server-10.4/old_data_directory_saved || true
+  db_input critical mariadb-server-10.5/old_data_directory_saved || true
   db_go
   echo "The file $mysql_datadir/debian-$found_version.flag indicates a" 1>&2
   echo "version that cannot automatically be upgraded. Therefore the" 1>&2
