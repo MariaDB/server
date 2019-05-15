@@ -161,87 +161,42 @@ log_buf_pool_get_oldest_modification(void)
 @param[in]	len	requested minimum size in bytes */
 void log_buffer_extend(ulong len)
 {
-	byte	tmp_buf[OS_FILE_LOG_BLOCK_SIZE];
+	const ulong new_buf_size = ut_calc_align(len, srv_page_size);
+	byte* new_buf = static_cast<byte*>(
+		ut_malloc_dontdump(new_buf_size * 2));
+	TRASH_ALLOC(new_buf, new_buf_size * 2);
 
-	log_mutex_enter_all();
+	log_mutex_enter();
 
-	while (log_sys.is_extending) {
-		/* Another thread is trying to extend already.
-		Needs to wait for. */
-		log_mutex_exit_all();
-
-		log_buffer_flush_to_disk();
-
-		log_mutex_enter_all();
-
-		if (srv_log_buffer_size > len) {
-			/* Already extended enough by the others */
-			log_mutex_exit_all();
-			return;
-		}
+	if (len <= srv_log_buffer_size) {
+		/* Already extended enough by the others */
+		log_mutex_exit();
+		ut_free_dodump(new_buf, new_buf_size * 2);
+		return;
 	}
 
-	if (len >= srv_log_buffer_size / 2) {
-		DBUG_EXECUTE_IF("ib_log_buffer_is_short_crash",
-				DBUG_SUICIDE(););
+	ib::warn() << "The redo log transaction size " << len <<
+		" exceeds innodb_log_buffer_size="
+		<< srv_log_buffer_size << " / 2). Trying to extend it.";
 
-		/* log_buffer is too small. try to extend instead of crash. */
-		ib::warn() << "The redo log transaction size " << len <<
-			" exceeds innodb_log_buffer_size="
-			<< srv_log_buffer_size << " / 2). Trying to extend it.";
-	}
-
-	log_sys.is_extending = true;
-
-	while ((log_sys.buf_free ^ log_sys.buf_next_to_write)
-	       & (OS_FILE_LOG_BLOCK_SIZE - 1)) {
-		/* Buffer might have >1 blocks to write still. */
-		log_mutex_exit_all();
-
-		log_buffer_flush_to_disk();
-
-		log_mutex_enter_all();
-	}
-
-	ulong move_start = ut_2pow_round(log_sys.buf_free,
-					 ulong(OS_FILE_LOG_BLOCK_SIZE));
-	ulong move_end = log_sys.buf_free;
-
-	/* store the last log block in buffer */
-	ut_memcpy(tmp_buf, log_sys.buf + move_start,
-		  move_end - move_start);
-
-	log_sys.buf_free -= move_start;
-	log_sys.buf_next_to_write -= move_start;
-
-	/* free previous after getting the right address */
-	if (!log_sys.first_in_use) {
-		log_sys.buf -= srv_log_buffer_size;
-	}
-	ut_free_dodump(log_sys.buf, srv_log_buffer_size * 2);
-
-	/* reallocate log buffer */
-	srv_log_buffer_size = len;
-
-	log_sys.buf = static_cast<byte*>(
-		ut_malloc_dontdump(srv_log_buffer_size * 2));
-	TRASH_ALLOC(log_sys.buf, srv_log_buffer_size * 2);
-
+	const byte* old_buf_begin = log_sys.buf;
+	const ulong old_buf_size = srv_log_buffer_size;
+	byte* old_buf = log_sys.first_in_use
+		? log_sys.buf : log_sys.buf - old_buf_size;
+	srv_log_buffer_size = new_buf_size;
+	log_sys.buf = new_buf;
 	log_sys.first_in_use = true;
+	memcpy(log_sys.buf, old_buf_begin, log_sys.buf_free);
 
-	log_sys.max_buf_free = srv_log_buffer_size / LOG_BUF_FLUSH_RATIO
+	log_sys.max_buf_free = new_buf_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
 
-	/* restore the last log block */
-	ut_memcpy(log_sys.buf, tmp_buf, move_end - move_start);
+	log_mutex_exit();
 
-	ut_ad(log_sys.is_extending);
-	log_sys.is_extending = false;
-
-	log_mutex_exit_all();
+	ut_free_dodump(old_buf, old_buf_size);
 
 	ib::info() << "innodb_log_buffer_size was extended to "
-		<< srv_log_buffer_size << ".";
+		<< new_buf_size << ".";
 }
 
 /** Calculate actual length in redo buffer and file including
@@ -349,20 +304,6 @@ log_reserve_and_open(
 
 loop:
 	ut_ad(log_mutex_own());
-
-	if (log_sys.is_extending) {
-		log_mutex_exit();
-
-		/* Log buffer size is extending. Writing up to the next block
-		should wait for the extending finished. */
-
-		os_thread_sleep(100000);
-
-		ut_ad(++count < 50);
-
-		log_mutex_enter();
-		goto loop;
-	}
 
 	/* Calculate an upper limit for the space the string may take in the
 	log buffer */
@@ -619,7 +560,6 @@ void log_t::create()
   last_printout_time= time(NULL);
 
   buf_next_to_write= 0;
-  is_extending= false;
   write_lsn= lsn;
   flushed_to_disk_lsn= 0;
   n_pending_flushes= 0;

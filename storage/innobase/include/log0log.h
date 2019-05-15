@@ -527,7 +527,7 @@ struct log_t{
 					to the first half before freeing/resizing
 					must be undertaken. */
 	bool		first_in_use;	/*!< true if buf points to the first
-					half of the aligned(buf_ptr), false
+					half of the buffer, false
 					if the second half */
 	ulong		max_buf_free;	/*!< recommended maximum value of
 					buf_free for the buffer in use, after
@@ -611,8 +611,6 @@ struct log_t{
 					later; this is advanced when a flush
 					operation is completed to all the log
 					groups */
-	volatile bool	is_extending;	/*!< this is set to true during extend
-					the log buffer size */
 	lsn_t		write_lsn;	/*!< last written lsn */
 	lsn_t		current_flush_lsn;/*!< end lsn for the current running
 					write + flush operation */
