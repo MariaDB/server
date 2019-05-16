@@ -1377,11 +1377,10 @@ static void mrn_drop_database(handlerton *hton, char *path)
 static int mrn_close_connection(handlerton *hton, THD *thd)
 {
   MRN_DBUG_ENTER_FUNCTION();
-  void *p = *thd_ha_data(thd, mrn_hton_ptr);
+  void *p = thd_get_ha_data(thd, mrn_hton_ptr);
   if (p) {
     mrn_clear_slot_data(thd);
     free(p);
-    *thd_ha_data(thd, mrn_hton_ptr) = (void *) NULL;
     {
       mrn::Lock lock(&mrn_allocated_thds_mutex);
       my_hash_delete(&mrn_allocated_thds, (uchar*) thd);
@@ -2040,7 +2039,7 @@ static int mrn_deinit(void *p)
       mrn_clear_slot_data(tmp_thd);
       void *slot_ptr = mrn_get_slot_data(tmp_thd, false);
       if (slot_ptr) free(slot_ptr);
-      *thd_ha_data(tmp_thd, mrn_hton_ptr) = (void *) NULL;
+      thd_set_ha_data(tmp_thd, mrn_hton_ptr, 0);
       my_hash_delete(&mrn_allocated_thds, (uchar *) tmp_thd);
     }
   }
