@@ -5629,6 +5629,24 @@ DROP FUNCTION f;
 DROP VIEW v1;
 DROP FUNCTION f;
 #
+# MDEV-788 New option to ignore foreign key contraints in mysqlimport
+#
+create table t1 (
+id int primary key
+) engine=InnoDB;
+create table t2 (
+t1_id int,
+CONSTRAINT fk
+FOREIGN KEY (t1_id) REFERENCES t1 (id)
+) ENGINE = InnoDB;
+select count(*) from t2;
+count(*)
+1
+select count(*) from t2;
+count(*)
+2
+drop tables t2, t1;
+#
 # Test for --add-drop-trigger
 #
 use test;
