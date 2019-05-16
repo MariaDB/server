@@ -769,10 +769,8 @@ static int sphinx_close_connection ( handlerton * hton, THD * thd )
 {
 	// deallocate common handler data
 	SPH_ENTER_FUNC();
-	void ** tmp = thd_ha_data ( thd, hton );
-	CSphTLS * pTls = (CSphTLS *) (*tmp);
+	CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, hton );
 	SafeDelete ( pTls );
-	*tmp = NULL;
 	SPH_RET(0);
 }
 
@@ -844,7 +842,7 @@ bool sphinx_show_status ( THD * thd )
 
 #if MYSQL_VERSION_ID>50100
 	// 5.1.x style stats
-	CSphTLS * pTls = (CSphTLS*) ( *thd_ha_data ( thd, hton ) );
+	CSphTLS * pTls = (CSphTLS*) ( thd_get_ha_data ( thd, hton ) );
 
 #define LOC_STATS(_key,_keylen,_val,_vallen) \
 	stat_print ( thd, sphinx_hton_name, strlen(sphinx_hton_name), _key, _keylen, _val, _vallen );
@@ -2118,11 +2116,7 @@ int ha_sphinx::open ( const char * name, int, uint )
 
 	thr_lock_data_init ( &m_pShare->m_tLock, &m_tLock, NULL );
 
-	#if MYSQL_VERSION_ID>50100
-	*thd_ha_data ( table->in_use, ht ) = NULL;
-	#else
-	table->in_use->ha_data [ sphinx_hton.slot ] = NULL;
-	#endif
+	thd_set_ha_data ( table->in_use, ht, 0 );
 
 	SPH_RET(0);
 }
@@ -2802,23 +2796,16 @@ CSphSEThreadTable * ha_sphinx::GetTls()
 {
 	SPH_ENTER_METHOD()
 	// where do we store that pointer in today's version?
-	CSphTLS ** ppTls;
-#if MYSQL_VERSION_ID>50100
-	ppTls = (CSphTLS**) thd_ha_data ( table->in_use, ht );
-#else
-	ppTls = (CSphTLS**) &current_thd->ha_data[sphinx_hton.slot];
-#endif // >50100
+	CSphTLS * pTls = (CSphTLS*) thd_get_ha_data ( table->in_use, ht );
 
 	CSphSEThreadTable * pTable = NULL;
 	// allocate if needed
-	if ( !*ppTls )
+	if ( !pTls )
 	{
-		*ppTls = new CSphTLS ( this );
-		pTable = (*ppTls)->m_pHeadTable;
-	} else
-	{
-		pTable = (*ppTls)->m_pHeadTable;
+		pTls = new CSphTLS ( this );
+		thd_set_ha_data(table->in_use, ht, pTls);
 	}
+	pTable = pTls->m_pHeadTable;
 
 	while ( pTable && pTable->m_pHandler!=this )
 		pTable = pTable->m_pTableNext;
@@ -2826,8 +2813,8 @@ CSphSEThreadTable * ha_sphinx::GetTls()
 	if ( !pTable )
 	{
 		pTable = new CSphSEThreadTable ( this );
-		pTable->m_pTableNext = (*ppTls)->m_pHeadTable;
-		(*ppTls)->m_pHeadTable = pTable;
+		pTable->m_pTableNext = pTls->m_pHeadTable;
+		pTls->m_pHeadTable = pTable;
 	}
 
 	// errors will be handled by caller
@@ -3528,7 +3515,7 @@ CSphSEStats * sphinx_get_stats ( THD * thd, SHOW_VAR * out )
 #if MYSQL_VERSION_ID>50100
 	if ( sphinx_hton_ptr )
 	{
-		CSphTLS * pTls = (CSphTLS *) *thd_ha_data ( thd, sphinx_hton_ptr );
+		CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, sphinx_hton_ptr );
 
 		if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
 			return &pTls->m_pHeadTable->m_tStats;
@@ -3593,7 +3580,7 @@ int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, char * sBuffer )
 #if MYSQL_VERSION_ID>50100
 	if ( sphinx_hton_ptr )
 	{
-		CSphTLS * pTls = (CSphTLS *) *thd_ha_data ( thd, sphinx_hton_ptr );
+		CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, sphinx_hton_ptr );
 #else
 	{
 		CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];
