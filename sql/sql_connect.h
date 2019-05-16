@@ -21,6 +21,7 @@
 #include "structs.h"
 #include <mysql/psi/mysql_socket.h>
 #include <hash.h>
+#include "violite.h"
 
 /*
   Object to hold connect information to be given to the newly created thread
@@ -30,8 +31,14 @@ struct scheduler_functions;
 
 class CONNECT : public ilink {
 public:
-  /* To be copied to THD */
-  Vio *vio;                           /* Copied to THD with my_net_init() */
+  MYSQL_SOCKET sock;
+#ifdef _WIN32
+  HANDLE pipe;
+  CONNECT(HANDLE pipe_arg): pipe(pipe_arg), vio_type(VIO_TYPE_NAMEDPIPE),
+    scheduler(thread_scheduler), thread_id(0), thread_count_incremented(0),
+    prior_thr_create_utime(0) {}
+#endif
+  enum enum_vio_type vio_type;
   scheduler_functions *scheduler;
   my_thread_id thread_id;
 
@@ -39,12 +46,11 @@ public:
   bool thread_count_incremented;
   ulonglong    prior_thr_create_utime;
 
-  CONNECT()
-    :vio(0), scheduler(thread_scheduler), thread_id(0),
-    thread_count_incremented(0), prior_thr_create_utime(0)
-  {
-  };
-  ~CONNECT();
+  CONNECT(MYSQL_SOCKET sock_arg, enum enum_vio_type vio_type_arg,
+          scheduler_functions *scheduler_arg): sock(sock_arg),
+    vio_type(vio_type_arg), scheduler(scheduler_arg), thread_id(0),
+    thread_count_incremented(0), prior_thr_create_utime(0) {}
+  ~CONNECT() { DBUG_ASSERT(vio_type == VIO_CLOSED); }
   void close_and_delete();
   void close_with_error(uint sql_errno,
                         const char *message, uint close_error);

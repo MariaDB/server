@@ -1441,8 +1441,15 @@ void CONNECT::close_and_delete()
 {
   DBUG_ENTER("close_and_delete");
 
-  if (vio)
-    vio_close(vio);
+#if _WIN32
+  if (vio_type == VIO_TYPE_NAMEDPIPE)
+    CloseHandle(pipe);
+  else
+#endif
+  if (vio_type != VIO_CLOSED)
+    mysql_socket_close(sock);
+  vio_type= VIO_CLOSED;
+
   if (thread_count_incremented)
     dec_connection_count(scheduler);
   statistic_increment(connection_errors_internal, &LOCK_status);
@@ -1473,18 +1480,12 @@ void CONNECT::close_with_error(uint sql_errno,
 }
 
 
-CONNECT::~CONNECT()
-{
-  if (vio)
-    vio_delete(vio);
-}
-
-
 /* Reuse or create a THD based on a CONNECT object */
 
 THD *CONNECT::create_thd(THD *thd)
 {
   bool res, thd_reused= thd != 0;
+  Vio *vio;
   DBUG_ENTER("create_thd");
 
   DBUG_EXECUTE_IF("simulate_failed_connection_2", DBUG_RETURN(0); );
@@ -1503,9 +1504,23 @@ THD *CONNECT::create_thd(THD *thd)
   else if (!(thd= new THD(thread_id)))
     DBUG_RETURN(0);
 
+#if _WIN32
+  if (vio_type == VIO_TYPE_NAMEDPIPE)
+    vio= vio_new_win32pipe(pipe);
+  else
+#endif
+  vio= mysql_socket_vio_new(sock, vio_type, vio_type == VIO_TYPE_SOCKET ?
+                                                        VIO_LOCALHOST : 0);
+  if (!vio)
+  {
+    if (!thd_reused)
+      delete thd;
+    DBUG_RETURN(0);
+  }
+
   set_current_thd(thd);
   res= my_net_init(&thd->net, vio, thd, MYF(MY_THREAD_SPECIFIC));
-  vio= 0;                              // Vio now handled by thd
+  vio_type= VIO_CLOSED;                // Vio now handled by thd
 
   if (unlikely(res || thd->is_error()))
   {

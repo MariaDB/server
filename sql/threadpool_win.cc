@@ -167,15 +167,14 @@ int TP_connection_win::init()
 {
 
   memset(&overlapped, 0, sizeof(OVERLAPPED));
-  Vio *vio = connect->vio;
-  switch ((vio_type =  vio->type))
+  switch ((vio_type =  connect->vio_type))
   {
   case VIO_TYPE_SSL:
   case VIO_TYPE_TCPIP:
-    handle= (HANDLE)mysql_socket_getfd(vio->mysql_socket);
+    handle= (HANDLE) mysql_socket_getfd(connect->sock);
     break;
   case VIO_TYPE_NAMEDPIPE:
-    handle= (HANDLE)vio->hPipe;
+    handle= connect->pipe;
     break;
   default:
     abort();

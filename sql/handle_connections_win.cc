@@ -367,16 +367,14 @@ struct Pipe_Listener : public Listener
 
   static void create_pipe_connection(HANDLE pipe)
   {
-    CONNECT *connect;
-    if (!(connect= new CONNECT) || !(connect->vio= vio_new_win32pipe(pipe)))
+    if (auto connect= new CONNECT(pipe))
+      create_new_thread(connect);
+    else
     {
       CloseHandle(pipe);
-      delete connect;
       statistic_increment(aborted_connects, &LOCK_status);
       statistic_increment(connection_errors_internal, &LOCK_status);
-      return;
     }
-    create_new_thread(connect);
   }
 
   /* Threadpool callback.*/

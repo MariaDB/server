@@ -1433,14 +1433,13 @@ TP_connection_generic::TP_connection_generic(CONNECT *c):
 , overlapped()
 #endif
 {
-  DBUG_ASSERT(c->vio);
+  DBUG_ASSERT(c->vio_type != VIO_CLOSED);
 
 #ifdef _WIN32
-  vio_type= c->vio->type;
-  fd= (vio_type == VIO_TYPE_NAMEDPIPE) ?
-    c->vio->hPipe: (TP_file_handle)mysql_socket_getfd(c->vio->mysql_socket);
+  fd= (c->vio_type == VIO_TYPE_NAMEDPIPE) ?
+    c->pipe: (TP_file_handle) mysql_socket_getfd(c->sock);
 #else
-  fd= mysql_socket_getfd(c->vio->mysql_socket);
+  fd= mysql_socket_getfd(c->sock);
 #endif
 
   /* Assign connection to a group. */

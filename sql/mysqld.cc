@@ -6293,8 +6293,6 @@ void create_new_thread(CONNECT *connect)
 
 void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 {
-  CONNECT *connect;
-
 #ifdef HAVE_LIBWRAP
   {
     if (mysql_socket_getfd(sock) == mysql_socket_getfd(base_ip_sock) ||
@@ -6340,34 +6338,21 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 
   DBUG_PRINT("info", ("Creating CONNECT for new connection"));
 
-  if ((connect= new CONNECT()))
-  {
-    bool is_unix_sock= mysql_socket_getfd(sock) ==
-                       mysql_socket_getfd(unix_sock);
-
-    if (!(connect->vio=
-      mysql_socket_vio_new(new_sock,
-        is_unix_sock ? VIO_TYPE_SOCKET :
-        VIO_TYPE_TCPIP,
-        is_unix_sock ? VIO_LOCALHOST : 0)))
-    {
-      delete connect;
-      connect= 0;                             // Error handling below
-    }
-  }
-
-  if (!connect)
+  if (auto connect= new CONNECT(new_sock,
+                                mysql_socket_getfd(sock) ==
+                                mysql_socket_getfd(unix_sock) ?
+                                VIO_TYPE_SOCKET : VIO_TYPE_TCPIP,
+                                mysql_socket_getfd(sock) ==
+                                mysql_socket_getfd(extra_ip_sock) ?
+                                extra_thread_scheduler : thread_scheduler))
+    create_new_thread(connect);
+  else
   {
     /* Connect failure */
     (void)mysql_socket_close(new_sock);
     statistic_increment(aborted_connects, &LOCK_status);
     statistic_increment(connection_errors_internal, &LOCK_status);
-    return;
   }
-
-  if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
-    connect->scheduler= extra_thread_scheduler;
-  create_new_thread(connect);
 }
 
 #ifndef _WIN32
