@@ -1828,7 +1828,7 @@ thd_innodb_tmpdir(
 @return reference to transaction pointer */
 static trx_t* thd_to_trx(THD* thd)
 {
-	return *reinterpret_cast<trx_t**>(thd_ha_data(thd, innodb_hton_ptr));
+	return reinterpret_cast<trx_t*>(thd_get_ha_data(thd, innodb_hton_ptr));
 }
 
 #ifdef WITH_WSREP
