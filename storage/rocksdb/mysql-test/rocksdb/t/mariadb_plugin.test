@@ -1,5 +1,6 @@
 --source include/have_log_bin.inc
 --source include/have_binlog_format_row.inc
+--source include/not_windows.inc
 
 --echo #
 --echo # MDEV-14843: Assertion `s_tx_list.size() == 0' failed in myrocks::Rdb_transaction::term_mutex
@@ -25,7 +26,8 @@ UNINSTALL SONAME 'ha_rocksdb';
 SELECT ENGINE, SUPPORT FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='ROCKSDB';
 disconnect con1;
 # Unfortunately this is the only more or less reliable way to wait until
-# connection done ha_close_connections().
+# connection done ha_close_connections(). It doesn't work on Windows due
+# to different thread handling.
 let $wait_condition= SELECT VARIABLE_VALUE=1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='Threads_cached';
 --source include/wait_condition.inc
 
