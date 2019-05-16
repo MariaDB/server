@@ -62,6 +62,10 @@ static bool row_build_spatial_index_key(
 	ulint			flag,
 	mem_heap_t*		heap)
 {
+	if (dfield2->type.mtype == DATA_MISSING) {
+		return false;
+	}
+
 	double*			mbr;
 
 	dfield_copy(dfield, dfield2);
@@ -92,6 +96,7 @@ static bool row_build_spatial_index_key(
 	if (!dfield_is_ext(dfield2)) {
 		dptr = static_cast<const byte*>(dfield_get_data(dfield2));
 		dlen = dfield_get_len(dfield2);
+		ut_ad(dptr != &data_error);
 		goto write_mbr;
 	}
 
