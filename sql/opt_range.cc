@@ -3050,7 +3050,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields) &&
-      thd->variables.use_stat_tables > 0)
+      thd->variables.use_stat_tables > 0 && table->stats_is_read)
   {
     PARAM param;
     MEM_ROOT alloc;

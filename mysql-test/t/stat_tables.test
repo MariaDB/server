@@ -492,6 +492,12 @@ CREATE TABLE t2 SELECT pk FROM t1 WHERE pk>2;
 select * from t2;
 drop table t1,t2;
 
+create table t1(a int,b int, key k1(a) );
+insert into t1 values(1,1),(2,2),(3,3);
+analyze table t1;
+select * from mysql.index_stats, t1 where index_name='k1' and t1.a > 1 and t1.b > 1;
+drop table t1;
+
 set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 
 set @save_optimizer_switch=@@optimizer_switch;

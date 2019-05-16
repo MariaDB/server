@@ -728,6 +728,17 @@ pk
 4
 3
 drop table t1,t2;
+create table t1(a int,b int, key k1(a) );
+insert into t1 values(1,1),(2,2),(3,3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select * from mysql.index_stats, t1 where index_name='k1' and t1.a > 1 and t1.b > 1;
+db_name	table_name	index_name	prefix_arity	avg_frequency	a	b
+test	t1	k1	1	1.0000	2	2
+test	t1	k1	1	1.0000	3	3
+drop table t1;
 set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set @save_optimizer_switch=@@optimizer_switch;
 set use_stat_tables=@save_use_stat_tables;
