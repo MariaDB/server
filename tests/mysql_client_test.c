@@ -8390,6 +8390,26 @@ static void test_list_fields()
 }
 
 
+/* Test mysql_list_fields() with information_schema */
+
+static void test_list_information_schema_fields()
+{
+  MYSQL_RES *result;
+  int rc;
+  myheader("test_list_information_schema_fields");
+
+  rc= mysql_select_db(mysql, "information_schema");
+  myquery(rc);
+  result= mysql_list_fields(mysql, "all_plugins", NULL);
+  mytest(result);
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 0);
+  mysql_free_result(result);
+  rc= mysql_select_db(mysql, current_db);
+  myquery(rc);
+}
+
+
 static void test_bug19671()
 {
   MYSQL_RES *result;
@@ -19903,6 +19923,7 @@ static struct my_tests_st my_tests[]= {
   { "test_fetch_column", test_fetch_column },
   { "test_mem_overun", test_mem_overun },
   { "test_list_fields", test_list_fields },
+  { "test_list_fields", test_list_information_schema_fields },
   { "test_free_result", test_free_result },
   { "test_free_store_result", test_free_store_result },
   { "test_sqlmode", test_sqlmode },

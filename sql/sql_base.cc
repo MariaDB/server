@@ -3398,8 +3398,7 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
       Check whether the information schema contains a table
       whose name is tables->schema_table_name
     */
-    ST_SCHEMA_TABLE *schema_table;
-    schema_table= find_schema_table(thd, tables->schema_table_name);
+    ST_SCHEMA_TABLE *schema_table= tables->schema_table;
     if (!schema_table ||
         (schema_table->hidden &&
          ((sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0 ||
@@ -3410,7 +3409,7 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
           lex->sql_command == SQLCOM_SHOW_KEYS)))
     {
       my_error(ER_UNKNOWN_TABLE, MYF(0),
-               tables->schema_table_name, INFORMATION_SCHEMA_NAME.str);
+               tables->table_name, INFORMATION_SCHEMA_NAME.str);
       DBUG_RETURN(1);
     }
   }
