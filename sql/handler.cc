@@ -2664,10 +2664,6 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
   return cost;
 }
 
-void **handler::ha_data(THD *thd) const
-{
-  return thd_ha_data(thd, ht);
-}
 
 THD *handler::ha_thd(void) const
 {

@@ -1746,10 +1746,13 @@ ha_rows ha_federatedx::records_in_range(uint inx, key_range *start_key,
 
 federatedx_txn *ha_federatedx::get_txn(THD *thd, bool no_create)
 {
-  federatedx_txn **txnp= (federatedx_txn **) ha_data(thd);
-  if (!*txnp && !no_create)
-    *txnp= new federatedx_txn();
-  return *txnp;
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
+  if (!txn && !no_create)
+  {
+    txn= new federatedx_txn();
+    thd_set_ha_data(thd, federatedx_hton, txn);
+  }
+  return txn;
 }
 
 
@@ -1757,7 +1760,6 @@ int ha_federatedx::disconnect(handlerton *hton, MYSQL_THD thd)
 {
   federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
   delete txn;
-  *((federatedx_txn **) thd_ha_data(thd, hton))= 0;
   return 0;
 }
 

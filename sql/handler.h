@@ -4475,7 +4475,6 @@ public:
   TABLE_SHARE* get_table_share() { return table_share; }
 protected:
   /* Service methods for use by storage engines. */
-  void **ha_data(THD *) const;
   THD *ha_thd(void) const;
 
   /**
