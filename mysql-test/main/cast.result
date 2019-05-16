@@ -271,12 +271,12 @@ select cast(1000 as double(5,2));
 cast(1000 as double(5,2))
 999.99
 Warnings:
-Warning	1264	Out of range value for column 'cast(1000 as double(5,2))' at row 1
+Note	1264	Out of range value for column 'cast(1000 as double(5,2))' at row 1
 select cast(-1000 as double(5,2));
 cast(-1000 as double(5,2))
 -999.99
 Warnings:
-Warning	1264	Out of range value for column 'cast(-1000 as double(5,2))' at row 1
+Note	1264	Out of range value for column 'cast(-1000 as double(5,2))' at row 1
 select cast(010203101112.121314 as datetime);
 cast(010203101112.121314 as datetime)
 2001-02-03 10:11:12

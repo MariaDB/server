@@ -4643,6 +4643,14 @@ bool Type_handler::
 
 
 bool Type_handler::
+       Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
        Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const
 {
   item->fix_length_and_dec_generic();
@@ -4726,6 +4734,13 @@ bool Type_handler_geometry::
 
 bool Type_handler_geometry::
        Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
+       Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const
 {
   return Item_func_or_sum_illegal_param(item);
 }
@@ -5757,6 +5772,15 @@ Item *Type_handler_double::
                            DECIMAL_MAX_PRECISION, NOT_FIXED_DEC - 1, item))
     return NULL;
   return new (thd->mem_root) Item_double_typecast(thd, item, len, dec);
+}
+
+
+Item *Type_handler_float::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  DBUG_ASSERT(!attr.length_specified());
+  return new (thd->mem_root) Item_float_typecast(thd, item);
 }
 
 

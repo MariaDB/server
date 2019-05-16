@@ -51,6 +51,7 @@ class Item_func_neg;
 class Item_func_signed;
 class Item_func_unsigned;
 class Item_double_typecast;
+class Item_float_typecast;
 class Item_decimal_typecast;
 class Item_char_typecast;
 class Item_time_typecast;
@@ -1391,6 +1392,8 @@ public:
   virtual bool
   Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const;
   virtual bool
+  Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const;
+  virtual bool
   Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const;
   virtual bool
   Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const;
@@ -1691,6 +1694,11 @@ public:
     return true;
   }
   bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_float_typecast_fix_length_and_dec(Item_float_typecast *) const
   {
     DBUG_ASSERT(0);
     return true;
@@ -2590,6 +2598,8 @@ public:
   bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 25; }
   uint32 calc_pack_length(uint32 length) const { return sizeof(float); }
+  Item *create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_float(item, protocol, buf);
@@ -3366,6 +3376,7 @@ public:
   bool Item_func_signed_fix_length_and_dec(Item_func_signed *) const;
   bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *) const;
   bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *) const;
+  bool Item_float_typecast_fix_length_and_dec(Item_float_typecast *) const;
   bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *) const;
   bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const;
   bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *) const;

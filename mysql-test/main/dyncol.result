@@ -501,12 +501,12 @@ select column_get(column_create(1, "1223.5555" AS double), 1 as double(5,2));
 column_get(column_create(1, "1223.5555" AS double), 1 as double(5,2))
 999.99
 Warnings:
-Warning	1264	Out of range value for column 'column_get(column_create(1, "1223.5555" AS double), 1 as double(5,2))' at row 1
+Note	1264	Out of range value for column 'column_get(column_create(1, "1223.5555" AS double), 1 as double(5,2))' at row 1
 select column_get(column_create(1, "1223.5555" AS double), 1 as double(3,2));
 column_get(column_create(1, "1223.5555" AS double), 1 as double(3,2))
 9.99
 Warnings:
-Warning	1264	Out of range value for column 'column_get(column_create(1, "1223.5555" AS double), 1 as double(3,2))' at row 1
+Note	1264	Out of range value for column 'column_get(column_create(1, "1223.5555" AS double), 1 as double(3,2))' at row 1
 #
 # column get decimal
 #

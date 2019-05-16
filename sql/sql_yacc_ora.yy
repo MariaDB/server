@@ -11674,6 +11674,7 @@ cast_type_numeric:
         | UNSIGNED                       { $$.set(&type_handler_ulonglong); }
         | UNSIGNED INT_SYM               { $$.set(&type_handler_ulonglong); }
         | DECIMAL_SYM float_options      { $$.set(&type_handler_newdecimal, $2); }
+        | FLOAT_SYM                      { $$.set(&type_handler_float); }
         | DOUBLE_SYM opt_precision       { $$.set(&type_handler_double, $2);  }
         ;
 
