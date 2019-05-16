@@ -14,18 +14,20 @@
 INSTALL SONAME 'ha_rocksdb';
 --enable_warnings
 
+connect (con1,localhost,root,,test);
 CREATE TABLE t1 (i INT) ENGINE=RocksDB;
 insert into t1 values (1);
-
-connect (con1,localhost,root,,);
-connection con1;
-insert into test.t1 values (1);
+DROP TABLE t1;
 
 connection default;
-
 # Cleanup
-DROP TABLE t1;
 UNINSTALL SONAME 'ha_rocksdb';
+SELECT ENGINE, SUPPORT FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='ROCKSDB';
+disconnect con1;
+# Unfortunately this is the only more or less reliable way to wait until
+# connection done ha_close_connections().
+let $wait_condition= SELECT VARIABLE_VALUE=1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='Threads_cached';
+--source include/wait_condition.inc
 
 --echo #
 --echo # MDEV-15686: Loading MyRocks plugin back after it has been unloaded causes a crash
