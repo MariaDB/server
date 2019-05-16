@@ -56,7 +56,7 @@ C_MODE_END
 #else
 #define CANNOT_ROLLBACK_FLAG 0
 #endif
-#define THD_TRN (*(TRN **)thd_ha_data(thd, maria_hton))
+#define THD_TRN (TRN*) thd_get_ha_data(thd, maria_hton)
 
 ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
 ulonglong pagecache_buffer_size;
@@ -953,7 +953,7 @@ static int maria_create_trn_for_mysql(MARIA_HA *info)
     trn= trnman_new_trn(& thd->transaction.wt);
     if (unlikely(!trn))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    THD_TRN= trn;
+    thd_set_ha_data(thd, maria_hton, trn);
     if (thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
       trans_register_ha(thd, TRUE, maria_hton);
   }
@@ -2848,13 +2848,13 @@ int ha_maria::external_lock(THD *thd, int lock_type)
 #ifdef MARIA_CANNOT_ROLLBACK
           if (ma_commit(trn))
             DBUG_RETURN(1);
-          THD_TRN= 0;
+          thd_set_ha_data(thd, maria_hton, 0);
 #else
           if (!(thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
           {
             trnman_rollback_trn(trn);
             DBUG_PRINT("info", ("THD_TRN set to 0x0"));
-            THD_TRN= 0;
+            thd_set_ha_data(thd, maria_hton, 0);
           }
 #endif
         }
@@ -2911,7 +2911,7 @@ int ha_maria::start_stmt(THD *thd, thr_lock_type lock_type)
 static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
 {
   DBUG_ENTER("reset_thd_trn");
-  THD_TRN= NULL;
+  thd_set_ha_data(thd, maria_hton, 0);
   MARIA_HA *next;
   for (MARIA_HA *table= first_table; table ; table= next)
   {
@@ -2984,7 +2984,7 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     statement assuming they have a trn (see ha_maria::start_stmt()).
   */
   trn= trnman_new_trn(& thd->transaction.wt);
-  THD_TRN= trn;
+  thd_set_ha_data(thd, maria_hton, trn);
   if (unlikely(trn == NULL))
   {
     reset_thd_trn(thd, used_tables);
