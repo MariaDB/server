@@ -1,0 +1,13 @@
+--- main/myisam_mrr.result	2019-05-14 15:44:52.232663568 +0530
++++ main/myisam_mrr.reject	2019-05-14 15:51:37.123563538 +0530
+@@ -617,8 +617,8 @@
+ show status like 'handler_mrr%';
+ Variable_name	Value
+ Handler_mrr_init	1
+-Handler_mrr_key_refills	1
+-Handler_mrr_rowid_refills	1
++Handler_mrr_key_refills	0
++Handler_mrr_rowid_refills	0
+ set join_buffer_size=10;
+ explain select sum(t1.b) from t0,t1 where t0.a=t1.a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

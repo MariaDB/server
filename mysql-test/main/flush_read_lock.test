@@ -2100,32 +2100,40 @@ SET DEBUG_SYNC= 'RESET';
 --echo # and DROP DATABASE
 --echo #
 
+SET DEBUG_SYNC= 'ftwrl_before_lock SIGNAL ready WAIT_FOR go';
 CREATE DATABASE mysqltest;
 CREATE TABLE mysqltest.t1(a INT);
 HANDLER mysqltest.t1 OPEN as t1;
 
 connect (con1,localhost,root,,);
-SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready1';
 --send LOCK TABLE mysqltest.t1 WRITE
+
 connect (con2,localhost,root,,);
-SET DEBUG_SYNC= 'now WAIT_FOR ready';
-SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+SET DEBUG_SYNC= 'now WAIT_FOR ready1';
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready2';
 --send DROP DATABASE mysqltest
 
 connect (con3,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready2';
+
+connection default;
+send FLUSH TABLES WITH READ LOCK;
+
+connection con3;
 SET DEBUG_SYNC= 'now WAIT_FOR ready';
 disconnect con3;
 
-connection default;
-FLUSH TABLES WITH READ LOCK;
-UNLOCK TABLES;
-HANDLER t1 CLOSE;
 connection con1;
-
 --error 0,ER_NO_SUCH_TABLE
 reap;
-UNLOCK TABLES;
+SET DEBUG_SYNC= 'now SIGNAL go';
 disconnect con1;
+
+connection default;
+reap;
+UNLOCK TABLES;
+HANDLER t1 CLOSE;
 connection con2;
 reap;
 disconnect con2;

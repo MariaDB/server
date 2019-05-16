@@ -13718,6 +13718,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
   Security_context * const sctx= thd->security_ctx;
   const ACL_USER * acl_user= mpvio.acl_user;
+  if (!acl_user)
+    statistic_increment(aborted_connects_preauth, &LOCK_status);
 
   if (acl_user)
   {

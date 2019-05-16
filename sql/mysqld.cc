@@ -492,7 +492,7 @@ ulonglong query_cache_size=0;
 ulong query_cache_limit=0;
 ulong executed_events=0;
 query_id_t global_query_id;
-ulong aborted_threads, aborted_connects;
+ulong aborted_threads, aborted_connects, aborted_connects_preauth;
 ulong delayed_insert_timeout, delayed_insert_limit, delayed_queue_size;
 ulong delayed_insert_threads, delayed_insert_writes, delayed_rows_in_use;
 ulong delayed_insert_errors,flush_time;
@@ -2560,13 +2560,19 @@ static void network_init(void)
 
 void close_connection(THD *thd, uint sql_errno)
 {
+  int lvl= (thd->main_security_ctx.user ? 3 : 1);
   DBUG_ENTER("close_connection");
 
   if (sql_errno)
+  {
     net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
-
-  thd->print_aborted_warning(3, sql_errno ? ER_DEFAULT(sql_errno)
-                                          : "CLOSE_CONNECTION");
+    thd->print_aborted_warning(lvl, ER_DEFAULT(sql_errno));
+  }
+  else
+    thd->print_aborted_warning(lvl, (thd->main_security_ctx.user ?
+                                     "This connection closed normally" :
+                                     "This connection closed normally without"
+                                      " authentication"));
 
   thd->disconnect();
 
@@ -7615,6 +7621,7 @@ int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
 SHOW_VAR status_vars[]= {
   {"Aborted_clients",          (char*) &aborted_threads,        SHOW_LONG},
   {"Aborted_connects",         (char*) &aborted_connects,       SHOW_LONG},
+  {"Aborted_connects_preauth", (char*) &aborted_connects_preauth, SHOW_LONG},
   {"Acl",                      (char*) acl_statistics,          SHOW_ARRAY},
   {"Access_denied_errors",     (char*) offsetof(STATUS_VAR, access_denied_errors), SHOW_LONG_STATUS},
   {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
@@ -8026,7 +8033,7 @@ static int mysql_init_variables(void)
   opt_using_transactions= 0;
   abort_loop= select_thread_in_use= signal_thread_in_use= 0;
   grant_option= 0;
-  aborted_threads= aborted_connects= 0;
+  aborted_threads= aborted_connects= aborted_connects_preauth= 0;
   subquery_cache_miss= subquery_cache_hit= 0;
   delayed_insert_threads= delayed_insert_writes= delayed_rows_in_use= 0;
   delayed_insert_errors= thread_created= 0;
