@@ -1022,8 +1022,9 @@ dict_table_col_in_clustered_key(
 /** Initialise the data dictionary cache. */
 void dict_sys_t::create()
 {
+  ut_ad(this == &dict_sys);
   ut_ad(!is_initialised());
-  ut_d(m_initialised= true);
+  m_initialised= true;
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
 
@@ -6353,7 +6354,8 @@ dict_fs2utf8(
 /** Resize the hash tables based on the current buffer pool size. */
 void dict_sys_t::resize()
 {
-  ut_ad(m_initialised);
+  ut_ad(this == &dict_sys);
+  ut_ad(is_initialised());
   mutex_enter(&mutex);
 
   /* all table entries are in table_LRU and table_non_LRU lists */
@@ -6397,6 +6399,7 @@ void dict_sys_t::resize()
 /** Close the data dictionary cache on shutdown. */
 void dict_sys_t::close()
 {
+  ut_ad(this == &dict_sys);
   if (!is_initialised()) return;
 
   mutex_enter(&mutex);
@@ -6437,7 +6440,7 @@ void dict_sys_t::close()
     dict_foreign_err_file = NULL;
   }
 
-  ut_d(m_initialised= false);
+  m_initialised= false;
 }
 
 #ifdef UNIV_DEBUG
