@@ -948,12 +948,12 @@ struct dict_index_t {
 				dictionary cache */
 	unsigned	to_be_dropped:1;
 				/*!< TRUE if the index is to be dropped;
-				protected by dict_operation_lock */
+				protected by dict_sys.latch */
 	unsigned	online_status:2;
 				/*!< enum online_index_status.
 				Transitions from ONLINE_INDEX_COMPLETE (to
 				ONLINE_INDEX_CREATION) are protected
-				by dict_operation_lock and
+				by dict_sys.latch and
 				dict_sys.mutex. Other changes are
 				protected by index->lock. */
 	unsigned	uncommitted:1;
@@ -1835,8 +1835,7 @@ public:
 	/** TRUE if the table is to be dropped, but not yet actually dropped
 	(could in the background drop list). It is turned on at the beginning
 	of row_drop_table_for_mysql() and turned off just before we start to
-	update system tables for the drop. It is protected by
-	dict_operation_lock. */
+	update system tables for the drop. It is protected by dict_sys.latch. */
 	unsigned				to_be_dropped:1;
 
 	/** Number of non-virtual columns defined so far. */

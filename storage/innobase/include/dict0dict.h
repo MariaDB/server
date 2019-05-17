@@ -1471,6 +1471,15 @@ public:
 					and DROP TABLE, as well as reading
 					the dictionary data for a table from
 					system tables */
+	/** @brief the data dictionary rw-latch protecting dict_sys
+
+	Table create, drop, etc. reserve this in X-mode; implicit or
+	backround operations purge, rollback, foreign key checks reserve this
+	in S-mode; not all internal InnoDB operations are covered by MDL.
+
+	This latch also prevents lock waits when accessing the InnoDB
+	data dictionary tables. @see trx_t::dict_operation_lock_mode */
+	rw_lock_t	latch;
 	row_id_t	row_id;		/*!< the next row id to assign;
 					NOTE that at a checkpoint this
 					must be written to the dict system
@@ -1501,7 +1510,6 @@ private:
 	/** hash table of temporary table IDs */
 	hash_table_t*	temp_id_hash;
 public:
-
 	/** @return a new temporary table ID */
 	table_id_t get_temporary_table_id() {
 		return temp_table_id.fetch_add(1, std::memory_order_relaxed);
@@ -1603,14 +1611,36 @@ public:
   }
   /** Acquire a reference to a cached table. */
   inline void acquire(dict_table_t* table);
+
+#ifdef UNIV_DEBUG
+  /** Assert that the data dictionary is locked */
+  void assert_locked()
+  {
+    ut_ad(mutex_own(&mutex));
+    ut_ad(rw_lock_own(&latch, RW_LOCK_X));
+  }
+#endif
+  /** Lock the data dictionary cache. */
+  void lock(const char* file, unsigned line)
+  {
+    rw_lock_x_lock_func(&latch, 0, file, line);
+    mutex_enter_loc(&mutex, file, line);
+  }
+
+  /** Unlock the data dictionary cache. */
+  void unlock()
+  {
+    mutex_exit(&mutex);
+    rw_lock_x_unlock(&latch);
+  }
 };
 
 /** the data dictionary cache */
 extern dict_sys_t	dict_sys;
-/** the data dictionary rw-latch protecting dict_sys */
-extern rw_lock_t*	dict_operation_lock;
 
 #define dict_table_prevent_eviction(table) dict_sys.prevent_eviction(table)
+#define dict_sys_lock() dict_sys.lock(__FILE__, __LINE__)
+#define dict_sys_unlock() dict_sys.unlock()
 
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
 extern dict_index_t*	dict_ind_redundant;

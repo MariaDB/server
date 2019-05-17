@@ -20452,10 +20452,10 @@ for purge thread */
 static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
 	if (THDVAR(thd, background_thread)) {
-		/* Purge thread acquires dict_operation_lock while
-		processing undo log record. Release the dict_operation_lock
+		/* Purge thread acquires dict_sys.latch while
+		processing undo log record. Release it
 		before acquiring MDL on the table. */
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 		return innodb_acquire_mdl(thd, table);
 	} else {
 		if (table->vc_templ->mysql_table_query_id

@@ -134,7 +134,7 @@ struct fil_space_t {
 				the tablespace to disk; dropping of the
 				tablespace is forbidden if this is positive */
 	/** Number of pending buffer pool operations accessing the tablespace
-	without holding a table lock or dict_operation_lock S-latch
+	without holding a table lock or dict_sys.latch S-latch
 	that would prevent the table (and tablespace) from being
 	dropped. An example is change buffer merge.
 	The tablespace cannot be dropped while this is nonzero,

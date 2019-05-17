@@ -87,16 +87,6 @@ ib_warn_row_too_big(const dict_table_t*	table);
 /** the dictionary system */
 dict_sys_t	dict_sys;
 
-/** @brief the data dictionary rw-latch protecting dict_sys
-
-table create, drop, etc. reserve this in X-mode; implicit or
-backround operations purge, rollback, foreign key checks reserve this
-in S-mode; we cannot trust that MySQL protects implicit or background
-operations a table drop since MySQL does not know of them; therefore
-we need this; NOTE: a transaction which reserves this must keep book
-on the mode in trx_t::dict_operation_lock_mode */
-rw_lock_t*	dict_operation_lock;
-
 /** Percentage of compression failures that are allowed in a single
 round */
 ulong	zip_failure_threshold_pct = 5;
@@ -530,8 +520,7 @@ dict_table_close_and_drop(
 {
 	dberr_t err = DB_SUCCESS;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(trx->dict_operation != TRX_DICT_OP_NONE);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 
@@ -1034,9 +1023,6 @@ dict_table_col_in_clustered_key(
 void dict_sys_t::create()
 {
   ut_ad(!is_initialised());
-  dict_operation_lock = static_cast<rw_lock_t*>(
-    ut_zalloc_nokey(sizeof(*dict_operation_lock)));
-
   ut_d(m_initialised= true);
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
@@ -1050,8 +1036,7 @@ void dict_sys_t::create()
   table_id_hash= hash_create(hash_size);
   temp_id_hash= hash_create(hash_size);
 
-  rw_lock_create(dict_operation_lock_key,
-		 dict_operation_lock, SYNC_DICT_OPERATION);
+  rw_lock_create(dict_operation_lock_key, &latch, SYNC_DICT_OPERATION);
 
   if (!srv_read_only_mode)
   {
@@ -1260,9 +1245,7 @@ dict_table_can_be_evicted(
 /*======================*/
 	dict_table_t*	table)		/*!< in: table to test */
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-
+	ut_d(dict_sys.assert_locked());
 	ut_a(table->can_be_evicted);
 	ut_a(table->foreign_set.empty());
 	ut_a(table->referenced_set.empty());
@@ -1328,8 +1311,7 @@ dict_make_room_in_cache(
 
 	ut_a(pct_check > 0);
 	ut_a(pct_check <= 100);
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(dict_lru_validate());
 
 	i = len = UT_LIST_GET_LEN(dict_sys.table_LRU);
@@ -1939,9 +1921,7 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		and free the index pages. */
 		trx_t* trx = trx_create();
 
-		ut_ad(mutex_own(&dict_sys.mutex));
-		ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-
+		ut_d(dict_sys.assert_locked());
 		/* Mimic row_mysql_lock_data_dictionary(). */
 		trx->dict_operation_lock_mode = RW_X_LATCH;
 
@@ -5817,8 +5797,7 @@ dict_index_set_merge_threshold(
 	ut_ad(!dict_table_is_comp(dict_sys.sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
 
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys.mutex);
+	dict_sys_lock();
 
 	heap = mem_heap_create(sizeof(dtuple_t) + 2 * (sizeof(dfield_t)
 			       + sizeof(que_fork_t) + sizeof(upd_node_t)
@@ -5866,8 +5845,7 @@ dict_index_set_merge_threshold(
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
 
-	mutex_exit(&dict_sys.mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	dict_sys_unlock();
 }
 
 #ifdef UNIV_DEBUG
@@ -6449,11 +6427,7 @@ void dict_sys_t::close()
 
   mutex_exit(&mutex);
   mutex_free(&mutex);
-
-  rw_lock_free(dict_operation_lock);
-
-  ut_free(dict_operation_lock);
-  dict_operation_lock = NULL;
+  rw_lock_free(&latch);
 
   mutex_free(&dict_foreign_err_mutex);
 
@@ -6806,8 +6780,7 @@ dict_space_is_empty(
 	mtr_t		mtr;
 	bool		found = false;
 
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys.mutex);
+	dict_sys_lock();
 	mtr_start(&mtr);
 
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
@@ -6828,8 +6801,7 @@ dict_space_is_empty(
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	dict_sys_unlock();
 
 	return(!found);
 }
@@ -6847,8 +6819,7 @@ dict_space_get_id(
 	ulint		name_len = strlen(name);
 	ulint		id = ULINT_UNDEFINED;
 
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys.mutex);
+	dict_sys_lock();
 	mtr_start(&mtr);
 
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
@@ -6877,8 +6848,7 @@ dict_space_get_id(
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	dict_sys_unlock();
 
 	return(id);
 }

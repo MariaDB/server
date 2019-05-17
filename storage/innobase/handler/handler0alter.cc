@@ -746,8 +746,7 @@ inline void dict_table_t::rollback_instant(
 	const char*	old_v_col_names,
 	const ulint*	col_map)
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	dict_index_t* index = indexes.start;
 	mtr_t mtr;
 	mtr.start();
@@ -4741,8 +4740,7 @@ innobase_update_gis_column_type(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	info = pars_info_create();
 
@@ -6733,7 +6731,7 @@ new_clustered_failed:
 			ut_a(ctx->new_table == temp_table);
 			/* n_ref_count must be 1, because purge cannot
 			be executing on this very table as we are
-			holding dict_operation_lock X-latch. */
+			holding dict_sys.latch X-latch. */
 			DBUG_ASSERT(ctx->new_table->get_ref_count() == 1);
 			DBUG_ASSERT(ctx->new_table->id != 0);
 			DBUG_ASSERT(ctx->new_table->id == ctx->trx->table_id);
@@ -6946,8 +6944,7 @@ error_handling_drop_uncached:
 op_ok:
 #endif /* UNIV_DEBUG */
 		ut_ad(ctx->trx->dict_operation_lock_mode == RW_X_LATCH);
-		ut_ad(mutex_own(&dict_sys.mutex));
-		ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+		ut_d(dict_sys.assert_locked());
 
 		DICT_TF2_FLAG_SET(ctx->new_table, DICT_TF2_FTS);
 		if (ctx->need_rebuild()) {
@@ -7091,7 +7088,7 @@ error_handled:
 		trx_commit_for_mysql(ctx->trx);
 		/* n_ref_count must be 1, because purge cannot
 		be executing on this very table as we are
-		holding dict_operation_lock X-latch. */
+		holding dict_sys.latch X-latch. */
 		DBUG_ASSERT(user_table->get_ref_count() == 1 || ctx->online);
 
 		online_retry_drop_indexes_with_trx(user_table, ctx->trx);
@@ -7233,9 +7230,7 @@ rename_index_try(
 	trx_t*			trx)
 {
 	DBUG_ENTER("rename_index_try");
-
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 
 	pars_info_t*	pinfo;
@@ -7293,9 +7288,7 @@ void
 innobase_rename_index_cache(dict_index_t* index, const char* new_name)
 {
 	DBUG_ENTER("innobase_rename_index_cache");
-
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	size_t	old_name_len = strlen(index->name);
 	size_t	new_name_len = strlen(new_name);
@@ -8261,10 +8254,7 @@ ha_innobase::inplace_alter_table(
 	bool			rebuild_templ = false;
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
-
 	ut_ad(!sync_check_iterate(sync_check()));
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
@@ -8476,10 +8466,7 @@ innobase_online_rebuild_log_free(
 	dict_table_t*	table)
 {
 	dict_index_t* clust_index = dict_table_get_first_index(table);
-
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-
+	ut_d(dict_sys.assert_locked());
 	rw_lock_x_lock(&clust_index->lock);
 
 	if (clust_index->online_log) {
@@ -8752,8 +8739,7 @@ innobase_drop_foreign_try(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	/* Drop the constraint from the data dictionary. */
 	static const char sql[] =
@@ -8811,8 +8797,7 @@ innobase_rename_column_try(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	if (new_clustered) {
 		goto rename_foreign;
@@ -9088,8 +9073,7 @@ innobase_rename_or_enlarge_column_try(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	ulint n_base;
 
@@ -10512,7 +10496,7 @@ alter_stats_norebuild(
 	in a separate transaction from trx, because lock waits are not
 	allowed in a data dictionary transaction. (Lock waits are possible
 	on the statistics table, because it is directly accessible by users,
-	not covered by the dict_operation_lock.)
+	not covered by the dict_sys.latch.)
 
 	Because the data dictionary changes were already committed, orphaned
 	rows may be left in the statistics table if the system crashes.

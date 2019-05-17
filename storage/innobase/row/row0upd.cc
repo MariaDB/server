@@ -122,7 +122,7 @@ row_upd_changes_first_fields_binary(
 Checks if index currently is mentioned as a referenced index in a foreign
 key constraint.
 
-NOTE that since we do not hold dict_operation_lock when leaving the
+NOTE that since we do not hold dict_sys.latch when leaving the
 function, it may be that the referencing table has been dropped when
 we leave this function: this function is only for heuristic use!
 
@@ -289,7 +289,7 @@ row_upd_check_references_constraints(
 			}
 
 			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_operation_lock temporarily!
+			we will release dict_sys.latch temporarily!
 			But the inc_fk_checks() protects foreign_table from
 			being dropped while the check is running. */
 
@@ -397,7 +397,7 @@ wsrep_row_upd_check_foreign_constraints(
 			}
 
 			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_operation_lock temporarily!
+			we will release dict_sys.latch temporarily!
 			But the counter on the table protects 'foreign' from
 			being dropped while the check is running. */
 

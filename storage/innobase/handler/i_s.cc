@@ -2869,19 +2869,19 @@ i_s_fts_deleted_generic_fill(
 	}
 
 	/* Prevent DDL to drop fts aux tables. */
-	rw_lock_s_lock(dict_operation_lock);
+	rw_lock_s_lock(&dict_sys.latch);
 
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
 
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 
 		DBUG_RETURN(0);
 	}
@@ -2917,7 +2917,7 @@ i_s_fts_deleted_generic_fill(
 
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_sys.latch);
 
 	DBUG_RETURN(ret);
 }
@@ -3730,13 +3730,13 @@ i_s_fts_index_table_fill(
 	}
 
 	/* Prevent DDL to drop fts aux tables. */
-	rw_lock_s_lock(dict_operation_lock);
+	rw_lock_s_lock(&dict_sys.latch);
 
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 
 		DBUG_RETURN(0);
 	}
@@ -3757,7 +3757,7 @@ i_s_fts_index_table_fill(
 
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_sys.latch);
 
 	ut_free(conv_str.f_str);
 
@@ -3899,19 +3899,19 @@ i_s_fts_config_fill(
 	fields = table->field;
 
 	/* Prevent DDL to drop fts aux tables. */
-	rw_lock_s_lock(dict_operation_lock);
+	rw_lock_s_lock(&dict_sys.latch);
 
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
 
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 
 		DBUG_RETURN(0);
 	}
@@ -3971,7 +3971,7 @@ i_s_fts_config_fill(
 
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_sys.latch);
 
 	DBUG_RETURN(ret);
 }
@@ -6338,7 +6338,7 @@ i_s_sys_tables_fill_table_stats(
 	}
 
 	heap = mem_heap_create(1000);
-	rw_lock_s_lock(dict_operation_lock);
+	rw_lock_s_lock(&dict_sys.latch);
 	mutex_enter(&dict_sys.mutex);
 	mtr_start(&mtr);
 
@@ -6372,11 +6372,11 @@ i_s_sys_tables_fill_table_stats(
 					    err_msg);
 		}
 
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		rw_lock_s_lock(dict_operation_lock);
+		rw_lock_s_lock(&dict_sys.latch);
 		mutex_enter(&dict_sys.mutex);
 
 		mtr_start(&mtr);
@@ -6385,7 +6385,7 @@ i_s_sys_tables_fill_table_stats(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_sys.latch);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);

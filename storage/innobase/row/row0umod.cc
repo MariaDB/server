@@ -270,7 +270,7 @@ row_undo_mod_clust(
 	ut_ad(thr_get_trx(thr) == node->trx);
 	ut_ad(node->trx->dict_operation_lock_mode);
 	ut_ad(node->trx->in_rollback);
-	ut_ad(rw_lock_own_flagged(dict_operation_lock,
+	ut_ad(rw_lock_own_flagged(&dict_sys.latch,
 				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	log_free_check();
@@ -327,7 +327,7 @@ row_undo_mod_clust(
 	}
 
 	/* Online rebuild cannot be initiated while we are holding
-	dict_operation_lock and index->lock. (It can be aborted.) */
+	dict_sys.latch and index->lock. (It can be aborted.) */
 	ut_ad(online || !dict_index_is_online_ddl(index));
 
 	if (err == DB_SUCCESS && online) {

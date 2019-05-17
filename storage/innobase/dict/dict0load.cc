@@ -884,8 +884,7 @@ dict_update_filepath(
 	dberr_t		err = DB_SUCCESS;
 	trx_t*		trx;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_d(dict_sys.assert_locked());
 
 	trx = trx_create();
 	trx->op_info = "update filepath";
@@ -952,8 +951,7 @@ dict_replace_tablespace_and_filepath(
 	DBUG_EXECUTE_IF("innodb_fail_to_update_tablespace_dict",
 			return(DB_INTERRUPTED););
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(filepath);
 
 	trx = trx_create();
@@ -1350,8 +1348,7 @@ static ulint dict_check_sys_tables()
 
 	DBUG_ENTER("dict_check_sys_tables");
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_d(dict_sys.assert_locked());
 
 	mtr_start(&mtr);
 
@@ -1487,8 +1484,7 @@ void dict_check_tablespaces_and_store_max_id()
 
 	DBUG_ENTER("dict_check_tablespaces_and_store_max_id");
 
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys.mutex);
+	dict_sys_lock();
 
 	/* Initialize the max space_id from sys header */
 	mtr_start(&mtr);
@@ -1505,8 +1501,7 @@ void dict_check_tablespaces_and_store_max_id()
 	max_space_id = dict_check_sys_tables();
 	fil_set_max_space_id_if_bigger(max_space_id);
 
-	mutex_exit(&dict_sys.mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	dict_sys_unlock();
 
 	DBUG_VOID_RETURN;
 }
@@ -2833,7 +2828,7 @@ dict_load_tablespace(
 	}
 
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
-	false because we do not have an x-lock on dict_operation_lock */
+	false because we do not have an x-lock on dict_sys.latch */
 	table->space = fil_ibd_open(
 		true, false, FIL_TYPE_TABLESPACE, table->space_id,
 		dict_tf_to_fsp_flags(table->flags),
