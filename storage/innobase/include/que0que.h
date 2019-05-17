@@ -297,9 +297,9 @@ que_eval_sql(
 /*=========*/
 	pars_info_t*	info,	/*!< in: info struct, or NULL */
 	const char*	sql,	/*!< in: SQL string */
-	ibool		reserve_dict_mutex,
-				/*!< in: if TRUE, acquire/release
-				dict_sys->mutex around call to pars_sql. */
+	bool		reserve_dict_mutex,
+				/*!< in: whether to acquire/release
+				dict_sys.mutex around call to pars_sql. */
 	trx_t*		trx);	/*!< in: trx */
 
 /**********************************************************************//**

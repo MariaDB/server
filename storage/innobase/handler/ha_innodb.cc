@@ -5809,12 +5809,12 @@ innobase_build_v_templ(
 	ut_ad(n_v_col > 0);
 
 	if (!locked) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
 	if (s_templ->vtempl) {
 		if (!locked) {
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 		}
 		return;
 	}
@@ -5921,7 +5921,7 @@ innobase_build_v_templ(
 	}
 
 	if (!locked) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	s_templ->db_name = table->s->db.str;
@@ -6238,7 +6238,7 @@ no_such_table:
 	key_used_on_scan = m_primary_key;
 
 	if (ib_table->n_v_cols) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 		if (ib_table->vc_templ == NULL) {
 			ib_table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 		} else if (ib_table->get_ref_count() == 1) {
@@ -6254,7 +6254,7 @@ no_such_table:
 				true);
 		}
 
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	if (!check_index_consistency(table, ib_table)) {
@@ -10264,7 +10264,7 @@ wsrep_append_foreign_key(
 		foreign->referenced_table : foreign->foreign_table)) {
 		WSREP_DEBUG("pulling %s table into cache",
 			    (referenced) ? "referenced" : "foreign");
-		mutex_enter(&(dict_sys->mutex));
+		mutex_enter(&dict_sys.mutex);
 
 		if (referenced) {
 			foreign->referenced_table =
@@ -10294,7 +10294,7 @@ wsrep_append_foreign_key(
 						TRUE, FALSE);
 			}
 		}
-		mutex_exit(&(dict_sys->mutex));
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	if ( !((referenced) ?
@@ -11148,7 +11148,7 @@ err_col:
 
 	if (table->is_temporary()) {
 		m_trx->table_id = table->id
-			= dict_sys->get_temporary_table_id();
+			= dict_sys.get_temporary_table_id();
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
 		table->space_id = SRV_TMP_SPACE_ID;
@@ -12575,9 +12575,9 @@ create_table_info_t::create_table_update_dict()
 			DBUG_RETURN(-1);
 		}
 
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 		fts_optimize_add_table(innobase_table);
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {
@@ -12846,12 +12846,12 @@ ha_innobase::discard_or_import_tablespace(
 	btr_cur_instant_init(). */
 	table_id_t id = m_prebuilt->table->id;
 	ut_ad(id);
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 	dict_table_close(m_prebuilt->table, TRUE, FALSE);
-	dict_table_remove_from_cache(m_prebuilt->table);
+	dict_sys.remove(m_prebuilt->table);
 	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
 						  DICT_TABLE_OP_NORMAL);
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	if (!m_prebuilt->table) {
 		err = DB_TABLE_NOT_FOUND;
 	} else {
@@ -13982,7 +13982,7 @@ ha_innobase::info_low(
 				opt = DICT_STATS_RECALC_TRANSIENT;
 			}
 
-			ut_ad(!mutex_own(&dict_sys->mutex));
+			ut_ad(!mutex_own(&dict_sys.mutex));
 			ret = dict_stats_update(ib_table, opt);
 
 			if (ret != DB_SUCCESS) {
@@ -14911,7 +14911,7 @@ get_foreign_key_info(
 
 		dict_table_t*	ref_table;
 
-		ut_ad(mutex_own(&dict_sys->mutex));
+		ut_ad(mutex_own(&dict_sys.mutex));
 		ref_table = dict_table_open_on_name(
 			foreign->referenced_table_name_lookup,
 			TRUE, FALSE, DICT_ERR_IGNORE_NONE);
@@ -14966,7 +14966,7 @@ ha_innobase::get_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of foreign keys";
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->foreign_set.begin();
@@ -14983,7 +14983,7 @@ ha_innobase::get_foreign_key_list(
 		}
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	m_prebuilt->trx->op_info = "";
 
@@ -15004,7 +15004,7 @@ ha_innobase::get_parent_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of referencing foreign keys";
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->referenced_set.begin();
@@ -15021,7 +15021,7 @@ ha_innobase::get_parent_foreign_key_list(
 		}
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	m_prebuilt->trx->op_info = "";
 
@@ -15107,7 +15107,7 @@ ha_innobase::get_cascade_foreign_key_table_list(
 
 	cascade_fk_set	fk_set;
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	/* Initialize the table_list with prebuilt->table name. */
 	struct table_list_item	item = {m_prebuilt->table,
@@ -15186,7 +15186,7 @@ ha_innobase::get_cascade_foreign_key_table_list(
 
 	} while(!table_list.empty());
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	m_prebuilt->trx->op_info = "";
 
@@ -17377,12 +17377,6 @@ innodb_internal_table_validate(
 		}
 
 		dict_table_close(user_table, FALSE, TRUE);
-
-		DBUG_EXECUTE_IF("innodb_evict_autoinc_table",
-			mutex_enter(&dict_sys->mutex);
-			dict_table_remove_from_cache(user_table, true);
-			mutex_exit(&dict_sys->mutex);
-		);
 	}
 
 	return(ret);
@@ -20506,9 +20500,9 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 		return NULL;
 	}
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	return mysql_table;
 }
 

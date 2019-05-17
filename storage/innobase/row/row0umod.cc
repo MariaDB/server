@@ -910,9 +910,9 @@ row_undo_mod_sec_flag_corrupted(
 		on the data dictionary during normal rollback,
 		we can only mark the index corrupted in the
 		data dictionary cache. TODO: fix this somehow.*/
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 		dict_set_corrupted_index_cache_only(index);
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		break;
 	default:
 		ut_ad(0);
@@ -1228,11 +1228,11 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-		node->table = dict_sys->get_temporary_table(table_id);
-		mutex_exit(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
+		node->table = dict_sys.get_temporary_table(table_id);
+		mutex_exit(&dict_sys.mutex);
 	} else {
-		node->table = dict_sys->get_temporary_table(table_id);
+		node->table = dict_sys.get_temporary_table(table_id);
 	}
 
 	if (!node->table) {
@@ -1402,7 +1402,7 @@ rollback_clust:
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys->mutex, which
+			already be holding dict_sys.mutex, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
 				dict_stats_update_if_needed(

@@ -3089,8 +3089,7 @@ calc_buf_pool_size:
 		btr_search_sys_resize(
 			buf_pool_get_curr_size() / sizeof(void*) / 64);
 
-		/* normalize dict_sys */
-		dict_resize();
+		dict_sys.resize();
 
 		ib::info() << "Resized hash tables at lock_sys,"
 #ifdef BTR_CUR_HASH_ADAPT

@@ -3755,7 +3755,7 @@ row_merge_drop_index_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
@@ -3818,7 +3818,7 @@ row_merge_drop_indexes_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
@@ -3868,7 +3868,7 @@ row_merge_drop_indexes(
 	dict_index_t*	next_index;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
@@ -3952,7 +3952,7 @@ row_merge_drop_indexes(
 				rw_lock_x_unlock(dict_index_get_lock(index));
 
 				DEBUG_SYNC_C("merge_drop_index_after_abort");
-				/* covered by dict_sys->mutex */
+				/* covered by dict_sys.mutex */
 				MONITOR_INC(MONITOR_BACKGROUND_DROP_INDEX);
 				/* fall through */
 			case ONLINE_INDEX_ABORTED:
@@ -4015,7 +4015,7 @@ row_merge_drop_indexes(
 				break;
 			case ONLINE_INDEX_ABORTED:
 			case ONLINE_INDEX_ABORTED_DROPPED:
-				/* covered by dict_sys->mutex */
+				/* covered by dict_sys.mutex */
 				MONITOR_DEC(MONITOR_BACKGROUND_DROP_INDEX);
 			}
 
@@ -4320,7 +4320,7 @@ row_merge_rename_tables_dict(
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(old_table != new_table);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE
 	      || trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);

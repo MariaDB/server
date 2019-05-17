@@ -1,5 +1,5 @@
 // Copyright (c) 2014, Google Inc.
-// Copyright (c) 2017, MariaDB Corporation.
+// Copyright (c) 2017, 2019, MariaDB Corporation.
 
 /**************************************************//**
 @file btr/btr0scrub.cc
@@ -119,13 +119,13 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 	time_t last = start;
 
 	/* FIXME: this is not the proper way of doing things. The
-	dict_sys->mutex should not be held by any thread for longer
+	dict_sys.mutex should not be held by any thread for longer
 	than a few microseconds. It must not be held during I/O,
 	for example. So, what is the purpose for this busy-waiting?
 	This function should be rewritten as part of MDEV-8139:
 	Fix scrubbing tests. */
 
-	while (mutex_enter_nowait(&(dict_sys->mutex))) {
+	while (mutex_enter_nowait(&dict_sys.mutex)) {
 		/* if we lock to close a table, we wait forever
 		* if we don't lock to close a table, we check if space
 		* is closing, and then instead give up
@@ -157,7 +157,7 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		}
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	return true;
 }
 
@@ -204,10 +204,10 @@ btr_scrub_table_close_for_thread(
 		/* If tablespace is not marked as stopping perform
 		the actual close. */
 		if (!space->is_stopping()) {
-			mutex_enter(&dict_sys->mutex);
+			mutex_enter(&dict_sys.mutex);
 			/* perform the actual closing */
 			btr_scrub_table_close(scrub_data->current_table);
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 		}
 		space->release();
 	}

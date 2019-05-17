@@ -90,7 +90,7 @@ dict_get_first_path(
 /** Make sure the data_file_name is saved in dict_table_t if needed.
 Try to read it from the fil_system first, then from SYS_DATAFILES.
 @param[in]	table		Table object
-@param[in]	dict_mutex_own	true if dict_sys->mutex is owned already */
+@param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
 void
 dict_get_and_save_data_dir_path(
 	dict_table_t*	table,

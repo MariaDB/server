@@ -120,9 +120,9 @@ fts_config_get_value(
 
 	error = fts_eval_sql(trx, graph);
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 	que_graph_free(graph);
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(error);
 }

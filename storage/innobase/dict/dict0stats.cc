@@ -167,7 +167,7 @@ bool
 dict_stats_persistent_storage_check(
 /*================================*/
 	bool	caller_has_dict_sys_mutex)	/*!< in: true if the caller
-						owns dict_sys->mutex */
+						owns dict_sys.mutex */
 {
 	/* definition for the table TABLE_STATS_NAME */
 	dict_col_meta_t	table_stats_columns[] = {
@@ -235,10 +235,10 @@ dict_stats_persistent_storage_check(
 	dberr_t		ret;
 
 	if (!caller_has_dict_sys_mutex) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* first check table_stats */
 	ret = dict_table_schema_check(&table_stats_schema, errstr,
@@ -250,7 +250,7 @@ dict_stats_persistent_storage_check(
 	}
 
 	if (!caller_has_dict_sys_mutex) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
@@ -284,7 +284,7 @@ dict_stats_exec_sql(
 	bool	trx_started = false;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	if (!dict_stats_persistent_storage_check(true)) {
 		pars_info_free(pinfo);
@@ -787,7 +787,7 @@ dict_table_t*
 dict_stats_snapshot_create(
 	dict_table_t*	table)
 {
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	dict_table_stats_lock(table, RW_S_LATCH);
 
@@ -806,7 +806,7 @@ dict_stats_snapshot_create(
 
 	dict_table_stats_unlock(table, RW_S_LATCH);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(t);
 }
@@ -2314,7 +2314,7 @@ dict_stats_save_index_stat(
 
 	ut_ad(!trx || trx->internal || trx->mysql_thd);
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
@@ -2450,7 +2450,7 @@ dict_stats_save(
 
 	now = ut_time();
 	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	pinfo = pars_info_create();
 
@@ -2489,7 +2489,7 @@ dict_stats_save(
 		ib::error() << "Cannot save table statistics for table "
 			<< table->name << ": " << ut_strerr(ret);
 
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		rw_lock_x_unlock(dict_operation_lock);
 
 		dict_stats_snapshot_free(table);
@@ -2596,7 +2596,7 @@ dict_stats_save(
 end:
 	trx_free(trx);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	rw_lock_x_unlock(dict_operation_lock);
 
 	dict_stats_snapshot_free(table);
@@ -2968,7 +2968,7 @@ dict_stats_fetch_from_ps(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_ad(!mutex_own(&dict_sys->mutex));
+	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	/* Initialize all stats to dummy values before fetching because if
 	the persistent storage contains incomplete stats (e.g. missing stats
@@ -3104,7 +3104,7 @@ dict_stats_update_for_index(
 {
 	DBUG_ENTER("dict_stats_update_for_index");
 
-	ut_ad(!mutex_own(&dict_sys->mutex));
+	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	if (dict_stats_is_persistent_enabled(index->table)) {
 
@@ -3153,7 +3153,7 @@ dict_stats_update(
 					the persistent statistics
 					storage */
 {
-	ut_ad(!mutex_own(&dict_sys->mutex));
+	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	if (!table->is_readable()) {
 		return (dict_stats_report_error(table));
@@ -3386,7 +3386,7 @@ dict_stats_drop_index(
 	pars_info_t*	pinfo;
 	dberr_t		ret;
 
-	ut_ad(!mutex_own(&dict_sys->mutex));
+	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	/* skip indexes whose table names do not contain a database name
 	e.g. if we are dropping an index from SYS_TABLES */
@@ -3407,7 +3407,7 @@ dict_stats_drop_index(
 	pars_info_add_str_literal(pinfo, "index_name", iname);
 
 	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	ret = dict_stats_exec_sql(
 		pinfo,
@@ -3419,7 +3419,7 @@ dict_stats_drop_index(
 		"index_name = :index_name;\n"
 		"END;\n", NULL);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	rw_lock_x_unlock(dict_operation_lock);
 
 	if (ret == DB_STATS_DO_NOT_EXIST) {
@@ -3469,7 +3469,7 @@ dict_stats_delete_from_table_stats(
 	dberr_t		ret;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	pinfo = pars_info_create();
 
@@ -3505,7 +3505,7 @@ dict_stats_delete_from_index_stats(
 	dberr_t		ret;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	pinfo = pars_info_create();
 
@@ -3542,7 +3542,7 @@ dict_stats_drop_table(
 	dberr_t		ret;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* skip tables that do not contain a database name
 	e.g. if we are dropping SYS_TABLES */
@@ -3618,7 +3618,7 @@ dict_stats_rename_table_in_table_stats(
 	dberr_t		ret;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	pinfo = pars_info_create();
 
@@ -3662,7 +3662,7 @@ dict_stats_rename_table_in_index_stats(
 	dberr_t		ret;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	pinfo = pars_info_create();
 
@@ -3706,7 +3706,7 @@ dict_stats_rename_table(
 	dberr_t		ret;
 
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(!mutex_own(&dict_sys->mutex));
+	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	/* skip innodb_table_stats and innodb_index_stats themselves */
 	if (strcmp(old_name, TABLE_STATS_NAME) == 0
@@ -3724,7 +3724,7 @@ dict_stats_rename_table(
 		     new_table_utf8, sizeof(new_table_utf8));
 
 	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	ulint	n_attempts = 0;
 	do {
@@ -3744,11 +3744,11 @@ dict_stats_rename_table(
 		}
 
 		if (ret != DB_SUCCESS) {
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 			rw_lock_x_unlock(dict_operation_lock);
 			os_thread_sleep(200000 /* 0.2 sec */);
 			rw_lock_x_lock(dict_operation_lock);
-			mutex_enter(&dict_sys->mutex);
+			mutex_enter(&dict_sys.mutex);
 		}
 	} while ((ret == DB_DEADLOCK
 		  || ret == DB_DUPLICATE_KEY
@@ -3776,7 +3776,7 @@ dict_stats_rename_table(
 			 TABLE_STATS_NAME_PRINT,
 			 new_db_utf8, new_table_utf8,
 			 old_db_utf8, old_table_utf8);
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		rw_lock_x_unlock(dict_operation_lock);
 		return(ret);
 	}
@@ -3800,18 +3800,18 @@ dict_stats_rename_table(
 		}
 
 		if (ret != DB_SUCCESS) {
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 			rw_lock_x_unlock(dict_operation_lock);
 			os_thread_sleep(200000 /* 0.2 sec */);
 			rw_lock_x_lock(dict_operation_lock);
-			mutex_enter(&dict_sys->mutex);
+			mutex_enter(&dict_sys.mutex);
 		}
 	} while ((ret == DB_DEADLOCK
 		  || ret == DB_DUPLICATE_KEY
 		  || ret == DB_LOCK_WAIT_TIMEOUT)
 		 && n_attempts < 5);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	rw_lock_x_unlock(dict_operation_lock);
 
 	if (ret != DB_SUCCESS) {
@@ -3854,10 +3854,10 @@ dict_stats_rename_index(
 	const char*		new_index_name)	/*!< in: new index name */
 {
 	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	if (!dict_stats_persistent_storage_check(true)) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		rw_lock_x_unlock(dict_operation_lock);
 		return(DB_STATS_DO_NOT_EXIST);
 	}
@@ -3891,7 +3891,7 @@ dict_stats_rename_index(
 		"index_name = :old_index_name;\n"
 		"END;\n", NULL);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	rw_lock_x_unlock(dict_operation_lock);
 
 	return(ret);
@@ -3942,7 +3942,7 @@ test_dict_table_schema_check()
 	/* prevent any data dictionary modifications while we are checking
 	the tables' structure */
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	/* check that a valid table is reported as valid */
 	schema.n_cols = 7;
@@ -4018,7 +4018,7 @@ test_dict_table_schema_check()
 
 test_dict_table_schema_check_end:
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 }
 /* @} */
 

@@ -2279,7 +2279,7 @@ row_import_adjust_root_pages_of_secondary_indexes(
 }
 
 /*****************************************************************//**
-Ensure that dict_sys->row_id exceeds SELECT MAX(DB_ROW_ID). */
+Ensure that dict_sys.row_id exceeds SELECT MAX(DB_ROW_ID). */
 MY_ATTRIBUTE((nonnull)) static
 void
 row_import_set_sys_max_row_id(
@@ -2331,14 +2331,14 @@ row_import_set_sys_max_row_id(
 		/* Update the system row id if the imported index row id is
 		greater than the max system row id. */
 
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 
-		if (row_id >= dict_sys->row_id) {
-			dict_sys->row_id = row_id + 1;
+		if (row_id >= dict_sys.row_id) {
+			dict_sys.row_id = row_id + 1;
 			dict_hdr_flush_row_id();
 		}
 
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 }
 
@@ -4011,7 +4011,7 @@ row_import_for_mysql(
 
 	/* Open the tablespace so that we can access via the buffer pool.
 	We set the 2nd param (fix_dict = true) here because we already
-	have an x-lock on dict_operation_lock and dict_sys->mutex.
+	have an x-lock on dict_operation_lock and dict_sys.mutex.
 	The tablespace is initially opened as a temporary one, because
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */

@@ -326,7 +326,7 @@ enum	fts_status {
 					sync-ed after crash recovery */
 
 	TABLE_DICT_LOCKED = 16		/*!< Set if the table has
-					dict_sys->mutex */
+					dict_sys.mutex */
 };
 
 typedef	enum fts_status	fts_status_t;
@@ -409,9 +409,9 @@ extern char*		fts_internal_tbl_name2;
 
 #define	fts_que_graph_free(graph)			\
 do {							\
-	mutex_enter(&dict_sys->mutex);			\
+	mutex_enter(&dict_sys.mutex);			\
 	que_graph_free(graph);				\
-	mutex_exit(&dict_sys->mutex);			\
+	mutex_exit(&dict_sys.mutex);			\
 } while (0)
 
 /******************************************************************//**
@@ -804,7 +804,7 @@ fts_sync_table(
 	bool		has_dict);
 
 /****************************************************************//**
-Free the query graph but check whether dict_sys->mutex is already
+Free the query graph but check whether dict_sys.mutex is already
 held */
 void
 fts_que_graph_free_check_lock(

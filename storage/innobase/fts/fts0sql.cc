@@ -175,17 +175,17 @@ fts_parse_sql(
 			   & TABLE_DICT_LOCKED));
 
 	if (!dict_locked) {
-		ut_ad(!mutex_own(&dict_sys->mutex));
+		ut_ad(!mutex_own(&dict_sys.mutex));
 
 		/* The InnoDB SQL parser is not re-entrant. */
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
 	graph = pars_sql(info, str);
 	ut_a(graph);
 
 	if (!dict_locked) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	ut_free(str);
@@ -205,7 +205,7 @@ fts_parse_sql_no_dict_lock(
 	char*		str;
 	que_t*		graph;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 

@@ -954,7 +954,7 @@ struct dict_index_t {
 				Transitions from ONLINE_INDEX_COMPLETE (to
 				ONLINE_INDEX_CREATION) are protected
 				by dict_operation_lock and
-				dict_sys->mutex. Other changes are
+				dict_sys.mutex. Other changes are
 				protected by index->lock. */
 	unsigned	uncommitted:1;
 				/*!< a flag that is set for secondary indexes
@@ -2051,7 +2051,7 @@ public:
 
 	/** The state of the background stats thread wrt this table.
 	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys->mutex. Dirty reads are possible. */
+	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
 
 	#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
 				/*!< BG_SCRUB_IN_PROGRESS is set in
@@ -2067,7 +2067,7 @@ public:
 
 	/** The state of the background stats thread wrt this table.
 	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys->mutex. Dirty reads are possible. */
+	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
 	byte					stats_bg_flag;
 
 	bool		stats_error_printed;

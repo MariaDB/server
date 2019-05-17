@@ -1009,9 +1009,9 @@ fts_table_fetch_doc_ids(
 	error = fts_eval_sql(trx, graph);
 	fts_sql_commit(trx);
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 	que_graph_free(graph);
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	if (error == DB_SUCCESS) {
 		ib_vector_sort(doc_ids->doc_ids, fts_update_doc_id_cmp);
@@ -3016,8 +3016,8 @@ fts_optimize_init(void)
 	std::vector<dict_table_t*> table_vector;
 	std::vector<dict_table_t*>::iterator it;
 
-	mutex_enter(&dict_sys->mutex);
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
+	mutex_enter(&dict_sys.mutex);
+	for (table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
              table != NULL;
              table = UT_LIST_GET_NEXT(table_LRU, table)) {
                 if (table->fts &&
@@ -3031,12 +3031,12 @@ fts_optimize_init(void)
 
 	/* It is better to call dict_table_prevent_eviction()
 	outside the above loop because it operates on
-	dict_sys->table_LRU list.*/
+	dict_sys.table_LRU list.*/
 	for (it=table_vector.begin();it!=table_vector.end();++it) {
 		dict_table_prevent_eviction(*it);
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	table_vector.clear();
 
 	fts_opt_shutdown_event = os_event_create(0);
