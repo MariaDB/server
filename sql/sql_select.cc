@@ -10027,8 +10027,16 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  /*
 	    We plan to scan all rows.
 	    Check again if we should use an index.
-	    We could have used an column from a previous table in
-	    the index if we are using limit and this is the first table
+
+            There are two cases:
+            1) There could be an index usage the refers to a previous
+               table that we didn't consider before, but could be consider
+               now as a "last resort". For example
+               SELECT * from t1,t2 where t1.a between t2.a and t2.b;
+            2) If the current table is the first non const table
+               and there is a limit it still possibly beneficial
+               to use the index even if the index range is big as
+               we can stop when we've found limit rows.
 
             (1) - Don't switch the used index if we are using semi-join
                   LooseScan on this table. Using different index will not
