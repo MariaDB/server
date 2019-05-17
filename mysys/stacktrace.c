@@ -14,12 +14,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h>
+#include "mysys_priv.h"
 #include <my_stacktrace.h>
 
 #ifndef __WIN__
 #include <signal.h>
-#include <my_pthread.h>
 #include <m_string.h>
 #ifdef HAVE_STACKTRACE
 #include <unistd.h>
@@ -42,11 +41,49 @@ static char *heap_start;
 extern char *__bss_start;
 #endif
 
-void my_init_stacktrace()
+/**
+   Default handler for printing stacktrace
+*/
+
+static sig_handler default_handle_fatal_signal(int sig)
+{
+  my_safe_printf_stderr("%s: Got signal %d. Attempting backtrace\n",
+                        my_progname_short, sig);
+  my_print_stacktrace(0,0,1);
+#ifndef __WIN__
+  signal(sig, SIG_DFL);
+  kill(getpid(), sig);
+#endif /* __WIN__ */
+  return;
+}
+
+
+/**
+   Initialize priting off stacktrace at signal
+
+   @param setup_handlers 0 only initialize variables
+                         1 setup signal handlers for stacktrace printing
+*/
+
+void my_init_stacktrace(int setup_handlers)
 {
 #if(defined HAVE_BSS_START) && !(defined __linux__)
   heap_start = (char*) &__bss_start;
 #endif
+  if (setup_handlers)
+  {
+    struct sigaction sa;
+    sa.sa_flags = SA_RESETHAND | SA_NODEFER;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler= default_handle_fatal_signal;
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGABRT, &sa, NULL);
+#ifdef SIGBUS
+    sigaction(SIGBUS, &sa, NULL);
+#endif
+    sigaction(SIGILL, &sa, NULL);
+    sigaction(SIGFPE, &sa, NULL);
+  }
 }
 
 #ifdef __linux__
@@ -510,7 +547,7 @@ static EXCEPTION_POINTERS *exception_ptrs;
 #define MODULE64_SIZE_WINXP 576
 #define STACKWALK_MAX_FRAMES 64
 
-void my_init_stacktrace()
+void my_init_stacktrace(int setup_handlers __attribute__((unused)))
 {
 }
 

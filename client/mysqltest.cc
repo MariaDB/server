@@ -9116,7 +9116,7 @@ static void init_signal_handling(void)
   DBUG_ENTER("init_signal_handling");
 
 #ifdef HAVE_STACKTRACE
-  my_init_stacktrace();
+  my_init_stacktrace(0);
 #endif
 
   sa.sa_flags = SA_RESETHAND | SA_NODEFER;
