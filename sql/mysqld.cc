@@ -6196,8 +6196,8 @@ void create_thread_to_handle_connection(CONNECT *connect)
     /* Get thread from cache */
     thread_cache.push_back(connect);
     wake_thread++;
-    mysql_cond_signal(&COND_thread_cache);
     mysql_mutex_unlock(&LOCK_thread_cache);
+    mysql_cond_signal(&COND_thread_cache);
     DBUG_PRINT("info",("Thread created"));
     DBUG_VOID_RETURN;
   }
