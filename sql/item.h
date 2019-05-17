@@ -1247,12 +1247,14 @@ public:
   }
   longlong val_int_unsigned_typecast_from_int();
   longlong val_int_unsigned_typecast_from_str();
+  longlong val_int_unsigned_typecast_from_real();
 
   /**
     Get a value for CAST(x AS UNSIGNED).
     Huge positive unsigned values are converted to negative complements.
   */
   longlong val_int_signed_typecast_from_int();
+  longlong val_int_signed_typecast_from_real();
 
   /*
     This is just a shortcut to avoid the cast. You should still use

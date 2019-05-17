@@ -4490,7 +4490,7 @@ void Type_handler_temporal_result::Item_get_date(THD *thd, Item *item,
 longlong Type_handler_real_result::
            Item_val_int_signed_typecast(Item *item) const
 {
-  return item->val_int_signed_typecast_from_int();
+  return item->val_int_signed_typecast_from_real();
 }
 
 longlong Type_handler_int_result::
@@ -4502,7 +4502,7 @@ longlong Type_handler_int_result::
 longlong Type_handler_decimal_result::
            Item_val_int_signed_typecast(Item *item) const
 {
-  return item->val_int();
+  return VDec(item).to_longlong(false);
 }
 
 longlong Type_handler_temporal_result::
@@ -4522,7 +4522,7 @@ longlong Type_handler_string_result::
 longlong Type_handler_real_result::
            Item_val_int_unsigned_typecast(Item *item) const
 {
-  return item->val_int_unsigned_typecast_from_int();
+  return item->val_int_unsigned_typecast_from_real();
 }
 
 longlong Type_handler_int_result::
@@ -4535,6 +4535,32 @@ longlong Type_handler_temporal_result::
            Item_val_int_unsigned_typecast(Item *item) const
 {
   return item->val_int_unsigned_typecast_from_int();
+}
+
+longlong Type_handler_time_common::
+           Item_val_int_unsigned_typecast(Item *item) const
+{
+  /*
+    TODO: this should eventually be fixed to do rounding
+    when TIME_ROUND_FRACTIONAL is enabled, together with
+    Field_{tiny|short|long|longlong}::store_time_dec().
+    See MDEV-19502.
+  */
+  THD *thd= current_thd;
+  Time tm(thd, item);
+  DBUG_ASSERT(!tm.is_valid_time() == item->null_value);
+  if (!tm.is_valid_time())
+    return 0;
+  longlong res= tm.to_longlong();
+  if (res < 0)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_DATA_OVERFLOW, ER_THD(thd, ER_DATA_OVERFLOW),
+                        ErrConvTime(tm.get_mysql_time()).ptr(),
+                        "UNSIGNED BIGINT");
+    return 0;
+  }
+  return res;
 }
 
 longlong Type_handler_string_result::

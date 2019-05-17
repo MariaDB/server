@@ -265,6 +265,40 @@ longlong Item::val_int_unsigned_typecast_from_str()
 }
 
 
+longlong Item::val_int_signed_typecast_from_real()
+{
+  double nr= val_real();
+  if (null_value)
+    return 0;
+  Converter_double_to_longlong conv(nr, false);
+  if (conv.error())
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_DATA_OVERFLOW, ER_THD(thd, ER_DATA_OVERFLOW),
+                        ErrConvDouble(nr).ptr(), "SIGNED BIGINT");
+  }
+  return conv.result();
+}
+
+
+longlong Item::val_int_unsigned_typecast_from_real()
+{
+  double nr= val_real();
+  if (null_value)
+    return 0;
+  Converter_double_to_longlong conv(nr, true);
+  if (conv.error())
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_DATA_OVERFLOW, ER_THD(thd, ER_DATA_OVERFLOW),
+                        ErrConvDouble(nr).ptr(), "UNSIGNED BIGINT");
+  }
+  return conv.result();
+}
+
+
 longlong Item::val_int_signed_typecast_from_int()
 {
   longlong value= val_int();

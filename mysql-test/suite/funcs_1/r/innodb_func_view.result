@@ -2473,12 +2473,12 @@ my_time, id FROM t1_values
 WHERE select_id = 93 OR select_id IS NULL order by id;
 CAST(my_time AS UNSIGNED INTEGER)	my_time	id
 NULL	NULL	1
-18446744073701165657	-838:59:59	2
+0	-838:59:59	2
 8385959	838:59:59	3
 130000	13:00:00	4
 100000	10:00:00	5
 Warnings:
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1916	Got overflow when converting '-838:59:59' to UNSIGNED BIGINT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_time` as unsigned) AS `CAST(my_time AS UNSIGNED INTEGER)`,`t1_values`.`my_time` AS `my_time`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2487,12 +2487,12 @@ WHERE v1.id IN (SELECT id FROM t1_values
 WHERE select_id = 93 OR select_id IS NULL) order by id;
 CAST(my_time AS UNSIGNED INTEGER)	my_time	id
 NULL	NULL	1
-18446744073701165657	-838:59:59	2
+0	-838:59:59	2
 8385959	838:59:59	3
 130000	13:00:00	4
 100000	10:00:00	5
 Warnings:
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1916	Got overflow when converting '-838:59:59' to UNSIGNED BIGINT. Value truncated
 DROP VIEW v1;
 
 
@@ -2581,15 +2581,14 @@ my_double, id FROM t1_values
 WHERE select_id = 89 OR select_id IS NULL order by id;
 CAST(my_double AS UNSIGNED INTEGER)	my_double	id
 NULL	NULL	1
-9223372036854775808	-1.7976931348623e308	2
-9223372036854775807	1.7976931348623e308	3
+0	-1.7976931348623e308	2
+18446744073709551615	1.7976931348623e308	3
 0	0	4
-18446744073709551615	-1	5
+0	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1916	Got overflow when converting '-1.7976931348623e308' to UNSIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '1.7976931348623e308' to UNSIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '-1' to UNSIGNED BIGINT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as unsigned) AS `CAST(my_double AS UNSIGNED INTEGER)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2598,15 +2597,14 @@ WHERE v1.id IN (SELECT id FROM t1_values
 WHERE select_id = 89 OR select_id IS NULL) order by id;
 CAST(my_double AS UNSIGNED INTEGER)	my_double	id
 NULL	NULL	1
-9223372036854775808	-1.7976931348623e308	2
-9223372036854775807	1.7976931348623e308	3
+0	-1.7976931348623e308	2
+18446744073709551615	1.7976931348623e308	3
 0	0	4
-18446744073709551615	-1	5
+0	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1916	Got overflow when converting '-1.7976931348623e308' to UNSIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '1.7976931348623e308' to UNSIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '-1' to UNSIGNED BIGINT. Value truncated
 DROP VIEW v1;
 
 
@@ -2964,8 +2962,8 @@ NULL	NULL	1
 0	0	4
 -1	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
+Note	1916	Got overflow when converting '-1.7976931348623e308' to SIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '1.7976931348623e308' to SIGNED BIGINT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as signed) AS `CAST(my_double AS SIGNED INTEGER)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2979,8 +2977,8 @@ NULL	NULL	1
 0	0	4
 -1	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
+Note	1916	Got overflow when converting '-1.7976931348623e308' to SIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '1.7976931348623e308' to SIGNED BIGINT. Value truncated
 DROP VIEW v1;
 
 
