@@ -6375,7 +6375,6 @@ static void set_non_blocking_if_supported(MYSQL_SOCKET sock)
 void handle_connections_sockets()
 {
   MYSQL_SOCKET sock= mysql_socket_invalid();
-  MYSQL_SOCKET new_sock= mysql_socket_invalid();
   uint error_count=0;
   struct sockaddr_storage cAddr;
   int retval;
@@ -6467,29 +6466,28 @@ void handle_connections_sockets()
     for (uint retry=0; retry < MAX_ACCEPT_RETRY; retry++)
     {
       size_socket length= sizeof(struct sockaddr_storage);
+      MYSQL_SOCKET new_sock;
+
       new_sock= mysql_socket_accept(key_socket_client_connection, sock,
                                     (struct sockaddr *)(&cAddr),
                                     &length);
-      if (mysql_socket_getfd(new_sock) != INVALID_SOCKET ||
-	  (socket_errno != SOCKET_EINTR && socket_errno != SOCKET_EAGAIN))
-	break;
+      if (mysql_socket_getfd(new_sock) != INVALID_SOCKET)
+        handle_accepted_socket(new_sock, sock);
+      else if (socket_errno != SOCKET_EINTR && socket_errno != SOCKET_EAGAIN)
+      {
+        /*
+          accept(2) failed on the listening port.
+          There is not much details to report about the client,
+          increment the server global status variable.
+        */
+        statistic_increment(connection_errors_accept, &LOCK_status);
+        if ((error_count++ & 255) == 0) // This can happen often
+          sql_perror("Error in accept");
+        if (socket_errno == SOCKET_ENFILE || socket_errno == SOCKET_EMFILE)
+          sleep(1); // Give other threads some time
+        break;
+      }
     }
-
-    if (mysql_socket_getfd(new_sock) == INVALID_SOCKET)
-    {
-      /*
-        accept(2) failed on the listening port, after many retries.
-        There is not much details to report about the client,
-        increment the server global status variable.
-      */
-      statistic_increment(connection_errors_accept, &LOCK_status);
-      if ((error_count++ & 255) == 0)		// This can happen often
-	sql_perror("Error in accept");
-      if (socket_errno == SOCKET_ENFILE || socket_errno == SOCKET_EMFILE)
-	sleep(1);				// Give other threads some time
-      continue;
-    }
-    handle_accepted_socket(new_sock, sock);
   }
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
