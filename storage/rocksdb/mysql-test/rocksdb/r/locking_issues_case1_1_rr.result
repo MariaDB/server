@@ -1,0 +1,30 @@
+
+-----------------------------------------------------------------------
+- Locking issues case 1.1:
+-   Locking rows that do not exist when using all primary key columns in
+-   a WHERE clause
+-   using REPEATABLE READ transaction isolation level
+-----------------------------------------------------------------------
+DROP TABLE IF EXISTS t0;
+CREATE TABLE t0(id1 INT, id2 INT, value INT, PRIMARY KEY(id1, id2));
+INSERT INTO t0 VALUES (1,1,0), (3,3,0), (4,4,0), (6,6,0);
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t0 WHERE id1=1 AND id2=5 FOR UPDATE;
+id1	id2	value
+connection con2;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+INSERT INTO t0 VALUES (1,5,0);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t0 WHERE id1=1 AND id2=5 FOR UPDATE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+COMMIT;
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t0;

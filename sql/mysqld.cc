@@ -7831,7 +7831,6 @@ struct my_option my_long_options[]=
   MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-offset"),       // OPTIMIZER_TRACE
   MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-limit"),        // OPTIMIZER_TRACE
   MYSQL_TO_BE_IMPLEMENTED_OPTION("optimizer-trace-max-mem-size"), // OPTIMIZER_TRACE
-  MYSQL_TO_BE_IMPLEMENTED_OPTION("eq-range-index-dive-limit"),
   MYSQL_COMPATIBILITY_OPTION("server-id-bits"),
   MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-rows-search-algorithms"), // HAVE_REPLICATION
   MYSQL_TO_BE_IMPLEMENTED_OPTION("slave-allow-batching"),         // HAVE_REPLICATION

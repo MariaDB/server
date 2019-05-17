@@ -52,8 +52,8 @@ namespace myrocks {
   Since we cannot or don't want to change the API in any way, we can use this
   mechanism to define readability tokens that look like C++ namespaces, but are
   not enforced in any way by the compiler, since the pre-compiler strips them
-  out. However, on the calling side, code looks like my_core::thd_ha_data()
-  rather than plain a thd_ha_data() call. This technique adds an immediate
+  out. However, on the calling side, code looks like my_core::thd_get_ha_data()
+  rather than plain a thd_get_ha_data() call. This technique adds an immediate
   visible cue on what type of API we are calling into.
 */
 
