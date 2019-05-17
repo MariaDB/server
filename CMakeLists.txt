@@ -16,6 +16,11 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 
+# Remove the following comment if you don't want to have striped binaries
+# in RPM's:
+
+#set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
+
 IF(POLICY CMP0022)
   CMAKE_POLICY(SET CMP0022 NEW)
 ENDIF()

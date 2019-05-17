@@ -26,6 +26,9 @@
 #ifdef HAVE_SYS_MMAN_H
 #include <sys/mman.h>
 #endif
+/* Remove next line if you want aria_chk to produce a stack trace */
+/* #undef HAVE_BACKTRACE */
+#include <my_stacktrace.h>
 
 static uint decode_bits;
 static char **default_argv;
@@ -120,15 +123,15 @@ static void my_exit(int exit_code)
          MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(exit_code);
 }
-  
 
-	/* Main program */
+/* Main program */
 
 int main(int argc, char **argv)
 {
   int error;
   MY_INIT(argv[0]);
 
+  my_init_stacktrace(1);
   default_log_dir= opt_log_dir= maria_data_root= (char *)".";
   maria_chk_init(&check_param);
   check_param.opt_lock_memory= 1;		/* Lock memory if possible */
