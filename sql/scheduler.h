@@ -38,7 +38,6 @@ struct scheduler_functions
   void (*thd_wait_begin)(THD *thd, int wait_type);
   void (*thd_wait_end)(THD *thd);
   void (*post_kill_notification)(THD *thd);
-  bool (*end_thread)(THD *thd, bool cache_thread);
   void (*end)(void);
 };
 

@@ -2663,7 +2663,7 @@ void unlink_thd(THD *thd)
 */
 
 
-static bool cache_thread(THD *thd)
+bool cache_thread(THD *thd)
 {
   struct timespec abstime;
   DBUG_ENTER("cache_thread");
@@ -2745,51 +2745,6 @@ static bool cache_thread(THD *thd)
   }
   mysql_mutex_unlock(&LOCK_thread_cache);
   DBUG_RETURN(0);
-}
-
-
-/*
-  End thread for the current connection
-
-  SYNOPSIS
-    one_thread_per_connection_end()
-    thd		  Thread handler. This may be null if we run out of resources.
-    put_in_cache  Store thread in cache, if there is room in it
-                  Normally this is true in all cases except when we got
-                  out of resources initializing the current thread
-
-  NOTES
-    If thread is cached, we will wait until thread is scheduled to be
-    reused and then we will return.
-    If thread is not cached, we end the thread.
-
-  RETURN
-    0    Signal to handle_one_connection to reuse connection
-*/
-
-bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
-{
-  DBUG_ENTER("one_thread_per_connection_end");
-
-  if (thd)
-  {
-    const bool wsrep_applier= IF_WSREP(thd->wsrep_applier, false);
-
-    unlink_thd(thd);
-    if (!wsrep_applier && put_in_cache && cache_thread(thd))
-      DBUG_RETURN(0);                             // Thread is reused
-    delete thd;
-  }
-
-  DBUG_PRINT("info", ("killing thread"));
-  DBUG_LEAVE;                                   // Must match DBUG_ENTER()
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  ERR_remove_state(0);
-#endif
-  my_thread_end();
-
-  pthread_exit(0);
-  return 0;                                     // Avoid compiler warnings
 }
 
 
@@ -6177,8 +6132,7 @@ void inc_thread_created(void)
 
 void handle_connection_in_main_thread(CONNECT *connect)
 {
-  thread_cache_size= 0;			// Safety
-  do_handle_one_connection(connect);
+  do_handle_one_connection(connect, false);
 }
 
 

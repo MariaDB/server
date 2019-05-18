@@ -79,7 +79,7 @@ void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
 void unlink_thd(THD *thd);
-bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
+bool cache_thread(THD *thd);
 void flush_thread_cache();
 void refresh_status(THD *thd);
 bool is_secure_file_path(char *path);

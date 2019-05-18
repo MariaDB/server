@@ -1112,7 +1112,6 @@ bool setup_connection_thread_globals(THD *thd)
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     statistic_increment(connection_errors_internal, &LOCK_status);
-    thd->scheduler->end_thread(thd, 0);
     return 1;                                   // Error
   }
   return 0;
@@ -1304,14 +1303,15 @@ pthread_handler_t handle_one_connection(void *arg)
   mysql_thread_set_psi_id(connect->thread_id);
 
   if (init_new_connection_handler_thread())
-  {
-    scheduler_functions *scheduler= connect->scheduler;
     connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
-    scheduler->end_thread(0, 0);
-    return 0;
-  }
+  else
+    do_handle_one_connection(connect, true);
 
-  do_handle_one_connection(connect);
+  DBUG_PRINT("info", ("killing thread"));
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+  ERR_remove_state(0);
+#endif
+  my_thread_end();
   return 0;
 }
 
@@ -1344,15 +1344,13 @@ bool thd_is_connection_alive(THD *thd)
 }
 
 
-void do_handle_one_connection(CONNECT *connect)
+void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
 {
   ulonglong thr_create_utime= microsecond_interval_timer();
   THD *thd;
   if (!(thd= connect->create_thd(NULL)))
   {
-    scheduler_functions *scheduler= connect->scheduler;
     connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
-    scheduler->end_thread(0, 0);
     return;
   }
 
@@ -1388,7 +1386,11 @@ void do_handle_one_connection(CONNECT *connect)
   */
   thd->thread_stack= (char*) &thd;
   if (setup_connection_thread_globals(thd))
+  {
+    unlink_thd(thd);
+    delete thd;
     return;
+  }
 
   for (;;)
   {
@@ -1422,16 +1424,12 @@ end_thread:
     if (thd->userstat_running)
       update_global_user_stats(thd, create_user, time(NULL));
 
-    if (thd->scheduler->end_thread(thd, 1))
-      return;                                 // Probably no-threads
-
-    /*
-      If end_thread() returns, this thread has been schedule to
-      handle the next connection.
-    */
-    thd= current_thd;
-    thd->thread_stack= (char*) &thd;
+    unlink_thd(thd);
+    if (IF_WSREP(thd->wsrep_applier, false) || !put_in_cache ||
+        !cache_thread(thd))
+      break;
   }
+  delete thd;
 }
 #endif /* EMBEDDED_LIBRARY */
 

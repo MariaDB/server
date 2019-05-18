@@ -2638,7 +2638,7 @@ void* start_wsrep_THD(void *arg)
   {
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
-    MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
+    unlink_thd(thd);
     delete thd;
     delete thd_args;
     goto error;
@@ -2685,7 +2685,7 @@ void* start_wsrep_THD(void *arg)
   if (plugins_are_initialized)
   {
     net_end(&thd->net);
-    MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 1));
+    unlink_thd(thd);
   }
   else
   {

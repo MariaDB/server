@@ -380,14 +380,6 @@ end:
 }
 
 
-
-/* Dummy functions, do nothing */
-
-static bool tp_end_thread(THD *, bool)
-{
-  return 0;
-}
-
 static TP_pool *pool;
 
 static bool tp_init()
@@ -511,7 +503,6 @@ static scheduler_functions tp_scheduler_functions=
   tp_wait_begin,                      // thd_wait_begin
   tp_wait_end,                        // thd_wait_end
   tp_post_kill_notification,          // post kill notification
-  tp_end_thread,                      // Dummy function
   tp_end                              // end
 };
 
