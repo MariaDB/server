@@ -1,0 +1,4 @@
+usr/bin/mysql_install_db usr/bin/mariadb-install-db
+usr/bin/mysql_upgrade usr/bin/mariadb-upgrade
+usr/share/man/man1/mysql_install_db.1.gz usr/share/man/man1/mariadb-install-db.1.gz
+usr/share/man/man1/mysql_upgrade.1.gz usr/share/man/man1/mariadb-upgrade-db.1.gz

@@ -160,6 +160,7 @@ INCLUDE(plugin)
 INCLUDE(install_macros)
 INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
+INCLUDE(symlinks)
 INCLUDE(compile_flags)
 INCLUDE(crc32)
 
