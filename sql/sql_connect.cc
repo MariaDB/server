@@ -1426,8 +1426,36 @@ end_thread:
 
     unlink_thd(thd);
     if (IF_WSREP(thd->wsrep_applier, false) || !put_in_cache ||
-        !cache_thread(thd))
+        !(connect= cache_thread(thd)))
       break;
+
+    if (!(connect->create_thd(thd)))
+    {
+      /* Out of resources. Free thread to get more resources */
+      connect->close_and_delete();
+      break;
+    }
+    delete connect;
+
+    /*
+      We have to call store_globals to update mysys_var->id and lock_info
+      with the new thread_id
+    */
+    thd->store_globals();
+
+    /*
+      Create new instrumentation for the new THD job,
+      and attach it to this running pthread.
+    */
+    PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection,
+                                            thd, thd->thread_id));
+
+    /* reset abort flag for the thread */
+    thd->mysys_var->abort= 0;
+    thd->thr_create_utime= microsecond_interval_timer();
+    thd->start_utime= thd->thr_create_utime;
+
+    server_threads.insert(thd);
   }
   delete thd;
 }

@@ -2663,12 +2663,23 @@ void unlink_thd(THD *thd)
 */
 
 
-bool cache_thread(THD *thd)
+CONNECT *cache_thread(THD *thd)
 {
   struct timespec abstime;
   DBUG_ENTER("cache_thread");
   DBUG_ASSERT(thd);
   set_timespec(abstime, THREAD_CACHE_TIMEOUT);
+
+  /*
+    Delete the instrumentation for the job that just completed,
+    before parking this pthread in the cache (blocked on COND_thread_cache).
+  */
+  PSI_CALL_delete_current_thread();
+
+#ifndef DBUG_OFF
+  while (_db_is_pushed_())
+    _db_pop_();
+#endif
 
   mysql_mutex_lock(&LOCK_thread_cache);
   if (cached_thread_count < thread_cache_size && !kill_cached_threads)
@@ -2676,18 +2687,6 @@ bool cache_thread(THD *thd)
     /* Don't kill the thread, just put it in cache for reuse */
     DBUG_PRINT("info", ("Adding thread to cache"));
     cached_thread_count++;
-
-    /*
-      Delete the instrumentation for the job that just completed,
-      before parking this pthread in the cache (blocked on COND_thread_cache).
-    */
-    PSI_CALL_delete_current_thread();
-
-#ifndef DBUG_OFF
-    while (_db_is_pushed_())
-      _db_pop_();
-#endif
-
     while (!wake_thread)
     {
       int error= mysql_cond_timedwait(&COND_thread_cache, &LOCK_thread_cache,
@@ -2712,35 +2711,7 @@ bool cache_thread(THD *thd)
     {
       wake_thread--;
       mysql_mutex_unlock(&LOCK_thread_cache);
-
-      if (!(connect->create_thd(thd)))
-      {
-        /* Out of resources. Free thread to get more resources */
-        connect->close_and_delete();
-        DBUG_RETURN(0);
-      }
-      delete connect;
-
-      /*
-        We have to call store_globals to update mysys_var->id and lock_info
-        with the new thread_id
-      */
-      thd->store_globals();
-
-      /*
-        Create new instrumentation for the new THD job,
-        and attach it to this running pthread.
-      */
-      PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection,
-                                              thd, thd->thread_id));
-
-      /* reset abort flag for the thread */
-      thd->mysys_var->abort= 0;
-      thd->thr_create_utime= microsecond_interval_timer();
-      thd->start_utime= thd->thr_create_utime;
-
-      server_threads.insert(thd);
-      DBUG_RETURN(1);
+      DBUG_RETURN(connect);
     }
   }
   mysql_mutex_unlock(&LOCK_thread_cache);
