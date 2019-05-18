@@ -71,9 +71,10 @@ FUNCTION(INSTALL_MANPAGE file)
       ${MYSQL_DOC_DIR}/man/*${file}.8*
       ${GLOB_EXPR}
       )
-   ENDIF()
+  ENDIF()
     
   FILE(GLOB_RECURSE MANPAGES ${GLOB_EXPR})
+
   IF(MANPAGES)
     LIST(GET MANPAGES 0 MANPAGE)
     STRING(REPLACE "${file}man.1" "${file}.1" MANPAGE "${MANPAGE}")
@@ -111,8 +112,10 @@ FUNCTION(INSTALL_SCRIPT)
   ENDIF()
 
   INSTALL(PROGRAMS ${script} DESTINATION ${ARG_DESTINATION} ${COMP})
+  get_filename_component(dest "${script}" NAME)
+  CREATE_MARIADB_SYMLINK(${dest} ${ARG_DESTINATION} ${COMP})
 
-  INSTALL_MANPAGE(${script})
+  INSTALL_MANPAGE(${dest})
 ENDFUNCTION()
 
 

@@ -332,6 +332,7 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
+
   SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
   ADD_CUSTOM_COMMAND(
     OUTPUT ${wsrep_sst_rsync_wan}
