@@ -1303,6 +1303,14 @@ pthread_handler_t handle_one_connection(void *arg)
 
   mysql_thread_set_psi_id(connect->thread_id);
 
+  if (init_new_connection_handler_thread())
+  {
+    scheduler_functions *scheduler= connect->scheduler;
+    connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
+    scheduler->end_thread(0, 0);
+    return 0;
+  }
+
   do_handle_one_connection(connect);
   return 0;
 }
@@ -1340,8 +1348,7 @@ void do_handle_one_connection(CONNECT *connect)
 {
   ulonglong thr_create_utime= microsecond_interval_timer();
   THD *thd;
-  if (connect->scheduler->init_new_connection_thread() ||
-      !(thd= connect->create_thd(NULL)))
+  if (!(thd= connect->create_thd(NULL)))
   {
     scheduler_functions *scheduler= connect->scheduler;
     connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);

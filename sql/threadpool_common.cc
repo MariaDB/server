@@ -383,11 +383,6 @@ end:
 
 /* Dummy functions, do nothing */
 
-static bool tp_init_new_connection_thread()
-{
-  return 0;
-}
-
 static bool tp_end_thread(THD *, bool)
 {
   return 0;
@@ -512,7 +507,6 @@ static scheduler_functions tp_scheduler_functions=
   NULL,
   NULL,
   tp_init,                            // init
-  tp_init_new_connection_thread,      // init_new_connection_thread
   tp_add_connection,                  // add_connection
   tp_wait_begin,                      // thd_wait_begin
   tp_wait_end,                        // thd_wait_end

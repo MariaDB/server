@@ -34,7 +34,6 @@ struct scheduler_functions
   uint max_threads, *connection_count;
   ulong *max_connections;
   bool (*init)(void);
-  bool (*init_new_connection_thread)(void);
   void (*add_connection)(CONNECT *connect);
   void (*thd_wait_begin)(THD *thd, int wait_type);
   void (*thd_wait_end)(THD *thd);
