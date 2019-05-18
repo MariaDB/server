@@ -40,6 +40,7 @@ xa start 's';
 insert into t2 values (0);
 xa end 's';
 xa prepare 's';
+--source include/save_master_gtid.inc
 
 connection slave;
 source include/sync_with_master_gtid.inc;

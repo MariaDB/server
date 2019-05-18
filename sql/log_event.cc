@@ -9026,10 +9026,8 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
     sub_id= rgi->gtid_sub_id;
     gtid= rgi->current_gtid;
 
-    if (thd->transaction.xid_state.xid_cache_element->xa_state != XA_IDLE)
+    if (!thd->transaction.xid_state.is_explicit_XA())
     {
-      // TODO: DBUG_ASSERT(thd->transaction.xid_state.xid_cache_element->xa_state == XA_NOTR);
-
       if ((err= do_record_gtid(thd, rgi, true /* in_trans */, &hton)))
         return err;
 
@@ -9050,7 +9048,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (rgi->gtid_pending)
   {
-    // TODO: DBUG_ASSERT(thd->transaction.xid_state.xid_cache_element->xa_state == XA_NOTR);
+    DBUG_ASSERT(!thd->transaction.xid_state.is_explicit_XA());
 
     if ((err= do_record_gtid(thd, rgi, false, &hton)))
       return err;

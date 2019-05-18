@@ -4190,7 +4190,7 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
         rli->clear_flag(Relay_log_info::IN_TRANSACTION);
     }
   }
-  if (typ == XID_EVENT)
+  if (typ == XID_EVENT || typ == XA_PREPARE_LOG_EVENT)
     rli->clear_flag(Relay_log_info::IN_TRANSACTION);
   if (typ == GTID_EVENT &&
       !(((Gtid_log_event*) ev)->flags2 & Gtid_log_event::FL_STANDALONE))

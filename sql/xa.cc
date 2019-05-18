@@ -255,12 +255,16 @@ static bool xa_trans_rolled_back(XID_cache_element *element)
 static bool xa_trans_force_rollback(THD *thd)
 {
   bool rc= false;
+  XID_STATE &xid_state= thd->transaction.xid_state;
 
+  if (xid_state.xid_cache_element->xa_state != XA_PREPARED)
+    thd->lex->xa_opt= XA_ONE_PHASE;
   if (ha_rollback_trans(thd, true))
   {
     my_error(ER_XAER_RMERR, MYF(0));
     rc= true;
   }
+  thd->lex->xa_opt= XA_NONE;
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.reset();
@@ -536,7 +540,7 @@ bool trans_xa_commit(THD *thd)
       {
         res= thd->binlog_query(THD::THD::STMT_QUERY_TYPE,
                                thd->query(), thd->query_length(),
-                               FALSE, FALSE, TRUE, 0);
+                               FALSE, TRUE, TRUE, 0);
       }
       else
         res= 0;
@@ -645,7 +649,7 @@ bool trans_xa_rollback(THD *thd)
   {
     res= thd->binlog_query(THD::THD::STMT_QUERY_TYPE,
                            thd->query(), thd->query_length(),
-                           FALSE, FALSE, TRUE, 0);
+                           FALSE, TRUE, TRUE, 0);
   }
   DBUG_RETURN(res != 0 || xa_trans_force_rollback(thd));
 }
