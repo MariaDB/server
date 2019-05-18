@@ -350,7 +350,6 @@ static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 bool my_disable_leak_check= false;
 
 uint kill_cached_threads;
-static uint wake_thread;
 ulong max_used_connections;
 volatile ulong cached_thread_count= 0;
 static char *mysqld_user, *mysqld_chroot;
@@ -2666,6 +2665,8 @@ void unlink_thd(THD *thd)
 CONNECT *cache_thread(THD *thd)
 {
   struct timespec abstime;
+  CONNECT *connect;
+  bool flushed= false;
   DBUG_ENTER("cache_thread");
   DBUG_ASSERT(thd);
   set_timespec(abstime, THREAD_CACHE_TIMEOUT);
@@ -2682,40 +2683,36 @@ CONNECT *cache_thread(THD *thd)
 #endif
 
   mysql_mutex_lock(&LOCK_thread_cache);
-  if (cached_thread_count < thread_cache_size && !kill_cached_threads)
+  if ((connect= thread_cache.get()))
+    cached_thread_count++;
+  else if (cached_thread_count < thread_cache_size && !kill_cached_threads)
   {
     /* Don't kill the thread, just put it in cache for reuse */
     DBUG_PRINT("info", ("Adding thread to cache"));
     cached_thread_count++;
-    while (!wake_thread)
+    for (;;)
     {
       int error= mysql_cond_timedwait(&COND_thread_cache, &LOCK_thread_cache,
                                        &abstime);
-      if (kill_cached_threads)
-      {
-        mysql_cond_signal(&COND_flush_thread_cache);
+      flushed= kill_cached_threads;
+      if ((connect= thread_cache.get()))
         break;
-      }
-      if (error == ETIMEDOUT || error == ETIME)
+      else if (flushed || error == ETIMEDOUT || error == ETIME)
       {
         /*
           If timeout, end thread.
-          If a new thread is requested (wake_thread is set), we will handle
+          If a new thread is requested, we will handle
           the call, even if we got a timeout (as we are already awake and free)
         */
+        cached_thread_count--;
         break;
       }
     }
-    cached_thread_count--;
-    if (auto connect= thread_cache.get())
-    {
-      wake_thread--;
-      mysql_mutex_unlock(&LOCK_thread_cache);
-      DBUG_RETURN(connect);
-    }
   }
   mysql_mutex_unlock(&LOCK_thread_cache);
-  DBUG_RETURN(0);
+  if (flushed)
+    mysql_cond_signal(&COND_flush_thread_cache);
+  DBUG_RETURN(connect);
 }
 
 
@@ -6116,11 +6113,11 @@ void create_thread_to_handle_connection(CONNECT *connect)
   DBUG_ENTER("create_thread_to_handle_connection");
 
   mysql_mutex_lock(&LOCK_thread_cache);
-  if (cached_thread_count > wake_thread)
+  if (cached_thread_count)
   {
     /* Get thread from cache */
     thread_cache.push_back(connect);
-    wake_thread++;
+    cached_thread_count--;
     mysql_mutex_unlock(&LOCK_thread_cache);
     mysql_cond_signal(&COND_thread_cache);
     DBUG_PRINT("info",("Thread created"));
@@ -7896,7 +7893,7 @@ static int mysql_init_variables(void)
   mqh_used= 0;
   cleanup_done= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
-  thread_count= kill_cached_threads= wake_thread= 0;
+  thread_count= kill_cached_threads= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;
   opt_endinfo= using_udf_functions= 0;
