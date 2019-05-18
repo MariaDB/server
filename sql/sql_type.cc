@@ -8287,6 +8287,15 @@ Charset::encoding_allows_reinterpret_as(const CHARSET_INFO *cs) const
 bool
 Charset::encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const
 {
+  /*
+    Test quickly if we have two exactly equal CHARSET_INFO pointers.
+    This also handles a special case with my_charset_bin:
+    it does not have a collation name specific part in CHARSET_INFO::name,
+    which is just "binary" (without a character set name prefix),
+    so the code with collation_specific_name() below won't work for it.
+  */
+  if (m_charset == cs)
+    return true;
   if (!encoding_allows_reinterpret_as(cs))
     return false;
   LEX_CSTRING name0= collation_specific_name();
