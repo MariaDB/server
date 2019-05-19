@@ -404,6 +404,7 @@ public:
   }
   Partition_share *get_part_share() { return part_share; }
   handler *clone(const char *name, MEM_ROOT *mem_root);
+  ha_partition *get_clone_source() { return m_is_clone_of; }
   virtual void set_part_info(partition_info *part_info)
   {
      m_part_info= part_info;
@@ -882,6 +883,7 @@ private:
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
   int loop_partitions(handler_callback callback, void *param);
+  int first_partition(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);

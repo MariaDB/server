@@ -3598,7 +3598,11 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     maximum number locks needed, only some minor over allocation of memory
     in get_lock_data().
   */
-  m_num_locks*= m_tot_parts;
+  if (!(m_file[0]->table_flags_for_partition() &
+    HA_PT_CALL_AT_ONCE_STORE_LOCK))
+  {
+    m_num_locks*= m_tot_parts;
+  }
 
   file= m_file;
   ref_length= get_open_file_sample()->ref_length;
@@ -3914,21 +3918,33 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   else
     used_partitions= &(m_part_info->lock_partitions);
 
-  first_used_partition= bitmap_get_first_set(used_partitions);
-
-  for (i= first_used_partition;
-       i < m_tot_parts;
-       i= bitmap_get_next_set(used_partitions, i))
+  if (m_file[0]->table_flags_for_partition() &
+    HA_PT_CALL_AT_ONCE_EXTERNAL_LOCK)
   {
-    DBUG_PRINT("info", ("external_lock(thd, %d) part %u", lock_type, i));
-    if (unlikely((error= m_file[i]->ha_external_lock(thd, lock_type))))
+    if (unlikely((error= m_file[0]->ha_external_lock(thd, lock_type))))
     {
       if (lock_type != F_UNLCK)
         goto err_handler;
     }
-    DBUG_PRINT("info", ("external_lock part %u lock %d", i, lock_type));
-    if (lock_type != F_UNLCK)
-      bitmap_set_bit(&m_locked_partitions, i);
+  }
+  else
+  {
+    first_used_partition= bitmap_get_first_set(used_partitions);
+
+    for (i= first_used_partition;
+         i < m_tot_parts;
+         i= bitmap_get_next_set(used_partitions, i))
+    {
+      DBUG_PRINT("info", ("external_lock(thd, %d) part %u", lock_type, i));
+      if (unlikely((error= m_file[i]->ha_external_lock(thd, lock_type))))
+      {
+        if (lock_type != F_UNLCK)
+          goto err_handler;
+      }
+      DBUG_PRINT("info", ("external_lock part %u lock %d", i, lock_type));
+      if (lock_type != F_UNLCK)
+        bitmap_set_bit(&m_locked_partitions, i);
+    }
   }
   if (lock_type == F_UNLCK)
   {
@@ -3940,14 +3956,18 @@ int ha_partition::external_lock(THD *thd, int lock_type)
     bitmap_union(&m_partitions_to_reset, used_partitions);
   }
 
-  if (m_added_file && m_added_file[0])
+  if (!(m_file[0]->table_flags_for_partition() &
+    HA_PT_CALL_AT_ONCE_EXTERNAL_LOCK))
   {
-    handler **file= m_added_file;
-    DBUG_ASSERT(lock_type == F_UNLCK);
-    do
+    if (m_added_file && m_added_file[0])
     {
-      (void) (*file)->ha_external_lock(thd, lock_type);
-    } while (*(++file));
+      handler **file= m_added_file;
+      DBUG_ASSERT(lock_type == F_UNLCK);
+      do
+      {
+        (void) (*file)->ha_external_lock(thd, lock_type);
+      } while (*(++file));
+    }
   }
   if (lock_type == F_WRLCK)
   {
@@ -3959,12 +3979,16 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   DBUG_RETURN(0);
 
 err_handler:
-  uint j;
-  for (j= first_used_partition;
-       j < i;
-       j= bitmap_get_next_set(&m_locked_partitions, j))
+  if (!(m_file[0]->table_flags_for_partition() &
+    HA_PT_CALL_AT_ONCE_EXTERNAL_LOCK))
   {
-    (void) m_file[j]->ha_external_lock(thd, F_UNLCK);
+    uint j;
+    for (j= first_used_partition;
+         j < i;
+         j= bitmap_get_next_set(&m_locked_partitions, j))
+    {
+      (void) m_file[j]->ha_external_lock(thd, F_UNLCK);
+    }
   }
   bitmap_clear_all(&m_locked_partitions);
   DBUG_RETURN(error);
@@ -4025,6 +4049,10 @@ THR_LOCK_DATA **ha_partition::store_lock(THD *thd,
   DBUG_ENTER("ha_partition::store_lock");
   DBUG_ASSERT(thd == current_thd);
 
+  if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_STORE_LOCK)
+  {
+    DBUG_RETURN(m_file[0]->store_lock(thd, to, lock_type));
+  }
   /*
     This can be called from get_lock_data() in mysql_lock_abort_for_thread(),
     even when thd != table->in_use. In that case don't use partition pruning,
@@ -4086,14 +4114,24 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
                                &m_locked_partitions));
   DBUG_ENTER("ha_partition::start_stmt");
 
-  for (i= bitmap_get_first_set(&(m_part_info->lock_partitions));
-       i < m_tot_parts;
-       i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
+  if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_START_STMT)
   {
-    if (unlikely((error= m_file[i]->start_stmt(thd, lock_type))))
-      break;
-    /* Add partition to be called in reset(). */
-    bitmap_set_bit(&m_partitions_to_reset, i);
+    if (likely(!(error= m_file[0]->start_stmt(thd, lock_type))))
+    {
+      bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
+    }
+  }
+  else
+  {
+    for (i= bitmap_get_first_set(&(m_part_info->lock_partitions));
+         i < m_tot_parts;
+         i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
+    {
+      if (unlikely((error= m_file[i]->start_stmt(thd, lock_type))))
+        break;
+      /* Add partition to be called in reset(). */
+      bitmap_set_bit(&m_partitions_to_reset, i);
+    }
   }
   if (lock_type == F_WRLCK && m_part_info->part_expr)
     m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
@@ -8819,11 +8857,17 @@ int ha_partition::extra(enum ha_extra_function operation)
   switch (operation) {
     /* Category 1), used by most handlers */
   case HA_EXTRA_NO_KEYREAD:
-    DBUG_RETURN(loop_partitions(end_keyread_cb, NULL));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(end_keyread_cb, NULL));
+    else
+      DBUG_RETURN(loop_partitions(end_keyread_cb, NULL));
   case HA_EXTRA_KEYREAD:
   case HA_EXTRA_FLUSH:
   case HA_EXTRA_PREPARE_FOR_FORCED_CLOSE:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_PREPARE_FOR_RENAME:
   case HA_EXTRA_FORCE_REOPEN:
     DBUG_RETURN(loop_extra_alter(operation));
@@ -8835,7 +8879,12 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
   {
     if (!m_myisam)
-      DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    {
+      if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+        DBUG_RETURN(first_partition(extra_cb, &operation));
+      else
+        DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    }
   }
   break;
 
@@ -8862,7 +8911,10 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_REMEMBER_POS:
   case HA_EXTRA_RESTORE_POS:
   {
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   case HA_EXTRA_NO_READCHECK:
   {
@@ -8894,7 +8946,10 @@ int ha_partition::extra(enum ha_extra_function operation)
     m_extra_cache_size= 0;
     m_extra_prepare_for_update= FALSE;
     m_extra_cache_part_id= NO_CURRENT_PART_ID;
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   case HA_EXTRA_IGNORE_NO_KEY:
   case HA_EXTRA_NO_IGNORE_NO_KEY:
@@ -8915,11 +8970,17 @@ int ha_partition::extra(enum ha_extra_function operation)
 
       At this time, this is safe by limitation of ha_partition
     */
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
     /* Category 7), used by federated handlers */
   case HA_EXTRA_INSERT_WITH_UPDATE:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
     /* Category 8) Operations only used by NDB */
   case HA_EXTRA_DELETE_CANNOT_BATCH:
   case HA_EXTRA_UPDATE_CANNOT_BATCH:
@@ -8929,30 +8990,54 @@ int ha_partition::extra(enum ha_extra_function operation)
   }
     /* Category 9) Operations only used by MERGE */
   case HA_EXTRA_ADD_CHILDREN_LIST:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_ATTACH_CHILDREN:
   {
     int result;
     uint num_locks;
     handler **file;
-    if ((result= loop_partitions(extra_cb, &operation)))
-      DBUG_RETURN(result);
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+    {
+      if ((result= first_partition(extra_cb, &operation)))
+        DBUG_RETURN(result);
+    }
+    else
+    {
+      if ((result= loop_partitions(extra_cb, &operation)))
+        DBUG_RETURN(result);
+    }
 
     /* Recalculate lock count as each child may have different set of locks */
     num_locks= 0;
     file= m_file;
-    do
+    if ((*file)->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_STORE_LOCK)
     {
       num_locks+= (*file)->lock_count();
-    } while (*(++file));
+    }
+    else
+    {
+      do
+      {
+        num_locks+= (*file)->lock_count();
+      } while (*(++file));
+    }
 
     m_num_locks= num_locks;
     break;
   }
   case HA_EXTRA_IS_ATTACHED_CHILDREN:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_DETACH_CHILDREN:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
     http://dev.mysql.com/doc/refman/5.1/en/partitioning-limitations.html
@@ -8964,7 +9049,10 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
   case HA_EXTRA_FAKE_START_STMT:
-    DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(extra_cb, &operation));
+    else
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {
     /* Temporary crash to discover what is wrong */
@@ -9037,6 +9125,9 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
   switch (operation)
   {
     case HA_EXTRA_KEYREAD:
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+      DBUG_RETURN(first_partition(start_keyread_cb, &arg));
+    else
       DBUG_RETURN(loop_partitions(start_keyread_cb, &arg));
     case HA_EXTRA_CACHE:
       prepare_extra_cache(arg);
@@ -9097,18 +9188,43 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
 
   if (m_new_file != NULL)
   {
-    for (file= m_new_file; *file; file++)
-      if ((tmp= (*file)->extra(operation)))
+    if (m_new_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+    {
+      if ((tmp= (*m_new_file)->extra(operation)))
         result= tmp;
+    }
+    else
+    {
+      for (file= m_new_file; *file; file++)
+        if ((tmp= (*file)->extra(operation)))
+          result= tmp;
+    }
   }
   if (m_reorged_file != NULL)
   {
-    for (file= m_reorged_file; *file; file++)
-      if ((tmp= (*file)->extra(operation)))
+    if (m_reorged_file[0]->
+      table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+    {
+      if ((tmp= (*m_reorged_file)->extra(operation)))
         result= tmp;
+    }
+    else
+    {
+      for (file= m_reorged_file; *file; file++)
+        if ((tmp= (*file)->extra(operation)))
+          result= tmp;
+    }
   }
-  if ((tmp= loop_partitions(extra_cb, &operation)))
-    result= tmp;
+  if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_EXTRA)
+  {
+    if ((tmp= first_partition(extra_cb, &operation)))
+      result= tmp;
+  }
+  else
+  {
+    if ((tmp= loop_partitions(extra_cb, &operation)))
+      result= tmp;
+  }
   DBUG_RETURN(result);
 }
 
@@ -9143,6 +9259,29 @@ int ha_partition::loop_partitions(handler_callback callback, void *param)
       result= tmp;
   }
   /* Add all used partitions to be called in reset(). */
+  bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
+  DBUG_RETURN(result);
+}
+
+
+/**
+  Call callback(part, param) on first partitions
+
+    @param callback                 a callback to call for each partition
+    @param param                    a void*-parameter passed to callback
+
+    @return Operation status
+      @retval >0                    Error code
+      @retval 0                     Success
+*/
+
+int ha_partition::first_partition(handler_callback callback, void *param)
+{
+  int result;
+  DBUG_ENTER("ha_partition::first_partition");
+  result= callback(m_file[0], param);
+
+  /* Add lock partitions to be called in reset(). */
   bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
   DBUG_RETURN(result);
 }
@@ -11009,17 +11148,27 @@ const COND *ha_partition::cond_push(const COND *cond)
       We want to do this in a separate loop to not come into a situation
       where we have only done cond_push() to some of the tables
     */
-    do
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_TOP_TABLE)
     {
       if (((*file)->set_top_table_and_fields(top_table,
                                              top_table_field,
                                              top_table_fields)))
         DBUG_RETURN(cond);                      // Abort cond push, no error
-    } while (*(++file));
-    file= m_file;
+    }
+    else
+    {
+      do
+      {
+        if (((*file)->set_top_table_and_fields(top_table,
+                                               top_table_field,
+                                               top_table_fields)))
+          DBUG_RETURN(cond);                      // Abort cond push, no error
+      } while (*(++file));
+      file= m_file;
+    }
   }
 
-  do
+  if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_COND_PUSH)
   {
     if ((*file)->pushed_cond != cond)
     {
@@ -11028,7 +11177,20 @@ const COND *ha_partition::cond_push(const COND *cond)
       else
         (*file)->pushed_cond= cond;
     }
-  } while (*(++file));
+  }
+  else
+  {
+    do
+    {
+      if ((*file)->pushed_cond != cond)
+      {
+        if ((*file)->cond_push(cond))
+          res_cond= (COND *) cond;
+        else
+          (*file)->pushed_cond= cond;
+      }
+    } while (*(++file));
+  }
   DBUG_RETURN(res_cond);
 }
 
@@ -11043,10 +11205,17 @@ void ha_partition::cond_pop()
   handler **file= m_file;
   DBUG_ENTER("ha_partition::cond_pop");
 
-  do
+  if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_COND_PUSH)
   {
     (*file)->cond_pop();
-  } while (*(++file));
+  }
+  else
+  {
+    do
+    {
+      (*file)->cond_pop();
+    } while (*(++file));
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -11626,12 +11795,19 @@ int ha_partition::info_push(uint info_type, void *info)
   handler **file= m_file;
   DBUG_ENTER("ha_partition::info_push");
 
-  do
+  if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_INFO_PUSH)
   {
-    int tmp;
-    if ((tmp= (*file)->info_push(info_type, info)))
-      error= tmp;
-  } while (*(++file));
+    error= (*file)->info_push(info_type, info);
+  }
+  else
+  {
+    do
+    {
+      int tmp;
+      if ((tmp= (*file)->info_push(info_type, info)))
+        error= tmp;
+    } while (*(++file));
+  }
   DBUG_RETURN(error);
 }
 
@@ -11647,8 +11823,15 @@ void ha_partition::clear_top_table_fields()
     top_table= NULL;
     top_table_field= NULL;
     top_table_fields= 0;
-    for (file= m_file; *file; file++)
-      (*file)->clear_top_table_fields();
+    if (m_file[0]->table_flags_for_partition() & HA_PT_CALL_AT_ONCE_TOP_TABLE)
+    {
+      m_file[0]->clear_top_table_fields();
+    }
+    else
+    {
+      for (file= m_file; *file; file++)
+        (*file)->clear_top_table_fields();
+    }
   }
   DBUG_VOID_RETURN;
 }
