@@ -7039,6 +7039,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                                       buf[EVENT_TYPE_OFFSET])) ||
         (!mi->last_queued_gtid_standalone &&
          ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
+          (uchar)buf[EVENT_TYPE_OFFSET] == XA_PREPARE_LOG_EVENT ||
           ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
            Query_log_event::peek_is_commit_rollback(buf, event_len,
                                                     checksum_alg))))))
