@@ -1018,8 +1018,7 @@ inline_mysql_socket_accept
   int flags __attribute__ ((unused));
 #endif
 
-  MYSQL_SOCKET socket_accept= MYSQL_INVALID_SOCKET;
-  socklen_t addr_length= (addr_len != NULL) ? *addr_len : 0;
+  MYSQL_SOCKET socket_accept;
 
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   if (socket_listen.m_psi != NULL)
@@ -1032,10 +1031,9 @@ inline_mysql_socket_accept
 
     /* Instrumented code */
 #ifdef HAVE_ACCEPT4
-    socket_accept.fd= accept4(socket_listen.fd, addr, &addr_length,
-                              SOCK_CLOEXEC);
+    socket_accept.fd= accept4(socket_listen.fd, addr, addr_len, SOCK_CLOEXEC);
 #else
-    socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
+    socket_accept.fd= accept(socket_listen.fd, addr, addr_len);
 #ifdef FD_CLOEXEC
     flags= fcntl(socket_accept.fd, F_GETFD);
     if (flags != -1) {
@@ -1054,10 +1052,9 @@ inline_mysql_socket_accept
   {
     /* Non instrumented code */
 #ifdef HAVE_ACCEPT4
-    socket_accept.fd= accept4(socket_listen.fd, addr, &addr_length,
-                              SOCK_CLOEXEC);
+    socket_accept.fd= accept4(socket_listen.fd, addr, addr_len, SOCK_CLOEXEC);
 #else
-    socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
+    socket_accept.fd= accept(socket_listen.fd, addr, addr_len);
 #ifdef FD_CLOEXEC
     flags= fcntl(socket_accept.fd, F_GETFD);
     if (flags != -1) {
@@ -1073,7 +1070,7 @@ inline_mysql_socket_accept
   {
     /* Initialize the instrument with the new socket descriptor and address */
     socket_accept.m_psi= PSI_SOCKET_CALL(init_socket)
-      (key, (const my_socket*)&socket_accept.fd, addr, addr_length);
+      (key, (const my_socket*)&socket_accept.fd, addr, *addr_len);
   }
 #endif
 
