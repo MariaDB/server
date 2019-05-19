@@ -421,6 +421,10 @@ Aborted_connects	0
 Aborted_connects_preauth	0
 SET GLOBAL log_warnings=2;
 NOT FOUND /This connection closed normally without authentication/ in mysqld.1.err
+# let tcp to detect disconnect
+select sleep(1);
+sleep(1)
+0
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
 Aborted_connects	1
