@@ -6576,7 +6576,7 @@ int spider_close_connection(
   }
 
   spider_rollback(spider_hton_ptr, thd, TRUE);
-  spider_free_trx(trx, TRUE);
+  spider_free_trx(trx, TRUE, false);
 
   DBUG_RETURN(0);
 }

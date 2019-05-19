@@ -80,7 +80,8 @@ SPIDER_TRX *spider_get_trx(
 
 int spider_free_trx(
   SPIDER_TRX *trx,
-  bool need_lock
+  bool need_lock,
+  bool reset_ha_data= true
 );
 
 int spider_check_and_set_trx_isolation(

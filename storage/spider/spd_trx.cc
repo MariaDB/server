@@ -1557,7 +1557,8 @@ error_alloc_trx:
 
 int spider_free_trx(
   SPIDER_TRX *trx,
-  bool need_lock
+  bool need_lock,
+  bool reset_ha_data
 ) {
   DBUG_ENTER("spider_free_trx");
   if (trx->thd)
@@ -1575,7 +1576,8 @@ int spider_free_trx(
       if (need_lock)
         pthread_mutex_unlock(&spider_allocated_thds_mutex);
     }
-    thd_set_ha_data(trx->thd, spider_hton_ptr, NULL);
+    if (reset_ha_data)
+      thd_set_ha_data(trx->thd, spider_hton_ptr, NULL);
   }
   spider_free_trx_alloc(trx);
   spider_merge_mem_calc(trx, TRUE);
