@@ -2973,7 +2973,7 @@ int handler::ha_rnd_next(uchar *buf)
   int result;
   DBUG_ENTER("handler::ha_rnd_next");
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(inited == RND);
 
   do
@@ -3007,7 +3007,7 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   int result;
   DBUG_ENTER("handler::ha_rnd_pos");
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   /* TODO: Find out how to solve ha_rnd_pos when finding duplicate update. */
   /* DBUG_ASSERT(inited == RND); */
 
@@ -3033,7 +3033,7 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
   int result;
   DBUG_ENTER("handler::ha_index_read_map");
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(inited==INDEX);
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
@@ -3062,7 +3062,7 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   int result;
   DBUG_ASSERT(inited==NONE);
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(end_range == NULL);
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, index, 0,
     { result= index_read_idx_map(buf, index, key, keypart_map, find_flag); })
@@ -3083,7 +3083,7 @@ int handler::ha_index_next(uchar * buf)
   int result;
   DBUG_ENTER("handler::ha_index_next");
  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(inited==INDEX);
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
@@ -3104,7 +3104,7 @@ int handler::ha_index_prev(uchar * buf)
   int result;
   DBUG_ENTER("handler::ha_index_prev");
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(inited==INDEX);
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
@@ -3124,7 +3124,7 @@ int handler::ha_index_first(uchar * buf)
 {
   int result;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(inited==INDEX);
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
@@ -3144,7 +3144,7 @@ int handler::ha_index_last(uchar * buf)
 {
   int result;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(inited==INDEX);
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
@@ -3164,7 +3164,7 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
 {
   int result;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ASSERT(inited==INDEX);
 
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
@@ -3717,7 +3717,7 @@ void handler::ha_release_auto_increment()
 {
   DBUG_ENTER("ha_release_auto_increment");
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK ||
+              m_lock_type != F_UNLCK || table->file != this ||
               (!next_insert_id && !insert_id_for_cur_row));
   release_auto_increment();
   insert_id_for_cur_row= 0;
@@ -4286,7 +4286,7 @@ err:
 uint handler::get_dup_key(int error)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   DBUG_ENTER("handler::get_dup_key");
   table->file->errkey  = (uint) -1;
   if (error == HA_ERR_FOUND_DUPP_KEY ||
@@ -4397,7 +4397,7 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
 {
   int error;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
 
   if ((table->s->mysql_version >= MYSQL_VERSION_ID) &&
       (check_opt->sql_flags & TT_FOR_UPGRADE))
@@ -4483,7 +4483,7 @@ handler::ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
                             ha_rows *dup_key_found)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   mark_trx_read_write();
 
   return bulk_update_row(old_data, new_data, dup_key_found);
@@ -4500,7 +4500,7 @@ int
 handler::ha_delete_all_rows()
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   mark_trx_read_write();
 
   return delete_all_rows();
@@ -4517,7 +4517,7 @@ int
 handler::ha_truncate()
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   mark_trx_read_write();
 
   return truncate();
@@ -4534,7 +4534,7 @@ int
 handler::ha_reset_auto_increment(ulonglong value)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   mark_trx_read_write();
 
   return reset_auto_increment(value);
@@ -4551,7 +4551,7 @@ int
 handler::ha_optimize(THD* thd, HA_CHECK_OPT* check_opt)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   mark_trx_read_write();
 
   return optimize(thd, check_opt);
@@ -4568,7 +4568,7 @@ int
 handler::ha_analyze(THD* thd, HA_CHECK_OPT* check_opt)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   mark_trx_read_write();
 
   return analyze(thd, check_opt);
@@ -4585,7 +4585,7 @@ bool
 handler::ha_check_and_repair(THD *thd)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_UNLCK);
+              m_lock_type == F_UNLCK || table->file != this);
   mark_trx_read_write();
 
   return check_and_repair(thd);
@@ -4602,7 +4602,7 @@ int
 handler::ha_disable_indexes(uint mode)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   mark_trx_read_write();
 
   return disable_indexes(mode);
@@ -4619,7 +4619,7 @@ int
 handler::ha_enable_indexes(uint mode)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   mark_trx_read_write();
 
   return enable_indexes(mode);
@@ -4636,7 +4636,7 @@ int
 handler::ha_discard_or_import_tablespace(my_bool discard)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   mark_trx_read_write();
 
   return discard_or_import_tablespace(discard);
@@ -4647,7 +4647,7 @@ bool handler::ha_prepare_inplace_alter_table(TABLE *altered_table,
                                              Alter_inplace_info *ha_alter_info)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
   mark_trx_read_write();
 
   return prepare_inplace_alter_table(altered_table, ha_alter_info);
@@ -4860,7 +4860,7 @@ handler::ha_change_partitions(HA_CREATE_INFO *create_info,
     from current partitions and write lock will be taken on new partitions.
   */
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type != F_UNLCK);
+              m_lock_type != F_UNLCK || table->file != this);
 
   mark_trx_read_write();
 
@@ -6501,7 +6501,7 @@ int handler::ha_write_row(uchar *buf)
   int error;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
 
@@ -6536,7 +6536,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   int error;
   Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
 
   /*
     Some storage engines require that the new record is in record[0]
@@ -6601,7 +6601,7 @@ int handler::ha_delete_row(const uchar *buf)
   int error;
   Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+              m_lock_type == F_WRLCK || table->file != this);
   /*
     Normally table->record[0] is used, but sometimes table->record[1] is used.
   */

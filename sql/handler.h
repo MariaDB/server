@@ -355,6 +355,15 @@ enum enum_alter_inplace_result {
 
 #define HA_DO_RANGE_FILTER_PUSHDOWN  1024
 
+/* table flags for partition engine */
+#define HA_PT_CALL_AT_ONCE_STORE_LOCK    (1 << 0)
+#define HA_PT_CALL_AT_ONCE_EXTERNAL_LOCK (1 << 1)
+#define HA_PT_CALL_AT_ONCE_START_STMT    (1 << 2)
+#define HA_PT_CALL_AT_ONCE_EXTRA         (1 << 3)
+#define HA_PT_CALL_AT_ONCE_COND_PUSH     (1 << 4)
+#define HA_PT_CALL_AT_ONCE_INFO_PUSH     (1 << 5)
+#define HA_PT_CALL_AT_ONCE_TOP_TABLE     (1 << 6)
+
 /*
   bits in alter_table_flags:
 */
@@ -3909,6 +3918,7 @@ public:
   }
   virtual void set_part_info(partition_info *part_info) {return;}
   virtual void return_record_by_parent() { return; }
+  virtual ulong table_flags_for_partition() { return 0; };
 
   virtual ulong index_flags(uint idx, uint part, bool all_parts) const =0;
 
