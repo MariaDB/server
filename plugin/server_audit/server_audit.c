@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.5"
+#define PLUGIN_STR_VERSION "1.4.6"
 
 #define _my_thread_var loc_thread_var
 
@@ -2022,10 +2022,14 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   update_connection_info(cn, event_class, ev, &after_action);
 
   if (!logging)
+  {
+    if (cn)
+      cn->log_always= 0;
     goto exit_func;
+  }
 
   if (event_class == MYSQL_AUDIT_GENERAL_CLASS && FILTER(EVENT_QUERY) &&
-      cn && do_log_user(cn->user))
+      cn && (cn->log_always || do_log_user(cn->user)))
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
@@ -2038,6 +2042,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     {
       log_statement(cn, event, "QUERY");
       cn->query_length= 0; /* So the log_current_query() won't log this again. */
+      cn->log_always= 0;
     }
   }
   else if (event_class == MYSQL_AUDIT_TABLE_CLASS && FILTER(EVENT_TABLE) && cn)
@@ -2108,8 +2113,6 @@ exit_func:
       break;
     }
   }
-  if (cn)
-    cn->log_always= 0;
   flogger_mutex_unlock(&lock_operations);
 }
 
@@ -2553,8 +2556,7 @@ static void log_current_query(MYSQL_THD thd)
   if (!thd)
     return;
   cn= get_loc_info(thd);
-  if (!ci_needs_setup(cn) && cn->query_length &&
-      FILTER(EVENT_QUERY) && do_log_user(cn->user))
+  if (!ci_needs_setup(cn) && cn->query_length)
   {
     cn->log_always= 1;
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
@@ -2814,6 +2816,7 @@ static void update_logging(MYSQL_THD thd,
     {
       CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_JUST_WARNING));
     }
+    mark_always_logged(thd);
   }
   else
   {
