@@ -1350,7 +1350,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   THD *thd;
   if (!(thd= connect->create_thd(NULL)))
   {
-    connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
+    connect->close_and_delete();
     return;
   }
 
@@ -1483,8 +1483,7 @@ void CONNECT::close_and_delete()
     mysql_socket_close(sock);
   vio_type= VIO_CLOSED;
 
-  if (thread_count_incremented)
-    dec_connection_count(scheduler);
+  --*scheduler->connection_count;
   statistic_increment(connection_errors_internal, &LOCK_status);
   statistic_increment(aborted_connects,&LOCK_status);
 

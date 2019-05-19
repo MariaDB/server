@@ -706,7 +706,7 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn,
-  LOCK_connection_count, LOCK_error_messages, LOCK_slave_background;
+  LOCK_error_messages, LOCK_slave_background;
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
 
@@ -864,7 +864,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
-  key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
+  key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
   key_LOCK_gdl, key_LOCK_global_system_variables,
   key_LOCK_manager,
@@ -929,7 +929,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_delayed_insert_mutex, "Delayed_insert::mutex", 0},
   { &key_hash_filo_lock, "hash_filo::lock", 0},
   { &key_LOCK_active_mi, "LOCK_active_mi", PSI_FLAG_GLOBAL},
-  { &key_LOCK_connection_count, "LOCK_connection_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_id, "LOCK_thread_id", PSI_FLAG_GLOBAL},
   { &key_LOCK_crypt, "LOCK_crypt", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_create, "LOCK_delayed_create", PSI_FLAG_GLOBAL},
@@ -1474,10 +1473,10 @@ struct st_VioSSLFd *ssl_acceptor_fd;
 #endif /* HAVE_OPENSSL */
 
 /**
-  Number of currently active user connections. The variable is protected by
-  LOCK_connection_count.
+  Number of currently active user connections.
 */
-uint connection_count= 0, extra_connection_count= 0;
+Atomic_counter<uint> connection_count;
+static Atomic_counter<uint> extra_connection_count;
 
 my_bool opt_gtid_strict_mode= FALSE;
 
@@ -2106,7 +2105,6 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_delayed_create);
   mysql_mutex_destroy(&LOCK_crypt);
   mysql_mutex_destroy(&LOCK_user_conn);
-  mysql_mutex_destroy(&LOCK_connection_count);
   mysql_mutex_destroy(&LOCK_thread_id);
   mysql_mutex_destroy(&LOCK_stats);
   mysql_mutex_destroy(&LOCK_global_user_client_stats);
@@ -2598,20 +2596,6 @@ extern "C" sig_handler end_mysqld_signal(int sig __attribute__((unused)))
 }
 #endif /* EMBEDDED_LIBRARY */
 
-/*
-  Decrease number of connections
-
-  SYNOPSIS
-    dec_connection_count()
-*/
-
-void dec_connection_count(scheduler_functions *scheduler)
-{
-  mysql_mutex_lock(&LOCK_connection_count);
-  (*scheduler->connection_count)--;
-  mysql_mutex_unlock(&LOCK_connection_count);
-}
-
 
 /*
   Unlink thd from global list of available connections
@@ -2637,7 +2621,7 @@ void unlink_thd(THD *thd)
   */
   if (!thd->wsrep_applier)
 #endif /* WITH_WSREP */
-  dec_connection_count(thd->scheduler);
+  --*thd->scheduler->connection_count;
 
   thd->free_connection();
 
@@ -4426,8 +4410,6 @@ static int init_thread_environment()
                    &LOCK_error_messages, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_uuid_short_generator,
                    &LOCK_short_uuid_generator, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_LOCK_connection_count,
-                   &LOCK_connection_count, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thread_id,
                    &LOCK_thread_id, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_stats, &LOCK_stats, MY_MUTEX_INIT_FAST);
@@ -6172,29 +6154,17 @@ void create_new_thread(CONNECT *connect)
     Don't allow too many connections. We roughly check here that we allow
     only (max_connections + 1) connections.
   */
-
-  mysql_mutex_lock(&LOCK_connection_count);
-
-  if (*connect->scheduler->connection_count >=
+  if ((*connect->scheduler->connection_count)++ >=
       *connect->scheduler->max_connections + 1)
   {
     DBUG_PRINT("error",("Too many connections"));
-
-    mysql_mutex_unlock(&LOCK_connection_count);
-    statistic_increment(denied_connections, &LOCK_status);
-    statistic_increment(connection_errors_max_connection, &LOCK_status);
     connect->close_with_error(0, NullS, ER_CON_COUNT_ERROR);
     DBUG_VOID_RETURN;
   }
 
-  ++*connect->scheduler->connection_count;
-
-  if (connection_count + extra_connection_count > max_used_connections)
-    max_used_connections= connection_count + extra_connection_count;
-
-  mysql_mutex_unlock(&LOCK_connection_count);
-
-  connect->thread_count_incremented= 1;
+  uint sum= connection_count + extra_connection_count;
+  if (sum > max_used_connections)
+    max_used_connections= sum;
 
   /*
     The initialization of thread_id is done in create_embedded_thd() for

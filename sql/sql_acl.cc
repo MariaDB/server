@@ -13947,11 +13947,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   if (command == COM_CONNECT &&
       !(thd->main_security_ctx.master_access & SUPER_ACL))
   {
-    mysql_mutex_lock(&LOCK_connection_count);
-    bool count_ok= (*thd->scheduler->connection_count <=
-                    *thd->scheduler->max_connections);
-    mysql_mutex_unlock(&LOCK_connection_count);
-    if (!count_ok)
+    if (*thd->scheduler->connection_count > *thd->scheduler->max_connections)
     {                                         // too many connections
       my_error(ER_CON_COUNT_ERROR, MYF(0));
       DBUG_RETURN(1);

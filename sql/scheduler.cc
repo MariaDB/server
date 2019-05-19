@@ -112,7 +112,7 @@ void post_kill_notification(THD *thd)
 
 void one_thread_per_connection_scheduler(scheduler_functions *func,
     ulong *arg_max_connections,
-    uint *arg_connection_count)
+    Atomic_counter<uint> *arg_connection_count)
 {
   scheduler_init();
   func->max_threads= *arg_max_connections + 1;

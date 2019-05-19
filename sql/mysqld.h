@@ -83,7 +83,6 @@ CONNECT *cache_thread(THD *thd);
 void flush_thread_cache();
 void refresh_status(THD *thd);
 bool is_secure_file_path(char *path);
-void dec_connection_count(scheduler_functions *scheduler);
 extern void init_net_server_extension(THD *thd);
 extern void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock);
 extern void create_new_thread(CONNECT *connect);
@@ -119,7 +118,7 @@ extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern my_bool debug_assert_on_not_freed_memory;
 extern bool volatile abort_loop;
-extern uint connection_count;
+extern Atomic_counter<uint> connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
@@ -318,7 +317,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
-  key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
+  key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
   key_LOCK_gdl, key_LOCK_global_system_variables,
   key_LOCK_logger, key_LOCK_manager,
@@ -615,7 +614,7 @@ extern mysql_mutex_t
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
+       LOCK_prepared_stmt_count, LOCK_error_messages,
        LOCK_slave_background;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
@@ -827,7 +826,6 @@ inline int set_current_thd(THD *thd)
 */
 extern handlerton *maria_hton;
 
-extern uint extra_connection_count;
 extern uint64 global_gtid_counter;
 extern my_bool opt_gtid_strict_mode;
 extern my_bool opt_userstat_running, debug_assert_if_crashed_table;

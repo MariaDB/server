@@ -508,7 +508,7 @@ static scheduler_functions tp_scheduler_functions=
 
 void pool_of_threads_scheduler(struct scheduler_functions *func,
     ulong *arg_max_connections,
-    uint *arg_connection_count)
+    Atomic_counter<uint> *arg_connection_count)
 {
   *func = tp_scheduler_functions;
   func->max_threads= threadpool_max_threads;

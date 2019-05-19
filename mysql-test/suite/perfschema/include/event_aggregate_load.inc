@@ -27,9 +27,6 @@ execute dump_hosts;
 
 # Notes about this test
 #
-# Each connect causes 2 wait/synch/mutex/sql/LOCK_connection_count events:
-# - 1 in mysqld.cc, create_new_thread(), for the main thread
-# - 1 in sql_connect.cc, check_user(), for the connected thread
 # The main thread does not count for BY_ACCOUNT / BY_HOST.
 # The user thread does count for BY_ACCOUNT, BY_HOST
 #

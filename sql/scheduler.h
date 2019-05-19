@@ -31,7 +31,8 @@ class THD;
 
 struct scheduler_functions
 {
-  uint max_threads, *connection_count;
+  uint max_threads;
+  Atomic_counter<uint> *connection_count;
   ulong *max_connections;
   bool (*init)(void);
   void (*add_connection)(CONNECT *connect);
@@ -70,7 +71,7 @@ enum scheduler_types
 };
 
 void one_thread_per_connection_scheduler(scheduler_functions *func,
-    ulong *arg_max_connections, uint *arg_connection_count);
+    ulong *arg_max_connections, Atomic_counter<uint> *arg_connection_count);
 void one_thread_scheduler(scheduler_functions *func);
 
 extern void scheduler_init();
@@ -98,7 +99,7 @@ public:
 #ifdef HAVE_POOL_OF_THREADS
 void pool_of_threads_scheduler(scheduler_functions* func,
    ulong *arg_max_connections,
-   uint *arg_connection_count);
+   Atomic_counter<uint> *arg_connection_count);
 #else
 #define pool_of_threads_scheduler(A,B,C) \
   one_thread_per_connection_scheduler(A, B, C)
