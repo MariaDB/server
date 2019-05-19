@@ -3485,9 +3485,16 @@ void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
 
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
+	ut_ad(update->n_fields < table->n_cols + table->n_v_cols);
+
+	upd_field_t* new_buf = static_cast<upd_field_t*>(mem_heap_alloc(
+	    update->heap, (update->n_fields + 1) * sizeof(update->fields[0])));
+	memcpy(new_buf, update->fields,
+	       update->n_fields * sizeof(update->fields[0]));
+	update->fields = new_buf;
+
 	update->n_fields++;
-	upd_field_t* ufield =
-		upd_get_nth_field(update, upd_get_n_fields(update) - 1);
+	upd_field_t* ufield = upd_get_nth_field(update, update->n_fields - 1);
 	const dict_col_t* col = dict_table_get_nth_col(table, idx);
 
 	upd_field_set_field_no(ufield, dict_col_get_clust_pos(col, clust_index),
