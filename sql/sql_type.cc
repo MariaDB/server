@@ -12,7 +12,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_type.h"
@@ -132,6 +132,32 @@ bool Type_handler_data::init()
 
 
 Type_handler_data *type_handler_data= NULL;
+
+
+bool Float::to_string(String *val_buffer, uint dec) const
+{
+  uint to_length= 70;
+  if (val_buffer->alloc(to_length))
+    return true;
+
+  char *to=(char*) val_buffer->ptr();
+  size_t len;
+
+  if (dec >= FLOATING_POINT_DECIMALS)
+    len= my_gcvt(m_value, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
+  else
+  {
+    /*
+      We are safe here because the buffer length is 70, and
+      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
+      will be not longer than 69 chars + terminating '\0'.
+    */
+    len= my_fcvt(m_value, (int) dec, to, NULL);
+  }
+  val_buffer->length((uint) len);
+  val_buffer->set_charset(&my_charset_numeric);
+  return false;
+}
 
 
 String_ptr::String_ptr(Item *item, String *buffer)
@@ -3747,9 +3773,15 @@ Type_handler_year::Item_get_cache(THD *thd, const Item *item) const
 }
 
 Item_cache *
-Type_handler_real_result::Item_get_cache(THD *thd, const Item *item) const
+Type_handler_double::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_real(thd);
+  return new (thd->mem_root) Item_cache_double(thd);
+}
+
+Item_cache *
+Type_handler_float::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_float(thd);
 }
 
 Item_cache *
@@ -4730,13 +4762,24 @@ Type_handler_int_result::Item_func_hybrid_field_type_get_date(
 /***************************************************************************/
 
 String *
-Type_handler_real_result::Item_func_hybrid_field_type_val_str(
+Type_handler_double::Item_func_hybrid_field_type_val_str(
                                            Item_func_hybrid_field_type *item,
                                            String *str) const
 {
   return item->val_str_from_real_op(str);
 }
 
+String *
+Type_handler_float::Item_func_hybrid_field_type_val_str(
+                                           Item_func_hybrid_field_type *item,
+                                           String *str) const
+{
+  Float nr(item->real_op());
+  if (item->null_value)
+    return 0;
+  nr.to_string(str, item->decimals);
+  return str;
+}
 
 double
 Type_handler_real_result::Item_func_hybrid_field_type_val_real(
@@ -5260,10 +5303,21 @@ String *Type_handler_decimal_result::
 }
 
 
-String *Type_handler_real_result::
+String *Type_handler_double::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
   return func->val_string_from_real(str);
+}
+
+
+String *Type_handler_float::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  Float nr(func->val_real());
+  if (func->null_value)
+    return 0;
+  nr.to_string(str, func->decimals);
+  return str;
 }
 
 
@@ -5889,6 +5943,14 @@ bool Type_handler::
 
 
 bool Type_handler::
+       Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
        Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const
 {
   item->fix_length_and_dec_generic();
@@ -5972,6 +6034,13 @@ bool Type_handler_geometry::
 
 bool Type_handler_geometry::
        Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
+       Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const
 {
   return Item_func_or_sum_illegal_param(item);
 }
@@ -7020,6 +7089,15 @@ Item *Type_handler_double::
                            DECIMAL_MAX_PRECISION, NOT_FIXED_DEC - 1, item))
     return NULL;
   return new (thd->mem_root) Item_double_typecast(thd, item, len, dec);
+}
+
+
+Item *Type_handler_float::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  DBUG_ASSERT(!attr.length_specified());
+  return new (thd->mem_root) Item_float_typecast(thd, item);
 }
 
 

@@ -17,7 +17,7 @@ select plugin_status from information_schema.plugins where plugin_name='feedback
 SELECT variable_value INTO @feedback_used FROM information_schema.feedback where variable_name = 'FEEDBACK used';
 
 # Now $feedback_used == X+1, and 'FEEDBACK used' is also X+1. And variable_value is increased again when we run the next SELECT
-SELECT variable_value = @feedback_used + 1 FROM information_schema.feedback where variable_name = 'FEEDBACK used';
+SELECT variable_value = @feedback_used + 1 as 'MUST BE 1' FROM information_schema.feedback where variable_name = 'FEEDBACK used';
 
 # Now when we are happy with 'FEEDBACK used', we can check everything else
 

@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -911,15 +911,18 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_SYNC},
 
 	{"log_pending_log_flushes", "recovery", "Pending log flushes",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_PENDING_LOG_FLUSH},
 
 	{"log_pending_checkpoint_writes", "recovery", "Pending checkpoints",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_PENDING_CHECKPOINT_WRITE},
 
 	{"log_num_log_io", "recovery", "Number of log I/Os",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_LOG_IO},
 
 	{"log_waits", "recovery",
@@ -1989,6 +1992,25 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_OVLD_LSN_CURRENT:
 		value = (mon_type_t) log_sys.lsn;
+		break;
+
+	case MONITOR_PENDING_LOG_FLUSH:
+		mutex_enter(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.n_pending_flushes);
+		mutex_exit(&log_sys.mutex);
+		break;
+
+	case MONITOR_PENDING_CHECKPOINT_WRITE:
+		mutex_enter(&log_sys.mutex);
+		value = static_cast<mon_type_t>(
+		    log_sys.n_pending_checkpoint_writes);
+		mutex_exit(&log_sys.mutex);
+		break;
+
+	case MONITOR_LOG_IO:
+		mutex_enter(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.n_log_ios);
+		mutex_exit(&log_sys.mutex);
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:

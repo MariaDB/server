@@ -354,6 +354,7 @@ bool Session_sysvars_tracker::enable(THD *thd)
   m_parsed= false;
   m_enabled= thd->variables.session_track_system_variables &&
              *thd->variables.session_track_system_variables;
+  reset_changed();
   return false;
 }
 

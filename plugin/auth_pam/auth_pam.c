@@ -28,6 +28,8 @@ static char pam_debug = 0;
 #define PAM_DEBUG(X)   /* no-op */
 #endif
 
+static char winbind_hack = 0;
+
 static char *opt_plugin_dir; /* To be dynamically linked. */
 static const char *tool_name= "auth_pam_tool_dir/auth_pam_tool";
 static const int tool_name_len= 31;
@@ -109,10 +111,12 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
                info->user_name, info->auth_string));
 
 #ifndef DBUG_OFF
-  field= pam_debug;
+  field= pam_debug ? 1 : 0;
 #else
   field= 0;
 #endif
+  field|= winbind_hack ? 2 : 0;
+
   if (write(p_to_c[1], &field, 1) != 1 ||
       write_string(p_to_c[1], (const uchar *) info->user_name,
                                        info->user_name_length) ||

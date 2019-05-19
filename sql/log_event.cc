@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2019, Oracle and/or its affiliates.
    Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #include "mariadb.h"
@@ -39,6 +39,7 @@
 #include "transaction.h"
 #include <my_dir.h>
 #include "sql_show.h"    // append_identifier
+#include "debug_sync.h"  // debug_sync
 #include <mysql/psi/mysql_statement.h>
 #include <strfunc.h>
 #include "compat56.h"
@@ -11297,6 +11298,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 
+    DBUG_EXECUTE_IF("rows_log_event_before_open_table",
+                    {
+                      const char action[] = "now SIGNAL before_open_table WAIT_FOR go_ahead_sql";
+                      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(action)));
+                    };);
+
     if (slave_run_triggers_for_rbr)
     {
       LEX *lex= thd->lex;
@@ -11321,7 +11328,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
     if (unlikely(open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0)))
     {
-      uint actual_error= thd->get_stmt_da()->sql_errno();
 #ifdef WITH_WSREP
       if (WSREP(thd))
       {
@@ -11334,23 +11340,22 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                     (long long) wsrep_thd_trx_seqno(thd));
       }
 #endif /* WITH_WSREP */
-      if ((thd->is_slave_error || thd->is_fatal_error) &&
-          !is_parallel_retry_error(rgi, actual_error))
+      if (thd->is_error() &&
+          !is_parallel_retry_error(rgi, error= thd->get_stmt_da()->sql_errno()))
       {
         /*
           Error reporting borrowed from Query_log_event with many excessive
-          simplifications. 
+          simplifications.
           We should not honour --slave-skip-errors at this point as we are
-          having severe errors which should not be skiped.
+          having severe errors which should not be skipped.
         */
-        rli->report(ERROR_LEVEL, actual_error, rgi->gtid_info(),
+        rli->report(ERROR_LEVEL, error, rgi->gtid_info(),
                     "Error executing row event: '%s'",
-                    (actual_error ? thd->get_stmt_da()->message() :
+                    (error ? thd->get_stmt_da()->message() :
                      "unexpected success or fatal error"));
         thd->is_slave_error= 1;
       }
       /* remove trigger's tables */
-      error= actual_error;
       goto err;
     }
 

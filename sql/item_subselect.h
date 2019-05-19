@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* subselect Item */
 
@@ -273,7 +273,7 @@ public:
   Item* build_clone(THD *thd) { return 0; }
   Item* get_copy(THD *thd) { return 0; }
 
-  bool wrap_tvc_in_derived_table(THD *thd, st_select_lex *tvc_sl);
+  bool wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;

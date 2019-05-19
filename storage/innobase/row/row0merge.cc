@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2870,9 +2870,7 @@ wait_again:
 				     false, true, false);
 
 		if (err == DB_SUCCESS) {
-			fts_update_next_doc_id(
-				0, new_table,
-				old_table->name.m_name, max_doc_id);
+			fts_update_next_doc_id(NULL, new_table, max_doc_id);
 		}
 	}
 

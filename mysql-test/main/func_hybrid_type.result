@@ -3448,6 +3448,36 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# MDEV-11015 Assertion failed: precision > 0 in decimal_bin_size upon SELECT with DISTINCT, CAST and other functions
+#
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATETIME ) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'foo'
+Warning	1292	Truncated incorrect datetime value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS TIME) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Incorrect time value: 'foo'
+Warning	1292	Incorrect time value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATE) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'foo'
+Warning	1292	Truncated incorrect datetime value: 'bar'
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 #

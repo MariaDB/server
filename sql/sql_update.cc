@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /*
@@ -1642,6 +1642,9 @@ int mysql_multi_update_prepare(THD *thd)
   List<Item> *fields= &lex->first_select_lex()->item_list;
   table_map tables_for_update;
   bool update_view= 0;
+  DML_prelocking_strategy prelocking_strategy;
+  bool has_prelocking_list= thd->lex->requires_prelocking();
+
   /*
     if this multi-update was converted from usual update, here is table
     counter else junk will be assigned here, but then replaced with real
@@ -1662,10 +1665,10 @@ int mysql_multi_update_prepare(THD *thd)
     keep prepare of multi-UPDATE compatible with concurrent LOCK TABLES WRITE
     and global read lock.
   */
-  if ((original_multiupdate &&
-       open_tables(thd, &table_list, &table_count,
-                   (thd->stmt_arena->is_stmt_prepare() ?
-                    MYSQL_OPEN_FORCE_SHARED_MDL : 0))) ||
+  if ((original_multiupdate && open_tables(thd, &table_list, &table_count,
+                                           thd->stmt_arena->is_stmt_prepare()
+                                           ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
+                                           &prelocking_strategy)) ||
       mysql_handle_derived(lex, DT_INIT))
     DBUG_RETURN(TRUE);
   /*
@@ -1727,6 +1730,9 @@ int mysql_multi_update_prepare(THD *thd)
                         tables_for_update))
     DBUG_RETURN(true);
 
+  TABLE_LIST **new_tables= lex->query_tables_last;
+  DBUG_ASSERT(*new_tables== NULL);
+
   /*
     Setup timestamp handling and locking mode
   */
@@ -1754,6 +1760,11 @@ int mysql_multi_update_prepare(THD *thd)
         If table will be updated we should not downgrade lock for it and
         leave it as is.
       */
+      tl->updating= 1;
+      if (tl->belong_to_view)
+        tl->belong_to_view->updating= 1;
+      if (extend_table_list(thd, tl, &prelocking_strategy, has_prelocking_list))
+        DBUG_RETURN(TRUE);
     }
     else
     {
@@ -1776,7 +1787,6 @@ int mysql_multi_update_prepare(THD *thd)
         tl->lock_type= lock_type;
       else
         tl->set_lock_type(thd, lock_type);
-      tl->updating= 0;
     }
   }
 
@@ -1785,6 +1795,20 @@ int mysql_multi_update_prepare(THD *thd)
     Note that unlike in the above loop we need to iterate here not only
     through all leaf tables but also through all view hierarchy.
   */
+
+  uint addon_table_count= 0;
+  if (*new_tables)
+  {
+    Sroutine_hash_entry **new_routines= thd->lex->sroutines_list.next;
+    DBUG_ASSERT(*new_routines == NULL);
+    if (open_tables(thd, thd->lex->create_info, new_tables,
+                    &addon_table_count, new_routines,
+                    thd->stmt_arena->is_stmt_prepare()
+                    ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
+                    &prelocking_strategy))
+      DBUG_RETURN(TRUE);
+  }
+
   for (tl= table_list; tl; tl= tl->next_local)
   {
     bool not_used= false;
@@ -1813,7 +1837,7 @@ int mysql_multi_update_prepare(THD *thd)
 
   /* now lock and fill tables */
   if (!thd->stmt_arena->is_stmt_prepare() &&
-      lock_tables(thd, table_list, table_count, 0))
+      lock_tables(thd, table_list, table_count + addon_table_count, 0))
   {
     DBUG_RETURN(TRUE);
   }

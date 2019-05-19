@@ -48,6 +48,7 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
           PVAL  &Val(int i) {return Test[i].Value;}
           bool  &Conv(int i) {return Test[i].Conv;}
           void   SetNext(PFIL filp) {Next = filp;}
+          bool MakeSelector(PGLOBAL g, PSTRG s);
 
   // Methods
   virtual void   Reset(void);

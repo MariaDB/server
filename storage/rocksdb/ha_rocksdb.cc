@@ -3290,9 +3290,9 @@ void Rdb_snapshot_notifier::SnapshotCreated(
 std::multiset<Rdb_transaction *> Rdb_transaction::s_tx_list;
 mysql_mutex_t Rdb_transaction::s_tx_list_mutex;
 
-static Rdb_transaction *&get_tx_from_thd(THD *const thd) {
-  return *reinterpret_cast<Rdb_transaction **>(
-      my_core::thd_ha_data(thd, rocksdb_hton));
+static Rdb_transaction *get_tx_from_thd(THD *const thd) {
+  return reinterpret_cast<Rdb_transaction *>(
+      my_core::thd_get_ha_data(thd, rocksdb_hton));
 }
 
 namespace {
@@ -3339,7 +3339,7 @@ class Rdb_perf_context_guard {
 */
 
 static Rdb_transaction *get_or_create_tx(THD *const thd) {
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
   // TODO: this is called too many times.. O(#rows)
   if (tx == nullptr) {
     bool rpl_skip_tx_api= false; // MARIAROCKS_NOT_YET.
@@ -3354,6 +3354,7 @@ static Rdb_transaction *get_or_create_tx(THD *const thd) {
     }
     tx->set_params(THDVAR(thd, lock_wait_timeout), THDVAR(thd, max_row_locks));
     tx->start_tx();
+    my_core::thd_set_ha_data(thd, rocksdb_hton, tx);
   } else {
     tx->set_params(THDVAR(thd, lock_wait_timeout), THDVAR(thd, max_row_locks));
     if (!tx->is_tx_started()) {
@@ -3365,7 +3366,7 @@ static Rdb_transaction *get_or_create_tx(THD *const thd) {
 }
 
 static int rocksdb_close_connection(handlerton *const hton, THD *const thd) {
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
   if (tx != nullptr) {
     int rc = tx->finish_bulk_load(false);
     if (rc != 0) {
@@ -3376,7 +3377,6 @@ static int rocksdb_close_connection(handlerton *const hton, THD *const thd) {
     }
 
     delete tx;
-    tx = nullptr;
   }
   return HA_EXIT_SUCCESS;
 }
@@ -3444,7 +3444,7 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
 {
   bool async=false; // This is "ASYNC_COMMIT" feature which is only present in webscalesql
 
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
   if (!tx->can_prepare()) {
     return HA_EXIT_FAILURE;
   }
@@ -3695,7 +3695,7 @@ static void rocksdb_commit_ordered(handlerton *hton, THD* thd, bool all)
   // Same assert as InnoDB has
   DBUG_ASSERT(all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT |
                                              OPTION_BEGIN)));
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
   if (!tx->is_two_phase()) {
     /*
       ordered_commit is supposedly slower as it is done sequentially
@@ -3727,7 +3727,7 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
   rocksdb::StopWatchNano timer(rocksdb::Env::Default(), true);
 
   /* note: h->external_lock(F_UNLCK) is called after this function is called) */
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
 
   /* this will trigger saving of perf_context information */
   Rdb_perf_context_guard guard(tx, rocksdb_perf_context_level(thd));
@@ -3800,7 +3800,7 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 
 static int rocksdb_rollback(handlerton *const hton, THD *const thd,
                             bool rollback_tx) {
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
   Rdb_perf_context_guard guard(tx, rocksdb_perf_context_level(thd));
 
   if (tx != nullptr) {
@@ -4607,7 +4607,7 @@ static int rocksdb_savepoint(handlerton *const hton, THD *const thd,
 
 static int rocksdb_rollback_to_savepoint(handlerton *const hton, THD *const thd,
                                          void *const savepoint) {
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
   return tx->rollback_to_savepoint(savepoint);
 }
 
@@ -5344,49 +5344,6 @@ static int rocksdb_done_func(void *const p) {
     // Looks like we are getting unloaded and yet we have some open tables
     // left behind.
     error = 1;
-  }
-
-  /*
-    MariaDB: When the plugin is unloaded with UNINSTALL SONAME command, some
-    connections may still have Rdb_transaction objects.
-
-    These objects are not genuine transactions (as SQL layer makes sure that
-    a plugin that is being unloaded has no open tables), they are empty
-    Rdb_transaction objects that were left there to save on object
-    creation/deletion.
-
-    Go through the list and delete them.
-  */
-  {
-    class Rdb_trx_deleter: public Rdb_tx_list_walker {
-    public:
-      std::set<Rdb_transaction*> rdb_trxs;
-
-      void process_tran(const Rdb_transaction *const tx) override {
-        /*
-          Check if the transaction is really empty. We only check
-          non-WriteBatch-based transactions, because there is no easy way to
-          check WriteBatch-based transactions.
-        */
-        if (!tx->is_writebatch_trx()) {
-          const auto tx_impl = static_cast<const Rdb_transaction_impl *>(tx);
-          DBUG_ASSERT(tx_impl);
-          if (tx_impl->get_rdb_trx())
-            DBUG_ASSERT(0);
-        }
-        rdb_trxs.insert((Rdb_transaction*)tx);
-      };
-    } deleter;
-
-    Rdb_transaction::walk_tx_list(&deleter);
-
-    for (std::set<Rdb_transaction*>::iterator it= deleter.rdb_trxs.begin();
-         it != deleter.rdb_trxs.end();
-         ++it)
-    {
-      // When a transaction is deleted, it removes itself from s_tx_list.
-      delete *it;
-    }
   }
 
   /*
@@ -13838,7 +13795,7 @@ int rocksdb_check_bulk_load(
     return 1;
   }
 
-  Rdb_transaction *&tx = get_tx_from_thd(thd);
+  Rdb_transaction *tx = get_tx_from_thd(thd);
   if (tx != nullptr) {
     const int rc = tx->finish_bulk_load();
     if (rc != 0) {

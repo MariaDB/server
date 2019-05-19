@@ -73,8 +73,9 @@ int main(int argc, char **argv)
   if (read(0, &field, 1) < 1)
     return -1;
 #ifndef DBUG_OFF
-  pam_debug= field;
+  pam_debug= field & 1;
 #endif
+  winbind_hack= field & 2;
   
   PAM_DEBUG((stderr, "PAM: sandbox started [%s].\n", argv[0]));
 

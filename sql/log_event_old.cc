@@ -1,5 +1,5 @@
-/* Copyright (c) 2007, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+/* Copyright (c) 2007, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -101,21 +101,20 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
 
     if (unlikely(open_and_lock_tables(ev_thd, rgi->tables_to_lock, FALSE, 0)))
     {
-      uint actual_error= ev_thd->get_stmt_da()->sql_errno();
-      if (ev_thd->is_slave_error || ev_thd->is_fatal_error)
+      if (ev_thd->is_error())
       {
         /*
           Error reporting borrowed from Query_log_event with many excessive
-          simplifications (we don't honour --slave-skip-errors)
+          simplifications.
+          We should not honour --slave-skip-errors at this point as we are
+          having severe errors which should not be skipped.
         */
-        rli->report(ERROR_LEVEL, actual_error, NULL,
+        rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                     "Error '%s' on opening tables",
-                    (actual_error ? ev_thd->get_stmt_da()->message() :
-                     "unexpected success or fatal error"));
+                    ev_thd->get_stmt_da()->message());
         ev_thd->is_slave_error= 1;
       }
-      rgi->slave_close_thread_tables(thd);
-      DBUG_RETURN(actual_error);
+      DBUG_RETURN(1);
     }
 
     /*

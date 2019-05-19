@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -1106,92 +1106,7 @@ uint ha_maria::max_supported_key_length() const
   return maria_max_key_length();
 }
 
-
-#ifdef HAVE_REPLICATION
-int ha_maria::net_read_dump(NET * net)
-{
-  int data_fd= file->dfile.file;
-  int error= 0;
-
-  mysql_file_seek(data_fd, 0L, MY_SEEK_SET, MYF(MY_WME));
-  for (;;)
-  {
-    ulong packet_len= my_net_read(net);
-    if (!packet_len)
-      break;                                    // end of file
-    if (packet_len == packet_error)
-    {
-      sql_print_error("ha_maria::net_read_dump - read error ");
-      error= -1;
-      goto err;
-    }
-    if (mysql_file_write(data_fd, (uchar *) net->read_pos, (uint) packet_len,
-                 MYF(MY_WME | MY_FNABP)))
-    {
-      error= errno;
-      goto err;
-    }
-  }
-err:
-  return error;
-}
-
-
-int ha_maria::dump(THD * thd, int fd)
-{
-  MARIA_SHARE *share= file->s;
-  NET *net= &thd->net;
-  uint block_size= share->block_size;
-  my_off_t bytes_to_read= share->state.state.data_file_length;
-  int data_fd= file->dfile.file;
-  uchar *buf= (uchar *) my_malloc(block_size, MYF(MY_WME));
-  if (!buf)
-    return ENOMEM;
-
-  int error= 0;
-  mysql_file_seek(data_fd, 0L, MY_SEEK_SET, MYF(MY_WME));
-  for (; bytes_to_read > 0;)
-  {
-    size_t bytes= mysql_file_read(data_fd, buf, block_size, MYF(MY_WME));
-    if (bytes == MY_FILE_ERROR)
-    {
-      error= errno;
-      goto err;
-    }
-
-    if (fd >= 0)
-    {
-      if (mysql_file_write(fd, buf, bytes, MYF(MY_WME | MY_FNABP)))
-      {
-        error= errno ? errno : EPIPE;
-        goto err;
-      }
-    }
-    else
-    {
-      if (my_net_write(net, buf, bytes))
-      {
-        error= errno ? errno : EPIPE;
-        goto err;
-      }
-    }
-    bytes_to_read -= bytes;
-  }
-
-  if (fd < 0)
-  {
-    if (my_net_write(net, (uchar*) "", 0))
-      error= errno ? errno : EPIPE;
-    net_flush(net);
-  }
-
-err:
-  my_free(buf);
-  return error;
-}
-#endif                                          /* HAVE_REPLICATION */
-
-        /* Name is here without an extension */
+/* Name is here without an extension */
 
 int ha_maria::open(const char *name, int mode, uint test_if_locked)
 {
@@ -2576,6 +2491,7 @@ int ha_maria::info(uint flag)
     stats.delete_length=     maria_info.delete_length;
     stats.check_time=        maria_info.check_time;
     stats.mean_rec_length=   maria_info.mean_reclength;
+    stats.checksum=          file->state->checksum;
   }
   if (flag & HA_STATUS_CONST)
   {
@@ -3333,12 +3249,6 @@ int ha_maria::ft_read(uchar * buf)
   error= ft_handler->please->read_next(ft_handler, (char*) buf);
 
   return error;
-}
-
-
-uint ha_maria::checksum() const
-{
-  return (uint) file->state->checksum;
 }
 
 

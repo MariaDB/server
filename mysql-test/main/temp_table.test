@@ -623,3 +623,19 @@ TRUNCATE TABLE t1;
 UNLOCK TABLES;
 
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-19449 1030: Got error 168 "Unknown (generic) error from engine"
+--echo # for valid TRUNCATE (temporary) TABLE
+--echo #
+
+CREATE TEMPORARY TABLE t1 (col1 BIGINT) ENGINE = InnoDB;
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t1 (no_such_col) SELECT * FROM t1;
+TRUNCATE TABLE t1;
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 CHANGE no_such_col1 col1 BIGINT NULL;
+# This would wrongly try to re-truncate the old copy of the table that
+# was not dropped during the first TRUNCATE due to extra table handles.
+TRUNCATE TABLE t1;
+DROP TEMPORARY TABLE t1;

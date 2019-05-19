@@ -13,7 +13,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This scripts creates the MariaDB Server system tables
 #
@@ -441,7 +441,7 @@ then
 fi
 
 # Create database directories
-for dir in "$ldata" "$ldata/mysql"
+for dir in "$ldata"
 do
   if test ! -d "$dir"
   then
@@ -522,6 +522,7 @@ auth_root_socket_user=${auth_root_socket_user:-${user:-${USER:-root}}}
 
 cat_sql()
 {
+  echo "create database if not exists mysql;"
   echo "use mysql;"
 
   case "$auth_root_authentication_method" in

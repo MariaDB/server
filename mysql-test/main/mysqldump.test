@@ -2500,6 +2500,7 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP DATABASE db_20772273;
 USE test;
+--remove_file $MYSQLTEST_VARDIR/tmp/t2.txt
 
 --echo #
 --echo # Bug #25717383: MYSQLDUMP MAY EXECUTE ANY ARBITRARY QUERY
@@ -2667,6 +2668,34 @@ DROP FUNCTION f;
 --echo #
 DROP VIEW v1;
 DROP FUNCTION f;
+
+--echo #
+--echo # MDEV-788 New option to ignore foreign key contraints in mysqlimport
+--echo #
+create table t1 (
+  id int primary key
+) engine=InnoDB;
+
+create table t2 (
+  t1_id int,
+  CONSTRAINT fk
+    FOREIGN KEY (t1_id) REFERENCES t1 (id)
+) ENGINE = InnoDB;
+
+--write_file $MYSQLTEST_VARDIR/tmp/t2.txt
+0
+EOF
+
+--error 1
+--exec $MYSQL_IMPORT --silent test $MYSQLTEST_VARDIR/tmp/t2.txt
+--exec $MYSQL_IMPORT --silent -k test $MYSQLTEST_VARDIR/tmp/t2.txt
+select count(*) from t2;
+
+--exec $MYSQL_IMPORT --silent --ignore-foreign-keys test $MYSQLTEST_VARDIR/tmp/t2.txt
+select count(*) from t2;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t2.txt
+drop tables t2, t1;
 
 --echo #
 --echo # Test for --add-drop-trigger

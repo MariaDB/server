@@ -289,11 +289,21 @@ public:
     Item_func_json_array(thd, list) {}
   String *val_str(String *);
   bool is_json_type() { return true; }
-  const char *func_name() const { return "json_merge"; }
+  const char *func_name() const { return "json_merge_preserve"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_merge>(thd, this); }
 };
 
+class Item_func_json_merge_patch: public Item_func_json_merge
+{
+public:
+  Item_func_json_merge_patch(THD *thd, List<Item> &list):
+    Item_func_json_merge(thd, list) {}
+  const char *func_name() const { return "json_merge_patch"; }
+  String *val_str(String *);
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_merge_patch>(thd, this); }
+};
 
 class Item_func_json_length: public Item_long_func
 {

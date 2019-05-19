@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
@@ -1486,7 +1486,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       NULL. In this case, mysql_change_db() would generate an error.
     */
 
-    err_status|= mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
+    err_status|= mysql_change_db(thd, (LEX_CSTRING*)&saved_cur_db_name, TRUE) != 0;
   }
   m_flags&= ~IS_INVOKED;
   if (m_parent)

@@ -70,6 +70,10 @@ sub skip_combinations {
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.2";
 
+  $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
+    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
+       and $1 ge "1.0.2";
+
   %skip;
 }
 

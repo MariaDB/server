@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   TODO:
@@ -3381,7 +3381,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields) &&
-      thd->variables.use_stat_tables > 0)
+      thd->variables.use_stat_tables > 0 && table->stats_is_read)
   {
     PARAM param;
     MEM_ROOT alloc;

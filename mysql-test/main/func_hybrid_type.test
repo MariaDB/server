@@ -458,6 +458,26 @@ EXECUTE stmt USING @a,@a;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-11015 Assertion failed: precision > 0 in decimal_bin_size upon SELECT with DISTINCT, CAST and other functions
+--echo #
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATETIME ) ) AS f FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS TIME) ) AS f FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATE) ) AS f FROM t1;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

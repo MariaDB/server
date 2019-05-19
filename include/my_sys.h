@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef _my_sys_h
 #define _my_sys_h
@@ -260,10 +260,11 @@ extern ulonglong my_collation_statistics_get_use_count(uint id);
 extern const char *my_collation_get_tailoring(uint id);
 
 /* statistics */
-extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
+extern ulong    my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
+extern int32    my_file_opened;
 extern my_bool	my_init_done, my_thr_key_mysys_exists;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */

@@ -252,6 +252,7 @@ insert into t1 values(1);
 xa end 'test1';
 xa prepare 'test1';
 connection default;
+FLUSH TABLES;
 xa recover;
 formatID	gtrid_length	bqual_length	data
 1	5	0	test1

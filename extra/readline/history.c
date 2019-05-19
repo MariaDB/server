@@ -18,7 +18,7 @@
    The GNU General Public License is often shipped with GNU software, and
    is generally kept in a file called COPYING or LICENSE.  If you do not
    have a copy of the license, write to the Free Software Foundation,
-   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA. */
 
 /* The goal is to make the implementation transparent, so that you
    don't have to know what data types are used, just what functions

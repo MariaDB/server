@@ -262,6 +262,35 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   if (result && result->prepare(sl->item_list, unit_arg))
     DBUG_RETURN(true);
 
+  /*
+    setup_order() for a TVC is not called when the following is true
+    (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)
+  */
+
+  thd->where="order clause";
+  ORDER *order= sl->order_list.first;
+  for (; order; order=order->next)
+  {
+    Item *order_item= *order->item;
+    if (order_item->is_order_clause_position())
+    {
+      uint count= 0;
+      if (order->counter_used)
+        count= order->counter; // counter was once resolved
+      else
+        count= (uint) order_item->val_int();
+      if (!count || count > first_elem->elements)
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0),
+                 order_item->full_name(), thd->where);
+        DBUG_RETURN(true);
+      }
+      order->in_field_list= 1;
+      order->counter= count;
+      order->counter_used= 1;
+    }
+  }
+
   select_lex->in_tvc= false;
   DBUG_RETURN(false);
 }
@@ -343,6 +372,7 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   DBUG_ENTER("table_value_constr::exec");
   List_iterator_fast<List_item> li(lists_of_values);
   List_item *elem;
+  ha_rows send_records= 0;
   
   if (select_options & SELECT_DESCRIBE)
     DBUG_RETURN(false);
@@ -356,7 +386,13 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
-    result->send_data(*elem);
+    if (send_records >= sl->master_unit()->select_limit_cnt)
+      break;
+    int rc= result->send_data(*elem);
+    if (!rc)
+      send_records++;
+    else if (rc > 0)
+      DBUG_RETURN(true);
   }
 
   if (result->send_eof())
@@ -435,6 +471,12 @@ void table_value_constr::print(THD *thd, String *str,
 
     print_list_item(str, list, query_type);
   }
+  if (select_lex->order_list.elements)
+  {
+    str->append(STRING_WITH_LEN(" order by "));
+    select_lex->print_order(str, select_lex->order_list.first, query_type);
+  }
+  select_lex->print_limit(thd, str, query_type);
 }
 
 
@@ -532,7 +574,8 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
   char buff[6];
 
   alias->length= my_snprintf(buff, sizeof(buff),
-                            "tvc_%u", parent_select->curr_tvc_name);
+                            "tvc_%u",
+			     parent_select ? parent_select->curr_tvc_name : 0);
   alias->str= thd->strmake(buff, alias->length);
   if (!alias->str)
     return true;
@@ -541,19 +584,57 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 }
 
 
-bool Item_subselect::wrap_tvc_in_derived_table(THD *thd,
-					       st_select_lex *tvc_sl)
+/**
+  @brief
+  Check whether TVC used in unit is to be wrapped into select
+
+  @details
+    TVC used in unit that contains more than one members is to be wrapped
+    into select if it is tailed with ORDER BY ... LIMIT n [OFFSET m]
+
+  @retval
+    true     if TVC is to be wrapped
+    false    otherwise
+*/
+
+bool table_value_constr::to_be_wrapped_as_with_tail()
+{
+  return select_lex->master_unit()->first_select()->next_select() &&
+         select_lex->order_list.elements && select_lex->explicit_limit;
+}
+
+
+/**
+  @brief
+  Wrap table value constructor into a select
+
+  @param thd               The context handler
+  @param tvc_sl            The TVC to wrap
+  @parent_select           The parent select if tvc_sl used in a subquery
+
+  @details
+    The function wraps the TVC tvc_sl into a select:
+    the function transforms the TVC of the form VALUES (v1), ... (vn) into
+    the select of the form
+    SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
+
+  @retval pointer to the result of of the transformation if successful
+          NULL - otherwise
+*/
+
+static
+st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
+                        st_select_lex *parent_select)
 {
   LEX *lex= thd->lex;
-  /* SELECT_LEX object where the transformation is performed */
-  SELECT_LEX *parent_select= lex->current_select;
+  select_result *save_result= thd->lex->result;
   uint8 save_derived_tables= lex->derived_tables;
+  thd->lex->result= NULL;
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
-
   /*
-    Create SELECT_LEX of the subquery SQ used in the result of transformation
+    Create SELECT_LEX of the select used in the result of transformation
   */
   lex->current_select= tvc_sl;
   if (mysql_new_select(lex, 0, NULL))
@@ -561,15 +642,15 @@ bool Item_subselect::wrap_tvc_in_derived_table(THD *thd,
   mysql_init_select(lex);
   /* Create item list as '*' for the subquery SQ */
   Item *item;
-  SELECT_LEX *sq_select; // select for IN subquery;
-  sq_select= lex->current_select;
-  sq_select->set_linkage(tvc_sl->get_linkage());
-  sq_select->parsing_place= SELECT_LIST;
-  item= new (thd->mem_root) Item_field(thd, &sq_select->context,
+  SELECT_LEX *wrapper_sl;
+  wrapper_sl= lex->current_select;
+  wrapper_sl->set_linkage(tvc_sl->get_linkage());
+  wrapper_sl->parsing_place= SELECT_LIST;
+  item= new (thd->mem_root) Item_field(thd, &wrapper_sl->context,
                                        NULL, NULL, &star_clex_str);
   if (item == NULL || add_item_to_list(thd, item))
     goto err;
-  (sq_select->with_wild)++;
+  (wrapper_sl->with_wild)++;
   
   /* Exclude SELECT with TVC */
   tvc_sl->exclude();
@@ -584,11 +665,11 @@ bool Item_subselect::wrap_tvc_in_derived_table(THD *thd,
   derived_unit= tvc_select->master_unit();
   tvc_select->set_linkage(DERIVED_TABLE_TYPE);
 
-  lex->current_select= sq_select;
+  lex->current_select= wrapper_sl;
 
   /*
     Create the name of the wrapping derived table and
-    add it to the FROM list of the subquery SQ
+    add it to the FROM list of the wrapper
    */
   Table_ident *ti;
   LEX_CSTRING alias;
@@ -597,35 +678,120 @@ bool Item_subselect::wrap_tvc_in_derived_table(THD *thd,
       create_tvc_name(thd, parent_select, &alias))
     goto err;
   if (!(derived_tab=
-          sq_select->add_table_to_list(thd,
-				       ti, &alias, 0,
-                                       TL_READ, MDL_SHARED_READ)))
+          wrapper_sl->add_table_to_list(thd,
+				        ti, &alias, 0,
+                                        TL_READ, MDL_SHARED_READ)))
     goto err;
-  sq_select->add_joined_table(derived_tab);
-  sq_select->add_where_field(derived_unit->first_select());
-  sq_select->context.table_list= sq_select->table_list.first;
-  sq_select->context.first_name_resolution_table= sq_select->table_list.first;
-  sq_select->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
+  wrapper_sl->add_joined_table(derived_tab);
+  wrapper_sl->add_where_field(derived_unit->first_select());
+  wrapper_sl->context.table_list= wrapper_sl->table_list.first;
+  wrapper_sl->context.first_name_resolution_table= wrapper_sl->table_list.first;
+  wrapper_sl->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
   lex->derived_tables|= DERIVED_SUBQUERY;
 
-  sq_select->where= 0;
-  sq_select->set_braces(false);
+  wrapper_sl->where= 0;
+  wrapper_sl->set_braces(false);
   derived_unit->set_with_clause(0);
-
-  if (engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
-    ((subselect_single_select_engine *) engine)->change_select(sq_select);
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
-  lex->current_select= sq_select;
-  return false;
+  thd->lex->result= save_result;
+  return wrapper_sl;
 
 err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
+  thd->lex->result= save_result;
   lex->derived_tables= save_derived_tables;
-  lex->current_select= parent_select;
-  return true;
+  return 0;
+}
+
+
+/**
+  @brief
+  Wrap TVC with ORDER BY ... LIMIT tail into a select
+
+  @param thd               The context handler
+  @param tvc_sl            The TVC to wrap
+
+  @details
+    The function wraps the TVC tvc_sl into a select:
+    the function transforms the TVC with tail of the form
+    VALUES (v1), ... (vn) ORDER BY ... LIMIT n [OFFSET m]
+    into the select with the same tail of the form
+    SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
+      ORDER BY ... LIMIT n [OFFSET m]
+
+  @retval pointer to the result of of the transformation if successful
+          NULL - otherwise
+*/
+
+st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
+{
+  st_select_lex *wrapper_sl= wrap_tvc(thd, tvc_sl, NULL);
+  if (!wrapper_sl)
+    return NULL;
+
+  wrapper_sl->order_list= tvc_sl->order_list;
+  wrapper_sl->select_limit= tvc_sl->select_limit;
+  wrapper_sl->offset_limit= tvc_sl->offset_limit;
+  wrapper_sl->braces= tvc_sl->braces;
+  wrapper_sl->explicit_limit= tvc_sl->explicit_limit;
+  tvc_sl->order_list.empty();
+  tvc_sl->select_limit= NULL;
+  tvc_sl->offset_limit= NULL;
+  tvc_sl->braces= 0;
+  tvc_sl->explicit_limit= false;
+  if (tvc_sl->select_number == 1)
+  {
+    tvc_sl->select_number= wrapper_sl->select_number;
+    wrapper_sl->select_number= 1;
+  }
+  if (tvc_sl->master_unit()->union_distinct == tvc_sl)
+  {
+    wrapper_sl->master_unit()->union_distinct= wrapper_sl;
+  }
+  thd->lex->current_select= wrapper_sl;
+  return wrapper_sl;
+}
+
+
+/**
+  @brief
+  Wrap TVC in a subselect into a select
+
+  @param thd               The context handler
+  @param tvc_sl            The TVC to wrap
+
+  @details
+    The function wraps the TVC tvc_sl used in a subselect into a select
+    the function transforms the TVC of the form VALUES (v1), ... (vn)
+    into the select the form
+    SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
+    and replaces the subselect with the result of the transformation.
+
+  @retval false if successfull
+          true  otherwise
+*/
+
+bool Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
+{
+  LEX *lex= thd->lex;
+  /* SELECT_LEX object where the transformation is performed */
+  SELECT_LEX *parent_select= lex->current_select;
+  SELECT_LEX *wrapper_sl= wrap_tvc(thd, tvc_sl, parent_select);
+  if (wrapper_sl)
+  {
+    if (engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
+      ((subselect_single_select_engine *) engine)->change_select(wrapper_sl);
+    lex->current_select= wrapper_sl;
+    return false;
+  }
+  else
+  {
+    lex->current_select= parent_select;
+    return true;
+  }
 }
 
 

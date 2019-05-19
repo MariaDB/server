@@ -4257,4 +4257,7 @@ backtracking verbs. --/
     ab
     aaab 
 
+/(?(?=^))b/
+    abc
+
 /-- End of testinput2 --/

@@ -1865,6 +1865,20 @@ t2	CREATE TABLE `t2` (
   `w2` int(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+point_data POINT NOT NULL,
+PRIMARY KEY (id),
+KEY idx_point_data(point_data)
+) ENGINE=MyISAM;
+INSERT t1 (point_data) VALUES
+(GeomFromText('Point(37.0248492 23.8512726)')),
+(GeomFromText('Point(38.0248492 23.8512726)'));
+SELECT id FROM t1
+WHERE ST_Contains(point_data, GeomFromText('Point(38.0248492 23.8512726)'));
+id
+2
+DROP TABLE t1;
 #
 # Start of 10.2 tests
 #
@@ -2234,8 +2248,20 @@ SELECT c FROM t1;
 c
 1
 DROP TABLE t1;
+create table t1 (p point default "qwer");
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+create table t1 (p point default 0);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+create table t1 (p point not null default st_geometryfromtext('point 0)'));
+ERROR 42000: Invalid default value for 'p'
+create table t1 (p point not null default st_geometryfromtext('point(0 0)'));
+insert into t1 values(default);
+select st_astext(p) from t1;
+st_astext(p)
+POINT(0 0)
+drop table t1;
 #
-# Start of 10.3 tests
+# End of 10.2 tests
 #
 #
 # MDEV-11478 Result data type aggregation for pluggable data types
@@ -4012,6 +4038,8 @@ SELECT CAST(POINT(1,1) AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(POINT(1,1) AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(POINT(1,1) AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(POINT(1,1) AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(POINT(1,1) AS DECIMAL(10,1)) FROM t1;
@@ -4028,6 +4056,8 @@ SELECT CAST(a AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(a AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(a AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(a AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(a AS DECIMAL(10,1)) FROM t1;
@@ -4044,6 +4074,8 @@ SELECT CAST(COALESCE(a) AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(COALESCE(a) AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(COALESCE(a) AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(COALESCE(a) AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(COALESCE(a) AS DECIMAL(10,1)) FROM t1;

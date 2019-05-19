@@ -461,6 +461,15 @@ SELECT COALESCE(val, 1) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-18452 ASAN unknown-crash in Field::set_default upon SET bit_column = DEFAULT
+--echo #
+
+CREATE TABLE t1 (b BIT(20)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0);
+UPDATE t1 SET b = DEFAULT;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 

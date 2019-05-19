@@ -821,13 +821,13 @@ select json_merge( '[1, 2]', '[3, 4' );
 json_merge( '[1, 2]', '[3, 4' )
 NULL
 Warnings:
-Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
 error ER_INVALID_JSON_TEXT_IN_PARAM
 select json_merge( '[1, 2', '[3, 4]' );
 json_merge( '[1, 2', '[3, 4]' )
 NULL
 Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_preserve'
 select json_merge( '1', '2' );
 json_merge( '1', '2' )
 [1, 2]

@@ -506,6 +506,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+latin1_swedish_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 #
 # MDEV-4842 STR_TO_DATE does not work with UCS2/UTF16/UTF32
 #
@@ -636,6 +642,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+latin1_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SELECT strcmp('a','a '),   strcmp('a ','a');
 strcmp('a','a ')	strcmp('a ','a')
 0	0

@@ -1737,6 +1737,20 @@ rename table t1 to t2, t3 to t4;
 ERROR 42S02: Table 'test.t3' doesn't exist
 drop table t1, mysql.table_stats;
 rename table test.table_stats to mysql.table_stats;
+#
+# MDEV-19334: bool is_eits_usable(Field*): Assertion `field->table->stats_is_read' failed.
+#
+create temporary table t1(a int);
+insert into t1 values (1),(2),(3);
+set use_stat_tables=preferably;
+set @optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+select * from t1 where a >= 2;
+a
+2
+3
+drop table t1;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 #
 # Start of 10.2 tests

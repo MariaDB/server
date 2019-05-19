@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -1501,7 +1501,8 @@ error_exit:
 		doc_id = fts_get_doc_id_from_row(table, node->row);
 
 		if (doc_id <= 0) {
-			ib::error() << "FTS Doc ID must be large than 0";
+			ib::error() << "FTS_DOC_ID must be larger than 0 for table "
+				    << table->name;
 			err = DB_FTS_INVALID_DOCID;
 			trx->error_state = DB_FTS_INVALID_DOCID;
 			goto error_exit;
@@ -1512,8 +1513,7 @@ error_exit:
 				= table->fts->cache->next_doc_id;
 
 			if (doc_id < next_doc_id) {
-
-				ib::error() << "FTS Doc ID must be large than "
+				ib::error() << "FTS_DOC_ID must be larger than "
 					<< next_doc_id - 1 << " for table "
 					<< table->name;
 

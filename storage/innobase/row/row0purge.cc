@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -895,6 +895,14 @@ row_purge_upd_exist_or_extern_func(
 				node->row, NULL, node->index,
 				heap, ROW_BUILD_FOR_PURGE);
 			row_purge_remove_sec_if_poss(node, node->index, entry);
+
+			if (node->vcol_op_failed()) {
+				ut_ad(!node->table);
+				mem_heap_free(heap);
+				return;
+			}
+			ut_ad(node->table);
+
 			mem_heap_empty(heap);
 		}
 

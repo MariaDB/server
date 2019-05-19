@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -275,7 +275,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   {
     if (sl->tvc)
     {
-      wrap_tvc_in_derived_table(thd, sl);
+      wrap_tvc_into_select(thd, sl);
     }
   }
   
@@ -720,11 +720,14 @@ bool Item_subselect::exec()
   DBUG_ASSERT(fixed);
 
   DBUG_EXECUTE_IF("Item_subselect",
-                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                  ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %s",
-                  Item::Print(this,
-                              enum_query_type(QT_TO_SYSTEM_CHARSET |
-                                              QT_WITHOUT_INTRODUCERS)).ptr()););
+    Item::Print print(this,
+      enum_query_type(QT_TO_SYSTEM_CHARSET |
+        QT_WITHOUT_INTRODUCERS));
+
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+       ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*s",
+       print.length(),print.ptr());
+  );
   /*
     Do not execute subselect in case of a fatal error
     or if the query has been killed.

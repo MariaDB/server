@@ -6,10 +6,16 @@ use events_test;
 create table execution_log(name char(10));
 create event abc1 on schedule every 1 second do
 insert into execution_log value('abc1');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create event abc2 on schedule every 1 second do
 insert into execution_log value('abc2');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create event abc3 on schedule every 1 second do 
 insert into execution_log value('abc3');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create table event_like like mysql.event;
 insert into event_like select * from mysql.event;
 alter table mysql.event
@@ -21,25 +27,25 @@ select @@event_scheduler;
 @@event_scheduler
 OFF
 show events;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 select event_name from information_schema.events;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 show create event intact_check;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event no_such_event;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 create event intact_check_1 on schedule every 5 hour do select 5;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 alter event intact_check_1 on schedule every 8 hour do select 8;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 alter event intact_check_1 rename to intact_check_2;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event intact_check_1;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event intact_check_2;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 drop event intact_check;
-ERROR HY000: Cannot proceed because system tables used by Event Scheduler were found damaged at server start
+ERROR HY000: Cannot proceed, because event scheduler is disabled
 set global event_scheduler=on;
 ERROR HY000: Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.
 set global event_scheduler=off;

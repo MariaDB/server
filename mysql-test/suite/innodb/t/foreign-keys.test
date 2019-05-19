@@ -127,6 +127,37 @@ INSERT INTO t2 VALUES(2);
 ALTER TABLE t2 ADD FOREIGN KEY(b) REFERENCES t1(a), LOCK=EXCLUSIVE;
 DROP TABLE t2, t1;
 
+
+--echo #
+--echo # MDEV-16060 - InnoDB: Failing assertion: ut_strcmp(index->name, key->name)
+--echo #
+CREATE TABLE t1 (`pk` INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+FLUSH TABLES;
+
+SET debug_sync='alter_table_intermediate_table_created SIGNAL ready WAIT_FOR go';
+send ALTER TABLE t1 ADD FOREIGN KEY(pk) REFERENCES t2(pk) ON UPDATE CASCADE;
+
+connect con1, localhost, root;
+SET debug_sync='now WAIT_FOR ready';
+SET lock_wait_timeout=1; # change to 0 in 10.3
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t2 SET pk=10 WHERE pk=1;
+PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
+DEALLOCATE PREPARE stmt;
+SET debug_sync='now SIGNAL go';
+
+connection default;
+reap;
+
+# Cleanup
+disconnect con1;
+
+connection default;
+SET debug_sync='reset';
+SHOW OPEN TABLES FROM test;
+DROP TABLE t1, t2;
+
 #
 # FK and prelocking:
 # child table accesses (reads and writes) wait for locks.

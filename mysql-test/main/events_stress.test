@@ -21,6 +21,7 @@ GRANT ALL ON *.* TO event_user3@localhost;
 connect (conn2,localhost,event_user2,,events_conn2_db);
 --echo "In the second connection we create some events which won't be dropped till the end"
 --disable_query_log
+--disable_warnings
 let $1= 50;
 while ($1)
 {

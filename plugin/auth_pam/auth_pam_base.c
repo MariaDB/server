@@ -60,6 +60,8 @@ static char pam_debug = 0;
 #define PAM_DEBUG(X)   /* no-op */
 #endif
 
+static char winbind_hack = 0;
+
 static int conv(int n, const struct pam_message **msg,
                 struct pam_response **resp, void *data)
 {
@@ -161,7 +163,8 @@ static int pam_auth_base(struct param *param, MYSQL_SERVER_AUTH_INFO *info)
   PAM_DEBUG((stderr, "PAM: pam_get_item(PAM_USER)\n"));
   DO( pam_get_item(pamh, PAM_USER, (pam_get_item_3_arg) &new_username) );
 
-  if (new_username && strcmp(new_username, info->user_name))
+  if (new_username &&
+      (winbind_hack ? strcasecmp : strcmp)(new_username, info->user_name))
     strncpy(info->authenticated_as, new_username,
             sizeof(info->authenticated_as));
   info->authenticated_as[sizeof(info->authenticated_as)-1]= 0;

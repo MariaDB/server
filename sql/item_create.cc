@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -1979,6 +1979,19 @@ public:
 protected:
   Create_func_json_merge() {}
   virtual ~Create_func_json_merge() {}
+};
+
+
+class Create_func_json_merge_patch : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  static Create_func_json_merge_patch s_singleton;
+
+protected:
+  Create_func_json_merge_patch() {}
+  virtual ~Create_func_json_merge_patch() {}
 };
 
 
@@ -5552,6 +5565,30 @@ Create_func_json_merge::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
+Create_func_json_merge_patch Create_func_json_merge_patch::s_singleton;
+
+Item*
+Create_func_json_merge_patch::create_native(THD *thd, LEX_CSTRING *name,
+                                           List<Item> *item_list)
+{
+  Item *func;
+  int arg_count;
+
+  if (item_list == NULL ||
+      (arg_count= item_list->elements) < 2) // json, json
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    func= NULL;
+  }
+  else
+  {
+    func= new (thd->mem_root) Item_func_json_merge_patch(thd, *item_list);
+  }
+
+  return func;
+}
+
+
 Create_func_json_contains Create_func_json_contains::s_singleton;
 
 Item*
@@ -7222,6 +7259,8 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_LENGTH") }, BUILDER(Create_func_json_length)},
   { { STRING_WITH_LEN("JSON_LOOSE") }, BUILDER(Create_func_json_loose)},
   { { STRING_WITH_LEN("JSON_MERGE") }, BUILDER(Create_func_json_merge)},
+  { { STRING_WITH_LEN("JSON_MERGE_PATCH") }, BUILDER(Create_func_json_merge_patch)},
+  { { STRING_WITH_LEN("JSON_MERGE_PRESERVE") }, BUILDER(Create_func_json_merge)},
   { { STRING_WITH_LEN("JSON_QUERY") }, BUILDER(Create_func_json_query)},
   { { STRING_WITH_LEN("JSON_QUOTE") }, BUILDER(Create_func_json_quote)},
   { { STRING_WITH_LEN("JSON_OBJECT") }, BUILDER(Create_func_json_object)},

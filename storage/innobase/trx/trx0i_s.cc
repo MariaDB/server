@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -138,7 +138,7 @@ struct i_s_table_cache_t {
 
 /** This structure describes the intermediate buffer */
 struct trx_i_s_cache_t {
-	rw_lock_t*	rw_lock;	/*!< read-write lock protecting
+	rw_lock_t	rw_lock;	/*!< read-write lock protecting
 					the rest of this structure */
 	uintmax_t	last_read;	/*!< last time the cache was read;
 					measured in microseconds since
@@ -1206,7 +1206,7 @@ can_cache_be_updated(
 	So it is not possible for last_read to be updated while we are
 	reading it. */
 
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_X));
 
 	now = ut_time_us(NULL);
 	if (now - cache->last_read > CACHE_MIN_IDLE_TIME_US) {
@@ -1349,10 +1349,7 @@ trx_i_s_cache_init(
 	release trx_i_s_cache_t::last_read_mutex
 	release trx_i_s_cache_t::rw_lock */
 
-	cache->rw_lock = static_cast<rw_lock_t*>(
-		ut_malloc_nokey(sizeof(*cache->rw_lock)));
-
-	rw_lock_create(trx_i_s_cache_lock_key, cache->rw_lock,
+	rw_lock_create(trx_i_s_cache_lock_key, &cache->rw_lock,
 		       SYNC_TRX_I_S_RWLOCK);
 
 	cache->last_read = 0;
@@ -1381,10 +1378,7 @@ trx_i_s_cache_free(
 /*===============*/
 	trx_i_s_cache_t*	cache)	/*!< in, own: cache to free */
 {
-	rw_lock_free(cache->rw_lock);
-	ut_free(cache->rw_lock);
-	cache->rw_lock = NULL;
-
+	rw_lock_free(&cache->rw_lock);
 	mutex_free(&cache->last_read_mutex);
 
 	hash_table_free(cache->locks_hash);
@@ -1401,7 +1395,7 @@ trx_i_s_cache_start_read(
 /*=====================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	rw_lock_s_lock(cache->rw_lock);
+	rw_lock_s_lock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1413,7 +1407,7 @@ trx_i_s_cache_end_read(
 {
 	uintmax_t	now;
 
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_S));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_S));
 
 	/* update cache last read time */
 	now = ut_time_us(NULL);
@@ -1421,7 +1415,7 @@ trx_i_s_cache_end_read(
 	cache->last_read = now;
 	mutex_exit(&cache->last_read_mutex);
 
-	rw_lock_s_unlock(cache->rw_lock);
+	rw_lock_s_unlock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1431,7 +1425,7 @@ trx_i_s_cache_start_write(
 /*======================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	rw_lock_x_lock(cache->rw_lock);
+	rw_lock_x_lock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1441,9 +1435,9 @@ trx_i_s_cache_end_write(
 /*====================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_X));
 
-	rw_lock_x_unlock(cache->rw_lock);
+	rw_lock_x_unlock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1456,7 +1450,7 @@ cache_select_table(
 	trx_i_s_cache_t*	cache,	/*!< in: whole cache */
 	enum i_s_table		table)	/*!< in: which table */
 {
-	ut_ad(rw_lock_own_flagged(cache->rw_lock,
+	ut_ad(rw_lock_own_flagged(&cache->rw_lock,
 				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	switch (table) {

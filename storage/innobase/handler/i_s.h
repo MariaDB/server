@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,6 +27,7 @@ Modified Dec 29, 2014 Jan Lindström
 
 #ifndef i_s_h
 #define i_s_h
+#include "dict0types.h"
 
 const char plugin_author[] = "Oracle Corporation";
 const char maria_plugin_author[] = "MariaDB Corporation";
@@ -64,6 +65,9 @@ extern struct st_maria_plugin	i_s_innodb_sys_virtual;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing;
 extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;
+
+/** The latest successfully looked up innodb_fts_aux_table */
+extern table_id_t innodb_ft_aux_table_id;
 
 /** maximum number of buffer page info we would cache. */
 #define MAX_BUF_INFO_CACHED		10000
