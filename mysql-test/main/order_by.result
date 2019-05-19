@@ -3266,3 +3266,60 @@ NULLIF(GROUP_CONCAT(v1), null)
 C
 B
 DROP TABLE t1;
+#
+# MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2(
+id int primary key,
+key1 int,key2 int,
+col1 int,
+key(key1), key(key2)
+);
+insert into t2
+select
+A.a + B.a*10 + C.a*100,
+A.a + 10*B.a, A.a + 10*B.a,
+123456
+from t1 A, t1 B, t1 C;
+# here type should show ref not index
+explain select
+(SELECT  concat(id, '-', key1, '-', col1)
+FROM t2
+WHERE
+t2.key1 = t1.a and t2.key1 IS NOT NULL
+ORDER BY
+t2.key2 ASC
+LIMIT 1)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	10	Using index condition; Using where; Using filesort
+select
+(SELECT  concat(id, '-', key1, '-', col1)
+FROM t2
+WHERE
+t2.key1 = t1.a and t2.key1 IS NOT NULL
+ORDER BY
+t2.key2 ASC
+LIMIT 1)
+from t1;
+(SELECT  concat(id, '-', key1, '-', col1)
+FROM t2
+WHERE
+t2.key1 = t1.a and t2.key1 IS NOT NULL
+ORDER BY
+t2.key2 ASC
+LIMIT 1)
+900-0-123456
+901-1-123456
+902-2-123456
+903-3-123456
+904-4-123456
+905-5-123456
+906-6-123456
+907-7-123456
+908-8-123456
+909-9-123456
+drop table t1,t2;
