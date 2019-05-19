@@ -1919,6 +1919,13 @@ static void spider_audit_rewrite_event_notify(
   switch (ev->event_subclass)
   {
     case MYSQL_AUDIT_QUERY_REWRITE_QUERY:
+      if (!rewrite_cache_initialized)
+      {
+        if (spider_init_rewrite_cache(thd))
+        {
+          DBUG_VOID_RETURN;
+        }
+      }
       error_num = spider_rewrite_parse(thd, ev, &parse_sql);
       if (likely(!parse_sql))
       {
@@ -1928,13 +1935,6 @@ static void spider_audit_rewrite_event_notify(
       if (error_num)
       {
         DBUG_VOID_RETURN;
-      }
-      if (!rewrite_cache_initialized)
-      {
-        if (spider_init_rewrite_cache(thd))
-        {
-          DBUG_VOID_RETURN;
-        }
       }
       /* get lock */
       mdl_request_cache.init(MDL_key::USER_LOCK, "spider", "rw_table_cache",
