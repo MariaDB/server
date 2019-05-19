@@ -525,7 +525,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
         parent_unit->first_select()->leaf_tables.elements &&          // 2
         (thd->lex->sql_command == SQLCOM_SELECT ||                     // *
          thd->lex->sql_command == SQLCOM_CREATE_TABLE) &&              // *
-        child_select->outer_select()->leaf_tables.elements &&           // 2A
+        child_select->outer_select()->table_list.first &&            // 2A
         subquery_types_allow_materialization(in_subs) &&
         (in_subs->is_top_level_item() ||                               //3
          optimizer_flag(thd,
