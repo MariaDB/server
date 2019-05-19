@@ -1,7 +1,7 @@
 connection node_2;
 connection node_1;
 connection node_1;
-CREATE TABLE ten (f1 INTEGER) engine=InnoDB;
+CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
 connection node_2;
@@ -28,6 +28,7 @@ SELECT COUNT(DISTINCT f1) FROM t1;
 COUNT(DISTINCT f1)
 30000
 connection node_2;
+disconnect node_1a;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 30000
