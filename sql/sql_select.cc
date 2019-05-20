@@ -6396,7 +6396,8 @@ best_access_path(JOIN      *join,
         'range' access using index IDX, and the best way to perform 'ref' 
         access is to use the same index IDX, with the same or more key parts.
         (note: it is not clear how this rule is/should be extended to 
-        index_merge quick selects)
+        index_merge quick selects). Also if we have a hash join we prefer that
+        over a table scan
     (3) See above note about InnoDB.
     (4) NOT ("FORCE INDEX(...)" is used for table and there is 'ref' access
              path, but there is no quick select)
@@ -6412,6 +6413,7 @@ best_access_path(JOIN      *join,
         be used for cases with small datasets, which is annoying.
   */
   if ((records >= s->found_records || best > s->read_time) &&            // (1)
+      !(best_key && best_key->key == MAX_KEY) &&                         // (2)
       !(s->quick && best_key && s->quick->index == best_key->key &&      // (2)
         best_max_key_part >= s->table->quick_key_parts[best_key->key]) &&// (2)
       !((s->table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&   // (3)
