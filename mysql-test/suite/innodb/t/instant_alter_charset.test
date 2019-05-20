@@ -1,5 +1,4 @@
 --source include/innodb_row_format.inc
-#--source include/innodb_page_size.inc
 
 --let $row_format= `SELECT @@GLOBAL.innodb_default_row_format`
 set names utf8;
@@ -593,3 +592,15 @@ ALTER TABLE t1 ALGORITHM=INSTANT, MODIFY a VARCHAR(10) CHARACTER SET latin1 COLL
 ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
+
+
+
+--echo #
+--echo # MDEV-19524 Server crashes in Bitmap<64u>::is_clear_all / Field_longstr::csinfo_change_allows_instant_alter
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1), UNIQUE(a)) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT, ADD b INT, ADD UNIQUE (b), ALGORITHM=INSTANT;
+DROP TABLE t1;
+

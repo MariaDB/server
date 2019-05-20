@@ -6540,8 +6540,16 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
                            *new_part= new_key->key_part;
        key_part < end; key_part++, new_part++)
   {
+    /*
+      For prefix keys KEY_PART_INFO::field points to cloned Field
+      object with adjusted length. So below we have to check field
+      indexes instead of simply comparing pointers to Field objects.
+    */
     Create_field *new_field= alter_info->create_list.elem(new_part->fieldnr);
-    const Field *old_field= table->field[key_part->fieldnr - 1];
+    if (!new_field->field ||
+        new_field->field->field_index != key_part->fieldnr - 1)
+      return Compare_keys::NotEqual;
+
     /*
       If there is a change in index length due to column expansion
       like varchar(X) changed to varchar(X + N) and has a compatible
@@ -6551,6 +6559,7 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       Key definition has changed if we are using a different field or
       if the user key part length is different.
     */
+    const Field *old_field= table->field[key_part->fieldnr - 1];
     auto old_field_len= old_field->pack_length();
 
     if (old_field->type() == MYSQL_TYPE_VARCHAR)
@@ -6567,15 +6576,6 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       result= Compare_keys::EqualButKeyPartLength;
     }
     else if (key_part->length != new_part->length)
-      return Compare_keys::NotEqual;
-
-    /*
-      For prefix keys KEY_PART_INFO::field points to cloned Field
-      object with adjusted length. So below we have to check field
-      indexes instead of simply comparing pointers to Field objects.
-    */
-    if (!new_field->field ||
-        new_field->field->field_index != key_part->fieldnr - 1)
       return Compare_keys::NotEqual;
   }
 
