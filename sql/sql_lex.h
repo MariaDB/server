@@ -4396,8 +4396,6 @@ public:
     many_values.empty();
     insert_list= 0;
   }
-  bool tvc_finalize();
-  bool tvc_finalize_derived();
 
   bool make_select_in_brackets(SELECT_LEX* dummy_select,
                                SELECT_LEX *nselect, bool automatic);

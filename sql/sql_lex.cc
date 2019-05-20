@@ -8812,38 +8812,6 @@ bool LEX::last_field_generated_always_as_row_end()
 }
 
 
-bool LEX::tvc_finalize()
-{
-  mysql_init_select(this);
-  if (unlikely(!(current_select->tvc=
-               new (thd->mem_root)
-               table_value_constr(many_values,
-                                  current_select,
-                                  current_select->options))))
-    return true;
-  many_values.empty();
-  if (!current_select->master_unit()->fake_select_lex)
-    current_select->master_unit()->add_fake_select_lex(thd);
-  return false;
-}
-
-
-bool LEX::tvc_finalize_derived()
-{
-  derived_tables|= DERIVED_SUBQUERY;
-  if (unlikely(!expr_allows_subselect))
-  {
-    thd->parse_error();
-    return true;
-  }
-  if (current_select->get_linkage() == GLOBAL_OPTIONS_TYPE ||
-      unlikely(mysql_new_select(this, 1, NULL)))
-    return true;
-  current_select->set_linkage(DERIVED_TABLE_TYPE);
-  return tvc_finalize();
-}
-
-
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;
