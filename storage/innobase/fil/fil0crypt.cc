@@ -2101,13 +2101,8 @@ A thread which monitors global key state and rotates tablespaces accordingly
 @return a dummy parameter */
 extern "C" UNIV_INTERN
 os_thread_ret_t
-DECLARE_THREAD(fil_crypt_thread)(
-/*=============================*/
-	void*	arg __attribute__((unused))) /*!< in: a dummy parameter required
-					     * by os_thread_create */
+DECLARE_THREAD(fil_crypt_thread)(void*)
 {
-	UT_NOT_USED(arg);
-
 	mutex_enter(&fil_crypt_threads_mutex);
 	uint thread_no = srv_n_fil_crypt_threads_started;
 	srv_n_fil_crypt_threads_started++;

@@ -4871,8 +4871,9 @@ wrong_offs:
 				<< " of table " << index->table->name
 				<< ". We try to skip the rest of the page.";
 
-			btr_pcur_move_to_last_on_page(pcur, &mtr);
-
+			page_cur_set_after_last(btr_pcur_get_block(pcur),
+						btr_pcur_get_page_cur(pcur));
+			pcur->old_stored = false;
 			goto next_rec;
 		}
 	}
