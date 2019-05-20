@@ -54,7 +54,7 @@ character_octet_length	NULL
 character_set_name	NULL
 collation_name	NULL
 column_key	
-extra	INVISIBLE
+extra	STORED GENERATED, INVISIBLE
 column_comment	start
 is_generated	ALWAYS
 generation_expression	ROW START
@@ -69,7 +69,7 @@ character_octet_length	NULL
 character_set_name	NULL
 collation_name	NULL
 column_key	
-extra	INVISIBLE
+extra	STORED GENERATED, INVISIBLE
 column_comment	end
 is_generated	ALWAYS
 generation_expression	ROW END
