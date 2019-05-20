@@ -3486,7 +3486,7 @@ void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
 	/* row_create_update_node_for_mysql() pre-allocated this much */
-	ut_ad(update->n_fields < table->n_cols + table->n_v_cols);
+	ut_ad(update->n_fields < ulint(table->n_cols + table->n_v_cols));
 
 	update->n_fields++;
 	upd_field_t* ufield = upd_get_nth_field(update, update->n_fields - 1);
