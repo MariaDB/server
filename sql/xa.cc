@@ -258,7 +258,7 @@ static bool xa_trans_force_rollback(THD *thd)
   XID_STATE &xid_state= thd->transaction.xid_state;
 
   if (xid_state.xid_cache_element->xa_state != XA_PREPARED)
-    thd->lex->xa_opt= XA_ONE_PHASE;
+    thd->lex->xa_opt= XA_ONE_PHASE; // to force binlog regular ROLLBACK
   if (ha_rollback_trans(thd, true))
   {
     my_error(ER_XAER_RMERR, MYF(0));

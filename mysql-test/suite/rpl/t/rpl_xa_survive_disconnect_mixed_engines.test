@@ -8,7 +8,7 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
 
---source include/rpl_connection_master.inc
+--connection master
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 
 --let $command=setup
@@ -21,7 +21,7 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 --source include/rpl_xa_mixed_engines.inc
 
 --source include/sync_slave_sql_with_master.inc
---source include/rpl_connection_master.inc
+--connection master
 
 --echo === COMMIT ONE PHASE ===
 
@@ -32,7 +32,7 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 --source include/rpl_xa_mixed_engines.inc
 --let $one_phase=
 --source include/sync_slave_sql_with_master.inc
---source include/rpl_connection_master.inc
+--connection master
 
 --echo === ROLLBACK with PREPARE ===
 
@@ -42,7 +42,7 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 --source include/rpl_xa_mixed_engines.inc
 
 --source include/sync_slave_sql_with_master.inc
---source include/rpl_connection_master.inc
+--connection master
 
 --echo === ROLLBACK with no PREPARE ===
 
@@ -59,7 +59,7 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 
 # Cleanup
 
---source include/rpl_connection_master.inc
+--connection master
 --let $command=cleanup
 --source include/rpl_xa_mixed_engines.inc
 
