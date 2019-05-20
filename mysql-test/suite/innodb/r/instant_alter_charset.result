@@ -1820,3 +1820,10 @@ HEX(a)
 61
 62
 DROP TABLE t1;
+#
+# MDEV-19524 Server crashes in Bitmap<64u>::is_clear_all / Field_longstr::csinfo_change_allows_instant_alter
+#
+CREATE TABLE t1 (a VARCHAR(1), UNIQUE(a)) ENGINE=InnoDB;
+ALTER TABLE t1 MODIFY a INT, ADD b INT, ADD UNIQUE (b), ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+DROP TABLE t1;
