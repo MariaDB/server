@@ -550,11 +550,11 @@ static std::string wsrep_server_incoming_address()
     {
       if (node_addr.size())
       {
-        size_t const ip_len= wsrep_host_len(node_addr.c_str(), node_addr.size());
-        if (ip_len + 7 /* :55555\0 */ < inc_addr_max)
+        size_t const ip_len_mdb= wsrep_host_len(node_addr.c_str(), node_addr.size());
+        if (ip_len_mdb + 7 /* :55555\0 */ < inc_addr_max)
         {
-          memcpy (inc_addr, node_addr.c_str(), ip_len);
-          snprintf(inc_addr + ip_len, inc_addr_max - ip_len, ":%u",
+          memcpy (inc_addr, node_addr.c_str(), ip_len_mdb);
+          snprintf(inc_addr + ip_len_mdb, inc_addr_max - ip_len_mdb, ":%u",
                    (int)mysqld_port);
         }
         else
