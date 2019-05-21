@@ -1770,3 +1770,18 @@ ERROR HY000: Unknown system variable 'password'
 SELECT @@GLOBAL.role;
 ERROR HY000: Unknown system variable 'role'
 End of 10.3 tests
+#
+# MDEV-19540: 10.4 allow lock options with SELECT in brackets
+# which previous version do not
+#
+create table t1 (a int);
+(select * from t1) for update;
+ERROR HY000: Incorrect usage of lock options and SELECT in brackets
+(select * from t1) union (select * from t1) for update;
+ERROR HY000: Incorrect usage of lock options and SELECT in brackets
+(select * from t1 for update);
+a
+select * from t1 for update;
+a
+drop table t1;
+# End of 10.4 tests

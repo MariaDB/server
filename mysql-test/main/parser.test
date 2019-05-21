@@ -1537,3 +1537,19 @@ SELECT @@GLOBAL.password;
 SELECT @@GLOBAL.role;
 
 --echo End of 10.3 tests
+
+--echo #
+--echo # MDEV-19540: 10.4 allow lock options with SELECT in brackets
+--echo # which previous version do not
+--echo #
+
+create table t1 (a int);
+--error ER_WRONG_USAGE
+(select * from t1) for update;
+--error ER_WRONG_USAGE
+(select * from t1) union (select * from t1) for update;
+(select * from t1 for update);
+select * from t1 for update;
+drop table t1;
+
+--echo # End of 10.4 tests

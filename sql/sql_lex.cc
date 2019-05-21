@@ -9246,6 +9246,12 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
 SELECT_LEX_UNIT *LEX::parsed_body_select(SELECT_LEX *sel,
                                          Lex_order_limit_lock * l)
 {
+  if (sel->braces && l && l->lock.defined_lock)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "lock options",
+        "SELECT in brackets");
+    return NULL;
+  }
   if (!(sel= parsed_select(sel, l)))
     return NULL;
 
@@ -9519,7 +9525,7 @@ bool SELECT_LEX_UNIT::set_lock_to_the_last_select(Lex_select_lock l)
     if (sel->braces)
     {
       my_error(ER_WRONG_USAGE, MYF(0), "lock options",
-               "End SELECT expression");
+               "SELECT in brackets");
       return TRUE;
     }
     l.set_to(sel);
