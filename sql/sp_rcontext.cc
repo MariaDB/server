@@ -119,6 +119,19 @@ sp_rcontext *sp_rcontext::create(THD *thd,
 }
 
 
+bool Row_definition_list::append_uniq(MEM_ROOT *mem_root, Spvar_definition *var)
+{
+  DBUG_ASSERT(elements);
+  uint unused;
+  if (unlikely(find_row_field_by_name(&var->field_name, &unused)))
+  {
+    my_error(ER_DUP_FIELDNAME, MYF(0), var->field_name.str);
+    return true;
+  }
+  return push_back(var, mem_root);
+}
+
+
 bool Row_definition_list::
        adjust_formal_params_to_actual_params(THD *thd, List<Item> *args)
 {

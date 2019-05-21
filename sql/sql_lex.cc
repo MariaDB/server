@@ -10416,3 +10416,19 @@ bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
     return true;
   return false;
 }
+
+
+Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
+{
+  Spvar_definition *res;
+  if (unlikely(check_string_char_length(&name, 0, NAME_CHAR_LEN,
+                                        system_charset_info, 1)))
+  {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), name.str);
+    return NULL;
+  }
+  if (unlikely(!(res= new (thd->mem_root) Spvar_definition())))
+    return NULL;
+  init_last_field(res, &name, thd->variables.collation_database);
+  return res;
+}

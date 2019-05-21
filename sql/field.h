@@ -4852,6 +4852,14 @@ public:
     }
     return 0;
   }
+  static Row_definition_list *make(MEM_ROOT *mem_root, Spvar_definition *var)
+  {
+    Row_definition_list *list;
+    if (!(list= new (mem_root) Row_definition_list()))
+      return NULL;
+    return list->push_back(var, mem_root) ? NULL : list;
+  }
+  bool append_uniq(MEM_ROOT *thd, Spvar_definition *var);
   bool adjust_formal_params_to_actual_params(THD *thd, List<Item> *args);
   bool adjust_formal_params_to_actual_params(THD *thd,
                                              Item **args, uint arg_count);

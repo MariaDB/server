@@ -4506,6 +4506,7 @@ public:
                                 const Lex_ident_sys_st &name,
                                 Item_result return_type,
                                 const LEX_CSTRING &soname);
+  Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
 };
 
 

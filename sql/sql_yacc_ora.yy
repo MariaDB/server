@@ -3411,12 +3411,8 @@ optionally_qualified_column_ident:
 row_field_name:
           ident_directly_assignable
           {
-            if (unlikely(check_string_char_length(&$1, 0, NAME_CHAR_LEN,
-                                                  system_charset_info, 1)))
-              my_yyabort_error((ER_TOO_LONG_IDENT, MYF(0), $1.str));
-            if (unlikely(!($$= new (thd->mem_root) Spvar_definition())))
+            if (!($$= Lex->row_field_name(thd, $1)))
               MYSQL_YYABORT;
-            Lex->init_last_field($$, &$1, thd->variables.collation_database);
           }
         ;
 
@@ -3427,17 +3423,12 @@ row_field_definition:
 row_field_definition_list:
           row_field_definition
           {
-            if (unlikely(!($$= new (thd->mem_root) Row_definition_list())) ||
-                unlikely($$->push_back($1, thd->mem_root)))
+            if (!($$= Row_definition_list::make(thd->mem_root, $1)))
               MYSQL_YYABORT;
           }
         | row_field_definition_list ',' row_field_definition
           {
-            uint unused;
-            if (unlikely($1->find_row_field_by_name(&$3->field_name, &unused)))
-              my_yyabort_error((ER_DUP_FIELDNAME, MYF(0), $3->field_name.str));
-            $$= $1;
-            if (unlikely($$->push_back($3, thd->mem_root)))
+            if (($$= $1)->append_uniq(thd->mem_root, $3))
               MYSQL_YYABORT;
           }
         ;
