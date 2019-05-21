@@ -9239,7 +9239,7 @@ select:
           opt_procedure_or_into
           {
             Lex->pop_select();
-            if (Lex->select_finalize($1))
+            if (Lex->select_finalize($1, $3))
               MYSQL_YYABORT;
           }
         | with_clause query_expression_body
@@ -9254,7 +9254,7 @@ select:
             Lex->pop_select();
             $2->set_with_clause($1);
             $1->attach_to($2->first_select());
-            if (Lex->select_finalize($2))
+            if (Lex->select_finalize($2, $4))
               MYSQL_YYABORT;
           }
         ;

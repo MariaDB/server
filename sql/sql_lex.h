@@ -4452,6 +4452,7 @@ public:
                                   LEX_CSTRING *alias);
   bool parsed_create_view(SELECT_LEX_UNIT *unit, int check);
   bool select_finalize(st_select_lex_unit *expr);
+  bool select_finalize(st_select_lex_unit *expr, Lex_select_lock l);
   void relink_hack(st_select_lex *select_lex);
 
   bool stmt_install_plugin(const DDL_options_st &opt,

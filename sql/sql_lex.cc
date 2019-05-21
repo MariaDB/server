@@ -9470,6 +9470,12 @@ bool LEX::select_finalize(st_select_lex_unit *expr)
 }
 
 
+bool LEX::select_finalize(st_select_lex_unit *expr, Lex_select_lock l)
+{
+  return expr->set_lock_to_the_last_select(l) ||
+         select_finalize(expr);
+}
+
 /*
   "IN" and "EXISTS" subselect can appear in two statement types:
 
