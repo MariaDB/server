@@ -265,7 +265,7 @@ err:
 MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
                      S3_INFO *s3)
 {
-  int open_mode,save_errno;
+  int open_mode= 0,save_errno;
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,base_key_parts,unique_key_parts,fulltext_keys,uniques;
   uint internal_table= MY_TEST(open_flags & HA_OPEN_INTERNAL_TABLE);
