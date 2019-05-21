@@ -1441,8 +1441,6 @@ public:
     virtual int net_read_dump(NET* net);
   */
     virtual uint checksum() const;
-    virtual bool checksum_opt(ulonglong *crc, uint flags);
-    virtual bool pre_checksum_opt(uint flags);
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);

@@ -5631,21 +5631,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       }
       if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
       {
-        if (file->ha_table_flags() & HA_HAS_CHECKSUM_EXTENDED)
-        {
-          ulonglong crc;
-          if (!file->pre_checksum_opt(0) &&
-              !file->checksum_opt(&crc, 0))
-          {
-            table->field[18]->store((longlong) crc, TRUE);
-            table->field[18]->set_notnull();
-          }
-        }
-        else
-        {
-          table->field[18]->store((longlong) file->checksum(), TRUE);
-          table->field[18]->set_notnull();
-        }
+        table->field[18]->store((longlong) file->checksum(), TRUE);
+        table->field[18]->set_notnull();
       }
     }
     /* If table is a temporary table */
@@ -7275,8 +7262,7 @@ static void store_schema_partitions_record(THD *thd, TABLE *schema_table,
     table->field[20]->store_time(&time);
     table->field[20]->set_notnull();
   }
-  if ((file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)) &&
-      !stat_info.check_sum_null)
+  if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
   {
     table->field[21]->store((longlong) stat_info.check_sum, TRUE);
     table->field[21]->set_notnull();
