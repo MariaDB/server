@@ -629,10 +629,8 @@ trx_rseg_array_init()
 
 		/* Finally, clear WSREP XID in TRX_SYS page. */
 		const buf_block_t* sys = trx_sysf_get(&mtr);
-		mlog_write_ulint(TRX_SYS + TRX_SYS_WSREP_XID_INFO +
-				 + TRX_SYS_WSREP_XID_MAGIC_N_FLD + sys->frame,
-				 0, MLOG_4BYTES, &mtr);
-
+		mlog_memset(TRX_SYS + TRX_SYS_WSREP_XID_INFO + sys->frame,
+			    TRX_SYS_WSREP_XID_LEN, 0, &mtr);
 		mtr.commit();
 	}
 #endif
