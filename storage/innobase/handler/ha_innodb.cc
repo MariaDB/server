@@ -200,7 +200,6 @@ static char*	innobase_server_stopword_table;
 values */
 
 static my_bool	innobase_use_atomic_writes;
-static my_bool	innobase_use_checksums;
 static my_bool	innobase_locks_unsafe_for_binlog;
 static my_bool	innobase_rollback_on_timeout;
 static my_bool	innobase_create_status_file;
@@ -4006,13 +4005,6 @@ static int innodb_init_params()
 	}
 
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
-
-	if (!innobase_use_checksums) {
-		ib::warn() << "Setting innodb_checksums to OFF is DEPRECATED."
-			" This option may be removed in future releases. You"
-			" should set innodb_checksum_algorithm=NONE instead.";
-		srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_NONE;
-	}
 
 	innodb_log_checksums = innodb_log_checksums_func_update(
 		NULL, innodb_log_checksums);
@@ -18798,21 +18790,13 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
   " Files updated when this option is set to crc32 or strict_crc32 will"
   " not be readable by MariaDB versions older than 10.0.4;"
   " new files created with full_crc32 are readable by MariaDB 10.4.3+",
-  NULL, NULL, SRV_CHECKSUM_ALGORITHM_CRC32,
+  NULL, NULL, SRV_CHECKSUM_ALGORITHM_FULL_CRC32,
   &innodb_checksum_algorithm_typelib);
 
 static MYSQL_SYSVAR_BOOL(log_checksums, innodb_log_checksums,
   PLUGIN_VAR_RQCMDARG,
   "Whether to compute and require checksums for InnoDB redo log blocks",
   NULL, innodb_log_checksums_update, TRUE);
-
-static MYSQL_SYSVAR_BOOL(checksums, innobase_use_checksums,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "DEPRECATED. Use innodb_checksum_algorithm=NONE instead of setting"
-  " this to OFF."
-  " Enable InnoDB checksums validation (enabled by default)."
-  " Disable with --skip-innodb-checksums.",
-  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   PLUGIN_VAR_READONLY,
@@ -19990,7 +19974,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(flush_neighbors),
   MYSQL_SYSVAR(checksum_algorithm),
   MYSQL_SYSVAR(log_checksums),
-  MYSQL_SYSVAR(checksums),
   MYSQL_SYSVAR(commit_concurrency),
   MYSQL_SYSVAR(concurrency_tickets),
   MYSQL_SYSVAR(compression_level),
