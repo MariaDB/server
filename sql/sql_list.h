@@ -100,6 +100,14 @@ public:
     *next= NULL;
   }
 
+  constexpr SQL_I_List<T>& operator=(const SQL_I_List<T>&rhs)
+  {
+    elements= rhs.elements;
+    first= rhs.first;
+    next= rhs.next;
+    return *this;
+  }
+
   inline void save_and_clear(SQL_I_List<T> *save)
   {
     *save= *this;
@@ -174,6 +182,14 @@ public:
       elements == rhs.elements &&
       first == rhs.first &&
       last == rhs.last;
+  }
+
+  constexpr base_list& operator=(const base_list&rhs)
+  {
+    elements= rhs.elements;
+    first= rhs.first;
+    last= rhs.last;
+    return *this;
   }
 
   inline void empty() { elements=0; first= &end_of_list; last=&first;}
@@ -515,6 +531,7 @@ public:
   inline List(const List<T> &tmp) :base_list(tmp) {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
+  inline List<T>& operator=(const List<T>& other) = default;
   inline bool push_back(T *a) { return base_list::push_back(a); }
   inline bool push_back(T *a, MEM_ROOT *mem_root)
   { return base_list::push_back(a, mem_root); }
