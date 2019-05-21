@@ -43,6 +43,7 @@
 #include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
+#include <ssl_compat.h>
 
 HASH global_user_stats, global_client_stats, global_table_stats;
 HASH global_index_stats;
