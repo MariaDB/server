@@ -466,6 +466,20 @@ insert into t1 values (11),(12);
 set timestamp=1523466004.169435;
 delete from t1 where pk in (11, 12);
 
+--echo #
+--echo # MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
+--echo #
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 7 second (
+  partition ver_p1 history,
+  partition ver_pn current);
+alter table t1
+partition by system_time interval column_get(column_create(7,7), 7 as int) second (
+  partition ver_p1 history,
+  partition ver_pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
 --echo # Test cleanup
 drop database test;
 create database test;

@@ -35,6 +35,23 @@ insert into t1 values (1,1);
 create or replace table t2 (c int);
 create or replace view v as select t1.* from t1 join t2;
 replace into v (a, b) select a, b from t1;
+drop table t1;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval CREATE TABLE t1 (
+    pk INT AUTO_INCREMENT,
+    f INT,
+    row_start $sys_datatype_expl AS ROW START INVISIBLE,
+    row_end $sys_datatype_expl AS ROW END INVISIBLE,
+    PRIMARY KEY(pk),
+    UNIQUE(f),
+    PERIOD FOR SYSTEM_TIME(row_start, row_end)
+) WITH SYSTEM VERSIONING;
+INSERT INTO t1 () VALUES (),(),(),(),(),();
+UPDATE IGNORE t1 SET f = 1;
+REPLACE t1 SELECT * FROM t1;
+DROP TABLE t1;
+
 
 drop database test;
 create database test;
