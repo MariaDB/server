@@ -5003,8 +5003,7 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
   @retval  TRUE   Error, reported.
 */
 
-bool open_tables(THD *thd, TABLE_LIST **start, uint *counter,
-                 Sroutine_hash_entry **sroutine_to_open_list, uint flags,
+bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                  Prelocking_strategy *prelocking_strategy)
 {
   /*
@@ -5053,7 +5052,7 @@ restart:
 
   has_prelocking_list= thd->lex->requires_prelocking();
   table_to_open= start;
-  sroutine_to_open= sroutine_to_open_list;
+  sroutine_to_open= &thd->lex->sroutines_list.first;
   *counter= 0;
   thd_proc_info(thd, "Opening tables");
 
@@ -5112,8 +5111,7 @@ restart:
     elements in prelocking list/set.
   */
   while (*table_to_open  ||
-         (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-          *sroutine_to_open))
+         (thd->locked_tables_mode <= LTM_LOCK_TABLES && *sroutine_to_open))
   {
     /*
       For every table in the list of tables to open, try to find or open

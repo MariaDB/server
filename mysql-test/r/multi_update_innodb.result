@@ -67,3 +67,6 @@ SELECT * FROM t2;
 col_int_key	pk_1	pk_2	col_int
 1	2	3	4
 DROP TABLE t1,t2;
+#
+# end of 5.5 tests
+#

@@ -371,7 +371,6 @@ drop table t1, t2;
 #
 
 connect (root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
-connection root;
 --disable_warnings
 create database mysqltest;
 --enable_warnings
@@ -381,7 +380,6 @@ create table mysqltest.t3 (a int, b int, primary key (a));
 grant select on mysqltest.* to mysqltest_1@localhost;
 grant update on mysqltest.t1 to mysqltest_1@localhost;
 connect (user1,localhost,mysqltest_1,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK);
-connection user1;
 update t1, t2 set t1.b=1 where t1.a=t2.a;
 update t1, t2 set t1.b=(select t3.b from t3 where t1.a=t3.a) where t1.a=t2.a;
 connection root;
@@ -494,15 +492,12 @@ insert into t2 values (10), (20), (30);
 create view v1 as select a as b, a/10 as a from t2;
 
 connect (locker,localhost,root,,test);
-connection locker;
 lock table t1 write;
 
 connect (changer,localhost,root,,test);
-connection changer;
 send alter table t1 add column c int default 100 after a;
 
 connect (updater,localhost,root,,test);
-connection updater;
 # Wait till "alter table t1 ..." of session changer is in work.
 # = There is one session waiting.
 let $wait_condition= select count(*)= 1 from information_schema.processlist
@@ -1086,5 +1081,7 @@ select * from t2;
 drop table t1,t2, t3;
 drop user foo;
 
---echo end of 5.5 tests
+--echo #
+--echo # end of 5.5 tests
+--echo #
 

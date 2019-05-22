@@ -1251,9 +1251,8 @@ int mysql_multi_update_prepare(THD *thd)
 
   if (setup_tables_and_check_access(thd, &lex->select_lex.context,
                                     &lex->select_lex.top_join_list,
-                                    table_list,
-                                    lex->select_lex.leaf_tables, FALSE,
-                                    UPDATE_ACL, SELECT_ACL, FALSE))
+                                    table_list, lex->select_lex.leaf_tables,
+                                    FALSE, UPDATE_ACL, SELECT_ACL, FALSE))
     DBUG_RETURN(TRUE);
 
   if (lex->select_lex.handle_derived(thd->lex, DT_MERGE))  
@@ -1272,9 +1271,7 @@ int mysql_multi_update_prepare(THD *thd)
   }
 
   if (update_view && check_fields(thd, *fields))
-  {
     DBUG_RETURN(TRUE);
-  }
 
   thd->table_map_for_update= tables_for_update= get_table_map(fields);
 
@@ -1293,8 +1290,7 @@ int mysql_multi_update_prepare(THD *thd)
     TABLE *table= tl->table;
     /* Only set timestamp column if this is not modified */
     if (table->timestamp_field &&
-        bitmap_is_set(table->write_set,
-                      table->timestamp_field->field_index))
+        bitmap_is_set(table->write_set, table->timestamp_field->field_index))
       table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
 
     /* if table will be updated then check that it is unique */
@@ -1355,10 +1351,8 @@ int mysql_multi_update_prepare(THD *thd)
     if (!tl->is_derived())
     {
       uint want_privilege= tl->updating ? UPDATE_ACL : SELECT_ACL;
-      if (check_access(thd, want_privilege, tl->db,
-                       &tl->grant.privilege,
-                       &tl->grant.m_internal,
-                       0, 0) ||
+      if (check_access(thd, want_privilege, tl->db, &tl->grant.privilege,
+                       &tl->grant.m_internal, 0, 0) ||
           check_grant(thd, want_privilege, tl, FALSE, 1, FALSE))
         DBUG_RETURN(TRUE);
     }
@@ -1434,25 +1428,18 @@ int mysql_multi_update_prepare(THD *thd)
   Setup multi-update handling and call SELECT to do the join
 */
 
-bool mysql_multi_update(THD *thd,
-                        TABLE_LIST *table_list,
-                        List<Item> *fields,
-                        List<Item> *values,
-                        COND *conds,
-                        ulonglong options,
+bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
+                        List<Item> *values, COND *conds, ulonglong options,
                         enum enum_duplicates handle_duplicates,
-                        bool ignore,
-                        SELECT_LEX_UNIT *unit,
-                        SELECT_LEX *select_lex,
-                        multi_update **result)
+                        bool ignore, SELECT_LEX_UNIT *unit,
+                        SELECT_LEX *select_lex, multi_update **result)
 {
   bool res;
   DBUG_ENTER("mysql_multi_update");
 
   if (!(*result= new multi_update(table_list,
 				 &thd->lex->select_lex.leaf_tables,
-				 fields, values,
-				 handle_duplicates, ignore)))
+				 fields, values, handle_duplicates, ignore)))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1463,11 +1450,9 @@ bool mysql_multi_update(THD *thd,
 
   List<Item> total_list;
 
-  res= mysql_select(thd, &select_lex->ref_pointer_array,
-                    table_list, select_lex->with_wild,
-                    total_list,
-                    conds, 0, (ORDER *) NULL, (ORDER *)NULL, (Item *) NULL,
-                    (ORDER *)NULL,
+  res= mysql_select(thd, &select_lex->ref_pointer_array, table_list,
+                    select_lex->with_wild, total_list, conds, 0, NULL, NULL,
+                    NULL, NULL,
                     options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
                     OPTION_SETUP_TABLES_DONE,
                     *result, unit, select_lex);

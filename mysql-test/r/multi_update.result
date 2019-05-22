@@ -1038,4 +1038,6 @@ triggered
 triggered
 drop table t1,t2, t3;
 drop user foo;
-end of 5.5 tests
+#
+# end of 5.5 tests
+#

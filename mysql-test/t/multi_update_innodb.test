@@ -75,3 +75,7 @@ UPDATE t2 AS A NATURAL JOIN t2 B SET A.pk_2=10,B.pk_2=11;
 SELECT * FROM t2;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # end of 5.5 tests
+--echo #
