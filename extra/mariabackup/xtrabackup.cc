@@ -241,7 +241,6 @@ char*	innobase_data_file_path;
 
 my_bool innobase_use_doublewrite;
 my_bool	innobase_file_per_table;
-my_bool innobase_locks_unsafe_for_binlog;
 my_bool innobase_rollback_on_timeout;
 my_bool innobase_create_status_file;
 
@@ -1912,8 +1911,6 @@ static bool innodb_init_param()
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
 
 	srv_file_per_table = (my_bool) innobase_file_per_table;
-
-        srv_locks_unsafe_for_binlog = (ibool) innobase_locks_unsafe_for_binlog;
 
 	srv_max_n_open_files = ULINT_UNDEFINED - 5;
 	srv_innodb_status = (ibool) innobase_create_status_file;

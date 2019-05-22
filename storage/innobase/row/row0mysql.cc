@@ -1979,8 +1979,8 @@ error:
 	DBUG_RETURN(err);
 }
 
-/** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
-session is using a READ COMMITTED or READ UNCOMMITTED isolation level.
+/** This can only be used when the current transaction is at
+READ COMMITTED or READ UNCOMMITTED isolation level.
 Before calling this function row_search_for_mysql() must have
 initialized prebuilt->new_rec_locks to store the information which new
 record locks really were set. This function removes a newly set
@@ -2003,17 +2003,8 @@ row_unlock_for_mysql(
 
 	ut_ad(prebuilt != NULL);
 	ut_ad(trx != NULL);
+	ut_ad(trx->isolation_level <= TRX_ISO_READ_COMMITTED);
 
-	if (UNIV_UNLIKELY
-	    (!srv_locks_unsafe_for_binlog
-	     && trx->isolation_level > TRX_ISO_READ_COMMITTED)) {
-
-		ib::error() << "Calling row_unlock_for_mysql though"
-			" innodb_locks_unsafe_for_binlog is FALSE and this"
-			" session is not using READ COMMITTED isolation"
-			" level.";
-		return;
-	}
 	if (dict_index_is_spatial(prebuilt->index)) {
 		return;
 	}

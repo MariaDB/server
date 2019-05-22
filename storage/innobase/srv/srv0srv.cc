@@ -148,9 +148,6 @@ my_bool	srv_file_per_table;
 is greater than SRV_FORCE_NO_TRX_UNDO. */
 my_bool	high_level_read_only;
 
-/** Place locks to records only i.e. do not use next-key locking except
-on duplicate key checking and foreign key checking */
-ibool	srv_locks_unsafe_for_binlog;
 /** Sort buffer size in index creation */
 ulong	srv_sort_buf_size;
 /** Maximum modification log file size for online index creation */

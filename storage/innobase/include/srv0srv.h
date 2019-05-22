@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -253,10 +253,6 @@ extern my_bool	srv_file_per_table;
 extern	ulong	srv_thread_sleep_delay;
 /** Maximum sleep delay (in micro-seconds), value of 0 disables it.*/
 extern	ulong	srv_adaptive_max_sleep_delay;
-
-/** Place locks to records only i.e. do not use next-key locking except
-on duplicate key checking and foreign key checking */
-extern ibool	srv_locks_unsafe_for_binlog;
 
 /** Sort buffer size in index creation */
 extern ulong	srv_sort_buf_size;
