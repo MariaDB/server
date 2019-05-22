@@ -5055,6 +5055,7 @@ restart:
   sroutine_to_open= &thd->lex->sroutines_list.first;
   *counter= 0;
   thd_proc_info(thd, "Opening tables");
+  prelocking_strategy->reset(thd);
 
   /*
     If we are executing LOCK TABLES statement or a DDL statement
@@ -5218,6 +5219,8 @@ restart:
         }
       }
     }
+    if ((error= prelocking_strategy->handle_end(thd)))
+      goto err;
   }
 
   /*

@@ -1081,6 +1081,35 @@ select * from t2;
 drop table t1,t2, t3;
 drop user foo;
 
+#
+# Another test on not-opening tables unnecessary
+#
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+insert t1 values (1,2),(3,4);
+insert t2 values (5,6),(7,8);
+create table t0 (x int);
+insert t0 values (11), (22);
+create trigger tr1 before update on t2 for each row insert t0 values (new.c);
+connect con1, localhost, root;
+lock table t0 write;
+connection default;
+update t1 join t2 on (a=c+4) set b=d;
+disconnect con1;
+drop table t1, t2, t0;
+
+#
+# MDEV-19521 Update Table Fails with Trigger and Stored Function
+#
+create table t1 (a int, b varchar(50), c varchar(50));
+insert t1 (a,b) values (1,'1'), (2,'2'), (3,'3');
+create function f1() returns varchar(50) return 'result';
+create trigger tr before update on t1 for each row set new.c = (select f1());
+create table t2 select a, b from t1;
+update t1 join t2 using (a) set t1.b = t2.b;
+drop table t1, t2;
+drop function f1;
+
 --echo #
 --echo # end of 5.5 tests
 --echo #
