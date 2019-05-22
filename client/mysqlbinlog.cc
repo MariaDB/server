@@ -3245,6 +3245,7 @@ struct encryption_service_st encryption_handler=
 #include "../sql-common/my_time.c"
 #include "password.c"
 #include "log_event.cc"
+#include "log_event_client.cc"
 #include "log_event_old.cc"
 #include "rpl_utility.cc"
 #include "sql_string.cc"
