@@ -306,6 +306,8 @@ HAVING f1 != 'foo'
 ORDER BY f1;
 
 eval $q;
+# Number of rows can be 3 or 4
+--replace_result 4 3
 eval explain $q;
 
 DROP TABLE t1,t2;
