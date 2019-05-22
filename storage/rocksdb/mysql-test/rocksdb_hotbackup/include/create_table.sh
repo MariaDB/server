@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -e
 
 COPY_LOG=$1
