@@ -959,33 +959,31 @@ fail:
 			break;
 		}
 
-		if (innodb_log_checksums || is_encrypted()) {
-			ulint crc = log_block_calc_checksum_crc32(buf);
-			ulint cksum = log_block_get_checksum(buf);
+		ulint crc = log_block_calc_checksum_crc32(buf);
+		ulint cksum = log_block_get_checksum(buf);
 
-			DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch", {
-					 static int block_counter;
-					 if (block_counter++ == 0) {
-						 cksum = crc + 1;
-					 }
-			 });
+		DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch", {
+				static int block_counter;
+				if (block_counter++ == 0) {
+					cksum = crc + 1;
+				}
+			});
 
-			if (crc != cksum) {
-				ib::error() << "Invalid log block checksum."
-					    << " block: " << block_number
-					    << " checkpoint no: "
-					    << log_block_get_checkpoint_no(buf)
-					    << " expected: " << crc
-					    << " found: " << cksum;
-				goto fail;
-			}
+		if (crc != cksum) {
+			ib::error() << "Invalid log block checksum."
+				    << " block: " << block_number
+				    << " checkpoint no: "
+				    << log_block_get_checkpoint_no(buf)
+				    << " expected: " << crc
+				    << " found: " << cksum;
+			goto fail;
+		}
 
-			if (is_encrypted()
-			    && !log_crypt(buf, *start_lsn,
-					  OS_FILE_LOG_BLOCK_SIZE,
-					  LOG_DECRYPT)) {
-				goto fail;
-			}
+		if (is_encrypted()
+		    && !log_crypt(buf, *start_lsn,
+				  OS_FILE_LOG_BLOCK_SIZE,
+				  LOG_DECRYPT)) {
+			goto fail;
 		}
 
 		ulint dl = log_block_get_data_len(buf);

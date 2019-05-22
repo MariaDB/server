@@ -188,18 +188,6 @@ log_block_convert_lsn_to_no(
 	return(((ulint) (lsn / OS_FILE_LOG_BLOCK_SIZE) & 0x3FFFFFFFUL) + 1);
 }
 
-/************************************************************//**
-Calculates the checksum for a log block.
-@return checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum(
-/*====================*/
-	const byte*	block)	/*!< in: log block */
-{
-	return(log_checksum_algorithm_ptr(block));
-}
-
 /** Calculate the checksum for a log block using the pre-5.7.9 algorithm.
 @param[in]	block	log block
 @return		checksum */
@@ -229,24 +217,12 @@ log_block_calc_checksum_format_0(
 	return(sum);
 }
 
-/** Calculate the checksum for a log block using the MySQL 5.7 algorithm.
+/** Calculate the CRC-32C checksum of a log block.
 @param[in]	block	log block
 @return checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_crc32(
-	const byte*	block)
+inline ulint log_block_calc_checksum_crc32(const byte* block)
 {
 	return ut_crc32(block, OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM);
-}
-
-/** Calculates the checksum for a log block using the "no-op" algorithm.
-@return        checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_none(const byte*)
-{
-	return(LOG_NO_CHECKSUM_MAGIC);
 }
 
 /************************************************************//**

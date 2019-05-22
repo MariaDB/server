@@ -3555,46 +3555,6 @@ static int innodb_init_abort()
 	DBUG_RETURN(1);
 }
 
-/** Update log_checksum_algorithm_ptr with a pointer to the function
-corresponding to whether checksums are enabled.
-@param[in,out]	thd	client session, or NULL if at startup
-@param[in]	check	whether redo log block checksums are enabled
-@return whether redo log block checksums are enabled */
-static inline
-bool
-innodb_log_checksums_func_update(THD* thd, bool check)
-{
-	static const char msg[] = "innodb_encrypt_log implies"
-		" innodb_log_checksums";
-
-	ut_ad(!thd == !srv_was_started);
-
-	if (!check) {
-		check = srv_encrypt_log;
-		if (!check) {
-		} else if (thd) {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    HA_ERR_UNSUPPORTED, msg);
-		} else {
-			sql_print_warning(msg);
-		}
-	}
-
-	if (thd) {
-		log_mutex_enter();
-		log_checksum_algorithm_ptr = check
-			? log_block_calc_checksum_crc32
-			: log_block_calc_checksum_none;
-		log_mutex_exit();
-	} else {
-		log_checksum_algorithm_ptr = check
-			? log_block_calc_checksum_crc32
-			: log_block_calc_checksum_none;
-	}
-
-	return(check);
-}
-
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */
 static const char* ha_innobase_exts[] = {
@@ -3691,6 +3651,12 @@ static void innodb_buffer_pool_size_init()
 	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
 	innobase_buffer_pool_size = srv_buf_pool_size;
 }
+
+/** Deprecated parameter with no effect */
+static my_bool innodb_log_checksums;
+/** Deprecation message for innodb_log_checksums */
+static const char* innodb_log_checksums_deprecated
+= "The parameter innodb_log_checksums is deprecated and has no effect.";
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
@@ -4006,8 +3972,10 @@ static int innodb_init_params()
 
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
 
-	innodb_log_checksums = innodb_log_checksums_func_update(
-		NULL, innodb_log_checksums);
+	if (!innodb_log_checksums) {
+		sql_print_warning(innodb_log_checksums_deprecated);
+		innodb_log_checksums = TRUE;
+	}
 
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
 
@@ -18586,17 +18554,14 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	fil_crypt_set_encrypt_tables(*static_cast<const ulong*>(save));
 }
 
-/** Update the innodb_log_checksums parameter.
-@param[in,out]	thd	client connection
-@param[out]	var_ptr	current value
-@param[in]	save	immediate result from check function */
-static
-void
-innodb_log_checksums_update(THD* thd, st_mysql_sys_var*, void* var_ptr,
-			    const void* save)
+/** Issue a deprecation warning for SET GLOBAL innodb_log_checksums.
+@param[in,out]	thd	client connection */
+static void
+innodb_log_checksums_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
-	*static_cast<my_bool*>(var_ptr) = innodb_log_checksums_func_update(
-		thd, *static_cast<const my_bool*>(save));
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			    HA_ERR_UNSUPPORTED,
+			    innodb_log_checksums_deprecated);
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -18795,8 +18760,8 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
 
 static MYSQL_SYSVAR_BOOL(log_checksums, innodb_log_checksums,
   PLUGIN_VAR_RQCMDARG,
-  "Whether to compute and require checksums for InnoDB redo log blocks",
-  NULL, innodb_log_checksums_update, TRUE);
+  "Deprecated parameter with no effect.",
+  NULL, innodb_log_checksums_warn, TRUE);
 
 static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   PLUGIN_VAR_READONLY,

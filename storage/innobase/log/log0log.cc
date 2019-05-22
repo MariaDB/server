@@ -83,12 +83,6 @@ reduce the size of the log.
 /** Redo log system */
 log_t	log_sys;
 
-/** Whether to generate and require checksums on the redo log pages */
-my_bool	innodb_log_checksums;
-
-/** Pointer to the log checksum calculation function */
-log_checksum_func_t log_checksum_algorithm_ptr;
-
 /* Next log block number to do dummy record filling if no log records written
 for a while */
 static ulint		next_lbn_to_pad = 0;
@@ -669,6 +663,12 @@ void log_t::files::create(ulint n_files)
   lsn_offset= LOG_FILE_HDR_SIZE;
 }
 
+/** Update the log block checksum. */
+inline void log_block_store_checksum(byte* block)
+{
+	log_block_set_checksum(block, log_block_calc_checksum_crc32(block));
+}
+
 /******************************************************//**
 Writes a log file header to a log file space. */
 static
@@ -698,7 +698,7 @@ log_file_header_flush(
 	       LOG_HEADER_CREATOR_CURRENT);
 	ut_ad(LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR
 	      >= sizeof LOG_HEADER_CREATOR_CURRENT);
-	log_block_set_checksum(buf, log_block_calc_checksum_crc32(buf));
+	log_block_store_checksum(buf);
 
 	dest_offset = nth_file * log_sys.log.file_size;
 
@@ -721,19 +721,6 @@ log_file_header_flush(
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
 	srv_stats.os_log_pending_writes.dec();
-}
-
-/******************************************************//**
-Stores a 4-byte checksum to the trailer checksum field of a log block
-before writing it to a log file. This checksum is used in recovery to
-check the consistency of a log block. */
-static
-void
-log_block_store_checksum(
-/*=====================*/
-	byte*	block)	/*!< in/out: pointer to a log block */
-{
-	log_block_set_checksum(block, log_block_calc_checksum(block));
 }
 
 /******************************************************//**
@@ -1315,7 +1302,7 @@ log_group_checkpoint(lsn_t end_lsn)
 			srv_log_buffer_size);
 	mach_write_to_8(buf + LOG_CHECKPOINT_END_LSN, end_lsn);
 
-	log_block_set_checksum(buf, log_block_calc_checksum_crc32(buf));
+	log_block_store_checksum(buf);
 
 	MONITOR_INC(MONITOR_PENDING_CHECKPOINT_WRITE);
 

@@ -1367,11 +1367,6 @@ struct my_option xb_server_options[] =
   &xb_plugin_dir, &xb_plugin_dir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
-  {"innodb-log-checksums", OPT_INNODB_LOG_CHECKSUMS,
-   "Whether to require checksums for InnoDB redo log blocks",
-   &innodb_log_checksums, &innodb_log_checksums,
-   0, GET_BOOL, REQUIRED_ARG, 1, 0, 0, 0, 0, 0 },
-
   {"open_files_limit", OPT_OPEN_FILES_LIMIT, "the maximum number of file "
    "descriptors to reserve with setrlimit().",
    (G_PTR*) &xb_open_files_limit, (G_PTR*) &xb_open_files_limit, 0, GET_ULONG,
@@ -1958,10 +1953,6 @@ static bool innodb_init_param()
 	if (!srv_undo_dir || !xtrabackup_backup) {
 		srv_undo_dir = (char*) ".";
 	}
-
-	log_checksum_algorithm_ptr = innodb_log_checksums || srv_encrypt_log
-		? log_block_calc_checksum_crc32
-		: log_block_calc_checksum_none;
 
 #ifdef _WIN32
 	srv_use_native_aio = TRUE;
