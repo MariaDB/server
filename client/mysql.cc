@@ -1406,11 +1406,20 @@ sig_handler handle_sigint(int sig)
   char kill_buffer[40];
   MYSQL *kill_mysql= NULL;
 
-  /* terminate if no query being executed, or we already tried interrupting */
-  if (!executing_query || (interrupted_query == 2))
+  /* Terminate if we already tried interrupting. */
+  if (interrupted_query == 2)
   {
     tee_fprintf(stdout, "Ctrl-C -- exit!\n");
     goto err;
+  }
+  /* If no query being executed, don't exit. */
+  if (!executing_query)
+  {
+    tee_fprintf(stdout, "Ctrl-C\n");
+    rl_on_new_line(); // Regenerate the prompt on a newline
+    rl_replace_line("", 0); // Clear the previous text
+    rl_redisplay();
+    return;
   }
 
   kill_mysql= mysql_init(kill_mysql);
