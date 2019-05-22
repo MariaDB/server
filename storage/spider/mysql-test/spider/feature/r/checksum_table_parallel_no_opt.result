@@ -60,12 +60,10 @@ SLEEP(1)
 0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
 argument
-checksum table `auto_test_remote`.`tbl_a`
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
 connection child2_2_2;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
 argument
-checksum table `auto_test_remote2`.`tbl_a`
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
 connection child2_1;
 UNLOCK TABLES;
@@ -107,7 +105,7 @@ pkey
 28
 connection master_1;
 Table	Checksum
-auto_test_local.tbl_a	1061386331
+auto_test_local.tbl_a	NULL
 
 deinit
 connection master_1;

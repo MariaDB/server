@@ -150,6 +150,7 @@ create table if not exists mysql.spider_table_sts(
   check_time datetime not null default '0000-00-00 00:00:00',
   create_time datetime not null default '0000-00-00 00:00:00',
   update_time datetime not null default '0000-00-00 00:00:00',
+  checksum bigint unsigned default null,
   primary key (db_name, table_name)
 ) engine=MyISAM default charset=utf8 collate=utf8_bin;
 create table if not exists mysql.spider_table_crd(
@@ -407,6 +408,11 @@ begin
     alter table mysql.spider_table_crd
     modify table_name char(199) not null default '';
   end if;
+
+  -- Fix for version 3.3.15
+  call mysql.spider_fix_one_table('spider_table_sts', 'checksum',
+   'alter table mysql.spider_table_sts
+    add column checksum bigint unsigned default null after update_time');
 
   -- Fix for MariaDB 10.4: Crash-Safe system tables
   if @server_name = 'MariaDB' and

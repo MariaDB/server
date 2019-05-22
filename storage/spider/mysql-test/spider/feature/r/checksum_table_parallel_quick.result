@@ -60,12 +60,10 @@ SLEEP(1)
 0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
 argument
-checksum table `auto_test_remote`.`tbl_a` quick
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
 connection child2_2_2;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
 argument
-checksum table `auto_test_remote2`.`tbl_a` quick
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
 connection child2_1;
 UNLOCK TABLES;

@@ -10793,7 +10793,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
           (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) && thd->variables.old_mode) ||
            ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) && !thd->variables.old_mode)))
       {
-        if (t->file->info(HA_STATUS_VARIABLE))
+        if (t->file->info(HA_STATUS_VARIABLE) || t->file->stats.checksum_null)
           protocol->store_null();
         else
           protocol->store((longlong)t->file->stats.checksum);
@@ -10813,7 +10813,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
           thd->protocol->remove_last_row();
           goto err;
         }
-        if (error)
+        if (error || t->file->stats.checksum_null)
           protocol->store_null();
         else
           protocol->store((longlong)t->file->stats.checksum);

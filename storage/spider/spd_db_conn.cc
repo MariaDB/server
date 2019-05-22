@@ -5845,7 +5845,7 @@ void spider_db_set_cardinarity(
     {
       key_part = &key_info->key_part[roop_count2];
       field = key_part->field;
-      rec_per_key = (ha_rows) share->records /
+      rec_per_key = (ha_rows) share->stat.records /
         share->cardinality[field->field_index];
       if (rec_per_key > ~(ulong) 0)
         key_info->rec_per_key[roop_count2] = ~(ulong) 0;

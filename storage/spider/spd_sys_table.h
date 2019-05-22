@@ -329,14 +329,7 @@ void spider_store_binlog_pos_gtid(
 
 void spider_store_table_sts_info(
   TABLE *table,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time
+  ha_statistics *stat
 );
 
 void spider_store_table_crd_info(
@@ -370,14 +363,7 @@ int spider_insert_or_update_table_sts(
   TABLE *table,
   const char *name,
   uint name_length,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time
+  ha_statistics *stat
 );
 
 int spider_insert_or_update_table_crd(
@@ -533,14 +519,7 @@ int spider_get_sys_tables_static_link_id(
 
 void spider_get_sys_table_sts_info(
   TABLE *table,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time
+  ha_statistics *stat
 );
 
 void spider_get_sys_table_crd_info(
@@ -604,14 +583,7 @@ int spider_sys_insert_or_update_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time,
+  ha_statistics *stat,
   bool need_lock
 );
 
@@ -642,14 +614,7 @@ int spider_sys_get_table_sts(
   THD *thd,
   const char *name,
   uint name_length,
-  ulonglong *data_file_length,
-  ulonglong *max_data_file_length,
-  ulonglong *index_file_length,
-  ha_rows *records,
-  ulong *mean_rec_length,
-  time_t *check_time,
-  time_t *create_time,
-  time_t *update_time,
+  ha_statistics *stat,
   bool need_lock
 );
 

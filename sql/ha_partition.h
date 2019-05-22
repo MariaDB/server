@@ -1440,6 +1440,8 @@ public:
     virtual int dump(THD* thd, int fd = -1);
     virtual int net_read_dump(NET* net);
   */
+    virtual int pre_calculate_checksum();
+    virtual int calculate_checksum();
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);

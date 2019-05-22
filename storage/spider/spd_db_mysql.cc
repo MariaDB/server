@@ -131,7 +131,7 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 
 #define SPIDER_SQL_SHOW_TABLE_STATUS_STR "show table status from "
 #define SPIDER_SQL_SHOW_TABLE_STATUS_LEN sizeof(SPIDER_SQL_SHOW_TABLE_STATUS_STR) - 1
-#define SPIDER_SQL_SELECT_TABLES_STATUS_STR "select `table_rows`,`avg_row_length`,`data_length`,`max_data_length`,`index_length`,`auto_increment`,`create_time`,`update_time`,`check_time` from `information_schema`.`tables` where `table_schema` = "
+#define SPIDER_SQL_SELECT_TABLES_STATUS_STR "select `table_rows`,`avg_row_length`,`data_length`,`max_data_length`,`index_length`,`auto_increment`,`create_time`,`update_time`,`check_time`,`checksum` from `information_schema`.`tables` where `table_schema` = "
 #define SPIDER_SQL_SELECT_TABLES_STATUS_LEN sizeof(SPIDER_SQL_SELECT_TABLES_STATUS_STR) - 1
 #define SPIDER_SQL_SHOW_WARNINGS_STR "show warnings"
 #define SPIDER_SQL_SHOW_WARNINGS_LEN sizeof(SPIDER_SQL_SHOW_WARNINGS_STR) - 1
@@ -972,15 +972,7 @@ SPIDER_DB_ROW *spider_db_mbase_result::fetch_row_from_tmp_table(
 
 int spider_db_mbase_result::fetch_table_status(
   int mode,
-  ha_rows &records,
-  ulong &mean_rec_length,
-  ulonglong &data_file_length,
-  ulonglong &max_data_file_length,
-  ulonglong &index_file_length,
-  ulonglong &auto_increment_value,
-  time_t &create_time,
-  time_t &update_time,
-  time_t &check_time
+  ha_statistics &stat
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
@@ -1019,47 +1011,47 @@ int spider_db_mbase_result::fetch_table_status(
     }
 
     if (mysql_row[4])
-      records =
+      stat.records =
         (ha_rows) my_strtoll10(mysql_row[4], (char**) NULL, &error_num);
     else
-      records = (ha_rows) 0;
+      stat.records = (ha_rows) 0;
     DBUG_PRINT("info",
-      ("spider records=%lld", records));
+      ("spider records=%lld", stat.records));
     if (mysql_row[5])
-      mean_rec_length =
+      stat.mean_rec_length =
         (ulong) my_strtoll10(mysql_row[5], (char**) NULL, &error_num);
     else
-      mean_rec_length = 0;
+      stat.mean_rec_length = 0;
     DBUG_PRINT("info",
-      ("spider mean_rec_length=%lu", mean_rec_length));
+      ("spider mean_rec_length=%lu", stat.mean_rec_length));
     if (mysql_row[6])
-      data_file_length =
+      stat.data_file_length =
         (ulonglong) my_strtoll10(mysql_row[6], (char**) NULL, &error_num);
     else
-      data_file_length = 0;
+      stat.data_file_length = 0;
     DBUG_PRINT("info",
-      ("spider data_file_length=%lld", data_file_length));
+      ("spider data_file_length=%lld", stat.data_file_length));
     if (mysql_row[7])
-      max_data_file_length =
+      stat.max_data_file_length =
         (ulonglong) my_strtoll10(mysql_row[7], (char**) NULL, &error_num);
     else
-      max_data_file_length = 0;
+      stat.max_data_file_length = 0;
     DBUG_PRINT("info",
-      ("spider max_data_file_length=%lld", max_data_file_length));
+      ("spider max_data_file_length=%lld", stat.max_data_file_length));
     if (mysql_row[8])
-      index_file_length =
+      stat.index_file_length =
         (ulonglong) my_strtoll10(mysql_row[8], (char**) NULL, &error_num);
     else
-      index_file_length = 0;
+      stat.index_file_length = 0;
     DBUG_PRINT("info",
-      ("spider index_file_length=%lld", index_file_length));
+      ("spider index_file_length=%lld", stat.index_file_length));
     if (mysql_row[10])
-      auto_increment_value =
+      stat.auto_increment_value =
         (ulonglong) my_strtoll10(mysql_row[10], (char**) NULL, &error_num);
     else
-      auto_increment_value = 1;
+      stat.auto_increment_value = 1;
     DBUG_PRINT("info",
-      ("spider auto_increment_value=%lld", auto_increment_value));
+      ("spider auto_increment_value=%lld", stat.auto_increment_value));
     if (mysql_row[11])
     {
 #ifdef SPIDER_HAS_TIME_STATUS
@@ -1068,19 +1060,19 @@ int spider_db_mbase_result::fetch_table_status(
       SPIDER_str_to_datetime(mysql_row[11], strlen(mysql_row[11]),
         &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
-      create_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
 #else
-      create_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_my_bool);
 #endif
     } else
-      create_time = (time_t) 0;
+      stat.create_time = (time_t) 0;
 #ifndef DBUG_OFF
     {
       struct tm *ts, tmp_ts;
       char buf[80];
-      ts = localtime_r(&create_time, &tmp_ts);
+      ts = localtime_r(&stat.create_time, &tmp_ts);
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
       DBUG_PRINT("info",("spider create_time=%s", buf));
     }
@@ -1093,19 +1085,19 @@ int spider_db_mbase_result::fetch_table_status(
       SPIDER_str_to_datetime(mysql_row[12], strlen(mysql_row[12]),
         &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
-      update_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
 #else
-      update_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_my_bool);
 #endif
     } else
-      update_time = (time_t) 0;
+      stat.update_time = (time_t) 0;
 #ifndef DBUG_OFF
     {
       struct tm *ts, tmp_ts;
       char buf[80];
-      ts = localtime_r(&update_time, &tmp_ts);
+      ts = localtime_r(&stat.update_time, &tmp_ts);
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
       DBUG_PRINT("info",("spider update_time=%s", buf));
     }
@@ -1118,66 +1110,77 @@ int spider_db_mbase_result::fetch_table_status(
       SPIDER_str_to_datetime(mysql_row[13], strlen(mysql_row[13]),
         &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
-      check_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
 #else
-      check_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_my_bool);
 #endif
     } else
-      check_time = (time_t) 0;
+      stat.check_time = (time_t) 0;
 #ifndef DBUG_OFF
     {
       struct tm *ts, tmp_ts;
       char buf[80];
-      ts = localtime_r(&check_time, &tmp_ts);
+      ts = localtime_r(&stat.check_time, &tmp_ts);
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
       DBUG_PRINT("info",("spider check_time=%s", buf));
     }
 #endif
+    if (mysql_row[15])
+    {
+      stat.checksum_null = FALSE;
+      stat.checksum =
+        (ha_checksum) my_strtoll10(mysql_row[15], (char**) NULL, &error_num);
+      DBUG_PRINT("info", ("spider checksum=%lu", (ulong) stat.checksum));
+    } else {
+      stat.checksum_null = TRUE;
+      stat.checksum = (ha_checksum) 0;
+      DBUG_PRINT("info", ("spider checksum is null"));
+    }
   } else {
     if (mysql_row[0])
-      records =
+      stat.records =
         (ha_rows) my_strtoll10(mysql_row[0], (char**) NULL, &error_num);
     else
-      records = (ha_rows) 0;
+      stat.records = (ha_rows) 0;
     DBUG_PRINT("info",
-      ("spider records=%lld", records));
+      ("spider records=%lld", stat.records));
     if (mysql_row[1])
-      mean_rec_length =
+      stat.mean_rec_length =
         (ulong) my_strtoll10(mysql_row[1], (char**) NULL, &error_num);
     else
-      mean_rec_length = 0;
+      stat.mean_rec_length = 0;
     DBUG_PRINT("info",
-      ("spider mean_rec_length=%lu", mean_rec_length));
+      ("spider mean_rec_length=%lu", stat.mean_rec_length));
     if (mysql_row[2])
-      data_file_length =
+      stat.data_file_length =
         (ulonglong) my_strtoll10(mysql_row[2], (char**) NULL, &error_num);
     else
-      data_file_length = 0;
+      stat.data_file_length = 0;
     DBUG_PRINT("info",
-      ("spider data_file_length=%lld", data_file_length));
+      ("spider data_file_length=%lld", stat.data_file_length));
     if (mysql_row[3])
-      max_data_file_length =
+      stat.max_data_file_length =
         (ulonglong) my_strtoll10(mysql_row[3], (char**) NULL, &error_num);
     else
-      max_data_file_length = 0;
+      stat.max_data_file_length = 0;
     DBUG_PRINT("info",
-      ("spider max_data_file_length=%lld", max_data_file_length));
+      ("spider max_data_file_length=%lld", stat.max_data_file_length));
     if (mysql_row[4])
-      index_file_length =
+      stat.index_file_length =
         (ulonglong) my_strtoll10(mysql_row[4], (char**) NULL, &error_num);
     else
-      index_file_length = 0;
+      stat.index_file_length = 0;
     DBUG_PRINT("info",
-      ("spider index_file_length=%lld", index_file_length));
+      ("spider index_file_length=%lld", stat.index_file_length));
     if (mysql_row[5])
-      auto_increment_value =
+      stat.auto_increment_value =
         (ulonglong) my_strtoll10(mysql_row[5], (char**) NULL, &error_num);
     else
-      auto_increment_value = 1;
+      stat.auto_increment_value = 1;
     DBUG_PRINT("info",
-      ("spider auto_increment_value=%lld", auto_increment_value));
+      ("spider auto_increment_value=%lld", stat.auto_increment_value));
     if (mysql_row[6])
     {
 #ifdef SPIDER_HAS_TIME_STATUS
@@ -1186,19 +1189,19 @@ int spider_db_mbase_result::fetch_table_status(
       SPIDER_str_to_datetime(mysql_row[6], strlen(mysql_row[6]),
         &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
-      create_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
 #else
-      create_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_my_bool);
 #endif
     } else
-      create_time = (time_t) 0;
+      stat.create_time = (time_t) 0;
 #ifndef DBUG_OFF
     {
       struct tm *ts, tmp_ts;
       char buf[80];
-      ts = localtime_r(&create_time, &tmp_ts);
+      ts = localtime_r(&stat.create_time, &tmp_ts);
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
       DBUG_PRINT("info",("spider create_time=%s", buf));
     }
@@ -1211,19 +1214,19 @@ int spider_db_mbase_result::fetch_table_status(
       SPIDER_str_to_datetime(mysql_row[7], strlen(mysql_row[7]),
         &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
-      update_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
 #else
-      update_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_my_bool);
 #endif
     } else
-      update_time = (time_t) 0;
+      stat.update_time = (time_t) 0;
 #ifndef DBUG_OFF
     {
       struct tm *ts, tmp_ts;
       char buf[80];
-      ts = localtime_r(&update_time, &tmp_ts);
+      ts = localtime_r(&stat.update_time, &tmp_ts);
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
       DBUG_PRINT("info",("spider update_time=%s", buf));
     }
@@ -1236,23 +1239,34 @@ int spider_db_mbase_result::fetch_table_status(
       SPIDER_str_to_datetime(mysql_row[8], strlen(mysql_row[8]),
         &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
-      check_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
 #else
-      check_time = (time_t) my_system_gmt_sec(&mysql_time,
+      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_my_bool);
 #endif
     } else
-      check_time = (time_t) 0;
+      stat.check_time = (time_t) 0;
 #ifndef DBUG_OFF
     {
       struct tm *ts, tmp_ts;
       char buf[80];
-      ts = localtime_r(&check_time, &tmp_ts);
+      ts = localtime_r(&stat.check_time, &tmp_ts);
       strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ts);
       DBUG_PRINT("info",("spider check_time=%s", buf));
     }
 #endif
+    if (mysql_row[9])
+    {
+      stat.checksum_null = FALSE;
+      stat.checksum =
+        (ha_checksum) my_strtoll10(mysql_row[9], (char**) NULL, &error_num);
+      DBUG_PRINT("info", ("spider checksum=%lu", (ulong) stat.checksum));
+    } else {
+      stat.checksum_null = TRUE;
+      stat.checksum = (ha_checksum) 0;
+      DBUG_PRINT("info", ("spider checksum is null"));
+    }
   }
   DBUG_RETURN(0);
 }
@@ -13526,16 +13540,9 @@ int spider_mbase_handler::show_table_status(
     pthread_mutex_unlock(&conn->mta_conn_mutex);
     error_num = res->fetch_table_status(
       sts_mode,
-      share->records,
-      share->mean_rec_length,
-      share->data_file_length,
-      share->max_data_file_length,
-      share->index_file_length,
-      auto_increment_value,
-      share->create_time,
-      share->update_time,
-      share->check_time
+      share->stat
     );
+    auto_increment_value = share->stat.auto_increment_value;
     res->free_result();
     delete res;
     if (error_num)
@@ -13662,16 +13669,9 @@ int spider_mbase_handler::show_table_status(
     pthread_mutex_unlock(&conn->mta_conn_mutex);
     error_num = res->fetch_table_status(
       sts_mode,
-      share->records,
-      share->mean_rec_length,
-      share->data_file_length,
-      share->max_data_file_length,
-      share->index_file_length,
-      auto_increment_value,
-      share->create_time,
-      share->update_time,
-      share->check_time
+      share->stat
     );
+    auto_increment_value = share->stat.auto_increment_value;
     res->free_result();
     delete res;
     if (error_num)
@@ -13700,11 +13700,11 @@ int spider_mbase_handler::show_table_status(
   }
   if (share->static_records_for_status != -1)
   {
-    share->records = (ha_rows) share->static_records_for_status;
+    share->stat.records = (ha_rows) share->static_records_for_status;
   }
   if (share->static_mean_rec_length != -1)
   {
-    share->mean_rec_length = (ulong) share->static_mean_rec_length;
+    share->stat.mean_rec_length = (ulong) share->static_mean_rec_length;
   }
   if (auto_increment_value > share->lgtm_tblhnd_share->auto_increment_value)
   {

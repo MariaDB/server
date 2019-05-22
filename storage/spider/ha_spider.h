@@ -494,13 +494,8 @@ public:
   int pre_records();
   ha_rows records();
 #ifdef HA_HAS_CHECKSUM_EXTENDED
-  bool pre_checksum_opt(
-    uint flags
-  );
-  bool checksum_opt(
-    ulonglong *crc,
-    uint flags
-  );
+  int pre_calculate_checksum();
+  int calculate_checksum();
 #endif
   const char *table_type() const;
   ulonglong table_flags() const;
