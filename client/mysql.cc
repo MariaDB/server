@@ -89,6 +89,7 @@ extern "C" {
 #undef bcmp				// Fix problem with new readline
 #if defined(__WIN__)
 #include <conio.h>
+#include <windows.h>
 #else
 # ifdef __APPLE__
 #  include <editline/readline.h>
@@ -1088,7 +1089,21 @@ extern "C" sig_handler handle_sigint(int sig);
 static sig_handler window_resize(int sig);
 #endif
 
-
+#ifdef _WIN32
+static BOOL WINAPI ctrl_handler_windows(DWORD fdwCtrlType)
+{
+  switch (fdwCtrlType)
+  {
+    case CTRL_C_EVENT:
+    // Handle the CTRL-C signal.
+    case CTRL_BREAK_EVENT:
+      handle_sigint(SIGINT);
+      return TRUE; // this means that the signal is handled
+  }
+  // This means to pass the signal to the next handler
+  return FALSE;
+}
+#endif
 const char DELIMITER_NAME[]= "delimiter";
 const uint DELIMITER_NAME_LEN= sizeof(DELIMITER_NAME) - 1;
 inline bool is_delimiter_command(char *name, ulong len)
@@ -1221,11 +1236,12 @@ int main(int argc,char *argv[])
   if (!status.batch)
     ignore_errors=1;				// Don't abort monitor
 
-  if (opt_sigint_ignore)
-    signal(SIGINT, SIG_IGN);
-  else
-    signal(SIGINT, handle_sigint);              // Catch SIGINT to clean up
-  signal(SIGQUIT, mysql_end);			// Catch SIGQUIT to clean up
+#ifndef _WIN32
+  signal(SIGINT, handle_sigint);   // Catch SIGINT to clean up
+  signal(SIGQUIT, mysql_end);      // Catch SIGQUIT to clean up
+#else
+  SetConsoleCtrlHandler(ctrl_handler_windows, TRUE);
+#endif
 
 #if defined(HAVE_TERMIOS_H) && defined(GWINSZ_IN_SYS_IOCTL)
   /* Readline will call this if it installs a handler */
@@ -1407,14 +1423,27 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 
 sig_handler handle_sigint(int sig)
 {
+  if (opt_sigint_ignore) return;
+
   char kill_buffer[40];
   MYSQL *kill_mysql= NULL;
 
-  /* terminate if no query being executed, or we already tried interrupting */
-  if (!executing_query || (interrupted_query == 2))
+  /* Terminate if we already tried interrupting. */
+  if (interrupted_query == 2)
   {
     tee_fprintf(stdout, "Ctrl-C -- exit!\n");
     goto err;
+  }
+  /* If no query being executed, don't exit. */
+  if (!executing_query)
+  {
+#ifndef _WIN32
+      tee_fprintf(stdout, "^C\n");
+      rl_on_new_line(); // Regenerate the prompt on a newline
+      rl_replace_line("", 0); // Clear the previous text
+      rl_redisplay();
+#endif
+    return;
   }
 
   kill_mysql= mysql_init(kill_mysql);
@@ -2072,7 +2101,7 @@ static int read_and_execute(bool interactive)
       size_t clen;
       do
       {
-	line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
+        line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
         buffer.append(line, clen);
         /* 
            if we got buffer fully filled than there is a chance that
@@ -2083,8 +2112,18 @@ static int read_and_execute(bool interactive)
         An empty line is returned from my_cgets when there's error reading :
         Ctrl-c for example
       */
-      if (line)
-        line= buffer.c_ptr();
+     if (line)
+     {
+       line= buffer.c_ptr();
+     }
+     else
+     {
+      tee_puts("^C", stdout);
+      glob_buffer.length(0);
+      ml_comment = false;
+      in_string = 0;
+      continue;
+     }
 #else
       if (opt_outfile)
 	fputs(prompt, OUTFILE);
