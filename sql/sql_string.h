@@ -466,13 +466,6 @@ public:
                  ls->length == strlen(ls->str)));
     return append(ls->str, (uint32) ls->length);
   }
-  bool append(const LEX_CSTRING *ls)
-  {
-    DBUG_ASSERT(ls->length < UINT_MAX32 &&
-                ((ls->length == 0 && !ls->str) ||
-                 ls->length == strlen(ls->str)));
-    return append(ls->str, (uint32) ls->length);
-  }
   bool append(const LEX_CSTRING &ls)
   {
     return append(&ls);
