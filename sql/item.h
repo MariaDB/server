@@ -946,6 +946,11 @@ public:
 #endif
   }		/*lint -e1509 */
   void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
+  void set_name(THD *thd, const LEX_CSTRING &str,
+                CHARSET_INFO *cs= system_charset_info)
+  {
+    set_name(thd, str.str, str.length, cs);
+  }
   void set_name_no_truncate(THD *thd, const char *str, uint length,
                             CHARSET_INFO *cs);
   void init_make_send_field(Send_field *tmp_field, const Type_handler *h);
@@ -4257,7 +4262,7 @@ protected:
                                    const Metadata metadata)
   {
     fix_from_value(dv, metadata);
-    set_name(thd, str_value.ptr(), str_value.length(), str_value.charset());
+    set_name(thd, str_value.lex_cstring(), str_value.charset());
   }
 protected:
   /* Just create an item and do not fill string representation */
@@ -4304,21 +4309,21 @@ public:
     fix_and_set_name_from_value(thd, dv, Metadata(&str_value, repertoire));
   }
   // Constructors with an externally provided item name
-  Item_string(THD *thd, const char *name_par, const char *str, size_t length,
+  Item_string(THD *thd, const LEX_CSTRING &name_par, const LEX_CSTRING &str,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
    :Item_literal(thd)
   {
-    str_value.set_or_copy_aligned(str, length, cs);
+    str_value.set_or_copy_aligned(str.str, str.length, cs);
     fix_from_value(dv, Metadata(&str_value));
-    set_name(thd, name_par,safe_strlen(name_par), system_charset_info);
+    set_name(thd, name_par);
   }
-  Item_string(THD *thd, const char *name_par, const char *str, size_t length,
+  Item_string(THD *thd, const LEX_CSTRING &name_par, const LEX_CSTRING &str,
               CHARSET_INFO *cs, Derivation dv, uint repertoire)
    :Item_literal(thd)
   {
-    str_value.set_or_copy_aligned(str, length, cs);
+    str_value.set_or_copy_aligned(str.str, str.length, cs);
     fix_from_value(dv, Metadata(&str_value, repertoire));
-    set_name(thd, name_par, safe_strlen(name_par), system_charset_info);
+    set_name(thd, name_par);
   }
   void print_value(String *to) const
   {
@@ -4393,13 +4398,13 @@ public:
 class Item_string_with_introducer :public Item_string
 {
 public:
-  Item_string_with_introducer(THD *thd, const char *str, uint length,
+  Item_string_with_introducer(THD *thd, const LEX_CSTRING &str,
                               CHARSET_INFO *cs):
-    Item_string(thd, str, length, cs)
+    Item_string(thd, str.str, str.length, cs)
   { }
-  Item_string_with_introducer(THD *thd, const char *name_arg,
-                              const char *str, uint length, CHARSET_INFO *tocs):
-    Item_string(thd, name_arg, str, length, tocs)
+  Item_string_with_introducer(THD *thd, const LEX_CSTRING &name_arg,
+                              const LEX_CSTRING &str, CHARSET_INFO *tocs):
+    Item_string(thd, name_arg, str, tocs)
   { }
   virtual bool is_cs_specified() const
   {
@@ -4436,14 +4441,14 @@ public:
 
 class Item_static_string_func :public Item_string
 {
-  const char *func_name;
+  const LEX_CSTRING func_name;
 public:
-  Item_static_string_func(THD *thd, const char *name_par, const char *str,
-                          uint length, CHARSET_INFO *cs,
+  Item_static_string_func(THD *thd, const LEX_CSTRING &name_par,
+                          const LEX_CSTRING &str, CHARSET_INFO *cs,
                           Derivation dv= DERIVATION_COERCIBLE):
-    Item_string(thd, NullS, str, length, cs, dv), func_name(name_par)
+    Item_string(thd, LEX_CSTRING({NullS,0}), str, cs, dv), func_name(name_par)
   {}
-  Item_static_string_func(THD *thd, const char *name_par,
+  Item_static_string_func(THD *thd, const LEX_CSTRING &name_par,
                           const String *str,
                           CHARSET_INFO *tocs, uint *conv_errors,
                           Derivation dv, uint repertoire):
@@ -4452,7 +4457,7 @@ public:
   {}
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
-    return const_charset_converter(thd, tocs, true, func_name);
+    return const_charset_converter(thd, tocs, true, func_name.str);
   }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -4465,7 +4470,7 @@ public:
   bool check_vcol_func_processor(void *arg)
   { // VCOL_TIME_FUNC because the value is not constant, but does not
     // require fix_fields() to be re-run for every statement.
-    return mark_unsupported_function(func_name, arg, VCOL_TIME_FUNC);
+    return mark_unsupported_function(func_name.str, arg, VCOL_TIME_FUNC);
   }
 };
 
@@ -4474,10 +4479,12 @@ public:
 class Item_partition_func_safe_string: public Item_string
 {
 public:
-  Item_partition_func_safe_string(THD *thd, const char *name_arg, uint length,
-                                  CHARSET_INFO *cs= NULL):
-    Item_string(thd, name_arg, length, cs)
-  {}
+  Item_partition_func_safe_string(THD *thd, const LEX_CSTRING &name_arg,
+                                  uint length, CHARSET_INFO *cs):
+    Item_string(thd, name_arg, LEX_CSTRING({0,0}), cs)
+  {
+    max_length= length;
+  }
   bool check_vcol_func_processor(void *arg) 
   {
     return mark_unsupported_function("safe_string", arg, VCOL_IMPOSSIBLE);
@@ -4489,9 +4496,11 @@ class Item_return_date_time :public Item_partition_func_safe_string
 {
   enum_field_types date_time_field_type;
 public:
-  Item_return_date_time(THD *thd, const char *name_arg, uint length_arg,
+  Item_return_date_time(THD *thd, const LEX_CSTRING &name_arg,
                         enum_field_types field_type_arg, uint dec_arg= 0):
-    Item_partition_func_safe_string(thd, name_arg, length_arg, &my_charset_bin),
+    Item_partition_func_safe_string(thd, name_arg,
+                                    0/*length is not important*/,
+                                    &my_charset_bin),
     date_time_field_type(field_type_arg)
   { decimals= dec_arg; }
   const Type_handler *type_handler() const
@@ -4504,10 +4513,9 @@ public:
 class Item_blob :public Item_partition_func_safe_string
 {
 public:
-  Item_blob(THD *thd, const char *name_arg, uint length):
-    Item_partition_func_safe_string(thd, name_arg, (uint) safe_strlen(name_arg),
-                                    &my_charset_bin)
-  { max_length= length; }
+  Item_blob(THD *thd, const LEX_CSTRING &name_arg, uint length):
+    Item_partition_func_safe_string(thd, name_arg, length, &my_charset_bin)
+  { }
   enum Type type() const { return TYPE_HOLDER; }
   const Type_handler *type_handler() const
   {
@@ -4533,15 +4541,15 @@ public:
 class Item_empty_string :public Item_partition_func_safe_string
 {
 public:
-  Item_empty_string(THD *thd, const char *header,uint length,
-                    CHARSET_INFO *cs= NULL):
-    Item_partition_func_safe_string(thd, "", 0,
-                                    cs ? cs : &my_charset_utf8_general_ci)
-    {
-      name.str=    header;
-      name.length= strlen(name.str);
-      max_length= length * collation.collation->mbmaxlen;
-    }
+  Item_empty_string(THD *thd, const LEX_CSTRING &header, uint length,
+                    CHARSET_INFO *cs= &my_charset_utf8_general_ci)
+   :Item_partition_func_safe_string(thd, header, length * cs->mbmaxlen, cs)
+  { }
+  Item_empty_string(THD *thd, const char *header, uint length,
+                    CHARSET_INFO *cs= &my_charset_utf8_general_ci)
+   :Item_partition_func_safe_string(thd, LEX_CSTRING({header, strlen(header)}),
+                                    length * cs->mbmaxlen, cs)
+  { }
   void make_send_field(THD *thd, Send_field *field);
 };
 

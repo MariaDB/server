@@ -6933,9 +6933,9 @@ Item*
 Create_func_version::create_builder(THD *thd)
 {
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  return new (thd->mem_root) Item_static_string_func(thd, "version()",
-                                                     server_version,
-                                                     (uint) strlen(server_version),
+  static Lex_cstring name("version()");
+  return new (thd->mem_root) Item_static_string_func(thd, name,
+                                                     Lex_cstring(server_version),
                                                      system_charset_info,
                                                      DERIVATION_SYSCONST);
 }

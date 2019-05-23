@@ -1291,7 +1291,7 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
   uint conv_errors;
   Item_string *conv= (func_name ?
                       new (mem_root)
-                      Item_static_string_func(thd, func_name,
+                      Item_static_string_func(thd, Lex_cstring(func_name),
                                               s, tocs, &conv_errors,
                                               collation.derivation,
                                               collation.repertoire) :
@@ -2014,7 +2014,7 @@ Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   Item::maybe_null= TRUE;
   if (name_item->basic_const_item() &&
       (name_str= name_item->val_str(&name_buffer))) // Can't have a NULL name
-    set_name(thd, name_str->ptr(), name_str->length(), name_str->charset());
+    set_name(thd, name_str->lex_cstring(), name_str->charset());
 }
 
 
@@ -4560,9 +4560,9 @@ Item *Item_param::value_clone_item(THD *thd)
   case DECIMAL_RESULT:
     return 0; // Should create Item_decimal. See MDEV-11361.
   case STRING_RESULT:
-    return new (mem_root) Item_string(thd, name.str,
-                                      value.m_string.c_ptr_quick(),
-                                      value.m_string.length(),
+    return new (mem_root) Item_string(thd, name,
+                                      Lex_cstring(value.m_string.c_ptr_quick(),
+                                                  value.m_string.length()),
                                       value.m_string.charset(),
                                       collation.derivation,
                                       collation.repertoire);
@@ -6554,8 +6554,7 @@ int Item_string::save_in_field(Field *field, bool no_conversions)
 Item *Item_string::clone_item(THD *thd)
 {
   return new (thd->mem_root)
-    Item_string(thd, name.str, str_value.ptr(),
-                str_value.length(), collation.collation);
+    Item_string(thd, name, str_value.lex_cstring(), collation.collation);
 }
 
 

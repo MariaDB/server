@@ -2516,8 +2516,7 @@ THD::make_string_literal_charset(const Lex_string_with_metadata_st &str,
 {
   if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, cs);
-  return new (mem_root) Item_string_with_introducer(this,
-                                                    str.str, (uint)str.length, cs);
+  return new (mem_root) Item_string_with_introducer(this, str, cs);
 }
 
 

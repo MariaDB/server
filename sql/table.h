@@ -1703,6 +1703,15 @@ typedef struct st_field_info
      @c OPEN_FRM_ONLY or @c OPEN_FULL_TABLE.
   */
   uint open_method;
+
+  LEX_CSTRING get_name() const
+  {
+    return LEX_CSTRING({field_name, strlen(field_name)});
+  }
+  LEX_CSTRING get_old_name() const
+  {
+    return LEX_CSTRING({old_name, strlen(old_name)});
+  }
 } ST_FIELD_INFO;
 
 

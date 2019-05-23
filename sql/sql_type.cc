@@ -6888,10 +6888,10 @@ Item *Type_handler_string_result::
   String *result= item->val_str(&tmp);
   if (item->null_value)
     return new (thd->mem_root) Item_null(thd, item->name.str);
-  uint length= result->length();
-  char *tmp_str= thd->strmake(result->ptr(), length);
-  return new (thd->mem_root) Item_string(thd, item->name.str,
-                                         tmp_str, length, result->charset());
+  LEX_CSTRING value;
+  thd->make_lex_string(&value, result->ptr(), result->length());
+  return new (thd->mem_root) Item_string(thd, item->name, value,
+                                         result->charset());
 }
 
 
