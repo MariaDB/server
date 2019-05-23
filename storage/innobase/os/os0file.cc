@@ -1131,23 +1131,14 @@ os_file_create_tmpfile()
 {
 	FILE*	file	= NULL;
 	WAIT_ALLOW_WRITES();
-	os_file_t	fd	= innobase_mysql_tmpfile(NULL);
+	File	fd	= mysql_tmpfile("ib");
 
-	if (fd != OS_FILE_CLOSED) {
-#ifdef _WIN32
-		int crt_fd = _open_osfhandle((intptr_t)HANDLE(fd), 0);
-		if (crt_fd != -1) {
-			file = fdopen(crt_fd, "w+b");
-			if (!file) {
-				close(crt_fd);
-			}
-		}
-#else
-		file = fdopen(fd, "w+b");
+	if (fd >= 0) {
+		file = my_fdopen(fd, 0, O_RDWR|O_TRUNC|O_CREAT|FILE_BINARY,
+				 MYF(MY_WME));
 		if (!file) {
-			close(fd);
+			my_close(fd, MYF(MY_WME));
 		}
-#endif
 	}
 
 	if (file == NULL) {
@@ -2145,7 +2136,7 @@ and native aio.
 bool
 AIO::is_linux_native_aio_supported()
 {
-	int		fd;
+	File		fd;
 	io_context_t	io_ctx;
 	char		name[1000];
 
@@ -2158,7 +2149,7 @@ AIO::is_linux_native_aio_supported()
 	} else if (!srv_read_only_mode) {
 
 		/* Now check if tmpdir supports native aio ops. */
-		fd = innobase_mysql_tmpfile(NULL);
+		fd = mysql_tmpfile("ib");
 
 		if (fd < 0) {
 			ib::warn()
@@ -2185,7 +2176,7 @@ AIO::is_linux_native_aio_supported()
 
 		strcpy(name + dirnamelen, "ib_logfile0");
 
-		fd = open(name, O_RDONLY | O_CLOEXEC);
+		fd = my_open(name, O_RDONLY | O_CLOEXEC, MYF(0));
 
 		if (fd == -1) {
 
@@ -2230,7 +2221,7 @@ AIO::is_linux_native_aio_supported()
 	}
 
 	ut_free(buf);
-	close(fd);
+	my_close(fd, MYF(MY_WME));
 
 	switch (err) {
 	case 1:

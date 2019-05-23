@@ -1422,7 +1422,9 @@ dberr_t srv_start(bool create_new_db)
 				fil_path_to_mysql_datadir,
 				os_proc_get_number());
 
-			srv_monitor_file = fopen(srv_monitor_file_name, "w+");
+			srv_monitor_file = my_fopen(srv_monitor_file_name,
+						    O_RDWR|O_TRUNC|O_CREAT,
+						    MYF(MY_WME));
 
 			if (!srv_monitor_file) {
 				ib::error() << "Unable to create "
@@ -2458,7 +2460,7 @@ void innodb_shutdown()
 	srv_shutdown_all_bg_threads();
 
 	if (srv_monitor_file) {
-		fclose(srv_monitor_file);
+		my_fclose(srv_monitor_file, MYF(MY_WME));
 		srv_monitor_file = 0;
 		if (srv_monitor_file_name) {
 			unlink(srv_monitor_file_name);
@@ -2467,7 +2469,7 @@ void innodb_shutdown()
 	}
 
 	if (srv_misc_tmpfile) {
-		fclose(srv_misc_tmpfile);
+		my_fclose(srv_misc_tmpfile, MYF(MY_WME));
 		srv_misc_tmpfile = 0;
 	}
 

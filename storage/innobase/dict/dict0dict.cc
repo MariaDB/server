@@ -6436,7 +6436,7 @@ void dict_sys_t::close()
 
   if (dict_foreign_err_file)
   {
-    fclose(dict_foreign_err_file);
+    my_fclose(dict_foreign_err_file, MYF(MY_WME));
     dict_foreign_err_file = NULL;
   }
 

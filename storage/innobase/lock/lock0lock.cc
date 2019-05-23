@@ -557,7 +557,7 @@ void lock_sys_t::close()
 	if (!m_initialised) return;
 
 	if (lock_latest_err_file != NULL) {
-		fclose(lock_latest_err_file);
+		my_fclose(lock_latest_err_file, MYF(MY_WME));
 		lock_latest_err_file = NULL;
 	}
 
