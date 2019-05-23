@@ -2212,6 +2212,32 @@ skip_log:
 	}
 }
 
+/** Reduces recv_sys->n_addrs for the corrupted page.
+This function should called when srv_force_recovery > 0.
+@param[in]	bpage	buffer pool page */
+void recv_recover_corrupt_page(buf_page_t* bpage)
+{
+	ut_ad(srv_force_recovery);
+	mutex_enter(&recv_sys->mutex);
+
+	if (!recv_sys->apply_log_recs) {
+		mutex_exit(&recv_sys->mutex);
+		return;
+	}
+
+	recv_addr_t* recv_addr = recv_get_fil_addr_struct(
+			bpage->id.space(), bpage->id.page_no());
+
+	ut_ad(recv_addr->state != RECV_WILL_NOT_READ);
+
+	if (recv_addr->state != RECV_BEING_PROCESSED
+	    && recv_addr->state != RECV_PROCESSED) {
+		recv_sys->n_addrs--;
+	}
+
+	mutex_exit(&recv_sys->mutex);
+}
+
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	bpage	buffer pool page */
 void recv_recover_page(buf_page_t* bpage)

@@ -50,11 +50,16 @@ EOF
 --source include/start_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
+--disable_query_log
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[1].ibd looks corrupted; key_version=1786080875");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted. Please drop the table and recreate.");
+--enable_query_log
 let $restart_parameters=--innodb_force_recovery=1;
 --source include/restart_mysqld.inc
 
+--error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
 SELECT * FROM t2;
-CHECK TABLE t1,t2;
+CHECK TABLE t2;
 
 DROP TABLE t1, t2;
