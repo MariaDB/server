@@ -4093,6 +4093,9 @@ pfs_os_file_t
 row_merge_file_create_low(
 	const char*	path)
 {
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	os_event_wait(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 #ifdef UNIV_PFS_IO
 	/* This temp file open does not go through normal
 	file APIs, add instrumentation to register with
@@ -4113,7 +4116,13 @@ row_merge_file_create_low(
 		PSI_FILE_CREATE, path ? name : label, __FILE__, __LINE__);
 
 #endif
-	pfs_os_file_t fd = innobase_mysql_tmpfile(path);
+	DBUG_ASSERT(strlen(path) + 2 <= FN_REFLEN);
+	char filename[FN_REFLEN];
+	File f = create_temp_file(filename, path, "ib",
+				  O_BINARY | O_SEQUENTIAL,
+				  MYF(MY_WME | MY_TEMPORARY));
+	pfs_os_file_t fd = IF_WIN(my_get_osfhandle(f), f);
+
 #ifdef UNIV_PFS_IO
 	register_pfs_file_open_end(locker, fd, 
 		(fd == OS_FILE_CLOSED)?NULL:&fd);
@@ -4158,7 +4167,9 @@ row_merge_file_destroy_low(
 	const pfs_os_file_t& fd)	/*!< in: merge file descriptor */
 {
 	if (fd != OS_FILE_CLOSED) {
-		os_file_close(fd);
+		int res = mysql_file_close(IF_WIN(my_win_handle2File(fd), fd),
+					   MYF(MY_WME));
+		ut_a(res != -1);
 	}
 }
 /*********************************************************************//**

@@ -1029,12 +1029,12 @@ exit:
 				       crypt_block[i], table->space_id);
 
 		if (error != DB_SUCCESS) {
-			os_file_close(tmpfd[i]);
+			row_merge_file_destroy_low(tmpfd[i]);
 			goto func_exit;
 		}
 
 		total_rec += merge_file[i]->n_rec;
-		os_file_close(tmpfd[i]);
+		row_merge_file_destroy_low(tmpfd[i]);
 	}
 
 func_exit:

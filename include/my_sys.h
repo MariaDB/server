@@ -700,6 +700,7 @@ extern my_bool is_filename_allowed(const char *name, size_t length,
 #ifdef _WIN32
 /* Windows-only functions (CRT equivalents)*/
 extern HANDLE   my_get_osfhandle(File fd);
+extern File     my_win_handle2File(HANDLE hFile);
 extern void     my_osmaperr(unsigned long last_error);
 #endif
 

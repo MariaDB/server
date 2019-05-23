@@ -1524,15 +1524,6 @@ os_file_get_status(
 	bool		check_rw_perm,
 	bool		read_only);
 
-/** Creates a temporary file in the location specified by the parameter
-path. If the path is NULL then it will be created on --tmpdir location.
-This function is defined in ha_innodb.cc.
-@param[in]	path	location for creating temporary file
-@return temporary file descriptor, or < 0 on error */
-os_file_t
-innobase_mysql_tmpfile(
-	const char*	path);
-
 /** Set the file create umask
 @param[in]	umask		The umask to use for file creation. */
 void
