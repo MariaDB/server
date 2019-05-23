@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2432,8 +2432,7 @@ but only by InnoDB table locks, which may be broken by
 lock_remove_all_on_table().)
 @param[in]	table	persistent table
 checked @return whether the table is accessible */
-bool
-fil_table_accessible(const dict_table_t* table)
+bool fil_table_accessible(const dict_table_t* table)
 {
 	if (UNIV_UNLIKELY(!table->is_readable() || table->corrupted)) {
 		return(false);
@@ -3178,11 +3177,12 @@ fil_ibd_open(
 	ulint		tablespaces_found = 0;
 	ulint		valid_tablespaces_found = 0;
 
-	ut_ad(!fix_dict || rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	if (fix_dict) {
+		ut_d(dict_sys.assert_locked());
+		ut_ad(!srv_read_only_mode);
+		ut_ad(srv_log_file_size != 0);
+	}
 
-	ut_ad(!fix_dict || mutex_own(&dict_sys->mutex));
-	ut_ad(!fix_dict || !srv_read_only_mode);
-	ut_ad(!fix_dict || srv_log_file_size != 0);
 	ut_ad(fil_type_is_data(purpose));
 
 	/* Table flags can be ULINT_UNDEFINED if
@@ -4766,7 +4766,7 @@ fil_space_validate_for_mtr_commit(
 	/* We are serving mtr_commit(). While there is an active
 	mini-transaction, we should have !space->stop_new_ops. This is
 	guaranteed by meta-data locks or transactional locks, or
-	dict_operation_lock (X-lock in DROP, S-lock in purge).
+	dict_sys.latch (X-lock in DROP, S-lock in purge).
 
 	However, a file I/O thread can invoke change buffer merge
 	while fil_check_pending_operations() is waiting for operations

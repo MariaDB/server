@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -420,7 +420,7 @@ row_undo(
 
 	/* Prevent DROP TABLE etc. while we are rolling back this row.
 	If we are doing a TABLE CREATE or some other dictionary operation,
-	then we already have dict_operation_lock locked in x-mode. Do not
+	then we already have dict_sys.latch locked in x-mode. Do not
 	try to lock again, because that would cause a hang. */
 
 	trx_t* trx = node->trx;

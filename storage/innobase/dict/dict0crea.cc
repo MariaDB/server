@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -56,7 +56,6 @@ dict_create_sys_tables_tuple(
 					which the memory for the built
 					tuple is allocated */
 {
-	dict_table_t*	sys_tables;
 	dtuple_t*	entry;
 	dfield_t*	dfield;
 	byte*		ptr;
@@ -67,11 +66,9 @@ dict_create_sys_tables_tuple(
 	ut_ad(heap);
 	ut_ad(table->n_cols >= DATA_N_SYS_COLS);
 
-	sys_tables = dict_sys->sys_tables;
-
 	entry = dtuple_create(heap, 8 + DATA_N_SYS_COLS);
 
-	dict_table_copy_types(entry, sys_tables);
+	dict_table_copy_types(entry, dict_sys.sys_tables);
 
 	/* 0: NAME -----------------------------*/
 	dfield = dtuple_get_nth_field(
@@ -169,7 +166,6 @@ dict_create_sys_columns_tuple(
 					which the memory for the built
 					tuple is allocated */
 {
-	dict_table_t*		sys_columns;
 	dtuple_t*		entry;
 	const dict_col_t*	column;
 	dfield_t*		dfield;
@@ -193,11 +189,9 @@ dict_create_sys_columns_tuple(
 		ut_ad(!column->is_virtual());
 	}
 
-	sys_columns = dict_sys->sys_columns;
-
 	entry = dtuple_create(heap, 7 + DATA_N_SYS_COLS);
 
-	dict_table_copy_types(entry, sys_columns);
+	dict_table_copy_types(entry, dict_sys.sys_columns);
 
 	/* 0: TABLE_ID -----------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_COLUMNS__TABLE_ID);
@@ -288,7 +282,6 @@ dict_create_sys_virtual_tuple(
 	ulint			b_col_n,
 	mem_heap_t*		heap)
 {
-	dict_table_t*		sys_virtual;
 	dtuple_t*		entry;
 	const dict_col_t*	base_column;
 	dfield_t*		dfield;
@@ -301,12 +294,10 @@ dict_create_sys_virtual_tuple(
 	dict_v_col_t*	v_col = dict_table_get_nth_v_col(table, v_col_n);
 	base_column = v_col->base_col[b_col_n];
 
-	sys_virtual = dict_sys->sys_virtual;
-
 	entry = dtuple_create(heap, DICT_NUM_COLS__SYS_VIRTUAL
 			      + DATA_N_SYS_COLS);
 
-	dict_table_copy_types(entry, sys_virtual);
+	dict_table_copy_types(entry, dict_sys.sys_virtual);
 
 	/* 0: TABLE_ID -----------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_VIRTUAL__TABLE_ID);
@@ -350,7 +341,7 @@ dict_build_table_def_step(
 	que_thr_t*	thr,	/*!< in: query thread */
 	tab_node_t*	node)	/*!< in: table create node */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	dict_table_t*	table = node->table;
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(!table->is_temporary());
@@ -484,24 +475,21 @@ dict_create_sys_indexes_tuple(
 					which the memory for the built
 					tuple is allocated */
 {
-	dict_table_t*	sys_indexes;
 	dtuple_t*	entry;
 	dfield_t*	dfield;
 	byte*		ptr;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(index);
 	ut_ad(index->table->space || index->table->file_unreadable);
 	ut_ad(!index->table->space
 	      || index->table->space->id == index->table->space_id);
 	ut_ad(heap);
 
-	sys_indexes = dict_sys->sys_indexes;
-
 	entry = dtuple_create(
 		heap, DICT_NUM_COLS__SYS_INDEXES + DATA_N_SYS_COLS);
 
-	dict_table_copy_types(entry, sys_indexes);
+	dict_table_copy_types(entry, dict_sys.sys_indexes);
 
 	/* 0: TABLE_ID -----------------------*/
 	dfield = dtuple_get_nth_field(
@@ -605,7 +593,6 @@ dict_create_sys_fields_tuple(
 					which the memory for the built
 					tuple is allocated */
 {
-	dict_table_t*	sys_fields;
 	dtuple_t*	entry;
 	dict_field_t*	field;
 	dfield_t*	dfield;
@@ -625,11 +612,9 @@ dict_create_sys_fields_tuple(
 
 	field = dict_index_get_nth_field(index, fld_no);
 
-	sys_fields = dict_sys->sys_fields;
-
 	entry = dtuple_create(heap, 3 + DATA_N_SYS_COLS);
 
-	dict_table_copy_types(entry, sys_fields);
+	dict_table_copy_types(entry, dict_sys.sys_fields);
 
 	/* 0: INDEX_ID -----------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_FIELDS__INDEX_ID);
@@ -724,7 +709,7 @@ dict_build_index_def_step(
 	dtuple_t*	row;
 	trx_t*		trx;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	trx = thr_get_trx(thr);
 
@@ -775,7 +760,7 @@ dict_build_index_def(
 	dict_index_t*		index,	/*!< in/out: index */
 	trx_t*			trx)	/*!< in/out: InnoDB transaction handle */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	if (trx->table_id == 0) {
 		/* Record only the first table id. */
@@ -821,14 +806,11 @@ dict_create_index_tree_step(
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
 	dict_index_t*	index;
-	dict_table_t*	sys_indexes;
 	dtuple_t*	search_tuple;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	index = node->index;
-
-	sys_indexes = dict_sys->sys_indexes;
 
 	if (index->type == DICT_FTS) {
 		/* FTS index does not need an index tree */
@@ -843,7 +825,7 @@ dict_create_index_tree_step(
 
 	search_tuple = dict_create_search_tuple(node->ind_row, node->heap);
 
-	btr_pcur_open(UT_LIST_GET_FIRST(sys_indexes->indexes),
+	btr_pcur_open(UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes),
 		      search_tuple, PAGE_CUR_L, BTR_MODIFY_LEAF,
 		      &pcur, &mtr);
 
@@ -893,7 +875,7 @@ dict_create_index_tree_in_mem(
 {
 	mtr_t		mtr;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
@@ -929,8 +911,8 @@ dict_drop_index_tree(
 	ulint		space;
 	ulint		root_page_no;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_a(!dict_table_is_comp(dict_sys->sys_indexes));
+	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
 
 	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
 
@@ -990,8 +972,8 @@ dict_recreate_index_tree(
 	mtr_t*		mtr)	/*!< in/out: mtr having the latch
 				on the record page. */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_a(!dict_table_is_comp(dict_sys->sys_indexes));
+	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
 	ut_ad(!table->space || table->space->id == table->space_id);
 
 	ulint		len;
@@ -1082,15 +1064,15 @@ tab_create_graph_create(
 	node->mode = mode;
 	node->key_id = key_id;
 
-	node->tab_def = ins_node_create(INS_DIRECT, dict_sys->sys_tables,
+	node->tab_def = ins_node_create(INS_DIRECT, dict_sys.sys_tables,
 					heap);
 	node->tab_def->common.parent = node;
 
-	node->col_def = ins_node_create(INS_DIRECT, dict_sys->sys_columns,
+	node->col_def = ins_node_create(INS_DIRECT, dict_sys.sys_columns,
 					heap);
 	node->col_def->common.parent = node;
 
-	node->v_col_def = ins_node_create(INS_DIRECT, dict_sys->sys_virtual,
+	node->v_col_def = ins_node_create(INS_DIRECT, dict_sys.sys_virtual,
                                           heap);
 	node->v_col_def->common.parent = node;
 
@@ -1129,11 +1111,11 @@ ind_create_graph_create(
 	node->heap = mem_heap_create(256);
 
 	node->ind_def = ins_node_create(INS_DIRECT,
-					dict_sys->sys_indexes, heap);
+					dict_sys.sys_indexes, heap);
 	node->ind_def->common.parent = node;
 
 	node->field_def = ins_node_create(INS_DIRECT,
-					  dict_sys->sys_fields, heap);
+					  dict_sys.sys_fields, heap);
 	node->field_def->common.parent = node;
 
 	return(node);
@@ -1152,7 +1134,7 @@ dict_create_table_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	trx = thr_get_trx(thr);
 
@@ -1294,7 +1276,7 @@ dict_create_index_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	trx = thr_get_trx(thr);
 
@@ -1453,7 +1435,7 @@ dict_check_if_system_table_exists(
 
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	sys_table = dict_table_get_low(tablename);
 
@@ -1471,7 +1453,7 @@ dict_check_if_system_table_exists(
 		dict_table_prevent_eviction(sys_table);
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(error);
 }
@@ -1640,9 +1622,9 @@ dict_create_or_check_sys_virtual()
 		"SYS_VIRTUAL", DICT_NUM_FIELDS__SYS_VIRTUAL + 1, 1);
 
 	if (err == DB_SUCCESS) {
-		mutex_enter(&dict_sys->mutex);
-		dict_sys->sys_virtual = dict_table_get_low("SYS_VIRTUAL");
-		mutex_exit(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
+		dict_sys.sys_virtual = dict_table_get_low("SYS_VIRTUAL");
+		mutex_exit(&dict_sys.mutex);
 		return(DB_SUCCESS);
 	}
 
@@ -1716,9 +1698,9 @@ dict_create_or_check_sys_virtual()
 	dberr_t sys_virtual_err = dict_check_if_system_table_exists(
 		"SYS_VIRTUAL", DICT_NUM_FIELDS__SYS_VIRTUAL + 1, 1);
 	ut_a(sys_virtual_err == DB_SUCCESS);
-	mutex_enter(&dict_sys->mutex);
-	dict_sys->sys_virtual = dict_table_get_low("SYS_VIRTUAL");
-	mutex_exit(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
+	dict_sys.sys_virtual = dict_table_get_low("SYS_VIRTUAL");
+	mutex_exit(&dict_sys.mutex);
 
 	return(err);
 }
@@ -2115,7 +2097,7 @@ dict_create_add_foreigns_to_dictionary(
 	dict_foreign_t*	foreign;
 	dberr_t		error;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	if (NULL == dict_table_get_low("SYS_FOREIGN")) {
 
@@ -2345,8 +2327,7 @@ dict_delete_tablespace_and_datafiles(
 {
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(srv_sys_tablespaces_open);
 
 	trx->op_info = "delete tablespace and datafiles from dictionary";

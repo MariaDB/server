@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -43,7 +43,7 @@ void btr_search_sys_resize(ulint hash_size);
 void btr_search_sys_free();
 
 /** Disable the adaptive hash search system and empty the index.
-@param  need_mutex      need to acquire dict_sys->mutex */
+@param  need_mutex      need to acquire dict_sys.mutex */
 void btr_search_disable(bool need_mutex);
 /** Enable the adaptive hash search system. */
 void btr_search_enable();

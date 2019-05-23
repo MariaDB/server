@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -270,7 +270,7 @@ row_undo_mod_clust(
 	ut_ad(thr_get_trx(thr) == node->trx);
 	ut_ad(node->trx->dict_operation_lock_mode);
 	ut_ad(node->trx->in_rollback);
-	ut_ad(rw_lock_own_flagged(dict_operation_lock,
+	ut_ad(rw_lock_own_flagged(&dict_sys.latch,
 				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	log_free_check();
@@ -327,7 +327,7 @@ row_undo_mod_clust(
 	}
 
 	/* Online rebuild cannot be initiated while we are holding
-	dict_operation_lock and index->lock. (It can be aborted.) */
+	dict_sys.latch and index->lock. (It can be aborted.) */
 	ut_ad(online || !dict_index_is_online_ddl(index));
 
 	if (err == DB_SUCCESS && online) {
@@ -910,9 +910,9 @@ row_undo_mod_sec_flag_corrupted(
 		on the data dictionary during normal rollback,
 		we can only mark the index corrupted in the
 		data dictionary cache. TODO: fix this somehow.*/
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 		dict_set_corrupted_index_cache_only(index);
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		break;
 	default:
 		ut_ad(0);
@@ -1228,11 +1228,11 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-		node->table = dict_sys->get_temporary_table(table_id);
-		mutex_exit(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
+		node->table = dict_sys.get_temporary_table(table_id);
+		mutex_exit(&dict_sys.mutex);
 	} else {
-		node->table = dict_sys->get_temporary_table(table_id);
+		node->table = dict_sys.get_temporary_table(table_id);
 	}
 
 	if (!node->table) {
@@ -1402,7 +1402,7 @@ rollback_clust:
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys->mutex, which
+			already be holding dict_sys.mutex, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
 				dict_stats_update_if_needed(

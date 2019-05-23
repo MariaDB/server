@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2279,7 +2279,7 @@ row_import_adjust_root_pages_of_secondary_indexes(
 }
 
 /*****************************************************************//**
-Ensure that dict_sys->row_id exceeds SELECT MAX(DB_ROW_ID). */
+Ensure that dict_sys.row_id exceeds SELECT MAX(DB_ROW_ID). */
 MY_ATTRIBUTE((nonnull)) static
 void
 row_import_set_sys_max_row_id(
@@ -2331,14 +2331,14 @@ row_import_set_sys_max_row_id(
 		/* Update the system row id if the imported index row id is
 		greater than the max system row id. */
 
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 
-		if (row_id >= dict_sys->row_id) {
-			dict_sys->row_id = row_id + 1;
+		if (row_id >= dict_sys.row_id) {
+			dict_sys.row_id = row_id + 1;
 			dict_hdr_flush_row_id();
 		}
 
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 }
 
@@ -3856,7 +3856,7 @@ row_import_for_mysql(
 
 	/* Prevent DDL operations while we are checking. */
 
-	rw_lock_s_lock_func(dict_operation_lock, 0, __FILE__, __LINE__);
+	rw_lock_s_lock(&dict_sys.latch);
 
 	row_import	cfg;
 
@@ -3881,14 +3881,14 @@ row_import_for_mysql(
 			autoinc = cfg.m_autoinc;
 		}
 
-		rw_lock_s_unlock_gen(dict_operation_lock, 0);
+		rw_lock_s_unlock(&dict_sys.latch);
 
 		DBUG_EXECUTE_IF("ib_import_set_index_root_failure",
 				err = DB_TOO_MANY_CONCURRENT_TRXS;);
 
 	} else if (cfg.m_missing) {
 
-		rw_lock_s_unlock_gen(dict_operation_lock, 0);
+		rw_lock_s_unlock(&dict_sys.latch);
 
 		/* We don't have a schema file, we will have to discover
 		the index root pages from the .ibd file and skip the schema
@@ -3920,7 +3920,7 @@ row_import_for_mysql(
 		space_flags = fetchIndexRootPages.get_space_flags();
 
 	} else {
-		rw_lock_s_unlock_gen(dict_operation_lock, 0);
+		rw_lock_s_unlock(&dict_sys.latch);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -4011,7 +4011,7 @@ row_import_for_mysql(
 
 	/* Open the tablespace so that we can access via the buffer pool.
 	We set the 2nd param (fix_dict = true) here because we already
-	have an x-lock on dict_operation_lock and dict_sys->mutex.
+	have an x-lock on dict_sys.latch and dict_sys.mutex.
 	The tablespace is initially opened as a temporary one, because
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */

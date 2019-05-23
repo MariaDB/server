@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /** @file ha_connect.h
 	Author Olivier Bertrand
@@ -511,7 +511,8 @@ private:
 protected:
   bool check_privileges(THD *thd, PTOS options, const char *dbn, bool quick=false);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
-  char *GetDBfromName(const char *name);
+	int  check_stmt(PGLOBAL g, MODE newmode, bool cras);
+	char *GetDBfromName(const char *name);
 
   // Members
   static ulong  num;                  // Tracable handler number

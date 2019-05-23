@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "my_static.h"
@@ -222,7 +222,7 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
     {
       if (my_file_info[Filedes].type != UNOPEN)
       {
-        statistic_decrement(my_file_opened, &THR_LOCK_open);		/* File is opened with my_open ! */
+        thread_safe_decrement32(&my_file_opened);       /* File is opened with my_open ! */
       }
       else
       {

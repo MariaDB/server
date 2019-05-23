@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -417,6 +417,12 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   }
 
   thd->restore_stmt_binlog_format(save_binlog_format);
+
+  if (!ret && Events::opt_event_scheduler == Events::EVENTS_OFF)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, 
+      "Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.");
+  }
 
   DBUG_RETURN(ret);
 #ifdef WITH_WSREP

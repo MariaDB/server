@@ -1216,6 +1216,33 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 #
+# Bug#19811005 ALTER TABLE ADD INDEX DOES NOT UPDATE INDEX_LENGTH
+# IN I_S TABLES
+#
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB, STATS_PERSISTENT=1;
+SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+D	I
+1	0
+ALTER TABLE t1 ADD INDEX (a);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+D	I
+1	1
+ALTER TABLE t1 ADD INDEX (b);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+D	I
+1	2
+DROP TABLE t1;
+#
 # Bug #17657223	EXCESSIVE TEMPORARY FILE USAGE IN ALTER TABLE
 #
 SET GLOBAL innodb_monitor_enable = module_ddl;

@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_plist.h"
 #include "sql_list.h"                           /* Sql_alloc */
@@ -1025,6 +1025,8 @@ struct TABLE_SHARE
   void set_overlapped_keys();
 };
 
+/* not NULL, but cannot be dereferenced */
+#define UNUSABLE_TABLE_SHARE ((TABLE_SHARE*)1)
 
 /**
    Class is used as a BLOB field value storage for
@@ -2021,6 +2023,7 @@ struct TABLE_LIST
     table_name= *table_name_arg;
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
+    updating= lock_type >= TL_WRITE_ALLOW_WRITE;
     mdl_request.init(MDL_key::TABLE, db.str, table_name.str, mdl_type,
                      MDL_TRANSACTION);
   }

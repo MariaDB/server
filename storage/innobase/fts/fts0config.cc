@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -120,9 +120,9 @@ fts_config_get_value(
 
 	error = fts_eval_sql(trx, graph);
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 	que_graph_free(graph);
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(error);
 }
@@ -215,8 +215,11 @@ fts_config_set_value(
 	pars_info_bind_varchar_literal(info, "value",
 				       value->f_str, value->f_len);
 
+	const bool dict_locked = fts_table->table->fts->fts_status
+		& TABLE_DICT_LOCKED;
+
 	fts_table->suffix = "CONFIG";
-	fts_get_table_name(fts_table, table_name);
+	fts_get_table_name(fts_table, table_name, dict_locked);
 	pars_info_bind_id(info, true, "table_name", table_name);
 
 	graph = fts_parse_sql(
@@ -244,7 +247,7 @@ fts_config_set_value(
 		pars_info_bind_varchar_literal(
 			info, "value", value->f_str, value->f_len);
 
-		fts_get_table_name(fts_table, table_name);
+		fts_get_table_name(fts_table, table_name, dict_locked);
 		pars_info_bind_id(info, true, "table_name", table_name);
 
 		graph = fts_parse_sql(

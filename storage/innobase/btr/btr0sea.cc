@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -342,7 +342,7 @@ btr_search_disable_ref_count(
 {
 	dict_index_t*	index;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -352,21 +352,21 @@ btr_search_disable_ref_count(
 }
 
 /** Disable the adaptive hash search system and empty the index.
-@param[in]	need_mutex	need to acquire dict_sys->mutex */
+@param[in]	need_mutex	need to acquire dict_sys.mutex */
 void btr_search_disable(bool need_mutex)
 {
 	dict_table_t*	table;
 
 	if (need_mutex) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	btr_search_x_lock_all();
 
 	if (!btr_search_enabled) {
 		if (need_mutex) {
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 		}
 
 		btr_search_x_unlock_all();
@@ -377,20 +377,20 @@ void btr_search_disable(bool need_mutex)
 
 	/* Clear the index->search_info->ref_count of every index in
 	the data dictionary cache. */
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_LRU); table;
+	for (table = UT_LIST_GET_FIRST(dict_sys.table_LRU); table;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
 
 		btr_search_disable_ref_count(table);
 	}
 
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_non_LRU); table;
+	for (table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU); table;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
 
 		btr_search_disable_ref_count(table);
 	}
 
 	if (need_mutex) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	/* Set all block->index = NULL. */
@@ -1113,7 +1113,7 @@ retry:
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference index here, because it could be freed
-	if (index->table->n_ref_count == 0 && !mutex_own(&dict_sys->mutex)).
+	if (index->table->n_ref_count == 0 && !mutex_own(&dict_sys.mutex)).
 	Determine the ahi_slot based on the block contents. */
 
 	const index_id_t	index_id
@@ -1305,7 +1305,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
 			ut_ad(index->table->get_ref_count() > 0
-			      || mutex_own(&dict_sys->mutex));
+			      || mutex_own(&dict_sys.mutex));
 			btr_search_drop_page_hash_index(block);
 		}
 	}

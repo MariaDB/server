@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -1570,7 +1570,7 @@ static Sys_var_uint Sys_default_password_lifetime(
        "This defines the global password expiration policy. 0 means "
        "automatic password expiration is disabled. If the value is a "
        "positive integer N, the passwords must be changed every N days. This "
-       "behavior can be overriden using the password expiration options in "
+       "behavior can be overridden using the password expiration options in "
        "ALTER USER.",
        GLOBAL_VAR(default_password_lifetime), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));

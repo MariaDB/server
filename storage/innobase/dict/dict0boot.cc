@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -111,9 +111,9 @@ dict_hdr_flush_row_id(void)
 	row_id_t	id;
 	mtr_t		mtr;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
-	id = dict_sys->row_id;
+	id = dict_sys.row_id;
 
 	mtr_start(&mtr);
 
@@ -266,11 +266,11 @@ dict_boot(void)
 	mtr_start(&mtr);
 
 	/* Create the hash tables etc. */
-	dict_init();
+	dict_sys.create();
 
 	heap = mem_heap_create(450);
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	/* Get the dictionary header */
 	dict_hdr = dict_hdr_get(&mtr);
@@ -285,7 +285,7 @@ dict_boot(void)
 	..._MARGIN, it will immediately be updated to the disk-based
 	header. */
 
-	dict_sys->row_id = DICT_HDR_ROW_ID_WRITE_MARGIN
+	dict_sys.row_id = DICT_HDR_ROW_ID_WRITE_MARGIN
 		+ ut_uint64_align_up(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID),
 				     DICT_HDR_ROW_ID_WRITE_MARGIN);
 
@@ -314,7 +314,7 @@ dict_boot(void)
 
 	dict_table_add_system_columns(table, heap);
 	table->add_to_cache();
-	dict_sys->sys_tables = table;
+	dict_sys.sys_tables = table;
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -355,7 +355,7 @@ dict_boot(void)
 
 	dict_table_add_system_columns(table, heap);
 	table->add_to_cache();
-	dict_sys->sys_columns = table;
+	dict_sys.sys_columns = table;
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -398,7 +398,7 @@ dict_boot(void)
 	dict_table_get_nth_col(table, DICT_COL__SYS_INDEXES__MERGE_THRESHOLD)
 		->def_val.len = UNIV_SQL_NULL;
 	table->add_to_cache();
-	dict_sys->sys_indexes = table;
+	dict_sys.sys_indexes = table;
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -427,7 +427,7 @@ dict_boot(void)
 
 	dict_table_add_system_columns(table, heap);
 	table->add_to_cache();
-	dict_sys->sys_fields = table;
+	dict_sys.sys_fields = table;
 	mem_heap_free(heap);
 
 	index = dict_mem_index_create(table, "CLUST_IND",
@@ -475,14 +475,14 @@ dict_boot(void)
 		if (err == DB_SUCCESS) {
 			/* Load definitions of other indexes on system tables */
 
-			dict_load_sys_table(dict_sys->sys_tables);
-			dict_load_sys_table(dict_sys->sys_columns);
-			dict_load_sys_table(dict_sys->sys_indexes);
-			dict_load_sys_table(dict_sys->sys_fields);
+			dict_load_sys_table(dict_sys.sys_tables);
+			dict_load_sys_table(dict_sys.sys_columns);
+			dict_load_sys_table(dict_sys.sys_indexes);
+			dict_load_sys_table(dict_sys.sys_fields);
 		}
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	return(err);
 }

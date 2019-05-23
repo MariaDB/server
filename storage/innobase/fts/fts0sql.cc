@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -88,70 +89,52 @@ fts_get_table_id(
 	return(len);
 }
 
-/******************************************************************//**
-Construct the prefix name of an FTS table.
-@return own: table name, must be freed with ut_free() */
-char*
-fts_get_table_name_prefix(
-/*======================*/
-	const fts_table_t*
-			fts_table)	/*!< in: Auxiliary table type */
+/** Construct the name of an internal FTS table for the given table.
+@param[in]	fts_table	metadata on fulltext-indexed table
+@param[in]	dict_locked	whether dict_sys.mutex is being held
+@return	the prefix, must be freed with ut_free() */
+char* fts_get_table_name_prefix(const fts_table_t* fts_table)
 {
-	int		len;
-	const char*	slash;
-	char*		prefix_name;
-	int		dbname_len = 0;
-	int		prefix_name_len;
 	char		table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
-
-	slash = static_cast<const char*>(
-		memchr(fts_table->parent, '/', strlen(fts_table->parent)));
-
-	if (slash) {
-		/* Print up to and including the separator. */
-		dbname_len = static_cast<int>(slash - fts_table->parent) + 1;
-	}
-
-	len = fts_get_table_id(fts_table, table_id);
-
-	prefix_name_len = dbname_len + 4 + len + 1;
-
-	prefix_name = static_cast<char*>(
-		ut_malloc_nokey(unsigned(prefix_name_len)));
-
-	len = sprintf(prefix_name, "%.*sFTS_%s",
-		      dbname_len, fts_table->parent, table_id);
-
-	ut_a(len > 0);
-	ut_a(len == prefix_name_len - 1);
-
-	return(prefix_name);
+	const size_t table_id_len = size_t(fts_get_table_id(fts_table,
+							    table_id)) + 1;
+	mutex_enter(&dict_sys.mutex);
+	/* Include the separator as well. */
+	const size_t dbname_len = fts_table->table->name.dblen() + 1;
+	ut_ad(dbname_len > 1);
+	const size_t prefix_name_len = dbname_len + 4 + table_id_len;
+	char* prefix_name = static_cast<char*>(
+		ut_malloc_nokey(prefix_name_len));
+	memcpy(prefix_name, fts_table->table->name.m_name, dbname_len);
+	mutex_exit(&dict_sys.mutex);
+	memcpy(prefix_name + dbname_len, "FTS_", 4);
+	memcpy(prefix_name + dbname_len + 4, table_id, table_id_len);
+	return prefix_name;
 }
 
-/******************************************************************//**
-Construct the name of an ancillary FTS table for the given table.
-Caller must allocate enough memory(usually size of MAX_FULL_NAME_LEN)
-for param 'table_name'. */
-void
-fts_get_table_name(
-/*===============*/
-	const fts_table_t*	fts_table,
-					/*!< in: Auxiliary table type */
-	char*			table_name)
-					/*!< in/out: aux table name */
+/** Construct the name of an internal FTS table for the given table.
+@param[in]	fts_table	metadata on fulltext-indexed table
+@param[out]	table_name	a name up to MAX_FULL_NAME_LEN
+@param[in]	dict_locked	whether dict_sys.mutex is being held */
+void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
+			bool dict_locked)
 {
-	int		len;
-	char*		prefix_name;
-
-	prefix_name = fts_get_table_name_prefix(fts_table);
-
-	len = sprintf(table_name, "%s_%s", prefix_name, fts_table->suffix);
-
-	ut_a(len > 0);
-	ut_a(strlen(prefix_name) + 1 + strlen(fts_table->suffix)
-	     == static_cast<uint>(len));
-
-	ut_free(prefix_name);
+	if (!dict_locked) {
+		mutex_enter(&dict_sys.mutex);
+	}
+	ut_ad(mutex_own(&dict_sys.mutex));
+	/* Include the separator as well. */
+	const size_t dbname_len = fts_table->table->name.dblen() + 1;
+	ut_ad(dbname_len > 1);
+	memcpy(table_name, fts_table->table->name.m_name, dbname_len);
+	if (!dict_locked) {
+		mutex_exit(&dict_sys.mutex);
+	}
+	memcpy(table_name += dbname_len, "FTS_", 4);
+	table_name += 4;
+	table_name += fts_get_table_id(fts_table, table_name);
+	*table_name++ = '_';
+	strcpy(table_name, fts_table->suffix);
 }
 
 /******************************************************************//**
@@ -175,17 +158,17 @@ fts_parse_sql(
 			   & TABLE_DICT_LOCKED));
 
 	if (!dict_locked) {
-		ut_ad(!mutex_own(&dict_sys->mutex));
+		ut_ad(!mutex_own(&dict_sys.mutex));
 
 		/* The InnoDB SQL parser is not re-entrant. */
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
 	graph = pars_sql(info, str);
 	ut_a(graph);
 
 	if (!dict_locked) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	ut_free(str);
@@ -205,11 +188,9 @@ fts_parse_sql_no_dict_lock(
 	char*		str;
 	que_t*		graph;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
-
-	//fprintf(stderr, "%s\n", str);
 
 	graph = pars_sql(info, str);
 	ut_a(graph);

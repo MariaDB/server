@@ -2075,3 +2075,44 @@ insert into t1 values(2,1),(1,2);
 select (select c1 from t1 group by c1,c2 order by c1 limit 1) as x;
 (select c1 from t1 group by c1,c2 order by c1 limit 1);
 drop table t1;
+
+--echo #
+--echo # MDEV-19134: EXISTS() slower if ORDER BY is defined
+--echo #
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int, b int);
+insert into t1 select
+  A.a + B.a*10, A.a + B.a*10 from t0 A, t0 B;
+
+create table t2 as select * from t1;
+
+--echo # This will be converted to semi-join:
+explain
+select * from t1
+where exists (select * from t2 where t2.a=t1.a order by t2.b);
+
+--echo # query with a non-zero constant LIMIT is converted to semi-join, too:
+explain
+select * from t1
+where exists (select * from t2 where t2.a=t1.a order by t2.b limit 2);
+
+--echo # Zero LIMIT should prevent the conversion (but it is not visible atm
+--echo #   due to MDEV-19429)
+explain
+select * from t1
+where exists (select * from t2 where t2.a=t1.a order by t2.b limit 0);
+
+--echo # LIMIT+OFFSET prevents the conversion:
+explain
+select * from t1
+where exists (select * from t2 where t2.a=t1.a order by t2.b limit 2,3);
+
+--echo # This will be merged and converted into a semi-join:
+explain
+select * from t1 where t1.a in (select t2.a from t2 order by t2.b);
+
+
+drop table t0, t1, t2;
+

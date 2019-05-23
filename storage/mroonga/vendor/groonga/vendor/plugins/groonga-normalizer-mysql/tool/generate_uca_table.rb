@@ -15,7 +15,7 @@
 #
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 require "optparse"
 
@@ -213,7 +213,7 @@ puts(<<-HEADER)
   You should have received a copy of the GNU Library General Public
   License along with this library; if not, write to the Free
   Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-  MA 02110-1301, USA
+  MA 02110-1335  USA
 
   This file uses normalization table defined in
   #{normalized_ctype_uca_c_path}.
@@ -234,7 +234,7 @@ puts(<<-HEADER)
     You should have received a copy of the GNU Library General Public
     License along with this library; if not, write to the Free
     Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-    MA 02110-1301, USA
+    MA 02110-1335  USA
 
     UCA (Unicode Collation Algorithm) support.
     Written by Alexander Barkov <bar@mysql.com>

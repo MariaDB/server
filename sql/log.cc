@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /**
@@ -8687,14 +8687,14 @@ void sql_perror(const char *message)
   redirect stdout and stderr to a file. The streams are reopened
   only for appending (writing at end of file).
 */
-extern "C" my_bool reopen_fstreams(const char *filename,
-                                   FILE *outstream, FILE *errstream)
+bool reopen_fstreams(const char *filename, FILE *outstream, FILE *errstream)
 {
-  if (outstream && !my_freopen(filename, "a", outstream))
+  if ((outstream && !my_freopen(filename, "a", outstream)) ||
+      (errstream && !my_freopen(filename, "a", errstream)))
+  {
+    my_error(ER_CANT_CREATE_FILE, MYF(0), filename, errno);
     return TRUE;
-
-  if (errstream && !my_freopen(filename, "a", errstream))
-    return TRUE;
+  }
 
   /* The error stream must be unbuffered. */
   if (errstream)

@@ -1,5 +1,4 @@
 --source include/innodb_row_format.inc
-#--source include/innodb_page_size.inc
 
 --let $row_format= `SELECT @@GLOBAL.innodb_default_row_format`
 set names utf8;
@@ -20,9 +19,13 @@ select c.prtype, c.len from information_schema.innodb_sys_columns as c inner joi
 alter table no_rebuild
   change a a char(150) charset utf8mb3 collate utf8mb3_spanish_ci,
   algorithm=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table rebuild
   change a a varchar(150) charset latin1 not null default 'asdf',
   algorithm=inplace;
+alter table rebuild
+  change a a varchar(150) charset latin1 not null default 'asdf',
+  algorithm=copy;
 select name, prtype, len from information_schema.innodb_sys_columns
   where table_id = @id;
 select c.prtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
@@ -41,7 +44,7 @@ create table supported_types (
 ) engine=innodb;
 
 alter table supported_types
-  convert to charset latin1,
+  convert to charset ascii collate ascii_bin,
   algorithm=instant;
 
 drop table supported_types;
@@ -53,7 +56,7 @@ create table various_cases (
 ) engine=innodb;
 
 alter table various_cases
-  change a a char(150) charset latin1,
+  change a a char(150) charset ascii collate ascii_bin,
   algorithm=inplace;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
@@ -88,7 +91,7 @@ create table all_texts (
 ) engine=innodb;
 
 alter table all_texts
-  convert to charset latin1 collate latin1_general_ci,
+  convert to charset ascii collate ascii_bin,
   algorithm=instant;
 
 drop table all_texts;
@@ -244,10 +247,15 @@ alter table latin1_swedish_special_case
   modify copy1 varchar(150) charset latin1 collate latin1_swedish_ci,
   modify copy2 char(150) charset latin1 collate latin1_swedish_ci,
   algorithm=copy;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table latin1_swedish_special_case
   modify instant1 varchar(150) charset latin1 collate latin1_swedish_ci,
   modify instant2 char(150) charset latin1 collate latin1_swedish_ci,
   algorithm=instant;
+alter table latin1_swedish_special_case
+  modify instant1 varchar(150) charset latin1 collate latin1_swedish_ci,
+  modify instant2 char(150) charset latin1 collate latin1_swedish_ci,
+  algorithm=copy;
 select c.name, c.prtype, c.mtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
   where t.name = 'test/latin1_swedish_special_case';
 alter table latin1_swedish_special_case
@@ -275,25 +283,41 @@ create table boundary_255 (
   c varchar(300) charset ascii
 ) engine=innodb;
 
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table boundary_255
   modify a varchar(50) charset utf8mb3,
   algorithm=instant;
+alter table boundary_255
+  modify a varchar(50) charset utf8mb3,
+  algorithm=copy;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table boundary_255
+  modify b varchar(200) charset utf8mb3,
+  algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table boundary_255
+  modify c varchar(300) charset utf8mb3,
+  algorithm=instant;
+
+drop table boundary_255;
+
+create table boundary_255 (
+  a varchar(70) charset utf8mb3
+) engine=innodb;
 
 if ($row_format == 'redundant') {
 alter table boundary_255
-  modify b varchar(200) charset utf8mb3,
+  modify a varchar(70) charset utf8mb4,
   algorithm=instant;
 }
 if ($row_format != 'redundant') {
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table boundary_255
-  modify b varchar(200) charset utf8mb3,
+  modify a varchar(70) charset utf8mb4,
   algorithm=instant;
 }
-
-alter table boundary_255
-  modify c varchar(300) charset utf8mb3,
-  algorithm=instant;
 
 drop table boundary_255;
 
@@ -338,30 +362,7 @@ insert into fully_compatible (from_charset, from_collate, to_charset, to_collate
   ('utf8mb3', 'utf8mb3_general_nopad_ci',     'utf8mb4', 'utf8mb4_general_nopad_ci'),
   ('utf8mb3', 'utf8mb3_nopad_bin',            'utf8mb4', 'utf8mb4_nopad_bin'),
   ('utf8mb3', 'utf8mb3_unicode_nopad_ci',     'utf8mb4', 'utf8mb4_unicode_nopad_ci'),
-  ('utf8mb3', 'utf8mb3_unicode_520_nopad_ci', 'utf8mb4', 'utf8mb4_unicode_520_nopad_ci'),
-
-  ('ucs2',    'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
-  ('ucs2',    'ucs2_unicode_ci',       'utf16',   'utf16_unicode_ci'),
-  ('ucs2',    'ucs2_icelandic_ci',     'utf16',   'utf16_icelandic_ci'),
-  ('ucs2',    'ucs2_latvian_ci',       'utf16',   'utf16_latvian_ci'),
-  ('ucs2',    'ucs2_romanian_ci',      'utf16',   'utf16_romanian_ci'),
-  ('ucs2',    'ucs2_slovenian_ci',     'utf16',   'utf16_slovenian_ci'),
-  ('ucs2',    'ucs2_polish_ci',        'utf16',   'utf16_polish_ci'),
-  ('ucs2',    'ucs2_estonian_ci',      'utf16',   'utf16_estonian_ci'),
-  ('ucs2',    'ucs2_spanish_ci',       'utf16',   'utf16_spanish_ci'),
-  ('ucs2',    'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
-
-  ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_general_ci'),
-  ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_general_ci'),
-  ('ascii', 'ascii_general_ci',       'latin1', 'latin1_general_ci'),
-  ('ascii', 'ascii_bin',              'latin1', 'latin1_bin'),
-  ('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_nopad_bin'),
-  ('ascii', 'ascii_general_ci',       'latin2', 'latin2_general_ci'),
-  ('ascii', 'ascii_general_ci',       'latin7', 'latin7_general_ci'),
-  ('ascii', 'ascii_bin',              'koi8u',  'koi8u_bin'),
-  ('ascii', 'ascii_bin',              'ujis',   'ujis_bin'),
-  ('ascii', 'ascii_bin',              'big5',   'big5_bin'),
-  ('ascii', 'ascii_bin',              'gbk',    'gbk_bin')
+  ('utf8mb3', 'utf8mb3_unicode_520_nopad_ci', 'utf8mb4', 'utf8mb4_unicode_520_nopad_ci')
 ;
 
 let $data_size = `select count(*) from fully_compatible`;
@@ -404,36 +405,11 @@ create table compatible_without_index (
 );
 
 insert into compatible_without_index (from_charset, from_collate, to_charset, to_collate) values
-  ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_swedish_ci'),
-  ('ascii', 'ascii_bin',              'latin1', 'latin1_swedish_ci'),
-  ('ascii', 'ascii_general_nopad_ci', 'latin1', 'latin1_swedish_ci'),
-  ('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_swedish_ci'),
-
-  ('ascii', 'ascii_general_ci',       'koi8u', 'koi8u_bin'),
-  ('ascii', 'ascii_general_nopad_ci', 'koi8u', 'koi8u_bin'),
-  ('ascii', 'ascii_nopad_bin',        'koi8u', 'koi8u_bin'),
-
-  ('ascii', 'ascii_general_ci',       'latin1', 'latin1_swedish_ci'),
-  ('ascii', 'ascii_bin',              'utf8mb3', 'utf8mb3_swedish_ci'),
-  ('ascii', 'ascii_general_nopad_ci', 'utf8mb3', 'utf8mb3_swedish_ci'),
-  ('ascii', 'ascii_nopad_bin',        'utf8mb3', 'utf8mb3_swedish_ci'),
-
-  ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_danish_ci'),
-  ('ascii', 'ascii_bin',              'utf8mb4', 'utf8mb4_danish_ci'),
-  ('ascii', 'ascii_general_nopad_ci', 'utf8mb4', 'utf8mb4_danish_ci'),
-  ('ascii', 'ascii_nopad_bin',        'utf8mb4', 'utf8mb4_danish_ci'),
 
   ('utf8mb3', 'utf8mb3_general_ci',       'utf8mb4', 'utf8mb4_vietnamese_ci'),
   ('utf8mb3', 'utf8mb3_bin',              'utf8mb4', 'utf8mb4_vietnamese_ci'),
   ('utf8mb3', 'utf8mb3_general_nopad_ci', 'utf8mb4', 'utf8mb4_vietnamese_ci'),
   ('utf8mb3', 'utf8mb3_nopad_bin',        'utf8mb4', 'utf8mb4_vietnamese_ci'),
-
-  ('ascii',  'ascii_general_ci',     'gbk',  'gbk_chinese_ci'),
-  ('ascii',  'ascii_general_ci',     'gbk',  'gbk_chinese_nopad_ci'),
-
-  ('ucs2',  'ucs2_myanmar_ci',          'utf16', 'utf16_thai_520_w2'),
-  ('ucs2',  'ucs2_general_ci',          'utf16', 'utf16_unicode_nopad_ci'),
-  ('ucs2',  'ucs2_general_mysql500_ci', 'utf16', 'utf16_spanish2_ci'),
 
   ('ascii',   'ascii_general_ci',      'ascii',   'ascii_bin'),
   ('utf8mb3', 'utf8mb3_roman_ci',      'utf8mb3', 'utf8mb3_lithuanian_ci'),
@@ -441,10 +417,7 @@ insert into compatible_without_index (from_charset, from_collate, to_charset, to
   ('utf8mb3', 'utf8mb3_myanmar_ci',    'utf8mb4', 'utf8mb4_german2_ci'),
   ('utf8mb3', 'utf8mb3_general_ci',    'utf8mb3', 'utf8mb3_unicode_ci'),
   ('latin1',  'latin1_general_cs',     'latin1',  'latin1_general_ci'),
-  ('ascii',   'ascii_general_ci',      'ujis',    'ujis_japanese_ci'),
-  ('ascii',   'ascii_general_ci',      'big5',    'big5_chinese_ci'),
-  ('ascii',   'ascii_general_ci',      'latin2',  'latin2_croatian_ci'),
-  ('ascii',   'ascii_general_ci',      'latin7',  'latin7_estonian_cs'),
+
   ('utf16',   'utf16_general_ci',      'utf16',   'utf16_german2_ci')
 ;
 
@@ -494,6 +467,59 @@ create table fully_incompatible (
 );
 
 insert into fully_incompatible (from_charset, from_collate, to_charset, to_collate) values
+  ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_general_ci'),
+  ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_general_ci'),
+  ('ascii', 'ascii_general_ci',       'latin1', 'latin1_general_ci'),
+  ('ascii', 'ascii_bin',              'latin1', 'latin1_bin'),
+  ('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_nopad_bin'),
+  ('ascii', 'ascii_general_ci',       'latin2', 'latin2_general_ci'),
+  ('ascii', 'ascii_general_ci',       'latin7', 'latin7_general_ci'),
+  ('ascii', 'ascii_bin',              'koi8u',  'koi8u_bin'),
+  ('ascii', 'ascii_bin',              'ujis',   'ujis_bin'),
+  ('ascii', 'ascii_bin',              'big5',   'big5_bin'),
+  ('ascii', 'ascii_bin',              'gbk',    'gbk_bin'),
+
+  ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_swedish_ci'),
+  ('ascii', 'ascii_bin',              'latin1', 'latin1_swedish_ci'),
+  ('ascii', 'ascii_general_nopad_ci', 'latin1', 'latin1_swedish_ci'),
+  ('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_swedish_ci'),
+
+  ('ascii', 'ascii_general_ci',       'koi8u', 'koi8u_bin'),
+  ('ascii', 'ascii_general_nopad_ci', 'koi8u', 'koi8u_bin'),
+  ('ascii', 'ascii_nopad_bin',        'koi8u', 'koi8u_bin'),
+
+  ('ascii', 'ascii_general_ci',       'latin1', 'latin1_swedish_ci'),
+  ('ascii', 'ascii_bin',              'utf8mb3', 'utf8mb3_swedish_ci'),
+  ('ascii', 'ascii_general_nopad_ci', 'utf8mb3', 'utf8mb3_swedish_ci'),
+  ('ascii', 'ascii_nopad_bin',        'utf8mb3', 'utf8mb3_swedish_ci'),
+
+  ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_danish_ci'),
+  ('ascii', 'ascii_bin',              'utf8mb4', 'utf8mb4_danish_ci'),
+  ('ascii', 'ascii_general_nopad_ci', 'utf8mb4', 'utf8mb4_danish_ci'),
+  ('ascii', 'ascii_nopad_bin',        'utf8mb4', 'utf8mb4_danish_ci'),
+
+  ('ascii', 'ascii_general_ci',     'gbk',  'gbk_chinese_ci'),
+  ('ascii', 'ascii_general_ci',     'gbk',  'gbk_chinese_nopad_ci'),
+
+  ('ascii', 'ascii_general_ci',      'ujis',    'ujis_japanese_ci'),
+  ('ascii', 'ascii_general_ci',      'big5',    'big5_chinese_ci'),
+  ('ascii', 'ascii_general_ci',      'latin2',  'latin2_croatian_ci'),
+  ('ascii', 'ascii_general_ci',      'latin7',  'latin7_estonian_cs'),
+
+  ('ucs2',  'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+  ('ucs2',  'ucs2_unicode_ci',       'utf16',   'utf16_unicode_ci'),
+  ('ucs2',  'ucs2_icelandic_ci',     'utf16',   'utf16_icelandic_ci'),
+  ('ucs2',  'ucs2_latvian_ci',       'utf16',   'utf16_latvian_ci'),
+  ('ucs2',  'ucs2_romanian_ci',      'utf16',   'utf16_romanian_ci'),
+  ('ucs2',  'ucs2_slovenian_ci',     'utf16',   'utf16_slovenian_ci'),
+  ('ucs2',  'ucs2_polish_ci',        'utf16',   'utf16_polish_ci'),
+  ('ucs2',  'ucs2_estonian_ci',      'utf16',   'utf16_estonian_ci'),
+  ('ucs2',  'ucs2_spanish_ci',       'utf16',   'utf16_spanish_ci'),
+  ('ucs2',  'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+  ('ucs2',  'ucs2_myanmar_ci',          'utf16', 'utf16_thai_520_w2'),
+  ('ucs2',  'ucs2_general_ci',          'utf16', 'utf16_unicode_nopad_ci'),
+  ('ucs2',  'ucs2_general_mysql500_ci', 'utf16', 'utf16_spanish2_ci'),
+
   ('utf8mb4', 'utf8mb4_general_ci', 'utf8mb3', 'utf8mb3_general_ci'),
   ('utf8mb4', 'utf8mb4_general_ci', 'ascii', 'ascii_general_ci'),
   ('utf8mb3', 'utf8mb3_general_ci', 'ascii', 'ascii_general_ci'),
@@ -536,3 +562,45 @@ while ($counter <= $data_size) {
 }
 
 drop table fully_incompatible;
+
+--echo #
+--echo # MDEV-19284 INSTANT ALTER with ucs2-to-utf16 conversion produces bad data
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ucs2, PRIMARY KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('a'),(0xD800);
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+ALTER TABLE t1 ALGORITHM=COPY, MODIFY a VARCHAR(10) CHARACTER SET utf16;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ALGORITHM=INSTANT, MODIFY a VARCHAR(10) CHARACTER SET utf16;
+--enable_info ONCE
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET utf16;
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19285 INSTANT ALTER from ascii_general_ci to latin1_general_ci produces currupt data
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii COLLATE ascii_general_ci, PRIMARY KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('a'),(0xC0),('b');
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+ALTER TABLE t1 ALGORITHM=COPY, MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ALGORITHM=INSTANT, MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+--enable_info ONCE
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # MDEV-19524 Server crashes in Bitmap<64u>::is_clear_all / Field_longstr::csinfo_change_allows_instant_alter
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1), UNIQUE(a)) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT, ADD b INT, ADD UNIQUE (b), ALGORITHM=INSTANT;
+DROP TABLE t1;
+

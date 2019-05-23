@@ -3368,15 +3368,17 @@ void ha_tokudb::start_bulk_insert(ha_rows rows) {
 int ha_tokudb::bulk_insert_poll(void* extra, float progress) {
     LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
     if (thd_killed(context->thd)) {
-        sprintf(context->write_status_msg,
-                "The process has been killed, aborting bulk load.");
+        snprintf(context->write_status_msg,
+                 sizeof(context->write_status_msg),
+                 "The process has been killed, aborting bulk load.");
         return ER_ABORTING_CONNECTION;
     }
     float percentage = progress * 100;
-    sprintf(context->write_status_msg,
-            "Loading of data t %s about %.1f%% done",
-            context->ha->share->full_table_name(),
-            percentage);
+    snprintf(context->write_status_msg,
+             sizeof(context->write_status_msg),
+             "Loading of data t %s about %.1f%% done",
+             context->ha->share->full_table_name(),
+             percentage);
     thd_proc_info(context->thd, context->write_status_msg);
 #ifdef HA_TOKUDB_HAS_THD_PROGRESS
     thd_progress_report(context->thd, (unsigned long long)percentage, 100);
@@ -8538,15 +8540,17 @@ cleanup:
 int ha_tokudb::tokudb_add_index_poll(void* extra, float progress) {
     LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
     if (thd_killed(context->thd)) {
-        sprintf(context->write_status_msg,
-                "The process has been killed, aborting add index.");
+        snprintf(context->write_status_msg,
+                 sizeof(context->write_status_msg),
+                 "The process has been killed, aborting add index.");
         return ER_ABORTING_CONNECTION;
     }
     float percentage = progress * 100;
-    sprintf(context->write_status_msg,
-            "Adding of indexes to %s about %.1f%% done",
-            context->ha->share->full_table_name(),
-            percentage);
+    snprintf(context->write_status_msg,
+             sizeof(context->write_status_msg),
+             "Adding of indexes to %s about %.1f%% done",
+             context->ha->share->full_table_name(),
+             percentage);
     thd_proc_info(context->thd, context->write_status_msg);
 #ifdef HA_TOKUDB_HAS_THD_PROGRESS
     thd_progress_report(context->thd, (unsigned long long)percentage, 100);

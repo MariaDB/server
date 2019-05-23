@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -459,9 +459,9 @@ log_free_check(void)
 
 #ifdef UNIV_DEBUG
 	static const latch_level_t latches[] = {
-		SYNC_DICT,		/* dict_sys->mutex during
+		SYNC_DICT,		/* dict_sys.mutex during
 					commit_try_rebuild() */
-		SYNC_DICT_OPERATION,	/* dict_operation_lock X-latch during
+		SYNC_DICT_OPERATION,	/* dict_sys.latch X-latch during
 					commit_try_rebuild() */
 		SYNC_FTS_CACHE,		/* fts_cache_t::lock */
 		SYNC_INDEX_TREE		/* index->lock */

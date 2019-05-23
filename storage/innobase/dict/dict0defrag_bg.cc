@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -151,7 +151,7 @@ dict_stats_defrag_pool_del(
 {
 	ut_a((table && !index) || (!table && index));
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	mutex_enter(&defrag_pool_mutex);
 
@@ -193,7 +193,7 @@ dict_stats_process_entry_from_defrag_pool()
 
 	dict_table_t*	table;
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	/* If the table is no longer cached, we've already lost the in
 	memory stats so there's nothing really to write to disk. */
@@ -208,11 +208,11 @@ dict_stats_process_entry_from_defrag_pool()
 		if (table) {
 			dict_table_close(table, TRUE, FALSE);
 		}
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		return;
 	}
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 	dict_stats_save_defrag_stats(index);
 	dict_table_close(table, FALSE, FALSE);
 }
@@ -244,8 +244,7 @@ dict_stats_save_defrag_summary(
 		return DB_SUCCESS;
 	}
 
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
+	dict_sys_lock();
 
 	ret = dict_stats_save_index_stat(index, now, "n_pages_freed",
 					 index->stat_defrag_n_pages_freed,
@@ -254,8 +253,7 @@ dict_stats_save_defrag_summary(
 					 " last defragmentation run.",
 					 NULL);
 
-	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	dict_sys_unlock();
 
 	return (ret);
 }
@@ -295,9 +293,7 @@ dict_stats_save_defrag_stats(
 		return DB_SUCCESS;
 	}
 
-	rw_lock_x_lock(dict_operation_lock);
-
-	mutex_enter(&dict_sys->mutex);
+	dict_sys_lock();
 	ret = dict_stats_save_index_stat(index, now, "n_page_split",
 					 index->stat_defrag_n_page_split,
 					 NULL,
@@ -327,8 +323,6 @@ dict_stats_save_defrag_stats(
 		NULL);
 
 end:
-	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
-
-	return (ret);
+	dict_sys_unlock();
+	return ret;
 }

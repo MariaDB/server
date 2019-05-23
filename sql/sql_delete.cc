@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Delete of records tables.
@@ -298,12 +298,7 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
-  int res;
-  if ((res= file->extra(HA_EXTRA_REMEMBER_POS)))
-    return res;
-  if ((res= file->ha_update_row(record[1], record[0])))
-    return res;
-  return file->extra(HA_EXTRA_RESTORE_POS);
+  return file->ha_update_row(record[1], record[0]);
 }
 
 

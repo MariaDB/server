@@ -2205,6 +2205,43 @@ ORDER BY id+1 DESC;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2(
+  id int primary key,
+  key1 int,key2 int,
+  col1 int,
+  key(key1), key(key2)
+);
+
+insert into t2
+  select
+    A.a + B.a*10 + C.a*100,
+    A.a + 10*B.a, A.a + 10*B.a,
+    123456
+from t1 A, t1 B, t1 C;
+
+let $query= select
+              (SELECT  concat(id, '-', key1, '-', col1)
+                FROM t2
+                WHERE
+                   t2.key1 = t1.a and t2.key1 IS NOT NULL
+                 ORDER BY
+                   t2.key2 ASC
+                LIMIT 1)
+           from t1;
+
+--echo # here type should show ref not index
+eval explain $query;
+eval $query;
+
+drop table t1,t2;
+
+--echo #
 --echo # MDEV-17761: Odd optimizer choice with ORDER BY LIMIT and condition selectivity
 --echo #
 create table t1(a int);

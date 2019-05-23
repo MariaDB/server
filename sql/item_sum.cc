@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /**
@@ -3697,6 +3697,7 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   tmp_table_param(item->tmp_table_param),
   separator(item->separator),
   tree(item->tree),
+  tree_len(item->tree_len),
   unique_filter(item->unique_filter),
   table(item->table),
   context(item->context),
@@ -3809,7 +3810,10 @@ void Item_func_group_concat::clear()
   if (row_limit)
     copy_row_limit= row_limit->val_int();
   if (tree)
+  {
     reset_tree(tree);
+    tree_len= 0;
+  }
   if (unique_filter)
     unique_filter->reset();
   if (table && table->blob_storage)
@@ -3817,6 +3821,62 @@ void Item_func_group_concat::clear()
   /* No need to reset the table as we never call write_row */
 }
 
+struct st_repack_tree {
+  TREE tree;
+  TABLE *table;
+  size_t len, maxlen;
+};
+
+extern "C"
+int copy_to_tree(void* key, element_count count __attribute__((unused)),
+                 void* arg)
+{
+  struct st_repack_tree *st= (struct st_repack_tree*)arg;
+  TABLE *table= st->table;
+  Field* field= table->field[0];
+  const uchar *ptr= field->ptr_in_record((uchar*)key - table->s->null_bytes);
+  size_t len= (size_t)field->val_int(ptr);
+
+  DBUG_ASSERT(count == 1);
+  if (!tree_insert(&st->tree, key, 0, st->tree.custom_arg))
+    return 1;
+
+  st->len += len;
+  return st->len > st->maxlen;
+}
+
+bool Item_func_group_concat::repack_tree(THD *thd)
+{
+  struct st_repack_tree st;
+
+  init_tree(&st.tree, (size_t) MY_MIN(thd->variables.max_heap_table_size,
+                                      thd->variables.sortbuff_size/16), 0,
+            tree->size_of_element, group_concat_key_cmp_with_order, NULL,
+            (void*) this, MYF(MY_THREAD_SPECIFIC));
+  st.table= table;
+  st.len= 0;
+  st.maxlen= (size_t)thd->variables.group_concat_max_len;
+  tree_walk(tree, &copy_to_tree, &st, left_root_right);
+  if (st.len <= st.maxlen) // Copying aborted. Must be OOM
+  {
+    delete_tree(&st.tree, 0);
+    return 1;
+  }
+  delete_tree(tree, 0);
+  *tree= st.tree;
+  tree_len= st.len;
+  return 0;
+}
+
+/*
+  Repacking the tree is expensive. But it keeps the tree small, and
+  inserting into an unnecessary large tree is also waste of time.
+
+  The following number is best-by-test. Test execution time slowly
+  decreases up to N=10 (that is, factor=1024) and then starts to increase,
+  again, very slowly.
+*/
+#define GCONCAT_REPACK_FACTOR (1 << 10)
 
 bool Item_func_group_concat::add()
 {
@@ -3826,6 +3886,9 @@ bool Item_func_group_concat::add()
   if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
     return TRUE;
 
+  size_t row_str_len= 0;
+  StringBuffer<MAX_FIELD_WIDTH> buf;
+  String *res;
   for (uint i= 0; i < arg_count_field; i++)
   {
     Item *show_item= args[i];
@@ -3833,8 +3896,13 @@ bool Item_func_group_concat::add()
       continue;
 
     Field *field= show_item->get_tmp_table_field();
-    if (field && field->is_null_in_record((const uchar*) table->record[0]))
-        return 0;                               // Skip row if it contains null
+    if (field)
+    {
+      if (field->is_null_in_record((const uchar*) table->record[0]))
+        return 0;                    // Skip row if it contains null
+      if (tree && (res= field->val_str(&buf)))
+        row_str_len+= res->length();
+    }
   }
 
   null_value= FALSE;
@@ -3852,11 +3920,18 @@ bool Item_func_group_concat::add()
   TREE_ELEMENT *el= 0;                          // Only for safety
   if (row_eligible && tree)
   {
+    THD *thd= table->in_use;
+    table->field[0]->store(row_str_len, FALSE);
+    if (tree_len > thd->variables.group_concat_max_len * GCONCAT_REPACK_FACTOR
+        && tree->elements_in_tree > 1)
+      if (repack_tree(thd))
+        return 1;
     el= tree_insert(tree, table->record[0] + table->s->null_bytes, 0,
                     tree->custom_arg);
     /* check if there was enough memory to insert the row */
     if (!el)
       return 1;
+    tree_len+= row_str_len;
   }
   /*
     If the row is not a duplicate (el->count == 1)
@@ -3988,10 +4063,19 @@ bool Item_func_group_concat::setup(THD *thd)
     if (setup_order(thd, Ref_ptr_array(ref_pointer_array, n_elems),
                     context->table_list, list,  all_fields, *order))
       DBUG_RETURN(TRUE);
+    /*
+      Prepend the field to store the length of the string representation
+      of this row. Used to detect when the tree goes over group_concat_max_len
+    */
+    Item *item= new (thd->mem_root)
+                    Item_uint(thd, thd->variables.group_concat_max_len);
+    if (!item || all_fields.push_front(item, thd->mem_root))
+      DBUG_RETURN(TRUE);
   }
 
   count_field_types(select_lex, tmp_table_param, all_fields, 0);
   tmp_table_param->force_copy_fields= force_copy_fields;
+  tmp_table_param->hidden_field_count= (arg_count_order > 0);
   DBUG_ASSERT(table == 0);
   if (order_or_distinct)
   {
@@ -4051,10 +4135,11 @@ bool Item_func_group_concat::setup(THD *thd)
       create this tree.
     */
     init_tree(tree, (size_t)MY_MIN(thd->variables.max_heap_table_size,
-                               thd->variables.sortbuff_size/16), 0,
-              tree_key_length, 
+                                   thd->variables.sortbuff_size/16), 0,
+              tree_key_length,
               group_concat_key_cmp_with_order, NULL, (void*) this,
               MYF(MY_THREAD_SPECIFIC));
+    tree_len= 0;
   }
 
   if (distinct)

@@ -1,7 +1,7 @@
 /**************** Value H Declares Source Code File (.H) ***************/
-/*  Name: VALUE.H    Version 2.3                                       */
+/*  Name: VALUE.H    Version 2.4                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2019    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes declares.         */
 /***********************************************************************/
@@ -117,7 +117,7 @@ class DllExport VALUE : public BLOCK {
   virtual void   SetValue_pvblk(PVBLK blk, int n) = 0;
   virtual void   SetBinValue(void *p) = 0;
   virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
-  virtual char  *ShowValue(char *buf, int len = 0) = 0;
+  virtual int    ShowValue(char *buf, int len) = 0;
   virtual char  *GetCharString(char *p) = 0;
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
@@ -229,7 +229,7 @@ class DllExport TYPVAL : public VALUE {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
@@ -302,7 +302,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual void   SetBinValue(void *p);
   virtual int    CompareValue(PVAL vp);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
@@ -334,7 +334,7 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
 
   // Methods
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual int    CompareValue(PVAL vp);
 
@@ -387,7 +387,7 @@ class DllExport BINVAL: public VALUE {
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual int    CompareValue(PVAL) {assert(false); return 0;}
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);
@@ -415,7 +415,7 @@ class DllExport DTVAL : public TYPVAL<int> {
   virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual char  *GetCharString(char *p);
-  virtual char  *ShowValue(char *buf, int);
+  virtual int    ShowValue(char *buf, int len);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);
           bool   SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0);
           bool   SetFormat(PGLOBAL g, PVAL valp);

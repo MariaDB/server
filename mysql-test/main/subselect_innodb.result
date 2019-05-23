@@ -311,7 +311,7 @@ EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 (SELECT 1 FROM t2 WHERE d = (SELECT d FROM t2 WHERE a >= 1) ORDER BY d);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY,d	PRIMARY	1	func	1	Using where
+2	DEPENDENT SUBQUERY	t2	unique_subquery	PRIMARY,d	PRIMARY	1	func	1	Using where
 3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
@@ -458,7 +458,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t2	index	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index; Using temporary; Using filesort
+2	SUBQUERY	t2	index	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index; Using temporary
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
 a
@@ -480,7 +480,7 @@ HAVING SQ2_alias1 . col_int_key >= 7
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	SQ2_alias2	index	NULL	col_int_key	5	NULL	1	Using index; Using temporary; Using filesort
+2	SUBQUERY	SQ2_alias2	index	NULL	col_int_key	5	NULL	1	Using index; Using temporary
 2	SUBQUERY	SQ2_alias1	ref	col_int_key	col_int_key	5	test.SQ2_alias2.col_int_key	1	Using where; Using index
 SELECT 1 FROM t1 AS alias1 
 WHERE EXISTS ( SELECT SQ2_alias1 . col_int_key AS SQ2_field1 

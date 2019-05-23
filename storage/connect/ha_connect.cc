@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file ha_connect.cc
@@ -4691,13 +4691,11 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
 
 int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
 {
+  int     rc= 0;
   bool    chk=false, cras= false;
   MODE    newmode;
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::start_stmt");
-
-	if (table->triggers)
-		g->More= 1;			// We don't know which columns are used by the trigger
 
   if (check_privileges(thd, GetTableOptionStruct(), table->s->db.str, true))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -4726,8 +4724,24 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
       break;
     } // endswitch mode
 
-  xmod= CheckMode(g, thd, newmode, &chk, &cras);
-  DBUG_RETURN((xmod == MODE_ERROR) ? HA_ERR_INTERNAL_ERROR : 0);
+	if (newmode == MODE_ANY) {
+		if (CloseTable(g)) {
+			// Make error a warning to avoid crash
+			push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+			rc = 0;
+		} // endif Close
+
+		locked = 0;
+		xmod = MODE_ANY;              // For info commands
+		DBUG_RETURN(rc);
+	} // endif MODE_ANY
+
+	newmode = CheckMode(g, thd, newmode, &chk, &cras);
+
+	if (newmode == MODE_ERROR)
+		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+	DBUG_RETURN(check_stmt(g, newmode, cras));
 } // end of start_stmt
 
 /**
@@ -4909,21 +4923,16 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       // Make it a warning to avoid crash
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
       rc= 0;
-			//my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-			//rc = HA_ERR_INTERNAL_ERROR;
 		} // endif Close
 
     locked= 0;
-//	m_lock_type= lock_type;
     xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
-    } // endif MODE_ANY
-  else
-  if (check_privileges(thd, options, table->s->db.str)) {
-    strcpy(g->Message, "This operation requires the FILE privilege");
-    htrc("%s\n", g->Message);
-    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-    } // endif check_privileges
+	} else if (check_privileges(thd, options, table->s->db.str)) {
+		strcpy(g->Message, "This operation requires the FILE privilege");
+		htrc("%s\n", g->Message);
+		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+	} // endif check_privileges
 
 
   DBUG_ASSERT(table && table->s);
@@ -4934,43 +4943,31 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (newmode == MODE_ERROR)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  // If this is the start of a new query, cleanup the previous one
+	DBUG_RETURN(check_stmt(g, newmode, cras));
+} // end of external_lock
+
+
+int ha_connect::check_stmt(PGLOBAL g, MODE newmode, bool cras)
+{
+	int rc = 0;
+	DBUG_ENTER("ha_connect::check_stmt");
+
+	// If this is the start of a new query, cleanup the previous one
   if (xp->CheckCleanup()) {
     tdbp= NULL;
     valid_info= false;
-    } // endif CheckCleanup
-
-#if 0
-  if (xcheck) {
-    // This must occur after CheckCleanup
-    if (!g->Xchk) {
-      g->Xchk= new(g) XCHK;
-      ((PCHK)g->Xchk)->oldsep= GetBooleanOption("Sepindex", false);
-      ((PCHK)g->Xchk)->oldpix= GetIndexInfo();
-      } // endif Xchk
-
-  } else
-    g->Xchk= NULL;
-#endif // 0
+	} // endif CheckCleanup
 
   if (cras)
     g->Createas= 1;  // To tell external tables of a multi-table command
 
-  if (trace(1)) {
-#if 0
-    htrc("xcheck=%d cras=%d\n", xcheck, cras);
-
-    if (xcheck)
-      htrc("oldsep=%d oldpix=%p\n",
-              ((PCHK)g->Xchk)->oldsep, ((PCHK)g->Xchk)->oldpix);
-#endif // 0
-    htrc("Calling CntCheckDB db=%s cras=%d\n", GetDBName(NULL), cras);
-    } // endif trace
+	if (trace(1))
+		htrc("Calling CntCheckDB db=%s cras=%d\n", GetDBName(NULL), cras);
 
   // Set or reset the good database environment
   if (CntCheckDB(g, this, GetDBName(NULL))) {
-    htrc("%p external_lock: %s\n", this, g->Message);
-    rc= HA_ERR_INTERNAL_ERROR;
+		htrc("%p check_stmt: %s\n", this, g->Message);
+		rc= HA_ERR_INTERNAL_ERROR;
   // This can NOT be called without open called first, but
   // the table can have been closed since then
   } else if (!tdbp || xp->CheckQuery(valid_query_id) || xmod != newmode) {
@@ -4990,10 +4987,10 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   } // endif tdbp
 
   if (trace(1))
-    htrc("external_lock: rc=%d\n", rc);
+		htrc("check_stmt: rc=%d\n", rc);
 
   DBUG_RETURN(rc);
-} // end of external_lock
+} // end of check_stmt
 
 
 /**

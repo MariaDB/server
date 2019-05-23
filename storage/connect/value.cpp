@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 2.8                                       */
+/*  Name: VALUE.CPP  Version 2.9                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2019    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -882,18 +882,16 @@ bool TYPVAL<TYPE>::GetBinValue(void *buf, int buflen, bool go)
 /*  TYPVAL ShowValue: get string representation of a typed value.      */
 /***********************************************************************/
 template <class TYPE>
-char *TYPVAL<TYPE>::ShowValue(char *buf, int len)
+int TYPVAL<TYPE>::ShowValue(char *buf, int len)
   {
-  sprintf(buf, Xfmt, len, Tval);
-  return buf;
+  return snprintf(buf, len + 1, Xfmt, len, Tval);
   } // end of ShowValue
 
 template <>
-char *TYPVAL<double>::ShowValue(char *buf, int len)
+int TYPVAL<double>::ShowValue(char *buf, int len)
   {
-  // TODO: use snprintf to avoid possible overflow
-  sprintf(buf, Xfmt, len, Prec, Tval);
-  return buf;
+  // TODO: use a more appropriate format to avoid possible truncation
+  return snprintf(buf, len + 1, Xfmt, len, Prec, Tval);
   } // end of ShowValue
 
 /***********************************************************************/
@@ -1588,10 +1586,17 @@ bool TYPVAL<PSZ>::GetBinValue(void *buf, int buflen, bool go)
 /***********************************************************************/
 /*  STRING ShowValue: get string representation of a char value.       */
 /***********************************************************************/
-char *TYPVAL<PSZ>::ShowValue(char *, int)
-  {
-  return Strp;
-  } // end of ShowValue
+int TYPVAL<PSZ>::ShowValue(char *buf, int buflen)
+{
+	int len = (Null) ? 0 : strlen(Strp);
+
+	if (buf && buf != Strp) {
+		memset(buf, ' ', buflen + 1);
+		memcpy(buf, Strp, MY_MIN(len, buflen));
+	} // endif buf
+
+	return len;
+} // end of ShowValue
 
 /***********************************************************************/
 /*  STRING GetCharString: get string representation of a char value.   */
@@ -1800,10 +1805,9 @@ void DECVAL::Reset(void)
 /***********************************************************************/
 /*  DECIMAL ShowValue: get string representation right justified.      */
 /***********************************************************************/
-char *DECVAL::ShowValue(char *buf, int len)
+int DECVAL::ShowValue(char *buf, int len)
   {
-  sprintf(buf, Xfmt, len, Strp);
-  return buf;
+  return snprintf(buf, len + 1, Xfmt, len, Strp);
   } // end of ShowValue
 
 /***********************************************************************/
@@ -1868,14 +1872,13 @@ int DECVAL::CompareValue(PVAL vp)
 BINVAL::BINVAL(PGLOBAL g, void *p, int cl, int n) : VALUE(TYPE_BIN)
   {
   assert(g);
-//Len = n;
-	Len = (g) ? n : (p) ? strlen((char*)p) : 0;
+	Len = n;
 	Clen = cl;
 	Binp = PlugSubAlloc(g, NULL, Clen + 1);
   memset(Binp, 0, Clen + 1);
 
   if (p)
-    memcpy(Binp, p, Len);
+    memcpy(Binp, p, MY_MIN(Len,Clen));
 
   Chrp = NULL;
   } // end of BINVAL constructor
@@ -2264,14 +2267,12 @@ bool BINVAL::GetBinValue(void *buf, int buflen, bool go)
 /***********************************************************************/
 /*  BINVAL ShowValue: get string representation of a binary value.     */
 /***********************************************************************/
-char *BINVAL::ShowValue(char *buf, int len)
-  {
-  //int n = MY_MIN(Len, len / 2);
-
-  //sprintf(buf, GetXfmt(), n, Binp);
-  //return buf;
-	return (char*)Binp;
-  } // end of ShowValue
+int BINVAL::ShowValue(char *buf, int len)
+{
+	memset(buf, 0, len + 1);
+	memcpy(buf, Binp, MY_MIN(len, Len));
+	return Len;
+} // end of ShowValue
 
 /***********************************************************************/
 /*  BINVAL GetCharString: get string representation of a binary value. */
@@ -2750,43 +2751,33 @@ char *DTVAL::GetCharString(char *p)
 /***********************************************************************/
 /*  DTVAL ShowValue: get string representation of a date value.        */
 /***********************************************************************/
-char *DTVAL::ShowValue(char *buf, int len)
-  {
+int DTVAL::ShowValue(char *buf, int len)
+{
+	int rv = 0;
+
   if (Pdtp) {
-    char  *p;
-
     if (!Null) {
-      size_t m, n = 0;
+      size_t n = 0, m = len + 1;
       struct tm tm, *ptm = GetGmTime(&tm);
-
-
-  
-      if (Len < len) {
-        p = buf;
-        m = len;
-      } else {
-        p = Sdate;
-        m = Len + 1;
-      } // endif Len
   
       if (ptm)
-        n = strftime(p, m, Pdtp->OutFmt, ptm);
+        n = strftime(buf, m, Pdtp->OutFmt, ptm);
   
       if (!n) {
-        *p = '\0';
-        strncat(p, "Error", m);
-        } // endif n
+        *buf = '\0';
+        strncat(buf, "Error", m);
+				rv = 5;
+			} else 
+				rv = (int)n;
 
-		} else {
-			p = buf;
-			*p = '\0';               // DEFAULT VALUE ???
-		} // endif Null
+		} else
+			*buf = '\0';               // DEFAULT VALUE ???
 
-    return p;
   } else
-    return TYPVAL<int>::ShowValue(buf, len);
+    rv = TYPVAL<int>::ShowValue(buf, len);
 
-  } // end of ShowValue
+	return rv;
+} // end of ShowValue
 
 #if 0           // Not used by CONNECT
 /***********************************************************************/

@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -3089,8 +3089,7 @@ calc_buf_pool_size:
 		btr_search_sys_resize(
 			buf_pool_get_curr_size() / sizeof(void*) / 64);
 
-		/* normalize dict_sys */
-		dict_resize();
+		dict_sys.resize();
 
 		ib::info() << "Resized hash tables at lock_sys,"
 #ifdef BTR_CUR_HASH_ADAPT

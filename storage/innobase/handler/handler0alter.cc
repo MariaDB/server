@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -511,7 +511,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 	DBUG_ASSERT(table.n_cols + table.n_dropped() >= n_cols + n_dropped());
 	DBUG_ASSERT(!table.persistent_autoinc
 		    || persistent_autoinc == table.persistent_autoinc);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	{
 		const char* end = table.col_names;
@@ -746,8 +746,7 @@ inline void dict_table_t::rollback_instant(
 	const char*	old_v_col_names,
 	const ulint*	col_map)
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	dict_index_t* index = indexes.start;
 	mtr_t mtr;
 	mtr.start();
@@ -1020,6 +1019,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	{
 		UT_DELETE(m_stage);
 		if (instant_table) {
+			ut_ad(!instant_table->id);
 			while (dict_index_t* index
 			       = UT_LIST_GET_LAST(instant_table->indexes)) {
 				UT_LIST_REMOVE(instant_table->indexes, index);
@@ -1028,6 +1028,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 			}
 			for (unsigned i = old_n_v_cols; i--; ) {
 				UT_DELETE(old_v_cols[i].v_indexes);
+			}
+			if (instant_table->fts) {
+				fts_free(instant_table);
 			}
 			dict_mem_table_free(instant_table);
 		}
@@ -1127,6 +1130,23 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				index for FTS index */
 		const TABLE*			table);
 				/*!< in: MySQL table that is being altered */
+
+	/** Share context between partitions.
+	@param[in] ctx	context from another partition of the table */
+	void set_shared_data(const inplace_alter_handler_ctx& ctx)
+	{
+		if (add_autoinc != ULINT_UNDEFINED) {
+			const ha_innobase_inplace_ctx& ha_ctx =
+				static_cast<const ha_innobase_inplace_ctx&>
+				(ctx);
+			/* When adding an AUTO_INCREMENT column to a
+			partitioned InnoDB table, we must share the
+			sequence for all partitions. */
+			ut_ad(ha_ctx.add_autoinc == add_autoinc);
+			ut_ad(ha_ctx.sequence.last());
+			sequence = ha_ctx.sequence;
+		}
+	}
 
 private:
 	// Disable copying
@@ -2511,7 +2531,7 @@ innobase_init_foreign(
 	ulint		referenced_num_field)	/*!< in: number of referenced
 						columns */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
         if (constraint_name) {
                 ulint   db_len;
@@ -2962,7 +2982,7 @@ innobase_get_foreign_key_info(
 			db_namep = &db_name[0];
 		}
 #endif
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 
 		referenced_table_name = dict_get_referenced_table(
 			table->name.m_name,
@@ -2980,7 +3000,7 @@ innobase_get_foreign_key_info(
 				referenced_table = NULL;);
 
 		if (!referenced_table && trx->check_foreigns) {
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 			my_error(ER_FK_CANNOT_OPEN_PARENT,
 				 MYF(0), tbl_namep);
 
@@ -3016,7 +3036,7 @@ innobase_get_foreign_key_info(
 				/* Check whether there exist such
 				index in the the index create clause */
 				if (!referenced_index) {
-					mutex_exit(&dict_sys->mutex);
+					mutex_exit(&dict_sys.mutex);
 					my_error(ER_FK_NO_INDEX_PARENT, MYF(0),
 						 fk_key->name.str
 						 ? fk_key->name.str : "",
@@ -3031,7 +3051,7 @@ innobase_get_foreign_key_info(
 		} else {
 			/* Not possible to add a foreign key without a
 			referenced column */
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0), tbl_namep);
 			goto err_exit;
 		}
@@ -3042,7 +3062,7 @@ innobase_get_foreign_key_info(
 			    num_col, referenced_table_name,
 			    referenced_table, referenced_index,
 			    referenced_column_names, referenced_num_col)) {
-			mutex_exit(&dict_sys->mutex);
+			mutex_exit(&dict_sys.mutex);
 			my_error(
 				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
@@ -3050,7 +3070,7 @@ innobase_get_foreign_key_info(
 			goto err_exit;
 		}
 
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 
 		correct_option = innobase_set_foreign_key_option(
 			add_fk[num_fk], fk_key);
@@ -3994,7 +4014,7 @@ online_retry_drop_indexes_low(
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx)	/*!< in/out: transaction */
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 
@@ -4031,9 +4051,9 @@ online_retry_drop_indexes(
 		trx_free(trx);
 	}
 
-	ut_d(mutex_enter(&dict_sys->mutex));
+	ut_d(mutex_enter(&dict_sys.mutex));
 	ut_d(dict_table_check_for_dup_indexes(table, CHECK_ALL_COMPLETE));
-	ut_d(mutex_exit(&dict_sys->mutex));
+	ut_d(mutex_exit(&dict_sys.mutex));
 	ut_ad(!table->drop_aborted);
 }
 
@@ -4108,7 +4128,7 @@ innobase_check_foreigns_low(
 	bool			drop)
 {
 	dict_foreign_t*	foreign;
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* Check if any FOREIGN KEY constraints are defined on this
 	column. */
@@ -4741,8 +4761,7 @@ innobase_update_gis_column_type(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	info = pars_info_create();
 
@@ -6101,7 +6120,7 @@ prepare_inplace_alter_table_dict(
 		(ha_alter_info->handler_ctx);
 
 	DBUG_ASSERT((ctx->add_autoinc != ULINT_UNDEFINED)
-		    == (ctx->sequence.m_max_value > 0));
+		    == (ctx->sequence.max_value() > 0));
 	DBUG_ASSERT(!ctx->num_to_drop_index == !ctx->drop_index);
 	DBUG_ASSERT(!ctx->num_to_drop_fk == !ctx->drop_fk);
 	DBUG_ASSERT(!add_fts_doc_id || add_fts_doc_id_idx);
@@ -6725,15 +6744,15 @@ new_clustered_failed:
 			before we can use it we need to open the
 			table. The new_table must be in the data
 			dictionary cache, because we are still holding
-			the dict_sys->mutex. */
-			ut_ad(mutex_own(&dict_sys->mutex));
+			the dict_sys.mutex. */
+			ut_ad(mutex_own(&dict_sys.mutex));
 			temp_table = dict_table_open_on_name(
 				ctx->new_table->name.m_name, TRUE, FALSE,
 				DICT_ERR_IGNORE_NONE);
 			ut_a(ctx->new_table == temp_table);
 			/* n_ref_count must be 1, because purge cannot
 			be executing on this very table as we are
-			holding dict_operation_lock X-latch. */
+			holding dict_sys.latch X-latch. */
 			DBUG_ASSERT(ctx->new_table->get_ref_count() == 1);
 			DBUG_ASSERT(ctx->new_table->id != 0);
 			DBUG_ASSERT(ctx->new_table->id == ctx->trx->table_id);
@@ -6946,8 +6965,7 @@ error_handling_drop_uncached:
 op_ok:
 #endif /* UNIV_DEBUG */
 		ut_ad(ctx->trx->dict_operation_lock_mode == RW_X_LATCH);
-		ut_ad(mutex_own(&dict_sys->mutex));
-		ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+		ut_d(dict_sys.assert_locked());
 
 		DICT_TF2_FLAG_SET(ctx->new_table, DICT_TF2_FTS);
 		if (ctx->need_rebuild()) {
@@ -7027,10 +7045,10 @@ error_handling:
 	case DB_SUCCESS:
 		ut_a(!dict_locked);
 
-		ut_d(mutex_enter(&dict_sys->mutex));
+		ut_d(mutex_enter(&dict_sys.mutex));
 		ut_d(dict_table_check_for_dup_indexes(
 			     user_table, CHECK_PARTIAL_OK));
-		ut_d(mutex_exit(&dict_sys->mutex));
+		ut_d(mutex_exit(&dict_sys.mutex));
 		DBUG_RETURN(false);
 	case DB_TABLESPACE_EXISTS:
 		my_error(ER_TABLESPACE_EXISTS, MYF(0), "(unknown)");
@@ -7091,7 +7109,7 @@ error_handled:
 		trx_commit_for_mysql(ctx->trx);
 		/* n_ref_count must be 1, because purge cannot
 		be executing on this very table as we are
-		holding dict_operation_lock X-latch. */
+		holding dict_sys.latch X-latch. */
 		DBUG_ASSERT(user_table->get_ref_count() == 1 || ctx->online);
 
 		online_retry_drop_indexes_with_trx(user_table, ctx->trx);
@@ -7233,9 +7251,7 @@ rename_index_try(
 	trx_t*			trx)
 {
 	DBUG_ENTER("rename_index_try");
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 
 	pars_info_t*	pinfo;
@@ -7293,9 +7309,7 @@ void
 innobase_rename_index_cache(dict_index_t* index, const char* new_name)
 {
 	DBUG_ENTER("innobase_rename_index_cache");
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	size_t	old_name_len = strlen(index->name);
 	size_t	new_name_len = strlen(new_name);
@@ -7445,10 +7459,10 @@ ha_innobase::prepare_inplace_alter_table(
 	}
 #endif /* UNIV_DEBUG */
 
-	ut_d(mutex_enter(&dict_sys->mutex));
+	ut_d(mutex_enter(&dict_sys.mutex));
 	ut_d(dict_table_check_for_dup_indexes(
 		     m_prebuilt->table, CHECK_ABORTED_OK));
-	ut_d(mutex_exit(&dict_sys->mutex));
+	ut_d(mutex_exit(&dict_sys.mutex));
 
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		/* Nothing to do */
@@ -8261,10 +8275,9 @@ ha_innobase::inplace_alter_table(
 	bool			rebuild_templ = false;
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
-
 	ut_ad(!sync_check_iterate(sync_check()));
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(&dict_sys.latch,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
@@ -8411,10 +8424,10 @@ oom:
 		KEY*	dup_key;
 	all_done:
 	case DB_SUCCESS:
-		ut_d(mutex_enter(&dict_sys->mutex));
+		ut_d(mutex_enter(&dict_sys.mutex));
 		ut_d(dict_table_check_for_dup_indexes(
 			     m_prebuilt->table, CHECK_PARTIAL_OK));
-		ut_d(mutex_exit(&dict_sys->mutex));
+		ut_d(mutex_exit(&dict_sys.mutex));
 		/* prebuilt->table->n_ref_count can be anything here,
 		given that we hold at most a shared lock on the table. */
 		goto ok_exit;
@@ -8476,10 +8489,7 @@ innobase_online_rebuild_log_free(
 	dict_table_t*	table)
 {
 	dict_index_t* clust_index = dict_table_get_first_index(table);
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-
+	ut_d(dict_sys.assert_locked());
 	rw_lock_x_lock(&clust_index->lock);
 
 	if (clust_index->online_log) {
@@ -8752,8 +8762,7 @@ innobase_drop_foreign_try(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	/* Drop the constraint from the data dictionary. */
 	static const char sql[] =
@@ -8811,8 +8820,7 @@ innobase_rename_column_try(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	if (new_clustered) {
 		goto rename_foreign;
@@ -9088,8 +9096,7 @@ innobase_rename_or_enlarge_column_try(
 
 	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_d(dict_sys.assert_locked());
 
 	ulint n_base;
 
@@ -9510,7 +9517,7 @@ innobase_update_foreign_cache(
 
 	DBUG_ENTER("innobase_update_foreign_cache");
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	user_table = ctx->old_table;
 
@@ -10512,7 +10519,7 @@ alter_stats_norebuild(
 	in a separate transaction from trx, because lock waits are not
 	allowed in a data dictionary transaction. (Lock waits are possible
 	on the statistics table, because it is directly accessible by users,
-	not covered by the dict_operation_lock.)
+	not covered by the dict_sys.latch.)
 
 	Because the data dictionary changes were already committed, orphaned
 	rows may be left in the statistics table if the system crashes.
@@ -11173,7 +11180,7 @@ foreign_fail:
 			}
 			const_cast<unsigned&>(ctx0->old_n_v_cols) = 0;
 		}
-		dict_table_remove_from_cache(m_prebuilt->table);
+		dict_sys.remove(m_prebuilt->table);
 		m_prebuilt->table = dict_table_open_on_name(
 			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_NONE);
 

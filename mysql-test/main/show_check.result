@@ -813,6 +813,8 @@ create event e1 on schedule every 1 year starts now()
 ends date_add(now(), interval 5 hour) do
 begin
 end;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 flush status;
 show databases;
 show tables;
@@ -1435,6 +1437,8 @@ CREATE TRIGGER t1_bi BEFORE INSERT ON t1
 FOR EACH ROW
 SET NEW.c1 = 'тест';
 CREATE EVENT ev1 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO SELECT 'тест' AS test;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 set names utf8;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection

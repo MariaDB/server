@@ -28,7 +28,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2400,36 +2400,6 @@ skip_monitors:
 	return(DB_SUCCESS);
 }
 
-#if 0
-/********************************************************************
-Sync all FTS cache before shutdown */
-static
-void
-srv_fts_close(void)
-/*===============*/
-{
-	dict_table_t*	table;
-
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
-	     table; table = UT_LIST_GET_NEXT(table_LRU, table)) {
-		fts_t*          fts = table->fts;
-
-		if (fts != NULL) {
-			fts_sync_table(table);
-		}
-	}
-
-	for (table = UT_LIST_GET_FIRST(dict_sys->table_non_LRU);
-	     table; table = UT_LIST_GET_NEXT(table_LRU, table)) {
-		fts_t*          fts = table->fts;
-
-		if (fts != NULL) {
-			fts_sync_table(table);
-		}
-	}
-}
-#endif
-
 /** Shut down background threads that can generate undo log. */
 void srv_shutdown_bg_undo_sources()
 {
@@ -2487,7 +2457,7 @@ void innodb_shutdown()
 	}
 
 	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
-	ut_ad(dict_sys || !srv_was_started);
+	ut_ad(dict_sys.is_initialised() || !srv_was_started);
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
@@ -2516,7 +2486,7 @@ void innodb_shutdown()
 	and closing the data dictionary.  */
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (dict_sys) {
+	if (dict_sys.is_initialised()) {
 		btr_search_disable(true);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2537,7 +2507,7 @@ void innodb_shutdown()
 		mutex_free(&srv_misc_tmpfile_mutex);
 	}
 
-	dict_close();
+	dict_sys.close();
 	btr_search_sys_free();
 
 	/* 3. Free all InnoDB's own mutexes and the os_fast_mutexes inside

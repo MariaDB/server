@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -238,12 +238,7 @@ rw_lock_create_func(
 	lock->is_block_lock = 0;
 
 	mutex_enter(&rw_lock_list_mutex);
-
-	ut_ad(UT_LIST_GET_FIRST(rw_lock_list) == NULL
-	      || UT_LIST_GET_FIRST(rw_lock_list)->magic_n == RW_LOCK_MAGIC_N);
-
 	UT_LIST_ADD_FIRST(rw_lock_list, lock);
-
 	mutex_exit(&rw_lock_list_mutex);
 }
 
@@ -268,12 +263,6 @@ rw_lock_free_func(
 	UT_LIST_REMOVE(rw_lock_list, lock);
 
 	mutex_exit(&rw_lock_list_mutex);
-
-	/* We did an in-place new in rw_lock_create_func() */
-	ut_d(lock->~rw_lock_t());
-	/* Sometimes (maybe when compiled with GCC -O3) the above call
-	to rw_lock_t::~rw_lock_t() will not actually assign magic_n=0. */
-	ut_d(lock->magic_n = 0);
 }
 
 /******************************************************************//**
@@ -858,7 +847,6 @@ rw_lock_validate(
 
 	lock_word = lock->lock_word.load(std::memory_order_relaxed);
 
-	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
 	ut_ad(lock->waiters.load(std::memory_order_relaxed) < 2);
 	ut_ad(lock_word > -(2 * X_LOCK_DECR));
 	ut_ad(lock_word <= X_LOCK_DECR);

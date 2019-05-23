@@ -117,5 +117,33 @@ call pr;
 drop procedure pr;
 drop table t1;
 
+--echo # MDEV-15966 Behavior for TRUNCATE versioned table is not documented and not covered by tests
+create or replace table t1 (id int);
+create or replace table t2 (id int) with system versioning;
+
+-- echo  # force cleaning table shares
+flush tables t1, t2;
+
+truncate table t1;
+--error ER_VERS_NOT_SUPPORTED
+truncate table t2;
+
+-- echo # fetch table shares
+describe t1;
+describe t2;
+
+truncate table t1;
+--error ER_VERS_NOT_SUPPORTED
+truncate table t2;
+
+--echo # enter locked tables mode
+lock tables t1 WRITE, t2 WRITE;
+
+truncate t1;
+--error ER_VERS_NOT_SUPPORTED
+truncate t2;
+
+unlock tables;
+
 drop database test;
 create database test;

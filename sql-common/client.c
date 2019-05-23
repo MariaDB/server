@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /*
   This file is included by both libmysql.c (the MySQL client C API)
@@ -1575,8 +1575,10 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
   */
 
 #ifdef HAVE_X509_check_host
-  ret_validation= X509_check_host(server_cert, server_hostname,
-                                  strlen(server_hostname), 0, 0) != 1;
+  ret_validation=
+   (X509_check_host(server_cert, server_hostname,
+       strlen(server_hostname), 0, 0) != 1) &&
+   (X509_check_ip_asc(server_cert, server_hostname, 0) != 1);
 #else
   subject= X509_get_subject_name(server_cert);
   cn_loc= X509_NAME_get_index_by_NID(subject, NID_commonName, -1);

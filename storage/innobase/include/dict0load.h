@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -90,7 +90,7 @@ dict_get_first_path(
 /** Make sure the data_file_name is saved in dict_table_t if needed.
 Try to read it from the fil_system first, then from SYS_DATAFILES.
 @param[in]	table		Table object
-@param[in]	dict_mutex_own	true if dict_sys->mutex is owned already */
+@param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
 void
 dict_get_and_save_data_dir_path(
 	dict_table_t*	table,

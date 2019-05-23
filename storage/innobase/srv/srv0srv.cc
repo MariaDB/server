@@ -28,7 +28,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -1993,16 +1993,12 @@ srv_master_evict_from_table_cache(
 {
 	ulint	n_tables_evicted = 0;
 
-	rw_lock_x_lock(dict_operation_lock);
-
-	dict_mutex_enter_for_mysql();
+	dict_sys_lock();
 
 	n_tables_evicted = dict_make_room_in_cache(
 		innobase_get_table_cache_size(), pct_check);
 
-	dict_mutex_exit_for_mysql();
-
-	rw_lock_x_unlock(dict_operation_lock);
+	dict_sys_unlock();
 
 	return(n_tables_evicted);
 }

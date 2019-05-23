@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # This file includes build settings used for MySQL release
 
@@ -207,7 +207,7 @@ IF(UNIX)
   IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
     IF(CMAKE_C_COMPILER_ID MATCHES "Intel")
       SET(COMMON_C_FLAGS                 "-static-intel -static-libgcc -g -mp -restrict")
-      SET(COMMON_CXX_FLAGS               "-static-intel -static-libgcc -g -mp -restrict -fno-exceptions -fno-rtti")
+      SET(COMMON_CXX_FLAGS               "-static-intel -static-libgcc -g -mp -restrict -fno-exceptions")
       IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ia64")
         SET(COMMON_C_FLAGS               "${COMMON_C_FLAGS} -no-ftz -no-prefetch")
         SET(COMMON_CXX_FLAGS             "${COMMON_CXX_FLAGS} -no-ftz -no-prefetch")

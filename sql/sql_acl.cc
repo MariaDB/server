@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /*
@@ -1257,6 +1257,13 @@ class User_table_tabular: public User_table
 
   int setup_sysvars() const
   {
+    if (num_fields() < 13) // number of columns in 3.21
+    {
+      sql_print_error("Fatal error: mysql.user table is damaged or in "
+                      "unsupported 3.20 format.");
+      return 1;
+    }
+
     username_char_length= MY_MIN(m_table->field[1]->char_length(),
                                  USERNAME_CHAR_LENGTH);
     using_global_priv_table= false;
@@ -1815,6 +1822,8 @@ class Grant_tables
       {
         tl->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME[i],
                            NULL, lock_type);
+        tl->open_type= OT_BASE_ONLY;
+        tl->i_s_requested_object= OPEN_TABLE_ONLY;
         tl->updating= lock_type >= TL_WRITE_ALLOW_WRITE;
         if (i >= FIRST_OPTIONAL_TABLE)
           tl->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
@@ -1835,6 +1844,8 @@ class Grant_tables
       TABLE_LIST *tl= tables + USER_TABLE;
       tl->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME_USER,
                          NULL, lock_type);
+      tl->open_type= OT_BASE_ONLY;
+      tl->i_s_requested_object= OPEN_TABLE_ONLY;
       tl->updating= lock_type >= TL_WRITE_ALLOW_WRITE;
       p_user_table= &m_user_table_tabular;
       counter++;
@@ -12464,7 +12475,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
 };
 
 /**
-  a helper function to report an access denied error in all the proper places
+  a helper function to report an access denied error in most proper places
 */
 static void login_failed_error(THD *thd)
 {
@@ -13980,10 +13991,26 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /* Change a database if necessary */
   if (mpvio.db.length)
   {
-    if (mysql_change_db(thd, &mpvio.db, FALSE))
+    uint err = mysql_change_db(thd, &mpvio.db, FALSE);
+    if(err)
     {
-      /* mysql_change_db() has pushed the error message. */
-      status_var_increment(thd->status_var.access_denied_errors);
+      if (err == ER_DBACCESS_DENIED_ERROR)
+      {
+        /*
+          Got an "access denied" error, which must be handled
+          other access denied errors (see login_failed_error()).
+          mysql_change_db() already sent error to client, and
+          wrote to general log, we only need to increment the counter
+          and maybe write a warning to error log.
+        */
+        status_var_increment(thd->status_var.access_denied_errors);
+        if (global_system_variables.log_warnings > 1)
+        {
+          Security_context* sctx = thd->security_ctx;
+          sql_print_warning(ER_THD(thd, err),
+            sctx->priv_user, sctx->priv_host, mpvio.db.str);
+        }
+      }
       DBUG_RETURN(1);
     }
   }

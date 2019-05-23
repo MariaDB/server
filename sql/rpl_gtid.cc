@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Definitions for MariaDB global transaction ID (GTID). */
@@ -877,6 +877,7 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
     handler::Table_flags direct_pos;
     list_element *cur, **cur_ptr_ptr;
     bool table_opened= false;
+    bool index_inited= false;
     void *hton= (*list_ptr)->hton;
 
     thd->reset_for_next_command();
@@ -915,10 +916,14 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
     bitmap_set_bit(table->read_set, table->field[0]->field_index);
     bitmap_set_bit(table->read_set, table->field[1]->field_index);
 
-    if (!direct_pos && (err= table->file->ha_index_init(0, 0)))
+    if (!direct_pos)
     {
-      table->file->print_error(err, MYF(0));
-      goto end;
+      if ((err= table->file->ha_index_init(0, 0)))
+      {
+        table->file->print_error(err, MYF(0));
+        goto end;
+      }
+      index_inited= true;
     }
 
     cur = *list_ptr;
@@ -977,7 +982,14 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
 end:
     if (table_opened)
     {
-      if (!direct_pos)
+      DBUG_ASSERT(direct_pos || index_inited || err);
+      /*
+        Index may not be initialized if there was a failure during
+        'ha_index_init'. Hence check if index initialization is successful and
+        then invoke ha_index_end(). Ending an index which is not initialized
+        will lead to assert.
+      */
+      if (index_inited)
         table->file->ha_index_end();
 
       if (err || (err= ha_commit_trans(thd, FALSE)))

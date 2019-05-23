@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -690,7 +690,7 @@ with exactly one user transaction. There are some exceptions to this:
 
 * For DDL operations, a subtransaction is allocated that modifies the
 data dictionary tables. Lock waits and deadlocks are prevented by
-acquiring the dict_operation_lock before starting the subtransaction
+acquiring the dict_sys.latch before starting the subtransaction
 and releasing it after committing the subtransaction.
 
 * The purge system uses a special transaction that is not associated
@@ -924,8 +924,8 @@ public:
 	ib_uint32_t	dict_operation_lock_mode;
 					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
 					the latch mode trx currently holds
-					on dict_operation_lock. Protected
-					by dict_operation_lock. */
+					on dict_sys.latch. Protected
+					by dict_sys.latch. */
 
 	time_t		start_time;	/*!< time the state last time became
 					TRX_STATE_ACTIVE */

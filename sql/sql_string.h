@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
@@ -159,6 +159,14 @@ public:
   {
     swap_variables(CHARSET_INFO*, m_charset, other.m_charset);
   }
+  /*
+    Collation name without the character set name.
+    For example, in case of "latin1_swedish_ci",
+    this method returns "_swedish_ci".
+  */
+  LEX_CSTRING collation_specific_name() const;
+  bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
+  bool encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const;
 };
 
 

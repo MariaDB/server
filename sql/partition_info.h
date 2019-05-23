@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -401,11 +401,20 @@ public:
     DBUG_ASSERT(part_type == VERSIONING_PARTITION);
     vers_info->interval.type= int_type;
     vers_info->interval.start= start;
-    return get_interval_value(thd, item, int_type, &vers_info->interval.step) ||
+    if (item->fix_fields_if_needed_for_scalar(thd, &item))
+      return true;
+    bool error= get_interval_value(thd, item, int_type, &vers_info->interval.step) ||
            vers_info->interval.step.neg || vers_info->interval.step.second_part ||
           !(vers_info->interval.step.year || vers_info->interval.step.month ||
             vers_info->interval.step.day || vers_info->interval.step.hour ||
             vers_info->interval.step.minute || vers_info->interval.step.second);
+    if (error)
+    {
+      my_error(ER_PART_WRONG_VALUE, MYF(0),
+               thd->lex->create_last_non_select_table->table_name.str,
+               "INTERVAL");
+    }
+    return error;
   }
   bool vers_set_limit(ulonglong limit)
   {

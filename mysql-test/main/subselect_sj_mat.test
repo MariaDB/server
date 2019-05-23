@@ -161,6 +161,7 @@ execute st1;
 set @@optimizer_switch=@save_optimizer_switch;
 
 # materialize the result of ORDER BY
+# No longer really happens as the optimizer is now smart enough not to sort in this case
 # non-indexed fields
 explain extended
 select * from t1 where (a1, a2) in (select b1, b2 from t2 order by b1, b2);

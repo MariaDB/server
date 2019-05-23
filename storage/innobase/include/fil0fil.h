@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -134,7 +134,7 @@ struct fil_space_t {
 				the tablespace to disk; dropping of the
 				tablespace is forbidden if this is positive */
 	/** Number of pending buffer pool operations accessing the tablespace
-	without holding a table lock or dict_operation_lock S-latch
+	without holding a table lock or dict_sys.latch S-latch
 	that would prevent the table (and tablespace) from being
 	dropped. An example is change buffer merge.
 	The tablespace cannot be dropped while this is nonzero,
@@ -1187,8 +1187,7 @@ but only by InnoDB table locks, which may be broken by
 lock_remove_all_on_table().)
 @param[in]	table	persistent table
 checked @return whether the table is accessible */
-bool
-fil_table_accessible(const dict_table_t* table)
+bool fil_table_accessible(const dict_table_t* table)
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
 
 /** Delete a tablespace and associated .ibd file.

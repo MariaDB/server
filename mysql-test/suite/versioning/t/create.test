@@ -15,7 +15,7 @@ eval create table t1 (
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE
 show create table t1;
 
---query_vertical select table_catalog,table_schema,table_name,table_type,version,table_rows,avg_row_length,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1'
+--query_vertical select table_catalog,table_schema,table_name,table_type,version,table_rows,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1'
 --query_vertical select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,character_maximum_length,character_octet_length,character_set_name,collation_name,column_key,extra,column_comment,is_generated,generation_expression from information_schema.columns where table_name='t1'
 
 --echo # Implicit fields test
@@ -310,7 +310,7 @@ show create table t3;
 
 --echo ## Errors
 
---error ER_VERS_TEMPORARY
+--error ER_VERS_NOT_SUPPORTED
 create or replace temporary table t (x28 int) with system versioning;
 
 --error ER_VERS_DUPLICATE_ROW_START_END
@@ -370,6 +370,31 @@ show create table t1;
 create or replace table t1 (i int) with system versioning as select 1 as i;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  a int,
+  row_start bigint as row start,
+  row_end bigint as row end,
+  period for system_time (row_start, row_end)
+) engine=innodb with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  a int,
+  row_start bigint as row start,
+  row_end bigint as row end,
+  period for system_time (row_start, row_end)
+) engine=myisam with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create table t (
+  a int,
+  row_start datetime(6) generated always as row start,
+  row_end datetime(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
 
 drop database test;
 create database test;

@@ -6,3 +6,6 @@ default-storage-engine=innodb
 
 [myisam]
 default-storage-engine=myisam
+
+[heap]
+default-storage-engine=memory

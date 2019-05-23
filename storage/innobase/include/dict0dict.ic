@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -717,7 +717,7 @@ dict_table_x_lock_indexes(
 {
 	dict_index_t*   index;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	/* Loop through each index of the table and lock them */
 	for (index = dict_table_get_first_index(table);
@@ -758,7 +758,7 @@ dict_table_x_unlock_indexes(
 {
 	dict_index_t*   index;
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -1178,21 +1178,6 @@ dict_max_v_field_len_store_undo(
 	return(max_log_len);
 }
 
-/**********************************************************************//**
-Prevent table eviction by moving a table to the non-LRU list from the
-LRU list if it is not already there. */
-UNIV_INLINE
-void
-dict_table_prevent_eviction(
-/*========================*/
-	dict_table_t*	table)	/*!< in: table to prevent eviction */
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-	if (table->can_be_evicted) {
-		dict_table_move_from_lru_to_non_lru(table);
-	}
-}
-
 /********************************************************************//**
 Check whether the table is corrupted.
 @return nonzero for corrupted table, zero for valid tables */
@@ -1236,7 +1221,7 @@ inline
 void
 dict_table_t::acquire()
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 	n_ref_count++;
 }
 

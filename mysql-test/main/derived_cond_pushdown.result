@@ -7884,7 +7884,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = 2.7100000381469727",
+      "attached_condition": "sq.i = 2.71",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -10497,6 +10497,56 @@ a	b	max_d	c
 1	2	3	1
 5	6	1	5
 DROP TABLE t1,t2;
+#
+# MDEV-19139: pushdown condition with Item_func_set_user_var
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE VIEW v1 AS SELECT a, MAX(b) FROM t1 GROUP BY a;
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+1
+EXPLAIN FORMAT=JSON
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "message": "no matching row in const table"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "no matching row in const table"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1;
+DROP VIEW v1;
 # End of 10.2 tests
 #
 # MDEV-14579: pushdown conditions into materialized views/derived tables

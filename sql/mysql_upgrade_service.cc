@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   mysql_upgrade_service upgrades mysql service on Windows.
@@ -159,8 +159,9 @@ static void die(const char *fmt, ...)
 
 #define WRITE_LOG(fmt,...) {\
   char log_buf[1024]; \
+  DWORD nbytes; \
   snprintf(log_buf,sizeof(log_buf), fmt, __VA_ARGS__);\
-  WriteFile(logfile_handle,log_buf, (DWORD)strlen(log_buf), 0 , 0);\
+  WriteFile(logfile_handle,log_buf, (DWORD)strlen(log_buf), &nbytes , 0);\
 }
 
 /*

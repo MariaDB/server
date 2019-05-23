@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Because of the function make_new_field() all field classes that have static
@@ -1926,6 +1926,7 @@ protected:
                CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length);
+  bool csinfo_change_allows_instant_alter(const Create_field *to) const;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -4851,6 +4852,14 @@ public:
     }
     return 0;
   }
+  static Row_definition_list *make(MEM_ROOT *mem_root, Spvar_definition *var)
+  {
+    Row_definition_list *list;
+    if (!(list= new (mem_root) Row_definition_list()))
+      return NULL;
+    return list->push_back(var, mem_root) ? NULL : list;
+  }
+  bool append_uniq(MEM_ROOT *thd, Spvar_definition *var);
   bool adjust_formal_params_to_actual_params(THD *thd, List<Item> *args);
   bool adjust_formal_params_to_actual_params(THD *thd,
                                              Item **args, uint arg_count);

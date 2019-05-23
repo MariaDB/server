@@ -192,7 +192,7 @@ The following specify which files/extra groups are read (specified before remain
  This defines the global password expiration policy. 0
  means automatic password expiration is disabled. If the
  value is a positive integer N, the passwords must be
- changed every N days. This behavior can be overriden
+ changed every N days. This behavior can be overridden
  using the password expiration options in ALTER USER.
  --default-regex-flags=name 
  Default flags for the regex library. Any combination of: 

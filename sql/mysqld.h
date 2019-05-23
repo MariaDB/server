@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef MYSQLD_INCLUDED
 #define MYSQLD_INCLUDED
@@ -59,7 +59,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #define OPT_SESSION SHOW_OPT_SESSION
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
 
-extern MY_TIMER_INFO sys_timer_info;
+extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 
 /*
   Values for --slave-parallel-mode
@@ -789,26 +789,6 @@ inline void table_case_convert(char * name, uint length)
   if (lower_case_table_names)
     files_charset_info->cset->casedn(files_charset_info,
                                      name, length, name, length);
-}
-
-inline void thread_safe_increment32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_increment64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
 }
 
 extern void set_server_version(char *buf, size_t size);

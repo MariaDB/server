@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -580,10 +580,10 @@ trx_resurrect_table_locks(
 		if (dict_table_t* table = dict_table_open_on_id(
 			    *i, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
-				mutex_enter(&dict_sys->mutex);
+				mutex_enter(&dict_sys.mutex);
 				dict_table_close(table, TRUE, FALSE);
-				dict_table_remove_from_cache(table);
-				mutex_exit(&dict_sys->mutex);
+				dict_sys.remove(table);
+				mutex_exit(&dict_sys.mutex);
 				continue;
 			}
 
@@ -1279,7 +1279,7 @@ void trx_t::evict_table(table_id_t table_id)
 	ut_ad(UT_LIST_GET_LEN(table->locks) <= 1);
 	const bool locked = UT_LIST_GET_LEN(table->locks);
 	ut_ad(!locked || UT_LIST_GET_FIRST(table->locks)->trx == this);
-	dict_table_remove_from_cache(table, true, locked);
+	dict_sys.remove(table, true, locked);
 	if (locked) {
 		UT_LIST_ADD_FIRST(lock.evicted_tables, table);
 	}

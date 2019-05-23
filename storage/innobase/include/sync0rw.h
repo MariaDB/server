@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -625,35 +625,14 @@ struct rw_lock_t
 #endif /* UNIV_PFS_RWLOCK */
 
 #ifdef UNIV_DEBUG
-/** Value of rw_lock_t::magic_n */
-# define RW_LOCK_MAGIC_N	22643
-
-	/** Constructor */
-	rw_lock_t()
-	{
-		magic_n = RW_LOCK_MAGIC_N;
-	}
-
-	/** Destructor */
-	virtual ~rw_lock_t()
-	{
-		ut_ad(magic_n == RW_LOCK_MAGIC_N);
-		magic_n = 0;
-	}
-
 	virtual std::string to_string() const;
-
-	/** For checking memory corruption. */
-	ulint		magic_n;
 
 	/** In the debug version: pointer to the debug info list of the lock */
 	UT_LIST_BASE_NODE_T(rw_lock_debug_t) debug_list;
 
 	/** Level in the global latching order. */
 	latch_level_t	level;
-
 #endif /* UNIV_DEBUG */
-
 };
 #ifdef UNIV_DEBUG
 /** The structure for storing debug info of an rw-lock.  All access to this

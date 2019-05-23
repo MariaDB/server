@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -111,18 +111,9 @@ trx_rseg_clear_wsrep_checkpoint(
 		    - TRX_RSEG_WSREP_XID_INFO, 0, mtr);
 }
 
-/** Update WSREP checkpoint XID in first rollback segment header
-as part of wsrep_set_SE_checkpoint() when it is guaranteed that there
-are no wsrep transactions committing.
-If the UUID part of the WSREP XID does not match to the UUIDs of XIDs already
-stored into rollback segments, the WSREP XID in all the remaining rollback
-segments will be reset.
-@param[in]	xid		WSREP XID */
-void trx_rseg_update_wsrep_checkpoint(const XID* xid)
+static void
+trx_rseg_update_wsrep_checkpoint(const XID* xid, mtr_t* mtr)
 {
-	mtr_t	mtr;
-	mtr.start();
-
 	const byte* xid_uuid = wsrep_xid_uuid(xid);
 	/* We must make check against wsrep_uuid here, the
 	trx_rseg_update_wsrep_checkpoint() writes over wsrep_uuid with
@@ -133,12 +124,12 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 	const trx_rseg_t* rseg = trx_sys.rseg_array[0];
 
 	trx_rsegf_t* rseg_header = trx_rsegf_get(rseg->space, rseg->page_no,
-						 &mtr);
+						 mtr);
 	if (UNIV_UNLIKELY(mach_read_from_4(rseg_header + TRX_RSEG_FORMAT))) {
-		trx_rseg_format_upgrade(rseg_header, &mtr);
+		trx_rseg_format_upgrade(rseg_header, mtr);
 	}
 
-	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, &mtr);
+	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, mtr);
 
 	if (must_clear_rsegs) {
 		/* Because the UUID part of the WSREP XID differed
@@ -150,13 +141,25 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 			    trx_sys.rseg_array[rseg_id]) {
 				trx_rseg_clear_wsrep_checkpoint(
 					trx_rsegf_get(rseg->space,
-						      rseg->page_no,
-						      &mtr),
-				        &mtr);
+						      rseg->page_no, mtr),
+				        mtr);
 			}
 		}
 	}
+}
 
+/** Update WSREP checkpoint XID in first rollback segment header
+as part of wsrep_set_SE_checkpoint() when it is guaranteed that there
+are no wsrep transactions committing.
+If the UUID part of the WSREP XID does not match to the UUIDs of XIDs already
+stored into rollback segments, the WSREP XID in all the remaining rollback
+segments will be reset.
+@param[in]	xid		WSREP XID */
+void trx_rseg_update_wsrep_checkpoint(const XID* xid)
+{
+	mtr_t	mtr;
+	mtr.start();
+	trx_rseg_update_wsrep_checkpoint(xid, &mtr);
 	mtr.commit();
 }
 
@@ -232,16 +235,6 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 	     rseg_id++, mtr.commit()) {
 		mtr.start();
 		const buf_block_t* sys = trx_sysf_get(&mtr, false);
-		if (rseg_id == 0) {
-			found = trx_rseg_init_wsrep_xid(sys->frame, xid);
-			ut_ad(!found || xid.formatID == 1);
-			if (found) {
-				max_xid_seqno = wsrep_xid_seqno(&xid);
-				memcpy(wsrep_uuid, wsrep_xid_uuid(&xid),
-				       sizeof wsrep_uuid);
-			}
-		}
-
 		const uint32_t page_no = trx_sysf_rseg_get_page_no(
 			sys, rseg_id);
 
@@ -566,6 +559,9 @@ trx_rseg_array_init()
 	trx_sys.recovered_binlog_offset = 0;
 #ifdef WITH_WSREP
 	trx_sys.recovered_wsrep_xid.null();
+	XID wsrep_sys_xid;
+	wsrep_sys_xid.null();
+	bool wsrep_xid_in_rseg_found = false;
 #endif
 
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
@@ -580,6 +576,9 @@ trx_rseg_array_init()
 					TRX_SYS + TRX_SYS_TRX_ID_STORE
 					+ sys->frame);
 				trx_rseg_init_binlog_info(sys->frame);
+#ifdef WITH_WSREP
+				wsrep_sys_xid.set(&trx_sys.recovered_wsrep_xid);
+#endif
 			}
 
 			const uint32_t	page_no = trx_sysf_rseg_get_page_no(
@@ -595,11 +594,46 @@ trx_rseg_array_init()
 				ut_ad(!trx_sys.rseg_array[rseg_id]);
 				trx_sys.rseg_array[rseg_id] = rseg;
 				trx_rseg_mem_restore(rseg, max_trx_id, &mtr);
+#ifdef WITH_WSREP
+				if (!wsrep_sys_xid.is_null() &&
+				    !wsrep_sys_xid.eq(&trx_sys.recovered_wsrep_xid)) {
+					wsrep_xid_in_rseg_found = true;
+					ut_ad(memcmp(wsrep_xid_uuid(&wsrep_sys_xid),
+						     wsrep_xid_uuid(&trx_sys.recovered_wsrep_xid),
+						     sizeof wsrep_uuid)
+					      || wsrep_xid_seqno(
+						      &wsrep_sys_xid)
+					      <= wsrep_xid_seqno(
+						      &trx_sys.recovered_wsrep_xid));
+				}
+#endif
 			}
 		}
 
 		mtr.commit();
 	}
+
+#ifdef WITH_WSREP
+	if (!wsrep_sys_xid.is_null()) {
+		/* Upgrade from a version prior to 10.3.5,
+		where WSREP XID was stored in TRX_SYS page.
+		If no rollback segment has a WSREP XID set,
+		we must copy the XID found in TRX_SYS page
+		to rollback segments. */
+		mtr_t mtr;
+		mtr.start();
+
+		if (!wsrep_xid_in_rseg_found) {
+			trx_rseg_update_wsrep_checkpoint(&wsrep_sys_xid, &mtr);
+		}
+
+		/* Finally, clear WSREP XID in TRX_SYS page. */
+		const buf_block_t* sys = trx_sysf_get(&mtr);
+		mlog_memset(TRX_SYS + TRX_SYS_WSREP_XID_INFO + sys->frame,
+			    TRX_SYS_WSREP_XID_LEN, 0, &mtr);
+		mtr.commit();
+	}
+#endif
 
 	trx_sys.init_max_trx_id(max_trx_id + 1);
 }

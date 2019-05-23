@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /***************************************************************************
  This is a test sample to test the new features in MySQL client-server
@@ -8394,6 +8394,26 @@ static void test_list_fields()
 
   mysql_free_result(result);
   myquery(mysql_query(mysql, "drop table t1"));
+}
+
+
+/* Test mysql_list_fields() with information_schema */
+
+static void test_list_information_schema_fields()
+{
+  MYSQL_RES *result;
+  int rc;
+  myheader("test_list_information_schema_fields");
+
+  rc= mysql_select_db(mysql, "information_schema");
+  myquery(rc);
+  result= mysql_list_fields(mysql, "all_plugins", NULL);
+  mytest(result);
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 0);
+  mysql_free_result(result);
+  rc= mysql_select_db(mysql, current_db);
+  myquery(rc);
 }
 
 
@@ -20946,6 +20966,7 @@ static struct my_tests_st my_tests[]= {
   { "test_fetch_column", test_fetch_column },
   { "test_mem_overun", test_mem_overun },
   { "test_list_fields", test_list_fields },
+  { "test_list_information_schema_fields", test_list_information_schema_fields },
   { "test_list_fields_blob", test_list_fields_blob },
   { "test_list_fields_default", test_list_fields_default },
   { "test_free_result", test_free_result },

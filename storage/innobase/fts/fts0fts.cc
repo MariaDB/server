@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -87,11 +87,6 @@ static const ulint FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB = 1024;
 
 /** Time to sleep after DEADLOCK error before retrying operation. */
 static const ulint FTS_DEADLOCK_RETRY_WAIT = 100000;
-
-/** variable to record innodb_fts_internal_tbl_name for information
-schema table INNODB_FTS_INSERTED etc. */
-char* fts_internal_tbl_name		= NULL;
-char* fts_internal_tbl_name2		= NULL;
 
 /** InnoDB default stopword list:
 There are different versions of stopwords, the stop words listed
@@ -249,7 +244,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 	MY_ATTRIBUTE((nonnull(1)));
@@ -473,7 +467,7 @@ fts_load_user_stopword(
 	trx->op_info = "Load user stopword table into FTS cache";
 
 	if (!has_lock) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
 	/* Validate the user table existence and in the right
@@ -545,7 +539,7 @@ fts_load_user_stopword(
 
 cleanup:
 	if (!has_lock) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	trx_free(trx);
@@ -916,7 +910,7 @@ fts_drop_index(
 }
 
 /****************************************************************//**
-Free the query graph but check whether dict_sys->mutex is already
+Free the query graph but check whether dict_sys.mutex is already
 held */
 void
 fts_que_graph_free_check_lock(
@@ -940,15 +934,15 @@ fts_que_graph_free_check_lock(
 	}
 
 	if (!has_dict) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 	}
 
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	que_graph_free(graph);
 
 	if (!has_dict) {
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 }
 
@@ -1531,14 +1525,13 @@ fts_rename_aux_tables(
 
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
+	dberr_t err = DB_SUCCESS;
+	char old_table_name[MAX_FULL_NAME_LEN];
+
 	/* Rename common auxiliary tables */
 	for (i = 0; fts_common_tables[i] != NULL; ++i) {
-		char	old_table_name[MAX_FULL_NAME_LEN];
-		dberr_t	err = DB_SUCCESS;
-
 		fts_table.suffix = fts_common_tables[i];
-
-		fts_get_table_name(&fts_table, old_table_name);
+		fts_get_table_name(&fts_table, old_table_name, true);
 
 		err = fts_rename_one_aux_table(new_name, old_table_name, trx);
 
@@ -1560,12 +1553,8 @@ fts_rename_aux_tables(
 		FTS_INIT_INDEX_TABLE(&fts_table, NULL, FTS_INDEX_TABLE, index);
 
 		for (ulint j = 0; j < FTS_NUM_AUX_INDEX; ++j) {
-			dberr_t	err;
-			char	old_table_name[MAX_FULL_NAME_LEN];
-
 			fts_table.suffix = fts_get_suffix(j);
-
-			fts_get_table_name(&fts_table, old_table_name);
+			fts_get_table_name(&fts_table, old_table_name, true);
 
 			err = fts_rename_one_aux_table(
 				new_name, old_table_name, trx);
@@ -1604,8 +1593,7 @@ fts_drop_common_tables(
 		char	table_name[MAX_FULL_NAME_LEN];
 
 		fts_table->suffix = fts_common_tables[i];
-
-		fts_get_table_name(fts_table, table_name);
+		fts_get_table_name(fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1641,8 +1629,7 @@ fts_drop_index_split_tables(
 		char	table_name[MAX_FULL_NAME_LEN];
 
 		fts_table.suffix = fts_get_suffix(i);
-
-		fts_get_table_name(&fts_table, table_name);
+		fts_get_table_name(&fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1888,7 +1875,7 @@ fts_create_common_tables(
 	for (ulint i = 0; fts_common_tables[i] != NULL; ++i) {
 
 		fts_table.suffix = fts_common_tables[i];
-		fts_get_table_name(&fts_table, full_name[i]);
+		fts_get_table_name(&fts_table, full_name[i], true);
 		dict_table_t*	common_table = fts_create_one_common_table(
 			trx, table, full_name[i], fts_table.suffix, heap);
 
@@ -1915,7 +1902,7 @@ fts_create_common_tables(
 	info = pars_info_create();
 
 	fts_table.suffix = "CONFIG";
-	fts_get_table_name(&fts_table, fts_name);
+	fts_get_table_name(&fts_table, fts_name, true);
 	pars_info_bind_id(info, true, "config_table", fts_name);
 
 	graph = fts_parse_sql_no_dict_lock(
@@ -1978,7 +1965,7 @@ fts_create_one_index_table(
 
 	ut_ad(index->type & DICT_FTS);
 
-	fts_get_table_name(fts_table, table_name);
+	fts_get_table_name(fts_table, table_name, true);
 
 	new_table = fts_create_in_mem_aux_table(
 			table_name, fts_table->table,
@@ -2074,7 +2061,6 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = id;
-	fts_table.parent = index->table->name.m_name;
 	fts_table.table = index->table;
 
 	/* aux_idx_tables vector is used for dropping FTS AUX INDEX
@@ -2583,7 +2569,6 @@ fts_update_next_doc_id(
 /*===================*/
 	trx_t*			trx,		/*!< in/out: transaction */
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id)		/*!< in: DOC ID to set */
 {
 	table->fts->cache->synced_doc_id = doc_id;
@@ -2592,7 +2577,7 @@ fts_update_next_doc_id(
 	table->fts->cache->first_doc_id = table->fts->cache->next_doc_id;
 
 	fts_update_sync_doc_id(
-		table, table_name, table->fts->cache->synced_doc_id, trx);
+		table, table->fts->cache->synced_doc_id, trx);
 
 }
 
@@ -2659,8 +2644,6 @@ retry:
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
 
-	fts_table.parent = table->name.m_name;
-
 	trx = trx_create();
 	if (srv_read_only_mode) {
 		trx_start_internal_read_only(trx);
@@ -2725,7 +2708,7 @@ retry:
 
 	if (doc_id_cmp > *doc_id) {
 		error = fts_update_sync_doc_id(
-			table, table->name.m_name, cache->synced_doc_id, trx);
+			table, cache->synced_doc_id, trx);
 	}
 
 	*doc_id = cache->next_doc_id;
@@ -2761,7 +2744,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 {
@@ -2783,11 +2765,6 @@ fts_update_sync_doc_id(
 	fts_table.table_id = table->id;
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
-	if (table_name) {
-		fts_table.parent = table_name;
-	} else {
-		fts_table.parent = table->name.m_name;
-	}
 
 	if (!trx) {
 		trx = trx_create();
@@ -2804,7 +2781,8 @@ fts_update_sync_doc_id(
 
 	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
 
-	fts_get_table_name(&fts_table, fts_name);
+	fts_get_table_name(&fts_table, fts_name,
+			   table->fts->fts_status & TABLE_DICT_LOCKED);
 	pars_info_bind_id(info, true, "table_name", fts_name);
 
 	graph = fts_parse_sql(
@@ -2853,21 +2831,6 @@ fts_doc_ids_create(void)
 		fts_doc_ids->self_heap, sizeof(fts_update_t), 32));
 
 	return(fts_doc_ids);
-}
-
-/*********************************************************************//**
-Free a fts_doc_ids_t. */
-void
-fts_doc_ids_free(
-/*=============*/
-	fts_doc_ids_t*	fts_doc_ids)
-{
-	mem_heap_t*	heap = static_cast<mem_heap_t*>(
-		fts_doc_ids->self_heap->arg);
-
-	memset(fts_doc_ids, 0, sizeof(*fts_doc_ids));
-
-	mem_heap_free(heap);
 }
 
 /*********************************************************************//**
@@ -6170,7 +6133,6 @@ fts_rename_one_aux_table_to_hex_format(
 
 	ut_a(fts_table.suffix != NULL);
 
-	fts_table.parent = parent_table->name.m_name;
 	fts_table.table_id = aux_table->parent_id;
 	fts_table.index_id = aux_table->index_id;
 	fts_table.table = parent_table;
@@ -7510,7 +7472,7 @@ fts_init_index(
 	fts_cache_t*    cache = table->fts->cache;
 	bool		need_init = false;
 
-	ut_ad(!mutex_own(&dict_sys->mutex));
+	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	/* First check cache->get_docs is initialized */
 	if (!has_cache_lock) {
@@ -7575,10 +7537,10 @@ func_exit:
 	}
 
 	if (need_init) {
-		mutex_enter(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
 		/* Register the table with the optimize thread. */
 		fts_optimize_add_table(table);
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 	}
 
 	return(TRUE);

@@ -58,7 +58,7 @@ m4_define([_LT_COPYING], [dnl
 # along with GNU Libtool; see the file COPYING.  If not, a copy
 # can be downloaded from http://www.gnu.org/licenses/gpl.html, or
 # obtained by writing to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
 ])
 
 # serial 57 LT_INIT
@@ -8643,7 +8643,7 @@ m4_ifndef([_LT_PROG_CXX],		[AC_DEFUN([_LT_PROG_CXX])])
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301, USA.
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
 #
 # As a special exception to the GNU General Public License, if you
 # distribute this file as part of a program that contains a

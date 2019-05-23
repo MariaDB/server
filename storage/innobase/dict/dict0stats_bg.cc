@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -156,7 +156,7 @@ void dict_stats_update_if_needed_func(dict_table_t* table)
 #endif
 {
 	ut_ad(table->stat_initialized);
-	ut_ad(!mutex_own(&dict_sys->mutex));
+	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	ulonglong	counter = table->stat_modified_counter++;
 	ulonglong	n_rows = dict_table_get_n_rows(table);
@@ -250,7 +250,7 @@ dict_stats_recalc_pool_del(
 	const dict_table_t*	table)	/*!< in: table to remove */
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
+	ut_ad(mutex_own(&dict_sys.mutex));
 
 	mutex_enter(&recalc_pool_mutex);
 
@@ -278,7 +278,7 @@ and restore the lock before it exits.
 The background stats thread is guaranteed not to start using the specified
 table after this function returns and before the caller unlocks the data
 dictionary because it sets the BG_STAT_IN_PROGRESS bit in table->stats_bg_flag
-under dict_sys->mutex. */
+under dict_sys.mutex. */
 void
 dict_stats_wait_bg_to_stop_using_table(
 /*===================================*/
@@ -309,11 +309,11 @@ dict_stats_thread_init()
 	   any level would do here)
 	2) from dict_stats_update_if_needed()
 	   and released without latching anything else in between. We know
-	   that dict_sys->mutex (SYNC_DICT) is not acquired when
+	   that dict_sys.mutex (SYNC_DICT) is not acquired when
 	   dict_stats_update_if_needed() is called and it may be acquired
 	   inside that function (thus a level <=SYNC_DICT would do).
-	3) from row_drop_table_for_mysql() after dict_sys->mutex (SYNC_DICT)
-	   and dict_operation_lock (SYNC_DICT_OPERATION) have been locked
+	3) from row_drop_table_for_mysql() after dict_sys.mutex (SYNC_DICT)
+	   and dict_sys.latch (SYNC_DICT_OPERATION) have been locked
 	   (thus a level <SYNC_DICT && <SYNC_DICT_OPERATION would do)
 	So we choose SYNC_STATS_AUTO_RECALC to be about below SYNC_DICT. */
 
@@ -370,14 +370,14 @@ dict_stats_process_entry_from_recalc_pool()
 
 	dict_table_t*	table;
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	table = dict_table_open_on_id(table_id, TRUE, DICT_TABLE_OP_NORMAL);
 
 	if (table == NULL) {
 		/* table does not exist, must have been DROPped
 		after its id was enqueued */
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		return;
 	}
 
@@ -385,13 +385,13 @@ dict_stats_process_entry_from_recalc_pool()
 
 	if (!fil_table_accessible(table)) {
 		dict_table_close(table, TRUE, FALSE);
-		mutex_exit(&dict_sys->mutex);
+		mutex_exit(&dict_sys.mutex);
 		return;
 	}
 
 	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 
 	/* ut_time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
@@ -414,13 +414,13 @@ dict_stats_process_entry_from_recalc_pool()
 		dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
 	}
 
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	table->stats_bg_flag = BG_STAT_NONE;
 
 	dict_table_close(table, TRUE, FALSE);
 
-	mutex_exit(&dict_sys->mutex);
+	mutex_exit(&dict_sys.mutex);
 }
 
 #ifdef UNIV_DEBUG

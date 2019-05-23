@@ -54,7 +54,7 @@ if [ $1 = 1 ] ; then
 
   if [ ! -e $datadir/mysql ]; then
     # Create data directory
-    mkdir -p $datadir/{mysql,test}
+    mkdir -p $datadir
 
     # Initiate databases
     %{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}

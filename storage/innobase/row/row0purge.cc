@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -102,7 +102,7 @@ row_purge_remove_clust_if_poss_low(
 	purge_node_t*	node,	/*!< in/out: row purge node */
 	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	ut_ad(rw_lock_own(&dict_sys.latch, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 
 	dict_index_t* index = dict_table_get_first_index(node->table);
@@ -790,7 +790,7 @@ whose old history can no longer be observed.
 @param[in,out]	mtr	mini-transaction (will be started and committed) */
 static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 {
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	ut_ad(rw_lock_own(&dict_sys.latch, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
 	mtr->start();
@@ -867,7 +867,7 @@ row_purge_upd_exist_or_extern_func(
 {
 	mem_heap_t*	heap;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	ut_ad(rw_lock_own(&dict_sys.latch, RW_LOCK_S)
 	      || node->vcol_info.is_used());
 	ut_ad(!node->table->skip_alter_undo);
 
@@ -895,6 +895,14 @@ row_purge_upd_exist_or_extern_func(
 				node->row, NULL, node->index,
 				heap, ROW_BUILD_FOR_PURGE);
 			row_purge_remove_sec_if_poss(node, node->index, entry);
+
+			if (node->vcol_op_failed()) {
+				ut_ad(!node->table);
+				mem_heap_free(heap);
+				return;
+			}
+			ut_ad(node->table);
+
 			mem_heap_empty(heap);
 		}
 
@@ -1058,7 +1066,7 @@ row_purge_parse_undo_rec(
 	for this row */
 
 try_again:
-	rw_lock_s_lock_inline(dict_operation_lock, 0, __FILE__, __LINE__);
+	rw_lock_s_lock_inline(&dict_sys.latch, 0, __FILE__, __LINE__);
 
 	node->table = dict_table_open_on_id(
 		table_id, FALSE, DICT_TABLE_OP_NORMAL);
@@ -1089,7 +1097,7 @@ try_again:
 		if (!mysqld_server_started) {
 
 			dict_table_close(node->table, FALSE, FALSE);
-			rw_lock_s_unlock(dict_operation_lock);
+			rw_lock_s_unlock(&dict_sys.latch);
 			if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 				return(false);
 			}
@@ -1119,7 +1127,7 @@ inaccessible:
 		dict_table_close(node->table, FALSE, FALSE);
 		node->table = NULL;
 err_exit:
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_sys.latch);
 		node->skip(table_id, trx_id);
 		return(false);
 	}
@@ -1255,10 +1263,10 @@ row_purge(
 				node, undo_rec, thr, updated_extern);
 
 			if (!node->vcol_info.is_used()) {
-				rw_lock_s_unlock(dict_operation_lock);
+				rw_lock_s_unlock(&dict_sys.latch);
 			}
 
-			ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
+			ut_ad(!rw_lock_own(&dict_sys.latch, RW_LOCK_S));
 
 			if (purged
 			    || srv_shutdown_state != SRV_SHUTDOWN_NONE

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* A lexical scanner on a temporary buffer with a yacc interface */
@@ -2365,6 +2365,7 @@ void st_select_lex_unit::init_query()
   with_element= 0;
   columns_are_renamed= false;
   intersect_mark= NULL;
+  with_wrapped_tvc= false;
 }
 
 void st_select_lex::init_query()
@@ -3508,6 +3509,19 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
 bool st_select_lex_unit::union_needs_tmp_table()
 {
   if (with_element && with_element->is_recursive)
+    return true;
+  if (!with_wrapped_tvc)
+  {
+    for (st_select_lex *sl= first_select(); sl; sl=sl->next_select())
+    {
+      if (sl->tvc && sl->tvc->to_be_wrapped_as_with_tail())
+      {
+        with_wrapped_tvc= true;
+        break;
+      }
+    }
+  }
+  if (with_wrapped_tvc)
     return true;
   return union_distinct != NULL ||
     global_parameters()->order_list.elements != 0 ||
@@ -8798,36 +8812,6 @@ bool LEX::last_field_generated_always_as_row_end()
 }
 
 
-bool LEX::tvc_finalize()
-{
-  mysql_init_select(this);
-  if (unlikely(!(current_select->tvc=
-               new (thd->mem_root)
-               table_value_constr(many_values,
-                                  current_select,
-                                  current_select->options))))
-    return true;
-  many_values.empty();
-  return false;
-}
-
-
-bool LEX::tvc_finalize_derived()
-{
-  derived_tables|= DERIVED_SUBQUERY;
-  if (unlikely(!expr_allows_subselect))
-  {
-    thd->parse_error();
-    return true;
-  }
-  if (current_select->get_linkage() == GLOBAL_OPTIONS_TYPE ||
-      unlikely(mysql_new_select(this, 1, NULL)))
-    return true;
-  current_select->set_linkage(DERIVED_TABLE_TYPE);
-  return tvc_finalize();
-}
-
-
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;
@@ -8926,12 +8910,12 @@ void Lex_select_lock::set_to(SELECT_LEX *sel)
       if (update_lock)
       {
         sel->lock_type= TL_WRITE;
-        sel->set_lock_for_tables(TL_WRITE);
+        sel->set_lock_for_tables(TL_WRITE, false);
       }
       else
       {
         sel->lock_type= TL_READ_WITH_SHARED_LOCKS;
-        sel->set_lock_for_tables(TL_READ_WITH_SHARED_LOCKS);
+        sel->set_lock_for_tables(TL_READ_WITH_SHARED_LOCKS, false);
       }
     }
   }
@@ -9262,10 +9246,26 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
 SELECT_LEX_UNIT *LEX::parsed_body_select(SELECT_LEX *sel,
                                          Lex_order_limit_lock * l)
 {
+  if (sel->braces && l && l->lock.defined_lock)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "lock options",
+        "SELECT in brackets");
+    return NULL;
+  }
   if (!(sel= parsed_select(sel, l)))
     return NULL;
 
   SELECT_LEX_UNIT *res= create_unit(sel);
+  if (res && sel->tvc && sel->order_list.elements)
+  {
+    if (res->add_fake_select_lex(thd))
+      return NULL;
+    SELECT_LEX *fake= res->fake_select_lex;
+    fake->order_list= sel->order_list;
+    fake->explicit_limit= sel->explicit_limit;
+    fake->select_limit= sel->select_limit;
+    fake->offset_limit= sel->offset_limit;
+  }
   return res;
 }
 
@@ -9476,6 +9476,12 @@ bool LEX::select_finalize(st_select_lex_unit *expr)
 }
 
 
+bool LEX::select_finalize(st_select_lex_unit *expr, Lex_select_lock l)
+{
+  return expr->set_lock_to_the_last_select(l) ||
+         select_finalize(expr);
+}
+
 /*
   "IN" and "EXISTS" subselect can appear in two statement types:
 
@@ -9519,7 +9525,7 @@ bool SELECT_LEX_UNIT::set_lock_to_the_last_select(Lex_select_lock l)
     if (sel->braces)
     {
       my_error(ER_WRONG_USAGE, MYF(0), "lock options",
-               "End SELECT expression");
+               "SELECT in brackets");
       return TRUE;
     }
     l.set_to(sel);
@@ -10421,4 +10427,20 @@ bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
                                           &sp_handler_function, agg_type)))
     return true;
   return false;
+}
+
+
+Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
+{
+  Spvar_definition *res;
+  if (unlikely(check_string_char_length(&name, 0, NAME_CHAR_LEN,
+                                        system_charset_info, 1)))
+  {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), name.str);
+    return NULL;
+  }
+  if (unlikely(!(res= new (thd->mem_root) Spvar_definition())))
+    return NULL;
+  init_last_field(res, &name, thd->variables.collation_database);
+  return res;
 }

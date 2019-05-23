@@ -471,11 +471,14 @@ SET GLOBAL log_warnings=2;
 
 --perl
 use Socket;
-use autodie;
-socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"));
-connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")));
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "Can't create a tcp socket!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")))
+  or die "Can't connect to port $ENV{MASTER_MYPORT}!\n";
 exit(0);
 EOF
+--echo # let tcp to detect disconnect
+select sleep(1);
 
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 
@@ -487,9 +490,10 @@ SET GLOBAL connect_timeout=2;
 
 --perl
 use Socket;
-use autodie;
-socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"));
-connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")));
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "Can't create a tcp socket!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")))
+  or die "Can't connect to port $ENV{MASTER_MYPORT}!\n";
 sleep 3;
 exit(0);
 EOF

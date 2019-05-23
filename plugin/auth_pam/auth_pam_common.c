@@ -36,6 +36,10 @@ static MYSQL_SYSVAR_BOOL(use_cleartext_plugin, use_cleartext_plugin,
        "supports simple PAM policies that don't require anything besides "
        "a password", NULL, NULL, 0);
 
+static MYSQL_SYSVAR_BOOL(winbind_workaround, winbind_hack, PLUGIN_VAR_OPCMDARG,
+       "Compare usernames case insensitively to work around pam_winbind "
+       "unconditional username lowercasing", NULL, NULL, 0);
+
 #ifndef DBUG_OFF
 static MYSQL_SYSVAR_BOOL(debug, pam_debug, PLUGIN_VAR_OPCMDARG,
        "Log all PAM activity", NULL, NULL, 0);
@@ -44,6 +48,7 @@ static MYSQL_SYSVAR_BOOL(debug, pam_debug, PLUGIN_VAR_OPCMDARG,
 
 static struct st_mysql_sys_var* vars[] = {
   MYSQL_SYSVAR(use_cleartext_plugin),
+  MYSQL_SYSVAR(winbind_workaround),
 #ifndef DBUG_OFF
   MYSQL_SYSVAR(debug),
 #endif

@@ -52,8 +52,8 @@ anyone can ask any questions they’d like, and a live developer will be availab
 
 New contributors can ask questions any time, but we will provide immediate feedback during that interval.
 
-License
---------
+Licensing
+---------
 
 ***************************************************************************
 
@@ -64,8 +64,8 @@ General Public License (GPLv2). (I.e. Without the "any later version"
 clause.) This is inherited from MySQL. Please see the README file in
 the MySQL distribution for more information.
 
-License information can be found in the COPYING, COPYING.LESSER,
-and COPYING.thirdparty files.
+License information can be found in the COPYING file. Third party
+license information can be found in the THIRDPARTY file.
 
 ***************************************************************************
 

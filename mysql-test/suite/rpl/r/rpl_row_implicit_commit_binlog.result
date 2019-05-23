@@ -62,6 +62,8 @@ INSERT INTO tt_1(ddl_case) VALUES (28);
 DROP USER 'user_new'@'localhost';
 INSERT INTO tt_1(ddl_case) VALUES (27);
 CREATE EVENT evt ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT * FROM tt_1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 INSERT INTO tt_1(ddl_case) VALUES (26);
 ALTER EVENT evt COMMENT 'evt';
 INSERT INTO tt_1(ddl_case) VALUES (25);

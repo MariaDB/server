@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /**
@@ -2431,7 +2431,7 @@ int Field::set_default()
   /* Copy constant value stored in s->default_values */
   my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
                                         table->record[0]);
-  memcpy(ptr, ptr + l_offset, pack_length());
+  memcpy(ptr, ptr + l_offset, pack_length_in_rec());
   if (maybe_null_in_table())
     *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
                 (null_ptr[l_offset] & null_bit));
@@ -4546,34 +4546,15 @@ String *Field_float::val_str(String *val_buffer,
 {
   DBUG_ASSERT(marked_for_read());
   DBUG_ASSERT(!zerofill || field_length <= MAX_FIELD_CHARLENGTH);
-  float nr;
-  float4get(nr,ptr);
 
-  uint to_length= 70;
-  if (val_buffer->alloc(to_length))
+  if (Float(ptr).to_string(val_buffer, dec))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return val_buffer;
   }
 
-  char *to=(char*) val_buffer->ptr();
-  size_t len;
-
-  if (dec >= FLOATING_POINT_DECIMALS)
-    len= my_gcvt(nr, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
-  else
-  {
-    /*
-      We are safe here because the buffer length is 70, and
-      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
-      will be not longer than 69 chars + terminating '\0'.
-    */
-    len= my_fcvt(nr, dec, to, NULL);
-  }
-  val_buffer->length((uint) len);
   if (zerofill)
     prepend_zeros(val_buffer);
-  val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
 }
 
@@ -7092,6 +7073,17 @@ int Field_str::store(double nr)
 }
 
 
+bool Field_longstr::
+  csinfo_change_allows_instant_alter(const Create_field *to) const
+{
+  Charset cs(field_charset);
+  const bool part_of_a_key= !to->field->part_of_key.is_clear_all();
+  return part_of_a_key ?
+    cs.encoding_and_order_allow_reinterpret_as(to->charset) :
+    cs.encoding_allows_reinterpret_as(to->charset);
+}
+
+
 uint Field_string::is_equal(Create_field *new_field)
 {
   DBUG_ASSERT(!compression_method());
@@ -7102,9 +7094,7 @@ uint Field_string::is_equal(Create_field *new_field)
   if (new_field->char_length < char_length())
     return IS_EQUAL_NO;
 
-  const bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
-  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
-					     part_of_a_key))
+  if (!csinfo_change_allows_instant_alter(new_field))
     return IS_EQUAL_NO;
 
   if (new_field->length == max_display_length())
@@ -7954,9 +7944,7 @@ uint Field_varstring::is_equal(Create_field *new_field)
   if (!new_field->compression_method() != !compression_method())
     return IS_EQUAL_NO;
 
-  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
-  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
-                                             part_of_a_key))
+  if (!csinfo_change_allows_instant_alter(new_field))
     return IS_EQUAL_NO;
 
   const Type_handler *new_type_handler= new_field->type_handler();
@@ -8751,12 +8739,8 @@ uint Field_blob::is_equal(Create_field *new_field)
     return IS_EQUAL_NO;
   }
 
-  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
-  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
-                                             part_of_a_key))
-  {
+  if (!csinfo_change_allows_instant_alter(new_field))
     return IS_EQUAL_NO;
-  }
 
   if (field_charset != new_field->charset)
   {

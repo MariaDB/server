@@ -3916,6 +3916,22 @@ END;
 /
 DELIMITER ;/
 
+--echo #
+--echo # MDEV-14572: Assertion `! is_set()' failed in
+--echo # Diagnostics_area::set_eof_status upon EXPLAIN UPDATE in PS
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+
+#EXPLAIN UPDATE t1, t2 SET a = 1;
+PREPARE stmt FROM 'EXPLAIN UPDATE t1, t2 SET a = 1';
+EXECUTE stmt;
+EXECUTE stmt;
+deallocate prepare stmt;
+
+# Cleanup
+DROP TABLE t1, t2;
 
 --echo #
 --echo # End of 10.1 tests

@@ -2710,10 +2710,37 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
                                  TABLE *tbl, uchar *rowid_buf)
 {
   List_iterator_fast<Item_window_func> iter(window_functions);
+  JOIN_TAB *join_tab= tbl->reginfo.join_tab;
   tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
   store_record(tbl, record[1]);
   while (Item_window_func *item_win= iter++)
     item_win->save_in_field(item_win->result_field, true);
+
+  /*
+    In case we have window functions present, an extra step is required
+    to compute all the fields from the temporary table.
+    In case we have a compound expression such as: expr + expr,
+    where one of the terms has a window function inside it, only
+    after computing window function values we actually know the true
+    final result of the compounded expression.
+
+    Go through all the func items and save their values once again in the
+    corresponding temp table fields. Do this for each row in the table.
+
+    This needs to be done earlier because ORDER BY clause can also have
+    a window function, so we need to make sure all the fields of the temp.table
+    are updated before we do the filesort. So is best to update the other fields
+    that contain the window functions along with the computation of window
+    functions.
+  */
+
+  Item **func_ptr= join_tab->tmp_table_param->items_to_copy;
+  Item *func;
+  for (; (func = *func_ptr) ; func_ptr++)
+  {
+    if (func->with_window_func && func->type() != Item::WINDOW_FUNC_ITEM)
+      func->save_in_result_field(true);
+  }
 
   int err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
   if (err && err != HA_ERR_RECORD_IS_THE_SAME)

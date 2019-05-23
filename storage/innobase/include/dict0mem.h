@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -948,13 +948,13 @@ struct dict_index_t {
 				dictionary cache */
 	unsigned	to_be_dropped:1;
 				/*!< TRUE if the index is to be dropped;
-				protected by dict_operation_lock */
+				protected by dict_sys.latch */
 	unsigned	online_status:2;
 				/*!< enum online_index_status.
 				Transitions from ONLINE_INDEX_COMPLETE (to
 				ONLINE_INDEX_CREATION) are protected
-				by dict_operation_lock and
-				dict_sys->mutex. Other changes are
+				by dict_sys.latch and
+				dict_sys.mutex. Other changes are
 				protected by index->lock. */
 	unsigned	uncommitted:1;
 				/*!< a flag that is set for secondary indexes
@@ -1835,8 +1835,7 @@ public:
 	/** TRUE if the table is to be dropped, but not yet actually dropped
 	(could in the background drop list). It is turned on at the beginning
 	of row_drop_table_for_mysql() and turned off just before we start to
-	update system tables for the drop. It is protected by
-	dict_operation_lock. */
+	update system tables for the drop. It is protected by dict_sys.latch. */
 	unsigned				to_be_dropped:1;
 
 	/** Number of non-virtual columns defined so far. */
@@ -2051,7 +2050,7 @@ public:
 
 	/** The state of the background stats thread wrt this table.
 	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys->mutex. Dirty reads are possible. */
+	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
 
 	#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
 				/*!< BG_SCRUB_IN_PROGRESS is set in
@@ -2067,7 +2066,7 @@ public:
 
 	/** The state of the background stats thread wrt this table.
 	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys->mutex. Dirty reads are possible. */
+	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
 	byte					stats_bg_flag;
 
 	bool		stats_error_printed;

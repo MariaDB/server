@@ -57,6 +57,8 @@ public:
 	       select_result *tmp_result,
 	       st_select_lex_unit *unit_arg);
 
+  bool to_be_wrapped_as_with_tail();
+
   int save_explain_data_intern(THD *thd_arg,
 			       Explain_query *output);
   bool optimize(THD *thd_arg);
@@ -64,4 +66,7 @@ public:
 
   void print(THD *thd_arg, String *str, enum_query_type query_type);
 };
+
+st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl);
+
 #endif /* SQL_TVC_INCLUDED */

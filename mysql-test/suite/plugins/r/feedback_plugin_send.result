@@ -2,9 +2,9 @@ select plugin_status from information_schema.plugins where plugin_name='feedback
 plugin_status
 ACTIVE
 SELECT variable_value INTO @feedback_used FROM information_schema.feedback where variable_name = 'FEEDBACK used';
-SELECT variable_value = @feedback_used + 1 FROM information_schema.feedback where variable_name = 'FEEDBACK used';
-variable_value = @feedback_used + 1
-0
+SELECT variable_value = @feedback_used + 1 as 'MUST BE 1' FROM information_schema.feedback where variable_name = 'FEEDBACK used';
+MUST BE 1
+1
 select * from information_schema.feedback where variable_name like 'feed%'
        and variable_name not like '%_uid' and variable_name not like 'FEEDBACK used'
        and variable_name not like '%debug%';

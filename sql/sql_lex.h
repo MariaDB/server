@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @defgroup Semantic_Analysis Semantic Analysis
@@ -873,6 +873,12 @@ public:
   */
   Item_int *intersect_mark;
   /**
+     TRUE if the unit contained TVC at the top level that has been wrapped
+     into SELECT:
+     VALUES (v1) ... (vn) => SELECT * FROM (VALUES (v1) ... (vn)) as tvc
+  */
+  bool with_wrapped_tvc;
+  /**
     Pointer to 'last' select, or pointer to select where we stored
     global parameters for union.
 
@@ -1347,7 +1353,7 @@ public:
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
   ulong get_table_join_options();
-  void set_lock_for_tables(thr_lock_type lock_type);
+  void set_lock_for_tables(thr_lock_type lock_type, bool for_update);
   /*
     This method created for reiniting LEX in mysql_admin_table() and can be
     used only if you are going remove all SELECT_LEX & units except belonger
@@ -4390,8 +4396,6 @@ public:
     many_values.empty();
     insert_list= 0;
   }
-  bool tvc_finalize();
-  bool tvc_finalize_derived();
 
   bool make_select_in_brackets(SELECT_LEX* dummy_select,
                                SELECT_LEX *nselect, bool automatic);
@@ -4448,6 +4452,7 @@ public:
                                   LEX_CSTRING *alias);
   bool parsed_create_view(SELECT_LEX_UNIT *unit, int check);
   bool select_finalize(st_select_lex_unit *expr);
+  bool select_finalize(st_select_lex_unit *expr, Lex_select_lock l);
   void relink_hack(st_select_lex *select_lex);
 
   bool stmt_install_plugin(const DDL_options_st &opt,
@@ -4502,6 +4507,7 @@ public:
                                 const Lex_ident_sys_st &name,
                                 Item_result return_type,
                                 const LEX_CSTRING &soname);
+  Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
 };
 
 

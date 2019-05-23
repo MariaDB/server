@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -806,12 +806,10 @@ void trx_rollback_recovered(bool all)
     trx_t *trx= trx_list.back();
     trx_list.pop_back();
 
-#ifdef UNIV_DEBUG
     ut_ad(trx);
-    trx_mutex_enter(trx);
+    ut_d(trx_mutex_enter(trx));
     ut_ad(trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE));
-    trx_mutex_exit(trx);
-#endif
+    ut_d(trx_mutex_exit(trx));
 
     if (!srv_is_being_started && !srv_undo_sources && srv_fast_shutdown)
       goto discard;

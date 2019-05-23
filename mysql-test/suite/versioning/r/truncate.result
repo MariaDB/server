@@ -106,5 +106,29 @@ call pr;
 call pr;
 drop procedure pr;
 drop table t1;
+# MDEV-15966 Behavior for TRUNCATE versioned table is not documented and not covered by tests
+create or replace table t1 (id int);
+create or replace table t2 (id int) with system versioning;
+# force cleaning table shares
+flush tables t1, t2;
+truncate table t1;
+truncate table t2;
+ERROR HY000: System-versioned tables do not support TRUNCATE TABLE
+# fetch table shares
+describe t1;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	YES		NULL	
+describe t2;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	YES		NULL	
+truncate table t1;
+truncate table t2;
+ERROR HY000: System-versioned tables do not support TRUNCATE TABLE
+# enter locked tables mode
+lock tables t1 WRITE, t2 WRITE;
+truncate t1;
+truncate t2;
+ERROR HY000: System-versioned tables do not support TRUNCATE TABLE
+unlock tables;
 drop database test;
 create database test;

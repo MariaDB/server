@@ -2183,6 +2183,8 @@ COLLATION(_utf8 'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 CREATE EVENT ev2 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO
 BEGIN
@@ -2195,6 +2197,8 @@ COLLATION(_utf8 'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 CREATE EVENT mysqltest2.ev3 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO
 BEGIN
@@ -2207,6 +2211,8 @@ COLLATION(_utf8 'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 CREATE EVENT mysqltest2.ev4 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO
 BEGIN
@@ -2219,6 +2225,8 @@ COLLATION(_utf8 'текст') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
 END|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 
 

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _tree_h
 #define _tree_h
@@ -59,7 +59,7 @@ typedef struct st_tree_element {
 #define ELEMENT_CHILD(element, offs) (*(TREE_ELEMENT**)((char*)element + offs))
 
 typedef struct st_tree {
-  TREE_ELEMENT *root,null_element;
+  TREE_ELEMENT *root;
   TREE_ELEMENT **parents[MAX_TREE_HEIGHT];
   uint offset_to_key,elements_in_tree,size_of_element;
   size_t memory_limit, allocated;

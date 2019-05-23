@@ -396,14 +396,6 @@ for each row select count(*) from t1 into @a;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into t2 values (1);
-# MDEV-14741 Assertion `(trx)->start_file == 0' failed in row_truncate_table_for_mysql()
-create or replace table t1 (i int) with system versioning
-partition by system_time interval 1 hour (
-partition p1 history,
-partition pn current);
-set autocommit= off;
-truncate table t1;
-set autocommit= on;
 # MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES
 create or replace table t1 (x int) with system versioning;
 lock table t1 write;
@@ -538,6 +530,25 @@ set timestamp=1523466002.799571;
 insert into t1 values (11),(12);
 set timestamp=1523466004.169435;
 delete from t1 where pk in (11, 12);
+#
+# MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
+#
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 7 second (
+partition ver_p1 history,
+partition ver_pn current);
+alter table t1
+partition by system_time interval column_get(column_create(7,7), 7 as int) second (
+partition ver_p1 history,
+partition ver_pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 7 SECOND
+(PARTITION `ver_p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `ver_pn` CURRENT ENGINE = DEFAULT_ENGINE)
 # Test cleanup
 drop database test;
 create database test;

@@ -4320,6 +4320,8 @@ create database first;
 use first;
 set time_zone = 'UTC';
 create event ee1 on schedule at '2035-12-31 20:01:23' do set @a=5;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 show events;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 first	ee1	root@localhost	UTC	ONE TIME	2035-12-31 20:01:23	NULL	NULL	NULL	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -4336,7 +4338,11 @@ show create event ee1;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
 ee1		UTC	CREATE DEFINER=`root`@`localhost` EVENT `ee1` ON SCHEDULE AT '2035-12-31 20:01:23' ON COMPLETION NOT PRESERVE ENABLE DO set @a=5	latin1	latin1_swedish_ci	latin1_swedish_ci
 create event ee2 on schedule at '2030-12-31 21:01:22' do set @a=5;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 create event ee3 on schedule at '2030-12-31 22:01:23' do set @a=5;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 show events;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 second	ee1	root@localhost	UTC	ONE TIME	2035-12-31 20:01:23	NULL	NULL	NULL	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -4473,6 +4479,8 @@ DROP DATABASE mysqldump_test_db;
 TRUNCATE mysql.event;
 USE test;
 CREATE event e29938 ON SCHEDULE AT '2035-12-31 20:01:23' DO SET @bug29938=29938;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test	e29938	root@localhost	SYSTEM	ONE TIME	2035-12-31 20:01:23	NULL	NULL	NULL	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -4567,6 +4575,8 @@ CREATE TABLE t1 (f1 INT);
 CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET @f1 = 1;
 CREATE PROCEDURE pr1 () SELECT "Meow";
 CREATE EVENT ev1 ON SCHEDULE AT '2030-01-01 00:00:00' DO SELECT "Meow";
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
@@ -4757,7 +4767,11 @@ SELECT COUNT(*) INTO param1 FROM t2;
 END//
 # Events.
 CREATE EVENT e1 ON SCHEDULE EVERY 1 SECOND DO DROP DATABASE BUG52792;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 CREATE EVENT e2 ON SCHEDULE EVERY 1 SECOND DO DROP DATABASE BUG52792;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 # Functions.
 CREATE FUNCTION `hello1` (s CHAR(20))
 RETURNS CHAR(50) DETERMINISTIC
@@ -5362,6 +5376,8 @@ one` BEFORE INSERT ON `tab
 one` FOR EACH ROW SET NEW.a = 1;
 CREATE EVENT `event
 one` ON SCHEDULE AT '2030-01-01 00:00:00' DO SET @a=5;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW TABLES FROM bug25717383;
 Tables_in_bug25717383
 tab
@@ -5624,6 +5640,24 @@ DROP FUNCTION f;
 #
 DROP VIEW v1;
 DROP FUNCTION f;
+#
+# MDEV-788 New option to ignore foreign key contraints in mysqlimport
+#
+create table t1 (
+id int primary key
+) engine=InnoDB;
+create table t2 (
+t1_id int,
+CONSTRAINT fk
+FOREIGN KEY (t1_id) REFERENCES t1 (id)
+) ENGINE = InnoDB;
+select count(*) from t2;
+count(*)
+1
+select count(*) from t2;
+count(*)
+2
+drop tables t2, t1;
 #
 # Test for --add-drop-trigger
 #

@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -395,11 +395,11 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-		node->table = dict_sys->get_temporary_table(table_id);
-		mutex_exit(&dict_sys->mutex);
+		mutex_enter(&dict_sys.mutex);
+		node->table = dict_sys.get_temporary_table(table_id);
+		mutex_exit(&dict_sys.mutex);
 	} else {
-		node->table = dict_sys->get_temporary_table(table_id);
+		node->table = dict_sys.get_temporary_table(table_id);
 	}
 
 	if (!node->table) {
@@ -583,11 +583,11 @@ row_undo_ins(
 		if (node->table->id == DICT_INDEXES_ID) {
 			ut_ad(!node->table->is_temporary());
 			if (!dict_locked) {
-				mutex_enter(&dict_sys->mutex);
+				mutex_enter(&dict_sys.mutex);
 			}
 			err = row_undo_ins_remove_clust_rec(node);
 			if (!dict_locked) {
-				mutex_exit(&dict_sys->mutex);
+				mutex_exit(&dict_sys.mutex);
 			}
 		} else {
 			err = row_undo_ins_remove_clust_rec(node);
@@ -603,7 +603,7 @@ row_undo_ins(
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys->mutex, which
+			already be holding dict_sys.mutex, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
 				dict_stats_update_if_needed(

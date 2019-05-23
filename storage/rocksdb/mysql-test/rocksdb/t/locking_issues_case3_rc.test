@@ -1,0 +1,4 @@
+--source include/have_rocksdb.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case3.inc

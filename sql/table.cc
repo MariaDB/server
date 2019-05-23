@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* Some general useful functions */
@@ -2315,7 +2315,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         switch (handler->real_field_type())
         {
         case MYSQL_TYPE_TIMESTAMP2:
-        case MYSQL_TYPE_DATETIME2:
           break;
         case MYSQL_TYPE_LONGLONG:
           if (vers_can_native)
@@ -6516,7 +6515,8 @@ const char *Field_iterator_table_ref::get_table_name()
     return natural_join_it.column_ref()->safe_table_name();
 
   DBUG_ASSERT(!strcmp(table_ref->table_name.str,
-                      table_ref->table->s->table_name.str));
+                      table_ref->table->s->table_name.str) ||
+              table_ref->schema_table);
   return table_ref->table_name.str;
 }
 

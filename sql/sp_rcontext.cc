@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -116,6 +116,19 @@ sp_rcontext *sp_rcontext::create(THD *thd,
 
   thd->lex->current_select= save_current_select;
   return ctx;
+}
+
+
+bool Row_definition_list::append_uniq(MEM_ROOT *mem_root, Spvar_definition *var)
+{
+  DBUG_ASSERT(elements);
+  uint unused;
+  if (unlikely(find_row_field_by_name(&var->field_name, &unused)))
+  {
+    my_error(ER_DUP_FIELDNAME, MYF(0), var->field_name.str);
+    return true;
+  }
+  return push_back(var, mem_root);
 }
 
 

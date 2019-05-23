@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /*
@@ -831,7 +831,8 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   bool is_union_select;
   bool have_except= FALSE, have_intersect= FALSE;
   bool instantiate_tmp_table= false;
-  bool single_tvc= !first_sl->next_select() && first_sl->tvc;
+  bool single_tvc= !first_sl->next_select() && first_sl->tvc &&
+                   !fake_select_lex;
   DBUG_ENTER("st_select_lex_unit::prepare");
   DBUG_ASSERT(thd == current_thd);
 
@@ -981,12 +982,45 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     types= first_sl->item_list;
     goto cont;
   }
- 
+
+  if (sl->tvc && sl->order_list.elements &&
+      !sl->tvc->to_be_wrapped_as_with_tail())
+  {
+    if (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)
+    {
+      sl->master_unit()->fake_select_lex= 0;
+      sl->master_unit()->saved_fake_select_lex= 0;
+    }
+    else
+    {
+      sl->order_list.empty();
+      sl->explicit_limit= 0;
+      sl->select_limit= 0;
+      sl->offset_limit= 0;
+    }
+  }
+
   for (;sl; sl= sl->next_select(), union_part_count++)
   {
     if (sl->tvc)
     {
-      if (sl->tvc->prepare(thd, sl, tmp_result, this))
+      if (sl->tvc->to_be_wrapped_as_with_tail() &&
+          !(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW))
+
+      {
+        st_select_lex *wrapper_sl= wrap_tvc_with_tail(thd, sl);
+        if (!wrapper_sl)
+          goto err;
+
+        if (sl == first_sl)
+          first_sl= wrapper_sl;
+        sl= wrapper_sl;
+
+        if (prepare_join(thd, sl, tmp_result, additional_options,
+                         is_union_select))
+	  goto err;
+      }
+      else if (sl->tvc->prepare(thd, sl, tmp_result, this))
 	goto err;
     }
     else if (prepare_join(thd, sl, tmp_result, additional_options,

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* drop and alter of tables */
@@ -6543,8 +6543,16 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
                            *new_part= new_key->key_part;
        key_part < end; key_part++, new_part++)
   {
+    /*
+      For prefix keys KEY_PART_INFO::field points to cloned Field
+      object with adjusted length. So below we have to check field
+      indexes instead of simply comparing pointers to Field objects.
+    */
     Create_field *new_field= alter_info->create_list.elem(new_part->fieldnr);
-    const Field *old_field= table->field[key_part->fieldnr - 1];
+    if (!new_field->field ||
+        new_field->field->field_index != key_part->fieldnr - 1)
+      return Compare_keys::NotEqual;
+
     /*
       If there is a change in index length due to column expansion
       like varchar(X) changed to varchar(X + N) and has a compatible
@@ -6554,6 +6562,7 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       Key definition has changed if we are using a different field or
       if the user key part length is different.
     */
+    const Field *old_field= table->field[key_part->fieldnr - 1];
     auto old_field_len= old_field->pack_length();
 
     if (old_field->type() == MYSQL_TYPE_VARCHAR)
@@ -6570,15 +6579,6 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       result= Compare_keys::EqualButKeyPartLength;
     }
     else if (key_part->length != new_part->length)
-      return Compare_keys::NotEqual;
-
-    /*
-      For prefix keys KEY_PART_INFO::field points to cloned Field
-      object with adjusted length. So below we have to check field
-      indexes instead of simply comparing pointers to Field objects.
-    */
-    if (!new_field->field ||
-        new_field->field->field_index != key_part->fieldnr - 1)
       return Compare_keys::NotEqual;
   }
 
@@ -8992,6 +8992,52 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     }
   }
 
+  /*
+    Normally, an attempt to modify an FK parent table will cause
+    FK children to be prelocked, so the table-being-altered cannot
+    be modified by a cascade FK action, because ALTER holds a lock
+    and prelocking will wait.
+
+    But if a new FK is being added by this very ALTER, then the target
+    table is not locked yet (it's a temporary table). So, we have to
+    lock FK parents explicitly.
+  */
+  if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+  {
+    List_iterator<Key> fk_list_it(alter_info->key_list);
+
+    while (Key *key= fk_list_it++)
+    {
+      if (key->type != Key::FOREIGN_KEY)
+        continue;
+
+      Foreign_key *fk= static_cast<Foreign_key*>(key);
+      char dbuf[NAME_LEN];
+      char tbuf[NAME_LEN];
+      const char *ref_db= (fk->ref_db.str ?
+                           fk->ref_db.str :
+                           alter_ctx->new_db.str);
+      const char *ref_table= fk->ref_table.str;
+      MDL_request mdl_request;
+
+      if (lower_case_table_names)
+      {
+        strmake_buf(dbuf, ref_db);
+        my_casedn_str(system_charset_info, dbuf);
+        strmake_buf(tbuf, ref_table);
+        my_casedn_str(system_charset_info, tbuf);
+        ref_db= dbuf;
+        ref_table= tbuf;
+      }
+
+      mdl_request.init(MDL_key::TABLE, ref_db, ref_table, MDL_SHARED_NO_WRITE,
+                       MDL_TRANSACTION);
+      if (thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
+        DBUG_RETURN(true);
+    }
+  }
+
   DBUG_RETURN(false);
 }
 
@@ -10039,6 +10085,7 @@ do_continue:;
 
   /* Mark that we have created table in storage engine. */
   no_ha_table= false;
+  DEBUG_SYNC(thd, "alter_table_intermediate_table_created");
 
   /* Open the table since we need to copy the data. */
   new_table= thd->create_and_open_tmp_table(&frm,
@@ -10053,54 +10100,6 @@ do_continue:;
   {
     /* in case of alter temp table send the tracker in OK packet */
     SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
-  }
-  else
-  {
-    /*
-      Normally, an attempt to modify an FK parent table will cause
-      FK children to be prelocked, so the table-being-altered cannot
-      be modified by a cascade FK action, because ALTER holds a lock
-      and prelocking will wait.
-
-      But if a new FK is being added by this very ALTER, then the target
-      table is not locked yet (it's a temporary table). So, we have to
-      lock FK parents explicitly.
-    */
-    if (alter_info->flags & ALTER_ADD_FOREIGN_KEY)
-    {
-      List <FOREIGN_KEY_INFO> fk_list;
-      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
-      FOREIGN_KEY_INFO *fk;
-
-      /* tables_opened can be > 1 only for MERGE tables */
-      DBUG_ASSERT(tables_opened == 1);
-      DBUG_ASSERT(&table_list->next_global == thd->lex->query_tables_last);
-
-      new_table->file->get_foreign_key_list(thd, &fk_list);
-      while ((fk= fk_list_it++))
-      {
-        MDL_request mdl_request;
-
-        if (lower_case_table_names)
-        {
-         char buf[NAME_LEN];
-         size_t len;
-         strmake_buf(buf, fk->referenced_db->str);
-         len = my_casedn_str(files_charset_info, buf);
-         thd->make_lex_string(fk->referenced_db, buf, len);
-         strmake_buf(buf, fk->referenced_table->str);
-         len = my_casedn_str(files_charset_info, buf);
-         thd->make_lex_string(fk->referenced_table, buf, len);
-        }
-
-        mdl_request.init(MDL_key::TABLE,
-                         fk->referenced_db->str, fk->referenced_table->str,
-                         MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
-        if (thd->mdl_context.acquire_lock(&mdl_request,
-                                          thd->variables.lock_wait_timeout))
-          goto err_new_table_cleanup;
-      }
-    }
   }
 
   /*
@@ -10925,18 +10924,6 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 }
 
 
-static void flush_checksum(ha_checksum *row_crc, uchar **checksum_start,
-                           size_t *checksum_length)
-{
-  if (*checksum_start)
-  {
-    *row_crc= my_checksum(*row_crc, *checksum_start, *checksum_length);
-    *checksum_start= NULL;
-    *checksum_length= 0;
-  }
-}
-
-
 bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
                           HA_CHECK_OPT *check_opt)
 {
@@ -11013,96 +11000,31 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
       if (!(check_opt->flags & T_EXTEND) &&
           (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) && thd->variables.old_mode) ||
            ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) && !thd->variables.old_mode)))
-        protocol->store((ulonglong)t->file->checksum());
+      {
+        if (t->file->info(HA_STATUS_VARIABLE))
+          protocol->store_null();
+        else
+          protocol->store((longlong)t->file->stats.checksum);
+      }
       else if (check_opt->flags & T_QUICK)
         protocol->store_null();
       else
       {
-        /* calculating table's checksum */
-        ha_checksum crc= 0;
-        DBUG_ASSERT(t->s->last_null_bit_pos < 8);
-        uchar null_mask= (t->s->last_null_bit_pos ?
-                          (256 -  (1 << t->s->last_null_bit_pos)):
-                          0);
-
-        t->use_all_stored_columns();
-
-        if (t->file->ha_rnd_init(1))
+        int error= t->file->calculate_checksum();
+        if (thd->killed)
+        {
+          /*
+             we've been killed; let handler clean up, and remove the
+             partial current row from the recordset (embedded lib)
+          */
+          t->file->ha_rnd_end();
+          thd->protocol->remove_last_row();
+          goto err;
+        }
+        if (error)
           protocol->store_null();
         else
-        {
-          for (;;)
-          {
-            if (thd->killed)
-            {
-              /* 
-                 we've been killed; let handler clean up, and remove the 
-                 partial current row from the recordset (embedded lib) 
-              */
-              t->file->ha_rnd_end();
-              thd->protocol->remove_last_row();
-              goto err;
-            }
-            ha_checksum row_crc= 0;
-            int error= t->file->ha_rnd_next(t->record[0]);
-            if (unlikely(error))
-            {
-              break;
-            }
-            if (t->s->null_bytes)
-            {
-              /* fix undefined null bits */
-              t->record[0][t->s->null_bytes-1] |= null_mask;
-              if (!(t->s->db_create_options & HA_OPTION_PACK_RECORD))
-                t->record[0][0] |= 1;
-
-              row_crc= my_checksum(row_crc, t->record[0], t->s->null_bytes);
-            }
-
-            uchar *checksum_start= NULL;
-            size_t checksum_length= 0;
-            for (uint i= 0; i < t->s->fields; i++ )
-            {
-              Field *f= t->field[i];
-
-              if (! thd->variables.old_mode && f->is_real_null(0))
-              {
-                flush_checksum(&row_crc, &checksum_start, &checksum_length);
-                continue;
-              }
-             /*
-               BLOB and VARCHAR have pointers in their field, we must convert
-               to string; GEOMETRY is implemented on top of BLOB.
-               BIT may store its data among NULL bits, convert as well.
-             */
-              switch (f->type()) {
-                case MYSQL_TYPE_BLOB:
-                case MYSQL_TYPE_VARCHAR:
-                case MYSQL_TYPE_GEOMETRY:
-                case MYSQL_TYPE_BIT:
-                {
-                  flush_checksum(&row_crc, &checksum_start, &checksum_length);
-                  String tmp;
-                  f->val_str(&tmp);
-                  row_crc= my_checksum(row_crc, (uchar*) tmp.ptr(),
-                           tmp.length());
-                  break;
-                }
-                default:
-                  if (!checksum_start)
-                    checksum_start= f->ptr;
-                  DBUG_ASSERT(checksum_start + checksum_length == f->ptr);
-                  checksum_length+= f->pack_length();
-                  break;
-              }
-            }
-            flush_checksum(&row_crc, &checksum_start, &checksum_length);
-
-            crc+= row_crc;
-          }
-          protocol->store((ulonglong)crc);
-          t->file->ha_rnd_end();
-        }
+          protocol->store((longlong)t->file->stats.checksum);
       }
       trans_rollback_stmt(thd);
       close_thread_tables(thd);
