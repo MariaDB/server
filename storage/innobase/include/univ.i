@@ -446,8 +446,6 @@ typedef	ib_uint64_t		lsn_t;
 /** The 'undefined' value for a ulint */
 #define ULINT_UNDEFINED		((ulint)(-1))
 
-#define ULONG_UNDEFINED		((ulong)(-1))
-
 /** The 'undefined' value for a ib_uint64_t */
 #define UINT64_UNDEFINED	((ib_uint64_t)(-1))
 

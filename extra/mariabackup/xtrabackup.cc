@@ -5441,7 +5441,6 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	srv_max_n_threads = 1000;
-	srv_undo_logs = 1;
 	srv_n_purge_threads = 1;
 
 	xb_filters_init();

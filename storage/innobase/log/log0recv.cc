@@ -55,8 +55,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
-#include "trx0roll.h"
-#include "row0merge.h"
 
 /** Log records are stored in the hash table in chunks at most of this size;
 this must be less than srv_page_size as it is stored in the buffer pool */
@@ -117,7 +115,6 @@ the recovery failed and the database may be corrupt. */
 static lsn_t	recv_max_page_lsn;
 
 #ifdef UNIV_PFS_THREAD
-mysql_pfs_key_t	trx_rollback_clean_thread_key;
 mysql_pfs_key_t	recv_writer_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
@@ -3826,43 +3823,8 @@ recv_recovery_from_checkpoint_finish(void)
 
 	/* Free up the flush_rbt. */
 	buf_flush_free_flush_rbt();
-}
-
-/********************************************************//**
-Initiates the rollback of active transactions. */
-void
-recv_recovery_rollback_active(void)
-/*===============================*/
-{
-	ut_ad(!recv_writer_thread_active);
-
-	/* Switch latching order checks on in sync0debug.cc, if
-	--innodb-sync-debug=true (default) */
+	/* Enable innodb_sync_debug checks */
 	ut_d(sync_check_enable());
-
-	/* We can't start any (DDL) transactions if UNDO logging
-	has been disabled, additionally disable ROLLBACK of recovered
-	user transactions. */
-	if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
-	    && !srv_read_only_mode) {
-
-		/* Drop partially created indexes. */
-		row_merge_drop_temp_indexes();
-		/* Drop garbage tables. */
-		row_mysql_drop_garbage_tables();
-
-		/* Drop any auxiliary tables that were not dropped when the
-		parent table was dropped. This can happen if the parent table
-		was dropped but the server crashed before the auxiliary tables
-		were dropped. */
-		fts_drop_orphaned_tables();
-
-		/* Rollback the uncommitted transactions which have no user
-		session */
-
-		trx_rollback_is_active = true;
-		os_thread_create(trx_rollback_all_recovered, 0, 0);
-	}
 }
 
 /** Find a doublewrite copy of a page.

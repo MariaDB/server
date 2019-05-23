@@ -117,9 +117,6 @@ segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
 ulint	srv_undo_tablespaces_active;
 
-/* The number of rollback segments to use */
-ulong	srv_undo_logs;
-
 /** Rate at which UNDO records should be purged. */
 ulong	srv_purge_rseg_truncate_frequency;
 
@@ -1568,7 +1565,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_truncated_status_writes =
 		srv_truncated_status_writes;
 
-	export_vars.innodb_available_undo_logs = srv_available_undo_logs;
 	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
 	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
 	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;

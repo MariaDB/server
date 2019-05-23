@@ -1054,8 +1054,7 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_num_open_files,		  SHOW_LONG},
   {"truncated_status_writes",
   (char*) &export_vars.innodb_truncated_status_writes,	  SHOW_LONG},
-  {"available_undo_logs",
-  (char*) &export_vars.innodb_available_undo_logs,        SHOW_LONG},
+  {"available_undo_logs", &srv_available_undo_logs, SHOW_ULONG},
   {"undo_truncations",
   (char*) &export_vars.innodb_undo_truncations,           SHOW_LONG},
 
@@ -3656,6 +3655,11 @@ static my_bool innodb_log_checksums;
 /** Deprecation message for innodb_log_checksums */
 static const char* innodb_log_checksums_deprecated
 = "The parameter innodb_log_checksums is deprecated and has no effect.";
+/** Deprecated parameter with no effect */
+static ulong innodb_undo_logs;
+/** Deprecation message for innodb_undo_logs */
+static const char* innodb_undo_logs_deprecated
+= "The parameter innodb_undo_logs is deprecated and has no effect.";
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
@@ -3971,9 +3975,14 @@ static int innodb_init_params()
 
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
 
-	if (!innodb_log_checksums) {
+	if (UNIV_UNLIKELY(!innodb_log_checksums)) {
 		sql_print_warning(innodb_log_checksums_deprecated);
 		innodb_log_checksums = TRUE;
+	}
+
+	if (UNIV_UNLIKELY(innodb_undo_logs != TRX_SYS_N_RSEGS)) {
+		sql_print_warning(innodb_undo_logs_deprecated);
+		innodb_undo_logs = TRX_SYS_N_RSEGS;
 	}
 
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
@@ -12849,8 +12858,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 	extension, in contrast to ::create */
 	normalize_table_name(norm_name, name);
 
-	if (srv_read_only_mode
-	    || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
+	if (high_level_read_only) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
@@ -18464,6 +18472,16 @@ innodb_log_checksums_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 			    innodb_log_checksums_deprecated);
 }
 
+/** Issue a deprecation warning for SET GLOBAL innodb_undo_logs.
+@param[in,out]	thd	client connection */
+static void
+innodb_undo_logs_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
+{
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			    HA_ERR_UNSUPPORTED,
+			    innodb_undo_logs_deprecated);
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
 	{NullS, NullS, SHOW_LONG}
@@ -18658,10 +18676,13 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
   NULL, NULL, SRV_CHECKSUM_ALGORITHM_FULL_CRC32,
   &innodb_checksum_algorithm_typelib);
 
+/** Description of deprecated and ignored parameters */
+static const char* innodb_deprecated_ignored
+= "Deprecated parameter with no effect.";
+
 static MYSQL_SYSVAR_BOOL(log_checksums, innodb_log_checksums,
   PLUGIN_VAR_RQCMDARG,
-  "Deprecated parameter with no effect.",
-  NULL, innodb_log_checksums_warn, TRUE);
+  innodb_deprecated_ignored, NULL, innodb_log_checksums_warn, TRUE);
 
 static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   PLUGIN_VAR_READONLY,
@@ -18804,10 +18825,10 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
 
 static MYSQL_SYSVAR_STR(file_format, innodb_file_format,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Deprecated parameter with no effect.", NULL, NULL, NULL);
+  innodb_deprecated_ignored, NULL, NULL, NULL);
 static MYSQL_SYSVAR_STR(large_prefix, innodb_large_prefix,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Deprecated parameter with no effect.", NULL, NULL, NULL);
+  innodb_deprecated_ignored, NULL, NULL, NULL);
 
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -19377,13 +19398,10 @@ static MYSQL_SYSVAR_ULONG(undo_tablespaces, srv_undo_tablespaces,
   0L,			/* Minimum value */
   TRX_SYS_MAX_UNDO_SPACES, 0); /* Maximum value */
 
-static MYSQL_SYSVAR_ULONG(undo_logs, srv_undo_logs,
+static MYSQL_SYSVAR_ULONG(undo_logs, innodb_undo_logs,
   PLUGIN_VAR_OPCMDARG,
-  "Number of undo logs to use.",
-  NULL, NULL,
-  TRX_SYS_N_RSEGS,	/* Default setting */
-  1,			/* Minimum value */
-  TRX_SYS_N_RSEGS, 0);	/* Maximum value */
+  innodb_deprecated_ignored, NULL, innodb_undo_logs_warn,
+  TRX_SYS_N_RSEGS, 0, TRX_SYS_N_RSEGS, 0);
 
 static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   PLUGIN_VAR_OPCMDARG,
@@ -19403,15 +19421,6 @@ static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
   PLUGIN_VAR_OPCMDARG,
   "Enable or Disable Truncate of UNDO tablespace.",
   NULL, NULL, FALSE);
-
-/* Alias for innodb_undo_logs, this config variable is deprecated. */
-static MYSQL_SYSVAR_ULONG(rollback_segments, srv_undo_logs,
-  PLUGIN_VAR_OPCMDARG,
-  "Number of undo logs to use (deprecated).",
-  NULL, NULL,
-  TRX_SYS_N_RSEGS,	/* Default setting */
-  1,			/* Minimum value */
-  TRX_SYS_N_RSEGS, 0);	/* Maximum value */
 
 static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19955,7 +19964,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(max_undo_log_size),
   MYSQL_SYSVAR(purge_rseg_truncate_frequency),
   MYSQL_SYSVAR(undo_log_truncate),
-  MYSQL_SYSVAR(rollback_segments),
   MYSQL_SYSVAR(undo_directory),
   MYSQL_SYSVAR(undo_tablespaces),
   MYSQL_SYSVAR(sync_array_size),

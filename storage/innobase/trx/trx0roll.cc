@@ -44,6 +44,10 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0trx.h"
 #include "trx0undo.h"
 
+#ifdef UNIV_PFS_THREAD
+mysql_pfs_key_t	trx_rollback_clean_thread_key;
+#endif
+
 /** true if trx_rollback_all_recovered() thread is active */
 bool			trx_rollback_is_active;
 
@@ -832,7 +836,6 @@ discard:
     }
   }
 }
-
 
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were

@@ -305,9 +305,6 @@ srv_is_undo_tablespace(ulint space_id)
 			       + srv_undo_tablespaces_open);
 }
 
-/** The number of undo segments to use */
-extern ulong	srv_undo_logs;
-
 /** Maximum size of undo tablespace. */
 extern unsigned long long	srv_max_undo_log_size;
 
@@ -966,8 +963,6 @@ struct export_var_t{
 	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
 	ulint innodb_num_open_files;		/*!< fil_system_t::n_open */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
-	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs
-						*/
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;
 	ulint innodb_defragment_compression_failures; /*!< Number of

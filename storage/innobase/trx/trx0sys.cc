@@ -238,16 +238,11 @@ trx_sys_create_rsegs()
 {
 	/* srv_available_undo_logs reflects the number of persistent
 	rollback segments that have been initialized in the
-	transaction system header page.
-
-	srv_undo_logs determines how many of the
-	srv_available_undo_logs rollback segments may be used for
-	logging new transactions. */
+	transaction system header page. */
 	ut_ad(srv_undo_tablespaces <= TRX_SYS_MAX_UNDO_SPACES);
-	ut_ad(srv_undo_logs <= TRX_SYS_N_RSEGS);
 
-	if (srv_read_only_mode) {
-		srv_undo_logs = srv_available_undo_logs = ULONG_UNDEFINED;
+	if (high_level_read_only) {
+		srv_available_undo_logs = 0;
 		return(true);
 	}
 
@@ -262,43 +257,35 @@ trx_sys_create_rsegs()
 	in the system tablespace. */
 	ut_a(srv_available_undo_logs > 0);
 
-	if (srv_force_recovery) {
-		/* Do not create additional rollback segments if
-		innodb_force_recovery has been set. */
-		if (srv_undo_logs > srv_available_undo_logs) {
-			srv_undo_logs = srv_available_undo_logs;
+	for (ulint i = 0; srv_available_undo_logs < TRX_SYS_N_RSEGS;
+	     i++, srv_available_undo_logs++) {
+		/* Tablespace 0 is the system tablespace.
+		Dedicated undo log tablespaces start from 1. */
+		ulint space = srv_undo_tablespaces > 0
+			? (i % srv_undo_tablespaces)
+			+ srv_undo_space_id_start
+			: TRX_SYS_SPACE;
+
+		if (!trx_rseg_create(space)) {
+			ib::error() << "Unable to allocate the"
+				" requested innodb_undo_logs";
+			return(false);
 		}
-	} else {
-		for (ulint i = 0; srv_available_undo_logs < srv_undo_logs;
-		     i++, srv_available_undo_logs++) {
-			/* Tablespace 0 is the system tablespace.
-			Dedicated undo log tablespaces start from 1. */
-			ulint space = srv_undo_tablespaces > 0
-				? (i % srv_undo_tablespaces)
-				+ srv_undo_space_id_start
-				: TRX_SYS_SPACE;
 
-			if (!trx_rseg_create(space)) {
-				ib::error() << "Unable to allocate the"
-					" requested innodb_undo_logs";
-				return(false);
-			}
+		/* Increase the number of active undo
+		tablespace in case new rollback segment
+		assigned to new undo tablespace. */
+		if (space > srv_undo_tablespaces_active) {
+			srv_undo_tablespaces_active++;
 
-			/* Increase the number of active undo
-			tablespace in case new rollback segment
-			assigned to new undo tablespace. */
-			if (space > srv_undo_tablespaces_active) {
-				srv_undo_tablespaces_active++;
-
-				ut_ad(srv_undo_tablespaces_active == space);
-			}
+			ut_ad(srv_undo_tablespaces_active == space);
 		}
 	}
 
-	ut_ad(srv_undo_logs <= srv_available_undo_logs);
+	ut_ad(srv_available_undo_logs == TRX_SYS_N_RSEGS);
 
 	ib::info info;
-	info << srv_undo_logs << " out of " << srv_available_undo_logs;
+	info << srv_available_undo_logs;
 	if (srv_undo_tablespaces_active) {
 		info << " rollback segments in " << srv_undo_tablespaces_active
 		<< " undo tablespaces are active.";

@@ -1307,7 +1307,6 @@ dberr_t srv_start(bool create_new_db)
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
-
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = true;
 	}
@@ -2099,10 +2098,39 @@ files_checked:
 				return(srv_init_abort(err));
 			}
 		}
+	}
 
+	ut_ad(err == DB_SUCCESS);
+	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
+
+	/* Create the doublewrite buffer to a new tablespace */
+	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    && !buf_dblwr_create()) {
+		return(srv_init_abort(DB_ERROR));
+	}
+
+	/* Here the double write buffer has already been created and so
+	any new rollback segments will be allocated after the double
+	write buffer. The default segment should already exist.
+	We create the new segments only if it's a new database or
+	the database was shutdown cleanly. */
+
+	/* Note: When creating the extra rollback segments during an upgrade
+	we violate the latching order, even if the change buffer is empty.
+	We make an exception in sync0sync.cc and check srv_is_being_started
+	for that violation. It cannot create a deadlock because we are still
+	running in single threaded mode essentially. Only the IO threads
+	should be running at this stage. */
+
+	if (!trx_sys_create_rsegs()) {
+		return(srv_init_abort(DB_ERROR));
+	}
+
+	if (!create_new_db) {
 		/* Validate a few system page types that were left
-		uninitialized by older versions of MySQL. */
+		uninitialized before MySQL or MariaDB 5.5. */
 		if (!high_level_read_only) {
+			ut_ad(srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE);
 			buf_block_t*	block;
 			mtr.start();
 			/* Bitmap page types will be reset in
@@ -2130,16 +2158,20 @@ files_checked:
 				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			mtr.commit();
+
+			/* Roll back any recovered data dictionary
+			transactions, so that the data dictionary
+			tables will be free of any locks.  The data
+			dictionary latch should guarantee that there
+			is at most one data dictionary transaction
+			active at a time. */
+			if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+				trx_rollback_recovered(false);
+			}
 		}
 
-		/* Roll back any recovered data dictionary transactions, so
-		that the data dictionary tables will be free of any locks.
-		The data dictionary latch should guarantee that there is at
-		most one data dictionary transaction active at a time. */
-		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
-			trx_rollback_recovered(false);
-		}
-
+		/* FIXME: Skip the following if srv_read_only_mode,
+		while avoiding "Allocated tablespace ID" warnings. */
 		if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
 			/* Open or Create SYS_TABLESPACES and SYS_DATAFILES
 			so that tablespace names and other metadata can be
@@ -2166,41 +2198,24 @@ files_checked:
 			dict_check_tablespaces_and_store_max_id();
 		}
 
-		if (err != DB_SUCCESS) {
-			return(srv_init_abort(err));
+		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+		    && !srv_read_only_mode) {
+			/* Drop partially created indexes. */
+			row_merge_drop_temp_indexes();
+			/* Drop garbage tables. */
+			row_mysql_drop_garbage_tables();
+
+			/* Drop any auxiliary tables that were not
+			dropped when the parent table was
+			dropped. This can happen if the parent table
+			was dropped but the server crashed before the
+			auxiliary tables were dropped. */
+			fts_drop_orphaned_tables();
+
+			/* Rollback incomplete non-DDL transactions */
+			trx_rollback_is_active = true;
+			os_thread_create(trx_rollback_all_recovered, 0, 0);
 		}
-
-		recv_recovery_rollback_active();
-		srv_startup_is_before_trx_rollback_phase = FALSE;
-	}
-
-	ut_ad(err == DB_SUCCESS);
-	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
-
-	/* Create the doublewrite buffer to a new tablespace */
-	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
-	    && !buf_dblwr_create()) {
-		return(srv_init_abort(DB_ERROR));
-	}
-
-	/* Here the double write buffer has already been created and so
-	any new rollback segments will be allocated after the double
-	write buffer. The default segment should already exist.
-	We create the new segments only if it's a new database or
-	the database was shutdown cleanly. */
-
-	/* Note: When creating the extra rollback segments during an upgrade
-	we violate the latching order, even if the change buffer is empty.
-	We make an exception in sync0sync.cc and check srv_is_being_started
-	for that violation. It cannot create a deadlock because we are still
-	running in single threaded mode essentially. Only the IO threads
-	should be running at this stage. */
-
-	ut_a(srv_undo_logs > 0);
-	ut_a(srv_undo_logs <= TRX_SYS_N_RSEGS);
-
-	if (!trx_sys_create_rsegs()) {
-		return(srv_init_abort(DB_ERROR));
 	}
 
 	srv_startup_is_before_trx_rollback_phase = false;

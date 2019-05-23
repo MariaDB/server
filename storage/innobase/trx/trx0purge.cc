@@ -568,7 +568,7 @@ static void trx_purge_truncate_history()
 		return;
 	}
 
-	while (srv_undo_log_truncate && srv_undo_logs >= 3) {
+	while (srv_undo_log_truncate) {
 		if (!purge_sys.truncate.current) {
 			const ulint threshold = ulint(srv_max_undo_log_size
 						      >> srv_page_size_shift);
