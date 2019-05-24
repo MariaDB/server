@@ -2798,9 +2798,12 @@ int ha_maria::external_lock(THD *thd, int lock_type)
       }
     }
   } /* if transactional table */
-  DBUG_RETURN(maria_lock_database(file, !table->s->tmp_table ?
+  int result = maria_lock_database(file, !table->s->tmp_table ?
                                   lock_type : ((lock_type == F_UNLCK) ?
-                                               F_UNLCK : F_EXTRA_LCK)));
+                                               F_UNLCK : F_EXTRA_LCK));
+  if (!file->s->base.born_transactional)
+    file->state= &file->s->state.state;         // Restore state if clone
+  DBUG_RETURN(result);
 }
 
 int ha_maria::start_stmt(THD *thd, thr_lock_type lock_type)
