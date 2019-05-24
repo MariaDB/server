@@ -260,7 +260,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           265
+#define SPIDER_MEM_CALC_LIST_NUM           268
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \

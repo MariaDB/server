@@ -3458,13 +3458,14 @@ int spider_db_mbase_util::append_escaped_name_quote(
   DBUG_RETURN(0);
 }
 
-int spider_db_mbase_util::append_column_value(
+int spider_db_mariadb_util::append_column_value(
   ha_spider *spider,
   spider_string *str,
   Field *field,
   const uchar *new_ptr,
   CHARSET_INFO *access_charset
 ) {
+  bool float_value = FALSE;
   int error_num;
   char buf[MAX_FIELD_WIDTH];
   spider_string tmp_str(buf, MAX_FIELD_WIDTH, field->charset());
@@ -3472,7 +3473,7 @@ int spider_db_mbase_util::append_column_value(
   uint length;
   THD *thd = field->table->in_use;
   Time_zone *saved_time_zone = thd->variables.time_zone;
-  DBUG_ENTER("spider_db_mbase_util::append_column_value");
+  DBUG_ENTER("spider_db_mariadb_util::append_column_value");
   tmp_str.init_calc_mem(113);
 
   thd->variables.time_zone = UTC;
@@ -3571,6 +3572,10 @@ int spider_db_mbase_util::append_column_value(
   } else {
     ptr = field->val_str(tmp_str.get_str());
     tmp_str.mem_calc();
+    if (field->type() == MYSQL_TYPE_FLOAT)
+    {
+      float_value = TRUE;
+    }
   }
 
   thd->variables.time_zone = saved_time_zone;
@@ -3640,8 +3645,238 @@ int spider_db_mbase_util::append_column_value(
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
     append_escaped_util(str, ptr);
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+  } else if (float_value)
+  {
+    if (str->reserve(SPIDER_SQL_CAST_LEN + ptr->length() +
+      SPIDER_SQL_AS_FLOAT_LEN, SPIDER_SQL_CLOSE_PAREN_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_SQL_CAST_STR, SPIDER_SQL_CAST_LEN);
+    str->q_append(ptr->ptr(), ptr->length());
+    str->q_append(SPIDER_SQL_AS_FLOAT_STR, SPIDER_SQL_AS_FLOAT_LEN);
+    str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
   } else if (str->append(*ptr))
+  {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
+
+
+int spider_db_mysql_util::append_column_value(
+  ha_spider *spider,
+  spider_string *str,
+  Field *field,
+  const uchar *new_ptr,
+  CHARSET_INFO *access_charset
+) {
+  bool float_value = FALSE;
+  int error_num;
+  char buf[MAX_FIELD_WIDTH];
+  spider_string tmp_str(buf, MAX_FIELD_WIDTH, field->charset());
+  String *ptr;
+  uint length;
+  THD *thd = field->table->in_use;
+  Time_zone *saved_time_zone = thd->variables.time_zone;
+  DBUG_ENTER("spider_db_mysql_util::append_column_value");
+  tmp_str.init_calc_mem(266);
+
+  thd->variables.time_zone = UTC;
+
+  if (new_ptr)
+  {
+    if (
+      field->type() == MYSQL_TYPE_BLOB ||
+      field->real_type() == MYSQL_TYPE_VARCHAR
+    ) {
+      length = uint2korr(new_ptr);
+      tmp_str.set_quick((char *) new_ptr + HA_KEY_BLOB_LENGTH, length,
+        field->charset());
+      ptr = tmp_str.get_str();
+    } else if (field->type() == MYSQL_TYPE_GEOMETRY)
+    {
+/*
+      uint mlength = SIZEOF_STORED_DOUBLE, lcnt;
+      uchar *dest = (uchar *) buf;
+      const uchar *source;
+      for (lcnt = 0; lcnt < 4; lcnt++)
+      {
+        mlength = SIZEOF_STORED_DOUBLE;
+        source = new_ptr + mlength + SIZEOF_STORED_DOUBLE * lcnt;
+        while (mlength--)
+          *dest++ = *--source;
+      }
+      tmp_str.length(SIZEOF_STORED_DOUBLE * lcnt);
+*/
+#ifndef DBUG_OFF
+      double xmin, xmax, ymin, ymax;
+/*
+      float8store(buf,xmin);
+      float8store(buf+8,xmax);
+      float8store(buf+16,ymin);
+      float8store(buf+24,ymax);
+      memcpy(&xmin,new_ptr,sizeof(xmin));
+      memcpy(&xmax,new_ptr + 8,sizeof(xmax));
+      memcpy(&ymin,new_ptr + 16,sizeof(ymin));
+      memcpy(&ymax,new_ptr + 24,sizeof(ymax));
+      float8get(xmin, buf);
+      float8get(xmax, buf + 8);
+      float8get(ymin, buf + 16);
+      float8get(ymax, buf + 24);
+      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
+        xmin, xmax, ymin, ymax));
+      DBUG_PRINT("info", ("spider geo is %.14g %.14g %.14g %.14g",
+        xmin, xmax, ymin, ymax));
+*/
+      float8get(xmin, new_ptr);
+      float8get(xmax, new_ptr + 8);
+      float8get(ymin, new_ptr + 16);
+      float8get(ymax, new_ptr + 24);
+      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
+        xmin, xmax, ymin, ymax));
+/*
+      float8get(xmin, new_ptr + SIZEOF_STORED_DOUBLE * 4);
+      float8get(xmax, new_ptr + SIZEOF_STORED_DOUBLE * 5);
+      float8get(ymin, new_ptr + SIZEOF_STORED_DOUBLE * 6);
+      float8get(ymax, new_ptr + SIZEOF_STORED_DOUBLE * 7);
+      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
+        xmin, xmax, ymin, ymax));
+      float8get(xmin, new_ptr + SIZEOF_STORED_DOUBLE * 8);
+      float8get(xmax, new_ptr + SIZEOF_STORED_DOUBLE * 9);
+      float8get(ymin, new_ptr + SIZEOF_STORED_DOUBLE * 10);
+      float8get(ymax, new_ptr + SIZEOF_STORED_DOUBLE * 11);
+      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
+        xmin, xmax, ymin, ymax));
+      float8get(xmin, new_ptr + SIZEOF_STORED_DOUBLE * 12);
+      float8get(xmax, new_ptr + SIZEOF_STORED_DOUBLE * 13);
+      float8get(ymin, new_ptr + SIZEOF_STORED_DOUBLE * 14);
+      float8get(ymax, new_ptr + SIZEOF_STORED_DOUBLE * 15);
+      DBUG_PRINT("info", ("spider geo is %f %f %f %f",
+        xmin, xmax, ymin, ymax));
+*/
+#endif
+/*
+      tmp_str.set_quick((char *) new_ptr, SIZEOF_STORED_DOUBLE * 4,
+        &my_charset_bin);
+*/
+      tmp_str.length(0);
+      tmp_str.q_append((char *) SPIDER_SQL_LINESTRING_HEAD_STR,
+        SPIDER_SQL_LINESTRING_HEAD_LEN);
+      tmp_str.q_append((char *) new_ptr, SIZEOF_STORED_DOUBLE);
+      tmp_str.q_append((char *) new_ptr + SIZEOF_STORED_DOUBLE * 2,
+        SIZEOF_STORED_DOUBLE);
+      tmp_str.q_append((char *) new_ptr + SIZEOF_STORED_DOUBLE,
+        SIZEOF_STORED_DOUBLE);
+      tmp_str.q_append((char *) new_ptr + SIZEOF_STORED_DOUBLE * 3,
+        SIZEOF_STORED_DOUBLE);
+      ptr = tmp_str.get_str();
+    } else {
+      ptr = field->val_str(tmp_str.get_str(), new_ptr);
+      tmp_str.mem_calc();
+    }
+  } else {
+    ptr = field->val_str(tmp_str.get_str());
+    tmp_str.mem_calc();
+    if (field->type() == MYSQL_TYPE_FLOAT)
+    {
+      float_value = TRUE;
+    }
+  }
+
+  thd->variables.time_zone = saved_time_zone;
+
+  DBUG_PRINT("info", ("spider field->type() is %d", field->type()));
+  DBUG_PRINT("info", ("spider ptr->length() is %d", ptr->length()));
+/*
+  if (
+    field->type() == MYSQL_TYPE_BIT ||
+    (field->type() >= MYSQL_TYPE_TINY_BLOB &&
+      field->type() <= MYSQL_TYPE_BLOB)
+  ) {
+    uchar *hex_ptr = (uchar *) ptr->ptr(), *end_ptr;
+    char *str_ptr;
+    DBUG_PRINT("info", ("spider HEX"));
+    if (str->reserve(SPIDER_SQL_HEX_LEN + ptr->length() * 2))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    str->q_append(SPIDER_SQL_HEX_STR, SPIDER_SQL_HEX_LEN);
+    str_ptr = (char *) str->ptr() + str->length();
+    for (end_ptr = hex_ptr + ptr->length(); hex_ptr < end_ptr; hex_ptr++)
+    {
+      *str_ptr++ = spider_dig_upper[(*hex_ptr) >> 4];
+      *str_ptr++ = spider_dig_upper[(*hex_ptr) & 0x0F];
+    }
+    str->length(str->length() + ptr->length() * 2);
+  } else 
+*/
+  if (field->result_type() == STRING_RESULT)
+  {
+    DBUG_PRINT("info", ("spider STRING_RESULT"));
+    if (str->charset() != field->charset())
+    {
+      if ((error_num = spider_db_append_charset_name_before_string(str,
+        field->charset())))
+      {
+        DBUG_RETURN(error_num);
+      }
+    }
+    if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    if (
+      field->type() == MYSQL_TYPE_VARCHAR ||
+      (field->type() >= MYSQL_TYPE_ENUM &&
+        field->type() <= MYSQL_TYPE_GEOMETRY)
+    ) {
+      DBUG_PRINT("info", ("spider append_escaped"));
+      char buf2[MAX_FIELD_WIDTH];
+      spider_string tmp_str2(buf2, MAX_FIELD_WIDTH, field->charset());
+      tmp_str2.init_calc_mem(267);
+      tmp_str2.length(0);
+      if (
+        tmp_str2.append(ptr->ptr(), ptr->length(), field->charset()) ||
+        str->reserve(tmp_str2.length() * 2) ||
+        append_escaped_util(str, tmp_str2.get_str())
+      )
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    } else if (str->append(*ptr))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+  } else if (field->str_needs_quotes())
+  {
+    if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 + ptr->length() * 2 + 2))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    append_escaped_util(str, ptr);
+    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+  } else if (float_value)
+  {
+    if (str->reserve(SPIDER_SQL_TO_FLOAT_LEN + ptr->length() +
+      SPIDER_SQL_CLOSE_PAREN_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_SQL_TO_FLOAT_STR, SPIDER_SQL_TO_FLOAT_LEN);
+    str->q_append(ptr->ptr(), ptr->length());
+    str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
+  } else if (str->append(*ptr))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_column_value(
+  ha_spider *spider,
+  spider_string *str,
+  Field *field,
+  const uchar *new_ptr,
+  CHARSET_INFO *access_charset
+) {
+  DBUG_ENTER("spider_db_mbase_util::append_column_value");
+  DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
