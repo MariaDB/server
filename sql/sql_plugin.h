@@ -111,7 +111,7 @@ struct st_plugin_int
   st_ptr_backup *ptr_backup;
   uint nbackups;
   uint state;
-  uint ref_count;               /* number of threads using the plugin */
+  volatile int32 ref_count;               /* number of threads using the plugin */
   uint locks_total;             /* how many times the plugin was locked */
   void *data;                   /* plugin type specific, e.g. handlerton */
   MEM_ROOT mem_root;            /* memory for dynamic plugin structures */

@@ -125,7 +125,7 @@ plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   Essentially, we want to initialize MYSQL_KEY_MANAGEMENT_PLUGIN before
   MYSQL_STORAGE_ENGINE_PLUGIN, and that before MYSQL_INFORMATION_SCHEMA_PLUGIN
 */
-static int plugin_type_initialization_order[MYSQL_MAX_PLUGIN_TYPE_NUM]=
+int plugin_type_initialization_order[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   MYSQL_DAEMON_PLUGIN,
   MariaDB_ENCRYPTION_PLUGIN,
@@ -224,12 +224,12 @@ static struct
 */
 mysql_mutex_t LOCK_plugin;
 static DYNAMIC_ARRAY plugin_dl_array;
-static DYNAMIC_ARRAY plugin_array;
-static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
+DYNAMIC_ARRAY plugin_array;
+HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
-static bool reap_needed= false;
+bool reap_needed= false;
 
-static bool initialized= 0;
+bool sql_plugin_initialized= 0;
 ulong dlopen_count;
 
 
@@ -891,7 +891,7 @@ static struct st_plugin_int *plugin_find_internal(const LEX_STRING *name, int ty
 {
   uint i;
   DBUG_ENTER("plugin_find_internal");
-  if (! initialized)
+  if (! sql_plugin_initialized)
     DBUG_RETURN(0);
 
   mysql_mutex_assert_owner(&LOCK_plugin);
@@ -1186,7 +1186,7 @@ static void plugin_variables_deinit(struct st_plugin_int *plugin)
   mysql_del_sys_var_chain(plugin->system_vars);
 }
 
-static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
+void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
 {
   /*
     we don't want to hold the LOCK_plugin mutex as it may cause
@@ -1239,7 +1239,7 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   plugin_variables_deinit(plugin);
 }
 
-static void plugin_del(struct st_plugin_int *plugin)
+void plugin_del(struct st_plugin_int *plugin)
 {
   DBUG_ENTER("plugin_del");
   mysql_mutex_assert_owner(&LOCK_plugin);
@@ -1539,7 +1539,7 @@ int plugin_init(int *argc, char **argv, int flags)
   LEX_STRING MyISAM= { C_STRING_WITH_LEN("MyISAM") };
   DBUG_ENTER("plugin_init");
 
-  if (initialized)
+  if (sql_plugin_initialized)
     DBUG_RETURN(0);
 
   dlopen_count =0;
@@ -1578,7 +1578,7 @@ int plugin_init(int *argc, char **argv, int flags)
 
   mysql_mutex_lock(&LOCK_plugin);
 
-  initialized= 1;
+  sql_plugin_initialized= 1;
 
   /*
     First we register builtin plugins
@@ -1935,7 +1935,7 @@ void plugin_shutdown(void)
   struct st_plugin_dl **dl;
   DBUG_ENTER("plugin_shutdown");
 
-  if (initialized)
+  if (sql_plugin_initialized)
   {
     mysql_mutex_lock(&LOCK_plugin);
 
@@ -2027,7 +2027,7 @@ void plugin_shutdown(void)
     cleanup_variables(&max_system_variables);
     mysql_mutex_unlock(&LOCK_plugin);
 
-    initialized= 0;
+    sql_plugin_initialized= 0;
     mysql_mutex_destroy(&LOCK_plugin);
 
     my_afree(plugins);
@@ -2357,7 +2357,7 @@ bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
   my_bool res= FALSE;
   DBUG_ENTER("plugin_foreach_with_mask");
 
-  if (!initialized)
+  if (!sql_plugin_initialized)
     DBUG_RETURN(FALSE);
 
   mysql_mutex_lock(&LOCK_plugin);
@@ -4167,7 +4167,7 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root)
   struct st_plugin_int *p;
   my_option *opt;
 
-  if (!initialized)
+  if (!sql_plugin_initialized)
     return;
 
   for (uint idx= 0; idx < plugin_array.elements; idx++)

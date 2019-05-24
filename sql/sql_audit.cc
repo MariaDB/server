@@ -55,6 +55,85 @@ bool check_audit_mask(const unsigned long *lhs,
 }
 
 
+static plugin_ref audit_intern_plugin_lock(LEX *lex, plugin_ref rc,
+                                     uint state_mask= PLUGIN_IS_READY |
+                                                      PLUGIN_IS_UNINITIALIZED |
+                                                      PLUGIN_IS_DELETED)
+{
+  st_plugin_int *pi= plugin_ref_to_int(rc);
+  DBUG_ENTER("intern_plugin_lock");
+
+  //mysql_mutex_assert_owner(&LOCK_plugin);
+
+  if (pi->state & state_mask)
+  {
+    plugin_ref plugin;
+#ifdef DBUG_OFF
+    /*
+      In optimized builds we don't do reference counting for built-in
+      (plugin->plugin_dl == 0) plugins.
+    */
+    if (!pi->plugin_dl)
+      DBUG_RETURN(pi);
+
+    plugin= pi;
+#else
+    /*
+      For debugging, we do an additional malloc which allows the
+      memory manager and/or valgrind to track locked references and
+      double unlocks to aid resolving reference counting problems.
+    */
+    if (!(plugin= (plugin_ref) my_malloc(sizeof(pi), MYF(MY_WME))))
+      DBUG_RETURN(NULL);
+
+    *plugin= pi;
+#endif
+    my_atomic_add32(&pi->ref_count, 1);
+    DBUG_PRINT("lock",("thd: %p  plugin: \"%s\" LOCK ref_count: %d",
+                       current_thd, pi->name.str, pi->ref_count));
+
+    if (lex)
+      insert_dynamic(&lex->plugins, (uchar*)&plugin);
+    DBUG_RETURN(plugin);
+  }
+  DBUG_RETURN(NULL);
+}
+
+
+static plugin_ref audit_plugin_lock(THD *thd, plugin_ref ptr)
+{
+  LEX *lex= thd ? thd->lex : 0;
+  plugin_ref rc;
+  DBUG_ENTER("plugin_lock");
+
+#ifdef DBUG_OFF
+  /*
+    In optimized builds we don't do reference counting for built-in
+    (plugin->plugin_dl == 0) plugins.
+
+    Note that we access plugin->plugin_dl outside of LOCK_plugin, and for
+    dynamic plugins a 'plugin' could correspond to plugin that was unloaded
+    meanwhile!  But because st_plugin_int is always allocated on
+    plugin_mem_root, the pointer can never be invalid - the memory is never
+    freed.
+    Of course, the memory that 'plugin' points to can be overwritten by
+    another plugin being loaded, but plugin->plugin_dl can never change
+    from zero to non-zero or vice versa.
+    That is, it's always safe to check for plugin->plugin_dl==0 even
+    without a mutex.
+  */
+  if (! plugin_dlib(ptr))
+  {
+    plugin_ref_to_int(ptr)->locks_total++;
+    DBUG_RETURN(ptr);
+  }
+#endif
+  //mysql_mutex_lock(&LOCK_plugin);
+  plugin_ref_to_int(ptr)->locks_total++;
+  rc= audit_intern_plugin_lock(lex, ptr);
+  //mysql_mutex_unlock(&LOCK_plugin);
+  DBUG_RETURN(rc);
+}
 /**
   Acquire and lock any additional audit plugins as required
   
@@ -92,10 +171,167 @@ static my_bool acquire_plugins(THD *thd, plugin_ref plugin, void *arg)
   }
   
   /* lock the plugin and add it to the list */
-  plugin= my_plugin_lock(NULL, plugin);
+  plugin= audit_plugin_lock(NULL, plugin);
   insert_dynamic(&thd->audit_class_plugins, (uchar*) &plugin);
 
   return 0;
+}
+
+
+extern bool reap_needed;
+extern DYNAMIC_ARRAY plugin_array;
+extern HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
+extern int plugin_type_initialization_order[];
+void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check);
+void plugin_del(struct st_plugin_int *plugin);
+static void audit_reap_plugins(void)
+{
+  uint count;
+  struct st_plugin_int *plugin, **reap, **list;
+
+  //mysql_mutex_assert_owner(&LOCK_plugin);
+
+  if (!reap_needed)
+    return;
+
+  reap_needed= false;
+  count= plugin_array.elements;
+  reap= (struct st_plugin_int **)my_alloca(sizeof(plugin)*(count+1));
+  *(reap++)= NULL;
+
+  for (uint i=0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
+  {
+    HASH *hash= plugin_hash + plugin_type_initialization_order[i];
+    for (uint j= 0; j < hash->records; j++)
+    {
+      plugin= (struct st_plugin_int *) my_hash_element(hash, j);
+      if (plugin->state == PLUGIN_IS_DELETED && !plugin->ref_count)
+      {
+        /* change the status flag to prevent reaping by another thread */
+        plugin->state= PLUGIN_IS_DYING;
+        *(reap++)= plugin;
+      }
+    }
+  }
+
+
+  list= reap;
+  while ((plugin= *(--list)))
+      plugin_deinitialize(plugin, true);
+
+  mysql_mutex_lock(&LOCK_plugin);
+
+  while ((plugin= *(--reap)))
+    plugin_del(plugin);
+
+  mysql_mutex_unlock(&LOCK_plugin);
+
+  my_afree(reap);
+}
+
+static void audit_intern_plugin_unlock(LEX *lex, plugin_ref plugin)
+{
+  int i;
+  st_plugin_int *pi;
+  DBUG_ENTER("intern_plugin_unlock");
+
+  //mysql_mutex_assert_owner(&LOCK_plugin);
+
+  if (!plugin)
+    DBUG_VOID_RETURN;
+
+  pi= plugin_ref_to_int(plugin);
+
+#ifdef DBUG_OFF
+  if (!pi->plugin_dl)
+    DBUG_VOID_RETURN;
+#else
+  my_free(plugin);
+#endif
+
+  if (lex)
+  {
+    /*
+      Remove one instance of this plugin from the use list.
+      We are searching backwards so that plugins locked last
+      could be unlocked faster - optimizing for LIFO semantics.
+    */
+    for (i= lex->plugins.elements - 1; i >= 0; i--)
+      if (plugin == *dynamic_element(&lex->plugins, i, plugin_ref*))
+      {
+        delete_dynamic_element(&lex->plugins, i);
+        break;
+      }
+    DBUG_ASSERT(i >= 0);
+  }
+
+  DBUG_ASSERT(pi->ref_count);
+  my_atomic_add32(&pi->ref_count, -1);
+
+  DBUG_PRINT("lock",("thd: %p  plugin: \"%s\" UNLOCK ref_count: %d",
+                     current_thd, pi->name.str, pi->ref_count));
+
+  if (pi->state == PLUGIN_IS_DELETED && !pi->ref_count)
+    reap_needed= true;
+
+  DBUG_VOID_RETURN;
+}
+
+
+static void audit_plugin_unlock_list(THD *thd, plugin_ref *list, uint count)
+{
+  LEX *lex= thd ? thd->lex : 0;
+  DBUG_ENTER("plugin_unlock_list");
+  if (count == 0)
+    DBUG_VOID_RETURN;
+
+  DBUG_ASSERT(list);
+  //mysql_mutex_lock(&LOCK_plugin);
+  while (count--)
+    audit_intern_plugin_unlock(lex, *list++);
+  audit_reap_plugins();
+  //mysql_mutex_unlock(&LOCK_plugin);
+  DBUG_VOID_RETURN;
+}
+
+
+extern bool sql_plugin_initialized;
+static bool audit_plugin_foreach(THD *thd, plugin_foreach_func *func,
+                       int type, void *arg)
+{
+  uint idx, total= 0;
+  struct st_plugin_int *plugin;
+  plugin_ref *plugins;
+  my_bool res= FALSE;
+  DBUG_ENTER("plugin_foreach_with_mask");
+
+  if (!sql_plugin_initialized)
+    DBUG_RETURN(FALSE);
+
+  //mysql_mutex_lock(&LOCK_plugin);
+  {
+    HASH *hash= plugin_hash + type;
+    plugins= (plugin_ref*) my_alloca(hash->records * sizeof(plugin_ref));
+    for (idx= 0; idx < hash->records; idx++)
+    {
+      plugin= (struct st_plugin_int *) my_hash_element(hash, idx);
+      if ((plugins[total]= audit_intern_plugin_lock(0, plugin_int_to_ref(plugin),
+                                              PLUGIN_IS_READY)))
+        total++;
+    }
+  }
+  //mysql_mutex_unlock(&LOCK_plugin);
+
+  for (idx= 0; idx < total; idx++)
+  {
+    /* It will stop iterating on first engine error when "func" returns TRUE */
+    if ((res= func(thd, plugins[idx], arg)))
+        break;
+  }
+
+  audit_plugin_unlock_list(0, plugins, total);
+  my_afree(plugins);
+  DBUG_RETURN(res);
 }
 
 
@@ -116,7 +352,7 @@ void mysql_audit_acquire_plugins(THD *thd, ulong *event_class_mask)
 
   if (check_audit_mask(thd->audit_class_mask, event_class_mask))
   {
-    plugin_foreach(thd, acquire_plugins, MYSQL_AUDIT_PLUGIN, event_class_mask);
+    audit_plugin_foreach(thd, acquire_plugins, MYSQL_AUDIT_PLUGIN, event_class_mask);
     add_audit_mask(thd->audit_class_mask, event_class_mask);
   }
   DBUG_VOID_RETURN;
@@ -152,7 +388,7 @@ void mysql_audit_release(THD *thd)
   }
 
   /* Now we actually unlock the plugins */  
-  plugin_unlock_list(NULL, (plugin_ref*) thd->audit_class_plugins.buffer,
+  audit_plugin_unlock_list(NULL, (plugin_ref*) thd->audit_class_plugins.buffer,
                      thd->audit_class_plugins.elements);
   
   /* Reset the state of thread values */
