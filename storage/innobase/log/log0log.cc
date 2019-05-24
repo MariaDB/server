@@ -1609,11 +1609,11 @@ loop:
 		} else {
 			ut_ad(!srv_dict_stats_thread_active);
 		}
-		if (recv_sys && recv_sys->flush_start) {
+		if (recv_sys.flush_start) {
 			/* This is in case recv_writer_thread was never
 			started, or buf_flush_page_cleaner_coordinator
 			failed to notice its termination. */
-			os_event_set(recv_sys->flush_start);
+			os_event_set(recv_sys.flush_start);
 		}
 	}
 #define COUNT_INTERVAL 600U
@@ -1951,7 +1951,7 @@ void log_t::close()
   if (!srv_read_only_mode && srv_scrub_log)
     os_event_destroy(log_scrub_event);
 
-  recv_sys_close();
+  recv_sys.close();
 }
 
 /******************************************************//**

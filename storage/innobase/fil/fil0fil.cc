@@ -4413,7 +4413,7 @@ fil_aio_wait(
 
 		ut_ad(type.is_read());
 		if (recv_recovery_is_on() && !srv_force_recovery) {
-			recv_sys->found_corrupt_fs = true;
+			recv_sys.found_corrupt_fs = true;
 		}
 
 		if (fil_space_t* space = fil_space_acquire_for_io(space_id)) {

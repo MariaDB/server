@@ -100,7 +100,7 @@ mlog_parse_initial_log_record(
 	*type = mlog_id_t(*ptr & ~MLOG_SINGLE_REC_FLAG);
 	if (UNIV_UNLIKELY(*type > MLOG_BIGGEST_TYPE
 			  && !EXTRA_CHECK_MLOG_NUMBER(*type))) {
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 		return NULL;
 	}
 
@@ -234,7 +234,7 @@ mlog_parse_nbytes(
 		break;
 	default:
 	corrupt:
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 		ptr = NULL;
 	}
 
@@ -401,7 +401,7 @@ mlog_parse_string(
 	ptr += 2;
 
 	if (offset >= srv_page_size || len + offset > srv_page_size) {
-		recv_sys->found_corrupt_log = TRUE;
+		recv_sys.found_corrupt_log = TRUE;
 
 		return(NULL);
 	}
@@ -641,7 +641,7 @@ mlog_parse_index(
 			n_core_fields = mach_read_from_2(ptr);
 
 			if (!n_core_fields || n_core_fields > n) {
-				recv_sys->found_corrupt_log = TRUE;
+				recv_sys.found_corrupt_log = TRUE;
 				return(NULL);
 			}
 

@@ -388,7 +388,7 @@ trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page)
 	const ulint type = *ptr++;
 
 	if (type > TRX_UNDO_UPDATE) {
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 	} else if (page) {
 		/* Starting with MDEV-12288 in MariaDB 10.3.1, we use
 		type=0 for the combined insert/update undo log

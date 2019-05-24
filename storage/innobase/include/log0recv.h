@@ -69,17 +69,6 @@ Initiates the rollback of active transactions. */
 void
 recv_recovery_rollback_active(void);
 /*===============================*/
-/** Clean up after recv_sys_init() */
-void
-recv_sys_close();
-/** Initialize the redo log recovery subsystem. */
-void
-recv_sys_init();
-/********************************************************//**
-Frees the recovery system. */
-void
-recv_sys_debug_free(void);
-/*=====================*/
 
 /********************************************************//**
 Reset the state of the recovery system variables. */
@@ -105,7 +94,7 @@ enum store_t {
 
 
 /** Adds data from a new log block to the parsing buffer of recv_sys if
-recv_sys->parse_start_lsn is non-zero.
+recv_sys.parse_start_lsn is non-zero.
 @param[in]	log_block	log block to add
 @param[in]	scanned_lsn	lsn of how far we were able to find
 				data in this log block
@@ -201,14 +190,11 @@ struct recv_sys_t{
 	buf_flush_t		flush_type;/*!< type of the flush request.
 				BUF_FLUSH_LRU: flush end of LRU, keeping free blocks.
 				BUF_FLUSH_LIST: flush all of blocks. */
-	ibool		apply_log_recs;
-				/*!< this is TRUE when log rec application to
-				pages is allowed; this flag tells the
-				i/o-handler if it should do log record
-				application */
-	ibool		apply_batch_on;
-				/*!< this is TRUE when a log rec application
-				batch is running */
+	/** whether recv_recover_page(), invoked from buf_page_io_complete(),
+	should apply log records*/
+	bool		apply_log_recs;
+	/** whether recv_apply_hashed_log_recs() is running */
+	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
 	size_t		buf_size;	/*!< size of buf */
 	ulint		len;	/*!< amount of data in buf */
@@ -262,6 +248,32 @@ struct recv_sys_t{
 	/** Lastly added LSN to the hash table of log records. */
 	lsn_t		last_stored_lsn;
 
+	/** Initialize the redo log recovery subsystem. */
+	void create();
+
+	/** Free most recovery data structures. */
+	void debug_free();
+
+	/** Clean up after create() */
+	void close();
+
+	bool is_initialised() const { return buf_size != 0; }
+
+	/** Store a redo log record for applying.
+	@param type	record type
+	@param space	tablespace identifier
+	@param page_no	page number
+	@param body	record body
+	@param rec_end	end of record
+	@param lsn	start LSN of the mini-transaction
+	@param end_lsn	end LSN of the mini-transaction */
+	inline void add(mlog_id_t type, ulint space, ulint page_no,
+			byte* body, byte* rec_end, lsn_t lsn,
+			lsn_t end_lsn);
+
+	/** Empty a fully processed set of stored redo log records. */
+	inline void empty();
+
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time
 	@return	whether progress should be reported
@@ -278,7 +290,7 @@ struct recv_sys_t{
 };
 
 /** The recovery system */
-extern recv_sys_t*	recv_sys;
+extern recv_sys_t	recv_sys;
 
 /** TRUE when applying redo log records during crash recovery; FALSE
 otherwise.  Note that this is FALSE while a background thread is

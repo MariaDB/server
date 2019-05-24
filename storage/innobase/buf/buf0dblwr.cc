@@ -358,7 +358,7 @@ buf_dblwr_init_or_load_pages(
 	byte*		doublewrite;
 	byte*		unaligned_read_buf;
 	ibool		reset_space_ids = FALSE;
-	recv_dblwr_t&	recv_dblwr = recv_sys->dblwr;
+	recv_dblwr_t&	recv_dblwr = recv_sys.dblwr;
 
 	/* We do the file i/o past the buffer pool */
 
@@ -523,7 +523,7 @@ buf_dblwr_process()
 	ulint		page_no_dblwr	= 0;
 	byte*		read_buf;
 	byte*		unaligned_read_buf;
-	recv_dblwr_t&	recv_dblwr	= recv_sys->dblwr;
+	recv_dblwr_t&	recv_dblwr	= recv_sys.dblwr;
 
 	if (!buf_dblwr) {
 		return;
