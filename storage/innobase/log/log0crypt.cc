@@ -39,10 +39,15 @@ my_bool srv_encrypt_log;
 /** Redo log encryption key ID */
 #define LOG_DEFAULT_ENCRYPTION_KEY 1
 
-typedef union {
-	uint32_t	words[MY_AES_BLOCK_SIZE / sizeof(uint32_t)];
+struct aes_block_t {
 	byte		bytes[MY_AES_BLOCK_SIZE];
-} aes_block_t;
+#ifdef HAVE_WOLFSSL
+	// Workaround for  MDEV-19582.
+	// WolfSSL reads memory out of bounds with decrypt/NOPAD
+	// Pad the structure to workaround
+	byte		pad[MY_AES_BLOCK_SIZE];
+#endif
+};
 
 struct crypt_info_t {
 	ulint		checkpoint_no; /*!< checkpoint no; 32 bits */
@@ -91,7 +96,8 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 	byte	mysqld_key[MY_AES_MAX_KEY_LENGTH];
 	uint	keylen = sizeof mysqld_key;
 
-	compile_time_assert(16 == sizeof info->crypt_key);
+	compile_time_assert(16 == sizeof info->crypt_key.bytes);
+	compile_time_assert(16 == MY_AES_BLOCK_SIZE);
 
 	if (uint rc = encryption_key_get(LOG_DEFAULT_ENCRYPTION_KEY,
 					 info->key_version, mysqld_key,
@@ -113,7 +119,7 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 	uint dst_len;
 	int err= my_aes_crypt(MY_AES_ECB,
 			      ENCRYPTION_FLAG_NOPAD | ENCRYPTION_FLAG_ENCRYPT,
-			      info->crypt_msg.bytes, sizeof info->crypt_msg,
+			      info->crypt_msg.bytes, MY_AES_BLOCK_SIZE,
 			      info->crypt_key.bytes, &dst_len,
 			      mysqld_key, keylen, NULL, 0);
 
@@ -212,7 +218,7 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
 			buf + LOG_CRYPT_HDR_SIZE, dst_size,
 			reinterpret_cast<byte*>(dst), &dst_len,
 			const_cast<byte*>(info.crypt_key.bytes),
-			sizeof info.crypt_key,
+			MY_AES_BLOCK_SIZE,
 			reinterpret_cast<byte*>(aes_ctr_iv), sizeof aes_ctr_iv,
 			op == LOG_DECRYPT
 			? ENCRYPTION_FLAG_DECRYPT | ENCRYPTION_FLAG_NOPAD
@@ -249,7 +255,7 @@ log_crypt_init()
 		return false;
 	}
 
-	if (my_random_bytes(info.crypt_msg.bytes, sizeof info.crypt_msg)
+	if (my_random_bytes(info.crypt_msg.bytes, MY_AES_BLOCK_SIZE)
 	    != MY_AES_OK
 	    || my_random_bytes(info.crypt_nonce.bytes, sizeof info.crypt_nonce)
 	    != MY_AES_OK) {
@@ -287,7 +293,7 @@ log_crypt_101_read_checkpoint(const byte* buf)
 		infos_used++;
 		info.checkpoint_no = checkpoint_no;
 		info.key_version = mach_read_from_4(buf + 4);
-		memcpy(info.crypt_msg.bytes, buf + 8, sizeof info.crypt_msg);
+		memcpy(info.crypt_msg.bytes, buf + 8, MY_AES_BLOCK_SIZE);
 		memcpy(info.crypt_nonce.bytes, buf + 24,
 		       sizeof info.crypt_nonce);
 
@@ -371,13 +377,14 @@ void
 log_crypt_write_checkpoint_buf(byte* buf)
 {
 	ut_ad(info.key_version);
-	compile_time_assert(16 == sizeof info.crypt_msg);
+	compile_time_assert(16 == sizeof info.crypt_msg.bytes);
+	compile_time_assert(16 == MY_AES_BLOCK_SIZE);
 	compile_time_assert(LOG_CHECKPOINT_CRYPT_MESSAGE
 			    - LOG_CHECKPOINT_CRYPT_NONCE
 			    == sizeof info.crypt_nonce);
 
 	memcpy(buf + LOG_CHECKPOINT_CRYPT_MESSAGE, info.crypt_msg.bytes,
-	       sizeof info.crypt_msg);
+	       MY_AES_BLOCK_SIZE);
 	memcpy(buf + LOG_CHECKPOINT_CRYPT_NONCE, info.crypt_nonce.bytes,
 	       sizeof info.crypt_nonce);
 	mach_write_to_4(buf + LOG_CHECKPOINT_CRYPT_KEY, info.key_version);
@@ -396,13 +403,14 @@ log_crypt_read_checkpoint_buf(const byte* buf)
 #if MY_AES_BLOCK_SIZE != 16
 # error "MY_AES_BLOCK_SIZE != 16; redo log checkpoint format affected"
 #endif
-	compile_time_assert(16 == sizeof info.crypt_msg);
+	compile_time_assert(16 == sizeof info.crypt_msg.bytes);
+	compile_time_assert(16 == MY_AES_BLOCK_SIZE);
 	compile_time_assert(LOG_CHECKPOINT_CRYPT_MESSAGE
 			    - LOG_CHECKPOINT_CRYPT_NONCE
 			    == sizeof info.crypt_nonce);
 
 	memcpy(info.crypt_msg.bytes, buf + LOG_CHECKPOINT_CRYPT_MESSAGE,
-	       sizeof info.crypt_msg);
+	       MY_AES_BLOCK_SIZE);
 	memcpy(info.crypt_nonce.bytes, buf + LOG_CHECKPOINT_CRYPT_NONCE,
 	       sizeof info.crypt_nonce);
 
@@ -435,7 +443,7 @@ log_tmp_block_encrypt(
 
 	int rc = encryption_crypt(
 		src, (uint)size, dst, &dst_len,
-		const_cast<byte*>(info.crypt_key.bytes), (uint)(sizeof info.crypt_key),
+		info.crypt_key.bytes, MY_AES_BLOCK_SIZE,
 		reinterpret_cast<byte*>(aes_ctr_iv), (uint)(sizeof aes_ctr_iv),
 		encrypt
 		? ENCRYPTION_FLAG_ENCRYPT|ENCRYPTION_FLAG_NOPAD
