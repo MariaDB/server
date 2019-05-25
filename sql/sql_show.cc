@@ -8164,13 +8164,11 @@ mark_all_fields_used_in_query(THD *thd,
 TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 {
   uint field_count;
-  Item *item, *all_items;
+  Item *all_items;
   TABLE *table;
-  List<Item> field_list;
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields_info= schema_table->fields_info;
   ST_FIELD_INFO *fields;
-  MEM_ROOT *mem_root= thd->mem_root;
   MY_BITMAP bitmap;
   my_bitmap_map *buf;
   DBUG_ENTER("create_schema_table");
@@ -8189,120 +8187,6 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 
   mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
 
-  for (field_count=0; fields_info->field_name; fields_info++)
-  {
-    switch (fields_info->field_type) {
-    case MYSQL_TYPE_TINY:
-    case MYSQL_TYPE_LONG:
-    case MYSQL_TYPE_SHORT:
-    case MYSQL_TYPE_LONGLONG:
-    case MYSQL_TYPE_INT24:
-      if (!(item= new (mem_root)
-            Item_return_int(thd, fields_info->field_name,
-                            fields_info->field_length,
-                            fields_info->field_type,
-                            fields_info->value)))
-      {
-        DBUG_RETURN(0);
-      }
-      item->unsigned_flag= (fields_info->field_flags & MY_I_S_UNSIGNED);
-      break;
-    case MYSQL_TYPE_DATE:
-      if (!(item=new (mem_root)
-            Item_return_date_time(thd, fields_info->get_name(),
-                                  fields_info->field_type)))
-        DBUG_RETURN(0);
-      break;
-    case MYSQL_TYPE_TIME:
-      if (!(item=new (mem_root)
-            Item_return_date_time(thd, fields_info->get_name(),
-                                  fields_info->field_type)))
-        DBUG_RETURN(0);
-      break;
-    case MYSQL_TYPE_TIMESTAMP:
-    case MYSQL_TYPE_DATETIME:
-      if (!(item=new (mem_root)
-            Item_return_date_time(thd, fields_info->get_name(),
-                                  fields_info->field_type,
-                                  fields_info->field_length)))
-        DBUG_RETURN(0);
-      item->decimals= fields_info->field_length;
-      break;
-    case MYSQL_TYPE_FLOAT:
-    case MYSQL_TYPE_DOUBLE:
-      if ((item= new (mem_root)
-           Item_float(thd, fields_info->field_name, 0.0,
-                      NOT_FIXED_DEC,
-                      fields_info->field_length)) == NULL)
-        DBUG_RETURN(NULL);
-      break;
-    case MYSQL_TYPE_DECIMAL:
-    case MYSQL_TYPE_NEWDECIMAL:
-      if (!(item= new (mem_root)
-            Item_decimal(thd, (longlong) fields_info->value, false)))
-      {
-        DBUG_RETURN(0);
-      }
-      /*
-        Create a type holder, as we want the type of the item to defined
-        the type of the object, not the value
-      */
-      if (!(item= new (mem_root) Item_type_holder(thd, item)))
-        DBUG_RETURN(0);
-      item->unsigned_flag= (fields_info->field_flags & MY_I_S_UNSIGNED);
-      item->decimals= fields_info->field_length%10;
-      item->max_length= (fields_info->field_length/100)%100;
-      if (item->unsigned_flag == 0)
-        item->max_length+= 1;
-      if (item->decimals > 0)
-        item->max_length+= 1;
-      item->set_name(thd, fields_info->get_name());
-      break;
-    case MYSQL_TYPE_TINY_BLOB:
-    case MYSQL_TYPE_MEDIUM_BLOB:
-    case MYSQL_TYPE_LONG_BLOB:
-    case MYSQL_TYPE_BLOB:
-      if (bitmap_is_set(&bitmap, field_count))
-      {
-        if (!(item= new (mem_root)
-              Item_blob(thd, fields_info->get_name(),
-                        fields_info->field_length)))
-        {
-          DBUG_RETURN(0);
-        }
-      }
-      else
-      {
-        if (!(item= new (mem_root)
-              Item_empty_string(thd, "", 0, system_charset_info)))
-        {
-          DBUG_RETURN(0);
-        }
-        item->set_name(thd, fields_info->get_name());
-      }
-      break;
-    default:
-    {
-      bool show_field;
-      /* Don't let unimplemented types pass through. Could be a grave error. */
-      DBUG_ASSERT(fields_info->field_type == MYSQL_TYPE_STRING);
-
-      show_field= bitmap_is_set(&bitmap, field_count);
-      if (!(item= new (mem_root)
-            Item_empty_string(thd, "",
-                              show_field ? fields_info->field_length : 0,
-                              system_charset_info)))
-      {
-        DBUG_RETURN(0);
-      }
-      item->set_name(thd, fields_info->get_name());
-      break;
-    }
-    }
-    field_list.push_back(item, thd->mem_root);
-    item->maybe_null= (fields_info->field_flags & MY_I_S_MAYBE_NULL);
-    field_count++;
-  }
   TMP_TABLE_PARAM *tmp_table_param =
     (TMP_TABLE_PARAM*) (thd->alloc(sizeof(TMP_TABLE_PARAM)));
   tmp_table_param->init();
@@ -8311,11 +8195,13 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   tmp_table_param->schema_table= 1;
   SELECT_LEX *select_lex= table_list->select_lex;
   bool keep_row_order= is_show_command(thd);
-  if (!(table= create_tmp_table(thd, tmp_table_param,
-                                field_list, (ORDER*) 0, 0, 0, 
-                                (select_lex->options | thd->variables.option_bits |
-                                 TMP_TABLE_ALL_COLUMNS), HA_POS_ERROR,
-                                &table_list->alias, false, keep_row_order)))
+  if (!(table= create_tmp_table_for_schema(thd, tmp_table_param,
+                                           *schema_table, bitmap,
+                                           (select_lex->options |
+                                            thd->variables.option_bits |
+                                            TMP_TABLE_ALL_COLUMNS),
+                                            table_list->alias,
+                                            keep_row_order)))
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));

@@ -1670,7 +1670,7 @@ bool fk_modifies_child(enum_fk_option opt);
 #define OPEN_FRM_ONLY   1U               // open FRM file only
 #define OPEN_FULL_TABLE 2U               // open FRM,MYD, MYI files
 
-typedef struct st_field_info
+struct ST_FIELD_INFO
 {
   /** 
       This is used as column name. 
@@ -1712,7 +1712,13 @@ typedef struct st_field_info
   {
     return LEX_CSTRING({old_name, strlen(old_name)});
   }
-} ST_FIELD_INFO;
+  bool unsigned_flag() const { return field_flags & MY_I_S_UNSIGNED; }
+  uint fsp() const
+  {
+    DBUG_ASSERT(field_length <= TIME_SECOND_PART_DIGITS);
+    return field_length;
+  }
+};
 
 
 struct TABLE_LIST;

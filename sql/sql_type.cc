@@ -3436,6 +3436,196 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
                    attr.collation);
 }
 
+
+/*************************************************************************/
+
+Field *Type_handler_float::make_schema_field(TABLE *table,
+                                              const Record_addr &addr,
+                                              const ST_FIELD_INFO &def,
+                                              bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new (table->in_use->mem_root)
+     Field_float(addr.ptr(), def.field_length,
+                  addr.null_ptr(), addr.null_bit(),
+                  Field::NONE, &name,
+                  (uint8) NOT_FIXED_DEC,
+                  0/*zerofill*/, def.unsigned_flag());
+}
+
+
+Field *Type_handler_double::make_schema_field(TABLE *table,
+                                              const Record_addr &addr,
+                                              const ST_FIELD_INFO &def,
+                                              bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new (table->in_use->mem_root)
+     Field_double(addr.ptr(), def.field_length,
+                  addr.null_ptr(), addr.null_bit(),
+                  Field::NONE, &name,
+                  (uint8) NOT_FIXED_DEC,
+                  0/*zerofill*/, def.unsigned_flag());
+}
+
+
+Field *Type_handler_decimal_result::make_schema_field(TABLE *table,
+                                                      const Record_addr &addr,
+                                                      const ST_FIELD_INFO &def,
+                                                      bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  uint dec= def.field_length % 10;
+  uint prec= (def.field_length / 100) % 100;
+  DBUG_ASSERT(dec <= DECIMAL_MAX_SCALE);
+  uint32 len= my_decimal_precision_to_length(prec, dec, def.unsigned_flag());
+  return new (table->in_use->mem_root)
+     Field_new_decimal(addr.ptr(), len, addr.null_ptr(), addr.null_bit(),
+                       Field::NONE, &name,
+                       (uint8) dec, 0/*zerofill*/, def.unsigned_flag());
+}
+
+
+Field *Type_handler_blob_common::make_schema_field(TABLE *table,
+                                                   const Record_addr &addr,
+                                                   const ST_FIELD_INFO &def,
+                                                   bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  if (show_field)
+  {
+    return new (table->in_use->mem_root)
+       Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
+                  Field::NONE, &name, table->s,
+                  length_bytes(),
+                  &my_charset_bin);
+  }
+  else
+    return new (table->in_use->mem_root)
+      Field_null(addr.ptr(), 0, Field::NONE, &name, &my_charset_bin);
+}
+
+
+Field *Type_handler_string::make_schema_field(TABLE *table,
+                                              const Record_addr &addr,
+                                              const ST_FIELD_INFO &def,
+                                              bool show_field) const
+{
+  DBUG_ASSERT(def.field_length);
+  Lex_cstring name(def.field_name);
+  uint32 octet_length= (uint32) def.field_length * 3;
+  if (def.field_length * 3 > MAX_FIELD_VARCHARLENGTH)
+  {
+    Field *field= new (table->in_use->mem_root)
+      Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(), Field::NONE,
+                 &name, table->s, 4, system_charset_info);
+    if (field)
+      field->field_length= octet_length;
+    return field;
+  }
+  else if (show_field)
+  {
+    return new (table->in_use->mem_root)
+      Field_varstring(addr.ptr(), octet_length,
+                      HA_VARCHAR_PACKLENGTH(octet_length),
+                      addr.null_ptr(), addr.null_bit(),
+                      Field::NONE, &name,
+                      table->s, system_charset_info);
+  }
+  else
+    return new (table->in_use->mem_root)
+      Field_null(addr.ptr(), 0, Field::NONE, &name, system_charset_info);
+}
+
+
+Field *Type_handler_tiny::make_schema_field(TABLE *table,
+                                            const Record_addr &addr,
+                                            const ST_FIELD_INFO &def,
+                                            bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new (table->in_use->mem_root)
+           Field_tiny(addr.ptr(), def.field_length,
+                      addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
+                      0/*zerofill*/, def.unsigned_flag());
+}
+
+
+Field *Type_handler_short::make_schema_field(TABLE *table,
+                                             const Record_addr &addr,
+                                             const ST_FIELD_INFO &def,
+                                             bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new (table->in_use->mem_root)
+           Field_short(addr.ptr(), def.field_length,
+                       addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
+                       0/*zerofill*/, def.unsigned_flag());
+}
+
+
+Field *Type_handler_long::make_schema_field(TABLE *table,
+                                            const Record_addr &addr,
+                                            const ST_FIELD_INFO &def,
+                                            bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new (table->in_use->mem_root)
+           Field_long(addr.ptr(), def.field_length,
+                      addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
+                      0/*zerofill*/, def.unsigned_flag());
+}
+
+
+Field *Type_handler_longlong::make_schema_field(TABLE *table,
+                                                const Record_addr &addr,
+                                                const ST_FIELD_INFO &def,
+                                                bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new (table->in_use->mem_root)
+           Field_longlong(addr.ptr(), def.field_length,
+                          addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
+                          0/*zerofill*/, def.unsigned_flag());
+}
+
+
+Field *Type_handler_date_common::make_schema_field(TABLE *table,
+                                                   const Record_addr &addr,
+                                                   const ST_FIELD_INFO &def,
+                                                   bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new (table->in_use->mem_root)
+           Field_newdate(addr.ptr(), addr.null_ptr(), addr.null_bit(),
+                         Field::NONE, &name);
+}
+
+
+Field *Type_handler_time_common::make_schema_field(TABLE *table,
+                                                   const Record_addr &addr,
+                                                   const ST_FIELD_INFO &def,
+                                                   bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new_Field_time(table->in_use->mem_root,
+                        addr.ptr(), addr.null_ptr(), addr.null_bit(),
+                        Field::NONE, &name, def.fsp());
+}
+
+
+Field *Type_handler_datetime_common::make_schema_field(TABLE *table,
+                                                       const Record_addr &addr,
+                                                       const ST_FIELD_INFO &def,
+                                                       bool show_field) const
+{
+  Lex_cstring name(def.field_name);
+  return new_Field_datetime(table->in_use->mem_root,
+                             addr.ptr(), addr.null_ptr(), addr.null_bit(),
+                             Field::NONE, &name, def.fsp());
+}
+
+
 /*************************************************************************/
 
 /*

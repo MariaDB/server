@@ -81,6 +81,7 @@ struct TABLE;
 struct SORT_FIELD_ATTR;
 class Vers_history_point;
 class Virtual_column_info;
+struct ST_FIELD_INFO;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -107,6 +108,34 @@ enum scalar_comparison_op
   SCALAR_CMP_LE,
   SCALAR_CMP_GE,
   SCALAR_CMP_GT
+};
+
+
+class Data_type_statistics
+{
+public:
+  uint m_uneven_bit_length;
+  uint m_fixed_string_total_length;
+  uint m_fixed_string_count;
+  uint m_variable_string_total_length;
+  uint m_variable_string_count;
+  uint m_blob_count;
+  Data_type_statistics()
+   :m_uneven_bit_length(0),
+    m_fixed_string_total_length(0),
+    m_fixed_string_count(0),
+    m_variable_string_total_length(0),
+    m_variable_string_count(0),
+    m_blob_count(0)
+  { }
+  uint string_count() const
+  {
+    return m_fixed_string_count + m_variable_string_count;
+  }
+  uint string_total_length() const
+  {
+    return m_fixed_string_total_length + m_variable_string_total_length;
+  }
 };
 
 
@@ -3422,6 +3451,14 @@ public:
                                    const Record_addr &addr,
                                    const Type_all_attributes &attr,
                                    TABLE *table) const;
+  virtual Field *make_schema_field(TABLE *table,
+                                   const Record_addr &addr,
+                                   const ST_FIELD_INFO &def,
+                                   bool show_field) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   virtual Field *
   make_table_field_from_def(TABLE_SHARE *share,
                             MEM_ROOT *mem_root,
@@ -4192,6 +4229,10 @@ public:
   }
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -4759,6 +4800,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -4804,6 +4849,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -4849,6 +4898,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -4909,6 +4962,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5108,6 +5165,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5156,6 +5217,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5188,6 +5253,10 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                     CHARSET_INFO *cs, bool send_error) const;
   Item *create_typecast_item(THD *thd, Item *item,
@@ -5353,6 +5422,10 @@ public:
   {
     return true;
   }
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                     CHARSET_INFO *cs, bool send_error) const;
   Item *create_typecast_item(THD *thd, Item *item,
@@ -5446,6 +5519,10 @@ public:
   {
     return true;
   }
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
   void Column_definition_implicit_upgrade(Column_definition *c) const;
@@ -5817,6 +5894,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5925,6 +6006,7 @@ class Type_handler_blob_common: public Type_handler_longstr
 {
 public:
   virtual ~Type_handler_blob_common() { }
+  virtual uint length_bytes() const= 0;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
@@ -5955,6 +6037,10 @@ public:
                                        Item **items, uint nitems) const;
   void Item_param_setup_conversion(THD *thd, Item_param *) const;
 
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5970,6 +6056,7 @@ class Type_handler_tiny_blob: public Type_handler_blob_common
   static const Name m_name_tinyblob;
 public:
   virtual ~Type_handler_tiny_blob() {}
+  uint length_bytes() const { return 1; }
   const Name name() const { return m_name_tinyblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
@@ -5986,6 +6073,7 @@ class Type_handler_medium_blob: public Type_handler_blob_common
   static const Name m_name_mediumblob;
 public:
   virtual ~Type_handler_medium_blob() {}
+  uint length_bytes() const { return 3; }
   const Name name() const { return m_name_mediumblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
@@ -6002,6 +6090,7 @@ class Type_handler_long_blob: public Type_handler_blob_common
   static const Name m_name_longblob;
 public:
   virtual ~Type_handler_long_blob() {}
+  uint length_bytes() const { return 4; }
   const Name name() const { return m_name_longblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
@@ -6020,6 +6109,7 @@ class Type_handler_blob: public Type_handler_blob_common
   static const Name m_name_blob;
 public:
   virtual ~Type_handler_blob() {}
+  uint length_bytes() const { return 2; }
   const Name name() const { return m_name_blob; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
   uint32 calc_pack_length(uint32 length) const;

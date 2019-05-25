@@ -1142,6 +1142,8 @@ public:
   {
     return Information_schema_character_attributes();
   }
+  virtual void update_data_type_statistics(Data_type_statistics *st) const
+  { }
   /*
     Caller beware: sql_type can change str.Ptr, so check
     ptr() to see if it changed if you are using your own buffer
@@ -3566,6 +3568,11 @@ public:
   my_decimal *val_decimal(my_decimal *);
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
+  void update_data_type_statistics(Data_type_statistics *st) const
+  {
+    st->m_fixed_string_count++;
+    st->m_fixed_string_total_length+= pack_length();
+  }
   void sql_type(String &str) const;
   uint is_equal(Create_field *new_field);
   virtual uchar *pack(uchar *to, const uchar *from,
@@ -3662,6 +3669,11 @@ public:
     return Field_str::memcpy_field_possible(from) &&
            !compression_method() == !from->compression_method() &&
            length_bytes == ((Field_varstring*) from)->length_bytes;
+  }
+  void update_data_type_statistics(Data_type_statistics *st) const
+  {
+    st->m_variable_string_count++;
+    st->m_variable_string_total_length+= pack_length();
   }
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   using Field_str::store;
@@ -3868,6 +3880,10 @@ public:
     uint32 octets= Field_blob::character_octet_length();
     uint32 chars= octets / field_charset->mbminlen;
     return Information_schema_character_attributes(octets, chars);
+  }
+  void update_data_type_statistics(Data_type_statistics *st) const
+  {
+    st->m_blob_count++;
   }
   void make_send_field(Send_field *);
   Copy_func *get_copy_func(const Field *from) const
@@ -4345,6 +4361,10 @@ public:
     information_schema_numeric_attributes() const
   {
     return Information_schema_numeric_attributes(field_length);
+  }
+  void update_data_type_statistics(Data_type_statistics *st) const
+  {
+    st->m_uneven_bit_length+= field_length & 7;
   }
   uint size_of() const { return sizeof(*this); }
   int reset(void) { 

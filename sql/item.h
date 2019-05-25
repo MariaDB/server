@@ -1506,7 +1506,6 @@ public:
 
   virtual Field *get_tmp_table_field() { return 0; }
   virtual Field *create_field_for_create_select(TABLE *table);
-  virtual Field *create_field_for_schema(THD *thd, TABLE *table);
   virtual const char *full_name() const { return name.str ? name.str : "???"; }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name.str : NULL; }
@@ -4489,46 +4488,6 @@ public:
   {
     return mark_unsupported_function("safe_string", arg, VCOL_IMPOSSIBLE);
   }
-};
-
-
-class Item_return_date_time :public Item_partition_func_safe_string
-{
-  enum_field_types date_time_field_type;
-public:
-  Item_return_date_time(THD *thd, const LEX_CSTRING &name_arg,
-                        enum_field_types field_type_arg, uint dec_arg= 0):
-    Item_partition_func_safe_string(thd, name_arg,
-                                    0/*length is not important*/,
-                                    &my_charset_bin),
-    date_time_field_type(field_type_arg)
-  { decimals= dec_arg; }
-  const Type_handler *type_handler() const
-  {
-    return Type_handler::get_handler_by_field_type(date_time_field_type);
-  }
-};
-
-
-class Item_blob :public Item_partition_func_safe_string
-{
-public:
-  Item_blob(THD *thd, const LEX_CSTRING &name_arg, uint length):
-    Item_partition_func_safe_string(thd, name_arg, length, &my_charset_bin)
-  { }
-  enum Type type() const { return TYPE_HOLDER; }
-  const Type_handler *type_handler() const
-  {
-    return Type_handler::blob_type_handler(max_length);
-  }
-  const Type_handler *real_type_handler() const
-  {
-    // Should not be called, Item_blob is used for SHOW purposes only.
-    DBUG_ASSERT(0);
-    return &type_handler_varchar;
-  }
-  Field *create_field_for_schema(THD *thd, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
 };
 
 

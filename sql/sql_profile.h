@@ -19,7 +19,7 @@
 class Item;
 struct TABLE_LIST;
 class THD;
-typedef struct st_field_info ST_FIELD_INFO;
+struct ST_FIELD_INFO;
 typedef struct st_schema_table ST_SCHEMA_TABLE;
 
 extern ST_FIELD_INFO query_profile_statistics_info[];
