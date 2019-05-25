@@ -35,7 +35,7 @@
 #include "sql_table.h"
 
 static int count_relay_log_space(Relay_log_info* rli);
-
+bool xa_trans_force_rollback(THD *thd);
 /**
    Current replication state (hash of last GTID executed, per replication
    domain).
@@ -2195,7 +2195,6 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
   }
 }
 
-
 void rpl_group_info::cleanup_context(THD *thd, bool error)
 {
   DBUG_ENTER("rpl_group_info::cleanup_context");
@@ -2230,6 +2229,17 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
 
   if (unlikely(error))
   {
+    /*
+      trans_rollback above does not rollback XA transactions.
+      It could be done only after necessarily closing tables which dictates
+      the following placement.
+    */
+    XID_STATE *xid_state= &thd->transaction.xid_state;
+    if (xid_state->is_explicit_XA())
+    {
+      xa_trans_force_rollback(thd);
+    }
+
     thd->mdl_context.release_transactional_locks();
 
     if (thd == rli->sql_driver_thd)

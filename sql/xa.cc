@@ -252,7 +252,7 @@ static bool xa_trans_rolled_back(XID_cache_element *element)
   @return TRUE if the rollback failed, FALSE otherwise.
 */
 
-static bool xa_trans_force_rollback(THD *thd)
+bool xa_trans_force_rollback(THD *thd)
 {
   bool rc= false;
   XID_STATE &xid_state= thd->transaction.xid_state;
@@ -267,6 +267,7 @@ static bool xa_trans_force_rollback(THD *thd)
   thd->lex->xa_opt= XA_NONE;
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   thd->transaction.all.reset();
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
