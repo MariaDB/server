@@ -7461,7 +7461,7 @@ static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff,
 #endif
 
 #ifdef HAVE_POOL_OF_THREADS
-int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
+static int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
                                  enum enum_var_type scope)
 {
   var->type= SHOW_INT;

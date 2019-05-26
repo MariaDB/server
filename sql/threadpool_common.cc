@@ -23,7 +23,7 @@
 #include <sql_audit.h>
 #include <debug_sync.h>
 #include <threadpool.h>
-
+#include <my_counter.h>
 
 /* Threadpool parameters */
 
@@ -153,9 +153,8 @@ static TP_PRIORITY get_priority(TP_connection *c)
   DBUG_ASSERT(c->thd == current_thd);
   TP_PRIORITY prio= (TP_PRIORITY)c->thd->variables.threadpool_priority;
   if (prio == TP_PRIORITY_AUTO)
-  {
-    return c->thd->transaction.is_active() ? TP_PRIORITY_HIGH : TP_PRIORITY_LOW;
-  }
+    prio= c->thd->transaction.is_active() ? TP_PRIORITY_HIGH : TP_PRIORITY_LOW;
+
   return prio;
 }
 
@@ -463,12 +462,17 @@ void tp_timeout_handler(TP_connection *c)
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
+MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<unsigned long long> tp_waits[THD_WAIT_LAST];
 
 static void tp_wait_begin(THD *thd, int type)
 {
   TP_connection *c = get_TP_connection(thd);
   if (c)
+  {
+    DBUG_ASSERT(type > 0 && type < THD_WAIT_LAST);
+    tp_waits[type]++;
     c->wait_begin(type);
+  }
 }
 
 
