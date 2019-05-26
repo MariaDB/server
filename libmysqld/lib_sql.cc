@@ -891,13 +891,6 @@ static char *dup_str_aux(MEM_ROOT *root, const char *from, uint length,
 }
 
 
-static char *dup_str_aux(MEM_ROOT *root, const char *from,
-                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
-{
-  return dup_str_aux(root, from, (uint) strlen(from), fromcs, tocs);
-}
-
-
 static char *dup_str_aux(MEM_ROOT *root, const LEX_CSTRING &from,
                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {

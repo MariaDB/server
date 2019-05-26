@@ -3187,14 +3187,14 @@ protected:
     updated during fix_fields() to values from Field object and life-time 
     of those is shorter than life-time of Item_field.
   */
-  const char *orig_db_name;
-  const char *orig_table_name;
+  LEX_CSTRING orig_db_name;
+  LEX_CSTRING orig_table_name;
   LEX_CSTRING orig_field_name;
 
 public:
   Name_resolution_context *context;
-  const char *db_name;
-  const char *table_name;
+  LEX_CSTRING db_name;
+  LEX_CSTRING table_name;
   LEX_CSTRING field_name;
   bool alias_name_used; /* true if item was resolved against alias */
   /* 
@@ -3224,10 +3224,10 @@ public:
   */
   bool can_be_depended;
   Item_ident(THD *thd, Name_resolution_context *context_arg,
-             const char *db_name_arg, const char *table_name_arg,
-             const LEX_CSTRING *field_name_arg);
+             const LEX_CSTRING &db_name_arg, const LEX_CSTRING &table_name_arg,
+             const LEX_CSTRING &field_name_arg);
   Item_ident(THD *thd, Item_ident *item);
-  Item_ident(THD *thd, TABLE_LIST *view_arg, const LEX_CSTRING *field_name_arg);
+  Item_ident(THD *thd, TABLE_LIST *view_arg, const LEX_CSTRING &field_name_arg);
   const char *full_name() const;
   void cleanup();
   st_select_lex *get_depended_from() const;
@@ -3262,8 +3262,15 @@ public:
   /* field need any privileges (for VIEW creation) */
   bool any_privileges;
   Item_field(THD *thd, Name_resolution_context *context_arg,
-             const char *db_arg,const char *table_name_arg,
-	     const LEX_CSTRING *field_name_arg);
+             const LEX_CSTRING &db_arg, const LEX_CSTRING &table_name_arg,
+	     const LEX_CSTRING &field_name_arg);
+  Item_field(THD *thd, Name_resolution_context *context_arg,
+             const LEX_CSTRING &field_name_arg)
+   :Item_field(thd, context_arg, null_clex_str, null_clex_str, field_name_arg)
+  { }
+  Item_field(THD *thd, Name_resolution_context *context_arg)
+   :Item_field(thd, context_arg, null_clex_str, null_clex_str, null_clex_str)
+  { }
   /*
     Constructor needed to process subselect with temporary tables (see Item)
   */
@@ -5098,10 +5105,14 @@ public:
   Item **ref;
   bool reference_trough_name;
   Item_ref(THD *thd, Name_resolution_context *context_arg,
-           const char *db_arg, const char *table_name_arg,
-           const LEX_CSTRING *field_name_arg):
+           const LEX_CSTRING &db_arg, const LEX_CSTRING &table_name_arg,
+           const LEX_CSTRING &field_name_arg):
     Item_ident(thd, context_arg, db_arg, table_name_arg, field_name_arg),
     set_properties_only(0), ref(0), reference_trough_name(1) {}
+  Item_ref(THD *thd, Name_resolution_context *context_arg,
+           const LEX_CSTRING &field_name_arg)
+   :Item_ref(thd, context_arg, null_clex_str, null_clex_str, field_name_arg)
+  { }
   /*
     This constructor is used in two scenarios:
     A) *item = NULL
@@ -5117,10 +5128,10 @@ public:
          with Bar, and if we have a more broader set of problems like this.
   */
   Item_ref(THD *thd, Name_resolution_context *context_arg, Item **item,
-           const char *table_name_arg, const LEX_CSTRING *field_name_arg,
+           const LEX_CSTRING &table_name_arg, const LEX_CSTRING &field_name_arg,
            bool alias_name_used_arg= FALSE);
   Item_ref(THD *thd, TABLE_LIST *view_arg, Item **item,
-           const LEX_CSTRING *field_name_arg, bool alias_name_used_arg= FALSE);
+           const LEX_CSTRING &field_name_arg, bool alias_name_used_arg= FALSE);
 
   /* Constructor need to process subselect with temporary tables (see Item) */
   Item_ref(THD *thd, Item_ref *item)
@@ -5335,8 +5346,8 @@ class Item_direct_ref :public Item_ref
 {
 public:
   Item_direct_ref(THD *thd, Name_resolution_context *context_arg, Item **item,
-                  const char *table_name_arg,
-                  const LEX_CSTRING *field_name_arg,
+                  const LEX_CSTRING &table_name_arg,
+                  const LEX_CSTRING &field_name_arg,
                   bool alias_name_used_arg= FALSE):
     Item_ref(thd, context_arg, item, table_name_arg,
              field_name_arg, alias_name_used_arg)
@@ -5344,7 +5355,7 @@ public:
   /* Constructor need to process subselect with temporary tables (see Item) */
   Item_direct_ref(THD *thd, Item_direct_ref *item) : Item_ref(thd, item) {}
   Item_direct_ref(THD *thd, TABLE_LIST *view_arg, Item **item,
-                  const LEX_CSTRING *field_name_arg,
+                  const LEX_CSTRING &field_name_arg,
                   bool alias_name_used_arg= FALSE):
     Item_ref(thd, view_arg, item, field_name_arg,
              alias_name_used_arg)
@@ -5384,7 +5395,7 @@ class Item_direct_ref_to_ident :public Item_direct_ref
 public:
   Item_direct_ref_to_ident(THD *thd, Item_ident *item):
     Item_direct_ref(thd, item->context, (Item**)&item, item->table_name,
-                    &item->field_name, FALSE)
+                    item->field_name, FALSE)
   {
     ident= item;
     ref= (Item**)&ident;
@@ -5576,8 +5587,8 @@ class Item_direct_view_ref :public Item_direct_ref
 public:
   Item_direct_view_ref(THD *thd, Name_resolution_context *context_arg,
                        Item **item,
-                       const char *table_name_arg,
-                       LEX_CSTRING *field_name_arg,
+                       LEX_CSTRING &table_name_arg,
+                       LEX_CSTRING &field_name_arg,
                        TABLE_LIST *view_arg):
     Item_direct_ref(thd, context_arg, item, table_name_arg, field_name_arg),
     item_equal(0), view(view_arg),
@@ -5749,7 +5760,7 @@ public:
   Item_outer_ref(THD *thd, Name_resolution_context *context_arg,
                  Item_field *outer_field_arg):
     Item_direct_ref(thd, context_arg, 0, outer_field_arg->table_name,
-                    &outer_field_arg->field_name),
+                    outer_field_arg->field_name),
     outer_ref(outer_field_arg), in_sum_func(0),
     found_in_select_list(0), found_in_group_by(0)
   {
@@ -5758,7 +5769,7 @@ public:
     fixed= 0;                     /* reset flag set in set_properties() */
   }
   Item_outer_ref(THD *thd, Name_resolution_context *context_arg, Item **item,
-                 const char *table_name_arg, LEX_CSTRING *field_name_arg,
+                 const LEX_CSTRING &table_name_arg, LEX_CSTRING &field_name_arg,
                  bool alias_name_used_arg):
     Item_direct_ref(thd, context_arg, item, table_name_arg, field_name_arg,
                     alias_name_used_arg),
@@ -5799,8 +5810,8 @@ protected:
 public:
   Item_ref_null_helper(THD *thd, Name_resolution_context *context_arg,
                        Item_in_subselect* master, Item **item,
-		       const char *table_name_arg,
-                       const LEX_CSTRING *field_name_arg):
+		       const LEX_CSTRING &table_name_arg,
+                       const LEX_CSTRING &field_name_arg):
     Item_ref(thd, context_arg, item, table_name_arg, field_name_arg),
     owner(master) {}
   void save_val(Field *to);
@@ -6168,16 +6179,13 @@ class Item_default_value : public Item_field
 public:
   Item *arg;
   Item_default_value(THD *thd, Name_resolution_context *context_arg)
-    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
-                &null_clex_str),
+    :Item_field(thd, context_arg),
      arg(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
-    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
-                &null_clex_str),
+    :Item_field(thd, context_arg),
      arg(a) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
-    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
-                &null_clex_str),
+    :Item_field(thd, context_arg),
      arg(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
@@ -6264,8 +6272,7 @@ class Item_insert_value : public Item_field
 public:
   Item *arg;
   Item_insert_value(THD *thd, Name_resolution_context *context_arg, Item *a)
-    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
-                &null_clex_str),
+    :Item_field(thd, context_arg),
      arg(a) {}
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
@@ -6326,10 +6333,9 @@ public:
 
   Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
                      row_version_type row_ver_arg,
-                     const LEX_CSTRING *field_name_arg,
+                     const LEX_CSTRING &field_name_arg,
                      ulong priv, const bool ro)
-    :Item_field(thd, context_arg,
-               (const char *)NULL, (const char *)NULL, field_name_arg),
+    :Item_field(thd, context_arg, field_name_arg),
      row_version(row_ver_arg), field_idx((uint)-1), original_privilege(priv),
      want_privilege(priv), table_grants(NULL), read_only (ro)
   {}

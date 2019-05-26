@@ -9660,7 +9660,7 @@ select_item_list:
           {
             Item *item= new (thd->mem_root)
                           Item_field(thd, &thd->lex->current_select->context,
-                                     NULL, NULL, &star_clex_str);
+                                     star_clex_str);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             if (unlikely(add_item_to_list(thd, item)))
@@ -13044,7 +13044,7 @@ procedure_clause:
             lex->proc_list.next= &lex->proc_list.first;
             Item_field *item= new (thd->mem_root)
                                 Item_field(thd, &lex->current_select->context,
-                                           NULL, NULL, &$2);
+                                           $2);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             if (unlikely(add_proc_to_list(thd, item)))

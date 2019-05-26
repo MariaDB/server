@@ -8239,7 +8239,7 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     {
       LEX_CSTRING field_name= field_info->get_name();
       Item_field *field= new (thd->mem_root)
-        Item_field(thd, context, NullS, NullS, &field_name);
+        Item_field(thd, context, field_name);
       if (field)
       {
         field->set_name(thd, field_info->get_old_name());
@@ -8263,9 +8263,8 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     ST_FIELD_INFO *field_info= &schema_table->fields_info[1];
     String buffer(tmp,sizeof(tmp), system_charset_info);
-    LEX_CSTRING field_name= field_info->get_name();
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                      NullS, NullS, &field_name);
+                                                      field_info->get_name());
     if (!field || add_item_to_list(thd, field))
       return 1;
     buffer.length(0);
@@ -8289,8 +8288,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   LEX *lex= thd->lex;
   Name_resolution_context *context= &lex->first_select_lex()->context;
   ST_FIELD_INFO *field_info= &schema_table->fields_info[2];
-  LEX_CSTRING field_name= {field_info->field_name,
-                           strlen(field_info->field_name) };
+  LEX_CSTRING field_name= Lex_cstring_strlen(field_info->field_name);
 
   buffer.length(0);
   buffer.append(field_info->get_old_name());
@@ -8301,18 +8299,15 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     buffer.append(lex->wild->ptr());
     buffer.append(')');
   }
-  Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    NullS, NullS, &field_name);
+  Item_field *field= new (thd->mem_root) Item_field(thd, context, field_name);
   if (add_item_to_list(thd, field))
     return 1;
   field->set_name(thd, buffer.lex_cstring());
   if (thd->lex->verbose)
   {
     field_info= &schema_table->fields_info[3];
-    LEX_CSTRING field_name2= {field_info->field_name,
-                              strlen(field_info->field_name) };
-    field= new (thd->mem_root) Item_field(thd, context, NullS, NullS,
-                                          &field_name2);
+    field= new (thd->mem_root) Item_field(thd, context,
+                                    Lex_cstring_strlen(field_info->field_name));
     if (add_item_to_list(thd, field))
       return 1;
     field->set_name(thd, field_info->get_old_name());
@@ -8331,14 +8326,12 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    LEX_CSTRING field_name= {field_info->field_name,
-                             strlen(field_info->field_name)};
     if (!thd->lex->verbose && (*field_num == 14 ||
                                *field_num == 18 ||
                                *field_num == 19))
       continue;
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                      NullS, NullS, &field_name);
+                                    Lex_cstring_strlen(field_info->field_name));
     if (field)
     {
       field->set_name(thd, field_info->get_old_name());
@@ -8360,10 +8353,8 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    LEX_CSTRING field_name= {field_info->field_name,
-                             strlen(field_info->field_name)};
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                      NullS, NullS, &field_name);
+                                    Lex_cstring_strlen(field_info->field_name));
     if (field)
     {
       field->set_name(thd, field_info->get_old_name());
@@ -8385,10 +8376,8 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   for (; *field_num >= 0; field_num++)
   {
     field_info= &schema_table->fields_info[*field_num];
-    LEX_CSTRING field_name= {field_info->field_name,
-                             strlen(field_info->field_name)};
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                      NullS, NullS, &field_name);
+                                    Lex_cstring_strlen(field_info->field_name));
     if (field)
     {
       field->set_name(thd, field_info->get_old_name());
@@ -9986,7 +9975,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
   Item_datetime_literal *tmp= (new (mem_root) 
                                Item_datetime_literal(thd, &zero_time, 2));
-  tmp->set_name(thd, Lex_cstring("Created"));
+  tmp->set_name(thd, Lex_cstring(STRING_WITH_LEN("Created")));
   fields.push_back(tmp, mem_root);
 
   if (p->send_result_set_metadata(&fields,

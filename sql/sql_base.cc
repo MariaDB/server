@@ -6256,8 +6256,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
                      bool check_privileges, bool register_tree_change)
 {
   Field *found=0;
-  const char *db= item->db_name;
-  const char *table_name= item->table_name;
+  const char *db= item->db_name.str;
+  const char *table_name= item->table_name.str;
   const char *name= item->field_name.str;
   size_t length= item->field_name.length;
   char name_buff[SAFE_NAME_LEN+1];
@@ -6533,8 +6533,8 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
   if (is_ref_by_name)
   {
     field_name= &((Item_ident*) find)->field_name;
-    table_name= ((Item_ident*) find)->table_name;
-    db_name=    ((Item_ident*) find)->db_name;
+    table_name= ((Item_ident*) find)->table_name.str;
+    db_name=    ((Item_ident*) find)->db_name.str;
   }
 
   for (uint i= 0; i < n_items; i++)
@@ -6574,13 +6574,13 @@ find_item_in_list(Item *find, List<Item> &items, uint *counter,
 	  item_field->field_name and item_field->table_name can be 0x0 if
 	  item is not fix_field()'ed yet.
         */
-        if (item_field->field_name.str && item_field->table_name &&
+        if (item_field->field_name.str && item_field->table_name.str &&
 	    !lex_string_cmp(system_charset_info, &item_field->field_name,
                             field_name) &&
-            !my_strcasecmp(table_alias_charset, item_field->table_name, 
+            !my_strcasecmp(table_alias_charset, item_field->table_name.str,
                            table_name) &&
-            (!db_name || (item_field->db_name &&
-                          !strcmp(item_field->db_name, db_name))))
+            (!db_name || (item_field->db_name.str &&
+                          !strcmp(item_field->db_name.str, db_name))))
         {
           if (found_unaliased)
           {
@@ -7477,8 +7477,8 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
                                 MY_INT64_NUM_DECIMAL_DIGITS));
       }
       else if (insert_fields(thd, ((Item_field*) item)->context,
-                             ((Item_field*) item)->db_name,
-                             ((Item_field*) item)->table_name, &it,
+                             ((Item_field*) item)->db_name.str,
+                             ((Item_field*) item)->table_name.str, &it,
                              any_privileges, hidden_bit_fields))
       {
 	if (arena)

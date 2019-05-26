@@ -990,7 +990,7 @@ bool Protocol_text::store_field_metadata_for_list_fields(const THD *thd,
                                                          uint pos)
 {
   Send_field field= tl->view ?
-                    Send_field(fld, tl->view_db.str, tl->view_name.str) :
+                    Send_field(fld, tl->view_db, tl->view_name) :
                     Send_field(fld);
   return store_field_metadata(thd, field, fld->charset_for_protocol(), pos);
 }

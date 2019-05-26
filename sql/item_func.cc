@@ -4992,7 +4992,7 @@ void Item_func_set_user_var::make_send_field(THD *thd, Send_field *tmp_field)
   if (result_field)
   {
     result_field->make_send_field(tmp_field);
-    DBUG_ASSERT(tmp_field->table_name != 0);
+    DBUG_ASSERT(tmp_field->table_name.str != 0);
     if (Item::name.str)
       tmp_field->col_name= Item::name;          // Use user supplied name
   }

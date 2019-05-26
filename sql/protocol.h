@@ -122,11 +122,6 @@ public:
   virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)=0;
   virtual bool store(const char *from, size_t length, 
   		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
-  bool store_str(const char *s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
-  {
-    DBUG_ASSERT(s);
-    return store(s, (uint) strlen(s), fromcs, tocs);
-  }
   bool store_str(const LEX_CSTRING &s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
   {
     return store(s.str, (uint) s.length, fromcs, tocs);

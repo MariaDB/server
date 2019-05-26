@@ -3826,11 +3826,13 @@ public:
     return create_item_qualified_asterisk(thd, &a, &b);
   }
 
-  Item *create_item_ident_field(THD *thd, const char *db, const char *table,
-                                const Lex_ident_sys_st *name);
+  Item *create_item_ident_field(THD *thd,
+                                const Lex_ident_sys_st &db,
+                                const Lex_ident_sys_st &table,
+                                const Lex_ident_sys_st &name);
   Item *create_item_ident_nosp(THD *thd, Lex_ident_sys_st *name)
   {
-    return create_item_ident_field(thd, NullS, NullS, name);
+    return create_item_ident_field(thd, Lex_ident_sys(), Lex_ident_sys(), *name);
   }
   Item *create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
                              const char *start, const char *end);

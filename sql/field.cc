@@ -1965,24 +1965,24 @@ void Field::make_send_field(Send_field *field)
 {
   if (orig_table && orig_table->s->db.str && *orig_table->s->db.str)
   {
-    field->db_name= orig_table->s->db.str;
+    field->db_name= orig_table->s->db;
     if (orig_table->pos_in_table_list &&
         orig_table->pos_in_table_list->schema_table)
-      field->org_table_name= (orig_table->pos_in_table_list->
-                              schema_table->table_name);
+      field->org_table_name= Lex_cstring_strlen(orig_table->pos_in_table_list->
+                                                schema_table->table_name);
     else
-      field->org_table_name= orig_table->s->table_name.str;
+      field->org_table_name= orig_table->s->table_name;
   }
   else
-    field->org_table_name= field->db_name= "";
+    field->org_table_name= field->db_name= empty_clex_str;
   if (orig_table && orig_table->alias.ptr())
   {
-    field->table_name= orig_table->alias.ptr();
+    field->table_name= orig_table->alias.lex_cstring();
     field->org_col_name= field_name;
   }
   else
   {
-    field->table_name= "";
+    field->table_name= empty_clex_str;
     field->org_col_name= empty_clex_str;
   }
   field->col_name= field_name;

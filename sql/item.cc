@@ -623,33 +623,34 @@ Item* Item::set_expr_cache(THD *thd)
 
 
 Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
-                       const char *db_name_arg,const char *table_name_arg,
-		       const LEX_CSTRING *field_name_arg)
+                       const LEX_CSTRING &db_name_arg,
+                       const LEX_CSTRING &table_name_arg,
+                       const LEX_CSTRING &field_name_arg)
   :Item_result_field(thd), orig_db_name(db_name_arg),
    orig_table_name(table_name_arg),
-   orig_field_name(*field_name_arg), context(context_arg),
+   orig_field_name(field_name_arg), context(context_arg),
    db_name(db_name_arg), table_name(table_name_arg),
-   field_name(*field_name_arg),
+   field_name(field_name_arg),
    alias_name_used(FALSE), cached_field_index(NO_CACHED_FIELD_INDEX),
    cached_table(0), depended_from(0), can_be_depended(TRUE)
 {
-  name= *field_name_arg;
+  name= field_name_arg;
 }
 
 
 Item_ident::Item_ident(THD *thd, TABLE_LIST *view_arg,
-                       const LEX_CSTRING *field_name_arg)
-  :Item_result_field(thd), orig_db_name(NullS),
-   orig_table_name(view_arg->table_name.str),
-   orig_field_name(*field_name_arg),
+                       const LEX_CSTRING &field_name_arg)
+  :Item_result_field(thd), orig_db_name(null_clex_str),
+   orig_table_name(view_arg->table_name),
+   orig_field_name(field_name_arg),
    /* TODO: suspicious use of first_select_lex */
    context(&view_arg->view->first_select_lex()->context),
-   db_name(NullS), table_name(view_arg->alias.str),
-   field_name(*field_name_arg),
+   db_name(null_clex_str), table_name(view_arg->alias),
+   field_name(field_name_arg),
    alias_name_used(FALSE), cached_field_index(NO_CACHED_FIELD_INDEX),
    cached_table(NULL), depended_from(NULL), can_be_depended(TRUE)
 {
-  name= *field_name_arg;
+  name= field_name_arg;
 }
 
 
@@ -780,10 +781,10 @@ bool Item_field::rename_fields_processor(void *arg)
   while ((def=def_it++))
   {
     if (def->change.str &&
-        (!db_name || !db_name[0] ||
-         !my_strcasecmp(table_alias_charset, db_name, rename->db_name.str)) &&
-        (!table_name || !table_name[0] ||
-         !my_strcasecmp(table_alias_charset, table_name, rename->table_name.str)) &&
+        (!db_name.str || !db_name.str[0] ||
+         !my_strcasecmp(table_alias_charset, db_name.str, rename->db_name.str)) &&
+        (!table_name.str || !table_name.str[0] ||
+         !my_strcasecmp(table_alias_charset, table_name.str, rename->table_name.str)) &&
         !my_strcasecmp(system_charset_info, field_name.str, def->change.str))
     {
       field_name= def->field_name;
@@ -1291,7 +1292,7 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
   uint conv_errors;
   Item_string *conv= (func_name ?
                       new (mem_root)
-                      Item_static_string_func(thd, Lex_cstring(func_name),
+                      Item_static_string_func(thd, Lex_cstring_strlen(func_name),
                                               s, tocs, &conv_errors,
                                               collation.derivation,
                                               collation.repertoire) :
@@ -2089,8 +2090,8 @@ class Item_aggregate_ref : public Item_ref
 {
 public:
   Item_aggregate_ref(THD *thd, Name_resolution_context *context_arg,
-                     Item **item, const char *table_name_arg,
-                     const LEX_CSTRING *field_name_arg):
+                     Item **item, const LEX_CSTRING &table_name_arg,
+                     const LEX_CSTRING &field_name_arg):
     Item_ref(thd, context_arg, item, table_name_arg, field_name_arg) {}
 
   virtual inline void print (String *str, enum_query_type query_type)
@@ -2212,8 +2213,8 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     if (!(item_ref= (new (thd->mem_root)
                      Item_direct_ref(thd,
                                      &thd->lex->current_select->context,
-                                     &ref_pointer_array[el], 0,
-                                     &name))))
+                                     &ref_pointer_array[el],
+                                     null_clex_str, name))))
       return;                                   // fatal_error is set
   }
   else
@@ -2221,8 +2222,8 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     if (!(item_ref= (new (thd->mem_root)
                      Item_aggregate_ref(thd,
                                         &thd->lex->current_select->context,
-                                        &ref_pointer_array[el], 0,
-                                        &name))))
+                                        &ref_pointer_array[el],
+                                        null_clex_str, name))))
       return;                                   // fatal_error is set
   }
   if (type() == SUM_FUNC_ITEM)
@@ -2888,7 +2889,8 @@ Item* Item_ref::build_clone(THD *thd)
 /**********************************************/
 
 Item_field::Item_field(THD *thd, Field *f)
-  :Item_ident(thd, 0, NullS, *f->table_name, &f->field_name),
+  :Item_ident(thd, 0, null_clex_str,
+              Lex_cstring_strlen(*f->table_name), f->field_name),
    item_equal(0),
    have_privileges(0), any_privileges(0)
 {
@@ -2912,8 +2914,8 @@ Item_field::Item_field(THD *thd, Field *f)
 
 Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
                        Field *f)
-  :Item_ident(thd, context_arg, f->table->s->db.str, *f->table_name,
-              &f->field_name),
+  :Item_ident(thd, context_arg, f->table->s->db,
+              Lex_cstring_strlen(*f->table_name), f->field_name),
    item_equal(0),
    have_privileges(0), any_privileges(0)
 {
@@ -2935,13 +2937,12 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
     procedures).
   */
   {
-    if (db_name)
-      orig_db_name= thd->strdup(db_name);
-    if (table_name)
-      orig_table_name= thd->strdup(table_name);
+    if (db_name.str)
+      orig_db_name= thd->strmake_lex_cstring(db_name);
+    if (table_name.str)
+      orig_table_name= thd->strmake_lex_cstring(table_name);
     if (field_name.str)
-      thd->make_lex_string(&orig_field_name, field_name.str,
-                           field_name.length);
+      orig_field_name= thd->strmake_lex_cstring(field_name);
     /*
       We don't restore 'name' in cleanup because it's not changed
       during execution. Still we need it to point to persistent
@@ -2955,8 +2956,9 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
 
 
 Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
-                       const char *db_arg,const char *table_name_arg,
-                       const LEX_CSTRING *field_name_arg)
+                       const LEX_CSTRING &db_arg,
+                       const LEX_CSTRING &table_name_arg,
+                       const LEX_CSTRING &field_name_arg)
   :Item_ident(thd, context_arg, db_arg, table_name_arg, field_name_arg),
    field(0), item_equal(0),
    have_privileges(0), any_privileges(0)
@@ -2989,9 +2991,9 @@ void Item_field::set_field(Field *field_par)
   field=result_field=field_par;			// for easy coding with fields
   maybe_null=field->maybe_null();
   Type_std_attributes::set(field_par->type_std_attributes());
-  table_name= *field_par->table_name;
+  table_name= Lex_cstring_strlen(*field_par->table_name);
   field_name= field_par->field_name;
-  db_name= field_par->table->s->db.str;
+  db_name= field_par->table->s->db;
   alias_name_used= field_par->table->alias_name_used;
 
   fixed= 1;
@@ -3074,24 +3076,24 @@ bool Item_field::switch_to_nullable_fields_processor(void *arg)
 const char *Item_ident::full_name() const
 {
   char *tmp;
-  if (!table_name || !field_name.str)
+  if (!table_name.str || !field_name.str)
     return field_name.str ? field_name.str : name.str ? name.str : "tmp_field";
 
-  if (db_name && db_name[0])
+  if (db_name.str && db_name.str[0])
   {
     THD *thd= current_thd;
-    tmp=(char*) thd->alloc((uint) strlen(db_name)+(uint) strlen(table_name)+
+    tmp=(char*) thd->alloc((uint) db_name.length+ (uint) table_name.length +
 			   (uint) field_name.length+3);
-    strxmov(tmp,db_name,".",table_name,".",field_name.str,NullS);
+    strxmov(tmp,db_name.str,".",table_name.str,".",field_name.str,NullS);
   }
   else
   {
-    if (table_name[0])
+    if (table_name.str[0])
     {
       THD *thd= current_thd;
-      tmp= (char*) thd->alloc((uint) strlen(table_name) +
+      tmp= (char*) thd->alloc((uint) table_name.length +
 			      field_name.length + 2);
-      strxmov(tmp, table_name, ".", field_name.str, NullS);
+      strxmov(tmp, table_name.str, ".", field_name.str, NullS);
     }
     else
       return field_name.str;
@@ -3103,12 +3105,14 @@ void Item_ident::print(String *str, enum_query_type query_type)
 {
   THD *thd= current_thd;
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
-  const char *d_name= db_name, *t_name= table_name;
-  bool use_table_name= table_name && table_name[0];
-  bool use_db_name= use_table_name && db_name && db_name[0] && !alias_name_used;
+  LEX_CSTRING d_name= db_name;
+  LEX_CSTRING t_name= table_name;
+  bool use_table_name= table_name.str && table_name.str[0];
+  bool use_db_name= use_table_name && db_name.str && db_name.str[0] &&
+                    !alias_name_used;
 
   if (use_db_name && (query_type & QT_ITEM_IDENT_SKIP_DB_NAMES))
-    use_db_name= !thd->db.str || strcmp(thd->db.str, db_name);
+    use_db_name= !thd->db.str || strcmp(thd->db.str, db_name.str);
 
   if (use_db_name)
     use_db_name= !(cached_table && cached_table->belong_to_view &&
@@ -3142,27 +3146,27 @@ void Item_ident::print(String *str, enum_query_type query_type)
   {
     if (use_table_name)
     {
-      strmov(t_name_buff, table_name);
+      strmov(t_name_buff, table_name.str);
       my_casedn_str(files_charset_info, t_name_buff);
-      t_name= t_name_buff;
+      t_name= Lex_cstring_strlen(t_name_buff);
     }
     if (use_db_name)
     {
-      strmov(d_name_buff, db_name);
+      strmov(d_name_buff, db_name.str);
       my_casedn_str(files_charset_info, d_name_buff);
-      d_name= d_name_buff;
+      d_name= Lex_cstring_strlen(d_name_buff);
     }
   }
 
   if (use_db_name)
   {
-    append_identifier(thd, str, d_name, (uint)strlen(d_name));
+    append_identifier(thd, str, d_name.str, (uint) d_name.length);
     str->append('.');
     DBUG_ASSERT(use_table_name);
   }
   if (use_table_name)
   {
-    append_identifier(thd, str, t_name, (uint) strlen(t_name));
+    append_identifier(thd, str, t_name.str, (uint) t_name.length);
     str->append('.');
   }
   append_identifier(thd, str, &field_name);
@@ -3310,12 +3314,12 @@ bool Item_field::eq(const Item *item, bool binary_cmp) const
   */
   return (!lex_string_cmp(system_charset_info, &item_field->name,
                           &field_name) &&
-	  (!item_field->table_name || !table_name ||
-	   (!my_strcasecmp(table_alias_charset, item_field->table_name,
-			   table_name) &&
-	    (!item_field->db_name || !db_name ||
-	     (item_field->db_name && !strcmp(item_field->db_name,
-					     db_name))))));
+	  (!item_field->table_name.str || !table_name.str ||
+	   (!my_strcasecmp(table_alias_charset, item_field->table_name.str,
+			   table_name.str) &&
+	    (!item_field->db_name.str || !db_name.str ||
+	     (item_field->db_name.str && !strcmp(item_field->db_name.str,
+                                                 db_name.str))))));
 }
 
 
@@ -4943,10 +4947,10 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
     DBUG_RETURN(TRUE);
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
-    const char *db_name= (resolved_item->db_name ?
-                          resolved_item->db_name : "");
-    const char *table_name= (resolved_item->table_name ?
-                             resolved_item->table_name : "");
+    const char *db_name= (resolved_item->db_name.str ?
+                          resolved_item->db_name.str : "");
+    const char *table_name= (resolved_item->table_name.str ?
+                             resolved_item->table_name.str : "");
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_WARN_FIELD_RESOLVED,
                         ER_THD(thd,ER_WARN_FIELD_RESOLVED),
@@ -5040,9 +5044,9 @@ void mark_select_range_as_dependent(THD *thd,
 
 static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
 {
-  const char *db_name;
-  const char *table_name;
-  LEX_CSTRING *field_name;
+  LEX_CSTRING db_name;
+  LEX_CSTRING table_name;
+  LEX_CSTRING field_name;
   ORDER      *found_group= NULL;
   int         found_match_degree= 0;
   char        name_buff[SAFE_NAME_LEN+1];
@@ -5052,30 +5056,30 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
   {
     db_name=    ((Item_ident*) find_item)->db_name;
     table_name= ((Item_ident*) find_item)->table_name;
-    field_name= &((Item_ident*) find_item)->field_name;
+    field_name= ((Item_ident*) find_item)->field_name;
   }
   else
     return NULL;
 
-  if (db_name && lower_case_table_names)
+  if (db_name.str && lower_case_table_names)
   {
     /* Convert database to lower case for comparison */
-    strmake_buf(name_buff, db_name);
+    strmake_buf(name_buff, db_name.str);
     my_casedn_str(files_charset_info, name_buff);
-    db_name= name_buff;
+    db_name= Lex_cstring_strlen(name_buff);
   }
 
-  DBUG_ASSERT(field_name->str != 0);
+  DBUG_ASSERT(field_name.str != 0);
 
   for (ORDER *cur_group= group_list ; cur_group ; cur_group= cur_group->next)
   {
     int cur_match_degree= 0;
 
     /* SELECT list element with explicit alias */
-    if ((*(cur_group->item))->name.str && !table_name &&
+    if ((*(cur_group->item))->name.str && !table_name.str &&
         !(*(cur_group->item))->is_autogenerated_name &&
         !lex_string_cmp(system_charset_info,
-                        &(*(cur_group->item))->name, field_name))
+                        &(*(cur_group->item))->name, &field_name))
     {
       ++cur_match_degree;
     }
@@ -5084,30 +5088,30 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
              (*(cur_group->item))->type() == Item::REF_ITEM )
     {
       Item_ident *cur_field= (Item_ident*) *cur_group->item;
-      const char *l_db_name= cur_field->db_name;
-      const char *l_table_name= cur_field->table_name;
+      const char *l_db_name= cur_field->db_name.str;
+      const char *l_table_name= cur_field->table_name.str;
       LEX_CSTRING *l_field_name= &cur_field->field_name;
 
       DBUG_ASSERT(l_field_name->str != 0);
 
       if (!lex_string_cmp(system_charset_info,
-                          l_field_name, field_name))
+                          l_field_name, &field_name))
         ++cur_match_degree;
       else
         continue;
 
-      if (l_table_name && table_name)
+      if (l_table_name && table_name.str)
       {
         /* If field_name is qualified by a table name. */
-        if (my_strcasecmp(table_alias_charset, l_table_name, table_name))
+        if (my_strcasecmp(table_alias_charset, l_table_name, table_name.str))
           /* Same field names, different tables. */
           return NULL;
 
         ++cur_match_degree;
-        if (l_db_name && db_name)
+        if (l_db_name && db_name.str)
         {
           /* If field_name is also qualified by a database name. */
-          if (strcmp(l_db_name, db_name))
+          if (strcmp(l_db_name, db_name.str))
             /* Same field names, different databases. */
             return NULL;
           ++cur_match_degree;
@@ -5576,14 +5580,14 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     rf= (place == IN_HAVING ?
          new (thd->mem_root)
          Item_ref(thd, context, ref, table_name,
-                  &field_name, alias_name_used) :
+                  field_name, alias_name_used) :
          (!select->group_list.elements ?
          new (thd->mem_root)
           Item_direct_ref(thd, context, ref, table_name,
-                          &field_name, alias_name_used) :
+                          field_name, alias_name_used) :
          new (thd->mem_root)
           Item_outer_ref(thd, context, ref, table_name,
-                         &field_name, alias_name_used)));
+                         field_name, alias_name_used)));
     *ref= save;
     if (!rf)
       return -1;
@@ -5628,9 +5632,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     {
       Item_ref *rf;
       rf= new (thd->mem_root) Item_ref(thd, context,
-                                       (*from_field)->table->s->db.str,
-                                       (*from_field)->table->alias.c_ptr(),
-                                       &field_name);
+                                       (*from_field)->table->s->db,
+                                       Lex_cstring_strlen((*from_field)->table->alias.c_ptr()),
+                                       field_name);
       if (!rf)
         return -1;
       thd->change_item_tree(reference, rf);
@@ -5778,7 +5782,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               Item_field created by the parser with the new Item_ref.
             */
             Item_ref *rf= new (thd->mem_root)
-              Item_ref(thd, context, db_name, table_name, &field_name);
+              Item_ref(thd, context, db_name, table_name, field_name);
             if (!rf)
               return 1;
             bool err= rf->fix_fields(thd, (Item **) &rf) || rf->check_cols(1);
@@ -5961,7 +5965,7 @@ bool Item_field::post_fix_fields_part_expr_processor(void *int_arg)
   /*
     Update table_name to be real table name, not the alias. Because alias is
     reallocated for every statement, and this item has a long life time */
-  table_name= field->table->s->table_name.str;
+  table_name= field->table->s->table_name;
   return FALSE;
 }
 
@@ -6158,10 +6162,10 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 void Item::init_make_send_field(Send_field *tmp_field,
                                 const Type_handler *h)
 {
-  tmp_field->db_name=		"";
-  tmp_field->org_table_name=	"";
+  tmp_field->db_name=		empty_clex_str;
+  tmp_field->org_table_name=	empty_clex_str;
   tmp_field->org_col_name=	empty_clex_str;
-  tmp_field->table_name=	"";
+  tmp_field->table_name=	empty_clex_str;
   tmp_field->col_name=	        name;
   tmp_field->flags=             (maybe_null ? 0 : NOT_NULL_FLAG) | 
                                 (my_binary_compare(charset_for_protocol()) ?
@@ -6320,15 +6324,15 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
 void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
 {
   field->make_send_field(tmp_field);
-  DBUG_ASSERT(tmp_field->table_name != 0);
+  DBUG_ASSERT(tmp_field->table_name.str != 0);
   if (name.str)
   {
     DBUG_ASSERT(name.length == strlen(name.str));
     tmp_field->col_name= name;		// Use user supplied name
   }
-  if (table_name)
+  if (table_name.str)
     tmp_field->table_name= table_name;
-  if (db_name)
+  if (db_name.str)
     tmp_field->db_name= db_name;
 }
 
@@ -7163,7 +7167,7 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
     all_fields->push_front((Item*)this, thd->mem_root);
     ref= new (thd->mem_root)
       Item_ref(thd, &select->context, &ref_pointer_array[el],
-               table_name, &field_name);
+               table_name, field_name);
     return ref;
   }
   return this;
@@ -7389,8 +7393,7 @@ Item *get_field_item_for_having(THD *thd, Item *item, st_select_lex *sel)
   if (field_item)
   {
     Item_ref *ref= new (thd->mem_root) Item_ref(thd, &sel->context,
-                                                NullS, NullS,
-                                                &field_item->field_name);
+                                                field_item->field_name);
     return ref;
   }
   DBUG_ASSERT(0);
@@ -7552,10 +7555,10 @@ void Item_temptable_field::print(String *str, enum_query_type query_type)
 
 
 Item_ref::Item_ref(THD *thd, Name_resolution_context *context_arg,
-                   Item **item, const char *table_name_arg,
-                   const LEX_CSTRING *field_name_arg,
+                   Item **item, const LEX_CSTRING &table_name_arg,
+                   const LEX_CSTRING &field_name_arg,
                    bool alias_name_used_arg):
-  Item_ident(thd, context_arg, NullS, table_name_arg, field_name_arg),
+  Item_ident(thd, context_arg, null_clex_str, table_name_arg, field_name_arg),
   ref(item), reference_trough_name(0)
 {
   alias_name_used= alias_name_used_arg;
@@ -7602,7 +7605,7 @@ public:
 };
 
 Item_ref::Item_ref(THD *thd, TABLE_LIST *view_arg, Item **item,
-                   const LEX_CSTRING *field_name_arg,
+                   const LEX_CSTRING &field_name_arg,
                    bool alias_name_used_arg):
   Item_ident(thd, view_arg, field_name_arg),
   ref(item), reference_trough_name(0)
@@ -8036,7 +8039,7 @@ void Item_ref::print(String *str, enum_query_type query_type)
     if ((*ref)->type() != Item::CACHE_ITEM &&
         (*ref)->type() != Item::WINDOW_FUNC_ITEM &&
         ref_type() != VIEW_REF &&
-        !table_name && name.str && alias_name_used)
+        !table_name.str && name.str && alias_name_used)
     {
       THD *thd= current_thd;
       append_identifier(thd, str, &(*ref)->real_item()->name);
@@ -8252,13 +8255,13 @@ void Item_ref::make_send_field(THD *thd, Send_field *field)
   /* Non-zero in case of a view */
   if (name.str)
     field->col_name= name;
-  if (table_name)
+  if (table_name.str)
     field->table_name= table_name;
-  if (db_name)
+  if (db_name.str)
     field->db_name= db_name;
   if (orig_field_name.str)
     field->org_col_name= orig_field_name;
-  if (orig_table_name)
+  if (orig_table_name.str)
     field->org_table_name= orig_table_name;
 }
 

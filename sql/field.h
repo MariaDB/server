@@ -5055,22 +5055,21 @@ class Send_field :public Sql_alloc,
                   public Type_handler_hybrid_field_type
 {
 public:
-  const char *db_name;
-  const char *table_name,*org_table_name;
+  LEX_CSTRING db_name;
+  LEX_CSTRING table_name, org_table_name;
   LEX_CSTRING col_name, org_col_name;
   ulong length;
   uint flags, decimals;
-  Send_field() {}
   Send_field(Field *field)
   {
     field->make_send_field(this);
-    DBUG_ASSERT(table_name != 0);
+    DBUG_ASSERT(table_name.str != 0);
     normalize();
   }
   Send_field(THD *thd, Item *item);
   Send_field(Field *field,
-             const char *db_name_arg,
-             const char *table_name_arg)
+             const LEX_CSTRING &db_name_arg,
+             const LEX_CSTRING &table_name_arg)
    :Type_handler_hybrid_field_type(field->type_handler()),
     db_name(db_name_arg),
     table_name(table_name_arg),

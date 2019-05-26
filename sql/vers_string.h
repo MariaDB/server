@@ -53,11 +53,6 @@ class Lex_cstring : public LEX_CSTRING
     str= NULL;
     length= 0;
   }
-  Lex_cstring(const char *_str)
-  {
-    str= _str;
-    length= strlen(_str);
-  }
   Lex_cstring(const char *_str, size_t _len)
   {
     str= _str;
@@ -75,6 +70,16 @@ class Lex_cstring : public LEX_CSTRING
     length= _len;
   }
 };
+
+
+class Lex_cstring_strlen: public Lex_cstring
+{
+public:
+  Lex_cstring_strlen(const char *from)
+   :Lex_cstring(from, from ? strlen(from) : 0)
+  { }
+};
+
 
 template <class Compare>
 struct Lex_cstring_with_compare : public Lex_cstring

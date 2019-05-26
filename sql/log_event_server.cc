@@ -2672,8 +2672,10 @@ void Load_log_event::set_fields(const char* affected_db,
   {
     LEX_CSTRING field_name= {field, field_lens[i] };
     field_list.push_back(new (thd->mem_root)
-                         Item_field(thd, context, affected_db, table_name,
-                                    &field_name),
+                         Item_field(thd, context,
+                                    Lex_cstring_strlen(affected_db),
+                                    Lex_cstring_strlen(table_name),
+                                    field_name),
                          thd->mem_root);
     field+= field_lens[i]  + 1;
   }

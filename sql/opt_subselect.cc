@@ -6759,8 +6759,7 @@ get_corresponding_item_for_in_subq_having(THD *thd, Item *in_item,
     Item_ref *ref=
       new (thd->mem_root) Item_ref(thd,
                                    &subq_pred->unit->first_select()->context,
-                                   NullS, NullS,
-                                   &new_item->name);
+                                   new_item->name);
     if (!ref)
       DBUG_ASSERT(0);
     return ref;

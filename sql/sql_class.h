@@ -3626,6 +3626,18 @@ public:
     return alloc_root(&transaction.mem_root,size);
   }
 
+  LEX_CSTRING strmake_lex_cstring(const char *str, size_t length)
+  {
+    const char *tmp= strmake_root(mem_root, str, length);
+    if (!tmp)
+      return {0,0};
+    return {tmp, length};
+  }
+  LEX_CSTRING strmake_lex_cstring(const LEX_CSTRING &from)
+  {
+    return strmake_lex_cstring(from.str, from.length);
+  }
+
   LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, size_t length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))

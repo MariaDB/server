@@ -9137,7 +9137,7 @@ int spider_db_open_item_ref(
     if (
       (*(item_ref->ref))->type() != Item::CACHE_ITEM &&
       item_ref->ref_type() != Item_ref::VIEW_REF &&
-      !item_ref->table_name &&
+      !item_ref->table_name.str &&
       item_ref->name.str &&
       item_ref->alias_name_used
     )

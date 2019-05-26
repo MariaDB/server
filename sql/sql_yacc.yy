@@ -299,7 +299,7 @@ LEX::set_system_variable(enum enum_var_type var_type,
     sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
 
   if (val && val->type() == Item::FIELD_ITEM &&
-      ((Item_field*)val)->table_name)
+      ((Item_field*)val)->table_name.str)
   {
     my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), sysvar->name.str);
     return TRUE;
@@ -339,7 +339,7 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val)
   trg_fld= new (thd->mem_root)
             Item_trigger_field(thd, current_context(),
                                Item_trigger_field::NEW_ROW,
-                               name, UPDATE_ACL, FALSE);
+                               *name, UPDATE_ACL, FALSE);
 
   if (unlikely(trg_fld == NULL))
     return TRUE;
@@ -9543,7 +9543,7 @@ select_item_list:
           {
             Item *item= new (thd->mem_root)
                           Item_field(thd, &thd->lex->current_select->context,
-                                     NULL, NULL, &star_clex_str);
+                                     star_clex_str);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             if (unlikely(add_item_to_list(thd, item)))
@@ -12918,7 +12918,7 @@ procedure_clause:
             lex->proc_list.next= &lex->proc_list.first;
             Item_field *item= new (thd->mem_root)
                                 Item_field(thd, &lex->current_select->context,
-                                           NULL, NULL, &$2);
+                                           $2);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             if (unlikely(add_proc_to_list(thd, item)))

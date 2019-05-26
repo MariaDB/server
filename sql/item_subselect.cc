@@ -47,6 +47,8 @@ double get_post_group_estimate(JOIN* join, double join_op_rows);
 
 LEX_CSTRING exists_outer_expr_name= { STRING_WITH_LEN("<exists outer expr>") };
 
+LEX_CSTRING no_matter_name= {STRING_WITH_LEN("<no matter>") };
+
 int check_and_do_in_subquery_rewrites(JOIN *join);
 
 Item_subselect::Item_subselect(THD *thd_arg):
@@ -1930,8 +1932,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     */
     expr= new (thd->mem_root) Item_direct_ref(thd, &select_lex->context,
                               (Item**)optimizer->get_cache(),
-                              "<no matter>",
-			      &in_left_expr_name);
+                              no_matter_name,
+			      in_left_expr_name);
   }
 
   DBUG_RETURN(false);
@@ -2162,8 +2164,8 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                       this,
                                                       &select_lex->
                                                       ref_pointer_array[0],  
-                                                      (char *)"<ref>",
-                                                      &field_name));
+                                                      {STRING_WITH_LEN("<ref>")},
+                                                      field_name));
     if (!abort_on_null && left_expr->maybe_null)
     {
       /* 
@@ -2244,8 +2246,8 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                   &select_lex->context,
                                                   this,
                                                   &select_lex->ref_pointer_array[0],
-                                                  (char *)"<no matter>",
-                                                  &field_name));
+                                                  no_matter_name,
+                                                  field_name));
         if (!abort_on_null && left_expr->maybe_null)
         {
           disable_cond_guard_for_const_null_left_expr(0);
@@ -2430,21 +2432,21 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                      Item_direct_ref(thd, &select_lex->context,
                                      (*optimizer->get_cache())->
                                      addr(i),
-                                     (char *)"<no matter>",
-                                     &in_left_expr_name),
+                                     no_matter_name,
+                                     in_left_expr_name),
                      new (thd->mem_root)
                      Item_ref(thd, &select_lex->context,
                               &select_lex->ref_pointer_array[i],
-                              (char *)"<no matter>",
-                              &list_ref));
+                              no_matter_name,
+                              list_ref));
       Item *item_isnull=
         new (thd->mem_root)
         Item_func_isnull(thd,
                          new (thd->mem_root)
                          Item_ref(thd, &select_lex->context,
                                   &select_lex->ref_pointer_array[i],
-                                  (char *)"<no matter>",
-                                  &list_ref));
+                                  no_matter_name,
+                                  list_ref));
       Item *col_item= new (thd->mem_root)
         Item_cond_or(thd, item_eq, item_isnull);
       if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
@@ -2464,8 +2466,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                               Item_ref(thd, &select_lex->context,
                                        &select_lex->
                                        ref_pointer_array[i],
-                                       (char *)"<no matter>",
-                                       &list_ref));
+                                       no_matter_name,
+                                       list_ref));
       if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
           get_cond_guard(i) )
       {
@@ -2499,14 +2501,14 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                      Item_direct_ref(thd, &select_lex->context,
                                      (*optimizer->get_cache())->
                                      addr(i),
-                                     (char *)"<no matter>",
-                                     &in_left_expr_name),
+                                     no_matter_name,
+                                     in_left_expr_name),
                      new (thd->mem_root)
                      Item_direct_ref(thd, &select_lex->context,
                                      &select_lex->
                                      ref_pointer_array[i],
-                                     (char *)"<no matter>",
-                                     &list_ref));
+                                     no_matter_name,
+                                     list_ref));
       if (!abort_on_null && select_lex->ref_pointer_array[i]->maybe_null)
       {
         Item *having_col_item=
@@ -2515,8 +2517,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                 new (thd->mem_root)
                                 Item_ref(thd, &select_lex->context, 
                                          &select_lex->ref_pointer_array[i],
-                                         (char *)"<no matter>",
-                                         &list_ref));
+                                         no_matter_name,
+                                         list_ref));
         
         item_isnull= new (thd->mem_root)
           Item_func_isnull(thd,
@@ -2524,8 +2526,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                            Item_direct_ref(thd, &select_lex->context,
                                            &select_lex->
                                            ref_pointer_array[i],
-                                           (char *)"<no matter>",
-                                           &list_ref));
+                                           no_matter_name,
+                                           list_ref));
         item= new (thd->mem_root) Item_cond_or(thd, item, item_isnull);
         if (left_expr->element_index(i)->maybe_null && get_cond_guard(i))
         {
@@ -3075,8 +3077,8 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     in_subs->expr= new (thd->mem_root)
       Item_direct_ref(thd, &first_select->context,
                       (Item**)optimizer->get_cache(),
-                      (char *)"<no matter>",
-                      &in_left_expr_name);
+                      no_matter_name,
+                      in_left_expr_name);
     if (in_subs->fix_fields(thd, optimizer->arguments() + 1))
     {
       res= TRUE;
@@ -3146,8 +3148,8 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
                                               Item_direct_ref(thd,
                                                               &unit->outer_select()->context,
                                                               optimizer->arguments(),
-                                                              (char *)"<no matter>",
-                                                              &exists_outer_expr_name)),
+                                                              no_matter_name,
+                                                              exists_outer_expr_name)),
                           optimizer) :
             (Item *)optimizer);
     }
@@ -3170,8 +3172,8 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
                                            Item_direct_ref(thd,
                                                            &unit->outer_select()->context,
                                                            optimizer->arguments()[0]->addr((int)i),
-                                                           (char *)"<no matter>",
-                                                           &exists_outer_expr_name)),
+                                                           no_matter_name,
+                                                           exists_outer_expr_name)),
                        thd->mem_root);
         }
       }

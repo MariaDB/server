@@ -3444,7 +3444,7 @@ Field *Type_handler_float::make_schema_field(TABLE *table,
                                               const ST_FIELD_INFO &def,
                                               bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new (table->in_use->mem_root)
      Field_float(addr.ptr(), def.field_length,
                   addr.null_ptr(), addr.null_bit(),
@@ -3459,7 +3459,7 @@ Field *Type_handler_double::make_schema_field(TABLE *table,
                                               const ST_FIELD_INFO &def,
                                               bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new (table->in_use->mem_root)
      Field_double(addr.ptr(), def.field_length,
                   addr.null_ptr(), addr.null_bit(),
@@ -3474,7 +3474,7 @@ Field *Type_handler_decimal_result::make_schema_field(TABLE *table,
                                                       const ST_FIELD_INFO &def,
                                                       bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   uint dec= def.field_length % 10;
   uint prec= (def.field_length / 100) % 100;
   DBUG_ASSERT(dec <= DECIMAL_MAX_SCALE);
@@ -3491,7 +3491,7 @@ Field *Type_handler_blob_common::make_schema_field(TABLE *table,
                                                    const ST_FIELD_INFO &def,
                                                    bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   if (show_field)
   {
     return new (table->in_use->mem_root)
@@ -3512,7 +3512,7 @@ Field *Type_handler_string::make_schema_field(TABLE *table,
                                               bool show_field) const
 {
   DBUG_ASSERT(def.field_length);
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   uint32 octet_length= (uint32) def.field_length * 3;
   if (def.field_length * 3 > MAX_FIELD_VARCHARLENGTH)
   {
@@ -3543,7 +3543,7 @@ Field *Type_handler_tiny::make_schema_field(TABLE *table,
                                             const ST_FIELD_INFO &def,
                                             bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new (table->in_use->mem_root)
            Field_tiny(addr.ptr(), def.field_length,
                       addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
@@ -3556,7 +3556,7 @@ Field *Type_handler_short::make_schema_field(TABLE *table,
                                              const ST_FIELD_INFO &def,
                                              bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new (table->in_use->mem_root)
            Field_short(addr.ptr(), def.field_length,
                        addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
@@ -3569,7 +3569,7 @@ Field *Type_handler_long::make_schema_field(TABLE *table,
                                             const ST_FIELD_INFO &def,
                                             bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new (table->in_use->mem_root)
            Field_long(addr.ptr(), def.field_length,
                       addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
@@ -3582,7 +3582,7 @@ Field *Type_handler_longlong::make_schema_field(TABLE *table,
                                                 const ST_FIELD_INFO &def,
                                                 bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new (table->in_use->mem_root)
            Field_longlong(addr.ptr(), def.field_length,
                           addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
@@ -3595,7 +3595,7 @@ Field *Type_handler_date_common::make_schema_field(TABLE *table,
                                                    const ST_FIELD_INFO &def,
                                                    bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new (table->in_use->mem_root)
            Field_newdate(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                          Field::NONE, &name);
@@ -3607,7 +3607,7 @@ Field *Type_handler_time_common::make_schema_field(TABLE *table,
                                                    const ST_FIELD_INFO &def,
                                                    bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new_Field_time(table->in_use->mem_root,
                         addr.ptr(), addr.null_ptr(), addr.null_bit(),
                         Field::NONE, &name, def.fsp());
@@ -3619,7 +3619,7 @@ Field *Type_handler_datetime_common::make_schema_field(TABLE *table,
                                                        const ST_FIELD_INFO &def,
                                                        bool show_field) const
 {
-  Lex_cstring name(def.field_name);
+  Lex_cstring_strlen name(def.field_name);
   return new_Field_datetime(table->in_use->mem_root,
                              addr.ptr(), addr.null_ptr(), addr.null_bit(),
                              Field::NONE, &name, def.fsp());

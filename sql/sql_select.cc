@@ -565,9 +565,9 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
 
     new_ref= direct_ref ?
               new (thd->mem_root) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
-                          &ref->field_name, ref->alias_name_used) :
+                          ref->field_name, ref->alias_name_used) :
               new (thd->mem_root) Item_ref(thd, ref->context, item_ref, ref->table_name,
-                          &ref->field_name, ref->alias_name_used);
+                          ref->field_name, ref->alias_name_used);
     if (!new_ref)
       return TRUE;
     ref->outer_ref= new_ref;
@@ -773,11 +773,11 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
   const LEX_CSTRING &fend= period->end_field(share)->field_name;
 
   conds->field_start= newx Item_field(thd, &select->context,
-                                      table->db.str, table->alias.str,
-                                      thd->make_clex_string(fstart));
+                                      table->db, table->alias,
+                                      thd->strmake_lex_cstring(fstart));
   conds->field_end=   newx Item_field(thd, &select->context,
-                                      table->db.str, table->alias.str,
-                                      thd->make_clex_string(fend));
+                                      table->db, table->alias,
+                                      thd->strmake_lex_cstring(fend));
 
   Item *cond1= NULL, *cond2= NULL, *cond3= NULL, *curr= NULL;
   if (timestamp)
@@ -25349,8 +25349,9 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
           {
             Item *new_item;
             if (!(new_item= new (thd->mem_root) Item_ref(thd, context,
-                                                         group_tmp->item, 0,
-                                                         &item->name)))
+                                                         group_tmp->item,
+                                                         null_clex_str,
+                                                         item->name)))
               return 1;                                 // fatal_error is set
             thd->change_item_tree(arg, new_item);
             arg_changed= TRUE;

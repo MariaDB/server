@@ -6388,8 +6388,8 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
                                      &view->view->first_select_lex()->context:
                                      &thd->lex->first_select_lex()->context);
   Item *item= (new (thd->mem_root)
-               Item_direct_view_ref(thd, context, field_ref, view->alias.str,
-                                    name, view));
+               Item_direct_view_ref(thd, context, field_ref, view->alias,
+                                    *name, view));
   if (!item)
     return NULL;
   /*
