@@ -25,12 +25,13 @@ INCLUDE(CMakeParseArguments)
 # [MODULE_OUTPUT_NAME module_name]
 # [STATIC_OUTPUT_NAME static_name]
 # [RECOMPILE_FOR_EMBEDDED]
+# [NOT_EMBEDDED]
 # [LINK_LIBRARIES lib1...libN]
 # [DEPENDS target1...targetN]
 
 MACRO(MYSQL_ADD_PLUGIN)
   CMAKE_PARSE_ARGUMENTS(ARG
-    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED;CLIENT"
+    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;NOT_EMBEDDED;RECOMPILE_FOR_EMBEDDED;CLIENT"
     "MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG"
     "LINK_LIBRARIES;DEPENDS"
     ${ARGN}
@@ -140,7 +141,7 @@ MACRO(MYSQL_ADD_PLUGIN)
     DTRACE_INSTRUMENT(${target})
     ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDS})
     RESTRICT_SYMBOL_EXPORTS(${target})
-    IF(WITH_EMBEDDED_SERVER)
+    IF(WITH_EMBEDDED_SERVER AND (NOT ARG_NOT_EMBEDDED))
       # Embedded library should contain PIC code and be linkable
       # to shared libraries (on systems that need PIC)
       IF(ARG_RECOMPILE_FOR_EMBEDDED OR NOT _SKIP_PIC)
@@ -165,19 +166,30 @@ MACRO(MYSQL_ADD_PLUGIN)
       TARGET_LINK_LIBRARIES (${target} ${ARG_LINK_LIBRARIES})
     ENDIF()
 
+    SET(${with_var} ON CACHE INTERNAL "Link ${plugin} statically to the server" FORCE)
+
     # Update mysqld dependencies
     SET (MYSQLD_STATIC_PLUGIN_LIBS ${MYSQLD_STATIC_PLUGIN_LIBS} 
       ${target} ${ARG_LINK_LIBRARIES} CACHE INTERNAL "" FORCE)
 
-    SET(${with_var} ON CACHE INTERNAL "Link ${plugin} statically to the server" FORCE)
+    IF(WITH_EMBEDDED_SERVER AND (NOT ARG_NOT_EMBEDDED))
+      SET (EMBEDDED_PLUGIN_LIBS ${EMBEDDED_PLUGIN_LIBS}
+      ${target} ${ARG_LINK_LIBRARIES} CACHE INTERNAL "" FORCE)
+    ENDIF()
+
+    IF(ARG_NOT_EMBEDDED)
+      SET(builtin_entry "#ifndef EMBEDDED_LIBRARY\n builtin_maria_${target}_plugin,\n#endif")
+    ELSE()
+      SET(builtin_entry " builtin_maria_${target}_plugin,")
+    ENDIF()
 
     IF(ARG_MANDATORY)
       SET (mysql_mandatory_plugins  
-        "${mysql_mandatory_plugins} builtin_maria_${target}_plugin,")
+        "${mysql_mandatory_plugins}${builtin_entry}\n")
       SET (mysql_mandatory_plugins ${mysql_mandatory_plugins} PARENT_SCOPE)
     ELSE()
       SET (mysql_optional_plugins  
-        "${mysql_optional_plugins} builtin_maria_${target}_plugin,")
+        "${mysql_optional_plugins}${builtin_entry}\n")
       SET (mysql_optional_plugins ${mysql_optional_plugins} PARENT_SCOPE)
     ENDIF()
   ELSEIF(PLUGIN_${plugin} MATCHES "(DYNAMIC|AUTO|YES)"
