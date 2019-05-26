@@ -744,7 +744,7 @@ static TP_connection_generic * listener(worker_thread_t *current_thread,
      more workers.
     */
     
-    bool listener_picks_event=is_queue_empty(thread_group);
+    bool listener_picks_event=is_queue_empty(thread_group) && !threadpool_dedicated_listener;
     queue_put(thread_group, ev, cnt);
     if (listener_picks_event)
     {
@@ -1068,7 +1068,7 @@ static void queue_put(thread_group_t *thread_group, TP_connection_generic *conne
 {
   DBUG_ENTER("queue_put");
 
-  connection->dequeue_time= pool_timer.current_microtime;
+  connection->enqueue_time= threadpool_exact_stats?microsecond_interval_timer():pool_timer.current_microtime;
   thread_group->queues[connection->priority].push_back(connection);
 
   if (thread_group->active_thread_count == 0)

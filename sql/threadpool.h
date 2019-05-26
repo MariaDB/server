@@ -28,6 +28,8 @@ extern uint threadpool_stall_limit;  /* time interval in 10 ms units for stall c
 extern uint threadpool_max_threads;  /* Maximum threads in pool */
 extern uint threadpool_oversubscribe;  /* Maximum active threads in group */
 extern uint threadpool_prio_kickup_timer;  /* Time before low prio item gets prio boost */
+extern my_bool threadpool_exact_stats; /* Better queueing time stats for information_schema, at small performance cost */
+extern my_bool threadpool_dedicated_listener; /* Listener thread does not pick up work items. */
 #ifdef _WIN32
 extern uint threadpool_mode; /* Thread pool implementation , windows or generic */
 #define TP_MODE_WINDOWS 0

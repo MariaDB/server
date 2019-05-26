@@ -3753,6 +3753,20 @@ static Sys_var_uint Sys_threadpool_threadpool_prio_kickup_timer(
   GLOBAL_VAR(threadpool_prio_kickup_timer), CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, UINT_MAX), DEFAULT(1000), BLOCK_SIZE(1)
 );
+
+static Sys_var_mybool Sys_threadpool_exact_stats(
+  "thread_pool_exact_stats",
+  "If set to 1, provides better statistics in information_schema threadpool tables",
+  GLOBAL_VAR(threadpool_exact_stats), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+    NO_MUTEX_GUARD, NOT_IN_BINLOG
+);
+
+static Sys_var_mybool Sys_threadpool_dedicated_listener(
+  "thread_pool_dedicated_listener",
+  "If set to 1,listener thread will not pick up queries",
+  GLOBAL_VAR(threadpool_dedicated_listener), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+  NO_MUTEX_GUARD, NOT_IN_BINLOG
+);
 #endif /* HAVE_POOL_OF_THREADS */
 
 /**

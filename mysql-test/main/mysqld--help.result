@@ -1320,6 +1320,11 @@ The following specify which files/extra groups are read (specified before remain
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse.
  These are freed after 5 minutes of idle time
+ --thread-pool-dedicated-listener 
+ If set to 1,listener thread will not pick up queries
+ --thread-pool-exact-stats 
+ If set to 1, provides better statistics in
+ information_schema threadpool tables
  --thread-pool-idle-timeout=# 
  Timeout in seconds for an idle thread in the thread
  pool.Worker thread will be shut down after timeout
@@ -1744,6 +1749,8 @@ tcp-keepalive-probes 0
 tcp-keepalive-time 0
 tcp-nodelay TRUE
 thread-cache-size 151
+thread-pool-dedicated-listener FALSE
+thread-pool-exact-stats FALSE
 thread-pool-idle-timeout 60
 thread-pool-max-threads 65536
 thread-pool-oversubscribe 3
