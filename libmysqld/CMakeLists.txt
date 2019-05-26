@@ -153,7 +153,7 @@ SET(LIBS
   dbug strings mysys mysys_ssl pcre vio 
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
-  ${MYSQLD_STATIC_PLUGIN_LIBS}
+  ${EMBEDDED_PLUGIN_LIBS}
   sql_embedded
 )
 
