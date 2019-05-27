@@ -1599,3 +1599,33 @@ SELECT STRAIGHT_JOIN * FROM t1, t2 AS t2_1, t2 AS t2_2
 WHERE t2_2.c = t2_1.c AND t2_2.b = t2_1.b AND ( a IS NULL OR t2_1.c = a );
 a	b	c	b	c
 DROP TABLE t1,t2;
+#
+# MDEV-19600: The optimizer should be able to produce rows=1 estimate for unique index with NULLable columns
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+pk int not null primary key auto_increment,
+a int,
+b int,
+unique key(a)
+);
+insert into t1 (a,b) select null, 12345 from t0 A, t0 B, t0 C;
+insert into t1 (a,b) select a,a from t0;
+# Simulate InnoDB's persistent statistics (It always uses nulls_equal)
+set @tmp1= @@myisam_stats_method;
+set myisam_stats_method=nulls_equal;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+set myisam_stats_method=@tmp1;
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	1010	NULL	NULL		BTREE		
+t1	0	a	1	a	A	10	NULL	NULL	YES	BTREE		
+# t1 must use ref(t1.a=t0.a) and rows must be 1 (and not 45):
+explain select * from t0,t1 where t0.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t0.a	1	
+drop table t0,t1;

@@ -5507,18 +5507,16 @@ add_key_field(JOIN *join,
   (*key_fields)->level=         and_level;
   (*key_fields)->optimize=      optimize;
   /*
-    If the condition has form "tbl.keypart = othertbl.field" and 
-    othertbl.field can be NULL, there will be no matches if othertbl.field 
-    has NULL value.
-    We use null_rejecting in add_not_null_conds() to add
-    'othertbl.field IS NOT NULL' to tab->select_cond.
+    If the condition we are analyzing is NULL-rejecting and at least
+    one side of the equalities is NULLable, mark the KEY_FIELD object as
+    null-rejecting. This property is used by:
+    - add_not_null_conds() to add "column IS NOT NULL" conditions
+    - best_access_path() to produce better estimates for NULL-able unique keys.
   */
   {
-    Item *real= (*value)->real_item();
-    if (((cond->functype() == Item_func::EQ_FUNC) ||
-         (cond->functype() == Item_func::MULT_EQUAL_FUNC)) &&
-        (real->type() == Item::FIELD_ITEM) &&
-        ((Item_field*)real)->field->maybe_null())
+    if ((cond->functype() == Item_func::EQ_FUNC ||
+         cond->functype() == Item_func::MULT_EQUAL_FUNC) &&
+        ((*value)->maybe_null || field->real_maybe_null()))
       (*key_fields)->null_rejecting= true;
     else
       (*key_fields)->null_rejecting= false;
@@ -6834,6 +6832,7 @@ best_access_path(JOIN      *join,
       ulong key_flags;
       uint key_parts;
       key_part_map found_part= 0;
+      key_part_map notnull_part=0; // key parts which won't have NULL in lookup tuple.
       table_map found_ref= 0;
       uint key= keyuse->key;
       bool ft_key=  (keyuse->keypart == FT_KEYPART);
@@ -6892,6 +6891,9 @@ best_access_path(JOIN      *join,
             if (!(keyuse->used_tables & ~join->const_table_map))
               const_part|= keyuse->keypart_map;
 
+            if (!keyuse->val->maybe_null || keyuse->null_rejecting)
+              notnull_part|=keyuse->keypart_map;
+
             double tmp2= prev_record_reads(join->positions, idx,
                                            (found_ref | keyuse->used_tables));
             if (tmp2 < best_prev_record_reads)
@@ -6942,12 +6944,19 @@ best_access_path(JOIN      *join,
         loose_scan_opt.check_ref_access_part1(s, key, start_key, found_part);
 
         /* Check if we found full key */
-        if (found_part == PREV_BITS(uint, key_parts) &&
-            !ref_or_null_part)
+        const key_part_map all_key_parts= PREV_BITS(uint, key_parts);
+        if (found_part == all_key_parts && !ref_or_null_part)
         {                                         /* use eq key */
           max_key_part= (uint) ~0;
-          if ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
-              MY_TEST(key_flags & HA_EXT_NOSAME))
+          /*
+            If the index is a unique index (1), and
+            - all its columns are not null (2), or
+            - equalities we are using reject NULLs (3)
+            then the estimate is rows=1.
+          */
+          if ((key_flags & (HA_NOSAME | HA_EXT_NOSAME)) &&   // (1)
+              (!(key_flags & HA_NULL_PART_KEY) ||            //  (2)
+               all_key_parts == notnull_part))               //  (3)
           {
             tmp = prev_record_reads(join->positions, idx, found_ref);
             records=1.0;
@@ -9991,8 +10000,16 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       uint maybe_null= MY_TEST(keyinfo->key_part[i].null_bit);
       j->ref.items[i]=keyuse->val;		// Save for cond removal
       j->ref.cond_guards[i]= keyuse->cond_guard;
-      if (keyuse->null_rejecting) 
+
+      /*
+        Set ref.null_rejecting to true only if we are going to inject a
+        "keyuse->val IS NOT NULL" predicate.
+      */
+      Item *real= (keyuse->val)->real_item();
+      if (keyuse->null_rejecting && (real->type() == Item::FIELD_ITEM) &&
+          ((Item_field*)real)->field->maybe_null())
         j->ref.null_rejecting|= (key_part_map)1 << i;
+
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
       /*
         We don't want to compute heavy expressions in EXPLAIN, an example would
