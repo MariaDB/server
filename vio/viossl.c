@@ -26,19 +26,7 @@
 
 #ifdef HAVE_OPENSSL
 
-#ifdef HAVE_YASSL
-/*
-  yassl seem to be different here, SSL_get_error() value can be
-  directly passed to ERR_error_string(), and these errors don't go
-  into ERR_get_error() stack.
-  in openssl, apparently, SSL_get_error() values live in a different
-  namespace, one needs to use ERR_get_error() as an argument
-  for ERR_error_string().
-*/
-#define SSL_errno(X,Y) SSL_get_error(X,Y)
-#else
 #define SSL_errno(X,Y) ERR_get_error()
-#endif
 
 /**
   Obtain the equivalent system error status for the last SSL I/O operation.
@@ -124,9 +112,7 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   default:
     should_retry= FALSE;
     ssl_set_sys_error(ssl_error);
-#ifndef HAVE_YASSL
     ERR_clear_error();
-#endif
     break;
   }
 
@@ -196,25 +182,6 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
 
   DBUG_RETURN(ret < 0 ? -1 : ret);
 }
-
-#ifdef HAVE_YASSL
-
-/* Emulate a blocking recv() call with vio_read(). */
-static long yassl_recv(void *ptr, void *buf, size_t len,
-                       int flag __attribute__((unused)))
-{
-  return (long)vio_read(ptr, buf, len);
-}
-
-
-/* Emulate a blocking send() call with vio_write(). */
-static long yassl_send(void *ptr, const void *buf, size_t len,
-                       int flag __attribute__((unused)))
-{
-  return (long)vio_write(ptr, buf, len);
-}
-
-#endif
 
 int vio_ssl_close(Vio *vio)
 {
@@ -335,21 +302,13 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
   SSL_SESSION_set_timeout(SSL_get_session(ssl), timeout);
   SSL_set_fd(ssl, (int)sd);
 
-  /*
-    Since yaSSL does not support non-blocking send operations, use
-    special transport functions that properly handles non-blocking
-    sockets. These functions emulate the behavior of blocking I/O
-    operations by waiting for I/O to become available.
-  */
-#ifdef HAVE_YASSL
+#ifdef HAVE_WOLFSSL
   /* Set first argument of the transport functions. */
-  yaSSL_transport_set_ptr(ssl, vio);
-  /* Set functions to use in order to send and receive data. */
-  yaSSL_transport_set_recv_function(ssl, yassl_recv);
-  yaSSL_transport_set_send_function(ssl, yassl_send);
+  wolfSSL_SetIOReadCtx(ssl, vio);
+  wolfSSL_SetIOWriteCtx(ssl, vio);
 #endif
 
-#if !defined(HAVE_YASSL) && defined(SSL_OP_NO_COMPRESSION)
+#if defined(SSL_OP_NO_COMPRESSION)
   SSL_set_options(ssl, SSL_OP_NO_COMPRESSION);
 #endif
 

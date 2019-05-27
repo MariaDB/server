@@ -42,6 +42,14 @@ Created 2011-05-26 Marko Makela
 #include <algorithm>
 #include <map>
 
+#ifdef HAVE_WOLFSSL
+// Workaround for MDEV-19582
+// (WolfSSL reads memory out of bounds with decryption/NOPAD)
+#define WOLFSSL_PAD_SIZE MY_AES_BLOCK_SIZE
+#else
+#define WOLFSSL_PAD_SIZE 0
+#endif
+
 Atomic_counter<ulint> onlineddl_rowlog_rows;
 ulint onlineddl_rowlog_pct_used;
 ulint onlineddl_pct_progress;
@@ -293,7 +301,8 @@ row_log_block_allocate(
 		);
 
 		log_buf.block = ut_allocator<byte>(mem_key_row_log_buf)
-			.allocate_large(srv_sort_buf_size, &log_buf.block_pfx);
+			.allocate_large(srv_sort_buf_size + WOLFSSL_PAD_SIZE,
+					&log_buf.block_pfx);
 
 		if (log_buf.block == NULL) {
 			DBUG_RETURN(false);
@@ -313,7 +322,8 @@ row_log_block_free(
 	DBUG_ENTER("row_log_block_free");
 	if (log_buf.block != NULL) {
 		ut_allocator<byte>(mem_key_row_log_buf).deallocate_large(
-			log_buf.block, &log_buf.block_pfx, log_buf.size);
+			log_buf.block, &log_buf.block_pfx,
+			log_buf.size + WOLFSSL_PAD_SIZE);
 		log_buf.block = NULL;
 	}
 	DBUG_VOID_RETURN;
@@ -3231,7 +3241,7 @@ row_log_allocate(
 	index->online_log = log;
 
 	if (log_tmp_is_encrypted()) {
-		ulint size = srv_sort_buf_size;
+		ulint size = srv_sort_buf_size + WOLFSSL_PAD_SIZE;
 		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size));
 		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size));
 
@@ -3265,11 +3275,13 @@ row_log_free(
 	row_merge_file_destroy_low(log->fd);
 
 	if (log->crypt_head) {
-		os_mem_free_large(log->crypt_head, srv_sort_buf_size);
+		os_mem_free_large(log->crypt_head, srv_sort_buf_size
+				  + WOLFSSL_PAD_SIZE);
 	}
 
 	if (log->crypt_tail) {
-		os_mem_free_large(log->crypt_tail, srv_sort_buf_size);
+		os_mem_free_large(log->crypt_tail, srv_sort_buf_size
+				  + WOLFSSL_PAD_SIZE);
 	}
 
 	mutex_free(&log->mutex);

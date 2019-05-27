@@ -2655,7 +2655,7 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 				log_block,
 				scanned_lsn + data_len);
 
-		recv_sys->scanned_lsn = scanned_lsn + data_len;
+		recv_sys.scanned_lsn = scanned_lsn + data_len;
 
 		if (data_len == OS_FILE_LOG_BLOCK_SIZE) {
 			/* We got a full log block. */
@@ -2707,13 +2707,13 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 static bool xtrabackup_copy_logfile(bool last = false)
 {
 	ut_a(dst_log_file != NULL);
-	ut_ad(recv_sys != NULL);
+	ut_ad(recv_sys.is_initialised());
 
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
 
-	recv_sys->parse_start_lsn = log_copy_scanned_lsn;
-	recv_sys->scanned_lsn = log_copy_scanned_lsn;
+	recv_sys.parse_start_lsn = log_copy_scanned_lsn;
+	recv_sys.scanned_lsn = log_copy_scanned_lsn;
 
 	start_lsn = ut_uint64_align_down(log_copy_scanned_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
@@ -2736,15 +2736,15 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		if (lsn == start_lsn) {
 			start_lsn = 0;
 		} else {
-			mutex_enter(&recv_sys->mutex);
+			mutex_enter(&recv_sys.mutex);
 			start_lsn = xtrabackup_copy_log(start_lsn, lsn, last);
-			mutex_exit(&recv_sys->mutex);
+			mutex_exit(&recv_sys.mutex);
 		}
 
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			msg(recv_sys->found_corrupt_log
+			msg(recv_sys.found_corrupt_log
 			    ? "xtrabackup_copy_logfile() failed: corrupt log."
 			    : "xtrabackup_copy_logfile() failed.");
 			return true;
@@ -4059,7 +4059,7 @@ fail:
 
 	ut_crc32_init();
 	crc_init();
-	recv_sys_init();
+	recv_sys.create();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	srv_allow_writes_event = os_event_create(0);
@@ -4219,7 +4219,7 @@ fail_before_log_copying_thread_start:
 
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
-	recv_sys->recovered_lsn = log_copy_scanned_lsn;
+	recv_sys.recovered_lsn = log_copy_scanned_lsn;
 	log_optimized_ddl_op = backup_optimized_ddl_op;
 
 	if (xtrabackup_copy_logfile())
@@ -5458,7 +5458,7 @@ static bool xtrabackup_prepare_func(char** argv)
 		sync_check_init();
 		ut_d(sync_check_enable());
 		ut_crc32_init();
-		recv_sys_init();
+		recv_sys.create();
 		log_sys.create();
 		recv_recovery_on = true;
 

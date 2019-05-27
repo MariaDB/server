@@ -18,10 +18,8 @@
 #include <ssl_compat.h>
 
 #ifdef HAVE_OPENSSL
-#ifndef HAVE_YASSL
 #include <openssl/dh.h>
 #include <openssl/bn.h>
-#endif
 
 static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
@@ -166,6 +164,25 @@ static void check_ssl_init()
   }
 }
 
+#ifdef HAVE_WOLFSSL
+static int wolfssl_recv(WOLFSSL* ssl, char* buf, int sz, void* vio)
+{
+  size_t ret;
+  (void)ssl;
+  ret = vio_read((Vio *)vio, (uchar *)buf, sz);
+  /* check if connection was closed */
+  if (ret == 0)
+    return WOLFSSL_CBIO_ERR_CONN_CLOSE;
+
+  return (int)ret;
+}
+
+static int wolfssl_send(WOLFSSL* ssl, char* buf, int sz, void* vio)
+{
+  return (int)vio_write((Vio *)vio, (unsigned char*)buf, sz);
+}
+#endif /* HAVE_WOLFSSL */
+
 /************************ VioSSLFd **********************************/
 static struct st_VioSSLFd *
 new_VioSSLFd(const char *key_file, const char *cert_file,
@@ -232,7 +249,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
                  sslGetErrString(*error)));
       goto err2;
     }
-
+#ifndef HAVE_WOLFSSL
     /* otherwise go use the defaults */
     if (SSL_CTX_set_default_verify_paths(ssl_fd->ssl_context) == 0)
     {
@@ -240,13 +257,15 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
       goto err2;
     }
+#endif
   }
 
   if (crl_file || crl_path)
   {
-#ifdef HAVE_YASSL
-    DBUG_PRINT("warning", ("yaSSL doesn't support CRL"));
+#ifdef HAVE_WOLFSSL
+    /* CRL does not work with WolfSSL. */
     DBUG_ASSERT(0);
+    goto err2;
 #else
     X509_STORE *store= SSL_CTX_get_cert_store(ssl_fd->ssl_context);
     /* Load crls from the trusted ca */
@@ -281,6 +300,12 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 
     DH_free(dh);
   }
+
+#ifdef HAVE_WOLFSSL
+  /* set IO functions used by wolfSSL */
+   wolfSSL_SetIORecv(ssl_fd->ssl_context, wolfssl_recv);
+   wolfSSL_SetIOSend(ssl_fd->ssl_context, wolfssl_send);
+#endif
 
   DBUG_PRINT("exit", ("OK 1"));
 

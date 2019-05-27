@@ -3034,7 +3034,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 		" See the man page of setpriority().";
 	}
 	/* Signal that setpriority() has been attempted. */
-	os_event_set(recv_sys->flush_end);
+	os_event_set(recv_sys.flush_end);
 #endif /* UNIV_LINUX */
 
 	do {
@@ -3042,13 +3042,13 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 		ulint	n_flushed_lru = 0;
 		ulint	n_flushed_list = 0;
 
-		os_event_wait(recv_sys->flush_start);
+		os_event_wait(recv_sys.flush_start);
 
 		if (!recv_writer_thread_active) {
 			break;
 		}
 
-		switch (recv_sys->flush_type) {
+		switch (recv_sys.flush_type) {
 		case BUF_FLUSH_LRU:
 			/* Flush pages from end of LRU if required */
 			pc_request(0, LSN_MAX);
@@ -3069,8 +3069,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 			ut_ad(0);
 		}
 
-		os_event_reset(recv_sys->flush_start);
-		os_event_set(recv_sys->flush_end);
+		os_event_reset(recv_sys.flush_start);
+		os_event_set(recv_sys.flush_end);
 	} while (recv_writer_thread_active);
 
 	os_event_wait(buf_flush_event);

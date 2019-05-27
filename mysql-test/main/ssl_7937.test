@@ -22,14 +22,14 @@ create procedure have_ssl()
 
 --echo mysql --ssl --ssl-verify-server-cert -e "call test.have_ssl()"
 # this is the test where certificate verification fails.
-# but yassl doesn't support certificate verification, so
-# we fake the test result for yassl
-let yassl=`select variable_value='Unknown' from information_schema.session_status where variable_name='Ssl_session_cache_mode'`;
-if (!$yassl) {
+# but client library may not support certificate verification, so
+# we fake the test result for it. We assume client is openssl, when server is openssl
+let client_supports_cert_verification =`select variable_value not in('Unknown','OFF') from information_schema.session_status where variable_name='Ssl_session_cache_mode'`;
+if ($client_supports_cert_verification) {
   --replace_result "self signed certificate in certificate chain" "Failed to verify the server certificate" "Error in the certificate." "Failed to verify the server certificate"
   --exec $MYSQL --ssl --ssl-verify-server-cert -e "call test.have_ssl()" 2>&1
 }
-if ($yassl) {
+if (!$client_supports_cert_verification) {
   --echo ERROR 2026 (HY000): SSL connection error: Failed to verify the server certificate
 }
 drop procedure have_ssl;

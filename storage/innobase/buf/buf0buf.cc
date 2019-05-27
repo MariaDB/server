@@ -1253,10 +1253,10 @@ buf_madvise_do_dump()
 			      srv_log_buffer_size * 2,
 			      MADV_DODUMP);
 	}
-	/* mirrors recv_sys_init() */
-	if (recv_sys->buf)
+	/* mirrors recv_sys_t::create() */
+	if (recv_sys.buf)
 	{
-		ret+= madvise(recv_sys->buf, recv_sys->len, MADV_DODUMP);
+		ret+= madvise(recv_sys.buf, recv_sys.len, MADV_DODUMP);
 	}
 
 	buf_pool_mutex_enter_all();
@@ -1770,7 +1770,7 @@ buf_chunk_not_freed(
 				      == block->page.newest_modification);
 				ut_ad(block->page.oldest_modification == 0
 				      || block->page.oldest_modification
-				      == recv_sys->recovered_lsn
+				      == recv_sys.recovered_lsn
 				      || srv_force_recovery
 				      == SRV_FORCE_NO_LOG_REDO);
 				ut_ad(block->page.buf_fix_count == 0);
@@ -5571,9 +5571,9 @@ buf_page_create(
 							  mtr);
 		}
 
-		mutex_exit(&recv_sys->mutex);
+		mutex_exit(&recv_sys.mutex);
 		block = buf_page_get_with_no_latch(page_id, zip_size, mtr);
-		mutex_enter(&recv_sys->mutex);
+		mutex_enter(&recv_sys.mutex);
 		return block;
 	}
 

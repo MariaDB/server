@@ -214,7 +214,7 @@ Aws::SDKOptions sdkOptions;
 static int aws_init()
 {
 
-#ifdef HAVE_YASSL
+#ifdef HAVE_WOLFSSL
   sdkOptions.cryptoOptions.initAndCleanupOpenSSL = true;
 #else
   /* Server initialized OpenSSL already, thus AWS must skip it */

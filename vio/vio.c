@@ -329,8 +329,8 @@ void vio_delete(Vio* vio)
 */
 void vio_end(void)
 {
-#ifdef HAVE_YASSL
-  yaSSL_CleanUp();
+#ifdef HAVE_WOLFSSL
+  wolfSSL_Cleanup();
 #elif defined(HAVE_OPENSSL)
   // This one is needed on the client side
   ERR_remove_state(0);

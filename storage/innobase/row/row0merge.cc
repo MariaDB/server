@@ -61,6 +61,14 @@ float my_log2f(float n)
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
 
+#ifdef HAVE_WOLFSSL
+// Workaround for MDEV-19582
+// (WolfSSL accesses memory out of bounds)
+# define WOLFSSL_PAD_SIZE MY_AES_BLOCK_SIZE
+#else
+# define WOLFSSL_PAD_SIZE 0
+#endif
+
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
 
@@ -4639,7 +4647,7 @@ row_merge_build_indexes(
 
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-			alloc.allocate_large(block_size,
+			alloc.allocate_large(block_size + WOLFSSL_PAD_SIZE,
 					     &crypt_pfx));
 
 		if (crypt_block == NULL) {
@@ -5009,7 +5017,8 @@ func_exit:
 	alloc.deallocate_large(block, &block_pfx, block_size);
 
 	if (crypt_block) {
-		alloc.deallocate_large(crypt_block, &crypt_pfx, block_size);
+		alloc.deallocate_large(crypt_block, &crypt_pfx,
+				       block_size + WOLFSSL_PAD_SIZE);
 	}
 
 	DICT_TF2_FLAG_UNSET(new_table, DICT_TF2_FTS_ADD_DOC_ID);

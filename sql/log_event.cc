@@ -859,8 +859,16 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   {
     uchar iv[BINLOG_IV_LENGTH];
     fdle->crypto_data.set_iv(iv, (uint32) (my_b_tell(file) - data_len));
-
-    char *newpkt= (char*)my_malloc(data_len + ev_offset + 1, MYF(MY_WME));
+    size_t sz= data_len + ev_offset + 1;
+#ifdef HAVE_WOLFSSL
+    /*
+      Workaround for MDEV-19582.
+      WolfSSL reads memory out of bounds with decryption/NOPAD)
+      We allocate a little more memory therefore.
+    */
+    sz += MY_AES_BLOCK_SIZE;
+#endif
+    char *newpkt= (char*)my_malloc(sz, MYF(MY_WME));
     if (!newpkt)
       DBUG_RETURN(LOG_READ_MEM);
     memcpy(newpkt, packet->ptr(), ev_offset);

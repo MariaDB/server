@@ -18,14 +18,10 @@
 #include <my_global.h>
 #include <string.h>
 
-#ifdef HAVE_YASSL
-#include "yassl.cc"
-#else
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#endif
 
 #include <my_crypt.h>
 #include <ssl_compat.h>
@@ -54,7 +50,7 @@ public:
     if (unlikely(!cipher))
       return MY_AES_BAD_KEYSIZE;
 
-    if (!EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, encrypt))
+    if (EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, encrypt) != 1)
       return MY_AES_OPENSSL_ERROR;
 
     DBUG_ASSERT(EVP_CIPHER_CTX_key_length(ctx) == (int)klen);
@@ -64,14 +60,30 @@ public:
   }
   virtual int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
   {
-    if (!EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen))
+    if (EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen) != 1)
       return MY_AES_OPENSSL_ERROR;
     return MY_AES_OK;
   }
   virtual int finish(uchar *dst, uint *dlen)
   {
-    if (!EVP_CipherFinal_ex(ctx, dst, (int*)dlen))
+#ifdef HAVE_WOLFSSL
+     /*
+       Bug in WolfSSL - sometimes EVP_CipherFinal_ex
+       returns success without setting destination length
+       when it should return error.
+       We catch it by presetting invalid value for length,
+       and checking if it has changed after the call.
+
+       See https://github.com/wolfSSL/wolfssl/issues/2224
+     */
+    *dlen= UINT_MAX;
+#endif
+    if (EVP_CipherFinal_ex(ctx, dst, (int*)dlen) != 1)
       return MY_AES_BAD_DATA;
+#ifdef HAVE_WOLFSSL
+    if (*dlen == UINT_MAX)
+      return MY_AES_BAD_DATA;
+#endif
     return MY_AES_OK;
   }
 };

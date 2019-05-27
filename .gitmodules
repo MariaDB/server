@@ -8,6 +8,9 @@
 	path = wsrep-lib
 	url = https://github.com/codership/wsrep-lib.git
 	branch = master
+[submodule "extra/wolfssl/wolfssl"]
+	path = extra/wolfssl/wolfssl
+	url = https://github.com/WolfSSL/wolfssl
 [submodule "storage/maria/libmarias3"]
 	path = storage/maria/libmarias3
 	url = https://github.com/mariadb-corporation/libmarias3

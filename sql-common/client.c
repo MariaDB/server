@@ -1576,9 +1576,15 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
 
 #ifdef HAVE_X509_check_host
   ret_validation=
-   (X509_check_host(server_cert, server_hostname,
-       strlen(server_hostname), 0, 0) != 1) &&
-   (X509_check_ip_asc(server_cert, server_hostname, 0) != 1);
+    X509_check_host(server_cert, server_hostname,
+       strlen(server_hostname), 0, 0) != 1;
+#ifndef HAVE_WOLFSSL
+   if (ret_validation)
+   {
+     ret_validation=
+         X509_check_ip_asc(server_cert, server_hostname, 0) != 1;
+   }
+#endif
 #else
   subject= X509_get_subject_name(server_cert);
   cn_loc= X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
