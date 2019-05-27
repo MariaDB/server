@@ -112,3 +112,12 @@ INSERT INTO t1 VALUES (1);
 CREATE TABLE t2 ENGINE=RocksDB AS SELECT VALUES(i) AS a FROM t1;
 DELETE FROM t2;
 DROP TABLE t1,t2;
+
+--echo # Check that RocksDB is compiled with CRC32
+let $MYSQLD_DATADIR=`SELECT @@datadir`;
+let SEARCH_FILE= $MYSQLD_DATADIR/\#rocksdb/LOG;
+let SEARCH_PATTERN=Fast CRC32 supported: Supported;
+
+--source include/search_pattern_in_file.inc
+#eval select '$SEARCH_FILE';
+
