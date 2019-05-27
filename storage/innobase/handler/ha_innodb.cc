@@ -11016,7 +11016,6 @@ create_table_info_t::create_table_def()
 	ulint		binary_type;
 	ulint		long_true_varchar;
 	ulint		charset_no;
-	ulint		j = 0;
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
@@ -11106,7 +11105,7 @@ error_ret:
 
 	heap = mem_heap_create(1000);
 
-	for (ulint i = 0; i < n_cols; i++) {
+	for (ulint i = 0, j = 0; j < n_cols; i++) {
 		Field*	field = m_form->field[i];
 
 		col_type = get_innobase_type_from_mysql_type(
@@ -11214,10 +11213,16 @@ err_col:
 			dict_mem_table_add_s_col(
 				table, 0);
 		}
+
+		if (is_virtual && omit_virtual) {
+			continue;
+		}
+
+		j++;
 	}
 
 	if (num_v) {
-		for (ulint i = 0; i < n_cols; i++) {
+		for (ulint i = 0, j = 0; i < n_cols; i++) {
 			dict_v_col_t*	v_col;
 
 			const Field* field = m_form->field[i];
