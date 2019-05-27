@@ -1,0 +1,9 @@
+let $basedir=$MYSQLTEST_VARDIR/tmp/mdev-18438;
+mkdir $basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --extra-lsndir=$basedir/extra_lsndir --stream=xbstream > $basedir/stream.xb 2>/dev/null;
+mkdir $basedir/backup;
+rmdir $basedir/extra_lsndir;
+exec $XBSTREAM -x -C $basedir/backup  < $basedir/stream.xb;
+rmdir $basedir/backup;
+list_files $basedir;
+rmdir $basedir;

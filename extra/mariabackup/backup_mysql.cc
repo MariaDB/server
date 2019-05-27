@@ -1367,9 +1367,12 @@ PERCONA_SCHEMA.xtrabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
 bool
-write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
+write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
+                       bool stream)
 {
 
+	bool result = true;
+	FILE *fp = NULL;
 	char *uuid = NULL;
 	char *server_version = NULL;
 	char buf_start_time[100];
@@ -1395,7 +1398,8 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		|| xtrabackup_databases_exclude
 		);
 
-	backup_file_printf(filename,
+	char *buf = NULL;
+	int buf_len = asprintf(&buf,
 		"uuid = %s\n"
 		"name = %s\n"
 		"tool_name = %s\n"
@@ -1407,8 +1411,8 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		"end_time = %s\n"
 		"lock_time = %d\n"
 		"binlog_pos = %s\n"
-		"innodb_from_lsn = %llu\n"
-		"innodb_to_lsn = %llu\n"
+		"innodb_from_lsn = %lu\n"
+		"innodb_to_lsn = %lu\n"
 		"partial = %s\n"
 		"incremental = %s\n"
 		"format = %s\n"
@@ -1431,6 +1435,26 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		xtrabackup_incremental ? "Y" : "N", /* incremental */
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
 		xtrabackup_compress ? "compressed" : "N"); /* compressed */
+	if (buf_len < 0) {
+		msg("Error: cannot generate xtrabackup_info");
+		result = false;
+		goto cleanup;
+	}
+
+	if (stream) {
+		backup_file_printf(filename, "%s", buf);
+	} else {
+		fp = fopen(filename, "w");
+		if (!fp) {
+			msg("Error: cannot open %s", filename);
+			result = false;
+			goto cleanup;
+		}
+		if (fwrite(buf, buf_len, 1, fp) < 1) {
+			result = false;
+			goto cleanup;
+		}
+	}
 
 	if (!history) {
 		goto cleanup;
@@ -1492,8 +1516,11 @@ cleanup:
 
 	free(uuid);
 	free(server_version);
+	free(buf);
+	if (fp)
+		fclose(fp);
 
-	return(true);
+	return(result);
 }
 
 extern const char *innodb_checksum_algorithm_names[];
