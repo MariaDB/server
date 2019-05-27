@@ -1575,6 +1575,7 @@ CREATE TABLE t3 ( a int, b int NOT NULL , PRIMARY KEY (b)) ;
 INSERT INTO t3 VALUES 
   (0,6),(0,7),(0,8),(2,9),(0,10),(2,21),(0,22),(2,23),(2,24),(2,25);
 
+set @save_join_cache_level= @@join_cache_level;
 SET SESSION join_cache_level=4;
 
 EXPLAIN EXTENDED
@@ -1588,7 +1589,7 @@ EXECUTE stmt;
 
 DEALLOCATE PREPARE stmt;
 
-SET SESSION join_cache_level=default;
+SET SESSION join_cache_level=@save_join_cache_level;
 
 DROP TABLE t1,t2,t3;
 
