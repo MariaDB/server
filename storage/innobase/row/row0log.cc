@@ -301,7 +301,8 @@ row_log_block_allocate(
 		);
 
 		log_buf.block = ut_allocator<byte>(mem_key_row_log_buf)
-			.allocate_large(srv_sort_buf_size, &log_buf.block_pfx);
+			.allocate_large(srv_sort_buf_size + WOLFSSL_PAD_SIZE,
+					&log_buf.block_pfx);
 
 		if (log_buf.block == NULL) {
 			DBUG_RETURN(false);
@@ -321,7 +322,8 @@ row_log_block_free(
 	DBUG_ENTER("row_log_block_free");
 	if (log_buf.block != NULL) {
 		ut_allocator<byte>(mem_key_row_log_buf).deallocate_large(
-			log_buf.block, &log_buf.block_pfx, log_buf.size);
+			log_buf.block, &log_buf.block_pfx,
+			log_buf.size + WOLFSSL_PAD_SIZE);
 		log_buf.block = NULL;
 	}
 	DBUG_VOID_RETURN;
@@ -3273,11 +3275,13 @@ row_log_free(
 	row_merge_file_destroy_low(log->fd);
 
 	if (log->crypt_head) {
-		os_mem_free_large(log->crypt_head, srv_sort_buf_size + WOLFSSL_PAD_SIZE);
+		os_mem_free_large(log->crypt_head, srv_sort_buf_size
+				  + WOLFSSL_PAD_SIZE);
 	}
 
 	if (log->crypt_tail) {
-		os_mem_free_large(log->crypt_tail, srv_sort_buf_size + WOLFSSL_PAD_SIZE);
+		os_mem_free_large(log->crypt_tail, srv_sort_buf_size
+				  + WOLFSSL_PAD_SIZE);
 	}
 
 	mutex_free(&log->mutex);
