@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,7 +35,7 @@ Created 2013/03/27 Jimmy Yang
 #include "gis0geo.h"
 
 #include <vector>
-#include <list>
+#include <forward_list>
 
 /* Node Sequence Number. Only updated when page splits */
 typedef ib_uint32_t     node_seq_t;
@@ -133,15 +133,14 @@ typedef	struct rtr_info{
 				/*!< current search mode */
 } rtr_info_t;
 
-typedef std::list<rtr_info_t*, ut_allocator<rtr_info_t*> >	rtr_info_active;
-
-/* Tracking structure for all onoging search for an index */
-typedef struct	rtr_info_track {
-	rtr_info_active*	rtr_active;	/*!< Active search info */
-	ib_mutex_t		rtr_active_mutex;
+/* Tracking structure for all ongoing search for an index */
+struct rtr_info_track_t {
+	/** Active search info */
+	std::forward_list<rtr_info_t*, ut_allocator<rtr_info_t*> > rtr_active;
+	ib_mutex_t rtr_active_mutex;
 						/*!< mutex to protect
 						rtr_active */
-} rtr_info_track_t;
+};
 
 /* Node Sequence Number and mutex protects it. */
 typedef struct rtree_ssn {

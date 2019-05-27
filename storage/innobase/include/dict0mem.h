@@ -706,7 +706,8 @@ struct dict_v_idx_t {
 };
 
 /** Index list to put in dict_v_col_t */
-typedef	std::list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >	dict_v_idx_list;
+typedef	std::forward_list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >
+dict_v_idx_list;
 
 /** Data structure for a virtual column in a table */
 struct dict_v_col_t{
@@ -717,15 +718,40 @@ struct dict_v_col_t{
 	dict_col_t**		base_col;
 
 	/** number of base column */
-	ulint			num_base;
+	unsigned		num_base:10;
 
 	/** column pos in table */
-	ulint			v_pos;
+	unsigned		v_pos:10;
+
+	/** number of indexes */
+	unsigned		n_v_indexes:12;
 
 	/** Virtual index list, and column position in the index,
 	the allocated memory is not from table->heap */
 	dict_v_idx_list*	v_indexes;
 
+	/** Detach the column from an index.
+	@param[in]	index	index to be detached from */
+	void detach(const dict_index_t& index)
+	{
+		ut_ad(!n_v_indexes || v_indexes);
+		if (!n_v_indexes) return;
+		auto i = v_indexes->before_begin();
+		ut_d(unsigned n = 0);
+		do {
+			auto prev = i++;
+			if (i == v_indexes->end()) {
+				ut_ad(n == n_v_indexes);
+				return;
+			}
+			ut_ad(++n <= n_v_indexes);
+			if (i->index == &index) {
+				v_indexes->erase_after(prev);
+				n_v_indexes--;
+				return;
+			}
+		} while (i != v_indexes->end());
+	}
 };
 
 /** Data structure for newly added virtual column in a table */
@@ -753,7 +779,8 @@ struct dict_s_col_t {
 };
 
 /** list to put stored column for create_table_info_t */
-typedef std::list<dict_s_col_t, ut_allocator<dict_s_col_t> >	dict_s_col_list;
+typedef std::forward_list<dict_s_col_t, ut_allocator<dict_s_col_t> >
+dict_s_col_list;
 
 /** @brief DICT_ANTELOPE_MAX_INDEX_COL_LEN is measured in bytes and
 is the maximum indexed column length (or indexed prefix length) in
@@ -1211,19 +1238,8 @@ struct dict_index_t {
 @param[in]	index	index to be detached from */
 inline void dict_col_t::detach(const dict_index_t& index)
 {
-	if (!is_virtual()) {
-		return;
-	}
-
-	if (dict_v_idx_list* v_indexes = reinterpret_cast<const dict_v_col_t*>
-	    (this)->v_indexes) {
-		for (dict_v_idx_list::iterator i = v_indexes->begin();
-		     i != v_indexes->end(); i++) {
-			if (i->index == &index) {
-				v_indexes->erase(i);
-				return;
-			}
-		}
+	if (is_virtual()) {
+		reinterpret_cast<dict_v_col_t*>(this)->detach(index);
 	}
 }
 

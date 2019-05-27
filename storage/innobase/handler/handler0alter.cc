@@ -591,6 +591,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
 		v.v_indexes = UT_NEW_NOKEY(dict_v_idx_list());
+		v.n_v_indexes = 0;
 		v.base_col = static_cast<dict_col_t**>(
 			mem_heap_dup(heap, v.base_col,
 				     v.num_base * sizeof *v.base_col));
@@ -696,9 +697,11 @@ dup_dropped:
 			}
 			f.name = f.col->name(*this);
 			if (f.col->is_virtual()) {
-				reinterpret_cast<dict_v_col_t*>(f.col)
-					->v_indexes->push_back(
-						dict_v_idx_t(index, i));
+				dict_v_col_t* v_col = reinterpret_cast
+					<dict_v_col_t*>(f.col);
+				v_col->v_indexes->push_front(
+					dict_v_idx_t(index, i));
+				v_col->n_v_indexes++;
 			}
 		}
 	}
@@ -4965,6 +4968,7 @@ prepare_inplace_add_virtual(
 
 		/* No need to track the list */
 		ctx->add_vcol[j].v_indexes = NULL;
+		ctx->add_vcol[j].n_v_indexes = 0;
 		/* MDEV-17468: Do this on ctx->instant_table later */
 		innodb_base_col_setup(ctx->old_table, field, &ctx->add_vcol[j]);
 		j++;
@@ -5206,7 +5210,7 @@ static bool innobase_add_one_virtual(
 		return true;
 	}
 
-	for (ulint i = 0; i < vcol->num_base; i++) {
+	for (ulint i = 0; i < unsigned{vcol->num_base}; i++) {
 		if (innobase_insert_sys_virtual(
 			    table, pos, vcol->base_col[i]->ind, trx)) {
 			return true;
@@ -7395,7 +7399,7 @@ alter_fill_stored_column(
 
 		s_col.num_base = num_base;
 		innodb_base_col_setup_for_stored(table, field, &s_col);
-		(*s_cols)->push_back(s_col);
+		(*s_cols)->push_front(s_col);
 	}
 }
 

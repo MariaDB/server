@@ -2147,44 +2147,6 @@ add_field_size:
 	return(FALSE);
 }
 
-/** Clears the virtual column's index list before index is
-being freed.
-@param[in]  index   Index being freed */
-void dict_index_remove_from_v_col_list(dict_index_t* index)
-{
-	/* Index is not completely formed */
-	if (!index->cached) {
-		return;
-	}
-        if (dict_index_has_virtual(index)) {
-                const dict_col_t*       col;
-                const dict_v_col_t*     vcol;
-
-                for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-                        col =  dict_index_get_nth_col(index, i);
-                        if (col->is_virtual()) {
-                                vcol = reinterpret_cast<const dict_v_col_t*>(
-                                        col);
-				/* This could be NULL, when we do add
-                                virtual column, add index together. We do not
-                                need to track this virtual column's index */
-				if (vcol->v_indexes == NULL) {
-                                        continue;
-                                }
-				dict_v_idx_list::iterator       it;
-				for (it = vcol->v_indexes->begin();
-                                     it != vcol->v_indexes->end(); ++it) {
-                                        dict_v_idx_t    v_index = *it;
-                                        if (v_index.index == index) {
-                                                vcol->v_indexes->erase(it);
-                                                break;
-                                        }
-				}
-			}
-		}
-	}
-}
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
 @param[in]	index	index; NOTE! The index memory
@@ -2542,7 +2504,8 @@ dict_index_add_col(
 		if (v_col->v_indexes != NULL) {
 			/* Register the index with the virtual column index
 			list */
-			v_col->v_indexes->push_back(
+			v_col->n_v_indexes++;
+			v_col->v_indexes->push_front(
 				dict_v_idx_t(index, index->n_def));
 		}
 

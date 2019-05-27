@@ -232,8 +232,7 @@ trx_undo_log_v_idx(
 {
 	ut_ad(pos < table->n_v_def);
 	dict_v_col_t*	vcol = dict_table_get_nth_v_col(table, pos);
-
-	ulint		n_idx = vcol->v_indexes->size();
+	ulint		n_idx = vcol->n_v_indexes;
 	byte*		old_ptr;
 
 	ut_ad(n_idx > 0);
@@ -260,12 +259,7 @@ trx_undo_log_v_idx(
 
 	ptr += mach_write_compressed(ptr, n_idx);
 
-	dict_v_idx_list::iterator       it;
-
-	for (it = vcol->v_indexes->begin();
-	     it != vcol->v_indexes->end(); ++it) {
-		dict_v_idx_t	v_index = *it;
-
+	for (const auto& v_index : *vcol->v_indexes) {
 		ptr += mach_write_compressed(
 			ptr, static_cast<ulint>(v_index.index->id));
 
@@ -1027,7 +1021,7 @@ trx_undo_page_report_modify(
 				on them */
 				if (upd_fld_is_virtual_col(fld)
 				    && dict_table_get_nth_v_col(
-					table, pos)->v_indexes->empty()) {
+					    table, pos)->v_indexes->empty()) {
 					n_updated--;
 				}
 			}

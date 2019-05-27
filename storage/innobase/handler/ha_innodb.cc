@@ -5834,9 +5834,8 @@ innobase_build_v_templ(
 		const dict_v_col_t*	vcol = dict_table_get_nth_v_col(
 							ib_table, i);
 
-		for (ulint j = 0; j < vcol->num_base; j++) {
-			ulint	col_no = vcol->base_col[j]->ind;
-			marker[col_no] = true;
+		for (ulint j = vcol->num_base; j--; ) {
+			marker[vcol->base_col[j]->ind] = true;
 		}
 	}
 
@@ -5844,9 +5843,8 @@ innobase_build_v_templ(
 		for (ulint i = 0; i < add_v->n_v_col; i++) {
 			const dict_v_col_t*	vcol = &add_v->v_col[i];
 
-			for (ulint j = 0; j < vcol->num_base; j++) {
-				ulint	col_no = vcol->base_col[j]->ind;
-				marker[col_no] = true;
+			for (ulint j = vcol->num_base; j--; ) {
+				marker[vcol->base_col[j]->ind] = true;
 			}
 		}
 	}
@@ -11117,7 +11115,7 @@ err_col:
 	}
 
 	/** Fill base columns for the stored column present in the list. */
-	if (table->s_cols && table->s_cols->size()) {
+	if (table->s_cols && !table->s_cols->empty()) {
 		for (ulint i = 0; i < n_cols; i++) {
 			Field*  field = m_form->field[i];
 
@@ -15104,7 +15102,8 @@ ha_innobase::get_cascade_foreign_key_table_list(
 {
 	m_prebuilt->trx->op_info = "getting cascading foreign keys";
 
-	std::list<table_list_item, ut_allocator<table_list_item> > table_list;
+	std::forward_list<table_list_item, ut_allocator<table_list_item> >
+		table_list;
 
 	typedef std::set<st_handler_tablename, tablename_compare,
 			 ut_allocator<st_handler_tablename> >	cascade_fk_set;
@@ -15117,7 +15116,7 @@ ha_innobase::get_cascade_foreign_key_table_list(
 	struct table_list_item	item = {m_prebuilt->table,
 					m_prebuilt->table->name.m_name};
 
-	table_list.push_back(item);
+	table_list.push_front(item);
 
 	/* Get the parent table, grand parent table info from the
 	table list by depth-first traversal. */
@@ -15126,8 +15125,8 @@ ha_innobase::get_cascade_foreign_key_table_list(
 		dict_table_t*				parent = NULL;
 		std::pair<cascade_fk_set::iterator,bool>	ret;
 
-		item = table_list.back();
-		table_list.pop_back();
+		item = table_list.front();
+		table_list.pop_front();
 		parent_table = item.table;
 
 		if (parent_table == NULL) {
@@ -15174,13 +15173,13 @@ ha_innobase::get_cascade_foreign_key_table_list(
 					foreign->referenced_table,
 					foreign->referenced_table_name_lookup};
 
-				table_list.push_back(item1);
+				table_list.push_front(item1);
 
 				st_handler_tablename*	fk_table =
 					(st_handler_tablename*) thd_memdup(
 						thd, &f1, sizeof(*fk_table));
 
-				fk_table_list->push_back(fk_table);
+				fk_table_list->push_front(fk_table);
 			}
 		}
 
@@ -20680,7 +20679,7 @@ innobase_get_computed_value(
 		buf = rec_buf2;
 	}
 
-	for (ulint i = 0; i < col->num_base; i++) {
+	for (ulint i = 0; i < unsigned{col->num_base}; i++) {
 		dict_col_t*			base_col = col->base_col[i];
 		const dfield_t*			row_field = NULL;
 		ulint				col_no = base_col->ind;
