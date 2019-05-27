@@ -60,6 +60,7 @@ public:
   }
   virtual int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
   {
+    DBUG_ASSERT(src);
     if (EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen) != 1)
       return MY_AES_OPENSSL_ERROR;
     return MY_AES_OK;

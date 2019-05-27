@@ -1628,8 +1628,11 @@ int Log_event_writer::encrypt_and_write(const uchar *pos, size_t len)
       return 1;
 
     uint dstlen;
-    if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
+    if (len == 0)
+      dstlen= 0;
+    else if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
       goto err;
+
     if (maybe_write_event_len(dst, dstlen))
       return 1;
     pos= dst;
