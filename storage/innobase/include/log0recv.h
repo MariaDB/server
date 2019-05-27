@@ -33,8 +33,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "log0log.h"
 #include "mtr0types.h"
 
-#include <list>
-#include <vector>
+#include <forward_list>
 
 /** Is recv_writer_thread active? */
 extern bool	recv_writer_thread_active;
@@ -159,7 +158,7 @@ struct recv_t{
 struct recv_dblwr_t {
 	/** Add a page frame to the doublewrite recovery buffer. */
 	void add(byte* page) {
-		pages.push_back(page);
+		pages.push_front(page);
 	}
 
 	/** Find a doublewrite copy of a page.
@@ -169,7 +168,7 @@ struct recv_dblwr_t {
 	@retval NULL if no page was found */
 	const byte* find_page(ulint space_id, ulint page_no);
 
-	typedef std::list<byte*, ut_allocator<byte*> >	list;
+	typedef std::forward_list<byte*, ut_allocator<byte*> > list;
 
 	/** Recovered doublewrite buffer page frames */
 	list	pages;
