@@ -603,5 +603,18 @@ select * from t1;
 a	b
 1	0
 affected rows: 1
+#
+# MDEV-19304 Segfault in ALTER TABLE after UPDATE for SIMULTANEOUS_ASSIGNMENT
+#
+create or replace table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) engine=myisam with system versioning;
+insert into t1 values (null, null, null);
+insert into t1 values (null, null, null);
+set sql_mode= 'simultaneous_assignment';
+update t1 set e= 1;
+Warnings:
+Warning	1906	The value specified for generated column 'e' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't1' has been ignored
+alter table t1 force;
+set sql_mode= default;
 drop database test;
 create database test;
