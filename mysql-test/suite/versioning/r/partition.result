@@ -549,6 +549,11 @@ t1	CREATE TABLE `t1` (
  PARTITION BY SYSTEM_TIME INTERVAL 7 SECOND
 (PARTITION `ver_p1` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `ver_pn` CURRENT ENGINE = DEFAULT_ENGINE)
+#
+# MDEV-19175 Server crashes in ha_partition::vers_can_native upon INSERT DELAYED into versioned partitioned table
+#
+create or replace table t1 (f int) with system versioning partition by hash(f);
+insert delayed into t1 values (1);
 # Test cleanup
 drop database test;
 create database test;

@@ -480,6 +480,14 @@ partition by system_time interval column_get(column_create(7,7), 7 as int) secon
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
+--echo #
+--echo # MDEV-19175 Server crashes in ha_partition::vers_can_native upon INSERT DELAYED into versioned partitioned table
+--echo #
+create or replace table t1 (f int) with system versioning partition by hash(f);
+# delayed works differently in embedded server
+--error 0,ER_DELAYED_NOT_SUPPORTED
+insert delayed into t1 values (1);
+
 --echo # Test cleanup
 drop database test;
 create database test;
