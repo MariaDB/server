@@ -36,6 +36,21 @@ use POSIX qw[ _exit ];
 use IO::Handle qw[ flush ];
 use mtr_results;
 
+use Term::ANSIColor;
+
+my %color_map = qw/pass green
+                   retry-pass green
+                   fail red
+                   retry-fail red
+                   disabled bright_black
+                   skipped yellow
+                   reset reset/;
+sub xterm_color {
+  if (-t STDOUT and defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
+    syswrite STDOUT, color($color_map{$_[0]});
+  }
+}
+
 my $tot_real_time= 0;
 
 our $timestamp= 0;
@@ -494,7 +509,16 @@ sub mtr_print (@) {
 sub mtr_report (@) {
   if (defined $verbose)
   {
-    print _name(). join(" ", @_). "\n";
+    my @s = split /\[ (\S+) \]/, _name() . "@_\n";
+    if (@s > 1) {
+      print $s[0];
+      xterm_color($s[1]);
+      print "[ $s[1] ]";
+      xterm_color('reset');
+      print $s[2];
+    } else {
+      print $s[0];
+    }
   }
 }
 
