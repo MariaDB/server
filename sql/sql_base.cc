@@ -8437,8 +8437,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
     Item::Type type= value->type();
-    bool vers_sys_field= table->versioned() && rfield->vers_sys_field();
-    if ((rfield->vcol_info || (vers_sys_field && !thd->vers_modify_history())) &&
+    bool skip_sys_field= rfield->vers_sys_field() && !thd->vers_modify_history();
+    if ((rfield->vcol_info || skip_sys_field) &&
         type != Item::DEFAULT_VALUE_ITEM &&
         type != Item::NULL_ITEM &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
@@ -8447,15 +8447,14 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
                           rfield->field_name.str, table->s->table_name.str);
-      if (vers_sys_field)
-        continue;
     }
     if (only_unvers_fields && !rfield->vers_update_unversioned())
       only_unvers_fields= false;
 
     if (rfield->stored_in_db())
     {
-      if (unlikely(value->save_in_field(rfield, 0) < 0) && !ignore_errors)
+      if (!skip_sys_field &&
+          unlikely(value->save_in_field(rfield, 0) < 0) && !ignore_errors)
       {
         my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
         goto err;
