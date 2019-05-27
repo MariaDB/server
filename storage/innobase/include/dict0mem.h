@@ -705,10 +705,6 @@ struct dict_v_idx_t {
 		: index(index), nth_field(nth_field) {}
 };
 
-/** Index list to put in dict_v_col_t */
-typedef	std::forward_list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >
-dict_v_idx_list;
-
 /** Data structure for a virtual column in a table */
 struct dict_v_col_t{
 	/** column structure */
@@ -726,31 +722,30 @@ struct dict_v_col_t{
 	/** number of indexes */
 	unsigned		n_v_indexes:12;
 
-	/** Virtual index list, and column position in the index,
-	the allocated memory is not from table->heap */
-	dict_v_idx_list*	v_indexes;
+	/** Virtual index list, and column position in the index */
+	std::forward_list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >
+	v_indexes;
 
 	/** Detach the column from an index.
 	@param[in]	index	index to be detached from */
 	void detach(const dict_index_t& index)
 	{
-		ut_ad(!n_v_indexes || v_indexes);
 		if (!n_v_indexes) return;
-		auto i = v_indexes->before_begin();
+		auto i = v_indexes.before_begin();
 		ut_d(unsigned n = 0);
 		do {
 			auto prev = i++;
-			if (i == v_indexes->end()) {
+			if (i == v_indexes.end()) {
 				ut_ad(n == n_v_indexes);
 				return;
 			}
 			ut_ad(++n <= n_v_indexes);
 			if (i->index == &index) {
-				v_indexes->erase_after(prev);
+				v_indexes.erase_after(prev);
 				n_v_indexes--;
 				return;
 			}
-		} while (i != v_indexes->end());
+		} while (i != v_indexes.end());
 	}
 };
 

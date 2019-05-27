@@ -167,6 +167,9 @@ dict_mem_table_create(
 		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
 	table->v_cols = static_cast<dict_v_col_t*>(
 		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
+	for (ulint i = n_v_cols; i--; ) {
+		new (&table->v_cols[i]) dict_v_col_t();
+	}
 
 	/* true means that the stats latch will be enabled -
 	dict_table_stats_lock() will not be noop. */
@@ -227,7 +230,7 @@ dict_mem_table_free(
 	/* Clean up virtual index info structures that are registered
 	with virtual columns */
 	for (ulint i = 0; i < table->n_v_def; i++) {
-		UT_DELETE(dict_table_get_nth_v_col(table, i)->v_indexes);
+		dict_table_get_nth_v_col(table, i)->~dict_v_col_t();
 	}
 
 	UT_DELETE(table->s_cols);
@@ -409,7 +412,7 @@ dict_mem_table_add_v_col(
 	v_col->num_base = num_base;
 
 	/* Initialize the index list for virtual columns */
-	v_col->v_indexes = UT_NEW_NOKEY(dict_v_idx_list());
+	ut_ad(v_col->v_indexes.empty());
 	v_col->n_v_indexes = 0;
 
 	return(v_col);
@@ -857,7 +860,7 @@ dict_mem_fill_vcol_has_index(
 			continue;
 		}
 
-		for (const auto& v_idx : *v_col->v_indexes) {
+		for (const auto& v_idx : v_col->v_indexes) {
 			if (v_idx.index != index) {
 				continue;
 			}

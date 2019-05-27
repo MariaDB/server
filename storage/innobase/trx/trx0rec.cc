@@ -259,7 +259,7 @@ trx_undo_log_v_idx(
 
 	ptr += mach_write_compressed(ptr, n_idx);
 
-	for (const auto& v_index : *vcol->v_indexes) {
+	for (const auto& v_index : vcol->v_indexes) {
 		ptr += mach_write_compressed(
 			ptr, static_cast<ulint>(v_index.index->id));
 
@@ -1021,7 +1021,7 @@ trx_undo_page_report_modify(
 				on them */
 				if (upd_fld_is_virtual_col(fld)
 				    && dict_table_get_nth_v_col(
-					    table, pos)->v_indexes->empty()) {
+					    table, pos)->v_indexes.empty()) {
 					n_updated--;
 				}
 			}
@@ -1062,7 +1062,7 @@ trx_undo_page_report_modify(
 				an online alter table */
 				if (dict_index_is_online_ddl(index)
 				    && dict_table_get_nth_v_col(
-					table, pos)->v_indexes->empty()) {
+					table, pos)->v_indexes.empty()) {
 					continue;
 				}
 

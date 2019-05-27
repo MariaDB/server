@@ -2496,19 +2496,9 @@ dict_index_add_col(
 
 	if (col->is_virtual()) {
 		dict_v_col_t*	v_col = reinterpret_cast<dict_v_col_t*>(col);
-
-		/* When v_col->v_indexes==NULL,
-		ha_innobase::commit_inplace_alter_table(commit=true)
-		will evict and reload the table definition, and
-		v_col->v_indexes will not be NULL for the new table. */
-		if (v_col->v_indexes != NULL) {
-			/* Register the index with the virtual column index
-			list */
-			v_col->n_v_indexes++;
-			v_col->v_indexes->push_front(
-				dict_v_idx_t(index, index->n_def));
-		}
-
+		/* Register the index with the virtual column index list */
+		v_col->n_v_indexes++;
+		v_col->v_indexes.push_front(dict_v_idx_t(index, index->n_def));
 		col_name = dict_table_get_v_col_name_mysql(
 			table, dict_col_get_no(col));
 	} else {
