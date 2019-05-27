@@ -567,6 +567,12 @@ x	a
 2	bar
 3	bar
 4	bar
+#
+# MDEV-19175 Server crashes in ha_partition::vers_can_native upon INSERT DELAYED into versioned partitioned table
+#
+create or replace table t1 (f int) with system versioning partition by hash(f);
+insert delayed into t1 values (1);
+ERROR HY000: DELAYED option not supported for table 't1'
 # Test cleanup
 drop database test;
 create database test;
