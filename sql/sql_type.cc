@@ -8514,6 +8514,77 @@ Type_handler_timestamp_common::Item_param_val_native(THD *thd,
 }
 
 
+/***************************************************************************/
+
+bool Type_handler::validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const
+{
+  DBUG_EXECUTE_IF("validate_implicit_default_value_error", return true;);
+  return false;
+}
+
+
+bool Type_handler_date_common::validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const
+{
+  return thd->variables.sql_mode & MODE_NO_ZERO_DATE;
+}
+
+
+bool Type_handler_datetime_common::validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const
+{
+  return thd->variables.sql_mode & MODE_NO_ZERO_DATE;
+}
+
+
+/***************************************************************************/
+
+const Name & Type_handler_row::default_value() const
+{
+  DBUG_ASSERT(0);
+  static Name def(STRING_WITH_LEN(""));
+  return def;
+}
+
+const Name & Type_handler_numeric::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0"));
+  return def;
+}
+
+const Name & Type_handler_string_result::default_value() const
+{
+  static Name def(STRING_WITH_LEN(""));
+  return def;
+}
+
+const Name & Type_handler_time_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("00:00:00"));
+  return def;
+}
+
+const Name & Type_handler_date_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0000-00-00"));
+  return def;
+}
+
+const Name & Type_handler_datetime_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0000-00-00 00:00:00"));
+  return def;
+}
+
+const Name & Type_handler_timestamp_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0000-00-00 00:00:00"));
+  return def;
+}
+
+/***************************************************************************/
+
 LEX_CSTRING Charset::collation_specific_name() const
 {
   /*

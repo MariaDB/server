@@ -3207,6 +3207,7 @@ public:
 
   virtual const Name name() const= 0;
   virtual const Name version() const { return m_version_default; }
+  virtual const Name &default_value() const= 0;
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
   /**
@@ -3395,6 +3396,10 @@ public:
   {
     return false;
   }
+  // Check if the implicit default value is Ok in the current sql_mode
+  virtual bool validate_implicit_default_value(THD *thd,
+                                               const Column_definition &def)
+                                               const;
   // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
   virtual void Column_definition_implicit_upgrade(Column_definition *c) const
   { }
@@ -3758,6 +3763,13 @@ class Type_handler_row: public Type_handler
 public:
   virtual ~Type_handler_row() {}
   const Name name() const { return m_name_row; }
+  const Name &default_value() const;
+  bool validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   bool is_scalar_type() const { return false; }
   bool can_return_int() const { return false; }
   bool can_return_decimal() const { return false; }
@@ -4111,6 +4123,7 @@ protected:
                                                   const Type_handler *handler)
                                                   const;
 public:
+  const Name &default_value() const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   double Item_func_min_max_val_real(Item_func_min_max *) const;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;
@@ -4612,6 +4625,7 @@ class Type_handler_string_result: public Type_handler
 {
   uint Item_temporal_precision(THD *thd, Item *item, bool is_time) const;
 public:
+  const Name &default_value() const;
   protocol_send_type_t protocol_send_type() const
   {
     return PROTOCOL_SEND_STRING;
@@ -5244,6 +5258,7 @@ class Type_handler_time_common: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_time_common() { }
   const Name name() const { return m_name_time; }
+  const Name &default_value() const;
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   protocol_send_type_t protocol_send_type() const
   {
@@ -5408,6 +5423,7 @@ class Type_handler_date_common: public Type_handler_temporal_with_date
 public:
   virtual ~Type_handler_date_common() {}
   const Name name() const { return m_name_date; }
+  const Name &default_value() const;
   const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   protocol_send_type_t protocol_send_type() const
@@ -5430,6 +5446,8 @@ public:
                                     CHARSET_INFO *cs, bool send_error) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
+  bool validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_precision(const Item *item) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
@@ -5505,6 +5523,7 @@ class Type_handler_datetime_common: public Type_handler_temporal_with_date
 public:
   virtual ~Type_handler_datetime_common() {}
   const Name name() const { return m_name_datetime; }
+  const Name &default_value() const;
   const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   protocol_send_type_t protocol_send_type() const
@@ -5525,6 +5544,8 @@ public:
                            bool show_field) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
+  bool validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const;
   void Column_definition_implicit_upgrade(Column_definition *c) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
@@ -5621,6 +5642,7 @@ protected:
 public:
   virtual ~Type_handler_timestamp_common() {}
   const Name name() const { return m_name_timestamp; }
+  const Name &default_value() const;
   const Type_handler *type_handler_for_comparison() const;
   const Type_handler *type_handler_for_native_format() const;
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }

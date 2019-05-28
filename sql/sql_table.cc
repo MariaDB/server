@@ -8197,15 +8197,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       If the '0000-00-00' value isn't allowed then raise the error_if_not_empty
       flag to allow ALTER TABLE only if the table to be altered is empty.
     */
-    if ((def->real_field_type() == MYSQL_TYPE_DATE ||
-         def->real_field_type() == MYSQL_TYPE_NEWDATE ||
-         def->real_field_type() == MYSQL_TYPE_DATETIME ||
-         def->real_field_type() == MYSQL_TYPE_DATETIME2) &&
-         !alter_ctx->datetime_field &&
-         !(~def->flags & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
-         thd->variables.sql_mode & MODE_NO_ZERO_DATE)
+    if (!alter_ctx->implicit_default_value_error_field &&
+        !(~def->flags & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
+        def->type_handler()->validate_implicit_default_value(thd, *def))
     {
-        alter_ctx->datetime_field= def;
+        alter_ctx->implicit_default_value_error_field= def;
         alter_ctx->error_if_not_empty= TRUE;
     }
     if (def->flags & VERS_SYSTEM_FIELD &&
@@ -10392,28 +10388,8 @@ err_new_table_cleanup:
   if (unlikely(alter_ctx.error_if_not_empty &&
                thd->get_stmt_da()->current_row_for_warning()))
   {
-    const char *f_val= "0000-00-00";
-    const char *f_type= "date";
-    switch (alter_ctx.datetime_field->real_field_type())
-    {
-      case MYSQL_TYPE_DATE:
-      case MYSQL_TYPE_NEWDATE:
-        break;
-      case MYSQL_TYPE_DATETIME:
-      case MYSQL_TYPE_DATETIME2:
-        f_val= "0000-00-00 00:00:00";
-        f_type= "datetime";
-        break;
-      default:
-        /* Shouldn't get here. */
-        DBUG_ASSERT(0);
-    }
     Abort_on_warning_instant_set aws(thd, true);
-    thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
-                                                f_type, f_val,
-                                                new_table->s,
-                                                alter_ctx.datetime_field->
-                                                field_name.str);
+    alter_ctx.report_implicit_default_value_error(thd, new_table->s);
   }
 
   if (new_table)

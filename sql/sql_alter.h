@@ -287,8 +287,9 @@ public:
     fk_error_table= fk->foreign_table->str;
   }
 
+  void report_implicit_default_value_error(THD *thd, const TABLE_SHARE *) const;
 public:
-  Create_field *datetime_field;
+  Create_field *implicit_default_value_error_field;
   bool         error_if_not_empty;
   uint         tables_opened;
   LEX_CSTRING  db;
