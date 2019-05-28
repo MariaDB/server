@@ -1444,8 +1444,8 @@ srv_export_innodb_status(void)
 	export_vars.innodb_adaptive_hash_non_hash_searches = btr_cur_n_non_sea;
 #endif
 	mem_dictionary = (dict_sys.table_hash->n_cells + 
-		dict_sys.table_id_hash->n_cells) * sizeof(hash_cell_t) + 
-		dict_sys_get_size();
+		dict_sys.table_id_hash->n_cells + dict_sys.temp_id_hash->n_cells) * 
+		sizeof(hash_cell_t) + dict_sys_get_size();
 
 	mutex_enter(&srv_innodb_monitor_mutex);
 
