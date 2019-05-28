@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2243,8 +2243,8 @@ buf_LRU_old_ratio_update_instance(
 	buf_pool_t*	buf_pool,/*!< in: buffer pool instance */
 	uint		old_pct,/*!< in: Reserve this percentage of
 				the buffer pool for "old" blocks. */
-	ibool		adjust)	/*!< in: TRUE=adjust the LRU list;
-				FALSE=just assign buf_pool->LRU_old_ratio
+	bool		adjust)	/*!< in: true=adjust the LRU list;
+				false=just assign buf_pool->LRU_old_ratio
 				during the initialization of InnoDB */
 {
 	uint	ratio;
@@ -2282,17 +2282,17 @@ buf_LRU_old_ratio_update_instance(
 Updates buf_pool->LRU_old_ratio.
 @return	updated old_pct */
 UNIV_INTERN
-ulint
+uint
 buf_LRU_old_ratio_update(
 /*=====================*/
 	uint	old_pct,/*!< in: Reserve this percentage of
 			the buffer pool for "old" blocks. */
-	ibool	adjust)	/*!< in: TRUE=adjust the LRU list;
-			FALSE=just assign buf_pool->LRU_old_ratio
+	bool	adjust)	/*!< in: true=adjust the LRU list;
+			false=just assign buf_pool->LRU_old_ratio
 			during the initialization of InnoDB */
 {
 	ulint	i;
-	ulint	new_ratio = 0;
+	uint	new_ratio = 0;
 
 	for (i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t*	buf_pool;
