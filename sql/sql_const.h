@@ -234,6 +234,14 @@
 #define HEAP_TEMPTABLE_LOOKUP_COST 0.05
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
 
+
+#define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
+
+#define COST_ADD(c,d) (COST_MAX - (d) > (c) ? (c) + (d) : COST_MAX)
+
+#define COST_MULT(c,f) (COST_MAX / (f) > (c) ? (c) * (f) : COST_MAX)
+
+
 #define MY_CHARSET_BIN_MB_MAXLEN 1
 
 /** Don't pack string keys shorter than this (if PACK_KEYS=1 isn't used). */
