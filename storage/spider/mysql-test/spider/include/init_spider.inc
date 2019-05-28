@@ -3,104 +3,162 @@ let $VERSION_COMPILE_OS_WIN=
 if ($VERSION_COMPILE_OS_WIN)
 {
   INSTALL PLUGIN spider SONAME 'ha_spider.dll';
+  INSTALL PLUGIN spider_alloc_mem SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.dll';
   CREATE AGGREGATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_ping_table RETURNS INT SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_copy_tables RETURNS INT SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_flush_table_mon_cache RETURNS INT SONAME 'ha_spider.dll';
-  eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_remote',
-    USER 'root',
-    PASSWORD '',
-    PORT $CHILD2_1_MYPORT
-  );
-  eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_remote2',
-    USER 'root',
-    PASSWORD '',
-    PORT $CHILD2_2_MYPORT
-  );
-  eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_remote3',
-    USER 'root',
-    PASSWORD '',
-    PORT $CHILD2_3_MYPORT
-  );
-  eval CREATE SERVER s_3_1 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_local',
-    USER 'root',
-    PASSWORD '',
-    PORT $CHILD3_1_MYPORT
-  );
-  eval CREATE SERVER s_3_2 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_local',
-    USER 'root',
-    PASSWORD '',
-    PORT $CHILD3_2_MYPORT
-  );
-  eval CREATE SERVER s_3_3 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_local',
-    USER 'root',
-    PASSWORD '',
-    PORT $CHILD2_3_MYPORT
-  );
+  if ($MASTER_1_MYPORT)
+  {
+    eval CREATE SERVER s_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      PORT $MASTER_1_MYPORT
+    );
+  }
+  if ($CHILD2_1_MYPORT)
+  {
+    eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_remote',
+      USER 'root',
+      PASSWORD '',
+      PORT $CHILD2_1_MYPORT
+    );
+  }
+  if ($CHILD2_2_MYPORT)
+  {
+    eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_remote2',
+      USER 'root',
+      PASSWORD '',
+      PORT $CHILD2_2_MYPORT
+    );
+  }
+  if ($CHILD2_3_MYPORT)
+  {
+    eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_remote3',
+      USER 'root',
+      PASSWORD '',
+      PORT $CHILD2_3_MYPORT
+    );
+  }
+  if ($CHILD3_1_MYPORT)
+  {
+    eval CREATE SERVER s_3_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      PORT $CHILD3_1_MYPORT
+    );
+  }
+  if ($CHILD3_2_MYPORT)
+  {
+    eval CREATE SERVER s_3_2 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      PORT $CHILD3_2_MYPORT
+    );
+  }
+  if ($CHILD2_3_MYPORT)
+  {
+    eval CREATE SERVER s_3_3 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      PORT $CHILD2_3_MYPORT
+    );
+  }
 }
 if (!$VERSION_COMPILE_OS_WIN)
 {
   INSTALL PLUGIN spider SONAME 'ha_spider.so';
+  INSTALL PLUGIN spider_alloc_mem SONAME 'ha_spider.so';
   CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
   CREATE AGGREGATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
   CREATE FUNCTION spider_ping_table RETURNS INT SONAME 'ha_spider.so';
   CREATE FUNCTION spider_copy_tables RETURNS INT SONAME 'ha_spider.so';
   CREATE FUNCTION spider_flush_table_mon_cache RETURNS INT SONAME 'ha_spider.so';
-  eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_remote',
-    USER 'root',
-    PASSWORD '',
-    SOCKET '$CHILD2_1_MYSOCK'
-  );
-  eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_remote2',
-    USER 'root',
-    PASSWORD '',
-    SOCKET '$CHILD2_2_MYSOCK'
-  );
-  eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_remote3',
-    USER 'root',
-    PASSWORD '',
-    SOCKET '$CHILD2_3_MYSOCK'
-  );
-  eval CREATE SERVER s_3_1 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_local',
-    USER 'root',
-    PASSWORD '',
-    SOCKET '$CHILD3_1_MYSOCK'
-  );
-  eval CREATE SERVER s_3_2 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_local',
-    USER 'root',
-    PASSWORD '',
-    SOCKET '$CHILD3_2_MYSOCK'
-  );
-  eval CREATE SERVER s_3_3 FOREIGN DATA WRAPPER mysql OPTIONS (
-    HOST 'localhost',
-    DATABASE 'auto_test_local',
-    USER 'root',
-    PASSWORD '',
-    SOCKET '$CHILD3_3_MYSOCK'
-  );
+  if ($MASTER_1_MYSOCK)
+  {
+    eval CREATE SERVER s_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      SOCKET '$MASTER_1_MYSOCK'
+    );
+  }
+  if ($CHILD2_1_MYSOCK)
+  {
+    eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_remote',
+      USER 'root',
+      PASSWORD '',
+      SOCKET '$CHILD2_1_MYSOCK'
+    );
+  }
+  if ($CHILD2_2_MYSOCK)
+  {
+    eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_remote2',
+      USER 'root',
+      PASSWORD '',
+      SOCKET '$CHILD2_2_MYSOCK'
+    );
+  }
+  if ($CHILD2_3_MYSOCK)
+  {
+    eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_remote3',
+      USER 'root',
+      PASSWORD '',
+      SOCKET '$CHILD2_3_MYSOCK'
+    );
+  }
+  if ($CHILD3_1_MYSOCK)
+  {
+    eval CREATE SERVER s_3_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      SOCKET '$CHILD3_1_MYSOCK'
+    );
+  }
+  if ($CHILD3_2_MYSOCK)
+  {
+    eval CREATE SERVER s_3_2 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      SOCKET '$CHILD3_2_MYSOCK'
+    );
+  }
+  if ($CHILD3_3_MYSOCK)
+  {
+    eval CREATE SERVER s_3_3 FOREIGN DATA WRAPPER mysql OPTIONS (
+      HOST 'localhost',
+      DATABASE 'auto_test_local',
+      USER 'root',
+      PASSWORD '',
+      SOCKET '$CHILD3_3_MYSOCK'
+    );
+  }
 }
 
 let $SERVER_NAME=

@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2018 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -93,6 +93,9 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 
 #define SPIDER_SQL_TIME_ZONE_STR "set session time_zone = '"
 #define SPIDER_SQL_TIME_ZONE_LEN sizeof(SPIDER_SQL_TIME_ZONE_STR) - 1
+
+#define SPIDER_SQL_SET_USER_VAL_STR "set @`"
+#define SPIDER_SQL_SET_USER_VAL_LEN sizeof(SPIDER_SQL_SET_USER_VAL_STR) - 1
 
 #define SPIDER_SQL_COMMIT_STR "commit"
 #define SPIDER_SQL_COMMIT_LEN sizeof(SPIDER_SQL_COMMIT_STR) - 1
@@ -2175,19 +2178,23 @@ bool spider_db_mbase::is_xa_nota_error(
   DBUG_RETURN(xa_nota);
 }
 
-void spider_db_mbase::print_warnings(
+int spider_db_mbase::print_warnings(
   struct tm *l_time
 ) {
+  int error_num = 0;
   DBUG_ENTER("spider_db_mbase::print_warnings");
   DBUG_PRINT("info",("spider this=%p", this));
   if (db_conn->status == MYSQL_STATUS_READY)
   {
+    if (
 #if MYSQL_VERSION_ID < 50500
-    if (!(db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS))
+      !(db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS) &&
+      db_conn->last_used_con->warning_count
 #else
-    if (!(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS))
+      !(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS) &&
+      db_conn->warning_count
 #endif
-    {
+    ) {
 /*
       pthread_mutex_lock(&conn->mta_conn_mutex);
       SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2213,7 +2220,7 @@ void spider_db_mbase::print_warnings(
             SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
             pthread_mutex_unlock(&conn->mta_conn_mutex);
 */
-            DBUG_VOID_RETURN;
+            DBUG_RETURN(0);
           }
           /* no record is ok */
         }
@@ -2225,17 +2232,32 @@ void spider_db_mbase::print_warnings(
         if (num_fields != 3)
         {
           mysql_free_result(res);
-          DBUG_VOID_RETURN;
+          DBUG_RETURN(0);
         }
-        while (row)
+        if (l_time)
         {
-          fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
-            "from [%s] %ld to %ld: %s %s %s\n",
-            l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
-            l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-            conn->tgt_host, (ulong) db_conn->thread_id,
-            (ulong) current_thd->thread_id, row[0], row[1], row[2]);
-          row = mysql_fetch_row(res);
+          while (row)
+          {
+            fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+              "from [%s] %ld to %ld: %s %s %s\n",
+              l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+              l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+              conn->tgt_host, (ulong) db_conn->thread_id,
+              (ulong) current_thd->thread_id, row[0], row[1], row[2]);
+            row = mysql_fetch_row(res);
+          }
+        } else {
+          while (row)
+          {
+            DBUG_PRINT("info",("spider row[0]=%s", row[0]));
+            DBUG_PRINT("info",("spider row[1]=%s", row[1]));
+            DBUG_PRINT("info",("spider row[2]=%s", row[2]));
+            int res_num =
+              (int) my_strtoll10(row[1], (char**) NULL, &error_num);
+            my_printf_error(res_num, row[2], MYF(0));
+            error_num = res_num;
+            row = mysql_fetch_row(res);
+          }
         }
         if (res)
           mysql_free_result(res);
@@ -2247,7 +2269,7 @@ void spider_db_mbase::print_warnings(
       }
     }
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error_num);
 }
 
 spider_db_result *spider_db_mbase::store_result(
@@ -2816,6 +2838,99 @@ int spider_db_mbase::set_time_zone(
     DBUG_RETURN(spider_db_errorno(conn));
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
+  DBUG_RETURN(0);
+}
+
+bool spider_db_mbase::set_loop_check_in_bulk_sql()
+{
+  DBUG_ENTER("spider_db_mbase::set_loop_check_in_bulk_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
+int spider_db_mbase::set_loop_check(
+  int *need_mon
+) {
+  SPIDER_CONN_LOOP_CHECK *lcptr;
+  char sql_buf[MAX_FIELD_WIDTH];
+  spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
+  DBUG_ENTER("spider_db_mbase::set_loop_check");
+  DBUG_PRINT("info",("spider this=%p", this));
+  sql_str.init_calc_mem(270);
+  while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
+    &conn->loop_check_queue, 0)))
+  {
+    sql_str.length(0);
+    if (sql_str.reserve(SPIDER_SQL_SET_USER_VAL_LEN +
+      SPIDER_SQL_LOP_CHK_PRM_PRF_LEN + lcptr->to_name.length +
+      SPIDER_SQL_NAME_QUOTE_LEN + SPIDER_SQL_EQUAL_LEN +
+      SPIDER_SQL_VALUE_QUOTE_LEN +
+      lcptr->merged_value.length + SPIDER_SQL_VALUE_QUOTE_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    sql_str.q_append(SPIDER_SQL_SET_USER_VAL_STR, SPIDER_SQL_SET_USER_VAL_LEN);
+    sql_str.q_append(SPIDER_SQL_LOP_CHK_PRM_PRF_STR,
+      SPIDER_SQL_LOP_CHK_PRM_PRF_LEN);
+    sql_str.q_append(lcptr->to_name.str, lcptr->to_name.length);
+    sql_str.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+    sql_str.q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
+    sql_str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    sql_str.q_append(lcptr->merged_value.str, lcptr->merged_value.length);
+    sql_str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+
+    if (spider_db_query(
+      conn,
+      sql_str.ptr(),
+      sql_str.length(),
+      -1,
+      need_mon)
+    ) {
+      DBUG_RETURN(spider_db_errorno(conn));
+    }
+    SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+    pthread_mutex_unlock(&conn->mta_conn_mutex);
+
+#ifdef HASH_UPDATE_WITH_HASH_VALUE
+    my_hash_delete_with_hash_value(&conn->loop_check_queue,
+      lcptr->hash_value, (uchar *) lcptr);
+#else
+    my_hash_delete(&conn->loop_check_queue, (uchar*) lcptr);
+#endif
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase::fin_loop_check()
+{
+  st_spider_conn_loop_check *lcptr;
+  DBUG_ENTER("spider_db_mbase::fin_loop_check");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (conn->loop_check_queue.records)
+  {
+    uint l = 0;
+    while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
+      &conn->loop_check_queue, l)))
+    {
+      lcptr->flag = 0;
+      ++l;
+    }
+    my_hash_reset(&conn->loop_check_queue);
+  }
+  lcptr = conn->loop_check_ignored_first;
+  while (lcptr)
+  {
+    lcptr->flag = 0;
+    lcptr = lcptr->next;
+  }
+  conn->loop_check_ignored_first = NULL;
+  lcptr = conn->loop_check_meraged_first;
+  while (lcptr)
+  {
+    lcptr->flag = 0;
+    lcptr = lcptr->next;
+  }
+  conn->loop_check_meraged_first = NULL;
   DBUG_RETURN(0);
 }
 
@@ -3799,6 +3914,47 @@ int spider_db_mbase_util::append_time_zone(
   str->q_append(SPIDER_SQL_TIME_ZONE_STR, SPIDER_SQL_TIME_ZONE_LEN);
   str->q_append(tz_str->ptr(), tz_str->length());
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_loop_check(
+  spider_string *str,
+  SPIDER_CONN *conn
+) {
+  SPIDER_CONN_LOOP_CHECK *lcptr;
+  DBUG_ENTER("spider_db_mbase_util::append_loop_check");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider str=%s", str->c_ptr_safe()));
+  uint l = 0;
+  while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
+    &conn->loop_check_queue, l)))
+  {
+    DBUG_PRINT("info",("spider lcptr=%p", lcptr));
+    if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_SET_USER_VAL_LEN +
+      SPIDER_SQL_LOP_CHK_PRM_PRF_LEN + lcptr->to_name.length +
+      SPIDER_SQL_NAME_QUOTE_LEN + SPIDER_SQL_EQUAL_LEN +
+      SPIDER_SQL_VALUE_QUOTE_LEN +
+      lcptr->merged_value.length + SPIDER_SQL_VALUE_QUOTE_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    if (str->length())
+    {
+      str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+    }
+    str->q_append(SPIDER_SQL_SET_USER_VAL_STR, SPIDER_SQL_SET_USER_VAL_LEN);
+    str->q_append(SPIDER_SQL_LOP_CHK_PRM_PRF_STR,
+      SPIDER_SQL_LOP_CHK_PRM_PRF_LEN);
+    str->q_append(lcptr->to_name.str, lcptr->to_name.length);
+    str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+    str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
+    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    str->q_append(lcptr->merged_value.str, lcptr->merged_value.length);
+    str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+
+    ++l;
+    DBUG_PRINT("info",("spider str=%s", str->c_ptr_safe()));
+  }
   DBUG_RETURN(0);
 }
 
@@ -12429,6 +12585,10 @@ int spider_mbase_handler::show_table_status(
       }
       DBUG_RETURN(error_num);
     }
+  }
+  if ((error_num = ((spider_db_mbase *) conn->db_conn)->print_warnings(NULL)))
+  {
+    DBUG_RETURN(error_num);
   }
   if (share->static_records_for_status != -1)
   {

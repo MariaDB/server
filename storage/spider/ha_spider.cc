@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -356,6 +357,18 @@ int ha_spider::open(
 
   dup_key_idx = (uint) -1;
   conn_kinds = SPIDER_CONN_KIND_MYSQL;
+  if (table_share->tmp_table == NO_TMP_TABLE)
+  {
+    TABLE_LIST *top = spider_get_parent_table_list(this);
+    if (top->intention_table)
+    {
+      top_share = top->intention_table->s;
+    } else {
+      top_share = top->table->s;
+    }
+  } else {
+    top_share = NULL;
+  }
   if (!spider_get_share(name, table, thd, this, &error_num))
     goto error_get_share;
   thr_lock_data_init(&share->lock,&lock,NULL);

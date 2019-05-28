@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba & 2017 MariaDB corp
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2017-2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -51,5 +52,6 @@
 #define SPIDER_USE_CONST_ITEM_FOR_STRING_INT_REAL_DECIMAL_DATE_ITEM
 #define SPIDER_SQL_CACHE_IS_IN_LEX
 #define SPIDER_LIKE_FUNC_HAS_GET_NEGATED
+#define HA_HAS_CHECKSUM_EXTENDED
 #endif
 #endif /* SPD_ENVIRON_INCLUDED */

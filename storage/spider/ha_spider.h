@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -54,6 +55,7 @@ public:
   THR_LOCK_DATA      lock;
   SPIDER_SHARE       *share;
   SPIDER_TRX         *trx;
+  TABLE_SHARE        *top_share;
   ulonglong          spider_thread_id;
   ulonglong          trx_conn_adjustment;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
