@@ -60,7 +60,16 @@ public:
   }
   virtual int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
   {
-    DBUG_ASSERT(src);
+#ifdef HAVE_WOLFSSL
+    // WolfSSL checks parameters and does not like NULL pointers to be passed to function below.
+    if (!src)
+    {
+      static const uchar dummy[MY_AES_BLOCK_SIZE];
+      DBUG_ASSERT(!slen);
+      src=dummy;
+    }
+#endif
+
     if (EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen) != 1)
       return MY_AES_OPENSSL_ERROR;
     return MY_AES_OK;
