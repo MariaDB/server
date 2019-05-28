@@ -90,6 +90,10 @@ struct srv_stats_t
 	doublewrite buffer */
 	ulint_ctr_1_t		dblwr_pages_written;
 
+#if defined(LINUX_NATIVE_AIO)
+	ulint_ctr_1_t buffered_aio_submitted;
+#endif
+
 	/** Store the number of write requests issued */
 	ulint_ctr_1_t		buf_pool_write_requests;
 
@@ -908,6 +912,9 @@ struct export_var_t{
 	ulint innodb_adaptive_hash_non_hash_searches;
 #endif
 	ulint innodb_background_log_sync;
+#if defined(LINUX_NATIVE_AIO)
+	ulint innodb_buffered_aio_submitted;
+#endif
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */

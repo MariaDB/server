@@ -1469,6 +1469,11 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_data_written = srv_stats.data_written;
 
+#if defined(LINUX_NATIVE_AIO)
+	export_vars.innodb_buffered_aio_submitted = 
+		srv_stats.buffered_aio_submitted;
+#endif
+
 	export_vars.innodb_buffer_pool_read_requests = stat.n_page_gets;
 
 	export_vars.innodb_buffer_pool_write_requests =
