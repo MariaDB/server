@@ -13118,8 +13118,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 	extension, in contrast to ::create */
 	normalize_table_name(norm_name, name);
 
-	if (srv_read_only_mode
-	    || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
+	if (high_level_read_only) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
@@ -13308,7 +13307,7 @@ innobase_drop_database(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	if (srv_read_only_mode) {
+	if (high_level_read_only) {
 		return;
 	}
 
