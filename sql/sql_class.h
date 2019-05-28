@@ -6677,6 +6677,45 @@ class Sql_mode_save
 };
 
 
+class Sql_mode_instant_set: public Sql_mode_save
+{
+public:
+  Sql_mode_instant_set(THD *thd, sql_mode_t temporary_value)
+   :Sql_mode_save(thd)
+  {
+    thd->variables.sql_mode= temporary_value;
+  }
+};
+
+
+class Sql_mode_instant_remove: public Sql_mode_save
+{
+public:
+  Sql_mode_instant_remove(THD *thd, sql_mode_t temporary_remove_flags)
+   :Sql_mode_save(thd)
+  {
+    thd->variables.sql_mode&= ~temporary_remove_flags;
+  }
+};
+
+
+class Abort_on_warning_instant_set
+{
+  THD *m_thd;
+  bool m_save_abort_on_warning;
+public:
+  Abort_on_warning_instant_set(THD *thd, bool temporary_value)
+   :m_thd(thd), m_save_abort_on_warning(thd->abort_on_warning)
+  {
+    thd->abort_on_warning= temporary_value;
+  }
+  ~Abort_on_warning_instant_set()
+  {
+    m_thd->abort_on_warning= m_save_abort_on_warning;
+  }
+};
+
+
 /**
   This class resembles the SQL Standard schema qualified object name:
   <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>

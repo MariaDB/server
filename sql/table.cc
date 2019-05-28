@@ -1077,7 +1077,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Field **vfield_ptr= table->vfield;
   Field **dfield_ptr= table->default_field;
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
-  sql_mode_t saved_mode= thd->variables.sql_mode;
   Query_arena backup_arena;
   Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
@@ -1103,7 +1102,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   thd->stmt_arena= table->expr_arena;
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
-  thd->variables.sql_mode &= ~MODE_NO_BACKSLASH_ESCAPES;
+  Sql_mode_instant_remove sms(thd, MODE_NO_BACKSLASH_ESCAPES);
 
   while (pos < end)
   {
@@ -1271,7 +1270,6 @@ end:
   thd->stmt_arena= backup_stmt_arena_ptr;
   if (save_character_set_client)
     thd->update_charset(save_character_set_client, save_collation);
-  thd->variables.sql_mode= saved_mode;
   DBUG_RETURN(res);
 }
 
@@ -3063,7 +3061,6 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
 int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
                                         const char *sql, size_t sql_length)
 {
-  sql_mode_t saved_mode= thd->variables.sql_mode;
   CHARSET_INFO *old_cs= thd->variables.character_set_client;
   Parser_state parser_state;
   bool error;
@@ -3091,7 +3088,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (parser_state.init(thd, sql_copy, sql_length))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  thd->variables.sql_mode= MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE;
+  Sql_mode_instant_set sms(thd, MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE);
   thd->variables.character_set_client= system_charset_info;
   tmp_disable_binlog(thd);
   old_lex= thd->lex;
@@ -3140,7 +3137,6 @@ ret:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
-  thd->variables.sql_mode= saved_mode;
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
   {
@@ -4390,21 +4386,17 @@ bool get_field(MEM_ROOT *mem, Field *field, String *res)
   StringBuffer<MAX_FIELD_WIDTH> str;
   bool rc;
   THD *thd= field->get_thd();
-  sql_mode_t sql_mode_backup= thd->variables.sql_mode;
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   field->val_str(&str);
   if ((rc= !str.length() ||
            !(to= strmake_root(mem, str.ptr(), str.length()))))
   {
     res->length(0);
-    goto ex;
+    return rc;
   }
   res->set(to, str.length(), field->charset());
-
-ex:
-  thd->variables.sql_mode= sql_mode_backup;
-  return rc;
+  return false;
 }
 
 

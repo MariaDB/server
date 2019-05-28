@@ -10408,14 +10408,12 @@ err_new_table_cleanup:
         /* Shouldn't get here. */
         DBUG_ASSERT(0);
     }
-    bool save_abort_on_warning= thd->abort_on_warning;
-    thd->abort_on_warning= true;
+    Abort_on_warning_instant_set aws(thd, true);
     thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
                                                 f_type, f_val,
                                                 new_table->s,
                                                 alter_ctx.datetime_field->
                                                 field_name.str);
-    thd->abort_on_warning= save_abort_on_warning;
   }
 
   if (new_table)
@@ -10620,14 +10618,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         to->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      bool save_abort_on_warning= thd->abort_on_warning;
-      thd->abort_on_warning= false;
+      Abort_on_warning_instant_set aws(thd, false);
       my_snprintf(warn_buff, sizeof(warn_buff), 
                   "ORDER BY ignored as there is a user-defined clustered index"
                   " in the table '%-.192s'", from->s->table_name.str);
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                    warn_buff);
-      thd->abort_on_warning= save_abort_on_warning;
     }
     else
     {

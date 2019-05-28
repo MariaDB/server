@@ -7607,10 +7607,9 @@ static bool grant_load(THD *thd,
   TABLE *t_table, *c_table, *p_table;
   bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
   MEM_ROOT *save_mem_root= thd->mem_root;
-  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("grant_load");
 
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   (void) my_hash_init(&column_priv_hash, &my_charset_utf8_bin,
                       0,0,0, (my_hash_get_key) get_grant_table,
@@ -7735,7 +7734,6 @@ end_unlock:
   t_table->file->ha_index_end();
   thd->mem_root= save_mem_root;
 end_index_init:
-  thd->variables.sql_mode= old_sql_mode;
   DBUG_RETURN(return_val);
 }
 
@@ -10722,7 +10720,6 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name, *tmp_user_name;
   List_iterator <LEX_USER> user_list(list);
   bool binlog= false;
-  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("mysql_drop_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -10734,7 +10731,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   if ((result= tables.open_and_lock(thd, tables_to_open, TL_WRITE)))
     DBUG_RETURN(result != 1);
 
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
@@ -10809,7 +10806,6 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
-  thd->variables.sql_mode= old_sql_mode;
   DBUG_RETURN(result);
 }
 

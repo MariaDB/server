@@ -4499,12 +4499,11 @@ Prepared_statement::reprepare()
                                    TRUE, &cur_db_changed)))
     return TRUE;
 
-  sql_mode_t save_sql_mode= thd->variables.sql_mode;
-  thd->variables.sql_mode= m_sql_mode;
+  Sql_mode_instant_set sms(thd, m_sql_mode);
+
   error= ((name.str && copy.set_name(&name)) ||
           copy.prepare(query(), query_length()) ||
           validate_metadata(&copy));
-  thd->variables.sql_mode= save_sql_mode;
 
   if (cur_db_changed)
     mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);

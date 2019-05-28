@@ -4256,7 +4256,7 @@ int ha_partition::write_row(uchar * buf)
   bool have_auto_increment= table->next_number_field && buf == table->record[0];
   my_bitmap_map *old_map;
   THD *thd= ha_thd();
-  sql_mode_t saved_sql_mode= thd->variables.sql_mode;
+  Sql_mode_save sms(thd);
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
   DBUG_ENTER("ha_partition::write_row");
   DBUG_PRINT("enter", ("partition this: %p", this));
@@ -4322,7 +4322,6 @@ int ha_partition::write_row(uchar * buf)
   reenable_binlog(thd);
 
 exit:
-  thd->variables.sql_mode= saved_sql_mode;
   table->auto_increment_field_not_null= saved_auto_inc_field_not_null;
   DBUG_RETURN(error);
 }
