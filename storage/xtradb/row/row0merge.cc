@@ -27,6 +27,7 @@ Completed by Sunny Bains and Marko Makela
 #include <my_config.h>
 #include <log.h>
 #include <sql_class.h>
+#include <math.h>
 
 #include "row0merge.h"
 #include "row0ext.h"
@@ -42,14 +43,7 @@ Completed by Sunny Bains and Marko Makela
 #include "row0import.h"
 #include "handler0alter.h"
 #include "ha_prototypes.h"
-#include "math.h" /* log2() */
 #include "fil0crypt.h"
-
-float my_log2f(float n)
-{
-	/* log(n) / log(2) is log2. */
-	return (float)(log((double)n) / log((double)2));
-}
 
 /* Ignore posix_fadvise() on those platforms where it does not exist */
 #if defined __WIN__
@@ -2516,17 +2510,12 @@ row_merge_sort(
 	/* Record the number of merge runs we need to perform */
 	num_runs = file->offset;
 
-	/* Find the number N which 2^N is greater or equal than num_runs */
-	/* N is merge sort running count */
-	total_merge_sort_count = ceil(my_log2f(num_runs));
-	if(total_merge_sort_count <= 0) {
-		total_merge_sort_count=1;
-	}
-
 	/* If num_runs are less than 1, nothing to merge */
 	if (num_runs <= 1) {
 		DBUG_RETURN(error);
 	}
+
+	total_merge_sort_count = ceil(log2f(num_runs));
 
 	/* "run_offset" records each run's first offset number */
 	run_offset = (ulint*) mem_alloc(file->offset * sizeof(ulint));
