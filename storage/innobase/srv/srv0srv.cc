@@ -1537,6 +1537,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_x_lock_os_waits = rw_lock_stats.rw_x_os_wait_count;
 	export_vars.innodb_x_lock_spin_rounds = rw_lock_stats.rw_x_spin_round_count;
 	export_vars.innodb_x_lock_spin_waits = rw_lock_stats.rw_x_spin_wait_count;
+	export_vars.innodb_deadlocks = srv_stats.lock_deadlock_count;
 
 #ifdef HAVE_ATOMIC_BUILTINS
 	export_vars.innodb_have_atomic_builtins = 1;

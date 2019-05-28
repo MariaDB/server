@@ -1018,6 +1018,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_dblwr_pages_written,	  SHOW_LONG},
   {"dblwr_writes",
   (char*) &export_vars.innodb_dblwr_writes,		  SHOW_LONG},
+  {"deadlocks",
+  (char*) &export_vars.innodb_deadlocks,		  SHOW_LONG},
   {"history_list_length",
   (char*) &export_vars.innodb_history_list_length,	  SHOW_LONG},
   {"ibuf_discarded_delete_marks",

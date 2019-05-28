@@ -184,6 +184,9 @@ struct srv_stats_t
 
 	/** Number of spaces in keyrotation list */
 	ulint_ctr_64_t		key_rotation_list_length;
+
+	/** Number of lock deadlocks */
+	ulint_ctr_1_t		lock_deadlock_count;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -943,6 +946,7 @@ struct export_var_t{
 	ulint innodb_data_reads;		/*!< I/O read requests */
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
+	ulint innodb_deadlocks;
 	ibool innodb_have_atomic_builtins;	/*!< HAVE_ATOMIC_BUILTINS */
 	ulint innodb_history_list_length;
 	ulint innodb_ibuf_discarded_delete_marks;
