@@ -967,6 +967,40 @@ SELECT City.Name, Country.Name, Country.PopulationBar FROM City,Country
 set join_cache_level=default;
 set join_buffer_size=default;
 
+
+--echo #
+--echo # MDEV-17752: Plan changes from hash_index_merge to index_merge with new optimizer defaults
+--echo #
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_use_stat_tables=@@use_stat_tables;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables='preferably';
+
+use world;
+set join_cache_level=4;
+CREATE INDEX City_Name ON City(Name);
+
+--disable_result_log
+ANALYZE TABLE City, Country;
+--enable_result_log
+
+EXPLAIN
+SELECT Country.Name, Country.Population, City.Name, City.Population
+  FROM Country LEFT JOIN City
+       ON City.Country=Country.Code AND City.Population > 5000000
+   WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
+
+EXPLAIN
+SELECT Country.Name, Country.Population, City.Name, City.Population
+  FROM Country LEFT JOIN City
+       ON City.Country=Country.Code AND
+          (City.Population > 5000000 OR City.Name LIKE 'Za%')
+  WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set @@use_stat_tables=@save_use_stat_tables;
+set join_cache_level=default;
+
 DROP DATABASE world;
 
 use test;

@@ -4530,6 +4530,13 @@ end_with_restore_list:
       */
       /* Skip first table, which is the table we are inserting in */
       TABLE_LIST *second_table= first_table->next_local;
+      /*
+        This is a hack: this leaves select_lex->table_list in an inconsistent
+        state as 'elements' does not contain number of elements in the list.
+        Moreover, if second_table == NULL then 'next' becomes invalid.
+        TODO: fix it by removing the front element (restoring of it should
+        be done properly as well)
+      */
       select_lex->table_list.first= second_table;
       select_lex->context.table_list= 
         select_lex->context.first_name_resolution_table= second_table;

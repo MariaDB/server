@@ -1,4 +1,4 @@
-/* Copyright (C) 2010, 2017, MariaDB Corporation.
+/* Copyright (C) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,6 +12,9 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+
+#ifndef MY_VALGRIND_INCLUDED
+#define MY_VALGRIND_INCLUDED
 
 /* clang -> gcc */
 #ifndef __has_feature
@@ -33,6 +36,7 @@
 # define MEM_NOACCESS(a,len) VALGRIND_MAKE_MEM_NOACCESS(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) VALGRIND_CHECK_MEM_IS_ADDRESSABLE(a,len)
 # define MEM_CHECK_DEFINED(a,len) VALGRIND_CHECK_MEM_IS_DEFINED(a,len)
+# define REDZONE_SIZE 8
 #elif defined(__SANITIZE_ADDRESS__)
 # include <sanitizer/asan_interface.h>
 /* How to do manual poisoning:
@@ -41,11 +45,13 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_NOACCESS(a,len) ASAN_POISON_MEMORY_REGION(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
+# define REDZONE_SIZE 8
 #else
 # define MEM_UNDEFINED(a,len) ((void) (a), (void) (len))
 # define MEM_NOACCESS(a,len) ((void) 0)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
 # define MEM_CHECK_DEFINED(a,len) ((void) 0)
+# define REDZONE_SIZE 0
 #endif /* HAVE_VALGRIND_MEMCHECK_H */
 
 #ifndef DBUG_OFF
@@ -56,3 +62,5 @@ https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 
 #define TRASH_ALLOC(A,B) do { TRASH_FILL(A,B,0xA5); MEM_UNDEFINED(A,B); } while(0)
 #define TRASH_FREE(A,B) do { TRASH_FILL(A,B,0x8F); MEM_NOACCESS(A,B); } while(0)
+
+#endif /* MY_VALGRIND_INCLUDED */

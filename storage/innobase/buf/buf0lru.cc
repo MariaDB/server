@@ -2205,8 +2205,8 @@ buf_LRU_old_ratio_update_instance(
 	buf_pool_t*	buf_pool,/*!< in: buffer pool instance */
 	uint		old_pct,/*!< in: Reserve this percentage of
 				the buffer pool for "old" blocks. */
-	ibool		adjust)	/*!< in: TRUE=adjust the LRU list;
-				FALSE=just assign buf_pool->LRU_old_ratio
+	bool		adjust)	/*!< in: true=adjust the LRU list;
+				false=just assign buf_pool->LRU_old_ratio
 				during the initialization of InnoDB */
 {
 	uint	ratio;
@@ -2248,8 +2248,8 @@ buf_LRU_old_ratio_update(
 /*=====================*/
 	uint	old_pct,/*!< in: Reserve this percentage of
 			the buffer pool for "old" blocks. */
-	ibool	adjust)	/*!< in: TRUE=adjust the LRU list;
-			FALSE=just assign buf_pool->LRU_old_ratio
+	bool	adjust)	/*!< in: true=adjust the LRU list;
+			false=just assign buf_pool->LRU_old_ratio
 			during the initialization of InnoDB */
 {
 	uint	new_ratio = 0;
