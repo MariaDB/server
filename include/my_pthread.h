@@ -423,6 +423,8 @@ int safe_mutex_init(safe_mutex_t *mp, const pthread_mutexattr_t *attr,
                     const char *name, const char *file, uint line);
 int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
                     uint line);
+int safe_mutex_timedlock(safe_mutex_t *mp, const struct timespec *abstime,
+                         myf my_flags, const char *file, uint line);
 int safe_mutex_unlock(safe_mutex_t *mp,const char *file, uint line);
 int safe_mutex_destroy(safe_mutex_t *mp,const char *file, uint line);
 int safe_cond_wait(pthread_cond_t *cond, safe_mutex_t *mp,const char *file,

@@ -1,0 +1,36 @@
+for master_1
+for child2
+for child3
+connection master_1;
+set @old_spider_internal_lock_wait_timeout= @@spider_internal_lock_wait_timeout;
+set global spider_internal_lock_wait_timeout= 0;
+
+this test is for MDEV-6268
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+create table
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+
+select test 1
+connection master_1;
+SELECT pkey FROM tbl_a;
+ERROR HY000: Internal lock wait timeout when getting a table status information
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection master_1;
+set global spider_internal_lock_wait_timeout= @old_spider_internal_lock_wait_timeout;
+for master_1
+for child2
+for child3
+
+end of test

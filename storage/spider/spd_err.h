@@ -133,6 +133,8 @@
 #define ER_SPIDER_SYNTAX_STR "%s detected a syntax error near '%-.80s' at line %d"
 #define ER_SPIDER_TOO_LONG_NUM 12718
 #define ER_SPIDER_TOO_LONG_STR "%s is too long"
+#define ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_NUM 12719
+#define ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_STR "Internal lock wait timeout when %s"
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

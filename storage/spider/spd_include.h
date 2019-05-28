@@ -30,6 +30,10 @@
 #undef pthread_mutex_t
 #endif
 #define pthread_mutex_t mysql_mutex_t
+#ifdef pthread_mutex_timedlock
+#undef pthread_mutex_timedlock
+#endif
+#define pthread_mutex_timedlock mysql_mutex_timedlock
 #ifdef pthread_mutex_lock
 #undef pthread_mutex_lock
 #endif

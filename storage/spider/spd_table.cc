@@ -4674,7 +4674,22 @@ SPIDER_SHARE *spider_get_share(
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_name, length);
 #endif
+#ifdef SPIDER_HAS_MUTEX_TIMEDLOCK
+  struct timespec abstime;
+  set_timespec(abstime, spider_param_internal_lock_wait_timeout());
+  do {
+    *error_num = pthread_mutex_timedlock(&spider_tbl_mutex, &abstime);
+  } while (*error_num == EINTR);
+  if (*error_num)
+  {
+    *error_num = ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_NUM;
+    my_printf_error(*error_num, ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_STR,
+      MYF(0), "getting a share object");
+    DBUG_RETURN(NULL);
+  }
+#else
   pthread_mutex_lock(&spider_tbl_mutex);
+#endif
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(share = (SPIDER_SHARE*) my_hash_search_using_hash_value(
     &spider_open_tables, hash_value, (uchar*) table_name, length)))
@@ -5245,11 +5260,12 @@ SPIDER_SHARE *spider_get_share(
     share->use_count++;
     pthread_mutex_unlock(&spider_tbl_mutex);
 
-    int sleep_cnt = 0;
+    ulonglong wait_timeout = spider_param_internal_lock_wait_timeout() * 100;
+    ulonglong sleep_cnt = 0;
     while (!share->init)
     {
       // avoid for dead loop
-      if (sleep_cnt++ > 1000)
+      if (sleep_cnt > wait_timeout)
       {
         fprintf(stderr, " [WARN SPIDER RESULT] "
           "Wait share->init too long, table_name %s %s %ld\n",
@@ -5258,9 +5274,11 @@ SPIDER_SHARE *spider_get_share(
         my_printf_error(ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM,
           ER_SPIDER_TABLE_OPEN_TIMEOUT_STR, MYF(0),
           table_share->db.str, table_share->table_name.str);
+        spider_free_share(share);
         goto error_but_no_delete;
       }
       my_sleep(10000); // wait 10 ms
+      sleep_cnt++;
     }
 
     if (!share->link_status_init)
@@ -5572,6 +5590,7 @@ SPIDER_SHARE *spider_get_share(
           spider->dbton_handler[dbton_id] = NULL;
         }
       }
+      spider_free_share(share);
       goto error_but_no_delete;
     }
 

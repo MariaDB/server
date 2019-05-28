@@ -118,6 +118,7 @@ struct st_mysql_mutex
   @sa mysql_mutex_assert_not_owner
   @sa mysql_mutex_init
   @sa mysql_mutex_lock
+  @sa mysql_mutex_timedlock
   @sa mysql_mutex_unlock
   @sa mysql_mutex_destroy
 */
@@ -318,6 +319,21 @@ typedef struct st_mysql_cond mysql_cond_t;
 #else
   #define mysql_mutex_lock(M) \
     inline_mysql_mutex_lock(M)
+#endif
+
+/**
+  @def mysql_mutex_timedlock(M)
+  Instrumented mutex_lock.
+  @c mysql_mutex_timedlock is a drop-in replacement
+  for @c pthread_mutex_timedlock.
+*/
+
+#if defined(SAFE_MUTEX) || defined (HAVE_PSI_MUTEX_INTERFACE)
+  #define mysql_mutex_timedlock(M, W) \
+    inline_mysql_mutex_timedlock(M, W, __FILE__, __LINE__)
+#else
+  #define mysql_mutex_timedlock(M, W) \
+    inline_mysql_mutex_timedlock(M, W)
 #endif
 
 /**
@@ -710,6 +726,50 @@ static inline int inline_mysql_mutex_lock(
   result= safe_mutex_lock(&that->m_mutex, FALSE, src_file, src_line);
 #else
   result= pthread_mutex_lock(&that->m_mutex);
+#endif
+
+  return result;
+}
+
+static inline int inline_mysql_mutex_timedlock(
+  mysql_mutex_t *that,
+  const struct timespec *abstime
+#if defined(SAFE_MUTEX) || defined (HAVE_PSI_MUTEX_INTERFACE)
+  , const char *src_file, uint src_line
+#endif
+  )
+{
+  int result;
+
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+  if (psi_likely(that->m_psi != NULL))
+  {
+    /* Instrumentation start */
+    PSI_mutex_locker *locker;
+    PSI_mutex_locker_state state;
+    locker= PSI_MUTEX_CALL(start_mutex_wait)(&state, that->m_psi,
+                                       PSI_MUTEX_LOCK, src_file, src_line);
+
+    /* Instrumented code */
+#ifdef SAFE_MUTEX
+    result= safe_mutex_timedlock(&that->m_mutex, abstime, FALSE, src_file, src_line);
+#else
+    result= pthread_mutex_timedlock(&that->m_mutex, abstime);
+#endif
+
+    /* Instrumentation end */
+    if (locker != NULL)
+      PSI_MUTEX_CALL(end_mutex_wait)(locker, result);
+
+    return result;
+  }
+#endif
+
+  /* Non instrumented code */
+#ifdef SAFE_MUTEX
+  result= safe_mutex_timedlock(&that->m_mutex, abstime, FALSE, src_file, src_line);
+#else
+  result= pthread_mutex_timedlock(&that->m_mutex, abstime);
 #endif
 
   return result;

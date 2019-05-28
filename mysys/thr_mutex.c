@@ -402,6 +402,158 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
 }
 
 
+int safe_mutex_timedlock(safe_mutex_t *mp, const struct timespec *abstime,
+                         myf my_flags, const char *file, uint line)
+{
+  int error;
+  DBUG_PRINT("mutex", ("%s (0x%lx) locking", mp->name ? mp->name : "Null",
+                       (ulong) mp));
+  if (!mp->file)
+  {
+    fprintf(stderr,
+	    "safe_mutex: Trying to lock uninitialized mutex at %s, line %d\n",
+	    file, line);
+    fflush(stderr);
+    abort();
+  }
+
+  pthread_mutex_lock(&mp->global);
+  if (mp->count > 0)
+  {
+    /*
+      Check that we are not trying to lock mutex twice. This is an error
+      even if we are using 'try_lock' as it's not portably what happens
+      if you lock the mutex many times and this is in any case bad
+      behaviour that should not be encouraged
+    */
+    if (pthread_equal(pthread_self(),mp->thread))
+    {
+      fprintf(stderr,
+              "safe_mutex: Trying to lock mutex at %s, line %d, when the"
+              " mutex was already locked at %s, line %d in thread %s\n",
+              file,line,mp->file, mp->line, my_thread_name());
+      fflush(stderr);
+      abort();
+    }
+  }
+  pthread_mutex_unlock(&mp->global);
+
+  error= pthread_mutex_timedlock(&mp->mutex, abstime);
+  if (error == EINTR || error == ETIMEDOUT || error == ETIME)
+  {
+    return error;
+  }
+
+  if (error || (error=pthread_mutex_lock(&mp->global)))
+  {
+    fprintf(stderr,"Got error %d when trying to lock mutex %s at %s, line %d\n",
+	    error, mp->name, file, line);
+    fflush(stderr);
+    abort();
+  }
+  mp->thread= pthread_self();
+  if (mp->count++)
+  {
+    fprintf(stderr,"safe_mutex: Error in thread libray: Got mutex %s at %s, "
+            "line %d more than 1 time\n", mp->name, file,line);
+    fflush(stderr);
+    abort();
+  }
+  mp->file= file;
+  mp->line= line;
+  mp->active_flags= mp->create_flags | my_flags;
+  pthread_mutex_unlock(&mp->global);
+
+  /* Deadlock detection */
+
+  mp->prev= mp->next= 0;
+  if (!(mp->active_flags & (MYF_TRY_LOCK | MYF_NO_DEADLOCK_DETECTION)) &&
+      (mp->used_mutex != NULL || !safe_mutex_lazy_init_deadlock_detection(mp)))
+  {
+    safe_mutex_t **mutex_in_use= my_thread_var_mutex_in_use();
+
+    if (!mutex_in_use)
+    {
+      /* thread has not called my_thread_init() */
+      mp->active_flags|= MYF_NO_DEADLOCK_DETECTION;
+    }
+    else
+    {
+      safe_mutex_t *mutex_root;
+      if ((mutex_root= *mutex_in_use))   /* If not first locked */
+      {
+        /*
+          Protect locked_mutex against changes if a mutex is deleted
+        */
+        pthread_mutex_lock(&THR_LOCK_mutex);
+
+        if (!my_hash_search(mutex_root->locked_mutex, (uchar*) &mp->id, 0))
+        {
+          safe_mutex_deadlock_t *deadlock;
+          safe_mutex_t *mutex;
+
+          /* Create object to store mutex info */
+          if (!(deadlock= my_malloc(sizeof(*deadlock),
+                                    MYF(MY_ZEROFILL | MY_WME | MY_FAE))))
+            goto abort_loop;
+          deadlock->name= mp->name;
+          deadlock->id= mp->id;
+          deadlock->mutex= mp;
+          /* The following is useful for debugging wrong mutex usage */
+          deadlock->file= file;
+          deadlock->line= line;
+
+          /* Check if potential deadlock */
+          mutex= mutex_root;
+          do
+          {
+            if (my_hash_search(mp->locked_mutex, (uchar*) &mutex->id, 0))
+            {
+              print_deadlock_warning(mp, mutex);
+              /* Mark wrong usage to avoid future warnings for same error */
+              deadlock->warning_only= 1;
+              add_to_locked_mutex(deadlock, mutex_root);
+              DBUG_ASSERT(deadlock->count > 0);
+              goto abort_loop;
+            }
+          }
+          while ((mutex= mutex->next));
+
+          /*
+            Copy current mutex and all mutex that has been locked
+            after current mutex (mp->locked_mutex) to all mutex that
+            was locked before previous mutex (mutex_root->used_mutex)
+
+            For example if A->B would have been done before and we
+            are now locking (C) in B->C, then we would add C into
+            B->locked_mutex and A->locked_mutex
+          */
+          my_hash_iterate(mutex_root->used_mutex,
+                          (my_hash_walk_action) add_used_to_locked_mutex,
+                          deadlock);
+
+          /*
+            Copy all current mutex and all mutex locked after current one
+            into the prev mutex
+          */
+          add_used_to_locked_mutex(mutex_root, deadlock);
+          DBUG_ASSERT(deadlock->count > 0);
+        }
+  abort_loop:
+        pthread_mutex_unlock(&THR_LOCK_mutex);
+      }
+      /* Link mutex into mutex_in_use list */
+      if ((mp->next= *mutex_in_use))
+        (*mutex_in_use)->prev= mp;
+      *mutex_in_use= mp;
+    }
+  }
+
+  DBUG_PRINT("mutex", ("%s (0x%lx) locked", mp->name, (ulong) mp));
+  return error;
+}
+
+
 int safe_mutex_unlock(safe_mutex_t *mp,const char *file, uint line)
 {
   int error;

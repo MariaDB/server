@@ -2421,19 +2421,23 @@ bool spider_db_mbase::is_xa_nota_error(
   DBUG_RETURN(xa_nota);
 }
 
-void spider_db_mbase::print_warnings(
+int spider_db_mbase::print_warnings(
   struct tm *l_time
 ) {
+  int error_num = 0;
   DBUG_ENTER("spider_db_mbase::print_warnings");
   DBUG_PRINT("info",("spider this=%p", this));
   if (db_conn->status == MYSQL_STATUS_READY)
   {
+    if (
 #if MYSQL_VERSION_ID < 50500
-    if (!(db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS))
+      !(db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS) &&
+      db_conn->last_used_con->warning_count
 #else
-    if (!(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS))
+      !(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS) &&
+      db_conn->warning_count
 #endif
-    {
+    ) {
 /*
       pthread_mutex_lock(&conn->mta_conn_mutex);
       SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2459,7 +2463,7 @@ void spider_db_mbase::print_warnings(
             SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
             pthread_mutex_unlock(&conn->mta_conn_mutex);
 */
-            DBUG_VOID_RETURN;
+            DBUG_RETURN(0);
           }
           /* no record is ok */
         }
@@ -2471,17 +2475,32 @@ void spider_db_mbase::print_warnings(
         if (num_fields != 3)
         {
           mysql_free_result(res);
-          DBUG_VOID_RETURN;
+          DBUG_RETURN(0);
         }
-        while (row)
+        if (l_time)
         {
-          fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
-            "from [%s] %ld to %ld: %s %s %s\n",
-            l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
-            l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-            conn->tgt_host, (ulong) db_conn->thread_id,
-            (ulong) current_thd->thread_id, row[0], row[1], row[2]);
-          row = mysql_fetch_row(res);
+          while (row)
+          {
+            fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+              "from [%s] %ld to %ld: %s %s %s\n",
+              l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+              l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+              conn->tgt_host, (ulong) db_conn->thread_id,
+              (ulong) current_thd->thread_id, row[0], row[1], row[2]);
+            row = mysql_fetch_row(res);
+          }
+        } else {
+          while (row)
+          {
+            DBUG_PRINT("info",("spider row[0]=%s", row[0]));
+            DBUG_PRINT("info",("spider row[1]=%s", row[1]));
+            DBUG_PRINT("info",("spider row[2]=%s", row[2]));
+            longlong res_num =
+              (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
+            my_printf_error(res_num, row[2], MYF(0));
+            error_num = res_num;
+            row = mysql_fetch_row(res);
+          }
         }
         if (res)
           mysql_free_result(res);
@@ -2493,7 +2512,7 @@ void spider_db_mbase::print_warnings(
       }
     }
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error_num);
 }
 
 spider_db_result *spider_db_mbase::store_result(
@@ -13939,6 +13958,10 @@ int spider_mbase_handler::show_table_status(
       }
       DBUG_RETURN(error_num);
     }
+  }
+  if ((error_num = ((spider_db_mbase *) conn->db_conn)->print_warnings(NULL)))
+  {
+    DBUG_RETURN(error_num);
   }
   if (share->static_records_for_status != -1)
   {
