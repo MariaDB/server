@@ -4,6 +4,8 @@
 --source include/not_embedded.inc
 # DBUG_EXECUTE_IF is needed
 --source include/have_debug.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 if (`SELECT @@innodb_log_file_size = 1048576`) {
   --skip Test requires innodb_log_file_size>1M.

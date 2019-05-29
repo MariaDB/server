@@ -17,6 +17,9 @@ let collation=utf8_unicode_ci;
 # There are tables in 'mysql' database of type innodb
 --source include/have_innodb.inc
 
+# This test is slow on buildbot.
+--source include/big_test.inc
+
 disable_query_log;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 enable_query_log;
