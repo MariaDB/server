@@ -4800,8 +4800,9 @@ wrong_offs:
 				<< " of table " << index->table->name
 				<< ". We try to skip the rest of the page.";
 
-			btr_pcur_move_to_last_on_page(pcur, &mtr);
-
+			page_cur_set_after_last(btr_pcur_get_block(pcur),
+						btr_pcur_get_page_cur(pcur));
+			pcur->old_stored = false;
 			goto next_rec;
 		}
 	}
@@ -5564,36 +5565,47 @@ next_rec:
 	}
 
 	if (moves_up) {
-		bool	 move;
-
-		if (spatial_search) {
-			move = rtr_pcur_move_to_next(
-				search_tuple, mode, pcur, 0, &mtr);
+		if (UNIV_UNLIKELY(spatial_search)) {
+			if (rtr_pcur_move_to_next(
+				    search_tuple, mode, pcur, 0, &mtr)) {
+				goto rec_loop;
+			}
 		} else {
-			move = btr_pcur_move_to_next(pcur, &mtr);
-		}
-
-		if (!move) {
-not_moved:
-			if (!spatial_search) {
-				btr_pcur_store_position(pcur, &mtr);
-			}
-
-			if (match_mode != 0) {
-				err = DB_RECORD_NOT_FOUND;
+			const buf_block_t* block = btr_pcur_get_block(pcur);
+			/* This is based on btr_pcur_move_to_next(),
+			but avoids infinite read loop of a corrupted page. */
+			ut_ad(pcur->pos_state == BTR_PCUR_IS_POSITIONED);
+			ut_ad(pcur->latch_mode != BTR_NO_LATCHES);
+			pcur->old_stored = false;
+			if (btr_pcur_is_after_last_on_page(pcur)) {
+				if (btr_pcur_is_after_last_in_tree(pcur)) {
+					goto not_moved;
+				}
+				btr_pcur_move_to_next_page(pcur, &mtr);
+				if (UNIV_UNLIKELY(btr_pcur_get_block(pcur)
+						  == block)) {
+					err = DB_CORRUPTION;
+					goto lock_wait_or_error;
+				}
 			} else {
-				err = DB_END_OF_INDEX;
+				btr_pcur_move_to_next_on_page(pcur);
 			}
 
-			goto normal_return;
+			goto rec_loop;
 		}
 	} else {
-		if (UNIV_UNLIKELY(!btr_pcur_move_to_prev(pcur, &mtr))) {
-			goto not_moved;
+		if (btr_pcur_move_to_prev(pcur, &mtr)) {
+			goto rec_loop;
 		}
 	}
 
-	goto rec_loop;
+not_moved:
+	if (!spatial_search) {
+		btr_pcur_store_position(pcur, &mtr);
+	}
+
+	err = match_mode ? DB_RECORD_NOT_FOUND : DB_END_OF_INDEX;
+	goto normal_return;
 
 lock_wait_or_error:
 	/* Reset the old and new "did semi-consistent read" flags. */

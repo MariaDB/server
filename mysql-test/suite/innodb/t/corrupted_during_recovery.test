@@ -6,6 +6,8 @@ call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page");
 call mtr.add_suppression("InnoDB: Failed to read file '.*test.t1\\.ibd' at offset 3: Page read from tablespace is corrupted.");
+call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=3\\]");
+call mtr.add_suppression("InnoDB: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -53,8 +55,10 @@ EOF
 SELECT * FROM t1;
 let $restart_parameters=--innodb_force_recovery=1;
 --source include/restart_mysqld.inc
+
+--error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
 SELECT * FROM t2;
-CHECK TABLE t1,t2;
+CHECK TABLE t2;
 
 DROP TABLE t1, t2;

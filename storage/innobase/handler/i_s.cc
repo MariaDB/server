@@ -7188,7 +7188,7 @@ struct st_maria_plugin	i_s_innodb_sys_virtual =
 
 	/* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
+	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 /**  SYS_FIELDS  ***************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FIELDS */

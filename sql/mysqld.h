@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -612,11 +612,11 @@ extern mysql_mutex_t
        LOCK_item_func_sleep, LOCK_status, LOCK_show_status,
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
-       LOCK_slave_list, LOCK_active_mi, LOCK_manager,
-       LOCK_global_system_variables, LOCK_user_conn,
+       LOCK_slave_list, LOCK_active_mi, LOCK_manager, LOCK_user_conn,
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
        LOCK_slave_background;
-extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
+extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count,
+  LOCK_global_system_variables;
 extern mysql_mutex_t LOCK_start_thread;
 #ifdef HAVE_OPENSSL
 extern char* des_key_file;

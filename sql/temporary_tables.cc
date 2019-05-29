@@ -382,6 +382,19 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   if (!table && (share= find_tmp_table_share(tl)))
   {
     table= open_temporary_table(share, tl->get_table_name(), true);
+    /*
+       Temporary tables are not safe for parallel replication. They were
+       designed to be visible to one thread only, so have no table locking.
+       Thus there is no protection against two conflicting transactions
+       committing in parallel and things like that.
+
+       So for now, anything that uses temporary tables will be serialised
+       with anything before it, when using parallel replication.
+    */
+    if (table && rgi_slave &&
+        rgi_slave->is_parallel_exec &&
+        wait_for_prior_commit())
+      DBUG_RETURN(true);
   }
 
   if (!table)

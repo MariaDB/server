@@ -1,5 +1,7 @@
 --source include/have_case_insensitive_file_system.inc
 --source include/have_innodb.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 --echo #
 --echo # Bug#46941 crash with lower_case_table_names=2 and

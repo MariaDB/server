@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -67,10 +67,6 @@ ut_dbg_assertion_failed(
 /** Debug statement. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_d(EXPR)
 #endif
-
-/** Silence warnings about an unused variable by doing a null assignment.
-@param A the unused variable */
-#define UT_NOT_USED(A)	A = A
 
 #if defined(HAVE_SYS_TIME_H) && defined(HAVE_SYS_RESOURCE_H)
 

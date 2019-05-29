@@ -1986,6 +1986,38 @@ public:
   }
 
   /**
+    Checks either a trans/non trans temporary table is being accessed while
+    executing a statement.
+
+    @return
+      @retval TRUE  if a temporary table is being accessed
+      @retval FALSE otherwise
+  */
+  inline bool stmt_accessed_temp_table()
+  {
+    DBUG_ENTER("THD::stmt_accessed_temp_table");
+    DBUG_RETURN(stmt_accessed_non_trans_temp_table() ||
+                stmt_accessed_trans_temp_table());
+  }
+
+  /**
+    Checks if a temporary transactional table is being accessed while executing
+    a statement.
+
+    @return
+      @retval TRUE  if a temporary transactional table is being accessed
+      @retval FALSE otherwise
+  */
+  inline bool stmt_accessed_trans_temp_table()
+  {
+    DBUG_ENTER("THD::stmt_accessed_trans_temp_table");
+
+    DBUG_RETURN((stmt_accessed_table_flag &
+                ((1U << STMT_READS_TEMP_TRANS_TABLE) |
+                 (1U << STMT_WRITES_TEMP_TRANS_TABLE))) != 0);
+  }
+
+  /**
     Checks if a temporary non-transactional table is about to be accessed
     while executing a statement.
 

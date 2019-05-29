@@ -7,6 +7,8 @@
 --source include/innodb_page_size.inc
 --source include/have_debug.inc
 --source include/not_embedded.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;

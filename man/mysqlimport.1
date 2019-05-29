@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLIMPORT\FR" "1" "9 May 2017" "MariaDB 10\&.3" "MariaDB Database System"
+.TH "\FBMYSQLIMPORT\FR" "1" "21 May 2019" "MariaDB 10\&.3" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -336,6 +336,22 @@ localhost\&.
 See the description for the
 \fB\-\-replace\fR
 option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlimport: ignore-foreign-keys option
+.\" ignore-foreign-keys option: mysqlimport
+\fB\-\-ignore\-foreign\-keys\fR,
+\fB\-k\fR
+.sp
+Disable foreign key checks while importing the data\&.
 .RE
 .sp
 .RS 4

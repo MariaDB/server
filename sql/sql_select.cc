@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019 MariaDB Corporation
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7021,7 +7021,7 @@ best_access_path(JOIN      *join,
             else
               tmp= table->file->read_time(key, 1,
                                           (ha_rows) MY_MIN(tmp,s->worst_seeks));
-            tmp*= record_count;
+            tmp= COST_MULT(tmp, record_count);
           }
         }
         else
@@ -7186,19 +7186,19 @@ best_access_path(JOIN      *join,
             else
               tmp= table->file->read_time(key, 1,
                                           (ha_rows) MY_MIN(tmp,s->worst_seeks));
-            tmp*= record_count;
+            tmp= COST_MULT(tmp, record_count);
           }
           else
-            tmp= best_time;                    // Do nothing
+            tmp= best_time;                     // Do nothing
         }
 
-        tmp += s->startup_cost;
+        tmp= COST_ADD(tmp, s->startup_cost);
         loose_scan_opt.check_ref_access_part2(key, start_key, records, tmp);
       } /* not ft_key */
 
       if (tmp + 0.0001 < best_time - records/(double) TIME_FOR_COMPARE)
       {
-        best_time= tmp + records/(double) TIME_FOR_COMPARE;
+        best_time= COST_ADD(tmp, records/(double) TIME_FOR_COMPARE);
         best= tmp;
         best_records= records;
         best_key= start_key;
@@ -7232,14 +7232,18 @@ best_access_path(JOIN      *join,
                                                      use_cond_selectivity);
 
     tmp= s->quick ? s->quick->read_time : s->scan_time();
-    tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+    double cmp_time= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+    tmp= COST_ADD(tmp, cmp_time);
 
     /* We read the table as many times as join buffer becomes full. */
-    tmp*= (1.0 + floor((double) cache_record_length(join,idx) *
-                          record_count /
-                          (double) thd->variables.join_buff_size));
-    best_time= tmp + 
-               (record_count*join_sel) / TIME_FOR_COMPARE * rnd_records;
+
+    double refills= (1.0 + floor((double) cache_record_length(join,idx) *
+                           record_count /
+			   (double) thd->variables.join_buff_size));
+    tmp= COST_MULT(tmp, refills);
+    best_time= COST_ADD(tmp,
+                        COST_MULT((record_count*join_sel) / TIME_FOR_COMPARE,
+                                  rnd_records));
     best= tmp;
     records= rnd_records;
     best_key= hj_start_key;
@@ -7265,7 +7269,8 @@ best_access_path(JOIN      *join,
         'range' access using index IDX, and the best way to perform 'ref' 
         access is to use the same index IDX, with the same or more key parts.
         (note: it is not clear how this rule is/should be extended to 
-        index_merge quick selects)
+        index_merge quick selects). Also if we have a hash join we prefer that
+        over a table scan
     (3) See above note about InnoDB.
     (4) NOT ("FORCE INDEX(...)" is used for table and there is 'ref' access
              path, but there is no quick select)
@@ -7281,6 +7286,7 @@ best_access_path(JOIN      *join,
         be used for cases with small datasets, which is annoying.
   */
   if ((records >= s->found_records || best > s->read_time) &&            // (1)
+      !(best_key && best_key->key == MAX_KEY) &&                         // (2)
       !(s->quick && best_key && s->quick->index == best_key->key &&      // (2)
         best_max_key_part >= s->table->quick_key_parts[best_key->key]) &&// (2)
       !((s->table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&   // (3)
@@ -7308,9 +7314,9 @@ best_access_path(JOIN      *join,
         access (see first else-branch below), but we don't take it into 
         account here for range/index_merge access. Find out why this is so.
       */
-      tmp= record_count *
-        (s->quick->read_time +
-         (s->found_records - rnd_records)/(double) TIME_FOR_COMPARE);
+      double cmp_time= (s->found_records - rnd_records)/(double) TIME_FOR_COMPARE;
+      tmp= COST_MULT(record_count,
+                     COST_ADD(s->quick->read_time, cmp_time));
 
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
@@ -7329,16 +7335,15 @@ best_access_path(JOIN      *join,
           - read the whole table record 
           - skip rows which does not satisfy join condition
         */
-        tmp= record_count *
-          (tmp +
-           (s->records - rnd_records)/(double) TIME_FOR_COMPARE);
+        double cmp_time= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+        tmp= COST_MULT(record_count, COST_ADD(tmp,cmp_time));
       }
       else
       {
-        /* We read the table as many times as join buffer becomes full. */
-        tmp*= (1.0 + floor((double) cache_record_length(join,idx) *
-                           record_count /
-                           (double) thd->variables.join_buff_size));
+        double refills= (1.0 + floor((double) cache_record_length(join,idx) *
+                        (record_count /
+                         (double) thd->variables.join_buff_size)));
+        tmp= COST_MULT(tmp, refills);
         /* 
             We don't make full cartesian product between rows in the scanned
            table and existing records because we skip all rows from the
@@ -7346,7 +7351,8 @@ best_access_path(JOIN      *join,
            we read the table (see flush_cached_records for details). Here we
            take into account cost to read and skip these records.
         */
-        tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+        double cmp_time= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+        tmp= COST_ADD(tmp, cmp_time);
       }
     }
 
@@ -7361,9 +7367,9 @@ best_access_path(JOIN      *join,
       tmp give us total cost of using TABLE SCAN
     */
     if (best == DBL_MAX ||
-        (tmp  + record_count/(double) TIME_FOR_COMPARE*rnd_records <
+        COST_ADD(tmp, record_count/(double) TIME_FOR_COMPARE*rnd_records) <
          (best_key->is_for_hash_join() ? best_time :
-          best + record_count/(double) TIME_FOR_COMPARE*records)))
+          COST_ADD(best, record_count/(double) TIME_FOR_COMPARE*records)))
     {
       /*
         If the table has a range (s->quick is set) make_join_select()
@@ -7876,9 +7882,10 @@ optimize_straight_join(JOIN *join, table_map join_tables)
                      join->positions + idx, &loose_scan_pos);
 
     /* compute the cost of the new plan extended with 's' */
-    record_count*= join->positions[idx].records_read;
-    read_time+= join->positions[idx].read_time +
-                record_count / (double) TIME_FOR_COMPARE;
+    record_count= COST_MULT(record_count, join->positions[idx].records_read);
+    read_time= COST_ADD(read_time,
+                        COST_ADD(join->positions[idx].read_time,
+                                 record_count / (double) TIME_FOR_COMPARE));
     advance_sj_state(join, join_tables, idx, &record_count, &read_time,
                      &loose_scan_pos);
 
@@ -8068,9 +8075,10 @@ greedy_search(JOIN      *join,
     swap_variables(JOIN_TAB*, join->best_ref[idx], join->best_ref[best_idx]);
 
     /* compute the cost of the new plan extended with 'best_table' */
-    record_count*= join->positions[idx].records_read;
-    read_time+= join->positions[idx].read_time + 
-                record_count / (double) TIME_FOR_COMPARE;
+    record_count= COST_MULT(record_count, join->positions[idx].records_read);
+    read_time= COST_ADD(read_time,
+                         COST_ADD(join->positions[idx].read_time,
+                                  record_count / (double) TIME_FOR_COMPARE));
 
     remaining_tables&= ~(best_table->table->map);
     --size_remain;
@@ -8177,11 +8185,13 @@ void JOIN::get_partial_cost_and_fanout(int end_tab_idx,
     }
     if (tab->records_read && (cur_table_map & filter_map))
     {
-      record_count *= tab->records_read;
-      read_time += tab->read_time + record_count / (double) TIME_FOR_COMPARE;
+      record_count= COST_MULT(record_count, tab->records_read);
+      read_time= COST_ADD(read_time,
+                          COST_ADD(tab->read_time,
+                                   record_count / (double) TIME_FOR_COMPARE));
       if (tab->emb_sj_nest)
-        sj_inner_fanout *= tab->records_read;
-    }
+        sj_inner_fanout= COST_MULT(sj_inner_fanout, tab->records_read);
+				     }
 
     if (i == last_sj_table)
     {
@@ -8219,8 +8229,8 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
   {
     if (best_positions[i].records_read)
     {
-      record_count *= best_positions[i].records_read;
-      read_time += best_positions[i].read_time;
+      record_count= COST_MULT(record_count, best_positions[i].records_read);
+      read_time= COST_ADD(read_time, best_positions[i].read_time);
     }
   }
   *read_time_arg= read_time;// + record_count / TIME_FOR_COMPARE;
@@ -8781,13 +8791,12 @@ best_extension_by_limited_search(JOIN      *join,
       best_access_path(join, s, remaining_tables, idx, disable_jbuf,
                        record_count, position, &loose_scan_pos);
 
-      /* Compute the cost of extending the plan with 's', avoid overflow */
-      if (position->records_read < DBL_MAX / record_count)
-        current_record_count= record_count * position->records_read;
-      else
-        current_record_count= DBL_MAX;
-      current_read_time=read_time + position->read_time +
-                        current_record_count / (double) TIME_FOR_COMPARE;
+      /* Compute the cost of extending the plan with 's' */
+      current_record_count= COST_MULT(record_count, position->records_read);
+      current_read_time=COST_ADD(read_time,
+                                 COST_ADD(position->read_time,
+                                          current_record_count /
+                                          (double) TIME_FOR_COMPARE));
 
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);
@@ -8869,12 +8878,12 @@ best_extension_by_limited_search(JOIN      *join,
         if (join->sort_by_table &&
             join->sort_by_table !=
             join->positions[join->const_tables].table->table)
-          /* 
-             We may have to make a temp table, note that this is only a 
-             heuristic since we cannot know for sure at this point. 
+          /*
+             We may have to make a temp table, note that this is only a
+             heuristic since we cannot know for sure at this point.
              Hence it may be wrong.
           */
-          current_read_time+= current_record_count;
+          current_read_time= COST_ADD(current_read_time, current_record_count);
         if (current_read_time < join->best_read)
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
@@ -9192,8 +9201,8 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
           #max_nested_outer_joins=64-1) will not make it any more precise.
       */
       if (pos->records_read)
-        found*= pos->records_read;
-    }
+        found= COST_MULT(found, pos->records_read);
+     }
   }
   return found;
 }
@@ -10740,8 +10749,16 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  /*
 	    We plan to scan all rows.
 	    Check again if we should use an index.
-	    We could have used an column from a previous table in
-	    the index if we are using limit and this is the first table
+
+            There are two cases:
+            1) There could be an index usage the refers to a previous
+               table that we didn't consider before, but could be consider
+               now as a "last resort". For example
+               SELECT * from t1,t2 where t1.a between t2.a and t2.b;
+            2) If the current table is the first non const table
+               and there is a limit it still possibly beneficial
+               to use the index even if the index range is big as
+               we can stop when we've found limit rows.
 
             (1) - Don't switch the used index if we are using semi-join
                   LooseScan on this table. Using different index will not
@@ -15358,8 +15375,20 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         table->table->maybe_null= FALSE;
       table->outer_join= 0;
       if (!(straight_join || table->straight))
-        table->dep_tables= table->embedding && !table->embedding->sj_subq_pred ?
-                             table->embedding->dep_tables : 0;
+      {
+        table->dep_tables= 0;
+        TABLE_LIST *embedding= table->embedding;
+        while (embedding)
+        {
+          if (embedding->nested_join->join_list.head()->outer_join)
+          {
+            if (!embedding->sj_subq_pred)
+              table->dep_tables= embedding->dep_tables;
+            break;
+          }
+          embedding= embedding->embedding;
+        }
+      }
       if (table->on_expr)
       {
         /* Add ON expression to the WHERE or upper-level ON condition. */
@@ -15882,11 +15911,12 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
       pos= loose_scan_pos;
 
     reopt_remaining_tables &= ~rs->table->map;
-    rec_count *= pos.records_read;
-    cost += pos.read_time;
+    rec_count= COST_MULT(rec_count, pos.records_read);
+    cost= COST_ADD(cost, pos.read_time);
+
 
     if (!rs->emb_sj_nest)
-      *outer_rec_count *= pos.records_read;
+      *outer_rec_count= COST_MULT(*outer_rec_count, pos.records_read);
   }
   join->cur_sj_inner_tables= save_cur_sj_inner_tables;
 
