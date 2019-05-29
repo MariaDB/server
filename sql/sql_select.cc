@@ -3830,7 +3830,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(TRUE); /* purecov: inspected */
 
   {
-    ha_rows records= 1;
+    double records= 1;
     SELECT_LEX_UNIT *unit= join->select_lex->master_unit();
 
     /* Find an optimal join order of the non-constant tables. */
@@ -3855,10 +3855,14 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         table/view.
       */
       for (i= 0; i < join->table_count ; i++)
-        records*= join->best_positions[i].records_read ?
-                  (ha_rows)join->best_positions[i].records_read : 1;
-      set_if_smaller(records, unit->select_limit_cnt);
-      join->select_lex->increase_derived_records(records);
+      {
+        records= COST_MULT(records,
+                           join->best_positions[i].records_read ?
+                           join->best_positions[i].records_read : 1);
+      }
+      ha_rows rows= records > HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
+      set_if_smaller(rows, unit->select_limit_cnt);
+      join->select_lex->increase_derived_records(rows);
     }
   }
 
@@ -10795,7 +10799,7 @@ ha_rows JOIN_TAB::get_examined_rows()
     }
   }
   else
-    examined_rows= (ha_rows) records_read; 
+    examined_rows= (ha_rows) records_read;
 
   return examined_rows;
 }
@@ -22924,8 +22928,9 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       else
       {
         ha_rows examined_rows= tab->get_examined_rows();
-
-        item_list.push_back(new Item_int((longlong) (ulonglong) examined_rows, 
+        ha_rows displ_rows= examined_rows;
+        set_if_smaller(displ_rows, HA_ROWS_MAX/2);
+        item_list.push_back(new Item_int((longlong) (ulonglong) displ_rows,
                                          MY_INT64_NUM_DECIMAL_DIGITS));
 
         /* Add "filtered" field to item_list. */
