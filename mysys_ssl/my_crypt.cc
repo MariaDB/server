@@ -64,7 +64,7 @@ public:
     // WolfSSL checks parameters and does not like NULL pointers to be passed to function below.
     if (!src)
     {
-      static const uchar dummy[MY_AES_BLOCK_SIZE];
+      static uchar dummy[MY_AES_BLOCK_SIZE];
       DBUG_ASSERT(!slen);
       src=dummy;
     }
