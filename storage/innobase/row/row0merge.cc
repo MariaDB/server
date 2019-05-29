@@ -27,7 +27,6 @@ Completed by Sunny Bains and Marko Makela
 #include <my_global.h>
 #include <log.h>
 #include <sql_class.h>
-
 #include <math.h>
 
 #include "row0merge.h"
@@ -49,12 +48,6 @@ Completed by Sunny Bains and Marko Makela
 #include "btr0bulk.h"
 #include "ut0stage.h"
 #include "fil0crypt.h"
-
-float my_log2f(float n)
-{
-	/* log(n) / log(2) is log2. */
-	return (float)(log((double)n) / log((double)2));
-}
 
 /* Ignore posix_fadvise() on those platforms where it does not exist */
 #if defined _WIN32
@@ -3344,17 +3337,12 @@ row_merge_sort(
 		stage->begin_phase_sort(log2(num_runs));
 	}
 
-	/* Find the number N which 2^N is greater or equal than num_runs */
-	/* N is merge sort running count */
-	total_merge_sort_count = (ulint) ceil(my_log2f((float)num_runs));
-	if(total_merge_sort_count <= 0) {
-		total_merge_sort_count=1;
-	}
-
 	/* If num_runs are less than 1, nothing to merge */
 	if (num_runs <= 1) {
 		DBUG_RETURN(error);
 	}
+
+	total_merge_sort_count = ulint(ceil(log2(double(num_runs))));
 
 	/* "run_offset" records each run's first offset number */
 	run_offset = (ulint*) ut_malloc_nokey(file->offset * sizeof(ulint));

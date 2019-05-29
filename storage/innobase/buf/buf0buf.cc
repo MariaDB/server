@@ -4411,6 +4411,11 @@ loop:
 				return (NULL);
 			}
 
+			if (local_err == DB_PAGE_CORRUPTED
+			    && srv_force_recovery) {
+				return NULL;
+			}
+
 			/* Try to set table as corrupted instead of
 			asserting. */
 			if (page_id.space() == TRX_SYS_SPACE) {
@@ -5774,10 +5779,27 @@ buf_page_monitor(
 }
 
 /** Mark a table corrupted.
+Also remove the bpage from LRU list.
+@param[in]	bpage	Corrupted page. */
+static void buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
+{
+	/* If block is not encrypted find the table with specified
+	space id, and mark it corrupted. Encrypted tables
+	are marked unusable later e.g. in ::open(). */
+	if (!bpage->encrypted) {
+		dict_set_corrupted_by_space(space);
+	} else {
+		dict_set_encrypted_by_space(space);
+	}
+}
+
+/** Mark a table corrupted.
+@param[in]	bpage	Corrupted page
+@param[in]	space	Corrupted page belongs to tablespace
 Also remove the bpage from LRU list. */
 static
 void
-buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
+buf_corrupt_page_release(buf_page_t* bpage, const fil_space_t* space)
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const ibool	uncompressed = (buf_page_get_state(bpage)
@@ -5801,13 +5823,8 @@ buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
 
 	mutex_exit(buf_page_get_mutex(bpage));
 
-	/* If block is not encrypted find the table with specified
-	space id, and mark it corrupted. Encrypted tables
-	are marked unusable later e.g. in ::open(). */
-	if (!bpage->encrypted) {
-		dict_set_corrupted_by_space(space);
-	} else {
-		dict_set_encrypted_by_space(space);
+	if (!srv_force_recovery) {
+		buf_mark_space_corrupt(bpage, space);
 	}
 
 	/* After this point bpage can't be referenced. */
@@ -5869,7 +5886,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	not decrypted and it could be either encrypted and corrupted
 	or corrupted or good page. If we decrypted, there page could
 	still be corrupted if used key does not match. */
-	const bool still_encrypted = key_version
+	const bool still_encrypted = (!space->full_crc32() && key_version)
 		&& space->crypt_data
 		&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
 		&& !bpage->encrypted
@@ -6039,7 +6056,7 @@ database_corrupted:
 				"buf_page_import_corrupt_failure",
 				if (!is_predefined_tablespace(
 					    bpage->id.space())) {
-					buf_mark_space_corrupt(bpage, space);
+					buf_corrupt_page_release(bpage, space);
 					ib::info() << "Simulated IMPORT "
 						"corruption";
 					space->release_for_io();
@@ -6073,7 +6090,7 @@ database_corrupted:
 					<< FORCE_RECOVERY_MSG;
 			}
 
-			if (srv_force_recovery < SRV_FORCE_IGNORE_CORRUPT) {
+			if (!srv_force_recovery) {
 
 				/* If page space id is larger than TRX_SYS_SPACE
 				(0), we will attempt to mark the corresponding
@@ -6083,7 +6100,7 @@ database_corrupted:
 						" a corrupt database page.";
 				}
 
-				buf_mark_space_corrupt(bpage, space);
+				buf_corrupt_page_release(bpage, space);
 				space->release_for_io();
 				return(err);
 			}
@@ -6091,6 +6108,18 @@ database_corrupted:
 
 		DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
 				page_not_corrupt: bpage = bpage; );
+
+		if (err == DB_PAGE_CORRUPTED
+		    || err == DB_DECRYPTION_FAILED) {
+			buf_corrupt_page_release(bpage, space);
+
+			if (recv_recovery_is_on()) {
+				recv_recover_corrupt_page(bpage);
+			}
+
+			space->release_for_io();
+			return err;
+		}
 
 		if (recv_recovery_is_on()) {
 			recv_recover_page(bpage);

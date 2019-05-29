@@ -5029,25 +5029,29 @@ fil_space_t::acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
+@param[in]	recheck		recheck of the tablespace is needed or
+				still encryption thread does write page0 for it
+@param[in]	key_version	key version of the key state thread
 @return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
+@retval NULL if this was the last */
 fil_space_t*
-fil_space_keyrotate_next(
-	fil_space_t*	prev_space)
+fil_system_t::keyrotate_next(
+	fil_space_t*	prev_space,
+	bool		recheck,
+	uint		key_version)
 {
-	fil_space_t* space = prev_space;
-	fil_space_t* old   = NULL;
-
 	mutex_enter(&fil_system.mutex);
 
-	if (UT_LIST_GET_LEN(fil_system.rotation_list) == 0) {
-		if (space) {
-			space->release();
-			fil_space_remove_from_keyrotation(space);
-		}
-		mutex_exit(&fil_system.mutex);
-		return(NULL);
-	}
+	/* If one of the encryption threads already started the encryption
+	of the table then don't remove the unencrypted spaces from
+	rotation list
+
+	If there is a change in innodb_encrypt_tables variables value then
+	don't remove the last processed tablespace from the rotation list. */
+	const bool remove = ((!recheck || prev_space->crypt_data)
+			     && (!key_version == !srv_encrypt_tables));
+
+	fil_space_t* space = prev_space;
 
 	if (prev_space == NULL) {
 		space = UT_LIST_GET_FIRST(fil_system.rotation_list);
@@ -5058,22 +5062,17 @@ fil_space_keyrotate_next(
 		/* Move on to the next fil_space_t */
 		space->release();
 
-		old = space;
 		space = UT_LIST_GET_NEXT(rotation_list, space);
 
-		fil_space_remove_from_keyrotation(old);
-	}
+		while (space != NULL
+		       && (UT_LIST_GET_LEN(space->chain) == 0
+			   || space->is_stopping())) {
+			space = UT_LIST_GET_NEXT(rotation_list, space);
+		}
 
-	/* Skip spaces that are being created by fil_ibd_create(),
-	or dropped. Note that rotation_list contains only
-	space->purpose == FIL_TYPE_TABLESPACE. */
-	while (space != NULL
-	       && (UT_LIST_GET_LEN(space->chain) == 0
-		   || space->is_stopping())) {
-
-		old = space;
-		space = UT_LIST_GET_NEXT(rotation_list, space);
-		fil_space_remove_from_keyrotation(old);
+		if (remove) {
+			fil_space_remove_from_keyrotation(prev_space);
+		}
 	}
 
 	if (space != NULL) {
@@ -5081,7 +5080,6 @@ fil_space_keyrotate_next(
 	}
 
 	mutex_exit(&fil_system.mutex);
-
 	return(space);
 }
 
