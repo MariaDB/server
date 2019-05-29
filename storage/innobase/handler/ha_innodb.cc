@@ -986,6 +986,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_buffer_pool_pages_old,	  SHOW_LONG},
   {"buffer_pool_pages_total",
   (char*) &export_vars.innodb_buffer_pool_pages_total,	  SHOW_LONG},
+  {"buffer_pool_pages_LRU_flushed",
+  (char*) &export_vars.innodb_buffer_pool_pages_LRU_flushed, SHOW_LONG},
   {"buffer_pool_read_ahead_rnd",
   (char*) &export_vars.innodb_buffer_pool_read_ahead_rnd, SHOW_LONG},
   {"buffer_pool_read_ahead",
