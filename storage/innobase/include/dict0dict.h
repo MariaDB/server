@@ -1490,8 +1490,6 @@ public:
 					on name */
 	/** hash table of persistent table IDs */
 	hash_table_t*	table_id_hash;
-	/** hash table of temporary table IDs */
-	hash_table_t*	temp_id_hash;
 	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
@@ -1509,6 +1507,8 @@ private:
 	bool m_initialised;
 	/** the sequence of temporary table IDs */
 	std::atomic<table_id_t> temp_table_id;
+	/** hash table of temporary table IDs */
+	hash_table_t*	temp_id_hash;
 public:
 	/** @return a new temporary table ID */
 	table_id_t get_temporary_table_id() {
@@ -1633,6 +1633,8 @@ public:
     mutex_exit(&mutex);
     rw_lock_x_unlock(&latch);
   }
+
+  inline hash_table_t* get_temp_id_hash() { return temp_id_hash; }
 };
 
 /** the data dictionary cache */
