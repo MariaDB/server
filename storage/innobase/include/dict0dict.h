@@ -992,10 +992,6 @@ dict_make_room_in_cache(
 	ulint		max_tables,	/*!< in: max tables allowed in cache */
 	ulint		pct_check);	/*!< in: max percent to check */
 
-/** Clears the virtual column's index list before index is being freed.
-@param[in]  index   Index being freed */
-void dict_index_remove_from_v_col_list(dict_index_t* index);
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
 @param[in]	index	index; NOTE! The index memory

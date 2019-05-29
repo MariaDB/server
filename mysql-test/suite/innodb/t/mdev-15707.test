@@ -1,4 +1,6 @@
 --source include/windows.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 # Deadlock in conjunction with the innodb change buffering.
 

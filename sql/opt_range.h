@@ -458,7 +458,9 @@ public:
     SEL_ARG *key_tree= first();
     uint res= key_tree->store_min(key[key_tree->part].store_length,
                                   range_key, *range_key_flag);
-    *range_key_flag|= key_tree->min_flag;
+    // add flags only if a key_part is written to the buffer
+    if (res)
+      *range_key_flag|= key_tree->min_flag;
     if (key_tree->next_key_part &&
 	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
         key_tree->part != last_part &&
@@ -480,7 +482,8 @@ public:
     SEL_ARG *key_tree= last();
     uint res=key_tree->store_max(key[key_tree->part].store_length,
                                  range_key, *range_key_flag);
-    (*range_key_flag)|= key_tree->max_flag;
+    if (res)
+      (*range_key_flag)|= key_tree->max_flag;
     if (key_tree->next_key_part &&
 	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
         key_tree->part != last_part &&

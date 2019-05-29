@@ -167,6 +167,9 @@ dict_mem_table_create(
 		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
 	table->v_cols = static_cast<dict_v_col_t*>(
 		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
+	for (ulint i = n_v_cols; i--; ) {
+		new (&table->v_cols[i]) dict_v_col_t();
+	}
 
 	/* true means that the stats latch will be enabled -
 	dict_table_stats_lock() will not be noop. */
@@ -227,15 +230,10 @@ dict_mem_table_free(
 	/* Clean up virtual index info structures that are registered
 	with virtual columns */
 	for (ulint i = 0; i < table->n_v_def; i++) {
-		dict_v_col_t*	vcol
-			= dict_table_get_nth_v_col(table, i);
-
-		UT_DELETE(vcol->v_indexes);
+		dict_table_get_nth_v_col(table, i)->~dict_v_col_t();
 	}
 
-	if (table->s_cols != NULL) {
-		UT_DELETE(table->s_cols);
-	}
+	UT_DELETE(table->s_cols);
 
 	mem_heap_free(table->heap);
 }
@@ -414,7 +412,8 @@ dict_mem_table_add_v_col(
 	v_col->num_base = num_base;
 
 	/* Initialize the index list for virtual columns */
-	v_col->v_indexes = UT_NEW_NOKEY(dict_v_idx_list());
+	ut_ad(v_col->v_indexes.empty());
+	v_col->n_v_indexes = 0;
 
 	return(v_col);
 }
@@ -448,7 +447,7 @@ dict_mem_table_add_s_col(
 	}
 
 	s_col.num_base = num_base;
-	table->s_cols->push_back(s_col);
+	table->s_cols->push_front(s_col);
 }
 
 /**********************************************************************//**
@@ -749,13 +748,11 @@ dict_mem_index_create(
 
 	if (type & DICT_SPATIAL) {
 		mutex_create(LATCH_ID_RTR_SSN_MUTEX, &index->rtr_ssn.mutex);
-		index->rtr_track = static_cast<rtr_info_track_t*>(
-					mem_heap_alloc(
-						heap,
-						sizeof(*index->rtr_track)));
+		index->rtr_track = new
+			(mem_heap_alloc(heap, sizeof *index->rtr_track))
+			rtr_info_track_t();
 		mutex_create(LATCH_ID_RTR_ACTIVE_MUTEX,
 			     &index->rtr_track->rtr_active_mutex);
-		index->rtr_track->rtr_active = UT_NEW_NOKEY(rtr_info_active());
 	}
 
 	return(index);
@@ -863,11 +860,7 @@ dict_mem_fill_vcol_has_index(
 			continue;
 		}
 
-		dict_v_idx_list::iterator it;
-		for (it = v_col->v_indexes->begin();
-		     it != v_col->v_indexes->end(); ++it) {
-			dict_v_idx_t	v_idx = *it;
-
+		for (const auto& v_idx : v_col->v_indexes) {
 			if (v_idx.index != index) {
 				continue;
 			}
@@ -940,7 +933,7 @@ dict_mem_fill_vcol_set_for_base_col(
 			continue;
 		}
 
-		for (ulint j = 0; j < v_col->num_base; j++) {
+		for (ulint j = 0; j < unsigned{v_col->num_base}; j++) {
 			if (strcmp(col_name, dict_table_get_col_name(
 					table,
 					v_col->base_col[j]->ind)) == 0) {
@@ -1064,22 +1057,15 @@ dict_mem_index_free(
 	dict_index_zip_pad_mutex_destroy(index);
 
 	if (dict_index_is_spatial(index)) {
-		rtr_info_active::iterator	it;
-		rtr_info_t*			rtr_info;
-
-		for (it = index->rtr_track->rtr_active->begin();
-		     it != index->rtr_track->rtr_active->end(); ++it) {
-			rtr_info = *it;
-
+		for (auto& rtr_info : index->rtr_track->rtr_active) {
 			rtr_info->index = NULL;
 		}
-
 		mutex_destroy(&index->rtr_ssn.mutex);
 		mutex_destroy(&index->rtr_track->rtr_active_mutex);
-		UT_DELETE(index->rtr_track->rtr_active);
+		index->rtr_track->~rtr_info_track_t();
 	}
 
-	dict_index_remove_from_v_col_list(index);
+	index->detach_columns();
 	mem_heap_free(index->heap);
 }
 

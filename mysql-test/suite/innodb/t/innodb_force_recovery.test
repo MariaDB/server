@@ -91,6 +91,9 @@ truncate table t2;
 
 --error ER_OPEN_AS_READONLY
 drop table t2;
+
+create schema db;
+drop schema db;
 show tables;
 
 --echo # Restart the server with innodb_force_recovery as 6.

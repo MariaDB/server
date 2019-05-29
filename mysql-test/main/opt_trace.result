@@ -1248,7 +1248,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                       {
                         "index": "a",
                         "covering": true,
-                        "ranges": ["2 <= b <= 2 AND 3 <= c <= 3"],
+                        "ranges": ["(2,3) <= (b,c) <= (2,3)"],
                         "rows": 8,
                         "cost": 2.2
                       }
@@ -1264,7 +1264,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                     "rows": 8,
                     "cost": 2.2,
                     "key_parts_used_for_access": ["a", "b", "c"],
-                    "ranges": ["2 <= b <= 2 AND 3 <= c <= 3"],
+                    "ranges": ["(2,3) <= (b,c) <= (2,3)"],
                     "chosen": false,
                     "cause": "cost"
                   },
@@ -1446,7 +1446,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                       {
                         "index": "id",
                         "covering": true,
-                        "ranges": ["0x24a20f <= a"],
+                        "ranges": ["(0x24a20f) <= (a)"],
                         "rows": 9,
                         "cost": 2.35
                       }
@@ -1462,7 +1462,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                     "rows": 9,
                     "cost": 2.35,
                     "key_parts_used_for_access": ["id"],
-                    "ranges": ["0x24a20f <= a"],
+                    "ranges": ["(0x24a20f) <= (a)"],
                     "chosen": false,
                     "cause": "cost"
                   },
@@ -1624,7 +1624,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                       {
                         "index": "id",
                         "covering": true,
-                        "ranges": ["0x24a20f <= a <= 0x24a20f"],
+                        "ranges": ["(0x24a20f) <= (a) <= (0x24a20f)"],
                         "rows": 9,
                         "cost": 2.35
                       }
@@ -1640,7 +1640,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                     "rows": 9,
                     "cost": 2.35,
                     "key_parts_used_for_access": ["id", "a"],
-                    "ranges": ["0x24a20f <= a <= 0x24a20f"],
+                    "ranges": ["(0x24a20f) <= (a) <= (0x24a20f)"],
                     "chosen": false,
                     "cause": "cost"
                   },
@@ -1856,7 +1856,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "range_scan_alternatives": [
                       {
                         "index": "a_c",
-                        "ranges": ["1 <= a <= 1"],
+                        "ranges": ["(1) <= (a) <= (1)"],
                         "rowid_ordered": false,
                         "using_mrr": false,
                         "index_only": false,
@@ -1866,7 +1866,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       },
                       {
                         "index": "a_b",
-                        "ranges": ["1 <= a <= 1 AND 2 <= b <= 2"],
+                        "ranges": ["(1,2) <= (a,b) <= (1,2)"],
                         "rowid_ordered": true,
                         "using_mrr": false,
                         "index_only": false,
@@ -1885,7 +1885,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "type": "range_scan",
                       "index": "a_b",
                       "rows": 21,
-                      "ranges": ["1 <= a <= 1 AND 2 <= b <= 2"]
+                      "ranges": ["(1,2) <= (a,b) <= (1,2)"]
                     },
                     "rows_for_plan": 21,
                     "cost_for_plan": 27.445,
@@ -2025,7 +2025,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "range_scan_alternatives": [
                   {
                     "index": "a_c",
-                    "ranges": ["1 <= a <= 1"],
+                    "ranges": ["(1) <= (a) <= (1)"],
                     "rowid_ordered": false,
                     "using_mrr": false,
                     "index_only": false,
@@ -2044,7 +2044,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "type": "range_scan",
                   "index": "a_c",
                   "rows": 180,
-                  "ranges": ["1 <= a <= 1"]
+                  "ranges": ["(1) <= (a) <= (1)"]
                 },
                 "rows_for_plan": 180,
                 "cost_for_plan": 231.72,
@@ -2895,7 +2895,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                     "range_scan_alternatives": [
                       {
                         "index": "pk",
-                        "ranges": ["2 <= pk <= 2"],
+                        "ranges": ["(2) <= (pk) <= (2)"],
                         "rowid_ordered": true,
                         "using_mrr": false,
                         "index_only": false,
@@ -2906,7 +2906,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       },
                       {
                         "index": "pk_a",
-                        "ranges": ["2 <= pk <= 2 AND 5 <= a <= 5"],
+                        "ranges": ["(2,5) <= (pk,a) <= (2,5)"],
                         "rowid_ordered": true,
                         "using_mrr": false,
                         "index_only": false,
@@ -2917,7 +2917,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       },
                       {
                         "index": "pk_a_b",
-                        "ranges": ["2 <= pk <= 2 AND 5 <= a <= 5 AND 1 <= b <= 1"],
+                        "ranges": ["(2,5,1) <= (pk,a,b) <= (2,5,1)"],
                         "rowid_ordered": true,
                         "using_mrr": false,
                         "index_only": true,
@@ -2964,7 +2964,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "type": "range_scan",
                       "index": "pk_a_b",
                       "rows": 1,
-                      "ranges": ["2 <= pk <= 2 AND 5 <= a <= 5 AND 1 <= b <= 1"]
+                      "ranges": ["(2,5,1) <= (pk,a,b) <= (2,5,1)"]
                     },
                     "rows_for_plan": 1,
                     "cost_for_plan": 1.1793,
@@ -3338,7 +3338,7 @@ explain delete from t0 where t0.a<3	{
           "range_scan_alternatives": [
             {
               "index": "a",
-              "ranges": ["NULL < a < 3"],
+              "ranges": ["(NULL) < (a) < (3)"],
               "rowid_ordered": false,
               "using_mrr": false,
               "index_only": false,
@@ -3354,7 +3354,7 @@ explain delete from t0 where t0.a<3	{
             "type": "range_scan",
             "index": "a",
             "rows": 3,
-            "ranges": ["NULL < a < 3"]
+            "ranges": ["(NULL) < (a) < (3)"]
           },
           "rows_for_plan": 3,
           "cost_for_plan": 5.007,
@@ -3481,7 +3481,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "range_scan_alternatives": [
                       {
                         "index": "a",
-                        "ranges": ["NULL < a < 3"],
+                        "ranges": ["(NULL) < (a) < (3)"],
                         "rowid_ordered": false,
                         "using_mrr": false,
                         "index_only": true,
@@ -3500,7 +3500,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "type": "range_scan",
                       "index": "a",
                       "rows": 3,
-                      "ranges": ["NULL < a < 3"]
+                      "ranges": ["(NULL) < (a) < (3)"]
                     },
                     "rows_for_plan": 3,
                     "cost_for_plan": 1.407,
@@ -3546,7 +3546,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "range_scan_alternatives": [
                       {
                         "index": "a",
-                        "ranges": ["NULL < a < 3"],
+                        "ranges": ["(NULL) < (a) < (3)"],
                         "rowid_ordered": false,
                         "using_mrr": false,
                         "index_only": true,
@@ -3565,7 +3565,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "type": "range_scan",
                       "index": "a",
                       "rows": 3,
-                      "ranges": ["NULL < a < 3"]
+                      "ranges": ["(NULL) < (a) < (3)"]
                     },
                     "rows_for_plan": 3,
                     "cost_for_plan": 1.407,
@@ -6034,4 +6034,238 @@ COUNT(*)
 1
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-18741: Optimizer trace: multi-part key ranges are printed incorrectly.
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int);
+insert into one_k select A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+create table t1 ( a int, b int, key a_b(a,b));
+insert into t1 select a,a from one_k;
+set optimizer_trace='enabled=on';
+explain select * from t1 force index (a_b) where a=2 and b=4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a_b	a_b	10	const,const	1	Using index
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "a_b",
+                "ranges": 
+                [
+                    "(2,4) <= (a,b) <= (2,4)"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": true,
+                "rows": 1,
+                "cost": 1.1783,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+explain select * from t1 where a >= 900 and b between 10 and 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a_b	a_b	10	NULL	107	Using where; Using index
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "a_b",
+                "ranges": 
+                [
+                    "(900,10) <= (a,b)"
+                ],
+                "rowid_ordered": false,
+                "using_mrr": false,
+                "index_only": true,
+                "rows": 107,
+                "cost": 10.955,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+drop table t0,t1;
+create table t1 (start_date date, end_date date, filler char(100), key(start_date, end_date)) ;
+insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
+explain select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	start_date	start_date	8	NULL	1000	Using index condition
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "start_date",
+                "ranges": 
+                [
+                    "(0x4ac60f,NULL) < (start_date,end_date)"
+                ],
+                "rowid_ordered": false,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 1000,
+                "cost": 1282.2,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+drop table t1,one_k;
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+a int not null,
+b int not null,
+c int not null,
+d int not null,
+key a_b_c(a,b,c)
+);
+insert into t1 select a,a, a,a from ten;
+explain select * from t1 force index(a_b_c) where a between 1 and 4 and b < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a_b_c	a_b_c	8	NULL	4	Using index condition
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "a_b_c",
+                "ranges": 
+                [
+                    "(1) <= (a,b) < (4,50)"
+                ],
+                "rowid_ordered": false,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 4,
+                "cost": 6.2648,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+drop table ten,t1;
+# Ported test from MYSQL for ranges involving Binary column
+CREATE TABLE t1(i INT PRIMARY KEY, b BINARY(16), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, x'D95B94336A9946A39CF5B58CFE772D8C');
+INSERT INTO t1 VALUES (2, NULL);
+EXPLAIN SELECT * FROM t1 WHERE b IN (0xD95B94336A9946A39CF5B58CFE772D8C);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	i_b	i_b	17	const	1	Using index condition
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "i_b",
+                "ranges": 
+                [
+                    "(0xd95b94336a9946a39cf5b58cfe772d8c) <= (b) <= (0xd95b94336a9946a39cf5b58cfe772d8c)"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 1,
+                "cost": 2.3797,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+EXPLAIN SELECT * FROM t1 WHERE b IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	i_b	i_b	17	const	1	Using index condition
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "i_b",
+                "ranges": 
+                [
+                    "(NULL) <= (b) <= (NULL)"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 1,
+                "cost": 2.3797,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+drop table t1;
 set optimizer_trace='enabled=off';

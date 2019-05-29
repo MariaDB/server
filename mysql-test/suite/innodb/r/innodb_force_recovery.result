@@ -59,6 +59,8 @@ truncate table t2;
 ERROR HY000: Table 't2' is read only
 drop table t2;
 ERROR HY000: Table 't2' is read only
+create schema db;
+drop schema db;
 show tables;
 Tables_in_test
 t1

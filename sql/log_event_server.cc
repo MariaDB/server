@@ -834,8 +834,11 @@ int Log_event_writer::encrypt_and_write(const uchar *pos, size_t len)
       return 1;
 
     uint dstlen;
-    if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
+    if (len == 0)
+      dstlen= 0;
+    else if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
       goto err;
+
     if (maybe_write_event_len(dst, dstlen))
       return 1;
     pos= dst;
@@ -3196,6 +3199,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
 {
   cache_type= Log_event::EVENT_NO_CACHE;
+  bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
   if (thd_arg->transaction.stmt.trans_did_wait() ||
       thd_arg->transaction.all.trans_did_wait())
     flags2|= FL_WAITED;
@@ -3204,7 +3208,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       thd_arg->transaction.all.trans_did_ddl() ||
       thd_arg->transaction.all.has_created_dropped_temp_table())
     flags2|= FL_DDL;
-  else if (is_transactional)
+  else if (is_transactional && !is_tmp_table)
     flags2|= FL_TRANSACTIONAL;
   if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;

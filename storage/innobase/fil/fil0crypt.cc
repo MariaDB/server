@@ -1162,14 +1162,10 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 	mtr.commit();
 }
 
-/***********************************************************************
-Start encrypting a space
+/** Start encrypting a space
 @param[in,out]		space		Tablespace
-@return true if a recheck is needed */
-static
-bool
-fil_crypt_start_encrypting_space(
-	fil_space_t*	space)
+@return true if a recheck of tablespace is needed by encryption thread. */
+static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 {
 	bool recheck = false;
 
@@ -1627,14 +1623,12 @@ fil_crypt_return_iops(
 	fil_crypt_update_total_stat(state);
 }
 
-/***********************************************************************
-Search for a space needing rotation
-@param[in,out]		key_state		Key state
-@param[in,out]		state			Rotation state
-@param[in,out]		recheck			recheck ? */
-static
-bool
-fil_crypt_find_space_to_rotate(
+/** Search for a space needing rotation
+@param[in,out]	key_state	Key state
+@param[in,out]	state		Rotation state
+@param[in,out]	recheck		recheck of the tablespace is needed or
+				still encryption thread does write page 0 */
+static bool fil_crypt_find_space_to_rotate(
 	key_state_t*		key_state,
 	rotate_thread_t*	state,
 	bool*			recheck)
@@ -1664,11 +1658,10 @@ fil_crypt_find_space_to_rotate(
 	/* If key rotation is enabled (default) we iterate all tablespaces.
 	If key rotation is not enabled we iterate only the tablespaces
 	added to keyrotation list. */
-	if (srv_fil_crypt_rotate_key_age) {
-		state->space = fil_space_next(state->space);
-	} else {
-		state->space = fil_space_keyrotate_next(state->space);
-	}
+	state->space = srv_fil_crypt_rotate_key_age
+		? fil_space_next(state->space)
+		: fil_system.keyrotate_next(state->space, *recheck,
+					    key_state->key_version);
 
 	while (!state->should_shutdown() && state->space) {
 		/* If there is no crypt data and we have not yet read
@@ -1686,11 +1679,10 @@ fil_crypt_find_space_to_rotate(
 			return true;
 		}
 
-		if (srv_fil_crypt_rotate_key_age) {
-			state->space = fil_space_next(state->space);
-		} else {
-			state->space = fil_space_keyrotate_next(state->space);
-		}
+		state->space = srv_fil_crypt_rotate_key_age
+			? fil_space_next(state->space)
+			: fil_system.keyrotate_next(state->space, *recheck,
+						    key_state->key_version);
 	}
 
 	/* if we didn't find any space return iops */
@@ -2315,13 +2307,8 @@ A thread which monitors global key state and rotates tablespaces accordingly
 @return a dummy parameter */
 extern "C" UNIV_INTERN
 os_thread_ret_t
-DECLARE_THREAD(fil_crypt_thread)(
-/*=============================*/
-	void*	arg __attribute__((unused))) /*!< in: a dummy parameter required
-					     * by os_thread_create */
+DECLARE_THREAD(fil_crypt_thread)(void*)
 {
-	UT_NOT_USED(arg);
-
 	mutex_enter(&fil_crypt_threads_mutex);
 	uint thread_no = srv_n_fil_crypt_threads_started;
 	srv_n_fil_crypt_threads_started++;

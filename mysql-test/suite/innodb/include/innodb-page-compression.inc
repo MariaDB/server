@@ -1,3 +1,5 @@
+# This test is slow on buildbot.
+--source include/big_test.inc
 create table innodb_normal (c1 int not null auto_increment primary key, b char(200)) engine=innodb;
 create table innodb_page_compressed1 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=1;
 create table innodb_page_compressed2 (c1 int not null auto_increment primary key, b char(200)) engine=innodb page_compressed=1 page_compression_level=2;

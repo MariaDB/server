@@ -590,7 +590,8 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
-		v.v_indexes = UT_NEW_NOKEY(dict_v_idx_list());
+		DBUG_ASSERT(v.v_indexes.empty());
+		v.n_v_indexes = 0;
 		v.base_col = static_cast<dict_col_t**>(
 			mem_heap_dup(heap, v.base_col,
 				     v.num_base * sizeof *v.base_col));
@@ -696,9 +697,11 @@ dup_dropped:
 			}
 			f.name = f.col->name(*this);
 			if (f.col->is_virtual()) {
-				reinterpret_cast<dict_v_col_t*>(f.col)
-					->v_indexes->push_back(
-						dict_v_idx_t(index, i));
+				dict_v_col_t* v_col = reinterpret_cast
+					<dict_v_col_t*>(f.col);
+				v_col->v_indexes.push_front(
+					dict_v_idx_t(index, i));
+				v_col->n_v_indexes++;
 			}
 		}
 	}
@@ -773,7 +776,7 @@ inline void dict_table_t::rollback_instant(
 	}
 
 	for (unsigned i = n_v_cols; i--; ) {
-		UT_DELETE(v_cols[i].v_indexes);
+		v_cols[i].~dict_v_col_t();
 	}
 
 	index->n_core_fields = (index->n_fields == index->n_core_fields)
@@ -1027,7 +1030,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				dict_mem_index_free(index);
 			}
 			for (unsigned i = old_n_v_cols; i--; ) {
-				UT_DELETE(old_v_cols[i].v_indexes);
+				old_v_cols[i].~dict_v_col_t();
 			}
 			if (instant_table->fts) {
 				fts_free(instant_table);
@@ -1940,7 +1943,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	/* Before 10.2.2 information about virtual columns was not stored in
 	system tables. We need to do a full alter to rebuild proper 10.2.2+
 	metadata with the information about virtual columns */
-	if (table->s->mysql_version < 100202 && table->s->virtual_fields) {
+	if (omits_virtual_cols(*table_share)) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -4947,6 +4950,7 @@ prepare_inplace_add_virtual(
 			}
 		}
 
+		new (&ctx->add_vcol[j]) dict_v_col_t();
 		ctx->add_vcol[j].m_col.prtype = dtype_form_prtype(
 						field_type, charset_no);
 
@@ -4963,8 +4967,7 @@ prepare_inplace_add_virtual(
 		ctx->add_vcol[j].v_pos = ctx->old_table->n_v_cols
 					 - ctx->num_to_drop_vcol + j;
 
-		/* No need to track the list */
-		ctx->add_vcol[j].v_indexes = NULL;
+		ctx->add_vcol[j].n_v_indexes = 0;
 		/* MDEV-17468: Do this on ctx->instant_table later */
 		innodb_base_col_setup(ctx->old_table, field, &ctx->add_vcol[j]);
 		j++;
@@ -5206,7 +5209,7 @@ static bool innobase_add_one_virtual(
 		return true;
 	}
 
-	for (ulint i = 0; i < vcol->num_base; i++) {
+	for (ulint i = 0; i < unsigned{vcol->num_base}; i++) {
 		if (innobase_insert_sys_virtual(
 			    table, pos, vcol->base_col[i]->ind, trx)) {
 			return true;
@@ -7395,7 +7398,7 @@ alter_fill_stored_column(
 
 		s_col.num_base = num_base;
 		innodb_base_col_setup_for_stored(table, field, &s_col);
-		(*s_cols)->push_back(s_col);
+		(*s_cols)->push_front(s_col);
 	}
 }
 
@@ -11176,7 +11179,7 @@ foreign_fail:
 		dict_table_close(m_prebuilt->table, true, false);
 		if (ctx0->is_instant()) {
 			for (unsigned i = ctx0->old_n_v_cols; i--; ) {
-				UT_DELETE(ctx0->old_v_cols[i].v_indexes);
+				ctx0->old_v_cols[i].~dict_v_col_t();
 			}
 			const_cast<unsigned&>(ctx0->old_n_v_cols) = 0;
 		}
