@@ -1683,6 +1683,21 @@ srv_export_innodb_status(void)
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 
+	export_vars.innodb_ibuf_discarded_delete_marks = 
+		ibuf->n_discarded_ops[IBUF_OP_DELETE_MARK];
+	export_vars.innodb_ibuf_discarded_deletes =
+		ibuf->n_discarded_ops[IBUF_OP_DELETE];
+	export_vars.innodb_ibuf_discarded_inserts =
+		ibuf->n_merged_ops[IBUF_OP_INSERT];
+	export_vars.innodb_ibuf_free_list = ibuf->free_list_len;
+	export_vars.innodb_ibuf_merged_delete_marks = 
+		ibuf->n_merged_ops[IBUF_OP_DELETE_MARK];
+	export_vars.innodb_ibuf_merged_deletes = ibuf->n_merged_ops[IBUF_OP_DELETE];
+	export_vars.innodb_ibuf_merged_inserts = ibuf->n_merged_ops[IBUF_OP_INSERT];
+	export_vars.innodb_ibuf_merges = ibuf->n_merges;
+	export_vars.innodb_ibuf_segment_size = ibuf->seg_size;
+	export_vars.innodb_ibuf_size = ibuf->size;
+
 	mutex_enter(&log_sys.mutex);
 
 	export_vars.innodb_lsn_current = log_sys.lsn;
