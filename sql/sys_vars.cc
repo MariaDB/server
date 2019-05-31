@@ -3733,7 +3733,7 @@ static Sys_var_uint Sys_threadpool_stall_limit(
  "If a worker thread is stalled, additional worker thread "
  "may be created to handle remaining clients.",
   GLOBAL_VAR(threadpool_stall_limit), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(10, UINT_MAX), DEFAULT(500), BLOCK_SIZE(1),
+  VALID_RANGE(1, UINT_MAX), DEFAULT(DEFAULT_THREADPOOL_STALL_LIMIT), BLOCK_SIZE(1),
   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
   ON_UPDATE(fix_threadpool_stall_limit)
 );

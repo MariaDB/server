@@ -5466,7 +5466,7 @@ DEFAULT_VALUE	500
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	Maximum query execution time in milliseconds,before an executing non-yielding thread is considered stalled.If a worker thread is stalled, additional worker thread may be created to handle remaining clients.
-NUMERIC_MIN_VALUE	10
+NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL

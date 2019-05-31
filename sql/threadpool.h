@@ -24,7 +24,7 @@ extern uint threadpool_min_threads;  /* Minimum threads in pool */
 extern uint threadpool_idle_timeout; /* Shutdown idle worker threads  after this timeout */
 extern uint threadpool_size; /* Number of parallel executing threads */
 extern uint threadpool_max_size;
-extern uint threadpool_stall_limit;  /* time interval in 10 ms units for stall checks*/
+extern uint threadpool_stall_limit;  /* time interval in milliseconds for stall checks*/
 extern uint threadpool_max_threads;  /* Maximum threads in pool */
 extern uint threadpool_oversubscribe;  /* Maximum active threads in group */
 extern uint threadpool_prio_kickup_timer;  /* Time before low prio item gets prio boost */
@@ -36,6 +36,7 @@ extern uint threadpool_mode; /* Thread pool implementation , windows or generic 
 #define TP_MODE_GENERIC 1
 #endif
 
+#define DEFAULT_THREADPOOL_STALL_LIMIT 500U
 
 struct TP_connection;
 extern void tp_callback(TP_connection *c);

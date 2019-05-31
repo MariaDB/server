@@ -28,6 +28,7 @@
 #include <time.h>
 #include <sql_plist.h>
 #include <threadpool.h>
+#include <algorithm>
 
 #ifdef HAVE_IOCP
 #define OPTIONAL_IO_POLL_READ_PARAM this
@@ -865,23 +866,24 @@ end:
  
  The actual values were not calculated using any scientific methods.
  They just look right, and behave well in practice.
- 
- TODO: Should throttling depend on thread_pool_stall_limit?
 */
+
+#define THROTTLING_FACTOR (threadpool_stall_limit/std::max(DEFAULT_THREADPOOL_STALL_LIMIT,threadpool_stall_limit))
+
 static ulonglong microsecond_throttling_interval(thread_group_t *thread_group)
 {
   int count= thread_group->thread_count;
   
-  if (count < 4)
+  if (count < 1+ (int)threadpool_oversubscribe)
     return 0;
-  
+
   if (count < 8)
-    return 50*1000; 
-  
+    return 50*1000*THROTTLING_FACTOR;
+
   if(count < 16)
-    return 100*1000;
-  
-  return 200*1000;
+    return 100*1000*THROTTLING_FACTOR;
+
+  return 200*100*THROTTLING_FACTOR;
 }
 
 
