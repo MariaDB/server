@@ -1434,8 +1434,8 @@ srv_export_innodb_status(void)
 		ut_ad(!ht->n_sync_obj);
 		ut_ad(!ht->heaps);
 
-		mem_adaptive_hash += mem_heap_get_size(ht->heap);
-		mem_adaptive_hash += ht->n_cells * sizeof(hash_cell_t);
+		mem_adaptive_hash += (ulong) mem_heap_get_size(ht->heap);
+		mem_adaptive_hash += (ulong) ht->n_cells * sizeof(hash_cell_t);
 	}
 
 	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
