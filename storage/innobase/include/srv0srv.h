@@ -932,7 +932,6 @@ struct export_var_t{
 	ulint innodb_buffer_pool_pages_made_not_young;
 	ulint innodb_buffer_pool_pages_made_young;
 	ulint innodb_buffer_pool_pages_old;
-	ulint innodb_buffer_pool_pages_LRU_flushed;
 	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool->stat.n_page_gets */
 	ulint innodb_buffer_pool_reads;		/*!< srv_buf_pool_reads */
 	ulint innodb_buffer_pool_wait_free;	/*!< srv_buf_pool_wait_free */

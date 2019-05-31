@@ -1513,8 +1513,6 @@ srv_export_innodb_status(void)
 		export_vars.innodb_buffer_pool_pages_old += buf_pool->LRU_old_len;
 	}
 
-	export_vars.innodb_buffer_pool_pages_LRU_flushed = buf_lru_flush_page_count;
-
 	export_vars.innodb_buffer_pool_bytes_dirty =
 		buf_pools_list_size.flush_list_bytes;
 
