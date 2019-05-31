@@ -182,7 +182,7 @@ void Item_row::bring_value()
 }
 
 
-Item* Item_row::build_clone(THD *thd)
+Item* Item_row::build_clone(THD *thd, const Build_clone_prm &prm)
 {
   Item_row *copy= (Item_row *) get_copy(thd);
   if (!copy)
@@ -190,7 +190,7 @@ Item* Item_row::build_clone(THD *thd)
   copy->args= (Item**) alloc_root(thd->mem_root, sizeof(Item*) * arg_count);
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->build_clone(thd);
+    Item *arg_clone= args[i]->build_clone(thd, prm);
     if (!arg_clone)
       return 0;
     copy->args[i]= arg_clone;

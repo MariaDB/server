@@ -1,0 +1,80 @@
+create or replace table t(a int, b int, v int as (a+b/2), index(v));
+create or replace table t1(a1 int, b1 int, v1 int as (sqrt(a1*a1 + b1*b1)), index(v1));
+create or replace table t2(a2 int, b2 int, v2 int as (abs(a2*a2 - b2*b2)), index(v2));
+insert into t values
+(5, 10, default),
+(7, 6, default),
+(17, 60, default),
+(1, 60, default);
+insert into t1 values
+(5, 10, default),
+(7, 6, default),
+(17, 60, default),
+(1, 60, default);
+insert into t2 values
+(5, 10, default),
+(7, 6, default),
+(17, 60, default),
+(1, 60, default);
+explain extended select * from t where a+b/2=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	ref	v	v	5	const	2	100.00	
+Warnings:
+Note	1003	select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`v` = 10
+explain extended select * from t where v=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	ref	v	v	5	const	2	100.00	
+Warnings:
+Note	1003	select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`v` = 10
+explain extended select * from t where a+b/11=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`a` + `test`.`t`.`b` / 11 = 10
+explain extended select * from t where a = (select v1 from t1 where sqrt(a1*a1 + b1*b1) > 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	SUBQUERY	t1	ALL	v1	NULL	NULL	NULL	4	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`a` = (/* select#2 */ select `test`.`t1`.`v1` from `test`.`t1` where `test`.`t1`.`v1` > 2)
+explain extended select * from t where a = (select v1 from t1 where v1 > 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	SUBQUERY	t1	index	v1	v1	5	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`a` = (/* select#2 */ select `test`.`t1`.`v1` from `test`.`t1` where `test`.`t1`.`v1` > 2)
+explain extended select * from t where a = (select v1 from t1 where sqrt(a1*a1 + b1*b1) = 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	SUBQUERY	t1	ref	v1	v1	5	const	1	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`a` = (/* select#2 */ select `test`.`t1`.`v1` from `test`.`t1` where `test`.`t1`.`v1` = 2)
+explain extended select * from t where a = (select v1 from t1 where v1 = 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	SUBQUERY	t1	ref	v1	v1	5	const	1	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`a` = (/* select#2 */ select `test`.`t1`.`v1` from `test`.`t1` where `test`.`t1`.`v1` = 2)
+explain extended (select * from t where a+b/2 > 10) UNION (select * from t1 where sqrt(a1*a1+b1*b1) > 50);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	range	v	v	5	NULL	2	100.00	Using index condition
+2	UNION	t1	range	v1	v1	5	NULL	2	100.00	Using index condition
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t` where `test`.`t`.`v` > 10) union (/* select#2 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t1`.`v1` AS `v1` from `test`.`t1` where `test`.`t1`.`v1` > 50)
+explain extended select * from t inner join t1 on a+b/2>50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	range	v	v	5	NULL	1	100.00	Using index condition; Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t1`.`v1` AS `v1` from `test`.`t` join `test`.`t1` where `test`.`t`.`v` > 50 and `test`.`t`.`a` + `test`.`t`.`b` / 2 > 50
+explain extended (select * from t inner join t1 on a>sqrt(a1*a1+b1*b1)) union (select * from t2 inner join t on a+b/2 > 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	t1	ALL	v1	NULL	NULL	NULL	4	100.00	Range checked for each record (index map: 0x1)
+2	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	UNION	t	ALL	v	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select `test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t1`.`v1` AS `v1` from `test`.`t` join `test`.`t1` where `test`.`t`.`a` > `test`.`t1`.`v1` and `test`.`t`.`a` > sqrt(`test`.`t1`.`a1` * `test`.`t1`.`a1` + `test`.`t1`.`b1` * `test`.`t1`.`b1`)) union (/* select#2 */ select `test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2`,`test`.`t2`.`v2` AS `v2`,`test`.`t`.`a` AS `a`,`test`.`t`.`b` AS `b`,`test`.`t`.`v` AS `v` from `test`.`t2` join `test`.`t` where `test`.`t`.`v` > 2 and `test`.`t`.`a` + `test`.`t`.`b` / 2 > 2)
+drop table t, t1, t2;

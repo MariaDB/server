@@ -1,0 +1,40 @@
+create or replace table t(a int, b int, v int as (a+b/2), index(v));
+create or replace table t1(a1 int, b1 int, v1 int as (sqrt(a1*a1 + b1*b1)), index(v1));
+create or replace table t2(a2 int, b2 int, v2 int as (abs(a2*a2 - b2*b2)), index(v2));
+
+insert into t values
+  (5, 10, default),
+  (7, 6, default),
+  (17, 60, default),
+  (1, 60, default);
+
+insert into t1 values
+  (5, 10, default),
+  (7, 6, default),
+  (17, 60, default),
+  (1, 60, default);
+
+insert into t2 values
+  (5, 10, default),
+  (7, 6, default),
+  (17, 60, default),
+  (1, 60, default);
+
+explain extended select * from t where a+b/2=10;
+explain extended select * from t where v=10;
+explain extended select * from t where a+b/11=10;
+
+explain extended select * from t where a = (select v1 from t1 where sqrt(a1*a1 + b1*b1) > 2);
+explain extended select * from t where a = (select v1 from t1 where v1 > 2);
+
+explain extended select * from t where a = (select v1 from t1 where sqrt(a1*a1 + b1*b1) = 2);
+explain extended select * from t where a = (select v1 from t1 where v1 = 2);
+
+explain extended (select * from t where a+b/2 > 10) UNION (select * from t1 where sqrt(a1*a1+b1*b1) > 50);
+
+explain extended select * from t inner join t1 on a+b/2>50;
+
+explain extended (select * from t inner join t1 on a>sqrt(a1*a1+b1*b1)) union (select * from t2 inner join t on a+b/2 > 2);
+
+
+drop table t, t1, t2;

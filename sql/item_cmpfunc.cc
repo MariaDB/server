@@ -5308,7 +5308,7 @@ void Item_cond::neg_arguments(THD *thd)
      0 if an error occured
 */ 
 
-Item *Item_cond::build_clone(THD *thd)
+Item *Item_cond::build_clone(THD *thd, const Build_clone_prm &prm)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
@@ -5318,7 +5318,7 @@ Item *Item_cond::build_clone(THD *thd)
   copy->list.empty();
   while ((item= li++))
   {
-    Item *arg_clone= item->build_clone(thd);
+    Item *arg_clone= item->build_clone(thd, prm);
     if (!arg_clone)
       return 0;
     if (copy->list.push_back(arg_clone, thd->mem_root))
@@ -7657,8 +7657,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     if (checker && !((item->*checker) (arg)))
       continue;
     Item_func_eq *eq= 0;
-    Item *left_item_clone= left_item->build_clone(thd);
-    Item *right_item_clone= item->build_clone(thd);
+    Item *left_item_clone= left_item->build_clone(thd, {});
+    Item *right_item_clone= item->build_clone(thd, {});
     if (left_item_clone && right_item_clone)
     {
       left_item_clone->set_item_equal(NULL);

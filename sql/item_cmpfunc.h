@@ -558,10 +558,10 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
-  Item *build_clone(THD *thd)
+  Item *build_clone(THD *thd, const Build_clone_prm &prm)
   {
     Item_bool_rowready_func2 *clone=
-      (Item_bool_rowready_func2 *) Item_func::build_clone(thd);
+      (Item_bool_rowready_func2 *) Item_func::build_clone(thd, prm);
     if (clone)
     {
       clone->cmp.comparators= 0;
@@ -2272,10 +2272,10 @@ public:
   bool fix_length_and_dec();
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
   Item *find_item();
-  Item *build_clone(THD *thd)
+  Item *build_clone(THD *thd, const Build_clone_prm &prm)
   {
     Item_func_case_simple *clone= (Item_func_case_simple *)
-                                  Item_func_case::build_clone(thd);
+                                  Item_func_case::build_clone(thd, prm);
     uint ncases= when_count();
     if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
       return NULL;
@@ -2461,9 +2461,9 @@ public:
   bool count_sargable_conds(void *arg);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_in>(thd, this); }
-  Item *build_clone(THD *thd)
+  Item *build_clone(THD *thd, const Build_clone_prm &prm)
   {
-    Item_func_in *clone= (Item_func_in *) Item_func::build_clone(thd);
+    Item_func_in *clone= (Item_func_in *) Item_func::build_clone(thd, prm);
     if (clone)
     {
       clone->array= 0;
@@ -3024,7 +3024,7 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   bool find_not_null_fields(table_map allowed);
-  Item *build_clone(THD *thd);
+  Item *build_clone(THD *thd, const Build_clone_prm &prm);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };

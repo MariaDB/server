@@ -3047,7 +3047,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_match>(thd, this); }
-  Item *build_clone(THD *thd) { return 0; }
+  Item *build_clone(THD *thd, const Build_clone_prm &prm) { return 0; }
 private:
   /**
      Check whether storage engine for given table, 

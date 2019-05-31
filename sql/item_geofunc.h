@@ -699,7 +699,7 @@ public:
                                       usable_tables, sargables, false);
   }
   bool need_parentheses_in_default() { return false; }
-  Item *build_clone(THD *thd) { return 0; }
+  Item *build_clone(THD *thd, const Build_clone_prm &prm) { return 0; }
 };
 
 

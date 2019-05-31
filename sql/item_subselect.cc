@@ -774,6 +774,12 @@ void Item_subselect::get_cache_parameters(List<Item> &parameters)
   walk(&Item::collect_outer_ref_processor, TRUE, &prm);
 }
 
+bool Item_subselect::rewrite_subselects_with_vfields_processor(void *arg)
+{
+  rewrite_expr_with_vfieds(unit->thd, &get_select_lex()->context, &get_select_lex()->where);
+  return false;
+}
+
 int Item_in_subselect::optimize(double *out_rows, double *cost)
 {
   int res;
