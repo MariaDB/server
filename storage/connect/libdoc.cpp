@@ -378,7 +378,7 @@ bool LIBXMLDOC::Initialize(PGLOBAL g, PCSZ entry, bool zipped)
 	if (zipped && InitZip(g, entry))
 		return true;
 
-  int n = xmlKeepBlanksDefault(1);
+  xmlKeepBlanksDefault(1);
   return MakeNSlist(g);
 } // end of Initialize
 
