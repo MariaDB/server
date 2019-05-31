@@ -1290,9 +1290,8 @@ bool ODBConn::DriverConnect(DWORD Options)
   HWND    hWnd = (HWND)1;
 #endif  // !__WIN__
   PGLOBAL& g = m_G;
-  PDBUSER dup = PlgGetUser(g);
 
-//if (Options & noOdbcDialog || dup->Remote)
+//if (Options & noOdbcDialog || PlgGetUser(g)->Remote)
     wConnectOption = SQL_DRIVER_NOPROMPT;
 //else if (Options & forceOdbcDialog)
 //  wConnectOption = SQL_DRIVER_PROMPT;
@@ -1686,7 +1685,7 @@ int ODBConn::PrepareSQL(char *sql)
     b = false;
 
     if (m_hstmt) {
-      RETCODE rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
+      rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
 
       hstmt = m_hstmt;
       m_hstmt = NULL;
