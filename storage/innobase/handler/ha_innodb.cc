@@ -941,16 +941,14 @@ static MYSQL_THDVAR_STR(tmpdir,
 
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
-  {"adaptive_hash_hash_searches",
-  (char*) &export_vars.innodb_adaptive_hash_hash_searches,	   SHOW_LONG},
-  {"adaptive_hash_non_hash_searches",
-  (char*) &export_vars.innodb_adaptive_hash_non_hash_searches, SHOW_LONG},
+  {"adaptive_hash_hash_searches", (char*) &btr_cur_n_sea,	      SHOW_LONG},
+  {"adaptive_hash_non_hash_searches", (char*) &btr_cur_n_non_sea, SHOW_LONG},
 #endif
-  {"background_log_sync",
-  (char*) &export_vars.innodb_background_log_sync,	      SHOW_LONG},
+  {"background_log_sync", 
+  (char*) &export_vars.innodb_background_log_sync,	  SHOW_LONG},
 #if defined(LINUX_NATIVE_AIO)
   {"buffered_aio_submitted",
-  (char*) &export_vars.innodb_buffered_aio_submitted,     SHOW_LONG},
+  (char*) &srv_stats.buffered_aio_submitted,     SHOW_LONG},
 #endif
   {"buffer_pool_dump_status",
   (char*) &export_vars.innodb_buffer_pool_dump_status,	  SHOW_CHAR},

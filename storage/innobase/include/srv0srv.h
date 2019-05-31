@@ -907,14 +907,7 @@ srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
-#ifdef BTR_CUR_HASH_ADAPT
-	ulint innodb_adaptive_hash_hash_searches;
-	ulint innodb_adaptive_hash_non_hash_searches;
-#endif
 	ulint innodb_background_log_sync;
-#if defined(LINUX_NATIVE_AIO)
-	ulint innodb_buffered_aio_submitted;
-#endif
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
@@ -1006,13 +999,6 @@ struct export_var_t{
 	ulint innodb_num_open_files;		/*!< fil_system_t::n_open */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs */
-	ib_int64_t innodb_s_lock_os_waits;
-	ib_int64_t innodb_s_lock_spin_rounds;
-	ib_int64_t innodb_s_lock_spin_waits;
-	ib_int64_t innodb_x_lock_os_waits;
-	ib_int64_t innodb_x_lock_spin_rounds;
-	ib_int64_t innodb_x_lock_spin_waits;
-
 
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;

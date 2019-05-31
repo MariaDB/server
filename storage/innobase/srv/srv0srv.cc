@@ -1439,8 +1439,6 @@ srv_export_innodb_status(void)
 	}
 
 	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
-	export_vars.innodb_adaptive_hash_hash_searches = btr_cur_n_sea;
-	export_vars.innodb_adaptive_hash_non_hash_searches = btr_cur_n_non_sea;
 #endif
 
 	mutex_enter(&srv_innodb_monitor_mutex);
@@ -1464,11 +1462,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_writes = os_n_file_writes;
 
 	export_vars.innodb_data_written = srv_stats.data_written;
-
-#if defined(LINUX_NATIVE_AIO)
-	export_vars.innodb_buffered_aio_submitted = 
-		srv_stats.buffered_aio_submitted;
-#endif
 
 	export_vars.innodb_buffer_pool_read_requests = stat.n_page_gets;
 
@@ -1503,6 +1496,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_made_young = stat.n_pages_made_young;
 	export_vars.innodb_buffer_pool_pages_made_not_young = 
 		stat.n_pages_not_made_young;
+
 	export_vars.innodb_buffer_pool_pages_old = 0;
 	for (ulong i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t*	buf_pool = buf_pool_from_array(i);
@@ -1522,10 +1516,9 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_buffer_pool_pages_misc =
 		buf_pool_get_n_pages() - LRU_len - free_len;
-	
-	export_vars.innodb_background_log_sync = srv_log_writes_and_flush;
 
-	export_vars.innodb_master_thread_active_loops = srv_main_active_loops;
+	export_vars.innodb_background_log_sync = srv_log_writes_and_flush;
+	export_vars.innodb_master_thread_active_loops = srv_main_active_loops;	
 	export_vars.innodb_master_thread_idle_loops = srv_main_idle_loops;
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.rseg_history_len;
