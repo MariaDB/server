@@ -1156,7 +1156,6 @@ int TDBSDR::FindInDir(PGLOBAL g)
   // Close the search handle.
 	FindClose(h);
 #else   // !__WIN__
-  int k;
   DIR *dir = opendir(Direc);
 
   if (!dir) {
@@ -1174,10 +1173,10 @@ int TDBSDR::FindInDir(PGLOBAL g)
       // Look in the name sub-directory
       strcat(strcat(Direc, Entry->d_name), "/");
 
-      if ((k = FindInDir(g)) < 0)
-        return k;
+      if ((rc = FindInDir(g)) < 0)
+        return rc;
       else
-        n += k;
+        n += rc;
 
       Direc[m] = '\0';         // Restore path
     } else if (S_ISREG(Fileinfo.st_mode))
