@@ -150,25 +150,30 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGCXX)
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wall")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-but-set-variable")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-pointer-sign")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wformat")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wstrict-aliasing=2")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fno-strict-aliasing")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-disabled-optimization")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wfloat-equal")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wpointer-arith")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wbad-function-cast")
+
+  MY_CHECK_AND_SET_COMPILER_FLAG_CC("-Wno-pointer-sign")
+  MY_CHECK_AND_SET_COMPILER_FLAG_CC("-Wbad-function-cast")
+
   if(NOT CMAKE_COMPILER_IS_CLANGCXX)
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wcast-align")
   endif()
   # MY_CHECK_AND_SET_COMPILER_FLAG("-Wredundant-decls")
+
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wwrite-strings")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fexceptions")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fimplicit-templates")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-parameter")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-sign-compare")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-missing-field-initializers")
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+
+  MY_CHECK_AND_SET_COMPILER_FLAG_CXX("-fimplicit-templates")
+
 endif()
 
 if(NOT DEFINED CMAKE_C_COMPILE_OPTIONS_PIC)

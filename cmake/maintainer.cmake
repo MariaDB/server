@@ -17,10 +17,9 @@ IF(MSVC)
   RETURN()
 ENDIF()
 
-# Common warning flags for GCC, G++, Clang and Clang++
+# Common warning flags for C and C++, GCC and Clang
 SET(MY_WARNING_FLAGS
   -Wall
-  -Wdeclaration-after-statement
   -Wextra
   -Wformat-security
   -Wno-format-truncation
@@ -29,11 +28,20 @@ SET(MY_WARNING_FLAGS
   -Wno-null-conversion
   -Wno-unused-parameter
   -Wno-unused-private-field
-  -Woverloaded-virtual
-  -Wnon-virtual-dtor
   -Wvla
   -Wwrite-strings
   -Werror
+)
+
+# Common warning flags for GCC and Clang
+SET(MY_CC_WARNING_FLAGS
+  -Wdeclaration-after-statement
+  )
+
+# Common warning flags for G++ and Clang++
+SET(MY_CXX_WARNING_FLAGS
+  -Woverloaded-virtual
+  -Wnon-virtual-dtor
   )
 
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
@@ -49,6 +57,15 @@ ENDIF()
 FOREACH(F ${MY_WARNING_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} ${WHERE})
 ENDFOREACH()
+
+FOREACH(F ${MY_CC_WARNING_FLAGS})
+  MY_CHECK_AND_SET_COMPILER_FLAG_CC(${F} ${WHERE})
+ENDFOREACH()
+
+FOREACH(F ${MY_CXX_WARNING_FLAGS})
+  MY_CHECK_AND_SET_COMPILER_FLAG_CXX(${F} ${WHERE})
+ENDFOREACH()
+
 
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
   STRING(REPLACE " -E " " -E -dDI " CMAKE_C_CREATE_PREPROCESSED_SOURCE ${CMAKE_C_CREATE_PREPROCESSED_SOURCE})

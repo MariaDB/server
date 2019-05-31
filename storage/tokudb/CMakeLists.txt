@@ -108,7 +108,7 @@ MARK_AS_ADVANCED(gcc_ranlib)
 ############################################
 
 # pick language dialect
-MY_CHECK_AND_SET_COMPILER_FLAG(-std=c++11)
+MY_CHECK_AND_SET_COMPILER_FLAG_CXX(-std=c++11)
 
 SET(BUILD_TESTING OFF CACHE BOOL "")
 SET(USE_VALGRIND OFF CACHE BOOL "")
