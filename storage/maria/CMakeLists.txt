@@ -107,17 +107,17 @@ INCLUDE (CheckIncludeFiles)
 
 SET(S3_SOURCES ha_s3.cc s3_func.c
     libmarias3/src/debug.c libmarias3/src/error.c libmarias3/src/marias3.c
-    libmarias3/src/request.c libmarias3/src/response.c)
+    libmarias3/src/request.c libmarias3/src/response.c libmarias3/src/sha256.c
+    libmarias3/src/sha256-internal.c)
 
 IF(NOT PLUGIN_S3 STREQUAL NO)
   FIND_PACKAGE(LibXml2)
   FIND_PACKAGE(CURL)
-  CHECK_INCLUDE_FILES (mhash.h HAVE_MHASH_H)
 ENDIF()
 
-IF (LIBXML2_FOUND AND CURL_FOUND AND HAVE_MHASH_H)
+IF (LIBXML2_FOUND AND CURL_FOUND)
   MYSQL_ADD_PLUGIN(s3 ${S3_SOURCES} STORAGE_ENGINE STATIC_ONLY
-                   LINK_LIBRARIES aria myisam mysys mysys_ssl xml2 curl mhash
+                   LINK_LIBRARIES aria myisam mysys mysys_ssl xml2 curl
                    RECOMPILE_FOR_EMBEDDED)
 ENDIF()
 
