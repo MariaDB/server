@@ -558,13 +558,14 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
           Nk, n, Num_K, Ndif, addcolp, Tdbp->To_BlkFil, X);
 
   // Check whether the unique index is unique indeed
-  if (!Mul)
+  if (!Mul) {
     if (Ndif < Num_K) {
       strcpy(g->Message, MSG(INDEX_NOT_UNIQ));
       brc = true;
       goto err;
     } else
       PlgDBfree(Offset);           // Not used anymore
+  }
 
   // Restore kcp list
   To_LastCol->Next = addcolp;
@@ -1207,7 +1208,6 @@ bool XINDEX::MapInit(PGLOBAL g)
   PCOL    colp;
   PXCOL   prev = NULL, kcp = NULL;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
-  PDBUSER dup = PlgGetUser(g);
 
   /*********************************************************************/
   /*  Get the estimated table size.                                    */
@@ -2038,12 +2038,12 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
     kp->Valp->SetValue_pval(xp->GetValue(), !kp->Prefix);
     k = FastFind();
 
-    if (k < Num_K || Op != OP_EQ)
+    if (k < Num_K || Op != OP_EQ) {
       if (limit)
         n = (Mul) ? k : kp->Val_K;
       else
         n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
-
+    }
   } else {
     strcpy(g->Message, MSG(RANGE_NO_JOIN));
     n = -1;                        // Logical error

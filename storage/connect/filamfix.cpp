@@ -135,8 +135,6 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
       // The buffer must be prepared depending on column types
       int     n = 0;
       bool    b = false;
-      PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
-//    PCOLDEF cdp;
       PBINCOL colp;
 
       // Prepare the first line of the buffer

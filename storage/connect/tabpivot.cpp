@@ -187,7 +187,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 		} // endif picol
 
 	  // Prepare the column list
-		for (pcrp = &Qryp->Colresp; crp = *pcrp; )
+		for (pcrp = &Qryp->Colresp; (crp = *pcrp); ) {
 			if (SkipColumn(crp, skc)) {
 				// Ignore this column
 				*pcrp = crp->Next;
@@ -204,7 +204,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 				*pcrp = crp->Next;
 			} else
 				pcrp = &crp->Next;
-
+		}
 		if (!Rblkp) {
 			strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
 			goto err;
@@ -340,7 +340,6 @@ int PIVAID::Qcompare(int *i1, int *i2)
 bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char *p1, *p2;
-  PHC    hc = ((MYCAT*)Cat)->GetHandler();
 
   if (PRXDEF::DefineAM(g, am, poff))
     return TRUE;
@@ -748,7 +747,7 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
         colp->ReadColumn(g);
 
       for (colp = Columns; colp; colp = colp->GetNext())
-        if (colp->GetAmType() == TYPE_AM_SRC)
+        if (colp->GetAmType() == TYPE_AM_SRC) {
           if (FileStatus) {
             if (((PSRCCOL)colp)->CompareLast()) {
               newrow = (RowFlag) ? TRUE : FALSE;
@@ -757,6 +756,7 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
 
           } else
             ((PSRCCOL)colp)->SetColumn();
+        }
 
       FileStatus = 1;
       } // endif RowFlag

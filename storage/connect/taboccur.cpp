@@ -202,7 +202,7 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
   /**********************************************************************/
   /*  Replace the columns of the colist by the rank and occur columns.  */
   /**********************************************************************/
-  for (i = 0, pcrp = &qrp->Colresp; crp = *pcrp; ) {
+  for (i = 0, pcrp = &qrp->Colresp; (crp = *pcrp); ) {
     for (k = 0, pn = colist; k < m; k++, pn += (strlen(pn) + 1))
       if (!stricmp(pn, crp->Name))
         break;
@@ -450,8 +450,9 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
 		N = M = 0;
 		RowFlag = 0;
 
-    if (Xcolp)
+    if (Xcolp) {
   		Xcolp->Xreset();
+    }
 
 		return Tdbp->OpenDB(g);
     } // endif use

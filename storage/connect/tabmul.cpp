@@ -1041,11 +1041,12 @@ int TDBSDR::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 int TDBSDR::FindInDir(PGLOBAL g)
   {
-  int    rc, n = 0;
+  int    n = 0;
   size_t m = strlen(Direc);
 
   // Start searching files in the target directory.
 #if defined(__WIN__)
+	int rc;
 	HANDLE h;
 
 #if defined(PATHMATCHSPEC)
@@ -1174,7 +1175,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
       // Look in the name sub-directory
       strcat(strcat(Direc, Entry->d_name), "/");
 
-      if ((k = FindInDir(g)) < 0)
+      if ((k= FindInDir(g)) < 0)
         return k;
       else
         n += k;
