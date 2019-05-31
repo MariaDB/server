@@ -2023,7 +2023,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         next_state= MY_LEX_HOSTNAME;
         break;
       }
-      yylval->lex_str.str= (char*) get_ptr();
+      yylval->lex_str.str= (char*) get_ptr() - 1;
       yylval->lex_str.length= 1;
       return((int) '@');
     case MY_LEX_HOSTNAME:               // end '@' of user@hostname
@@ -5579,6 +5579,7 @@ void LEX::set_stmt_init()
   mysql_init_select(this);
   option_type= OPT_SESSION;
   autocommit= 0;
+  var_list.empty();
 };
 
 
@@ -7574,7 +7575,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
 
 
-bool LEX::set_variable(const LEX_CSTRING *name, Item *item)
+bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item)
 {
   sp_pcontext *ctx;
   const Sp_rcontext_handler *rh;
@@ -7588,8 +7589,8 @@ bool LEX::set_variable(const LEX_CSTRING *name, Item *item)
   Generate instructions for:
     SET x.y= expr;
 */
-bool LEX::set_variable(const LEX_CSTRING *name1,
-                       const LEX_CSTRING *name2,
+bool LEX::set_variable(const Lex_ident_sys_st *name1,
+                       const Lex_ident_sys_st *name2,
                        Item *item)
 {
   const Sp_rcontext_handler *rh;
@@ -7619,10 +7620,10 @@ bool LEX::set_variable(const LEX_CSTRING *name1,
 
 
 bool LEX::set_default_system_variable(enum_var_type var_type,
-                                      const LEX_CSTRING *name,
+                                      const Lex_ident_sys_st *name,
                                       Item *val)
 {
-  static LEX_CSTRING default_base_name= {STRING_WITH_LEN("default")};
+  static Lex_ident_sys default_base_name= {STRING_WITH_LEN("default")};
   sys_var *var= find_sys_var(thd, name->str, name->length);
   if (!var)
     return true;
@@ -7636,18 +7637,19 @@ bool LEX::set_default_system_variable(enum_var_type var_type,
 
 
 bool LEX::set_system_variable(enum_var_type var_type,
-                              const LEX_CSTRING *name,
+                              const Lex_ident_sys_st *name,
                               Item *val)
 {
   sys_var *var= find_sys_var(thd, name->str, name->length);
   DBUG_ASSERT(thd->is_error() || var != NULL);
-  return likely(var) ? set_system_variable(var_type, var, &null_clex_str, val) : true;
+  static Lex_ident_sys null_str;
+  return likely(var) ? set_system_variable(var_type, var, &null_str, val) : true;
 }
 
 
 bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
-                              const LEX_CSTRING *name1,
-                              const LEX_CSTRING *name2,
+                              const Lex_ident_sys_st *name1,
+                              const Lex_ident_sys_st *name2,
                               Item *val)
 {
   sys_var *tmp;
@@ -8328,15 +8330,15 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 }
 
 
-bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name)
+bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 {
   sp_name *spname= make_sp_name(thd, name);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
-bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
-                                         const LEX_CSTRING *name2)
+bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
+                                         const Lex_ident_sys_st *name2)
 {
   sp_name *spname= make_sp_name(thd, name1, name2);
   return unlikely(!spname) || call_statement_start(thd, spname);

@@ -7760,10 +7760,7 @@ void THD::reset_for_next_command(bool do_clear_error)
 void
 mysql_init_select(LEX *lex)
 {
-  SELECT_LEX *select_lex= lex->current_select;
-  select_lex->init_select();
-  lex->wild= 0;
-  lex->exchange= 0;
+  lex->init_select();
 }
 
 
