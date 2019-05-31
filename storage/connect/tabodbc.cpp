@@ -301,7 +301,6 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 	char  *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
 	bool   oom, b = false;
-	PTABLE tablep = To_Table;
 	PCOL   colp;
 
   for (colp = Columns; colp; colp = colp->GetNext())
@@ -322,9 +321,6 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 	if (catp)
 		len += strlen(catp) + 1;
 
-	//if (tablep->GetSchema())
-	//	schmp = (char*)tablep->GetSchema();
-	//else 
 	if (Schema && *Schema)
 		schmp = Schema;
 
@@ -561,11 +557,12 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 				if (Mode != MODE_READX) {
 	        Ocp->Close();
 		      return true;
-				}	else
+				}	else {
 					Rbuf = 0;
-
-    } else
+        }
+    } else {
       Rbuf = Qrp->Nblin;
+    }
 
     CurNum = 0;
     Fpos = 0;
@@ -1213,8 +1210,6 @@ int TDBXDBC::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 bool TDBXDBC::OpenDB(PGLOBAL g)
 {
-  bool rc = false;
-
   if (trace(1))
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
             this, Tdb_No, Use, Mode);
