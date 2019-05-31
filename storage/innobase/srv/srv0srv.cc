@@ -1410,7 +1410,6 @@ srv_export_innodb_status(void)
 	ulint			LRU_len;
 	ulint			free_len;
 	ulint			flush_list_len;
-	ulint			mem_adaptive_hash, mem_dictionary;
 	fil_crypt_stat_t	crypt_stat;
 	btr_scrub_stat_t	scrub_stat;
 
@@ -1423,7 +1422,7 @@ srv_export_innodb_status(void)
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
-	mem_adaptive_hash = 0;
+	ulong mem_adaptive_hash = 0;
 	ut_ad(btr_search_sys->hash_tables);
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
 		hash_table_t*	ht = btr_search_sys->hash_tables[i];
@@ -1443,9 +1442,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_adaptive_hash_hash_searches = btr_cur_n_sea;
 	export_vars.innodb_adaptive_hash_non_hash_searches = btr_cur_n_non_sea;
 #endif
-	mem_dictionary = (dict_sys.table_hash->n_cells + 
-		dict_sys.table_id_hash->n_cells + dict_sys.get_temp_id_hash()->n_cells) 
-		* sizeof(hash_cell_t) + dict_sys_get_size();
 
 	mutex_enter(&srv_innodb_monitor_mutex);
 
@@ -1533,7 +1529,9 @@ srv_export_innodb_status(void)
 	export_vars.innodb_master_thread_idle_loops = srv_main_idle_loops;
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.rseg_history_len;
-	export_vars.innodb_mem_dictionary = mem_dictionary;
+	export_vars.innodb_mem_dictionary = (dict_sys.table_hash->n_cells + 
+		dict_sys.table_id_hash->n_cells + dict_sys.get_temp_id_hash()->n_cells) 
+		* sizeof(hash_cell_t) + dict_sys_get_size();
 	export_vars.innodb_s_lock_os_waits = rw_lock_stats.rw_s_os_wait_count;
 	export_vars.innodb_s_lock_spin_rounds = rw_lock_stats.rw_s_spin_round_count;
 	export_vars.innodb_s_lock_spin_waits = rw_lock_stats.rw_s_spin_wait_count;
