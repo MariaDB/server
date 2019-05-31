@@ -642,7 +642,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
       // This is a pseudo indexed sorted block optimized column
 //    return 0;
 
-  if (tdbp->To_Kindex)
+  if (tdbp->To_Kindex) {
     if (((XXBASE*)tdbp->To_Kindex)->GetID() == id) {
       tdbp->To_Kindex->Reset();                // Same index
       return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
@@ -650,6 +650,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
       tdbp->To_Kindex->Close();
       tdbp->To_Kindex= NULL;
     } // endif colp
+  }
 
   for (xdp= dfp->To_Indx; xdp; xdp= xdp->GetNext())
     if (xdp->GetID() == id)
