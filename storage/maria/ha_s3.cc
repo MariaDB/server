@@ -68,15 +68,17 @@
 #include "s3_func.h"
 #include "aria_backup.h"
 
+#define DEFAULT_AWS_HOST_NAME "s3.amazonaws.com"
+
 static PAGECACHE s3_pagecache;
-static ulong s3_block_size;
+static ulong s3_block_size, s3_protocol_version;
 static ulong s3_pagecache_division_limit, s3_pagecache_age_threshold;
 static ulong s3_pagecache_file_hash_size;
 static ulonglong s3_pagecache_buffer_size;
 static char *s3_bucket, *s3_access_key=0, *s3_secret_key=0, *s3_region;
+static char *s3_host_name;
 static char *s3_tmp_access_key=0, *s3_tmp_secret_key=0;
 handlerton *s3_hton= 0;
-
 
 /* Don't show access or secret keys to users if they exists */
 
@@ -115,6 +117,12 @@ static MYSQL_SYSVAR_ULONG(block_size, s3_block_size,
        "Block size for S3", 0, 0,
        4*1024*1024, 65536, 16*1024*1024, 8192);
 
+static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Protocol used to communication with S3. One of "
+                         "\"Amazon\" or \"Original\".",
+                         NULL, NULL, 1, &s3_protocol_typelib);
+
 static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        s3_pagecache_age_threshold, PLUGIN_VAR_RQCMDARG,
        "This characterizes the number of hits a hot block has to be untouched "
@@ -148,6 +156,10 @@ static MYSQL_SYSVAR_STR(bucket, s3_bucket,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "AWS bucket",
        0, 0, "MariaDB");
+static MYSQL_SYSVAR_STR(host_name, s3_host_name,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "AWS bucket",
+       0, 0, DEFAULT_AWS_HOST_NAME);
 static MYSQL_SYSVAR_STR(access_key, s3_tmp_access_key,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC,
       "AWS access key",
@@ -241,6 +253,8 @@ static my_bool s3_info_init(S3_INFO *info)
 {
   if (!s3_usable())
     return 1;
+  info->protocol_version= (uint8_t) s3_protocol_version+1;
+  lex_string_set(&info->host_name,  s3_host_name);
   lex_string_set(&info->access_key, s3_access_key);
   lex_string_set(&info->secret_key, s3_secret_key);
   lex_string_set(&info->region,     s3_region);
@@ -702,10 +716,12 @@ static SHOW_VAR status_variables[]= {
 
 static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(block_size),
+  MYSQL_SYSVAR(protocol_version),
   MYSQL_SYSVAR(pagecache_age_threshold),
   MYSQL_SYSVAR(pagecache_buffer_size),
   MYSQL_SYSVAR(pagecache_division_limit),
   MYSQL_SYSVAR(pagecache_file_hash_size),
+  MYSQL_SYSVAR(host_name),
   MYSQL_SYSVAR(bucket),
   MYSQL_SYSVAR(access_key),
   MYSQL_SYSVAR(secret_key),

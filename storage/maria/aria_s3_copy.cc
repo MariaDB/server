@@ -27,18 +27,22 @@
 #include <libmarias3/marias3.h>
 #include "s3_func.h"
 
+static const char *op_types[]= {"to_s3", "from_s3", "delete_from_s3", NullS};
+static TYPELIB op_typelib= {array_elements(op_types)-1,"", op_types, NULL};
+#define OP_IMPOSSIBLE array_elements(op_types)
+
 static const char *load_default_groups[]= { "aria_s3_copy", 0 };
 static const char *opt_s3_access_key, *opt_s3_secret_key;
 static const char *opt_s3_region="eu-north-1";
+static const char *opt_s3_host_name= DEFAULT_AWS_HOST_NAME;
 static const char *opt_database;
 static const char *opt_s3_bucket="MariaDB";
 static my_bool opt_compression, opt_verbose, opt_force, opt_s3_debug;
-static int opt_operation= -1;
+static ulong opt_operation= OP_IMPOSSIBLE, opt_protocol_version= 1;
 static ulong opt_block_size;
 static char **default_argv=0;
-static const char *op_types[]= {"to_s3", "from_s3", "delete_from_s3", NullS};
-static TYPELIB op_typelib= {array_elements(op_types)-1,"", op_types, NULL};
 static ms3_st *global_s3_client= 0;
+
 
 static struct my_option my_long_options[] =
 {
@@ -56,12 +60,15 @@ static struct my_option my_long_options[] =
   {"s3_bucket", 'b', "AWS prefix for tables",
    (char**) &opt_s3_bucket, (char**) &opt_s3_bucket, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_host_name", 'h', "Host name to S3 provider",
+   (char**) &opt_s3_host_name, (char**) &opt_s3_host_name, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'c', "Use compression", &opt_compression, &opt_compression,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"op", 'o', "Operation to excecute. One of 'from_s3', 'to_s3' or "
    "'delete_from_s3'",
    &opt_operation, &opt_operation, &op_typelib,
-   GET_ENUM, REQUIRED_ARG, -1, 0, 0, 0, 0, 0},
+   GET_ENUM, REQUIRED_ARG, OP_IMPOSSIBLE, 0, 0, 0, 0, 0},
   {"database", 'd',
    "Database for copied table (second prefix). "
    "If not given, the directory of the table file is used",
@@ -69,6 +76,10 @@ static struct my_option my_long_options[] =
   {"s3_block_size", 'B', "Block size for data/index blocks in s3",
    &opt_block_size, &opt_block_size, 0, GET_ULONG, REQUIRED_ARG,
    4*1024*1024, 64*1024, 16*1024*1024, MALLOC_OVERHEAD, 1024, 0 },
+  {"s3_protocol_version", 'L',
+   "Protocol used to communication with S3. One of \"Amazon\" or \"Original\".",
+   &opt_protocol_version, &opt_protocol_version, &s3_protocol_typelib,
+   GET_ENUM, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
   {"force", 'f', "Force copy even if target exists",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Write more information", &opt_verbose, &opt_verbose,
@@ -101,7 +112,7 @@ static void usage(void)
        " see the PUBLIC for details.\n");
   puts("Copy an Aria table to and from s3");
   printf("Usage: %s --aws-access-key=# --aws-secret-access-key=# --aws-region # "
-         "--op=(from|to) [OPTIONS] tables[.MAI]\n",
+         "--op=(from_s3 | to_s3 | delete_from_s3) [OPTIONS] tables[.MAI]\n",
          my_progname_short);
   print_defaults("my", load_default_groups);
   puts("");
@@ -170,9 +181,9 @@ static void get_options(register int *argc,register char ***argv)
     fprintf(stderr, "--aws-secret-access-key was not given\n");
     my_exit(-1);
   }
-  if ((int) opt_operation == -1)
+  if (opt_operation == OP_IMPOSSIBLE)
   {
-    fprintf(stderr, "You must specify an operation with --op=[from|to]\n");
+    fprintf(stderr, "You must specify an operation with --op=[from_s3|to_s3|delete_from_s3]\n");
     my_exit(-1);
   }
   if (opt_s3_debug)
@@ -189,7 +200,7 @@ int main(int argc, char** argv)
   s3_init_library();
   if (!(global_s3_client= ms3_init(opt_s3_access_key,
                                    opt_s3_secret_key,
-                                   opt_s3_region, NULL)))
+                                   opt_s3_region, opt_s3_host_name)))
   {
     fprintf(stderr, "Can't open connection to S3, error: %d %s", errno,
             ms3_error(errno));
@@ -198,7 +209,10 @@ int main(int argc, char** argv)
 
   {
     size_t block_size= opt_block_size;
+    uint8_t protocol_version= (uint8_t) opt_protocol_version+1;
     ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
+    ms3_set_option(global_s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
+                   &protocol_version);
   }
 
   for (; *argv ; argv++)

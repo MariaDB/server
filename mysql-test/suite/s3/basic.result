@@ -88,10 +88,12 @@ Variable_name	Value
 s3_access_key	X
 s3_block_size	X
 s3_bucket	X
+s3_host_name	X
 s3_pagecache_age_threshold	X
 s3_pagecache_buffer_size	X
 s3_pagecache_division_limit	X
 s3_pagecache_file_hash_size	X
+s3_protocol_version	X
 s3_region	X
 s3_secret_key	X
 show status like "s3%";

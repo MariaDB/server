@@ -23,17 +23,24 @@
 C_MODE_START
 #include <libmarias3/marias3.h>
 
+#define DEFAULT_AWS_HOST_NAME "s3.amazonaws.com"
+
+extern TYPELIB s3_protocol_typelib;
+
 /* Store information about a s3 connection */
 
 typedef struct s3_info
 {
-  LEX_CSTRING access_key, secret_key, region, bucket;
+  LEX_CSTRING access_key, secret_key, region, bucket, host_name;
 
   /* The following will be filled in by maria_open() */
   LEX_CSTRING database, table;
 
   /* Sent to open to verify version */
   LEX_CUSTRING tabledef_version;
+
+  /* Protocol for the list bucket API call. 1 for Amazon, 2 for some others */
+  uint8_t protocol_version;
 } S3_INFO;
 
 
