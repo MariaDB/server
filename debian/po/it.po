@@ -179,34 +179,3 @@ msgstr "Errore di inserimento della password"
 #: ../mariadb-server-10.4.templates:8001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr "Le due password inserite sono diverse. Riprovare."
-
-#~ msgid "Really proceed with downgrade?"
-#~ msgstr "Procedere realmente con l'abbassamento di versione?"
-
-#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
-#~ msgstr ""
-#~ "Su questo sistema esiste un file con nome /var/lib/mysql/debian-*.flag."
-
-#~ msgid ""
-#~ "Such a file is an indication that a mariadb-server package with a higher "
-#~ "version has been installed previously."
-#~ msgstr ""
-#~ "Quel file indica che in precedenza è stata installata una versione "
-#~ "superiore del pacchetto mariadb-server."
-
-#~ msgid ""
-#~ "There is no guarantee that the version you're currently installing will "
-#~ "be able to use the current databases."
-#~ msgstr ""
-#~ "Non è garantito che la versione che si sta installando sia in grado di "
-#~ "usare i database presenti."
-
-#~ msgid "Start the MariaDB server on boot?"
-#~ msgstr "Lanciare il server MariaDB all'avvio?"
-
-#~ msgid ""
-#~ "The MariaDB server can be launched automatically at boot time or manually "
-#~ "with the '/etc/init.d/mysql start' command."
-#~ msgstr ""
-#~ "Il server MariaDB può essere lanciato automaticamente all'avvio del "
-#~ "sistema oppure manualmente con il comando «/etc/init.d/mysql start»."
