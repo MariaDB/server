@@ -1879,11 +1879,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <item>
         literal insert_ident order_ident temporal_literal
-        simple_ident expr expr_no_subselect sum_expr in_sum_expr
-        variable variable_aux bool_pri
-        predicate bit_expr parenthesized_expr
-        table_wild simple_expr column_default_non_parenthesized_expr udf_expr
-        primary_expr string_factor_expr mysql_concatenation_expr
+        simple_ident expr expr_ins expr_no_subselect sum_expr in_sum_expr
+        variable variable_aux bool_pri bool_pri_ins
+        predicate predicate_ins bit_expr bit_expr_ins parenthesized_expr
+        table_wild simple_expr simple_expr_ins column_default_non_parenthesized_expr column_default_non_parenthesized_expr_ins udf_expr
+        primary_expr primary_expr_ins string_factor_expr string_factor_expr_ins mysql_concatenation_expr mysql_concatenation_expr_ins
         select_sublist_qualified_asterisk
         expr_or_default set_expr_or_default
         signed_literal expr_or_literal
@@ -2054,7 +2054,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keycache_list keycache_list_or_parts assign_to_keycache
         assign_to_keycache_parts
         preload_list preload_list_or_parts preload_keys preload_keys_parts
-        select_item_list select_item values_list no_braces
+        select_item_list select_item_list_ins select_item select_item_ins values_list no_braces
         delete_limit_clause fields opt_values values
         no_braces_with_names opt_values_with_names values_with_names
         procedure_list procedure_list2 procedure_item
@@ -13292,7 +13292,7 @@ insert:
             Select->set_lock_for_tables($3, true);
             Lex->current_select= Lex->first_select_lex();
           }
-          insert_field_spec opt_insert_update
+          insert_field_spec opt_insert_update opt_select_expressions_ins
           {
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
@@ -13570,6 +13570,78 @@ update_table_list:
           }
         | join_table_list { $$= $1; }
         ;
+
+opt_select_expressions_ins:
+          /* empty */ 
+        | RETURNING_SYM select_item_list_ins 
+        ;
+
+select_item_list_ins:
+          select_item_list_ins ',' select_item_ins
+        | select_item_ins
+        | '*'
+          {
+            Item *item= new (thd->mem_root)
+                          Item_field(thd, &thd->lex->current_select->context,
+                                     NULL, NULL, &star_clex_str);
+            if (unlikely(item == NULL))
+              MYSQL_YYABORT;
+            if (unlikely(add_item_to_list(thd, item)))
+              MYSQL_YYABORT;
+            (thd->lex->current_select->with_wild)++;
+          }
+        ;
+
+select_item_ins:
+          remember_name expr_ins remember_end
+          {
+            DBUG_ASSERT($1 < $3);
+
+            if (unlikely(add_item_to_list(thd, $2)))
+              MYSQL_YYABORT;
+            
+            if (!$2->name.str || $2->name.str == item_empty_name)
+            {
+              $2->set_name(thd, $1, (uint) ($3 - $1), thd->charset());
+            }
+          }
+        ;
+
+expr_ins:
+       bool_pri_ins %prec PREC_BELOW_NOT
+	   ;
+
+bool_pri_ins:
+	   predicate_ins
+	   ;
+
+predicate_ins:
+       bit_expr_ins %prec PREC_BELOW_NOT
+	   ;
+
+bit_expr_ins:
+       mysql_concatenation_expr_ins %prec '^'
+	   ;
+
+mysql_concatenation_expr_ins:
+       simple_expr_ins
+	   ;
+
+simple_expr_ins:
+       string_factor_expr_ins %prec NEG
+	   ;
+      
+string_factor_expr_ins:
+	   primary_expr_ins
+	   ;
+
+primary_expr_ins:
+       column_default_non_parenthesized_expr_ins
+	   ;
+
+column_default_non_parenthesized_expr_ins:
+	   simple_ident
+	   ;
 
 /* Update rows in a table */
 
