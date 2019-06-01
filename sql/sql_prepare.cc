@@ -1482,8 +1482,6 @@ static bool mysql_test_delete(Prepared_statement *stmt,
   }
 
   DBUG_RETURN(mysql_prepare_delete(thd, table_list,
-                                   lex->first_select_lex()->with_wild,
-                                   lex->first_select_lex()->item_list,
                                    &lex->first_select_lex()->where,
                                    &delete_while_scanning));
 error:
@@ -2157,7 +2155,7 @@ static int mysql_insert_select_prepare_tester(THD *thd)
     thd->lex->first_select_lex()->context.first_name_resolution_table=
     second_table;
 
-  return mysql_insert_select_prepare(thd);
+  return mysql_insert_select_prepare(thd, NULL);
 }
 
 

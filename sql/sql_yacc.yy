@@ -2080,7 +2080,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_persistent_stat_clause persistent_stat_spec
         persistent_column_stat_spec persistent_index_stat_spec
         table_column_list table_index_list table_index_name
-        check start checksum
+        check start checksum opt_returning
         field_list field_list_item kill key_def constraint_def
         keycache_list keycache_list_or_parts assign_to_keycache
         assign_to_keycache_parts
@@ -13477,7 +13477,8 @@ insert:
           {
             Select->set_lock_for_tables($4, true);
           }
-          insert_field_spec opt_insert_update stmt_end {}
+          insert_field_spec opt_insert_update opt_returning
+          stmt_end {}
           ;
 
 replace:
@@ -13490,7 +13491,8 @@ replace:
           {
             Select->set_lock_for_tables($4, true);
           }
-          insert_field_spec stmt_end {}
+          insert_field_spec opt_returning
+          stmt_end {}
           ;
 
 insert_start: {
@@ -13890,7 +13892,7 @@ single_multi:
           opt_where_clause
           opt_order_clause
           delete_limit_clause
-          opt_select_expressions 
+          opt_returning
           {
             if ($3)
               Select->order_list= *($3);
@@ -13920,9 +13922,28 @@ single_multi:
           } stmt_end {}
         ;
 
-opt_select_expressions:
-          /* empty */ 
-        | RETURNING_SYM select_item_list 
+opt_returning:
+          /* empty */
+          {
+            DBUG_ASSERT(!Lex->has_returning());
+          }
+        | RETURNING_SYM
+          {
+            DBUG_ASSERT(!Lex->has_returning());
+            if (($<num>$= (Select != Lex->returning())))
+            {
+              SELECT_LEX *sl= Lex->returning();
+              sl->set_master_unit(0);
+              Select->add_slave(Lex->create_unit(sl));
+              sl->include_global((st_select_lex_node**)&Lex->all_selects_list);
+              Lex->push_select(sl);
+            }
+          }
+          select_item_list
+          {
+            if ($<num>2)
+              Lex->pop_select();
+          }
         ;
 
 table_wild_list:

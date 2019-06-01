@@ -4451,6 +4451,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_INSERT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
+    select_result *sel_result= NULL;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
@@ -4471,9 +4472,41 @@ mysql_execute_command(THD *thd)
       break;
 
     MYSQL_INSERT_START(thd->query());
+    Protocol* save_protocol=NULL;
+
+    if (lex->has_returning())
+    {
+      status_var_increment(thd->status_var.feature_insert_returning);
+
+      /* This is INSERT ... RETURNING. It will return output to the client */
+      if (thd->lex->analyze_stmt)
+      {
+        /*
+          Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
+          output and then discard it.
+        */
+        sel_result= new (thd->mem_root) select_send_analyze(thd);
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
+      }
+      else
+      {
+        if (!(sel_result= new (thd->mem_root) select_send(thd)))
+          goto error;
+      }
+    }
+
     res= mysql_insert(thd, all_tables, lex->field_list, lex->many_values,
-		      lex->update_list, lex->value_list,
-                      lex->duplicates, lex->ignore);
+                      lex->update_list, lex->value_list,
+                      lex->duplicates, lex->ignore, sel_result);
+    if (save_protocol)
+    {
+      delete thd->protocol;
+      thd->protocol= save_protocol;
+    }
+    if (!res && thd->lex->analyze_stmt)
+      res= thd->lex->explain->send_explain(thd);
+    delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
       If we have inserted into a VIEW, and the base table has
@@ -4505,6 +4538,7 @@ mysql_execute_command(THD *thd)
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     select_insert *sel_result;
+    select_result *result= NULL;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
@@ -4553,6 +4587,31 @@ mysql_execute_command(THD *thd)
         Only the INSERT table should be merged. Other will be handled by
         select.
       */
+
+      Protocol* save_protocol=NULL;
+
+      if (lex->has_returning())
+      {
+        status_var_increment(thd->status_var.feature_insert_returning);
+
+        /* This is INSERT ... RETURNING. It will return output to the client */
+        if (thd->lex->analyze_stmt)
+        {
+          /*
+            Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
+            output and then discard it.
+          */
+          result= new (thd->mem_root) select_send_analyze(thd);
+          save_protocol= thd->protocol;
+          thd->protocol= new Protocol_discard(thd);
+        }
+        else
+        {
+          if (!(result= new (thd->mem_root) select_send(thd)))
+            goto error;
+        }
+      }
+
       /* Skip first table, which is the table we are inserting in */
       TABLE_LIST *second_table= first_table->next_local;
       /*
@@ -4563,17 +4622,19 @@ mysql_execute_command(THD *thd)
         be done properly as well)
       */
       select_lex->table_list.first= second_table;
-      select_lex->context.table_list= 
+      select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
-      res= mysql_insert_select_prepare(thd);
-      if (!res && (sel_result= new (thd->mem_root) select_insert(thd,
-                                                             first_table,
-                                                             first_table->table,
-                                                             &lex->field_list,
-                                                             &lex->update_list,
-                                                             &lex->value_list,
-                                                             lex->duplicates,
-                                                             lex->ignore)))
+      res= mysql_insert_select_prepare(thd, result);
+      if (!res &&
+          (sel_result= new (thd->mem_root)
+                       select_insert(thd, first_table,
+                                    first_table->table,
+                                    &lex->field_list,
+                                    &lex->update_list,
+                                    &lex->value_list,
+                                    lex->duplicates,
+                                    lex->ignore,
+                                    result)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -4609,7 +4670,12 @@ mysql_execute_command(THD *thd)
         }
         delete sel_result;
       }
-
+      delete result;
+      if (save_protocol)
+      {
+        delete thd->protocol;
+        thd->protocol= save_protocol;
+      }
       if (!res && (explain || lex->analyze_stmt))
         res= thd->lex->explain->send_explain(thd);
 
@@ -4644,7 +4710,7 @@ mysql_execute_command(THD *thd)
     MYSQL_DELETE_START(thd->query());
     Protocol *save_protocol= NULL;
 
-    if (!select_lex->item_list.is_empty())
+    if (lex->has_returning())
     {
       /* This is DELETE ... RETURNING.  It will return output to the client */
       if (thd->lex->analyze_stmt)

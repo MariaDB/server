@@ -319,10 +319,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   ORDER *order= (ORDER *) ((order_list && order_list->elements) ?
                            order_list->first : NULL);
   SELECT_LEX   *select_lex= thd->lex->first_select_lex();
+  SELECT_LEX   *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
   bool binlog_is_row;
-  bool with_select= !select_lex->item_list.is_empty();
   Explain_delete *explain;
   Delete_plan query_plan(thd->mem_root);
   Unique * deltempfile= NULL;
@@ -385,16 +385,14 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
 
-  if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
-                           select_lex->item_list, &conds,
-                           &delete_while_scanning))
+  if (mysql_prepare_delete(thd, table_list, &conds, &delete_while_scanning))
     DBUG_RETURN(TRUE);
 
   if (delete_history)
     table->vers_write= false;
 
-  if (with_select)
-    (void) result->prepare(select_lex->item_list, NULL);
+  if (returning)
+    (void) result->prepare(returning->item_list, NULL);
 
   if (thd->lex->current_select->first_cond_optimization)
   {
@@ -459,9 +457,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   has_triggers= table->triggers && table->triggers->has_delete_triggers();
 
-  if (!with_select && !using_limit && const_cond_result &&
-      (!thd->is_current_stmt_binlog_format_row() &&
-       !has_triggers)
+  if (!returning && !using_limit && const_cond_result &&
+      (!thd->is_current_stmt_binlog_format_row() && !has_triggers)
       && !table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
   {
     /* Update the table->file->stats.records number */
@@ -632,7 +629,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   */
 
   if ((table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) &&
-      !has_triggers && !binlog_is_row && !with_select &&
+      !has_triggers && !binlog_is_row && !returning &&
       !table_list->has_period())
   {
     table->mark_columns_needed_for_delete();
@@ -682,7 +679,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         DELETE ... RETURNING we can't, because the RETURNING part may have
         a subquery in it)
       */
-      if (!with_select)
+      if (!returning)
         free_underlaid_joins(thd, select_lex);
       select= 0;
     }
@@ -717,11 +714,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       !table->prepare_triggers_for_delete_stmt_or_event())
     will_batch= !table->file->start_bulk_delete();
 
-  if (with_select)
+  if (returning)
   {
-    if (unlikely(result->send_result_set_metadata(select_lex->item_list,
-                                                  Protocol::SEND_NUM_ROWS |
-                                                  Protocol::SEND_EOF)))
+    if (result->send_result_set_metadata(returning->item_list,
+                                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
       goto cleanup;
   }
 
@@ -804,7 +800,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       }
 
       // no LIMIT / OFFSET
-      if (with_select && result->send_data(select_lex->item_list) < 0)
+      if (returning && result->send_data(returning->item_list) < 0)
       {
         error=1;
         break;
@@ -948,7 +944,7 @@ cleanup:
     if (thd->lex->analyze_stmt)
       goto send_nothing_and_leave;
 
-    if (with_select)
+    if (returning)
       result->send_eof();
     else
       my_ok(thd, deleted);
@@ -998,16 +994,13 @@ got_error:
     mysql_prepare_delete()
     thd			- thread handler
     table_list		- global/local table list
-    wild_num            - number of wildcards used in optional SELECT clause 
-    field_list          - list of items in optional SELECT clause
     conds		- conditions
 
   RETURN VALUE
     FALSE OK
     TRUE  error
 */
-int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
-                         uint wild_num, List<Item> &field_list, Item **conds,
+int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds,
                          bool *delete_while_scanning)
 {
   Item *fake_conds= 0;
@@ -1017,12 +1010,9 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
 
   *delete_while_scanning= true;
   thd->lex->allow_sum_func.clear_all();
-  if (setup_tables_and_check_access(thd,
-                                    &thd->lex->first_select_lex()->context,
-                                    &thd->lex->first_select_lex()->
-                                      top_join_list,
-                                    table_list, 
-                                    select_lex->leaf_tables, FALSE, 
+  if (setup_tables_and_check_access(thd, &select_lex->context,
+                                    &select_lex->top_join_list, table_list,
+                                    select_lex->leaf_tables, FALSE,
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
   if (table_list->vers_conditions.is_set())
@@ -1049,9 +1039,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(true);
   }
 
-  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, select_lex)) ||
-      setup_fields(thd, Ref_ptr_array(),
-                   field_list, MARK_COLUMNS_READ, NULL, NULL, 0) ||
+  if (setup_returning_fields(thd, table_list) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);

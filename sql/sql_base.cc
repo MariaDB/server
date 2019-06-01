@@ -7632,6 +7632,26 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
 
 /*
+  Perform checks like all given fields exists, if exists fill struct with
+  current data and expand all '*' in given fields for LEX::returning.
+
+  SYNOPSIS
+     thd                 Thread handler
+     table_list          Global/local table list
+*/
+
+int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
+{
+  if (!thd->lex->has_returning())
+    return 0;
+  return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
+                    thd->lex->returning())
+      || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
+                      MARK_COLUMNS_READ, NULL, NULL, false);
+}
+
+
+/*
   make list of leaves of join table tree
 
   SYNOPSIS

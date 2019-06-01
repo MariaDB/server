@@ -1,0 +1,74 @@
+#Test for checking all dataypes are returned
+
+CREATE TABLE t1(num_int1 INT(2) PRIMARY KEY,
+num_bit1 BIT(8),
+num_float1 FLOAT(5,2),
+num_double1 DOUBLE(5,2),
+char_enum1 ENUM('A','B','C','D'),
+char_set1 SET('a','b','c','d','e'),
+str_varchar1 VARCHAR(2),
+d1 DATE,
+dt1 DATETIME,
+ts1 TIMESTAMP,
+y1 YEAR,
+b1 BOOL);
+
+CREATE TABLE t2(num_int2 INT(2) PRIMARY KEY,
+num_bit2 BIT(8),
+num_float2 FLOAT(5,2),
+num_double2 DOUBLE(5,2),
+char_enum2 ENUM('A','B','C','D'),
+char_set2 SET('a','b','c','d','e'),
+str_varchar2 VARCHAR(2),
+d2 DATE,
+dt2 DATETIME,
+ts2 TIMESTAMP,
+y2 YEAR,
+b2 BOOL);
+
+
+--echo #
+--echo # SIMLPE INSERT STATEMENT
+--echo #
+INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,
+str_varchar1, d1,dt1,ts1,y1,b1) VALUES(1,b'1000011', 123.45, 123.55,
+ 'A','b,e', 'V','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',
+2012,0) RETURNING *;
+
+
+--echo #
+--echo # MULTIPLE ROWS IN SINGLE STATEMENT
+--echo #
+INSERT INTO t1 VALUES(2,b'1000011', 123.45, 123.55, 'A','b,e', 'V',
+'120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0),(3,b'1000011',
+123.45, 123.55, 'A','b,e', 'V','120314',"2012-04-19 13:08:22",
+'2001-07-22 12:12:12',2012,1) RETURNING *;
+
+
+
+--echo #
+--echo # INSERT...SET...RETURNING
+--echo #
+INSERT INTO t1 SET num_int1=4,num_bit1=b'1000011',num_float1=124.67,
+num_double1=231.12,char_enum1='B',char_set1='a,d,e',
+str_varchar1='AB',d1='120314',dt1="2012-04-19 13:08:22",
+ts1='2001-07-22 12:12:1',y1=2014,b1=1 RETURNING *;
+
+
+
+--echo #
+--echo # INSERT...ON DUPLICATE KEY UPDATE
+--echo #
+INSERT INTO t1 VALUES (5,b'1000011', 123.45, 123.55,'C','b,e', 'V',
+'120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0)
+ON DUPLICATE KEY UPDATE num_float1=111.111 RETURNING *;
+
+
+--echo #
+--echo # INSERT...SELECT...RETURNING
+--echo #
+INSERT INTO t2 SELECT * FROM t1 RETURNING *;
+
+
+DROP TABLE t1;
+DROP TABLE t2;

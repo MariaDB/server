@@ -998,14 +998,16 @@ public:
   bool explainable()
   {
     /*
-      Save plans for child subqueries, when
-      (1) they are not parts of eliminated WHERE/ON clauses.
-      (2) they are not merged derived tables
-      (3) they are not hanging CTEs (they are needed for execution)
+      EXPLAIN/ANALYZE unit, when:
+      (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
+      (2) if it's a CTE - it's not hanging (needed for execution)
+      (3) if it's a derived - it's not merged
+      if it's not 1/2/3 - it's some weird internal thing, ignore it
     */
-    return !(item && item->eliminated) &&
-           !(derived && !derived->is_materialized_derived()) &&
-           !(with_element && (!derived || !derived->derived_result));
+    return item ? !item->eliminated :                           // (1)
+           with_element ? derived && derived->derived_result :  // (2)
+           derived ? derived->is_materialized_derived() :       // (3)
+           false;
   }
 
   void reset_distinct();
@@ -4530,6 +4532,11 @@ public:
 
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);
+
+  SELECT_LEX *returning()
+  { return &builtin_select; }
+  bool has_returning()
+  { return !builtin_select.item_list.is_empty(); }
 
 private:
   bool stmt_create_routine_start(const DDL_options_st &options)
