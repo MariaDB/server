@@ -5903,6 +5903,45 @@ the generated partition syntax in a correct manner.
           *partition_changed= TRUE;
         }
       }
+      /*
+        Prohibit inplace when key takes part in partitioning expression
+        and is altered (dropped).
+      */
+      if (!*partition_changed && tab_part_info->part_field_array)
+      {
+        KEY *key_info= table->key_info;
+        List_iterator_fast<Alter_drop> drop_it(alter_info->drop_list);
+        for (uint key= 0; key < table->s->keys; key++, key_info++)
+        {
+          if (key_info->flags & HA_INVISIBLE_KEY)
+            continue;
+          const char *key_name= key_info->name.str;
+          const Alter_drop *drop;
+          drop_it.rewind();
+          while ((drop= drop_it++))
+          {
+            if (drop->type == Alter_drop::KEY &&
+                0 == my_strcasecmp(system_charset_info, key_name, drop->name))
+              break;
+          }
+          if (!drop)
+            continue;
+          for (uint kp= 0; kp < key_info->user_defined_key_parts; ++kp)
+          {
+            const KEY_PART_INFO &key_part= key_info->key_part[kp];
+            for (Field **part_field= tab_part_info->part_field_array;
+                *part_field; ++part_field)
+            {
+              if (*part_field == key_part.field)
+              {
+                *partition_changed= TRUE;
+                goto search_finished;
+              }
+            } // for (part_field)
+          } // for (key_part)
+        } // for (key_info)
+        search_finished:;
+      }
     }
     if (thd->work_part_info)
     {

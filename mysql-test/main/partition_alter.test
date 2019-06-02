@@ -123,3 +123,14 @@ alter table t1 add partition (partition p1);
 --error ER_SAME_NAME_PARTITION
 alter table t1 add partition (partition p1);
 drop table t1;
+
+--echo #
+--echo # MDEV-18794 Wrong partitioning by KEY() after key dropped
+--echo #
+create or replace table t1 (pk int, x timestamp(6), primary key (pk, x))
+partition by key() partitions 2;
+
+insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+alter table t1 drop primary key, drop column x, add primary key (pk);
+select * from t1 partition (p0);
+drop table t1;
