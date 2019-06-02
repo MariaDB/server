@@ -967,6 +967,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       exit(1);
     }
     break;
+  case (int) OPT_DEFAULT_CHARSET:
+    if (default_charset == disabled_my_option)
+      default_charset= (char *)mysql_universal_client_charset;
+    break;
   }
   return 0;
 }

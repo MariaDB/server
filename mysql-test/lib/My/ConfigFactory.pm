@@ -311,7 +311,7 @@ sub post_check_client_groups {
 				$first_mysqld->name());
 
  # Then generate [client.<suffix>] for each [mysqld.<suffix>]
- foreach my $mysqld ( $config->like('mysqld.') ) {
+ foreach my $mysqld ( $config->like('mysqld\.') ) {
    $self->post_check_client_group($config,
 				  'client'.$mysqld->after('mysqld'),
 				  $mysqld->name())
@@ -333,7 +333,7 @@ sub post_check_embedded_group {
   my $mysqld= $config->group('mysqld') or
     croak "Can't run with embedded, config has no default mysqld section";
 
-  my $first_mysqld= $config->first_like('mysqld.') or
+  my $first_mysqld= $config->first_like('mysqld\.') or
     croak "Can't run with embedded, config has no mysqld";
 
   my %no_copy = map { $_ => 1 }
@@ -457,7 +457,7 @@ sub new_config {
   }
 
   $self->run_section_rules($config,
-			   'mysqld.',
+			   'mysqld\.',
 			   @mysqld_rules);
 
   # [mysqlbinlog] need additional settings
