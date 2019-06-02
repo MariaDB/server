@@ -348,7 +348,7 @@ a synchronous read operation.
 @param[in]      n               number of bytes to read
 @param[in]      src_file        caller file name
 @param[in]      src_line        caller line number
-@return	whether the request was successful */
+@return	   0 on error, 1 on success */
 UNIV_INLINE
 bool
 pfs_os_file_read_no_error_handling_int_fd_func(
@@ -371,14 +371,14 @@ pfs_os_file_read_no_error_handling_int_fd_func(
 			__FILE__, __LINE__);
 	}
 
-	bool success = DB_SUCCESS == os_file_read_no_error_handling_func(
+	bool success = os_file_read_no_error_handling_func(
 		type, OS_FILE_FROM_FD(file), buf, offset, n, NULL);
 
 	if (locker != NULL) {
 		PSI_FILE_CALL(end_file_wait)(locker, n);
 	}
 
-	return(success);
+       return(success == DB_SUCCESS);  // Reverse result
 }
 
 /** NOTE! Please use the corresponding macro os_file_write(), not directly
@@ -435,7 +435,7 @@ os_file_write_int_fd() which requests a synchronous write operation.
 @param[in]	n		number of bytes
 @param[in]	src_file	file name where func invoked
 @param[in]	src_line	line where the func invoked
-@return	whether the request was successful */
+@return	   0 on error, 1 on success */
 UNIV_INLINE
 bool
 pfs_os_file_write_int_fd_func(
@@ -459,14 +459,14 @@ pfs_os_file_write_int_fd_func(
 			__FILE__, __LINE__);
 	}
 
-        bool success = DB_SUCCESS == os_file_write_func(
+        bool success = os_file_write_func(
 		type, name, OS_FILE_FROM_FD(file), buf, offset, n);
 
         if (locker != NULL) {
                 PSI_FILE_CALL(end_file_wait)(locker, n);
         }
 
-        return(success);
+        return(success == DB_SUCCESS); // Reverse result
 }
 
 /** NOTE! Please use the corresponding macro os_file_flush(), not directly

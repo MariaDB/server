@@ -1115,7 +1115,7 @@ row_merge_read(
 
 /********************************************************************//**
 Write a merge block to the file system.
-@return whether the request was completed successfully */
+@return 0 on error, 1 if write succeded */
 UNIV_INTERN
 bool
 row_merge_write(
