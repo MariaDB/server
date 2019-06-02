@@ -5235,7 +5235,11 @@ next_file_item_1:
 		        goto next_datadir_item;
 		}
 
-		snprintf(dbpath, sizeof(dbpath), "%s/%s", path, dbinfo.name);
+		snprintf(dbpath, sizeof(dbpath), "%.*s/%.*s",
+                         OS_FILE_MAX_PATH/2-1,
+                         path,
+                         OS_FILE_MAX_PATH/2-1,
+                         dbinfo.name);
 
 		os_normalize_path(dbpath);
 
