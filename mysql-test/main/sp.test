@@ -10323,3 +10323,26 @@ drop table t1;
 set @@sql_mode=@save_sql_mode;
 
 --echo # End of 10.3 tests
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-19637 Crash on an SP variable assignment to a wrong subselect
+--echo #
+
+DELIMITER $$;
+--error ER_CANT_USE_OPTION_HERE
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  SET a=(SELECT 1 FROM DUAL UNION SELECT HIGH_PRIORITY 2 FROM DUAL);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

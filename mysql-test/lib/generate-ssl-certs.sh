@@ -44,6 +44,9 @@ openssl req -newkey rsa:2048 -keyout client-key.pem -out demoCA/client-req.pem -
 openssl rsa -in client-key.pem -out client-key.pem
 openssl ca -keyfile cakey.pem -days 7300 -batch -cert cacert.pem -policy policy_anything -out client-cert.pem -in demoCA/client-req.pem
 
+# generate combined client cert and key file
+cat client-cert.pem client-key.pem > client-certkey.pem
+
 # generate crls
 openssl ca -revoke server-cert.pem -keyfile cakey.pem -batch -cert cacert.pem
 openssl ca -gencrl -keyfile cakey.pem -crldays 7300 -batch -cert cacert.pem -out server-cert.crl
