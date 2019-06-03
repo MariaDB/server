@@ -56,7 +56,7 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
                     const char *path,
                     const char *database, const char *table_name,
                     ulong block_size, my_bool compression,
-                    my_bool force, my_bool display);
+                    my_bool force, my_bool display, my_bool copy_frm);
 int aria_copy_from_s3(ms3_st *s3_client, const char *aws_bucket,
                       const char *path,const char *database,
                       my_bool compression, my_bool force, my_bool display);
@@ -65,7 +65,8 @@ int aria_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
                         my_bool display);
 int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
                    const char *from_database, const char *from_table,
-                   const char *to_database, const char *to_table);
+                   const char *to_database, const char *to_table,
+                   my_bool rename_frm);
 ms3_st *s3_open_connection(S3_INFO *s3);
 my_bool s3_put_object(ms3_st *s3_client, const char *aws_bucket,
                       const char *name, uchar *data, size_t length,

@@ -59,6 +59,7 @@
   at least s3_block_size * 32. The default cache is 512M.
 */
 
+#define MYSQL_SERVER 1
 #include "maria_def.h"
 #include "sql_class.h"
 #include <mysys_err.h>
@@ -333,6 +334,8 @@ int ha_s3::rename_table(const char *from, const char *to)
   ms3_st *s3_client;
   MY_STAT stat_info;
   int error;
+  bool is_partition= (strstr(from, "#P#") != NULL) ||
+                     (strstr(to, "#P#") != NULL);
   DBUG_ENTER("ha_s3::rename_table");
 
   if (s3_info_init(&to_s3_info, to, to_name, NAME_LEN))
@@ -347,7 +350,7 @@ int ha_s3::rename_table(const char *from, const char *to)
   */
   fn_format(frm_name, from, "", reg_ext, MYF(0));
   if (!strncmp(from + dirname_length(from), "#sql-", 5) &&
-      my_stat(frm_name, &stat_info, MYF(0)))
+      (is_partition || my_stat(frm_name, &stat_info, MYF(0))))
   {
     /*
       The table is a temporary table as part of ALTER TABLE.
@@ -356,7 +359,7 @@ int ha_s3::rename_table(const char *from, const char *to)
     error= aria_copy_to_s3(s3_client, to_s3_info.bucket.str, from,
                            to_s3_info.database.str,
                            to_s3_info.table.str,
-                           0, 0, 0, 0);
+                           0, 0, 0, 0, !is_partition);
     if (!error)
     {
       /* Remove original files table files, keep .frm */
@@ -377,7 +380,9 @@ int ha_s3::rename_table(const char *from, const char *to)
                           from_s3_info.database.str,
                           from_s3_info.table.str,
                           to_s3_info.database.str,
-                          to_s3_info.table.str);
+                          to_s3_info.table.str,
+                          !is_partition &&
+                          !current_thd->lex->alter_info.partition_flags);
   }
   ms3_deinit(s3_client);
   DBUG_RETURN(error);

@@ -282,7 +282,7 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
                     const char *path,
                     const char *database, const char *table_name,
                     ulong block_size, my_bool compression,
-                    my_bool force, my_bool display)
+                    my_bool force, my_bool display, my_bool copy_frm)
 {
   ARIA_TABLE_CAPABILITIES cap;
   char aws_path[FN_REFLEN+100];
@@ -313,28 +313,31 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
       DBUG_RETURN(error);
   }
 
-  /*
-    Copy frm file if it exists
-    We do this first to ensure that .frm always exists. This is needed to
-    ensure that discovery of the table will work.
-  */
-  fn_format(filename, path, "", ".frm", MY_REPLACE_EXT);
-  if (!s3_read_frm_from_disk(filename, &alloc_block, &frm_length))
+  if (copy_frm)
   {
-    if (display)
-      printf("Copying frm file %s\n", filename);
+    /*
+      Copy frm file if it exists
+      We do this first to ensure that .frm always exists. This is needed to
+      ensure that discovery of the table will work.
+    */
+    fn_format(filename, path, "", ".frm", MY_REPLACE_EXT);
+    if (!s3_read_frm_from_disk(filename, &alloc_block, &frm_length))
+    {
+      if (display)
+        printf("Copying frm file %s\n", filename);
 
-    end= strmov(aws_path_end,"/frm");
-    convert_frm_to_s3_format(alloc_block);
+      end= strmov(aws_path_end,"/frm");
+      convert_frm_to_s3_format(alloc_block);
 
-    /* Note that frm is not compressed! */
-    if (s3_put_object(s3_client, aws_bucket, aws_path, alloc_block, frm_length,
-                      0))
-      goto err;
+      /* Note that frm is not compressed! */
+      if (s3_put_object(s3_client, aws_bucket, aws_path, alloc_block, frm_length,
+                        0))
+        goto err;
 
-    frm_created= 1;
-    my_free(alloc_block);
-    alloc_block= 0;
+      frm_created= 1;
+      my_free(alloc_block);
+      alloc_block= 0;
+    }
   }
 
   if (display)
@@ -721,7 +724,8 @@ int aria_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
 
 int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
                    const char *from_database, const char *from_table,
-                   const char *to_database, const char *to_table)
+                   const char *to_database, const char *to_table,
+                   my_bool rename_frm)
 {
   ms3_status_st status;
   char to_aws_path[FN_REFLEN+100], from_aws_path[FN_REFLEN+100];
@@ -755,10 +759,12 @@ int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
   error|= s3_rename_directory(s3_client, aws_bucket, from_aws_path,
                               to_aws_path, 1);
 
-  strmov(from_aws_path_end, "/frm");
-  strmov(to_aws_path_end, "/frm");
+  if (rename_frm) {
+    strmov(from_aws_path_end, "/frm");
+    strmov(to_aws_path_end, "/frm");
 
-  s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path, 1);
+    s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path, 1);
+  }
 
   strmov(from_aws_path_end,"/aria");
   strmov(to_aws_path_end,"/aria");

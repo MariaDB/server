@@ -237,9 +237,10 @@ int main(int argc, char** argv)
 
     switch (opt_operation) {
     case 0:
+      /* Don't copy .frm file for partioned table */
       if (aria_copy_to_s3(global_s3_client, opt_s3_bucket, path,
                           db, table_name, opt_block_size, opt_compression,
-                          opt_force, opt_verbose))
+                          opt_force, opt_verbose, !strstr(table_name, "#P#")))
       {
         fprintf(stderr, "Aborting copying of %s\n", path);
         my_exit(-1);

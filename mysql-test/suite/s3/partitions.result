@@ -1,0 +1,128 @@
+# Test for COALESCE PARTITION, ALTER TABLE and ADD PARTITIONS
+# for tables with HASH partitions
+CREATE TABLE t1 (
+c1 INT DEFAULT NULL
+) ENGINE=Aria
+PARTITION BY HASH (c1)
+PARTITIONS 3;
+INSERT INTO t1 VALUE (1), (2), (101), (102), (201), (202);
+ALTER TABLE t1 ENGINE=S3;
+SELECT count(*) FROM t1;
+count(*)
+6
+ALTER TABLE t1 COALESCE PARTITION 2;
+ERROR HY000: Storage engine S3 of the table `s3`.`t1` doesn't have this option
+ALTER TABLE t1 ADD PARTITION PARTITIONS 6;
+ERROR HY000: Storage engine S3 of the table `s3`.`t1` doesn't have this option
+SELECT count(*) FROM t1;
+count(*)
+6
+ALTER TABLE t1 ADD COLUMN c INT;
+SELECT count(*) FROM t1;
+count(*)
+6
+DROP TABLE t1;
+# Test for simple change engine to S3
+CREATE TABLE t1 (
+c1 int DEFAULT NULL,
+c2 int DEFAULT NULL
+) ENGINE=Aria
+PARTITION BY RANGE (c1)
+SUBPARTITION BY HASH(c2)
+SUBPARTITIONS 2
+(PARTITION p0 VALUES LESS THAN (100),
+PARTITION p1 VALUES LESS THAN (200),
+PARTITION p3 VALUES LESS THAN (300));
+INSERT INTO t1 VALUE (1,1), (2,2), (101,101), (102,102), (201,201), (202,202);
+ALTER TABLE t1 ENGINE=S3;
+SELECT count(*) FROM t1;
+count(*)
+6
+# Test for rename table
+RENAME TABLE t1 TO t2;
+SELECT count(*) FROM t2;
+count(*)
+6
+# Test for TRUNCATE, ANALYZE, CHECK, REBUILD, OPTIMIZE, REPAIR,
+# ADD, DROP, REORGANIZE partition
+ALTER TABLE t2 TRUNCATE PARTITION p3;
+ERROR HY000: Table 't2' is read only
+ALTER TABLE t2 ANALYZE PARTITION p3;
+Table	Op	Msg_type	Msg_text
+s3.t2	analyze	error	Table 's3.t2' is read only
+SELECT count(*) FROM t2;
+count(*)
+6
+ALTER TABLE t2 CHECK PARTITION p3;
+Table	Op	Msg_type	Msg_text
+s3.t2	check	error	Subpartition p3sp0 returned error
+s3.t2	check	error	Unknown - internal error 131 during operation
+SELECT count(*) FROM t2;
+count(*)
+6
+ALTER TABLE t2 REBUILD PARTITION p0, p1;
+ERROR HY000: Storage engine S3 of the table `s3`.`t2` doesn't have this option
+ALTER TABLE t2 OPTIMIZE PARTITION p0, p1;
+Table	Op	Msg_type	Msg_text
+s3.t2	optimize	Error	Table 't2' is read only
+s3.t2	optimize	status	Operation failed
+SELECT count(*) FROM t2;
+count(*)
+6
+ALTER TABLE t2 REPAIR PARTITION p0, p1;
+Table	Op	Msg_type	Msg_text
+s3.t2	repair	Error	Table 't2' is read only
+s3.t2	repair	status	Operation failed
+SELECT count(*) FROM t2;
+count(*)
+6
+ALTER TABLE t2 ADD PARTITION (PARTITION p4 VALUES LESS THAN (400));
+ERROR HY000: Storage engine S3 of the table `s3`.`t2` doesn't have this option
+ALTER TABLE t2
+REORGANIZE PARTITION p3 INTO (
+PARTITION n0 VALUES LESS THAN (500),
+PARTITION n1 VALUES LESS THAN (600)
+);
+ERROR HY000: Storage engine S3 of the table `s3`.`t2` doesn't have this option
+ALTER TABLE t2 DROP PARTITION p3;
+SELECT count(*) from t2;
+count(*)
+4
+# Test for ALTER TABLE
+ALTER TABLE t2 ADD COLUMN c INT;
+SELECT count(*) FROM t2;
+count(*)
+4
+ALTER TABLE t2 DROP COLUMN c;
+SELECT count(*) FROM t2;
+count(*)
+4
+# Test for REMOVE PARTITIONING
+ALTER TABLE t2 REMOVE PARTITIONING;
+SELECT count(*) FROM t2;
+count(*)
+4
+DROP TABLE t2;
+# Test for EXCHANGE PARTITION
+CREATE TABLE t1 (
+c1 int DEFAULT NULL
+) ENGINE=Aria
+PARTITION BY RANGE (c1)
+(PARTITION p0 VALUES LESS THAN (100),
+PARTITION p1 VALUES LESS THAN (200));
+INSERT INTO t1 VALUE (1), (2), (101), (102);
+ALTER TABLE t1 ENGINE=S3;
+CREATE TABLE t_part (
+c1 int DEFAULT NULL
+) ENGINE=Aria;
+INSERT INTO t_part VALUE (120), (130), (140);
+ALTER TABLE t_part ENGINE=S3;
+ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t_part;
+SELECT count(*) FROM t_part;
+count(*)
+2
+SELECT count(*) FROM t1;
+count(*)
+5
+DROP TABLE t1;
+DROP TABLE t_part;
