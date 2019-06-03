@@ -72,10 +72,10 @@ MYSQL_ADD_EXECUTABLE(mysql_plugin mysql_plugin.c)
 TARGET_LINK_LIBRARIES(mysql_plugin ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mysqlbinlog mysqlbinlog.cc)
-TARGET_LINK_LIBRARIES(mysqlbinlog ${CLIENT_LIB})
+TARGET_LINK_LIBRARIES(mysqlbinlog ${CLIENT_LIB} mysys_ssl)
 
 MYSQL_ADD_EXECUTABLE(mysqladmin mysqladmin.cc ../sql/password.c)
-TARGET_LINK_LIBRARIES(mysqladmin ${CLIENT_LIB})
+TARGET_LINK_LIBRARIES(mysqladmin ${CLIENT_LIB} mysys_ssl)
 
 MYSQL_ADD_EXECUTABLE(mysqlslap mysqlslap.c)
 SET_SOURCE_FILES_PROPERTIES(mysqlslap.c PROPERTIES COMPILE_FLAGS "-DTHREADS")

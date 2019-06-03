@@ -31,6 +31,6 @@ TARGET_LINK_LIBRARIES(explain_filename-t sql mytap)
 MY_ADD_TEST(explain_filename)
 
 ADD_EXECUTABLE(mf_iocache-t mf_iocache-t.cc ../../sql/mf_iocache_encr.cc)
-TARGET_LINK_LIBRARIES(mf_iocache-t mysys mytap)
+TARGET_LINK_LIBRARIES(mf_iocache-t mysys mytap mysys_ssl)
 ADD_DEPENDENCIES(mf_iocache-t GenError)
 MY_ADD_TEST(mf_iocache)
