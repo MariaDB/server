@@ -18628,19 +18628,8 @@ bool Create_tmp_table::finalize(THD *thd,
         m_key_part_info->store_length+= HA_KEY_NULL_LENGTH;
         m_key_part_info->key_part_flag |= HA_NULL_PART;
       }
-      if ((*reg_field)->type() == MYSQL_TYPE_BLOB ||
-          (*reg_field)->real_type() == MYSQL_TYPE_VARCHAR ||
-          (*reg_field)->type() == MYSQL_TYPE_GEOMETRY)
-      {
-        if ((*reg_field)->type() == MYSQL_TYPE_BLOB ||
-            (*reg_field)->type() == MYSQL_TYPE_GEOMETRY)
-          m_key_part_info->key_part_flag|= HA_BLOB_PART;
-        else
-          m_key_part_info->key_part_flag|= HA_VAR_LENGTH_PART;
-
-        m_key_part_info->store_length+=HA_KEY_BLOB_LENGTH;
-      }
-
+      m_key_part_info->key_part_flag|= (*reg_field)->key_part_flag();
+      m_key_part_info->store_length+= (*reg_field)->key_part_length_bytes();
       keyinfo->key_length+= m_key_part_info->store_length;
 
       m_key_part_info->type=     (uint8) (*reg_field)->key_type();

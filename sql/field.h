@@ -1025,6 +1025,8 @@ public:
   virtual bool binary() const { return 1; }
   virtual bool zero_pack() const { return 1; }
   virtual enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
+  virtual uint16 key_part_flag() const { return 0; }
+  virtual uint16 key_part_length_bytes() const { return 0; }
   virtual uint32 key_length() const { return pack_length(); }
   virtual const Type_handler *type_handler() const= 0;
   virtual enum_field_types type() const
@@ -3653,6 +3655,8 @@ public:
 
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   enum ha_base_keytype key_type() const;
+  uint16 key_part_flag() const { return HA_VAR_LENGTH_PART; }
+  uint16 key_part_length_bytes() const { return HA_KEY_BLOB_LENGTH; }
   uint row_pack_length() const { return field_length; }
   bool zero_pack() const { return 0; }
   int  reset(void) { bzero(ptr,field_length+length_bytes); return 0; }
@@ -3868,6 +3872,8 @@ public:
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
+  uint16 key_part_flag() const { return HA_BLOB_PART; }
+  uint16 key_part_length_bytes() const { return HA_KEY_BLOB_LENGTH; }
   Type_std_attributes type_std_attributes() const
   {
     return Type_std_attributes(Field_blob::max_display_length(), decimals(),
@@ -4354,6 +4360,7 @@ public:
             enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg);
   const Type_handler *type_handler() const { return &type_handler_bit; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BIT; }
+  uint16 key_part_flag() const { return HA_BIT_PART; }
   uint32 key_length() const { return (uint32) (field_length + 7) / 8; }
   uint32 max_data_length() const { return (field_length + 7) / 8; }
   uint32 max_display_length() const { return field_length; }

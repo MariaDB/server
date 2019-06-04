@@ -2552,7 +2552,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
         uint add_keyparts_for_this_key= add_first_key_parts;
-        uint length_bytes= 0, len_null_byte= 0, ext_key_length= 0;
+        uint len_null_byte= 0, ext_key_length= 0;
         Field *field;
 
         if ((keyinfo-1)->algorithm == HA_KEY_ALG_LONG_HASH)
@@ -2564,19 +2564,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	*/ 
         for (i= 0; i < keyinfo->user_defined_key_parts; i++)
         {
+          uint length_bytes= 0;
           uint fieldnr= keyinfo->key_part[i].fieldnr;
           field= share->field[fieldnr-1];
 
           if (field->null_ptr)
             len_null_byte= HA_KEY_NULL_LENGTH;
 
-          if ((field->type() == MYSQL_TYPE_BLOB ||
-             field->real_type() == MYSQL_TYPE_VARCHAR ||
-             field->type() == MYSQL_TYPE_GEOMETRY) &&
-             keyinfo->algorithm != HA_KEY_ALG_LONG_HASH )
-          {
-            length_bytes= HA_KEY_BLOB_LENGTH;
-          }
+          if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
+            length_bytes= field->key_part_length_bytes();
 
           ext_key_length+= keyinfo->key_part[i].length + len_null_byte
                             + length_bytes;
@@ -2665,20 +2661,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           keyinfo->flags|=HA_NULL_PART_KEY;
           keyinfo->key_length+= HA_KEY_NULL_LENGTH;
         }
-        if (field->type() == MYSQL_TYPE_BLOB ||
-            field->real_type() == MYSQL_TYPE_VARCHAR ||
-            field->type() == MYSQL_TYPE_GEOMETRY)
-        {
-          if (field->type() == MYSQL_TYPE_BLOB ||
-              field->type() == MYSQL_TYPE_GEOMETRY)
-            key_part->key_part_flag|= HA_BLOB_PART;
-          else
-            key_part->key_part_flag|= HA_VAR_LENGTH_PART;
-          key_part->store_length+=HA_KEY_BLOB_LENGTH;
-          keyinfo->key_length+= HA_KEY_BLOB_LENGTH;
-        }
-        if (field->type() == MYSQL_TYPE_BIT)
-          key_part->key_part_flag|= HA_BIT_PART;
+
+        key_part->key_part_flag|= field->key_part_flag();
+        uint16 key_part_length_bytes= field->key_part_length_bytes();
+        key_part->store_length+= key_part_length_bytes;
+        keyinfo->key_length+= key_part_length_bytes;
 
         if (i == 0 && key != primary_key)
           field->flags |= (((keyinfo->flags & HA_NOSAME ||
@@ -7481,14 +7468,9 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
   {
     key_part_info->store_length+= HA_KEY_NULL_LENGTH;
   }
-  if (field->type() == MYSQL_TYPE_BLOB || 
-      field->type() == MYSQL_TYPE_GEOMETRY ||
-      field->real_type() == MYSQL_TYPE_VARCHAR)
-  {
-    key_part_info->store_length+= HA_KEY_BLOB_LENGTH;
-    key_part_info->key_part_flag|=
-      field->type() == MYSQL_TYPE_BLOB ? HA_BLOB_PART: HA_VAR_LENGTH_PART;
-  }
+
+  key_part_info->key_part_flag|= field->key_part_flag();
+  key_part_info->store_length+= field->key_part_length_bytes();
 
   key_part_info->type=     (uint8) field->key_type();
   key_part_info->key_type =
