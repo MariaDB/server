@@ -1705,7 +1705,7 @@ bool Item_in_optimizer::is_null()
 */
 
 Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
-                                   uchar *argument)
+                                   bool transform_subquery, uchar *argument)
 {
   Item *new_item;
 
@@ -1714,7 +1714,8 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
   DBUG_ASSERT(arg_count == 2);
 
   /* Transform the left IN operand. */
-  new_item= (*args)->transform(thd, transformer, argument);
+  new_item= (*args)->transform(thd, transformer,
+                               transform_subquery, argument);
   if (!new_item)
     return 0;
   /*
@@ -1726,10 +1727,18 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
   if ((*args) != new_item)
     thd->change_item_tree(args, new_item);
 
+  /*
+    TODO varun
+    needs to transform the cached item
+  */
+  if (transform_subquery)
+    cache->setup(thd, args[0]);
+
   if (invisible_mode())
   {
     /* MAX/MIN transformed => pass through */
-    new_item= args[1]->transform(thd, transformer, argument);
+    new_item= args[1]->transform(thd, transformer,
+                                 transform_subquery, argument);
     if (!new_item)
       return 0;
     if (args[1] != new_item)
@@ -1754,6 +1763,18 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 
     Item_in_subselect *in_arg= (Item_in_subselect*)args[1];
     thd->change_item_tree(&in_arg->left_expr, args[0]);
+
+    /*
+      TODO(varun): this is needed for the sort-nest when we have dependent
+      subqyueries, for such cases we would need to introduce a new
+      parameter to transform function like transform_subquery,
+      if set to TRUE we would change the inner contents of the
+      subquery also.
+
+      new_item= args[1]->transform(thd, transformer, argument);
+      if (args[1] != new_item)
+        thd->change_item_tree(args + 1, new_item);
+    */
   }
   return (this->*transformer)(thd, argument);
 }
@@ -5110,7 +5131,8 @@ bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item *Item_cond::transform(THD *thd, Item_transformer transformer,
+                           bool transform_subquery, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
@@ -5118,7 +5140,8 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
   Item *item;
   while ((item= li++))
   {
-    Item *new_item= item->transform(thd, transformer, arg);
+    Item *new_item= item->transform(thd, transformer,
+                                    transform_subquery, arg);
     if (!new_item)
       return 0;
 
@@ -5131,7 +5154,7 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
     if (new_item != item)
       thd->change_item_tree(li.ref(), new_item);
   }
-  return Item_func::transform(thd, transformer, arg);
+  return Item_func::transform(thd, transformer, transform_subquery, arg);
 }
 
 
@@ -5178,7 +5201,7 @@ Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
     if (new_item && new_item != item)
       thd->change_item_tree(li.ref(), new_item);
   }
-  return Item_func::transform(thd, transformer, arg_t);
+  return Item_func::transform(thd, transformer, FALSE, arg_t);
 }
 
 
@@ -5330,7 +5353,7 @@ Item *Item_cond::build_clone(THD *thd)
 }
 
 
-bool Item_cond::excl_dep_on_table(table_map tab_map)
+bool Item_cond::excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
 {
   if (used_tables() & OUTER_REF_TABLE_BIT)
     return false;
@@ -5340,7 +5363,7 @@ bool Item_cond::excl_dep_on_table(table_map tab_map)
   Item *item;
   while ((item= li++))
   {
-    if (!item->excl_dep_on_table(tab_map))
+    if (!item->excl_dep_on_tables(tab_map, multi_eq_checked))
       return false;
   }
   return true;
@@ -7164,7 +7187,8 @@ bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
 }
 
 
-Item *Item_equal::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item *Item_equal::transform(THD *thd, Item_transformer transformer,
+                            bool transform_subquery, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
@@ -7172,7 +7196,8 @@ Item *Item_equal::transform(THD *thd, Item_transformer transformer, uchar *arg)
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
   {
-    Item *new_item= item->transform(thd, transformer, arg);
+    Item *new_item= item->transform(thd, transformer,
+                                    transform_subquery, arg);
     if (!new_item)
       return 0;
 
@@ -7185,7 +7210,7 @@ Item *Item_equal::transform(THD *thd, Item_transformer transformer, uchar *arg)
     if (new_item != item)
       thd->change_item_tree((Item **) it.ref(), new_item);
   }
-  return Item_func::transform(thd, transformer, arg);
+  return Item_func::transform(thd, transformer, transform_subquery, arg);
 }
 
 

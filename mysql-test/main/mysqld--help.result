@@ -1402,6 +1402,7 @@ The following specify which files/extra groups are read (specified before remain
  Prohibit update of a VIEW, which does not contain a key
  of the underlying table and the query uses a LIMIT clause
  (usually get from GUI tools)
+ --use-sort-nest     Enable the sort nest
  --use-stat-tables=name 
  Specifies how to use system statistics tables. One of: 
  NEVER, COMPLEMENTARY, PREFERABLY, 
@@ -1781,6 +1782,7 @@ transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
 transaction-read-only FALSE
 updatable-views-with-limit YES
+use-sort-nest FALSE
 use-stat-tables PREFERABLY_FOR_QUERIES
 userstat FALSE
 verbose TRUE

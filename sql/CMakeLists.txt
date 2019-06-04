@@ -150,6 +150,7 @@ SET (SQL_SOURCE
 	       sql_cte.cc
                item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h
+               sql_sort_nest.cc
                sql_tvc.cc sql_tvc.h
                opt_split.cc
                rowid_filter.cc rowid_filter.h

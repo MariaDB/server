@@ -8469,178 +8469,6 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
 }
 
 
-/**
-  @brief
-   For a condition check possibility of exraction a formula over grouping fields 
-
-  @param thd      The thread handle
-  @param cond     The condition whose subformulas are to be analyzed
-  @param checker  The checker callback function to be applied to the nodes
-                  of the tree of the object
-  
-  @details
-    This method traverses the AND-OR condition cond and for each subformula of
-    the condition it checks whether it can be usable for the extraction of a
-    condition over the grouping fields of this select. The method uses
-    the call-back parameter checker to check whether a primary formula
-    depends only on grouping fields.
-    The subformulas that are not usable are marked with the flag NO_EXTRACTION_FL.
-    The subformulas that can be entierly extracted are marked with the flag 
-    FULL_EXTRACTION_FL.
-  @note
-    This method is called before any call of extract_cond_for_grouping_fields.
-    The flag NO_EXTRACTION_FL set in a subformula allows to avoid building clone
-    for the subformula when extracting the pushable condition.
-    The flag FULL_EXTRACTION_FL allows to delete later all top level conjuncts
-    from cond.
-*/ 
-
-void 
-st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
-{
-  if (cond->get_extraction_flag() == NO_EXTRACTION_FL)
-    return;
-  cond->clear_extraction_flag();
-  if (cond->type() == Item::COND_ITEM)
-  {
-    Item_cond_and *and_cond=
-      (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC) ?
-      ((Item_cond_and*) cond) : 0;
-
-    List<Item> *arg_list=  ((Item_cond*) cond)->argument_list();
-    List_iterator<Item> li(*arg_list);
-    uint count= 0;         // to count items not containing NO_EXTRACTION_FL
-    uint count_full= 0;    // to count items with FULL_EXTRACTION_FL
-    Item *item;
-    while ((item=li++))
-    {
-      check_cond_extraction_for_grouping_fields(thd, item);
-      if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
-      {
-        count++;
-        if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
-          count_full++;
-      }
-      else if (!and_cond)
-        break;
-    }
-    if ((and_cond && count == 0) || item)
-      cond->set_extraction_flag(NO_EXTRACTION_FL);
-    if (count_full == arg_list->elements)
-    {
-      cond->set_extraction_flag(FULL_EXTRACTION_FL);
-    }
-    if (cond->get_extraction_flag() != 0)
-    {
-      li.rewind();
-      while ((item=li++))
-        item->clear_extraction_flag();
-    }
-  }
-  else
-  {
-    int fl= cond->excl_dep_on_grouping_fields(this) && !cond->is_expensive() ?
-      FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
-    cond->set_extraction_flag(fl);
-  }
-}
-
-
-/**
-  @brief
-  Build condition extractable from the given one depended on grouping fields
- 
-  @param thd           The thread handle
-  @param cond          The condition from which the condition depended 
-                       on grouping fields is to be extracted
-  @param no_top_clones If it's true then no clones for the top fully 
-                       extractable conjuncts are built
-
-  @details
-    For the given condition cond this method finds out what condition depended
-    only on the grouping fields can be extracted from cond. If such condition C
-    exists the method builds the item for it.
-    This method uses the flags NO_EXTRACTION_FL and FULL_EXTRACTION_FL set by the
-    preliminary call of st_select_lex::check_cond_extraction_for_grouping_fields
-    to figure out whether a subformula depends only on these fields or not.
-  @note
-    The built condition C is always implied by the condition cond
-    (cond => C). The method tries to build the least restictive such
-    condition (i.e. for any other condition C' such that cond => C'
-    we have C => C').
-  @note
-    The build item is not ready for usage: substitution for the field items
-    has to be done and it has to be re-fixed.
-  
-  @retval
-    the built condition depended only on grouping fields if such a condition exists
-    NULL if there is no such a condition
-*/ 
-
-Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
-                                                    bool no_top_clones)
-{
-  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
-  {
-    if (no_top_clones)
-      return cond;
-    cond->clear_extraction_flag();
-    return cond->build_clone(thd);
-  }
-  if (cond->type() == Item::COND_ITEM)
-  {
-    bool cond_and= false;
-    Item_cond *new_cond;
-    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
-    {
-      cond_and= true;
-      new_cond=  new (thd->mem_root) Item_cond_and(thd);
-    }
-    else
-      new_cond= new (thd->mem_root) Item_cond_or(thd);
-    if (unlikely(!new_cond))
-      return 0;
-    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
-    Item *item;
-    while ((item=li++))
-    {
-      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
-      {
-        DBUG_ASSERT(cond_and);
-        item->clear_extraction_flag();
-        continue;
-      }
-      Item *fix= build_cond_for_grouping_fields(thd, item,
-                                                no_top_clones & cond_and);
-      if (unlikely(!fix))
-      {
-        if (cond_and)
-          continue;
-        break;
-      }
-      new_cond->argument_list()->push_back(fix, thd->mem_root);
-    }
-    
-    if (!cond_and && item)
-    {
-      while((item= li++))
-        item->clear_extraction_flag();
-      return 0;
-    }
-    switch (new_cond->argument_list()->elements) 
-    {
-    case 0:
-      return 0;
-    case 1:
-      return new_cond->argument_list()->head();
-    default:
-      return new_cond;
-    }
-  }
-  return 0;
-}
-
-
 bool st_select_lex::set_nest_level(int new_nest_level)
 {
   DBUG_ENTER("st_select_lex::set_nest_level");
@@ -10169,12 +9997,13 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
   if (have_window_funcs())
   {
     Item *cond_over_partition_fields;
-    check_cond_extraction_for_grouping_fields(thd, cond);
-    cond_over_partition_fields=
-      build_cond_for_grouping_fields(thd, cond, true);
+    cond->check_pushable_cond_extraction(&Item::pushable_cond_checker_for_grouping_fields,
+                                         (uchar*)this);
+    cond_over_partition_fields= cond->build_pushable_condition(thd, true);
     if (cond_over_partition_fields)
       cond_over_partition_fields= cond_over_partition_fields->transform(thd,
                                 &Item::grouping_field_transformer_for_where,
+                                FALSE,
                                 (uchar*) this);
     if (cond_over_partition_fields)
     {
@@ -10189,7 +10018,7 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
   if (!join->group_list && !with_sum_func)
   {
     cond=
-      cond->transform(thd, transformer, arg);
+      cond->transform(thd, transformer, FALSE, arg);
     if (cond)
     {
       cond->walk(
@@ -10205,9 +10034,10 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
     the WHERE clause of this select.
   */
   Item *cond_over_grouping_fields;
-  check_cond_extraction_for_grouping_fields(thd, cond);
-  cond_over_grouping_fields=
-    build_cond_for_grouping_fields(thd, cond, true);
+  cond->check_pushable_cond_extraction(&Item::pushable_cond_checker_for_grouping_fields,
+                                       (uchar*)this);
+
+  cond_over_grouping_fields= cond->build_pushable_condition(thd, true);
 
   /*
     Transform references to the columns of condition that can be pushed
@@ -10216,6 +10046,7 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
   if (cond_over_grouping_fields)
     cond_over_grouping_fields= cond_over_grouping_fields->transform(thd,
                             &Item::grouping_field_transformer_for_where,
+                            FALSE,
                             (uchar*) this);
 
   if (cond_over_grouping_fields)
@@ -10383,7 +10214,7 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
   {
     Item *result= cond->transform(thd,
                                   &Item::multiple_equality_transformer,
-                                  (uchar *)this);
+                                  FALSE, (uchar *)this);
     if (!result)
       return true;
     if (result->type() == Item::COND_ITEM &&
@@ -10436,7 +10267,7 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
       {
         Item *result= item->transform(thd,
                                       &Item::multiple_equality_transformer,
-                                      (uchar *)item);
+                                      FALSE, (uchar *)item);
         if (!result)
           return true;
         if (result->type() == Item::COND_ITEM &&
@@ -10702,7 +10533,8 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   */
   List_iterator_fast<Item> it(attach_to_conds);
   Item *item;
-  check_cond_extraction_for_grouping_fields(thd, having);
+  having->check_pushable_cond_extraction(&Item::pushable_cond_checker_for_grouping_fields,
+                                         (uchar*)this);
   if (build_pushable_cond_for_having_pushdown(thd, having))
   {
     attach_to_conds.empty();
@@ -10762,7 +10594,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   {
     item= item->transform(thd,
                           &Item::field_transformer_for_having_pushdown,
-                          (uchar *)this);
+                          FALSE, (uchar *)this);
 
     if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
         || item->fix_fields(thd, NULL))

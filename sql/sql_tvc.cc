@@ -1063,9 +1063,8 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
   {
     select_lex->parsing_place= IN_WHERE;
     conds=
-      conds->transform(thd,
-		       &Item::in_predicate_to_in_subs_transformer,
-                       (uchar*) 0);
+      conds->transform(thd, &Item::in_predicate_to_in_subs_transformer,
+                       FALSE, (uchar*) 0);
     if (!conds)
       DBUG_RETURN(true);
     select_lex->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
@@ -1084,7 +1083,7 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
       {
         table->on_expr=
           table->on_expr->transform(thd,
-		                    &Item::in_predicate_to_in_subs_transformer,
+		                    &Item::in_predicate_to_in_subs_transformer, FALSE,
                                     (uchar*) 0);
 	if (!table->on_expr)
 	  DBUG_RETURN(true);

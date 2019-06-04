@@ -715,6 +715,80 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
 }
 
 
+Item* Item_subselect::transform(THD *thd, Item_transformer transformer,
+                                bool transform_subquery, uchar *arg)
+{
+  if (!(unit->uncacheable & ~UNCACHEABLE_DEPENDENT) && engine->is_executed() &&
+      !unit->describe)
+  {
+    /*
+      The subquery has already been executed (for real, it wasn't EXPLAIN's
+      fake execution) so it should not matter what it has inside.
+
+      The actual reason for not walking inside is that parts of the subquery
+      (e.g. JTBM join nests and their IN-equality conditions may have been
+       invalidated by irreversible cleanups (those happen after an uncorrelated
+       subquery has been executed).
+    */
+    return (this->*transformer)(thd, arg);
+  }
+
+  /*
+      TODO(varun): this is needed for the sort-nest when we have dependent
+      subqueries, for such cases we would need to introduce a new
+      parameter to transform function like transform_subquery,
+      if set to TRUE we would change the inner contents of the
+      subquery also.
+  */
+  if (transform_subquery)
+  {
+    for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())
+    {
+      List_iterator<Item> it(lex->item_list);
+      Item *item, *new_item;
+      ORDER *order;
+
+      if (lex->where)
+      {
+        lex->where= (lex->where)->transform(thd, transformer, TRUE, arg);
+        lex->where->update_used_tables();
+      }
+      if (lex->having)
+      {
+        lex->having= (lex->having)->transform(thd, transformer, TRUE, arg);
+        lex->having->update_used_tables();
+      }
+
+      while ((item=it++))
+      {
+        if ((new_item= item->transform(thd, transformer, TRUE, arg)) != item)
+        {
+          new_item->name= item->name;
+          thd->change_item_tree(it.ref(), new_item);
+          it.replace(new_item);
+        }
+        new_item->update_used_tables();
+      }
+
+      for (order= lex->order_list.first ; order; order= order->next)
+      {
+        *order->item= (*order->item)->transform(thd, transformer,
+                                                TRUE, arg);
+        (*order->item)->update_used_tables();
+      }
+
+      for (order= lex->group_list.first ; order; order= order->next)
+      {
+        *order->item= (*order->item)->transform(thd, transformer, TRUE, arg);
+        (*order->item)->update_used_tables();
+      }
+    }
+  }
+
+  return (this->*transformer)(thd, arg);
+}
+
+
 bool Item_subselect::exec()
 {
   subselect_engine *org_engine= engine;

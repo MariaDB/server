@@ -3813,7 +3813,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
       while ((item= li++))
       {
-        item->transform(thd, &Item::update_value_transformer,
+        item->transform(thd, &Item::update_value_transformer, FALSE,
                         (uchar*)lex->current_select);
       }
     }

@@ -109,6 +109,8 @@ void trace_plan_prefix(JOIN *join, uint idx, table_map join_tables);
 void print_final_join_order(JOIN *join);
 void print_best_access_for_table(THD *thd, POSITION *pos,
                                  enum join_type type);
+void add_sort_nest_tables_to_trace(JOIN *join,
+                                   Mat_join_tab_nest_info* nest_info);
 
 /*
   Security related (need to add a proper comment here)

@@ -377,7 +377,8 @@ public:
   const char *func_name() const { return "<in_optimizer>"; }
   Item_cache **get_cache() { return &cache; }
   void keep_top_level_cache();
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
+  Item *transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg);
   virtual Item *expr_cache_insert_transformer(THD *thd, uchar *unused);
   bool is_expensive_processor(void *arg);
   bool is_expensive();
@@ -2997,7 +2998,8 @@ public:
   bool top_level() { return abort_on_null; }
   void copy_andor_arguments(THD *thd, Item_cond *item);
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
+  Item *transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg);
   void traverse_cond(Cond_traverser, void *arg, traverse_order order);
   void neg_arguments(THD *thd);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
@@ -3006,7 +3008,7 @@ public:
   bool eval_not_null_tables(void *opt_arg);
   bool find_not_null_fields(table_map allowed);
   Item *build_clone(THD *thd);
-  bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 
@@ -3179,7 +3181,8 @@ public:
                       SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
+  Item *transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
   const Type_handler *compare_type_handler() const { return m_compare_handler; }
   CHARSET_INFO *compare_collation() const { return m_compare_collation; }
@@ -3191,7 +3194,7 @@ public:
     This does not comply with the specification of the virtual method,
     but Item_equal items are processed distinguishly anyway
   */
-  bool excl_dep_on_table(table_map tab_map)
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
   {
     return used_tables() & tab_map;
   }

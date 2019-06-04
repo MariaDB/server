@@ -1,0 +1,6 @@
+--source include/have_innodb.inc
+
+SET SESSION STORAGE_ENGINE='InnoDB';
+
+--source sort_nest_dbt3.test
+

@@ -1436,8 +1436,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
 
   /* 1. Check what pushable formula can be extracted from cond */
   Item *extracted_cond;
-  cond->check_pushable_cond(&Item::pushable_cond_checker_for_derived,
-                            (uchar *)(&derived->table->map));
+  cond->check_pushable_cond(
+                       &Item::pushable_cond_checker_for_tables_with_equalities,
+                       (uchar *)&derived->table->map);
   /* 2. Build a clone PC of the formula that can be extracted */
   extracted_cond=
     cond->build_pushable_cond(thd,
@@ -1493,7 +1494,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     remaining_cond=
       remaining_cond->transform(thd,
                                 &Item::derived_field_transformer_for_having,
-                                (uchar *) sl);
+                                FALSE, (uchar *) sl);
     if (!remaining_cond)
       continue;
 

@@ -1533,9 +1533,6 @@ public:
   void collect_grouping_fields_for_derived(THD *thd, ORDER *grouping_list);
   bool collect_grouping_fields(THD *thd);
   bool collect_fields_equal_to_grouping(THD *thd);
-  void check_cond_extraction_for_grouping_fields(THD *thd, Item *cond);
-  Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
-                                       bool no_to_clones);
   
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);

@@ -204,7 +204,8 @@ public:
     else
       max_length= (uint32) max_result_length;
   }
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
+  Item *transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg);
   Item* compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
   void traverse_cond(Cond_traverser traverser,
@@ -331,12 +332,12 @@ public:
     return used_tables() & RAND_TABLE_BIT;
   }
 
-  bool excl_dep_on_table(table_map tab_map)
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
   {
     if (used_tables() & OUTER_REF_TABLE_BIT)
       return false; 
     return !(used_tables() & ~tab_map) || 
-           Item_args::excl_dep_on_table(tab_map);
+           Item_args::excl_dep_on_tables(tab_map, multi_eq_checked);
   }
 
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
@@ -2875,7 +2876,8 @@ public:
   void cleanup();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_set_user_var>(thd, this); }
-  bool excl_dep_on_table(table_map tab_map) { return false; }
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
+  { return false; }
 };
 
 
