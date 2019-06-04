@@ -2326,5 +2326,21 @@ select b, row_number() over (partition by sum(a)+1) from t1 group by b;
 drop table t1;
 
 --echo #
+--echo # MDEV-18015: Assertion `global_status_var.global_memory_used == 0' failed when using UDF,
+--echo # window functions and views
+--echo #
+
+create table t1 (id int, n1 int);
+insert into t1 values (1,1),(2,1),(3,2),(4,4);
+explain
+select max(n1) over (partition by 'abc') from t1;
+select max(n1) over (partition by 'abc') from t1;
+
+explain
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
