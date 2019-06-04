@@ -2,8 +2,7 @@ INCLUDE(CheckCCompilerFlag)
 
 ADD_DEFINITIONS(-DMYSQL_SERVER)
 
-MY_CHECK_AND_SET_COMPILER_FLAG_CC("-Wno-write-strings")
-MY_CHECK_AND_SET_COMPILER_FLAG_CXX("-Wno-write-strings")
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-write-strings")
 
 IF(MSVC)
   # Temporarily disable "conversion from size_t .." warnings

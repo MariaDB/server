@@ -33,8 +33,6 @@ MACRO (MY_CHECK_CXX_COMPILER_FLAG flag)
 ENDMACRO()
 
 FUNCTION(MY_CHECK_AND_SET_COMPILER_FLAG flag_to_set)
-  # At the moment this is gcc-only.
-  # Let's avoid expensive compiler tests on Windows:
   IF(WIN32)
     RETURN()
   ENDIF()
@@ -55,9 +53,7 @@ FUNCTION(MY_CHECK_AND_SET_COMPILER_FLAG flag_to_set)
   ENDFOREACH()
 ENDFUNCTION()
 
-FUNCTION(MY_CHECK_AND_SET_COMPILER_FLAG_CC flag_to_set)
-  # At the moment this is gcc-only.
-  # Let's avoid expensive compiler tests on Windows:
+FUNCTION(MY_CHECK_AND_SET_COMPILER_FLAG_C flag_to_set)
   IF(WIN32)
     RETURN()
   ENDIF()
@@ -76,8 +72,6 @@ FUNCTION(MY_CHECK_AND_SET_COMPILER_FLAG_CC flag_to_set)
 ENDFUNCTION()
 
 FUNCTION(MY_CHECK_AND_SET_COMPILER_FLAG_CXX flag_to_set)
-  # At the moment this is gcc-only.
-  # Let's avoid expensive compiler tests on Windows:
   IF(WIN32)
     RETURN()
   ENDIF()

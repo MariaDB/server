@@ -56,7 +56,7 @@ endmacro(set_c_and_cxx_flags_if_supported)
 ## adds a compiler flag if the compiler supports it
 macro(set_cflags_if_supported)
   foreach(flag ${ARGN})
-    MY_CHECK_AND_SET_COMPILER_FLAG_CC(${flag})
+    MY_CHECK_AND_SET_COMPILER_FLAG_C(${flag})
   endforeach(flag)
 endmacro(set_cflags_if_supported)
 
