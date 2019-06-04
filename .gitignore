@@ -58,6 +58,7 @@ extra/perror
 extra/replace
 extra/resolve_stack_dump
 extra/resolveip
+extra/wolfssl/user_settings.h
 import_executables.cmake
 include/*.h.tmp
 include/config.h
