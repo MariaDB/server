@@ -27,6 +27,9 @@
 #include "sql_time.h"
 #include "sql_type_real.h"
 #include "compat56.h"
+C_MODE_START
+#include <ma_dyncol.h>
+C_MODE_END
 
 class Field;
 class Column_definition;
@@ -3239,6 +3242,8 @@ public:
   virtual protocol_send_type_t protocol_send_type() const= 0;
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  virtual enum_dynamic_column_type
+    dyncol_type(const Type_all_attributes *attr) const= 0;
   virtual enum_mysql_timestamp_type mysql_timestamp_type() const
   {
     return MYSQL_TIMESTAMP_ERROR;
@@ -3796,6 +3801,11 @@ public:
   {
     return ROW_RESULT;
   }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    DBUG_ASSERT(0);
+    return DYN_COL_NULL;
+  }
   const Type_handler *type_handler_for_comparison() const;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const
   {
@@ -4148,6 +4158,10 @@ class Type_handler_real_result: public Type_handler_numeric
 public:
   Item_result result_type() const { return REAL_RESULT; }
   Item_result cmp_type() const { return REAL_RESULT; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_DOUBLE;
+  }
   virtual ~Type_handler_real_result() {}
   const Type_handler *type_handler_for_comparison() const;
   void Column_definition_reuse_fix_attributes(THD *thd,
@@ -4233,6 +4247,10 @@ public:
   }
   Item_result result_type() const { return DECIMAL_RESULT; }
   Item_result cmp_type() const { return DECIMAL_RESULT; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_DECIMAL;
+  }
   virtual ~Type_handler_decimal_result() {};
   const Type_handler *type_handler_for_comparison() const;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const
@@ -4463,6 +4481,10 @@ class Type_handler_int_result: public Type_handler_numeric
 public:
   Item_result result_type() const { return INT_RESULT; }
   Item_result cmp_type() const { return INT_RESULT; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return attr->unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
+  }
   bool is_order_clause_position_type() const { return true; }
   bool is_limit_clause_valid_type() const { return true; }
   virtual ~Type_handler_int_result() {}
@@ -4632,6 +4654,10 @@ public:
   }
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return STRING_RESULT; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_STRING;
+  }
   CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual ~Type_handler_string_result() {}
   const Type_handler *type_handler_for_comparison() const;
@@ -5260,6 +5286,10 @@ public:
   const Name name() const { return m_name_time; }
   const Name &default_value() const;
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_TIME;
+  }
   protocol_send_type_t protocol_send_type() const
   {
     return PROTOCOL_SEND_TIME;
@@ -5426,6 +5456,10 @@ public:
   const Name &default_value() const;
   const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_DATE;
+  }
   protocol_send_type_t protocol_send_type() const
   {
     return PROTOCOL_SEND_DATE;
@@ -5526,6 +5560,10 @@ public:
   const Name &default_value() const;
   const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_DATETIME;
+  }
   protocol_send_type_t protocol_send_type() const
   {
     return PROTOCOL_SEND_DATETIME;
@@ -5646,6 +5684,10 @@ public:
   const Type_handler *type_handler_for_comparison() const;
   const Type_handler *type_handler_for_native_format() const;
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_DATETIME;
+  }
   protocol_send_type_t protocol_send_type() const
   {
     return PROTOCOL_SEND_DATETIME;
@@ -5843,6 +5885,10 @@ public:
   virtual ~Type_handler_null() {}
   const Name name() const { return m_name_null; }
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    return DYN_COL_NULL;
+  }
   const Type_handler *type_handler_for_comparison() const;
   const Type_handler *type_handler_for_tmp_table(const Item *item) const;
   const Type_handler *type_handler_for_union(const Item *) const;
@@ -6021,6 +6067,11 @@ class Type_handler_varchar_compressed: public Type_handler_varchar
 public:
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    DBUG_ASSERT(0);
+    return DYN_COL_STRING;
+  }
 };
 
 
@@ -6148,6 +6199,11 @@ class Type_handler_blob_compressed: public Type_handler_blob
 public:
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
+  {
+    DBUG_ASSERT(0);
+    return DYN_COL_STRING;
+  }
 };
 
 
