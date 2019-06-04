@@ -234,6 +234,9 @@ public:
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
+  Item* transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg);
+
   bool mark_as_eliminated_processor(void *arg);
   bool eliminate_subselect_processor(void *arg);
   bool set_fake_select_as_master_processor(void *arg);

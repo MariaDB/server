@@ -653,7 +653,7 @@ add_ext_keyuses_for_splitting_field(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
 */
 
 static
-double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
+double spl_postjoin_oper_cost(THD *thd, double join_record_count, ulong rec_len)
 {
   double cost;
   cost=  get_tmp_table_write_cost(thd, join_record_count,rec_len) *
@@ -696,7 +696,7 @@ void JOIN::add_keyuses_for_splitting()
   KEYUSE_EXT *keyuse_ext;
   KEYUSE_EXT keyuse_ext_end;
   double oper_cost;
-  uint rec_len;
+  ulong rec_len;
   uint added_keyuse_count;
   TABLE *table= select_lex->master_unit()->derived->table;
   List_iterator_fast<KEY_FIELD> li(spl_opt_info->added_key_fields);
@@ -971,7 +971,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
                            (spl_opt_info->unsplit_card ?
                             spl_opt_info->unsplit_card : 1); 
 
-      uint rec_len= table->s->rec_buff_length;
+      ulong rec_len= table->s->rec_buff_length;
 
       double split_card= spl_opt_info->unsplit_card * spl_plan->split_sel;
       double oper_cost= split_card *

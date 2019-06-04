@@ -604,6 +604,7 @@ typedef struct system_variables
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
+  my_bool use_sort_nest;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during

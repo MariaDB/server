@@ -166,11 +166,12 @@ void Item_row::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_row::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item *Item_row::transform(THD *thd, Item_transformer transformer,
+                          bool transform_subquery, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  if (transform_args(thd, transformer, arg))
+  if (transform_args(thd, transformer, transform_subquery, arg))
     return 0;
   return (this->*transformer)(thd, arg);
 }
