@@ -20439,7 +20439,6 @@ join_read_first(JOIN_TAB *tab)
   tab->table->status=0;
   tab->read_record.read_record_func= join_read_next;
   tab->read_record.table=table;
-  tab->read_record.record=table->record[0];
   if (!table->file->inited)
     error= table->file->ha_index_init(tab->index, tab->sorted);
   if (likely(!error))
@@ -20459,7 +20458,7 @@ static int
 join_read_next(READ_RECORD *info)
 {
   int error;
-  if (unlikely((error= info->table->file->ha_index_next(info->record))))
+  if (unlikely((error= info->table->file->ha_index_next(info->record()))))
     return report_error(info->table, error);
 
   return 0;
@@ -20479,7 +20478,6 @@ join_read_last(JOIN_TAB *tab)
   tab->table->status=0;
   tab->read_record.read_record_func= join_read_prev;
   tab->read_record.table=table;
-  tab->read_record.record=table->record[0];
   if (!table->file->inited)
     error= table->file->ha_index_init(tab->index, 1);
   if (likely(!error))
@@ -20496,7 +20494,7 @@ static int
 join_read_prev(READ_RECORD *info)
 {
   int error;
-  if (unlikely((error= info->table->file->ha_index_prev(info->record))))
+  if (unlikely((error= info->table->file->ha_index_prev(info->record()))))
     return report_error(info->table, error);
   return 0;
 }
@@ -20526,7 +20524,7 @@ static int
 join_ft_read_next(READ_RECORD *info)
 {
   int error;
-  if (unlikely((error= info->table->file->ha_ft_read(info->table->record[0]))))
+  if (unlikely((error= info->table->file->ha_ft_read(info->record()))))
     return report_error(info->table, error);
   return 0;
 }

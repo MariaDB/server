@@ -898,7 +898,7 @@ public:
   {
     Rowid_seq_cursor::init(info);
     table= info->table;
-    record= info->record;
+    record= info->record();
   }
 
   virtual int fetch()

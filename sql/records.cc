@@ -77,7 +77,6 @@ bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
   bzero((char*) info,sizeof(*info));
   info->thd= thd;
   info->table= table;
-  info->record= table->record[0];
   info->print_error= print_error;
   info->unlock_row= rr_unlock_row;
 
@@ -210,7 +209,6 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   else
   {
     empty_record(table);
-    info->record= table->record[0];
     info->ref_length= (uint)table->file->ref_length;
   }
   info->select=select;
@@ -393,7 +391,7 @@ static int rr_index_first(READ_RECORD *info)
     return tmp;
   }
 
-  tmp= info->table->file->ha_index_first(info->record);
+  tmp= info->table->file->ha_index_first(info->record());
   info->read_record_func= rr_index;
   if (tmp)
     tmp= rr_handle_error(info, tmp);
@@ -416,7 +414,7 @@ static int rr_index_first(READ_RECORD *info)
 
 static int rr_index_last(READ_RECORD *info)
 {
-  int tmp= info->table->file->ha_index_last(info->record);
+  int tmp= info->table->file->ha_index_last(info->record());
   info->read_record_func= rr_index_desc;
   if (tmp)
     tmp= rr_handle_error(info, tmp);
@@ -442,7 +440,7 @@ static int rr_index_last(READ_RECORD *info)
 
 static int rr_index(READ_RECORD *info)
 {
-  int tmp= info->table->file->ha_index_next(info->record);
+  int tmp= info->table->file->ha_index_next(info->record());
   if (tmp)
     tmp= rr_handle_error(info, tmp);
   return tmp;
@@ -467,7 +465,7 @@ static int rr_index(READ_RECORD *info)
 
 static int rr_index_desc(READ_RECORD *info)
 {
-  int tmp= info->table->file->ha_index_prev(info->record);
+  int tmp= info->table->file->ha_index_prev(info->record());
   if (tmp)
     tmp= rr_handle_error(info, tmp);
   return tmp;
@@ -477,7 +475,7 @@ static int rr_index_desc(READ_RECORD *info)
 int rr_sequential(READ_RECORD *info)
 {
   int tmp;
-  while ((tmp= info->table->file->ha_rnd_next(info->record)))
+  while ((tmp= info->table->file->ha_rnd_next(info->record())))
   {
     tmp= rr_handle_error(info, tmp);
     break;
@@ -493,7 +491,7 @@ static int rr_from_tempfile(READ_RECORD *info)
   {
     if (my_b_read(info->io_cache,info->ref_pos,info->ref_length))
       return -1;					/* End of file */
-    if (!(tmp= info->table->file->ha_rnd_pos(info->record,info->ref_pos)))
+    if (!(tmp= info->table->file->ha_rnd_pos(info->record(), info->ref_pos)))
       break;
     /* The following is extremely unlikely to happen */
     if (tmp == HA_ERR_KEY_NOT_FOUND)
@@ -543,7 +541,7 @@ int rr_from_pointers(READ_RECORD *info)
     cache_pos= info->cache_pos;
     info->cache_pos+= info->ref_length;
 
-    if (!(tmp= info->table->file->ha_rnd_pos(info->record,cache_pos)))
+    if (!(tmp= info->table->file->ha_rnd_pos(info->record(), cache_pos)))
       break;
 
     /* The following is extremely unlikely to happen */
@@ -638,7 +636,7 @@ static int rr_from_cache(READ_RECORD *info)
       else
       {
 	error=0;
-	memcpy(info->record,info->cache_pos,
+        memcpy(info->record(), info->cache_pos,
                (size_t) info->table->s->reclength);
       }
       info->cache_pos+=info->reclength;
