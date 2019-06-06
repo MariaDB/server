@@ -3421,8 +3421,12 @@ page_corrupted:
 					   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 					   + src)) {
 not_encrypted:
-				if (!page_compressed
-				    && !block->page.zip.data) {
+				if (block->page.id.page_no() == 0
+				    && block->page.zip.data) {
+					block->page.zip.data = src;
+					frame_changed = true;
+				} else if (!page_compressed
+					   && !block->page.zip.data) {
 					block->frame = src;
 					frame_changed = true;
 				} else {
@@ -3513,7 +3517,11 @@ not_encrypted:
 			}
 
 			if (frame_changed) {
-				block->frame = dst;
+				if (block->page.zip.data) {
+					block->page.zip.data = dst;
+				} else {
+					block->frame = dst;
+				}
 			}
 
 			src =  io_buffer + (i * size);
