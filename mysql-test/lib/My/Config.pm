@@ -369,7 +369,7 @@ sub insert {
     $tmp_option =~ s/_/-/g;
 
     # If the option is an option that one can specify many times, always add
-    $if_not_exist= 1 if (@multipart_options{$tmp_option});
+    $if_not_exist= 1 if ($multipart_options{$tmp_option});
 
     # Add the option to the group
     $group->insert($option, $value, $if_not_exist);
