@@ -25,7 +25,7 @@ CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoD
 set session wsrep_sync_wait=15;
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
 SET GLOBAL wsrep_slave_threads = 4;
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
 --source include/wait_condition.inc
 
 --connection node_1
