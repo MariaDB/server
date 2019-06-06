@@ -273,7 +273,11 @@ static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
                                          Open_tables_backup *backup)
 {
   table->init_one_table(&MYSQL_SCHEMA_NAME, stat_tab_name, NULL, TL_WRITE);
-  return open_system_tables_for_read(thd, table, backup);
+  No_such_table_error_handler nst_handler;
+  thd->push_internal_handler(&nst_handler);
+  int res= open_system_tables_for_read(thd, table, backup);
+  thd->pop_internal_handler();
+  return res;
 }
 
 
