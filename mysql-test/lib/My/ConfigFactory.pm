@@ -372,7 +372,7 @@ sub resolve_at_variable {
   }
   $res .= $after;
 
-  $config->insert($group->name(), $option->name(), $res)
+  $option->{value}= $res;
 }
 
 
