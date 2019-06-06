@@ -102,29 +102,6 @@ inline void init_table_list_for_stat_tables(TABLE_LIST *tables, bool for_write)
   }
 }
 
-
-/**
-  @details
-  The function builds a TABLE_LIST containing only one element 'tbl' for
-  the statistical table called 'stat_tab_name'. 
-  The lock type of the element is set to TL_READ if for_write = FALSE,
-  otherwise it is set to TL_WRITE.
-*/
-
-static inline
-void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
-                                           const LEX_CSTRING *stat_tab_name,
-                                           bool for_write)
-{
-  memset((char *) tbl, 0, sizeof(TABLE_LIST));
-
-  tbl->db= MYSQL_SCHEMA_NAME;
-  tbl->table_name= *stat_tab_name;
-  tbl->alias=      *stat_tab_name;
-  tbl->lock_type= for_write ? TL_WRITE : TL_READ;
-}
-
-
 static Table_check_intact_log_error stat_table_intact;
 
 static const
@@ -286,15 +263,16 @@ inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
 /**
   @brief
   Open a statistical table and lock it
+
+  @details
+  This is used by DDLs. When a column or index is dropped or renamed,
+  stat tables need to be adjusted accordingly.
 */
-static
-inline int open_single_stat_table(THD *thd, TABLE_LIST *table,
-                                  const LEX_CSTRING *stat_tab_name,
-                                  Open_tables_backup *backup,
-                                  bool for_write)
+static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
+                                         const LEX_CSTRING *stat_tab_name,
+                                         Open_tables_backup *backup)
 {
-  init_table_list_for_single_stat_table(table, stat_tab_name, for_write);
-  init_mdl_requests(table);
+  table->init_one_table(&MYSQL_SCHEMA_NAME, stat_tab_name, NULL, TL_WRITE);
   return open_system_tables_for_read(thd, table, backup);
 }
 
@@ -3478,21 +3456,16 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
   @brief
   Delete statistics on a column of the specified table
 
-  @param
-  thd         The thread handle
-  @param
-  tab         The table the column belongs to
-  @param
-  col         The field of the column whose statistics is to be deleted
+  @param thd         The thread handle
+  @param tab         The table the column belongs to
+  @param col         The field of the column whose statistics is to be deleted
 
   @details
   The function delete statistics on the column 'col' belonging to the table 
   'tab' from the statistical table column_stats. 
 
-  @retval
-  0         If all deletions are successful or we couldn't open statistics table
-  @retval
-  1         Otherwise
+  @retval 0  If all deletions are successful or we couldn't open statistics table
+  @retval 1  Otherwise
 
   @note
   The function is called when dropping a table column  or when changing
@@ -3509,8 +3482,8 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   int rc= 0;
   DBUG_ENTER("delete_statistics_for_column");
    
-  if (open_single_stat_table(thd, &tables, &stat_table_name[1],
-                             &open_tables_backup, TRUE))
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[1],
+                             &open_tables_backup))
     DBUG_RETURN(0);
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3537,24 +3510,18 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   @brief
   Delete statistics on an index of the specified table
 
-  @param
-  thd         The thread handle
-  @param
-  tab         The table the index belongs to
-  @param
-  key_info    The descriptor of the index whose statistics is to be deleted
-  @param
-  ext_prefixes_only  Delete statistics only on the index prefixes extended by
-                     the components of the primary key 
+  @param thd         The thread handle
+  @param tab         The table the index belongs to
+  @param key_info    The descriptor of the index whose statistics is to be deleted
+  @param ext_prefixes_only  Delete statistics only on the index prefixes
+                     extended by the components of the primary key
 
   @details
   The function delete statistics on the index  specified by 'key_info'
   defined on the table 'tab' from the statistical table index_stats.
 
-  @retval
-  0         If all deletions are successful or we couldn't open statistics table
-  @retval
-  1         Otherwise
+  @retval 0  If all deletions are successful or we couldn't open statistics table
+  @retval 1  Otherwise
 
   @note
   The function is called when dropping an index, or dropping/changing the
@@ -3572,8 +3539,8 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   int rc= 0;
   DBUG_ENTER("delete_statistics_for_index");
    
-  if (open_single_stat_table(thd, &tables, &stat_table_name[2],
-			     &open_tables_backup, TRUE))
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[2],
+			     &open_tables_backup))
     DBUG_RETURN(0);
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3635,7 +3602,7 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   index_stats.
 
   @retval
-  0         If all updates of the table name are successful  
+  0         If all updates of the table name are successful
   @retval
   1         Otherwise
 
@@ -3716,26 +3683,19 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
 
 
 /**
-  @brief
   Rename a column in the statistical table column_stats
 
-  @param
-  thd         The thread handle
-  @param
-  tab         The table the column belongs to
-  @param
-  col         The column to be renamed
-  @param
-  new_name    The new column name
+  @param thd         The thread handle
+  @param tab         The table the column belongs to
+  @param col         The column to be renamed
+  @param new_name    The new column name
 
   @details
   The function replaces the name of the column 'col' belonging to the table 
   'tab' for 'new_name' in the statistical table column_stats.
 
-  @retval
-  0         If all updates of the table name are successful  
-  @retval
-  1         Otherwise
+  @retval 0  If all updates of the table name are successful
+  @retval 1  Otherwise
 
   @note
   The function is called when executing any statement that renames a column,
@@ -3756,8 +3716,8 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
   if (tab->s->tmp_table != NO_TMP_TABLE)
     DBUG_RETURN(0);
 
-  if (open_single_stat_table(thd, &tables, &stat_table_name[1],
-                             &open_tables_backup, TRUE))
+  if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[1],
+                             &open_tables_backup))
     DBUG_RETURN(rc);
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
