@@ -60,13 +60,13 @@ Type_handler_string      type_handler_string;
 Type_handler_var_string  type_handler_var_string;
 Type_handler_varchar     type_handler_varchar;
 Type_handler_hex_hybrid  type_handler_hex_hybrid;
-static Type_handler_varchar_compressed type_handler_varchar_compressed;
+Type_handler_varchar_compressed type_handler_varchar_compressed;
 
 Type_handler_tiny_blob   type_handler_tiny_blob;
 Type_handler_medium_blob type_handler_medium_blob;
 Type_handler_long_blob   type_handler_long_blob;
 Type_handler_blob        type_handler_blob;
-static Type_handler_blob_compressed type_handler_blob_compressed;
+Type_handler_blob_compressed type_handler_blob_compressed;
 
 Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 
@@ -1908,13 +1908,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_LONG_BLOB:   return &type_handler_long_blob;
   case MYSQL_TYPE_BLOB:        return &type_handler_blob;
   case MYSQL_TYPE_BLOB_COMPRESSED: return &type_handler_blob_compressed;
-  case MYSQL_TYPE_VAR_STRING:
-    /*
-      VAR_STRING is actually a field_type(), not a real_type(),
-      but it's used around the code in real_type() context.
-      We should clean up the code and add DBUG_ASSERT(0) here.
-    */
-    return &type_handler_string;
+  case MYSQL_TYPE_VAR_STRING:  return &type_handler_var_string;
   case MYSQL_TYPE_STRING:      return &type_handler_string;
   case MYSQL_TYPE_ENUM:        return &type_handler_enum;
   case MYSQL_TYPE_SET:         return &type_handler_set;
@@ -1933,8 +1927,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
   };
-  DBUG_ASSERT(0);
-  return &type_handler_string;
+  return NULL;
 }
 
 

@@ -101,7 +101,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/multi_range_read.cc
            ../sql/opt_index_cond_pushdown.cc
            ../sql/opt_subselect.cc
-           ../sql/create_options.cc ../sql/rpl_utility.cc
+           ../sql/create_options.cc
+           ../sql/rpl_utility.cc
+           ../sql/rpl_utility_server.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
            ../sql/my_apc.cc ../sql/my_apc.h

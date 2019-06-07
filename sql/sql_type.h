@@ -84,6 +84,7 @@ struct TABLE;
 struct SORT_FIELD_ATTR;
 class Vers_history_point;
 class Virtual_column_info;
+class Conv_source;
 struct ST_FIELD_INFO;
 
 #define my_charset_numeric      my_charset_latin1
@@ -3393,6 +3394,8 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  virtual void show_binlog_type(const Conv_source &src, String *str) const;
+  virtual uint32 max_display_length_for_field(const Conv_source &src) const= 0;
   /*
     Performs the final data type validation for a UNION element,
     after the regular "aggregation for result" was done.
@@ -3887,6 +3890,11 @@ public:
     DBUG_ASSERT(0);
   }
   uint32 max_display_length(const Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  uint32 max_display_length_for_field(const Conv_source &src) const
   {
     DBUG_ASSERT(0);
     return 0;
@@ -4825,6 +4833,8 @@ public:
     return unsigned_fl ? &m_limits_uint8 : &m_limits_sint8;
   }
   uint32 calc_pack_length(uint32 length) const { return 1; }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 4; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
     return Item_send_tiny(item, protocol, buf);
@@ -4877,6 +4887,8 @@ public:
   {
     return unsigned_fl ? &m_limits_uint16 : &m_limits_sint16;
   }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 6; }
   uint32 calc_pack_length(uint32 length) const { return 2; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
@@ -4922,6 +4934,8 @@ public:
   {
     return unsigned_fl ? &m_limits_uint32 : &m_limits_sint32;
   }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 11; }
   uint32 calc_pack_length(uint32 length) const { return 4; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -4982,6 +4996,8 @@ public:
   {
     return unsigned_fl ? &m_limits_uint64 : &m_limits_sint64;
   }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 20; }
   uint32 calc_pack_length(uint32 length) const { return 8; }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
@@ -5050,6 +5066,8 @@ public:
   {
     return unsigned_fl ? &m_limits_uint24 : &m_limits_sint24;
   }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 9; }
   uint32 calc_pack_length(uint32 length) const { return 3; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -5084,6 +5102,8 @@ public:
     return PROTOCOL_SEND_SHORT;
   }
   uint32 max_display_length(const Item *item) const;
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 4; }
   uint32 calc_pack_length(uint32 length) const { return 1; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -5133,6 +5153,7 @@ public:
     return PROTOCOL_SEND_STRING;
   }
   uint32 max_display_length(const Item *item) const;
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const { return length / 8; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -5142,6 +5163,7 @@ public:
   {
     return print_item_value_csstr(thd, item, str);
   }
+  void show_binlog_type(const Conv_source &src, String *str) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
@@ -5186,6 +5208,8 @@ public:
   }
   bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 25; }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 12; }
   uint32 calc_pack_length(uint32 length) const { return sizeof(float); }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
@@ -5239,6 +5263,8 @@ public:
   }
   bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 53; }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 22; }
   uint32 calc_pack_length(uint32 length) const { return sizeof(double); }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
@@ -5375,6 +5401,8 @@ public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_time() {}
   const Name version() const { return m_version_mariadb53; }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return MIN_TIME_WIDTH; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -5402,6 +5430,7 @@ public:
   virtual ~Type_handler_time2() {}
   const Name version() const { return m_version_mysql56; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -5456,6 +5485,8 @@ public:
   const Name &default_value() const;
   const Type_handler *type_handler_for_comparison() const;
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return 3; }
   enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
   {
     return DYN_COL_DATE;
@@ -5624,6 +5655,8 @@ public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_datetime() {}
   const Name version() const { return m_version_mariadb53; }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return MAX_DATETIME_WIDTH; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -5651,6 +5684,7 @@ public:
   virtual ~Type_handler_datetime2() {}
   const Name version() const { return m_version_mysql56; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -5759,6 +5793,8 @@ public:
   static uint sec_part_bytes(uint dec) { return m_sec_part_bytes[dec]; }
   virtual ~Type_handler_timestamp() {}
   const Name version() const { return m_version_mariadb53; }
+  uint32 max_display_length_for_field(const Conv_source &src) const
+  { return MAX_DATETIME_WIDTH; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -5786,6 +5822,7 @@ public:
   virtual ~Type_handler_timestamp2() {}
   const Name version() const { return m_version_mysql56; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -5816,9 +5853,11 @@ public:
   virtual ~Type_handler_olddecimal() {}
   const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_DECIMAL; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const { return length; }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const;
   const Type_handler *type_handler_for_union(const Item *item) const;
+  void show_binlog_type(const Conv_source &src, String *str) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
@@ -5847,7 +5886,9 @@ public:
   virtual ~Type_handler_newdecimal() {}
   const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
+  void show_binlog_type(const Conv_source &src, String *str) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
@@ -5893,6 +5934,7 @@ public:
   const Type_handler *type_handler_for_tmp_table(const Item *item) const;
   const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
+  uint32 max_display_length_for_field(const Conv_source &src) const { return 0;}
   uint32 calc_pack_length(uint32 length) const { return 0; }
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const;
@@ -5947,11 +5989,13 @@ public:
   const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   bool is_param_long_data_type() const { return true; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const { return length; }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
   {
     return varstring_type_handler(item);
   }
+  void show_binlog_type(const Conv_source &src, String *str) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
@@ -5993,6 +6037,8 @@ public:
   {
     return varstring_type_handler(item);
   }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
+  void show_binlog_type(const Conv_source &src, String *str) const;
   void Column_definition_implicit_upgrade(Column_definition *c) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   bool Column_definition_prepare_stage2(Column_definition *c,
@@ -6017,6 +6063,7 @@ public:
   {
     return MYSQL_TYPE_VAR_STRING; // Keep things compatible for old clients
   }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const
   {
     return (length + (length < 256 ? 1: 2));
@@ -6030,6 +6077,7 @@ public:
     return varstring_type_handler(item);
   }
   bool is_param_long_data_type() const { return true; }
+  void show_binlog_type(const Conv_source &src, String *str) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
@@ -6065,6 +6113,12 @@ public:
 class Type_handler_varchar_compressed: public Type_handler_varchar
 {
 public:
+  enum_field_types real_field_type() const
+  {
+    return MYSQL_TYPE_VARCHAR_COMPRESSED;
+  }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
+  void show_binlog_type(const Conv_source &src, String *str) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
@@ -6132,6 +6186,7 @@ public:
   uint length_bytes() const { return 1; }
   const Name name() const { return m_name_tinyblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
@@ -6149,6 +6204,7 @@ public:
   uint length_bytes() const { return 3; }
   const Name name() const { return m_name_mediumblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
@@ -6166,6 +6222,7 @@ public:
   uint length_bytes() const { return 4; }
   const Name name() const { return m_name_longblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
@@ -6185,6 +6242,7 @@ public:
   uint length_bytes() const { return 2; }
   const Name name() const { return m_name_blob; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
@@ -6197,6 +6255,12 @@ public:
 class Type_handler_blob_compressed: public Type_handler_blob
 {
 public:
+  enum_field_types real_field_type() const
+  {
+    return MYSQL_TYPE_BLOB_COMPRESSED;
+  }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
+  void show_binlog_type(const Conv_source &src, String *str) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr) const
@@ -6216,6 +6280,7 @@ public:
   const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const { return true; }
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
   const Type_handler *type_handler_for_comparison() const;
   bool type_can_have_key_part() const
@@ -6313,6 +6378,7 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   const Type_handler *type_handler_for_item_field() const;
   const Type_handler *cast_to_int_type_handler() const;
+  uint32 max_display_length_for_field(const Conv_source &src) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -6508,12 +6574,16 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_set         type_handler_set;
 extern MYSQL_PLUGIN_IMPORT Type_handler_string      type_handler_string;
 extern MYSQL_PLUGIN_IMPORT Type_handler_var_string  type_handler_var_string;
 extern MYSQL_PLUGIN_IMPORT Type_handler_varchar     type_handler_varchar;
+extern MYSQL_PLUGIN_IMPORT Type_handler_varchar_compressed
+                                                    type_handler_varchar_compressed;
 extern MYSQL_PLUGIN_IMPORT Type_handler_hex_hybrid  type_handler_hex_hybrid;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
+extern MYSQL_PLUGIN_IMPORT Type_handler_blob_compressed
+                                                    type_handler_blob_compressed;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_bool        type_handler_bool;
 extern MYSQL_PLUGIN_IMPORT Type_handler_tiny        type_handler_tiny;

@@ -60,6 +60,46 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL,
 };
 
+
+enum enum_conv_type
+{
+  CONV_TYPE_PRECISE,
+  CONV_TYPE_VARIANT,
+  CONV_TYPE_SUBSET_TO_SUPERSET,
+  CONV_TYPE_SUPERSET_TO_SUBSET,
+  CONV_TYPE_IMPOSSIBLE
+};
+
+
+class Conv_param
+{
+  uint16 m_table_def_flags;
+public:
+  Conv_param(uint16 table_def_flags)
+   :m_table_def_flags(table_def_flags)
+  { }
+  uint16 table_def_flags() const { return m_table_def_flags; }
+};
+
+
+class Conv_source: public Type_handler_hybrid_field_type
+{
+  enum_field_types m_type;
+  uint16 m_metadata;
+  CHARSET_INFO *m_cs;
+public:
+  Conv_source(const Type_handler *h, uint16 metadata, CHARSET_INFO *cs)
+   :Type_handler_hybrid_field_type(h),
+    m_metadata(metadata),
+    m_cs(cs)
+  {
+    DBUG_ASSERT(cs);
+  }
+  uint16 metadata() const { return m_metadata; }
+  uint mbmaxlen() const { return m_cs->mbmaxlen; }
+};
+
+
 /*
   Common declarations for Field and Item
 */
@@ -1085,6 +1125,17 @@ public:
     */
     return type();
   }
+  /*
+    Conversion type for from the source to the current field.
+  */
+  virtual enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                            const Relay_log_info *rli,
+                                            const Conv_param &param)
+                                            const= 0;
+  enum_conv_type rpl_conv_type_from_same_data_type(uint16 metadata,
+                                                   const Relay_log_info *rli,
+                                                   const Conv_param &param)
+                                                   const;
   inline  int cmp(const uchar *str) { return cmp(ptr,str); }
   virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
     { return cmp(a, b); }
@@ -1940,7 +1991,9 @@ public:
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg, collation)
     {}
-
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
 
@@ -1981,6 +2034,9 @@ public:
   {
     return do_field_real;
   }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
@@ -2090,6 +2146,9 @@ public:
     return Field_num::memcpy_field_possible(from) &&
            field_length == from->field_length;
   }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int  reset(void);
   bool store_value(const my_decimal *decimal_value);
   bool store_value(const my_decimal *decimal_value, int *native_error);
@@ -2162,6 +2221,9 @@ public:
     :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                unireg_check_arg, field_name_arg, 0, zero_arg, unsigned_arg)
     {}
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
@@ -2627,6 +2689,9 @@ public:
 	       unireg_check_arg, field_name_arg, collation)
     {}
   const Type_handler *type_handler() const { return &type_handler_null; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {
@@ -2815,6 +2880,9 @@ public:
 		  TABLE_SHARE *share);
   const Type_handler *type_handler() const { return &type_handler_timestamp; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const;
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr);
@@ -2967,6 +3035,9 @@ public:
     {}
   const Type_handler *type_handler() const { return &type_handler_timestamp2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   uint32 pack_length() const
   {
     return my_timestamp_binary_length(dec);
@@ -3006,6 +3077,9 @@ public:
   {
     return field_length == 2 ? &type_handler_year2 : &type_handler_year;
   }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))
@@ -3088,6 +3162,9 @@ public:
                        unireg_check_arg, field_name_arg) {}
   const Type_handler *type_handler() const { return &type_handler_date; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_date::get_TIME(ltime, ptr, fuzzydate); }
@@ -3125,6 +3202,9 @@ public:
     {}
   const Type_handler *type_handler() const { return &type_handler_newdate; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_UINT24; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=0; return 0; }
   double val_real(void);
   longlong val_int(void);
@@ -3168,6 +3248,9 @@ public:
                                         const Item_equal *item_equal);
   const Type_handler *type_handler() const { return &type_handler_time; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const
   {
     return from->cmp_type() == REAL_RESULT ? do_field_string : // MDEV-9344
@@ -3280,6 +3363,9 @@ public:
   }
   const Type_handler *type_handler() const { return &type_handler_time2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIME2; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   uint32 pack_length() const
   {
     return my_time_binary_length(dec);
@@ -3325,6 +3411,9 @@ public:
     }
   const Type_handler *type_handler() const { return &type_handler_datetime; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3447,6 +3536,9 @@ public:
   {}
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_DATETIME2; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   uint32 pack_length() const
   {
     return my_datetime_binary_length(dec);
@@ -4130,6 +4222,9 @@ public:
      :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                  field_name_arg, share, blob_pack_length, &my_charset_bin)
   { geom_type= geom_type_arg; srid= field_srid; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   const Type_handler *type_handler() const
   {
@@ -4212,6 +4307,9 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   const Type_handler *type_handler() const { return &type_handler_enum; }
   enum ha_base_keytype key_type() const;
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))
@@ -4365,6 +4463,9 @@ public:
   uint32 key_length() const { return (uint32) (field_length + 7) / 8; }
   uint32 max_data_length() const { return (field_length + 7) / 8; }
   uint32 max_display_length() const { return field_length; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
@@ -4531,6 +4632,13 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const
+  {
+    DBUG_ASSERT(0);
+    return CONV_TYPE_IMPOSSIBLE;
+  }
   Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
   bool sp_prepare_and_store_item(THD *thd, Item **value);
 };
