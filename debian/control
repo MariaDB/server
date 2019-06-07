@@ -356,7 +356,7 @@ Provides: default-mysql-client,
           mysql-client-5.6,
           mysql-client-5.7,
           virtual-mysql-client
-Recommends: libdbd-mysql-perl (>= 1.2202),
+Recommends: libdbd-mariadb-perl,
             libdbi-perl,
             libterm-readkey-perl
 Description: MariaDB database client binaries

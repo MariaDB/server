@@ -63,7 +63,7 @@ sub new {
          },
          F => {
             desc => 'Only read default options from the given file',
-            dsn  => 'mysql_read_default_file',
+            dsn  => 'mariadb_read_default_file',
             copy => 1,
          },
          h => {
@@ -83,7 +83,7 @@ sub new {
          },
          S => {
             desc => 'Socket file to use for connection',
-            dsn  => 'mysql_socket',
+            dsn  => 'mariadb_socket',
             copy => 1,
          },
          u => {
@@ -218,11 +218,11 @@ sub get_cxn_params {
                      qw(h P));
    }
    else {
-      $dsn = 'DBI:mysql:' . ( $info->{D} || '' ) . ';'
+      $dsn = 'DBI:MariaDB:' . ( $info->{D} || '' ) . ';'
          . join(';', map  { "$opts{$_}->{dsn}=$info->{$_}" }
                      grep { defined $info->{$_} }
                      qw(F h P S A))
-         . ';mysql_read_default_group=client';
+         . ';mariadb_read_default_group=client';
    }
    MKDEBUG && _d($dsn);
    return ($dsn, $info->{u}, $info->{p});
@@ -249,7 +249,6 @@ sub get_dbh {
       AutoCommit        => 0,
       RaiseError        => 1,
       PrintError        => 0,
-      mysql_enable_utf8 => ($cxn_string =~ m/charset=utf8/ ? 1 : 0),
    };
    @{$defaults}{ keys %$opts } = values %$opts;
    my $dbh;
@@ -276,10 +275,6 @@ sub get_dbh {
       };
       if ( !$dbh && $EVAL_ERROR ) {
          MKDEBUG && _d($EVAL_ERROR);
-         if ( $EVAL_ERROR =~ m/not a compiled character set|character set utf8/ ) {
-            MKDEBUG && _d("Going to try again without utf8 support");
-            delete $defaults->{mysql_enable_utf8};
-         }
          if ( !$tries ) {
             die $EVAL_ERROR;
          }
@@ -301,11 +296,11 @@ sub get_dbh {
       $dbh,
       Dumper($dbh->selectrow_hashref(
          'SELECT DATABASE(), CONNECTION_ID(), VERSION()/*!50038 , @@hostname*/')),
-      ' Connection info: ', ($dbh->{mysql_hostinfo} || 'undef'),
+      ' Connection info: ', ($dbh->{mariadb_hostinfo} || 'undef'),
       ' Character set info: ',
       Dumper($dbh->selectall_arrayref(
          'SHOW VARIABLES LIKE "character_set%"', { Slice => {}})),
-      ' $DBD::mysql::VERSION: ', $DBD::mysql::VERSION,
+      ' $DBD::MariaDB::VERSION: ', $DBD::MariaDB::VERSION,
       ' $DBI::VERSION: ', $DBI::VERSION,
    );
    return $dbh;
@@ -314,7 +309,7 @@ sub get_dbh {
 # Tries to figure out a hostname for the connection.
 sub get_hostname {
    my ( $self, $dbh ) = @_;
-   if ( my ($host) = ($dbh->{mysql_hostinfo} || '') =~ m/^(\w+) via/ ) {
+   if ( my ($host) = ($dbh->{mariadb_hostinfo} || '') =~ m/^(\w+) via/ ) {
       return $host;
    }
    my ( $hostname, $one ) = $dbh->selectrow_array(
@@ -4534,7 +4529,7 @@ my %stmt_maker_for = (
       eval { # This can fail if the table doesn't exist, INFORMATION_SCHEMA doesn't exist, etc.
          my $cols = $dbh->selectall_arrayref(q{SHOW /*innotop*/ COLUMNS FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS});
          if ( @$cols ) {
-          if ($dbh->{mysql_serverinfo} =~ /^5.1/) {
+          if ($dbh->{mariadb_serverinfo} =~ /^5.1/) {
             $sth = $dbh->prepare(q{
                SELECT /*innotop*/
                   r.trx_mysql_thread_id                            AS waiting_thread,
@@ -7259,7 +7254,7 @@ sub create_statusbar {
    my $cxn = '';
 
    if ( 1 == @cxns && $dbhs{$cxns[0]} && $dbhs{$cxns[0]}->{dbh} ) {
-      $cxn = $dbhs{$cxns[0]}->{dbh}->{mysql_serverinfo} || '';
+      $cxn = $dbhs{$cxns[0]}->{dbh}->{mariadb_serverinfo} || '';
    }
    else {
       if ( $modes{$mode}->{server_group} ) {
@@ -7341,11 +7336,11 @@ sub add_new_dsn {
    if ( !$dsn ) {
       do {
          $clear_screen_sub->();
-         print "Typical DSN strings look like\n   DBI:mysql:;host=hostname;port=port\n"
+         print "Typical DSN strings look like\n   DBI:MariaDB:;host=hostname;port=port\n"
             . "The db and port are optional and can usually be omitted.\n"
-            . "If you specify 'mysql_read_default_group=mysql' many options can be read\n"
+            . "If you specify 'mariadb_read_default_group=mysql' many options can be read\n"
             . "from your mysql options files (~/.my.cnf, /etc/my.cnf).\n\n";
-         $dsn = prompt("Enter a DSN string", undef, "DBI:mysql:;mysql_read_default_group=mysql;host=$name");
+         $dsn = prompt("Enter a DSN string", undef, "DBI:MariaDB:;mariadb_read_default_group=mysql;host=$name");
       } until ( $dsn );
    }
    if ( !$dl_table ) {
@@ -7674,7 +7669,7 @@ sub connect_to_db {
 # Compares versions like 5.0.27 and 4.1.15-standard-log
 sub version_ge {
    my ( $dbh, $target ) = @_;
-   my $version = sprintf('%03d%03d%03d', $dbh->{mysql_serverinfo} =~ m/^(\d+).(\d+).(\d+)/g);
+   my $version = sprintf('%03d%03d%03d', $dbh->{mariadb_serverinfo} =~ m/^(\d+).(\d+).(\d+)/g);
    return $version ge sprintf('%03d%03d%03d', $target =~ m/(\d+)/g);
 }
 
@@ -7686,7 +7681,7 @@ sub get_driver_status {
          next unless $dbhs{$cxn} && $dbhs{$cxn}->{dbh} && $dbhs{$cxn}->{dbh}->{Active};
          $vars{$cxn}->{$clock} ||= {};
          my $vars = $vars{$cxn}->{$clock};
-         my %res = map {  $_ =~ s/ +/_/g; $_ } $dbhs{$cxn}->{dbh}->{mysql_stat} =~ m/(\w[^:]+): ([\d\.]+)/g;
+         my %res = map {  $_ =~ s/ +/_/g; $_ } $dbhs{$cxn}->{dbh}->{mariadb_stat} =~ m/(\w[^:]+): ([\d\.]+)/g;
          map { $vars->{$_} ||= $res{$_} } keys %res;
          $vars->{Uptime_hires} ||= get_uptime($cxn);
          $vars->{cxn} = $cxn;
@@ -7703,14 +7698,14 @@ sub get_new_db_connection {
    my $dsn = $connections{$connection}
       or die "No connection named '$connection' is defined in your configuration";
 
-   # don't ask for a username if mysql_read_default_group=client is in the DSN
-   if ( !defined $dsn->{have_user} and $dsn->{dsn} !~ /mysql_read_default_group=client/ ) {
+   # don't ask for a username if mariadb_read_default_group=client is in the DSN
+   if ( !defined $dsn->{have_user} and $dsn->{dsn} !~ /mariadb_read_default_group=client/ ) {
       my $answer = prompt("Do you want to specify a username for $connection?", undef, 'n');
       $dsn->{have_user} = $answer && $answer =~ m/1|y/i;
    }
 
-   # don't ask for a password if mysql_read_default_group=client is in the DSN
-   if ( !defined $dsn->{have_pass} and $dsn->{dsn} !~ /mysql_read_default_group=client/ ) {
+   # don't ask for a password if mariadb_read_default_group=client is in the DSN
+   if ( !defined $dsn->{have_pass} and $dsn->{dsn} !~ /mariadb_read_default_group=client/ ) {
       my $answer = prompt("Do you want to specify a password for $connection?", undef, 'n');
       $dsn->{have_pass} = $answer && $answer =~ m/1|y/i;
    }
@@ -7939,10 +7934,10 @@ sub load_config {
       # write a config
       $config{readonly}->{val} = 0 if $opts{w};
       # If no connections have been defined, connect to a MySQL database 
-      # on localhost using mysql_read_default_group=client
+      # on localhost using mariadb_read_default_group=client
       if (!%connections) {
          add_new_dsn('localhost', 
-                     'DBI:mysql:;host=localhost;mysql_read_default_group=client', 
+                     'DBI:MariaDB:;host=localhost;mariadb_read_default_group=client', 
                      'test.innotop_dl');
       }
    }
@@ -9374,7 +9369,7 @@ sub choose_thread {
 
    my %thread_for = map {
       # Eliminate innotop's own threads.
-      $_ => $dbhs{$_}->{dbh} ? $dbhs{$_}->{dbh}->{mysql_thread_id} : 0
+      $_ => $dbhs{$_}->{dbh} ? $dbhs{$_}->{dbh}->{mariadb_thread_id} : 0
    } keys %connections;
 
    my @candidates = grep {
@@ -9899,7 +9894,7 @@ Enter; otherwise, you will need to change to innotop's directory and type "perl
 innotop".
 
 With no options specified, innotop will attempt to connect to a MySQL server on
-localhost using mysql_read_default_group=client for other connection
+localhost using mariadb_read_default_group=client for other connection
 parameters.  If you need to specify a different username and password, use the
 -u and -p options, respectively.  To monitor a MySQL database on another
 host, use the -h option.
@@ -10394,15 +10389,15 @@ inputs, as follows:
 A DSN is a Data Source Name, which is the initial argument passed to the DBI
 module for connecting to a server.  It is usually of the form
 
- DBI:mysql:;mysql_read_default_group=mysql;host=HOSTNAME
+ DBI:MariaDB:;mariadb_read_default_group=mysql;host=HOSTNAME
 
-Since this DSN is passed to the DBD::mysql driver, you should read the driver's
-documentation at L<"http://search.cpan.org/dist/DBD-mysql/lib/DBD/mysql.pm"> for
+Since this DSN is passed to the DBD::MariaDB driver, you should read the driver's
+documentation at L<https://metacpan.org/pod/DBD::MariaDB> for
 the exact details on all the options you can pass the driver in the DSN.  You
 can read more about DBI at L<http://dbi.perl.org/docs/>, and especially at
 L<http://search.cpan.org/~timb/DBI/DBI.pm>.
 
-The mysql_read_default_group=mysql option lets the DBD driver read your MySQL
+The mariadb_read_default_group=mysql option lets the DBD driver read your MySQL
 options files, such as ~/.my.cnf on UNIX-ish systems.  You can use this to avoid
 specifying a username or password for the connection.
 
@@ -12137,7 +12132,7 @@ You need appropriate privileges to create and drop the deadlock tables if needed
 =head1 SYSTEM REQUIREMENTS
 
 You need Perl to run innotop, of course.  You also need a few Perl modules: DBI,
-DBD::mysql,  Term::ReadKey, and Time::HiRes.  These should be included with most
+DBD::MariaDB,  Term::ReadKey, and Time::HiRes.  These should be included with most
 Perl distributions, but in case they are not, I recommend using versions
 distributed with your operating system or Perl distribution, not from CPAN.
 Term::ReadKey in particular has been known to cause problems if installed from

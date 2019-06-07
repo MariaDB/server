@@ -86,7 +86,7 @@ if ($opt_password eq '')
 
 
 # make the connection to MariaDB
-$dbh= DBI->connect("DBI:mysql:mysql:host=$sqlhost:port=$opt_port:mysql_socket=$opt_socket",$opt_user,$opt_password, {PrintError => 0}) ||
+$dbh= DBI->connect("DBI:MariaDB:mysql:host=$sqlhost:port=$opt_port:mariadb_socket=$opt_socket",$opt_user,$opt_password, {PrintError => 0}) ||
   die("Can't make a connection to the mysql server.\n The error: $DBI::errstr");
 
 # the start of the program

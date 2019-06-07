@@ -49,7 +49,7 @@ $secondtable = "bench_f2";
 $start_time=new Benchmark;
 if (!$opt_skip_create)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $dbh->do("drop table if exists $firsttable, $secondtable");
@@ -79,7 +79,7 @@ while (($pid=wait()) != -1)
 
 if (!$opt_skip_delete && !$errors)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $dbh->do("drop table $firsttable,$secondtable");
@@ -100,7 +100,7 @@ sub insert_in_bench1
 {
   my ($dbh,$rows,$found,$i);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $rows=$found=0;
@@ -123,7 +123,7 @@ sub insert_in_bench2
 {
   my ($dbh,$rows,$found,$i);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $rows=$found=0;
@@ -149,7 +149,7 @@ sub repair_and_check
       $table);
   $found1=$found2=0; $last_found1=$last_found2= -1;
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
