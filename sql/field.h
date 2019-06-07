@@ -910,9 +910,9 @@ public:
     table, which is located on disk).
   */
   virtual uint32 pack_length_in_rec() const { return pack_length(); }
-  virtual bool compatible_field_size(uint metadata, Relay_log_info *rli,
-                                     uint16 mflags, int *order);
-  virtual uint pack_length_from_metadata(uint field_metadata)
+  virtual bool compatible_field_size(uint metadata, const Relay_log_info *rli,
+                                     uint16 mflags, int *order) const;
+  virtual uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field::pack_length_from_metadata");
     DBUG_RETURN(field_metadata);
@@ -1813,7 +1813,8 @@ public:
   }
   uint is_equal(Create_field *new_field);
   uint row_pack_length() const { return pack_length(); }
-  uint32 pack_length_from_metadata(uint field_metadata) {
+  uint32 pack_length_from_metadata(uint field_metadata) const
+  {
     uint32 length= pack_length();
     DBUG_PRINT("result", ("pack_length_from_metadata(%d): %u",
                           field_metadata, length));
@@ -2139,10 +2140,10 @@ public:
   }
   uint size_of() const { return sizeof(*this); } 
   uint32 pack_length() const { return (uint32) bin_size; }
-  uint pack_length_from_metadata(uint field_metadata);
+  uint pack_length_from_metadata(uint field_metadata) const;
   uint row_pack_length() const { return pack_length(); }
-  bool compatible_field_size(uint field_metadata, Relay_log_info *rli,
-                             uint16 mflags, int *order_var);
+  bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
+                             uint16 mflags, int *order_var) const;
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
@@ -2971,7 +2972,7 @@ public:
     return my_timestamp_binary_length(dec);
   }
   uint row_pack_length() const { return pack_length(); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field_timestampf::pack_length_from_metadata");
     uint tmp= my_timestamp_binary_length(field_metadata);
@@ -3284,7 +3285,7 @@ public:
     return my_time_binary_length(dec);
   }
   uint row_pack_length() const { return pack_length(); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field_timef::pack_length_from_metadata");
     uint tmp= my_time_binary_length(field_metadata);
@@ -3451,7 +3452,7 @@ public:
     return my_datetime_binary_length(dec);
   }
   uint row_pack_length() const { return pack_length(); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field_datetimef::pack_length_from_metadata");
     uint tmp= my_datetime_binary_length(field_metadata);
@@ -3581,15 +3582,15 @@ public:
                       uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end,uint param_data);
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_PRINT("debug", ("field_metadata: 0x%04x", field_metadata));
     if (field_metadata == 0)
       return row_pack_length();
     return (((field_metadata >> 4) & 0x300) ^ 0x300) + (field_metadata & 0x00ff);
   }
-  bool compatible_field_size(uint field_metadata, Relay_log_info *rli,
-                             uint16 mflags, int *order_var);
+  bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
+                             uint16 mflags, int *order_var) const;
   uint row_pack_length() const { return field_length; }
   int pack_cmp(const uchar *a,const uchar *b,uint key_length,
                bool insert_or_update);
@@ -4260,7 +4261,7 @@ public:
   void store_type(ulonglong value);
   void sql_type(String &str) const;
   uint size_of() const { return sizeof(*this); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   { return (field_metadata & 0x00ff); }
   uint row_pack_length() const { return pack_length(); }
   virtual bool zero_pack() const { return 0; }
@@ -4454,11 +4455,11 @@ public:
   { get_key_image(buff, length, itRAW); }
   uint32 pack_length() const { return (uint32) (field_length + 7) / 8; }
   uint32 pack_length_in_rec() const { return bytes_in_rec; }
-  uint pack_length_from_metadata(uint field_metadata);
+  uint pack_length_from_metadata(uint field_metadata) const;
   uint row_pack_length() const
   { return (bytes_in_rec + ((bit_len > 0) ? 1 : 0)); }
-  bool compatible_field_size(uint metadata, Relay_log_info *rli,
-                             uint16 mflags, int *order_var);
+  bool compatible_field_size(uint metadata, const Relay_log_info *rli,
+                             uint16 mflags, int *order_var) const;
   void sql_type(String &str) const;
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,

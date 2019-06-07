@@ -1824,9 +1824,9 @@ bool Field::send_binary(Protocol *protocol)
    master's field size, @c false otherwise.
 */
 bool Field::compatible_field_size(uint field_metadata,
-                                  Relay_log_info *rli_arg __attribute__((unused)),
+                                  const Relay_log_info *rli_arg __attribute__((unused)),
                                   uint16 mflags __attribute__((unused)),
-                                  int *order_var)
+                                  int *order_var) const
 {
   uint const source_size= pack_length_from_metadata(field_metadata);
   uint const destination_size= row_pack_length();
@@ -3469,7 +3469,7 @@ int Field_new_decimal::save_field_metadata(uchar *metadata_ptr)
 
    @returns The size of the field based on the field metadata.
 */
-uint Field_new_decimal::pack_length_from_metadata(uint field_metadata)
+uint Field_new_decimal::pack_length_from_metadata(uint field_metadata) const
 {
   uint const source_precision= (field_metadata >> 8U) & 0x00ff;
   uint const source_decimal= field_metadata & 0x00ff; 
@@ -3480,9 +3480,9 @@ uint Field_new_decimal::pack_length_from_metadata(uint field_metadata)
 
 
 bool Field_new_decimal::compatible_field_size(uint field_metadata,
-                                              Relay_log_info * __attribute__((unused)),
+                                              const Relay_log_info * __attribute__((unused)),
                                               uint16 mflags __attribute__((unused)),
-                                              int *order_var)
+                                              int *order_var) const
 {
   uint const source_precision= (field_metadata >> 8U) & 0x00ff;
   uint const source_decimal= field_metadata & 0x00ff; 
@@ -7247,7 +7247,7 @@ my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
 
 
 struct Check_field_param {
-  Field *field;
+  const Field *field;
 };
 
 #ifdef HAVE_REPLICATION
@@ -7266,9 +7266,9 @@ check_field_for_37426(const void *param_arg)
 
 bool
 Field_string::compatible_field_size(uint field_metadata,
-                                    Relay_log_info *rli_arg,
+                                    const Relay_log_info *rli_arg,
                                     uint16 mflags __attribute__((unused)),
-                                    int *order_var)
+                                    int *order_var) const
 {
 #ifdef HAVE_REPLICATION
   const Check_field_param check_param = { this };
@@ -9991,7 +9991,7 @@ int Field_bit::save_field_metadata(uchar *metadata_ptr)
 
    @returns The size of the field based on the field metadata.
 */
-uint Field_bit::pack_length_from_metadata(uint field_metadata)
+uint Field_bit::pack_length_from_metadata(uint field_metadata) const
 {
   uint const from_len= (field_metadata >> 8U) & 0x00ff;
   uint const from_bit_len= field_metadata & 0x00ff;
@@ -10002,9 +10002,9 @@ uint Field_bit::pack_length_from_metadata(uint field_metadata)
 
 bool
 Field_bit::compatible_field_size(uint field_metadata,
-                                 Relay_log_info * __attribute__((unused)),
+                                 const Relay_log_info * __attribute__((unused)),
                                  uint16 mflags,
-                                 int *order_var)
+                                 int *order_var) const
 {
   DBUG_ENTER("Field_bit::compatible_field_size");
   DBUG_ASSERT((field_metadata >> 16) == 0);
