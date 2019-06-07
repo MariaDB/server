@@ -20,7 +20,7 @@
 ################################################################################
 #
 # This perl script checks for availability of the Perl modules DBI and
-# DBD::mysql using the "current" perl interpreter.
+# DBD::MariaDB using the "current" perl interpreter.
 #
 # Useful for test environment checking before testing executable perl scripts
 # in the MySQL Server distribution.
@@ -30,8 +30,8 @@
 #       support running perl scripts with such a shebang without specifying the
 #       perl interpreter on the command line. Such a script is mysqlhotcopy.
 #
-#       When run as "checkDBI_DBD-mysql.pl" the shebang line will be evaluated
-#       and used. When run as "perl checkDBI_DBD-mysql.pl" the shebang line is
+#       When run as "checkDBI_DBD-MariaDB.pl" the shebang line will be evaluated
+#       and used. When run as "perl checkDBI_DBD-MariaDB.pl" the shebang line is
 #       not used.
 #
 # NOTE: This script will create a temporary file in MTR's tmp dir.
@@ -43,13 +43,13 @@
 #
 #       Example:
 #
-#         --let $perlChecker= $MYSQLTEST_VARDIR/std_data/checkDBI_DBD-mysql.pl
-#         --let $resultFile= $MYSQL_TMP_DIR/dbidbd-mysql.txt
+#         --let $perlChecker= $MYSQLTEST_VARDIR/std_data/checkDBI_DBD-MariaDB.pl
+#         --let $resultFile= $MYSQL_TMP_DIR/dbiDBD-MariaDB.txt
 #         --chmod 0755 $perlChecker
 #         --exec $perlChecker
 #         --source $resultFile
 #         if (!$dbidbd) {
-#             --skip Test needs Perl modules DBI and DBD::mysql
+#             --skip Test needs Perl modules DBI and DBD::MariaDB
 #         } 
 #
 #       The calling script is also responsible for cleaning up after use:
@@ -59,7 +59,7 @@
 # Windows notes: 
 #   - shebangs may work differently - call this script with "perl " in front.
 #
-# See mysql-test/include/have_dbi_dbd-mysql.inc for example use of this script.
+# See mysql-test/include/have_dbi_dbd-mariadb.inc for example use of this script.
 # This script should be executable for the user running MTR.
 #
 ################################################################################
@@ -69,13 +69,13 @@ BEGIN {
     # We need to catch "Can't locate" as well as "Can't load" errors.
     eval{
         $FOUND_DBI=0;
-        $FOUND_DBD_MYSQL=0;
+        $FOUND_DBD_MARIADB=0;
 
         # Check for DBI module:
         $FOUND_DBI=1 if require DBI;
 
-        # Check for DBD::mysql module
-        $FOUND_DBD_MYSQL=1 if require DBD::mysql;
+        # Check for DBD::MariaDB module
+        $FOUND_DBD_MARIADB=1 if require DBD::MariaDB;
     };
 };
 
@@ -83,11 +83,11 @@ BEGIN {
 # The file must be created whether we write to it or not, otherwise mysql-test 
 # will complain if trying to source it. 
 # An empty file indicates failure to load modules.
-open(FILE, ">", $ENV{'MYSQL_TMP_DIR'}.'/dbidbd-mysql.txt');
+open(FILE, ">", $ENV{'MYSQL_TMP_DIR'}.'/dbiDBD-MariaDB.txt');
 
-if ($FOUND_DBI && $FOUND_DBD_MYSQL) {
+if ($FOUND_DBI && $FOUND_DBD_MARIADB) {
     # write a mysql-test command setting a variable to indicate success
-    print(FILE 'let $dbidbd= FOUND_DBI_DBD-MYSQL;'."\n");
+    print(FILE 'let $dbidbd= FOUND_DBI_DBD-MARIADB;'."\n");
 }
 
 # close the file.

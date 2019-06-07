@@ -154,7 +154,7 @@ shell> chown -R mysql data
        script itself and at
        https://mariadb.com/kb/en/starting-and-stopping-mariadb-automatically.
    10. You can set up new accounts using the bin/mysql_setpermission
-       script if you install the DBI and DBD::mysql Perl modules. See
+       script if you install the DBI and DBD::MariaDB Perl modules. See
        Section 4.6.14, "mysql_setpermission --- Interactively Set
        Permissions in Grant Tables." For Perl module installation
        instructions, see Section 2.15, "Perl Installation Notes."

@@ -33,8 +33,8 @@ my $moreflds_prefix = get_conf("moreflds_prefix", "column0123456789_");
 my $keytype = get_conf("keytype", "varchar(32)");
 my $file = get_conf("file", undef);
 
-my $dsn = "DBI:mysql:database=;host=$host;port=$mysqlport"
-	. ";mysql_server_prepare=$ssps";
+my $dsn = "DBI:MariaDB:database=;host=$host;port=$mysqlport"
+	. ";mariadb_server_prepare=$ssps";
 my $dbh = DBI->connect($dsn, $mysqluser, $mysqlpass, { RaiseError => 1 });
 my $hsargs = { 'host' => $host, 'port' => $hsport };
 my $cli = new Net::HandlerSocket($hsargs);

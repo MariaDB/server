@@ -245,15 +245,15 @@ sub connect_to_MySQL
 
    if($mycnf{'socket'} && -S $mycnf{'socket'})
    {
-      $dsn = "DBI:mysql:mysql_socket=$mycnf{socket}";
+      $dsn = "DBI:MariaDB:mariadb_socket=$mycnf{socket}";
    }
    elsif($mycnf{'host'})
    {
-      $dsn = "DBI:mysql:host=$mycnf{host}" . ($mycnf{port} ? ";port=$mycnf{port}" : "");
+      $dsn = "DBI:MariaDB:host=$mycnf{host}" . ($mycnf{port} ? ";port=$mycnf{port}" : "");
    }
    else
    {
-      $dsn = "DBI:mysql:host=localhost";
+      $dsn = "DBI:MariaDB:host=localhost";
    }
 
    print "connect_to_MySQL: DBI DSN: $dsn\n" if $op{debug};

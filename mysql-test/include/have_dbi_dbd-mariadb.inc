@@ -1,7 +1,7 @@
 #
 # Originally created by John Embretsen, 2011-01-26.
 #
-# Checks for the existence of Perl modules DBI and DBD::mysql as seen from the
+# Checks for the existence of Perl modules DBI and DBD::MariaDB as seen from the
 # perl installation used by "external" executable perl scripts, i.e. scripts
 # that are executed as standalone scripts interpreted by the perl installation
 # specified by the "shebang" line in the top of these scripts.
@@ -30,7 +30,7 @@
 # We jump through some hoops since there is no direct way to check if an 
 # external command went OK or not from a mysql-test file:
 #
-#   - In theory, we could do as simple as "exec perl -MDBI -MDBD::mysql -e 1",
+#   - In theory, we could do as simple as "exec perl -MDBI -MDBD::MariaDB -e 1",
 #     however we cannot check the result (exit code) from within a test script. 
 #     Also, this may not yield the same result as other uses of perl due to the 
 #     shebang issue mentioned above.
@@ -55,8 +55,8 @@
 # Instead, we call a separate helper script which checks for the modules in its
 # own environment. We call it without "perl" in front.
 
---let $perlChecker= $MYSQLTEST_VARDIR/std_data/checkDBI_DBD-mysql.pl
---let $resultFile= $MYSQL_TMP_DIR/dbidbd-mysql.txt
+--let $perlChecker= $MYSQLTEST_VARDIR/std_data/checkDBI_DBD-MariaDB.pl
+--let $resultFile= $MYSQL_TMP_DIR/dbiDBD-MariaDB.txt
 
 --exec perl $perlChecker
 
@@ -64,7 +64,7 @@
 --source $resultFile
 
 if (!$dbidbd) {
-    --skip Test needs Perl modules DBI and DBD::mysql
+    --skip Test needs Perl modules DBI and DBD::MariaDB
 } 
 
 # Clean up

@@ -81,7 +81,7 @@ if ($opt_time == 0 && $opt_insert == 0)
 }
 
 $start_time=new Benchmark;
-$dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+$dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		    $opt_user, $opt_password,
 		  { PrintError => 0}) || die $DBI::errstr;
 if (!$opt_skip_create)
@@ -212,7 +212,7 @@ while (($pid=wait()) != -1)
 if (!$opt_skip_drop && !$errors)
 {
   my $table_def;
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -257,7 +257,7 @@ sub test_insert
     $from_table=0; $to_table=$numtables-1;
   }
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -286,7 +286,7 @@ sub test_select
 {
   my ($dbh, $i, $j, $count, $loop);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -323,7 +323,7 @@ sub test_select_count
 {
   my ($dbh, $i, $j, $count, $loop);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -353,7 +353,7 @@ sub test_join
 {
   my ($dbh, $i, $j, $count, $loop);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -391,7 +391,7 @@ sub test_join_count
 {
   my ($dbh, $i, $j, $count, $loop);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -446,7 +446,7 @@ sub test_delete
 
   $table_count=2;
   $count=0;
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -480,7 +480,7 @@ sub test_delete
 sub test_update
 {
   my ($dbh, $i, $j, $row_counts, $count_query, $count, $loop);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -523,7 +523,7 @@ sub test_update
 sub test_check
 {
   my ($dbh, $row, $i, $j, $type, $table);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -560,7 +560,7 @@ sub test_check
 sub test_repair
 {
   my ($dbh, $row, $i, $type, $table);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -594,7 +594,7 @@ sub test_flush
 {
   my ($dbh,$count,$tables);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -621,7 +621,7 @@ sub test_resize
 {
   my ($dbh, $key_buffer_size);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -648,7 +648,7 @@ sub test_database
 {
   my ($database) = @_;
   my ($dbh, $row, $i, $type, $tables);
-  $dbh = DBI->connect("DBI:mysql:$database:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$database:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -681,7 +681,7 @@ sub test_database
 sub test_alter
 {
   my ($dbh, $row, $i, $type, $table);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -705,7 +705,7 @@ sub test_alter
 sub signal_abort
 {
   my ($dbh);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 

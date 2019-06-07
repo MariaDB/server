@@ -57,10 +57,10 @@ if ($opt_port)
 }
 if (length($opt_socket))
 {
-  $connect_opt.=";mysql_socket=$opt_socket";
+  $connect_opt.=";mariadb_socket=$opt_socket";
 }
 
-$dbh = DBI->connect("DBI:mysql:$opt_database:${opt_host}$connect_opt",
+$dbh = DBI->connect("DBI:MariaDB:$opt_database:${opt_host}$connect_opt",
 		    $opt_user,
 		    $opt_password,
 		    { PrintError => 0})

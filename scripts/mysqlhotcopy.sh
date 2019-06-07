@@ -192,12 +192,12 @@ $opt{allowold} = 1 if $opt{keepold};
 my $dsn;
 $dsn  = ";host=" . (defined($opt{host}) ? $opt{host} : "localhost");
 $dsn .= ";port=$opt{port}" if $opt{port};
-$dsn .= ";mysql_socket=$opt{socket}" if $opt{socket};
+$dsn .= ";mariadb_socket=$opt{socket}" if $opt{socket};
 
-# use mysql_read_default_group=mysqlhotcopy so that [client] and
+# use mariadb_read_default_group=mysqlhotcopy so that [client] and
 # [mysqlhotcopy] groups will be read from standard options files.
 
-my $dbh = DBI->connect("dbi:mysql:$dsn;mysql_read_default_group=mysqlhotcopy",
+my $dbh = DBI->connect("DBI:MariaDB:$dsn;mariadb_read_default_group=mysqlhotcopy",
                         $opt{user}, $opt{password},
 {
     RaiseError => 1,
@@ -796,7 +796,7 @@ sub record_log_pos {
 	
 	my $row_hash = get_row_hash( $dbh, "show slave status" );
 	my ($master_host, $log_file, $log_pos ); 
-	if ( $dbh->{mysql_serverinfo} =~ /^3\.23/ ) {
+	if ( $dbh->{mariadb_serverinfo} =~ /^3\.23/ ) {
 	    ($master_host, $log_file, $log_pos ) 
 	      = @{$row_hash}{ qw / Master_Host Log_File Pos / };
 	} else {

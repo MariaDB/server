@@ -184,7 +184,7 @@ Enter; otherwise, you will need to change to innotop's directory and type \*(L"p
 innotop\*(R".
 .PP
 With no options specified, innotop will attempt to connect to a MySQL server on
-localhost using mysql_read_default_group=client for other connection
+localhost using mariadb_read_default_group=client for other connection
 parameters.  If you need to specify a different username and password, use the
 \&\-u and \-p options, respectively.  To monitor a MySQL database on another
 host, use the \-h option.
@@ -626,16 +626,16 @@ A \s-1DSN\s0 is a Data Source Name, which is the initial argument passed to the 
 module for connecting to a server.  It is usually of the form
 .Sp
 .Vb 1
-\& DBI:mysql:;mysql_read_default_group=mysql;host=HOSTNAME
+\& DBI:MariaDB:;mariadb_read_default_group=mysql;host=HOSTNAME
 .Ve
 .Sp
-Since this \s-1DSN\s0 is passed to the DBD::mysql driver, you should read the driver's
-documentation at \*(L"/search.cpan.org/dist/DBD\-mysql/lib/DBD/mysql.pm\*(R"\*(L" in \*(R"http: for
+Since this \s-1DSN\s0 is passed to the DBD::MariaDB driver, you should read the driver's
+documentation at <https://metacpan.org/pod/DBD::MariaDB> for
 the exact details on all the options you can pass the driver in the \s-1DSN. \s0 You
 can read more about \s-1DBI\s0 at <http://dbi.perl.org/docs/>, and especially at
 <http://search.cpan.org/~timb/DBI/DBI.pm>.
 .Sp
-The mysql_read_default_group=mysql option lets the \s-1DBD\s0 driver read your MySQL
+The mariadb_read_default_group=mysql option lets the \s-1DBD\s0 driver read your MySQL
 options files, such as ~/.my.cnf on UNIX-ish systems.  You can use this to avoid
 specifying a username or password for the connection.
 .IP "InnoDB Deadlock Table" 4
@@ -2095,7 +2095,7 @@ You need appropriate privileges to create and drop the deadlock tables if needed
 .SH "SYSTEM REQUIREMENTS"
 .IX Header "SYSTEM REQUIREMENTS"
 You need Perl to run innotop, of course.  You also need a few Perl modules: \s-1DBI,\s0
-DBD::mysql,  Term::ReadKey, and Time::HiRes.  These should be included with most
+DBD::MariaDB,  Term::ReadKey, and Time::HiRes.  These should be included with most
 Perl distributions, but in case they are not, I recommend using versions
 distributed with your operating system or Perl distribution, not from \s-1CPAN.\s0
 Term::ReadKey in particular has been known to cause problems if installed from

@@ -60,7 +60,7 @@ unlink($tmp_table);
 # clear grant tables
 #
 
-$dbh = DBI->connect("DBI:mysql:mysql:$opt_host",
+$dbh = DBI->connect("DBI:MariaDB:mysql:$opt_host",
 		    $opt_root_user,$opt_password,
 		    { PrintError => 0}) || die "Can't connect to mysql server with user '$opt_root_user': $DBI::errstr\n";
 
@@ -653,7 +653,7 @@ sub user_connect
   print "Connecting $opt_user\n" if ($opt_verbose);
   $user_dbh->disconnect if (defined($user_dbh));
 
-  $user_dbh=DBI->connect("DBI:mysql:$opt_database:$opt_host",$opt_user,
+  $user_dbh=DBI->connect("DBI:MariaDB:$opt_database:$opt_host",$opt_user,
 			 $password, { PrintError => 0});
   if (!$user_dbh)
   {
