@@ -7291,5 +7291,60 @@ pk	i	c	pk	i	c
 1	10	foo	1	10	foo
 DROP TABLE t;
 # End of 10.2 tests
+#
+# MDEV-19714: JOIN::pseudo_bits_cond is not visible in EXPLAIN FORMAT=JSON
+#
+CREATE TABLE t1 ( a INT );
+INSERT INTO t1 VALUES (1),(5);
+CREATE TABLE t2 ( b INT ) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 ( c INT );
+INSERT INTO t3 VALUES (4),(5);
+SET @tmp19714=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=off';
+explain format=json
+SELECT ( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "pseudo_bits_condition": "1 = t1.a or <in_optimizer>(1,<exists>(subquery#3))",
+          "table": {
+            "table_name": "t2",
+            "access_type": "system",
+            "rows": 1,
+            "filtered": 100
+          },
+          "subqueries": [
+            {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100,
+                  "attached_condition": "1 = t3.c"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+SET optimizer_switch=@tmp19714;
+drop table t1,t2,t3;
 set @optimizer_switch_for_subselect_test=null;
 set @join_cache_level_for_subselect_test=NULL;
