@@ -448,6 +448,7 @@ static MYSQL *db_connect(char *host, char *database,
 		  opt_ssl_capath, opt_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, (void *)opt_tls_version);
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);

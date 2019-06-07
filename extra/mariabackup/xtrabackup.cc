@@ -199,6 +199,7 @@ static char*	log_ignored_opt;
 
 
 extern my_bool opt_use_ssl;
+extern const char *opt_tls_version;
 my_bool opt_ssl_verify_server_cert;
 my_bool opt_extended_validation;
 my_bool opt_encrypted_backup;
@@ -829,6 +830,7 @@ enum options_xtrabackup
   OPT_BACKUP_ROCKSDB,
   OPT_XTRA_CHECK_PRIVILEGES
 };
+
 
 struct my_option xb_client_options[] =
 {
