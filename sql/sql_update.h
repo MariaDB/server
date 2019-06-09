@@ -26,12 +26,14 @@ typedef class st_select_lex SELECT_LEX;
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
 
 bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
+                          uint wild_num, List<Item> &field_list,
                           Item **conds, uint order_num, ORDER *order);
 bool check_unique_table(THD *thd, TABLE_LIST *table_list);
 int mysql_update(THD *thd,TABLE_LIST *tables,List<Item> &fields,
 		 List<Item> &values,COND *conds,
 		 uint order_num, ORDER *order, ha_rows limit,
-                 bool ignore, ha_rows *found_return, ha_rows *updated_return);
+                 bool ignore, ha_rows *found_return, ha_rows *updated_return,
+                 select_result *result);
 bool mysql_multi_update(THD *thd, TABLE_LIST *table_list,
                         List<Item> *fields, List<Item> *values,
                         COND *conds, ulonglong options,

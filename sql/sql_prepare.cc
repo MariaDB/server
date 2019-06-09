@@ -1401,7 +1401,8 @@ static int mysql_test_update(Prepared_statement *stmt,
                    table_list->grant.want_privilege);
 #endif
 
-  if (mysql_prepare_update(thd, table_list, &select->where,
+  if (mysql_prepare_update(thd, table_list, select->with_wild,
+                           select->ret_item_list, &select->where,
                            select->order_list.elements,
                            select->order_list.first))
     goto error;

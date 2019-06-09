@@ -7449,13 +7449,20 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   Item *item;
   List_iterator<Item> it(fields);
   Query_arena *arena, backup;
+  /*
+   Will set TRUE if we're expanding '*' in ret_item_list
+   */
+  bool is_returning = false;
   DBUG_ENTER("setup_wild");
 
   /*
     Don't use arena if we are not in prepared statements or stored procedures
     For PS/SP we have to use arena to remember the changes
   */
-  arena= thd->activate_stmt_arena_if_needed(&backup);
+  if ((arena= thd->activate_stmt_arena_if_needed(&backup)) &&
+      thd->lex->current_select->ret_item_list == fields){
+    is_returning = true;
+  }
 
   thd->lex->current_select->cur_pos_in_select_list= 0;
   while (wild_num && (item= it++))
@@ -7515,7 +7522,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
       platforms). memcpy() expects that source and destination areas do not
       overlap. That problem was detected by valgrind. 
     */
-    if (&select_lex->item_list != &fields)
+    if (!is_returning && &select_lex->item_list != &fields)
       select_lex->item_list= fields;
 
     thd->restore_active_arena(arena, &backup);

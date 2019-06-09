@@ -345,7 +345,8 @@ int mysql_update(THD *thd,
                  uint order_num, ORDER *order,
                  ha_rows limit,
                  bool ignore,
-                 ha_rows *found_return, ha_rows *updated_return)
+                 ha_rows *found_return, ha_rows *updated_return,
+                 select_result *result)
 {
   bool		using_limit= limit != HA_POS_ERROR;
   bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
@@ -368,6 +369,7 @@ int mysql_update(THD *thd,
   SORT_INFO     *file_sort= 0;
   READ_RECORD	info;
   SELECT_LEX    *select_lex= thd->lex->first_select_lex();
+  bool is_returning = !select_lex->ret_item_list.is_empty();
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
@@ -439,9 +441,12 @@ int mysql_update(THD *thd,
   want_privilege= (table_list->view ? UPDATE_ACL :
                    table_list->grant.want_privilege);
 #endif
-  if (mysql_prepare_update(thd, table_list, &conds, order_num, order))
+  if (mysql_prepare_update(thd, table_list, select_lex->with_wild,
+                           select_lex->ret_item_list, &conds, order_num, order))
     DBUG_RETURN(1);
 
+  if (is_returning)
+    (void) result->prepare(select_lex->ret_item_list, NULL);
   if (table_list->has_period())
   {
     if (!table_list->period_conditions.start.item->const_item()
@@ -701,6 +706,7 @@ int mysql_update(THD *thd,
     - Update fields include a unique timestamp field
       - The storage engine may not be able to avoid false duplicate key
         errors.  This condition is checked in direct_update_rows_init().
+    - RETURNING
 
     Direct update does not require a WHERE clause
 
@@ -710,7 +716,8 @@ int mysql_update(THD *thd,
       !has_triggers && !binlog_is_row &&
       !query_plan.using_io_buffer && !ignore &&
       !table->check_virtual_columns_marked_for_read() &&
-      !table->check_virtual_columns_marked_for_write())
+      !table->check_virtual_columns_marked_for_write() &&
+      !is_returning)
   {
     DBUG_PRINT("info", ("Trying direct update"));
     if (select && select->cond &&
@@ -928,6 +935,16 @@ update_begin:
       !table->prepare_triggers_for_update_stmt_or_event())
     will_batch= !table->file->start_bulk_update();
 
+  if (is_returning && will_batch)
+    is_returning = false;
+
+  if (is_returning)
+  {
+    if (unlikely(result->send_result_set_metadata(select_lex->ret_item_list,
+                                                  Protocol::SEND_NUM_ROWS |
+                                                  Protocol::SEND_EOF)))
+      error= 1;
+  }
   /*
     Assure that we can use position()
     if we need to create an error message.
@@ -1061,6 +1078,11 @@ update_begin:
               rows_inserted++;
           }
           if (likely(!error))
+            if (is_returning && result->send_data(select_lex->ret_item_list) < 0)
+            {
+              error=1;
+              break;
+            }
             updated++;
         }
 
@@ -1287,7 +1309,10 @@ update_end:
                   ER_THD(thd, ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING),
                   (ulong) found, (ulong) updated, (ulong) rows_inserted,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
-    my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
+    if (is_returning)
+      result->send_eof();
+    else
+      my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
     DBUG_PRINT("info",("%ld records updated", (long) updated));
   }
@@ -1302,7 +1327,7 @@ update_end:
   *updated_return= updated;
   
   if (unlikely(thd->lex->analyze_stmt))
-    goto emit_explain_and_leave;
+    goto send_nothing_and_leave;
 
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
@@ -1324,12 +1349,15 @@ produce_explain_and_leave:
   if (unlikely(!query_plan.save_explain_update_data(query_plan.mem_root, thd)))
     goto err;
 
-emit_explain_and_leave:
-  int err2= thd->lex->explain->send_explain(thd);
-
+send_nothing_and_leave:
+  /*
+    ANALYZE UPDATE jumps here. We can't send explain right here, because
+    we might be using ANALYZE UPDATE ...RETURNING, in which case we have
+    Protocol_discard active.
+  */
   delete select;
   free_underlaid_joins(thd, select_lex);
-  DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
+  DBUG_RETURN((thd->is_error()) ? 1 : 0);
 }
 
 /*
@@ -1339,6 +1367,8 @@ emit_explain_and_leave:
     mysql_prepare_update()
     thd			- thread handler
     table_list		- global/local table list
+    wild_num            - count of used (*) in RETURNING
+    ret_item_list       - list of items used in RETURNING
     conds		- conditions
     order_num		- number of ORDER BY list entries
     order		- ORDER BY clause list
@@ -1348,6 +1378,7 @@ emit_explain_and_leave:
     TRUE  error
 */
 bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
+             uint wild_num, List<Item> &ret_item_list,
 			 Item **conds, uint order_num, ORDER *order)
 {
   Item *fake_conds= 0;
@@ -1391,6 +1422,11 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);
 
+  if ((wild_num && setup_wild(thd, table_list, ret_item_list, NULL, wild_num,
+                              &select_lex->hidden_bit_fields)) ||
+      setup_fields(thd, Ref_ptr_array(), ret_item_list, MARK_COLUMNS_READ,
+                   NULL, NULL, 0))
+    DBUG_RETURN(TRUE);
 
   select_lex->fix_prepare_information(thd, conds, &fake_conds);
   DBUG_RETURN(FALSE);

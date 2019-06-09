@@ -1,0 +1,175 @@
+#
+#  Tests for UPDATE <table> ... RETURNING <expr>,...
+#
+
+CREATE TABLE t1 (a int, b varchar(32));
+INSERT INTO t1 VALUES
+  (7,'ggggggg'), (1,'a'), (3,'ccc'),
+  (4,'dddd'), (1,'A'), (2,'BB'), (4,'DDDD'),
+  (5,'EEEEE'), (7,'GGGGGGG'), (2,'bb');
+
+CREATE TABLE t1c SELECT * FROM t1;
+
+CREATE TABLE t2 (c int);
+INSERT INTO t2 VALUES 
+  (4), (5), (7), (1);
+
+CREATE TABLE t2c SELECT * FROM t2;
+
+CREATE VIEW v1 AS SELECT a, UPPER(b) FROM t1;
+
+# UPDATE <table> ...  RETURNING *
+ 
+UPDATE t1 SET a = 1337 WHERE a=2 RETURNING * ;
+SELECT * FROM t1;
+
+
+# UPDATE <table> ...  RETURNING <col>
+
+UPDATE t1 SET a = 1338 WHERE a=1337 RETURNING b;
+
+SELECT * FROM t1;
+
+# UPDATE <table> ...  RETURNING <col>
+
+UPDATE t1 SET b = "AAA" WHERE a=1338 RETURNING b;
+
+SELECT * FROM t1;
+
+# UPDATE <table> ...  RETURNING <not existing col>
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET b = "BBBB" WHERE a=1338 RETURNING c;
+
+# UPDATE <table> ...  RETURNING <col>, <expr>
+
+UPDATE t1 SET b = "AaAbbB1" WHERE a=1 RETURNING a, UPPER(b), 1338-1;
+SELECT * FROM t1;
+
+# UPDATE <table> ...  RETURNING <col> with no rows to be updated
+
+UPDATE t1 SET a = 13 WHERE a < 0 RETURNING b;
+SELECT * FROM t1;
+
+# UPDATE <table> ... RETURNING <expr with aggr function>
+
+--error ER_INVALID_GROUP_FUNC_USE
+UPDATE t1 SET b = "BBA" WHERE a=1 RETURNING MAX(a);
+
+DELETE FROM t1;
+INSERT INTO t1 SELECT * FROM t1c;
+
+# UPDATE <table> ...  RETURNING <expr with subquery>
+
+UPDATE t1 SET b = "LessThanFive" WHERE a < 5 RETURNING a, (SELECT MIN(c) FROM t2 WHERE c=a+1);
+SELECT * FROM t1;
+
+DELETE FROM t1;
+INSERT INTO t1 SELECT * FROM t1c;
+
+# UPDATE <table> ...  RETURNING <expr with subquery>
+
+UPDATE t2 SET c = 7 WHERE c < 5
+  RETURNING (SELECT GROUP_CONCAT(b) FROM t1 GROUP BY a HAVING a=c);
+SELECT * FROM t2;
+
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+
+# UPDATE <table> ... RETURNING <expr with function invocation>
+
+DELIMITER |;
+
+CREATE FUNCTION f(arg INT) RETURNS TEXT
+BEGIN
+  RETURN (SELECT GROUP_CONCAT(b) FROM t1 WHERE a=arg);
+END|
+
+DELIMITER ;|
+
+UPDATE t2 SET c = 7 WHERE c < 5 RETURNING f(c);
+SELECT * FROM t2;
+
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+
+DROP FUNCTION f;
+
+# UPDATE <view> ...  RETURNING *
+
+UPDATE v1 SET a = a+1 WHERE a < 5 RETURNING *;
+SELECT * FROM t1;
+ 
+DELETE FROM t1;
+INSERT INTO t1 SELECT * FROM t1c;
+
+# UPDATE <view> ...  RETURNING <expr>
+
+CREATE VIEW v11(a,c) AS SELECT a, COUNT(b) FROM t1 GROUP BY a;
+-- error ER_NON_UPDATABLE_TABLE
+UPDATE v11 SET a = a + 1 WHERE a < 5 RETURNING * ;
+DROP VIEW v11;
+
+# prepared UPDATE <table> ... RETURNING <expr>
+
+PREPARE stmt FROM 
+"UPDATE t1 SET a = 22 WHERE a=2 ORDER BY b LIMIT 1 RETURNING *, a, UPPER(b)";
+EXECUTE stmt;
+SELECT * FROM t1;
+EXECUTE stmt;
+SELECT * FROM t1;
+EXECUTE stmt;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+
+
+# ANALYZE UPDATE ... RETURNING
+
+ANALYZE UPDATE t2 SET c = 10 WHERE c < 7
+  RETURNING (SELECT GROUP_CONCAT(b) FROM t1 GROUP BY a HAVING a=c);
+SELECT * FROM t2;
+
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+
+# EXPLAIN UPDATE ... RETURNING
+
+EXPLAIN UPDATE t2 SET c = 10 WHERE c < 7
+  RETURNING (SELECT GROUP_CONCAT(b) FROM t1 GROUP BY a HAVING a=c);
+SELECT * FROM t2;
+
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1,t2;
+DROP TABLE t1c,t2c;
+
+# UPDATE ... RETURNING subquery with more than 1 row
+
+CREATE TABLE t1 (i1 int);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (i2 int);
+INSERT INTO t2 VALUES (1),(2);
+
+--error ER_SUBQUERY_NO_1_ROW
+UPDATE t1 set i1 = 3 ORDER BY i1 RETURNING ( SELECT i2 FROM t2 );
+
+DROP TABLE t1,t2;
+
+# UPDATE IGNORE ... RETURNING with ignored duplicate key error
+
+CREATE TABLE t3 (id int, val varchar(32), PRIMARY KEY (id));
+INSERT INTO t3 VALUES (1, 'a');
+INSERT INTO t3 VALUES (3, 'b');
+INSERT INTO t3 VALUES (4, 'c');
+INSERT INTO t3 VALUES (5, 'd');
+UPDATE IGNORE t3 SET id= id+1 RETURNING id;
+SELECT * FROM t3;
+
+UPDATE IGNORE t3 SET id= 5 RETURNING id;
+UPDATE IGNORE t3 SET id= 5 RETURNING id;
+SELECT * FROM t3;
+
+DROP TABLE t3;

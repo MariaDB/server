@@ -4613,6 +4613,7 @@ end_with_restore_list:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
     ha_rows found= 0, updated= 0;
+    select_result *sel_result= NULL;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
 
@@ -4631,6 +4632,30 @@ end_with_restore_list:
     DBUG_ASSERT(select_lex->offset_limit == 0);
     unit->set_limit(select_lex);
     MYSQL_UPDATE_START(thd->query());
+    Protocol * UNINIT_VAR(save_protocol);
+    bool replaced_protocol= false;
+
+    if (!select_lex->ret_item_list.is_empty())
+    {
+        /* This is UPDATE ... RETURNING.  It will return output to the client */
+      if (thd->lex->analyze_stmt)
+      {
+        /*
+          Actually, it is ANALYZE .. UPDATE .. RETURNING. We need to produce
+          output and then discard it.
+        */
+        sel_result= new (thd->mem_root) select_send_analyze(thd);
+        replaced_protocol= true;
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
+      }
+      else
+      {
+        if (!(sel_result= new (thd->mem_root) select_send(thd)))
+          goto error;
+      }
+    }
+
     res= up_result= mysql_update(thd, all_tables,
                                   select_lex->item_list,
                                   lex->value_list,
@@ -4638,7 +4663,20 @@ end_with_restore_list:
                                   select_lex->order_list.elements,
                                   select_lex->order_list.first,
                                   unit->select_limit_cnt,
-                                  lex->ignore, &found, &updated);
+                                  lex->ignore, &found, &updated,
+                                  sel_result);
+    if (replaced_protocol)
+    {
+      delete thd->protocol;
+      thd->protocol= save_protocol;
+    }
+    if (thd->lex->analyze_stmt || thd->lex->describe)
+    {
+      if (!res)
+        res= thd->lex->explain->send_explain(thd);
+    }
+    delete sel_result
+
     MYSQL_UPDATE_DONE(res, found, updated);
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)

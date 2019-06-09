@@ -13604,6 +13604,11 @@ update:
           }
           opt_where_clause opt_order_clause delete_limit_clause
           {
+            Select->ret_item_list.swap(Select->item_list);
+          }
+          opt_select_expressions
+          {
+            Select->ret_item_list.swap(Select->item_list);
             if ($10)
               Select->order_list= *($10);
             Lex->pop_select(); //main select
