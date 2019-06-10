@@ -1125,6 +1125,10 @@ public:
     */
     return type();
   }
+  virtual en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    return FIELD_NORMAL;
+  }
   /*
     Conversion type for from the source to the current field.
   */
@@ -3647,6 +3651,7 @@ public:
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const;
   bool zero_pack() const { return 0; }
   Copy_func *get_copy_func(const Field *from) const;
   int reset(void)
@@ -3747,6 +3752,10 @@ public:
   }
 
   const Type_handler *type_handler() const { return &type_handler_varchar; }
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    return FIELD_VARCHAR;
+  }
   enum ha_base_keytype key_type() const;
   uint16 key_part_flag() const { return HA_VAR_LENGTH_PART; }
   uint16 key_part_length_bytes() const { return HA_KEY_BLOB_LENGTH; }
@@ -3967,6 +3976,10 @@ public:
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
   uint16 key_part_flag() const { return HA_BLOB_PART; }
   uint16 key_part_length_bytes() const { return HA_KEY_BLOB_LENGTH; }
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    return FIELD_BLOB;
+  }
   Type_std_attributes type_std_attributes() const
   {
     return Type_std_attributes(Field_blob::max_display_length(), decimals(),
@@ -4632,6 +4645,11 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    DBUG_ASSERT(0);
+    return Field::tmp_engine_column_type(use_packed_rows);
+  }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const

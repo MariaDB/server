@@ -7529,6 +7529,12 @@ Field *Field_string::make_new_field(MEM_ROOT *root, TABLE *new_table,
 }
 
 
+en_fieldtype Field_string::tmp_engine_column_type(bool use_packed_rows) const
+{
+  return field_length >= MIN_STRING_LENGTH_TO_PACK_ROWS ? FIELD_SKIP_ENDSPACE :
+                                                          FIELD_NORMAL;
+}
+
 /****************************************************************************
   VARCHAR type
   Data in field->ptr is stored as:

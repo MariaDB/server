@@ -18378,17 +18378,7 @@ bool Create_tmp_table::finalize(THD *thd,
 
     /* Make entry for create table */
     recinfo->length=length;
-    if (field->flags & BLOB_FLAG)
-      recinfo->type= FIELD_BLOB;
-    else if (use_packed_rows &&
-             field->real_type() == MYSQL_TYPE_STRING &&
-	     length >= MIN_STRING_LENGTH_TO_PACK_ROWS)
-      recinfo->type= FIELD_SKIP_ENDSPACE;
-    else if (field->real_type() == MYSQL_TYPE_VARCHAR)
-      recinfo->type= FIELD_VARCHAR;
-    else
-      recinfo->type= FIELD_NORMAL;
-
+    recinfo->type= field->tmp_engine_column_type(use_packed_rows);
     if (!--m_hidden_field_count)
       m_null_count= (m_null_count + 7) & ~7;    // move to next byte
 
