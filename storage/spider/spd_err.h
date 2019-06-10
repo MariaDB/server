@@ -135,6 +135,9 @@
 #define ER_SPIDER_TOO_LONG_STR "%s is too long"
 #define ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_NUM 12719
 #define ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_STR "Internal lock wait timeout when %s"
+#define ER_SPIDER_SAME_SERVER_LINK_NUM 12720
+#define ER_SPIDER_SAME_SERVER_LINK_STR1 "Host:%s and Socket:%s aim self server. Please change spider_same_server_link parameter if this link is required."
+#define ER_SPIDER_SAME_SERVER_LINK_STR2 "Host:%s and Port:%ld aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

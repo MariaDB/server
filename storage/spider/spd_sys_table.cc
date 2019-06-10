@@ -3807,7 +3807,7 @@ void spider_store_rewritten_table_id(
   SPIDER_RWTBL *info
 ) {
   DBUG_ENTER("spider_store_rewritten_table_id");
-  table->field[2]->store(info->table_id);
+  table->field[2]->store(info->table_id, TRUE);
   DBUG_VOID_RETURN;
 }
 
@@ -3816,7 +3816,7 @@ void spider_store_rewritten_partition_id(
   SPIDER_RWTBLTBL *info
 ) {
   DBUG_ENTER("spider_store_rewritten_partition_id");
-  table->field[3]->store(info->partition_id);
+  table->field[3]->store(info->partition_id, TRUE);
   DBUG_VOID_RETURN;
 }
 

@@ -9197,9 +9197,9 @@ int ha_spider::calculate_checksum()
     stats.checksum = 0;
   } else {
     share->stat.checksum_null = FALSE;
-    share->stat.checksum = checksum_val;
+    share->stat.checksum = (ha_checksum) checksum_val;
     stats.checksum_null = FALSE;
-    stats.checksum = checksum_val;
+    stats.checksum = (ha_checksum) checksum_val;
   }
   DBUG_RETURN(0);
 }
@@ -9272,7 +9272,7 @@ ulong ha_spider::table_flags_for_partition()
 {
   DBUG_ENTER("ha_spider::table_flags_for_partition");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(
+  ulong flags =
 #ifdef HA_PT_CALL_AT_ONCE_STORE_LOCK
     HA_PT_CALL_AT_ONCE_STORE_LOCK |
 #endif
@@ -9294,8 +9294,8 @@ ulong ha_spider::table_flags_for_partition()
 #ifdef HA_PT_CALL_AT_ONCE_TOP_TABLE
     HA_PT_CALL_AT_ONCE_TOP_TABLE |
 #endif
-    0
-  );
+    0;
+  DBUG_RETURN(flags);
 }
 
 const char *ha_spider::index_type(

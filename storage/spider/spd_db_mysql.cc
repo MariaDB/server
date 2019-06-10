@@ -57,6 +57,8 @@ extern HASH spider_open_connections;
 extern HASH spider_ipport_conns;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern const char spider_dig_upper[];
+extern const char **spd_mysqld_unix_port;
+extern uint *spd_mysqld_port;
 
 spider_db_mysql_util spider_db_mysql_utility;
 spider_db_mariadb_util spider_db_mariadb_utility;
@@ -2146,6 +2148,30 @@ int spider_db_mbase::connect(
         conn->tgt_default_group);
     }
 
+    if (!spider_param_same_server_link(thd))
+    {
+      if (!strcmp(tgt_host, my_localhost))
+      {
+        if (!strcmp(tgt_socket, *spd_mysqld_unix_port))
+        {
+          my_printf_error(ER_SPIDER_SAME_SERVER_LINK_NUM,
+            ER_SPIDER_SAME_SERVER_LINK_STR1, MYF(0),
+            tgt_host, tgt_socket);
+          DBUG_RETURN(ER_SPIDER_SAME_SERVER_LINK_NUM);
+        }
+      } else if (!strcmp(tgt_host, "127.0.0.1") ||
+        !strcmp(tgt_host, glob_hostname))
+      {
+        if (tgt_port == *spd_mysqld_port)
+        {
+          my_printf_error(ER_SPIDER_SAME_SERVER_LINK_NUM,
+            ER_SPIDER_SAME_SERVER_LINK_STR2, MYF(0),
+            tgt_host, tgt_port);
+          DBUG_RETURN(ER_SPIDER_SAME_SERVER_LINK_NUM);
+        }
+      }
+    }
+
     if (connect_mutex)
       pthread_mutex_lock(&spider_open_conn_mutex);
     /* tgt_db not use */
@@ -2495,8 +2521,8 @@ int spider_db_mbase::print_warnings(
             DBUG_PRINT("info",("spider row[0]=%s", row[0]));
             DBUG_PRINT("info",("spider row[1]=%s", row[1]));
             DBUG_PRINT("info",("spider row[2]=%s", row[2]));
-            longlong res_num =
-              (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
+            int res_num =
+              (int) my_strtoll10(row[1], (char**) NULL, &error_num);
             my_printf_error(res_num, row[2], MYF(0));
             error_num = res_num;
             row = mysql_fetch_row(res);
