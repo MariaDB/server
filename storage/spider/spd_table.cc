@@ -4378,6 +4378,9 @@ SPIDER_SHARE *spider_create_share(
   uchar *tmp_cardinality_upd, *tmp_table_mon_mutex_bitmap;
   char buf[MAX_FIELD_WIDTH], *buf_pos;
   char link_idx_str[SPIDER_SQL_INT_LEN];
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  bool checksum_support = TRUE;
+#endif
   DBUG_ENTER("spider_create_share");
   length = (uint) strlen(table_name);
   bitmap_size = spider_bitmap_size(table_share->fields);
@@ -4536,8 +4539,24 @@ SPIDER_SHARE *spider_create_share(
       {
         goto error_init_dbton;
       }
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+      if (
+        spider_dbton[roop_count].db_access_type == SPIDER_DB_ACCESS_TYPE_SQL &&
+        !share->dbton_share[roop_count]->checksum_support()
+      ) {
+        checksum_support = FALSE;
+      }
+#endif
     }
   }
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  if (checksum_support)
+  {
+    share->additional_table_flags |=
+      HA_HAS_OLD_CHECKSUM |
+      HA_HAS_NEW_CHECKSUM;
+  }
+#endif
   DBUG_RETURN(share);
 
 /*
@@ -5780,14 +5799,7 @@ int spider_free_share(
         thd,
         share->lgtm_tblhnd_share->table_name,
         share->lgtm_tblhnd_share->table_name_length,
-        &share->data_file_length,
-        &share->max_data_file_length,
-        &share->index_file_length,
-        &share->records,
-        &share->mean_rec_length,
-        &share->check_time,
-        &share->create_time,
-        &share->update_time,
+        &share->stat,
         FALSE
       );
     }
@@ -6163,21 +6175,7 @@ void spider_copy_sts_to_pt_share(
   SPIDER_SHARE *share
 ) {
   DBUG_ENTER("spider_copy_sts_to_pt_share");
-  memcpy(&partition_share->data_file_length, &share->data_file_length,
-    sizeof(ulonglong) * 4 + sizeof(ha_rows) +
-    sizeof(ulong) + sizeof(time_t) * 3);
-/*
-  partition_share->data_file_length = share->data_file_length;
-  partition_share->max_data_file_length = share->max_data_file_length;
-  partition_share->index_file_length = share->index_file_length;
-  partition_share->auto_increment_value =
-    share->lgtm_tblhnd_share->auto_increment_value;
-  partition_share->records = share->records;
-  partition_share->mean_rec_length = share->mean_rec_length;
-  partition_share->check_time = share->check_time;
-  partition_share->create_time = share->create_time;
-  partition_share->update_time = share->update_time;
-*/
+  partition_share->stat = share->stat;
   DBUG_VOID_RETURN;
 }
 
@@ -6186,23 +6184,7 @@ void spider_copy_sts_to_share(
   SPIDER_PARTITION_SHARE *partition_share
 ) {
   DBUG_ENTER("spider_copy_sts_to_share");
-  memcpy(&share->data_file_length, &partition_share->data_file_length,
-    sizeof(ulonglong) * 4 + sizeof(ha_rows) +
-    sizeof(ulong) + sizeof(time_t) * 3);
-/*
-  share->data_file_length = partition_share->data_file_length;
-  share->max_data_file_length = partition_share->max_data_file_length;
-  share->index_file_length = partition_share->index_file_length;
-  share->lgtm_tblhnd_share->auto_increment_value =
-    partition_share->auto_increment_value;
-  DBUG_PRINT("info",("spider auto_increment_value=%llu",
-    share->lgtm_tblhnd_share->auto_increment_value));
-  share->records = partition_share->records;
-  share->mean_rec_length = partition_share->mean_rec_length;
-  share->check_time = partition_share->check_time;
-  share->create_time = partition_share->create_time;
-  share->update_time = partition_share->update_time;
-*/
+  share->stat = partition_share->stat;
   DBUG_VOID_RETURN;
 }
 
@@ -7693,10 +7675,8 @@ int spider_get_sts(
   if (
     sts_sync == 0
   ) {
-#endif
     /* get */
     get_type = 1;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   } else if (
     !share->partition_share->sts_init
   ) {
@@ -7735,14 +7715,7 @@ int spider_get_sts(
       current_thd,
       share->lgtm_tblhnd_share->table_name,
       share->lgtm_tblhnd_share->table_name_length,
-      &share->data_file_length,
-      &share->max_data_file_length,
-      &share->index_file_length,
-      &share->records,
-      &share->mean_rec_length,
-      &share->check_time,
-      &share->create_time,
-      &share->update_time,
+      &share->stat,
       FALSE
     );
     if (
@@ -7850,10 +7823,8 @@ int spider_get_crd(
   if (
     crd_sync == 0
   ) {
-#endif
     /* get */
     get_type = 1;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   } else if (
     !share->partition_share->crd_init
   ) {
@@ -9367,7 +9338,9 @@ int spider_discover_table_structure(
   str.q_append(share->table_name.str, share->table_name.length);
   str.q_append(SPIDER_SQL_LCL_NAME_QUOTE_STR, SPIDER_SQL_LCL_NAME_QUOTE_LEN);
   str.q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   str_len = str.length();
+#endif
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_name, table_name_length);

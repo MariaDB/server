@@ -988,20 +988,17 @@ public:
   ) = 0;
   virtual int fetch_table_status(
     int mode,
-    ha_rows &records,
-    ulong &mean_rec_length,
-    ulonglong &data_file_length,
-    ulonglong &max_data_file_length,
-    ulonglong &index_file_length,
-    ulonglong &auto_increment_value,
-    time_t &create_time,
-    time_t &update_time,
-    time_t &check_time
+    ha_statistics &stat
   ) = 0;
   virtual int fetch_table_records(
     int mode,
     ha_rows &records
   ) = 0;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  virtual int fetch_table_checksum(
+    ha_spider *spider
+  );
+#endif
   virtual int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -1275,6 +1272,9 @@ public:
     SPIDER_SHARE *spider_share,
     spider_string *str
   ) = 0;
+#endif
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  virtual bool checksum_support();
 #endif
 };
 
@@ -1644,6 +1644,11 @@ public:
   virtual int show_records(
     int link_idx
   ) = 0;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  virtual int checksum_table(
+    int link_idx
+  );
+#endif
   virtual int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id

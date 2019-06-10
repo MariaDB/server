@@ -1922,6 +1922,7 @@ typedef struct {
   time_t check_time;
   time_t update_time;
   ulonglong check_sum;
+  bool check_sum_null;
 } PARTITION_STATS;
 
 #define UNDEF_NODEGROUP 65535
@@ -2881,6 +2882,7 @@ public:
   time_t update_time;
   uint block_size;			/* index block size */
   ha_checksum checksum;
+  bool checksum_null;
 
   /*
     number of buffer bytes that native mrr implementation needs,
@@ -2892,7 +2894,7 @@ public:
     index_file_length(0), max_index_file_length(0), delete_length(0),
     auto_increment_value(0), records(0), deleted(0), mean_rec_length(0),
     create_time(0), check_time(0), update_time(0), block_size(0),
-    mrr_length_per_rec(0)
+    checksum(0), checksum_null(FALSE), mrr_length_per_rec(0)
   {}
 };
 
@@ -3925,6 +3927,7 @@ public:
   virtual uint max_supported_key_part_length() const { return 255; }
   virtual uint min_record_length(uint options) const { return 1; }
 
+  virtual int pre_calculate_checksum() { return 0; }
   virtual int calculate_checksum();
   virtual bool is_crashed() const  { return 0; }
   virtual bool auto_repair(int error) const { return 0; }
