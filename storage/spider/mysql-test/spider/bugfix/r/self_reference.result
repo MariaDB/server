@@ -3,7 +3,9 @@ for child2
 for child3
 connection master_1;
 set @old_spider_internal_lock_wait_timeout= @@spider_internal_lock_wait_timeout;
+set @old_spider_same_server_link= @@spider_same_server_link;
 set global spider_internal_lock_wait_timeout= 0;
+set spider_same_server_link= ON;
 
 this test is for MDEV-6268
 
@@ -29,6 +31,7 @@ connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 connection master_1;
 set global spider_internal_lock_wait_timeout= @old_spider_internal_lock_wait_timeout;
+set spider_same_server_link= @old_spider_same_server_link;
 for master_1
 for child2
 for child3

@@ -43,9 +43,57 @@ DROP TABLE IF EXISTS mysql.spider_link_failed_log;
 DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
 DROP TABLE IF EXISTS mysql.spider_table_sts;
 DROP TABLE IF EXISTS mysql.spider_table_crd;
-DROP SERVER s_2_1;
-DROP SERVER s_2_2;
-DROP SERVER s_2_3;
-DROP SERVER s_3_1;
-DROP SERVER s_3_2;
-DROP SERVER s_3_3;
+if ($VERSION_COMPILE_OS_WIN)
+{
+  if ($CHILD2_1_MYPORT)
+  {
+    DROP SERVER s_2_1;
+  }
+  if ($CHILD2_2_MYPORT)
+  {
+    DROP SERVER s_2_2;
+  }
+  if ($CHILD2_3_MYPORT)
+  {
+    DROP SERVER s_2_3;
+  }
+  if ($CHILD3_1_MYPORT)
+  {
+    DROP SERVER s_3_1;
+  }
+  if ($CHILD3_2_MYPORT)
+  {
+    DROP SERVER s_3_2;
+  }
+  if ($CHILD2_3_MYPORT)
+  {
+    DROP SERVER s_3_3;
+  }
+}
+if (!$VERSION_COMPILE_OS_WIN)
+{
+  if ($CHILD2_1_MYSOCK)
+  {
+    DROP SERVER s_2_1;
+  }
+  if ($CHILD2_2_MYSOCK)
+  {
+    DROP SERVER s_2_2;
+  }
+  if ($CHILD2_3_MYSOCK)
+  {
+    DROP SERVER s_2_3;
+  }
+  if ($CHILD3_1_MYSOCK)
+  {
+    DROP SERVER s_3_1;
+  }
+  if ($CHILD3_2_MYSOCK)
+  {
+    DROP SERVER s_3_2;
+  }
+  if ($CHILD3_3_MYSOCK)
+  {
+    DROP SERVER s_3_3;
+  }
+}

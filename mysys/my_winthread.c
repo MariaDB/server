@@ -31,6 +31,28 @@ struct thread_start_parameter
 };
 
 /**
+  Convert abstime to milliseconds
+*/
+
+static DWORD get_milliseconds(const struct timespec *abstime)
+{
+  struct timespec current_time;
+  long long ms;
+
+  if (abstime == NULL)
+    return INFINITE;
+
+  set_timespec_nsec(current_time, 0);
+  ms= (abstime->tv_sec - current_time.tv_sec)*1000LL +
+    (abstime->tv_nsec - current_time.tv_nsec)/1000000LL;
+  if(ms < 0 )
+    ms= 0;
+  if(ms > UINT_MAX)
+    ms= INFINITE;
+  return (DWORD)ms;
+}
+
+/**
    Adapter to @c pthread_mutex_trylock()
 
    @retval 0      Mutex was acquired
@@ -49,6 +71,18 @@ win_pthread_mutex_trylock(pthread_mutex_t *mutex)
     return 0;
   }
   return EBUSY;
+}
+
+int win_pthread_mutex_timedlock(pthread_mutex_t *mutex,
+  const struct timespec *abstime)
+{
+  while (win_pthread_mutex_trylock(mutex))
+  {
+    if (!get_milliseconds(abstime))
+      return ETIMEDOUT;
+    Sleep(1);
+  }
+  return 0;
 }
 
 static unsigned int __stdcall pthread_start(void *p)
