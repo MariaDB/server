@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1197,12 +1197,12 @@ to original un-instrumented file I/O APIs */
 # define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
 	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
 # define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
-        (os_file_read_no_error_handling_func(type, OS_FILE_FROM_FD(file), buf, offset, n, NULL) == 0)
+	os_file_read_no_error_handling_func(type, OS_FILE_FROM_FD(file), buf, offset, n, NULL)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
 # define os_file_write_int_fd(type, name, file, buf, offset, n)	\
-        (os_file_write_func(type, name, OS_FILE_FROM_FD(file), buf, offset, n) == 0)
+	os_file_write_func(type, name, OS_FILE_FROM_FD(file), buf, offset, n)
 
 # define os_file_flush(file)	os_file_flush_func(file)
 

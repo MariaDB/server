@@ -5038,7 +5038,8 @@ Requests a synchronous write operation.
 @param[out]	buf		buffer from which to write
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
-@return DB_SUCCESS if request was successful, false if fail */
+@return error code
+@retval	DB_SUCCESS	if the operation succeeded */
 dberr_t
 os_file_write_func(
 	const IORequest&	type,
@@ -5497,7 +5498,8 @@ Requests a synchronous positioned read operation.
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
-@return DB_SUCCESS or error code */
+@return error code
+@retval	DB_SUCCESS	if the operation succeeded */
 dberr_t
 os_file_read_func(
 	const IORequest&	type,

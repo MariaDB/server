@@ -1087,8 +1087,9 @@ row_merge_read(
 	DBUG_EXECUTE_IF("row_merge_read_failure", DBUG_RETURN(FALSE););
 
 	IORequest	request(IORequest::READ);
-	const bool	success = os_file_read_no_error_handling_int_fd(
-		request, fd, buf, ofs, srv_sort_buf_size);
+	const bool	success = DB_SUCCESS
+		== os_file_read_no_error_handling_int_fd(
+			request, fd, buf, ofs, srv_sort_buf_size);
 
 	/* If encryption is enabled decrypt buffer */
 	if (success && log_tmp_is_encrypted()) {
@@ -1115,7 +1116,9 @@ row_merge_read(
 
 /********************************************************************//**
 Write a merge block to the file system.
-@return 0 on error, 1 if write succeded */
+@return whether the request was completed successfully
+@retval	false	on error
+@retval	true	on success */
 UNIV_INTERN
 bool
 row_merge_write(
@@ -1149,7 +1152,7 @@ row_merge_write(
 	}
 
 	IORequest	request(IORequest::WRITE);
-	const bool	success = os_file_write_int_fd(
+	const bool	success = DB_SUCCESS == os_file_write_int_fd(
 		request, "(merge)", fd, out_buf, ofs, buf_len);
 
 #ifdef POSIX_FADV_DONTNEED

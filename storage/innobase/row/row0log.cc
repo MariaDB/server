@@ -396,7 +396,7 @@ row_log_online_op(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (DB_SUCCESS != os_file_write_int_fd(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -534,7 +534,7 @@ row_log_table_close_func(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (DB_SUCCESS != os_file_write_int_fd(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -2658,7 +2658,7 @@ all_done:
 		IORequest		request(IORequest::READ);
 		byte*			buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (DB_SUCCESS != os_file_read_no_error_handling_int_fd(
 			    request, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size)) {
 			ib::error()
@@ -3529,7 +3529,7 @@ all_done:
 
 		byte*	buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (DB_SUCCESS != os_file_read_no_error_handling_int_fd(
 			    request, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size)) {
 			ib::error()
