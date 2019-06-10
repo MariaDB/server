@@ -1880,7 +1880,10 @@ sub collect_mysqld_features {
     if (/Copyright/ .. /^-{30,}/) {
       # here we want to detect all not mandatory plugins
       # they are listed in the --help output as
-      #  --archive[=name]    Enable or disable ARCHIVE plugin. Possible values are ON, OFF, FORCE (don't start if the plugin fails to load).
+      #  --archive[=name]
+      # Enable or disable ARCHIVE plugin. Possible values are ON, OFF,
+      # FORCE (don't start if the plugin fails to load),
+      # FORCE_PLUS_PERMANENT (like FORCE, but the plugin can not be uninstalled).
       push @optional_plugins, $1
         if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. One of: ON, OFF, FORCE/;
       next;
