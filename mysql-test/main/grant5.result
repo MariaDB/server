@@ -102,3 +102,28 @@ u6	Y	mysql_old_password	78a302dd267f6044
 u7	Y	mysql_old_password	78a302dd267f6044
 u8	Y	nonexistent	78a302dd267f6044
 drop user u1@h, u2@h, u3@h, u4@h, u5@h, u6@h, u7@h, u8@h;
+create database mysqltest_1;
+create user twg@'%' identified by 'test';
+create table mysqltest_1.t1(id int);
+grant create, drop on `mysqltest_1%`.* to twg@'%';
+grant all privileges on `mysqltest_1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+revoke all privileges, grant option from twg@'%';
+grant create, drop on `mysqlt%`.* to twg@'%';
+grant all privileges on `mysqlt%1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+revoke all privileges, grant option from twg@'%';
+grant create, drop on `mysqlt%`.* to twg@'%';
+grant all privileges on `%mysqltest_1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+drop database mysqltest_1;
+drop user twg@'%';

@@ -62,6 +62,12 @@
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
+// set that from field length in acl_load?
+const uint max_hostname_length= 60;
+const uint max_dbname_length= 64;
+
+#include "sql_acl_getsort.ic"
+
 static LEX_CSTRING native_password_plugin_name= {
   STRING_WITH_LEN("mysql_native_password")
 };
@@ -117,7 +123,7 @@ static bool compare_hostname(const acl_host_and_ip *, const char *, const char *
 
 class ACL_ACCESS {
 public:
-  ulong sort;
+  ulonglong sort;
   ulong access;
   ACL_ACCESS()
    :sort(0), access(0)
@@ -284,7 +290,6 @@ ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
-static ulong get_sort(uint count,...);
 static bool show_proxy_grants (THD *, const char *, const char *,
                                char *, size_t);
 static bool show_role_grants(THD *, const char *, const char *,
@@ -332,7 +337,8 @@ public:
                      (proxied_host_arg && *proxied_host_arg) ?
                      proxied_host_arg : NULL);
     with_grant= with_grant_arg;
-    sort= get_sort(4, host.hostname, user, proxied_host.hostname, proxied_user);
+    sort= get_magic_sort("huhu", host.hostname, user, proxied_host.hostname,
+                         proxied_user);
   }
 
   void init(MEM_ROOT *mem, const char *host_arg, const char *user_arg,
@@ -2344,7 +2350,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       }
       host.access= host_table.get_access();
       host.access= fix_rights_for_db(host.access);
-      host.sort= get_sort(2, host.host.hostname, host.db);
+      host.sort= get_magic_sort("hd", host.host.hostname, host.db);
       if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
       {
         sql_print_warning("'host' entry '%s|%s' "
@@ -2386,7 +2392,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
     user.access= user_table.get_access();
 
-    user.sort= get_sort(2, user.host.hostname, user.user.str);
+    user.sort= get_magic_sort("hu", user.host.hostname, user.user.str);
     user.hostname_length= safe_strlen(user.host.hostname);
 
     my_init_dynamic_array(&user.role_grants, sizeof(ACL_ROLE *), 0, 8, MYF(0));
@@ -2505,7 +2511,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 		          db.db, db.user, safe_str(db.host.hostname));
       }
     }
-    db.sort=get_sort(3,db.host.hostname,db.db,db.user);
+    db.sort=get_magic_sort("hdu", db.host.hostname, db.db, db.user);
 #ifndef TO_BE_REMOVED
     if (db_table.num_fields() <=  9)
     {						// Without grant
@@ -2750,49 +2756,6 @@ static ulong get_access(TABLE *form, uint fieldnr, uint *next_field)
   if (next_field)
     *next_field=fieldnr;
   return access_bits;
-}
-
-
-/*
-  Return a number which, if sorted 'desc', puts strings in this order:
-    no wildcards
-    wildcards
-    empty string
-*/
-
-static ulong get_sort(uint count,...)
-{
-  va_list args;
-  va_start(args,count);
-  ulong sort=0;
-
-  /* Should not use this function with more than 4 arguments for compare. */
-  DBUG_ASSERT(count <= 4);
-
-  while (count--)
-  {
-    char *start, *str= va_arg(args,char*);
-    uint chars= 0;
-    uint wild_pos= 0;           /* first wildcard position */
-
-    if ((start= str))
-    {
-      for (; *str ; str++)
-      {
-        if (*str == wild_prefix && str[1])
-          str++;
-        else if (*str == wild_many || *str == wild_one)
-        {
-          wild_pos= (uint) (str - start) + 1;
-          break;
-        }
-        chars= 128;                             // Marker that chars existed
-      }
-    }
-    sort= (sort << 8) + (wild_pos ? MY_MIN(wild_pos, 127U) : chars);
-  }
-  va_end(args);
-  return sort;
 }
 
 
@@ -3157,7 +3120,7 @@ ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
   user= safe_lexcstrdup_root(&acl_memroot, combo.user);
   update_hostname(&host, safe_strdup_root(&acl_memroot, combo.host.str));
   hostname_length= combo.host.length;
-  sort= get_sort(2, host.hostname, user.str);
+  sort= get_magic_sort("hu", host.hostname, user.str);
   password_last_changed= thd->query_start();
   password_lifetime= -1;
   my_init_dynamic_array(&role_grants, sizeof(ACL_USER *), 0, 8, MYF(0));
@@ -3314,7 +3277,7 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   update_hostname(&acl_db.host, safe_strdup_root(&acl_memroot, host));
   acl_db.db=strdup_root(&acl_memroot,db);
   acl_db.initial_access= acl_db.access= privileges;
-  acl_db.sort=get_sort(3,acl_db.host.hostname,acl_db.db,acl_db.user);
+  acl_db.sort=get_magic_sort("hdu", acl_db.host.hostname, acl_db.db, acl_db.user);
   acl_dbs.push(acl_db);
   rebuild_acl_dbs();
 }
@@ -5033,7 +4996,7 @@ public:
   char *db, *user, *tname, *hash_key;
   ulong privs;
   ulong init_privs; /* privileges found in physical table */
-  ulong sort;
+  ulonglong sort;
   size_t key_length;
   GRANT_NAME(const char *h, const char *d,const char *u,
              const char *t, ulong p, bool is_routine);
@@ -5079,7 +5042,7 @@ void GRANT_NAME::set_user_details(const char *h, const char *d,
       my_casedn_str(files_charset_info, db);
   }
   user = strdup_root(&grant_memroot,u);
-  sort=  get_sort(3,host.hostname,db,user);
+  sort=  get_magic_sort("hdu", host.hostname, db, user);
   if (tname != t)
   {
     tname= strdup_root(&grant_memroot, t);
@@ -5121,7 +5084,7 @@ GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
   update_hostname(&host, hostname);
 
   db=    get_field(&grant_memroot,form->field[1]);
-  sort=  get_sort(3, host.hostname, db, user);
+  sort=  get_magic_sort("hdu", host.hostname, db, user);
   tname= get_field(&grant_memroot,form->field[3]);
   if (!db || !tname)
   {
@@ -6214,7 +6177,7 @@ static int update_role_db(int merged, int first, ulong access,
     acl_db.db= acl_dbs.at(first).db;
     acl_db.access= access;
     acl_db.initial_access= 0;
-    acl_db.sort=get_sort(3, "", acl_db.db, role);
+    acl_db.sort= get_magic_sort("hdu", "", acl_db.db, role);
     acl_dbs.push(acl_db);
     return 2;
   }
