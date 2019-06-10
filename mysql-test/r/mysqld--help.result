@@ -115,7 +115,9 @@ The following specify which files/extra groups are read (specified before remain
  that this is a limit per thread!
  --changed-page-bitmaps[=name] 
  Enable or disable CHANGED_PAGE_BITMAPS plugin. One of:
- ON, OFF, FORCE (don't start if the plugin fails to load).
+ ON, OFF, FORCE (don't start if the plugin fails to load),
+ FORCE_PLUS_PERMANENT (like FORCE, but the plugin can not
+ be uninstalled).
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
