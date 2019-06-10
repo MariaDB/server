@@ -392,10 +392,8 @@ public:
                         proxied_user_arg, proxied_user));
     DBUG_RETURN(compare_hostname(&host, host_arg, ip_arg) &&
                 compare_hostname(&proxied_host, host_arg, ip_arg) &&
-                (!*user ||
-                 (user_arg && !wild_compare(user_arg, user, TRUE))) &&
-                (!*proxied_user ||
-                 !wild_compare(proxied_user_arg, proxied_user, TRUE)));
+                (!*user || !strcmp(user_arg, user)) &&
+                (!*proxied_user || !strcmp(proxied_user_arg, proxied_user)));
   }
 
 
