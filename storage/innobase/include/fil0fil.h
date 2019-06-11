@@ -31,6 +31,7 @@ Created 10/25/1995 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 
+#include "hash0hash.h"
 #include "log0recv.h"
 #include "dict0types.h"
 #ifdef UNIV_LINUX
