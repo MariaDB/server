@@ -3361,6 +3361,45 @@ mysql_add_invisible_index(THD *thd, List<Key> *key_list,
   key_list->push_back(key, thd->mem_root);
   return key;
 }
+
+
+bool Type_handler_string::Key_part_spec_init_ft(Key_part_spec *part,
+                                                const Column_definition &def)
+                                                const
+{
+  /*
+    Set length to 0. It's set to the real column width later for CHAR.
+    It has to be the correct col width for CHAR, as its data are not
+    prefixed with length (unlike blobs).
+  */
+  part->length= 0;
+  return !Charset(def.charset).is_good_for_ft();
+}
+
+
+bool Type_handler_varchar::Key_part_spec_init_ft(Key_part_spec *part,
+                                                 const Column_definition &def)
+                                                 const
+{
+  part->length= 0;
+  return !Charset(def.charset).is_good_for_ft();
+}
+
+
+bool
+Type_handler_blob_common::Key_part_spec_init_ft(Key_part_spec *part,
+                                                const Column_definition &def)
+                                                const
+{
+  /*
+    Set keyseg length to 1 for blobs.
+    It's ignored in ft code: the data length is taken from the length prefix.
+  */
+  part->length= 1;
+  return !Charset(def.charset).is_good_for_ft();
+}
+
+
 /*
   Preparation for table creation
 
@@ -3894,28 +3933,18 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cols2.rewind();
       if (key->type == Key::FULLTEXT)
       {
-	if ((sql_field->real_field_type() != MYSQL_TYPE_STRING &&
-	     sql_field->real_field_type() != MYSQL_TYPE_VARCHAR &&
-	     !f_is_blob(sql_field->pack_flag)) ||
-	    sql_field->charset == &my_charset_bin ||
-	    sql_field->charset->mbminlen > 1 || // ucs2 doesn't work yet
-	    (ft_key_charset && sql_field->charset != ft_key_charset))
-	{
-	    my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
-	    DBUG_RETURN(-1);
-	}
-	ft_key_charset=sql_field->charset;
-	/*
-	  for fulltext keys keyseg length is 1 for blobs (it's ignored in ft
-	  code anyway, and 0 (set to column width later) for char's. it has
-	  to be correct col width for char's, as char data are not prefixed
-	  with length (unlike blobs, where ft code takes data length from a
-	  data prefix, ignoring column->length).
-	*/
-        column->length= MY_TEST(f_is_blob(sql_field->pack_flag));
+        if (sql_field->type_handler()->Key_part_spec_init_ft(column,
+	                                                     *sql_field) ||
+            (ft_key_charset && sql_field->charset != ft_key_charset))
+        {
+          my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
+          DBUG_RETURN(-1);
+        }
+        ft_key_charset=sql_field->charset;
       }
       else
       {
+
 	column->length*= sql_field->charset->mbmaxlen;
 
         if (key->type == Key::SPATIAL)

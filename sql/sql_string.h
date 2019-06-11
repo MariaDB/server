@@ -138,6 +138,11 @@ public:
   CHARSET_INFO *charset() const { return m_charset; }
   uint mbminlen() const { return m_charset->mbminlen; }
   uint mbmaxlen() const { return m_charset->mbmaxlen; }
+  bool is_good_for_ft() const
+  {
+    // Binary and UCS2/UTF16/UTF32 are not supported
+    return m_charset != &my_charset_bin && m_charset->mbminlen == 1;
+  }
 
   size_t numchars(const char *str, const char *end) const
   {

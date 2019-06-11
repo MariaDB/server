@@ -34,6 +34,7 @@ C_MODE_END
 class Field;
 class Column_definition;
 class Column_definition_attributes;
+class Key_part_spec;
 class Item;
 class Item_const;
 class Item_literal;
@@ -3456,6 +3457,11 @@ public:
   virtual bool Column_definition_prepare_stage2(Column_definition *c,
                                                 handler *file,
                                                 ulonglong table_flags) const= 0;
+  virtual bool Key_part_spec_init_ft(Key_part_spec *part,
+                                     const Column_definition &def) const
+  {
+    return true; // Error
+  }
   virtual Field *make_table_field(const LEX_CSTRING *name,
                                   const Record_addr &addr,
                                   const Type_all_attributes &attr,
@@ -6002,6 +6008,8 @@ public:
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Key_part_spec_init_ft(Key_part_spec *part,
+                             const Column_definition &def) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -6084,6 +6092,8 @@ public:
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Key_part_spec_init_ft(Key_part_spec *part,
+                             const Column_definition &def) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -6157,6 +6167,8 @@ public:
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Key_part_spec_init_ft(Key_part_spec *part,
+                             const Column_definition &def) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
