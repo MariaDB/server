@@ -1142,9 +1142,9 @@ int spider_db_mbase_result::fetch_simple_action(
       if (mysql_row[position])
       {
         spider->checksum_val =
-          (ulonglong) my_strtoll10(mysql_row[position], (char**) NULL,
+          (ha_checksum) my_strtoll10(mysql_row[position], (char**) NULL,
           &error_num);
-        DBUG_PRINT("info", ("spider checksum=%llu", spider->checksum_val));
+        DBUG_PRINT("info", ("spider checksum=%llu", (ulonglong)spider->checksum_val));
         spider->checksum_null = FALSE;
       } else {
         spider->checksum_null = TRUE;
