@@ -1422,7 +1422,7 @@ srv_export_innodb_status(void)
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
-	ulong mem_adaptive_hash = 0;
+	export_vars.innodb_mem_adaptive_hash = 0;
 	ut_ad(btr_search_sys->hash_tables);
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
 		hash_table_t*	ht = btr_search_sys->hash_tables[i];
@@ -1434,11 +1434,10 @@ srv_export_innodb_status(void)
 		ut_ad(!ht->n_sync_obj);
 		ut_ad(!ht->heaps);
 
-		mem_adaptive_hash += (ulong) mem_heap_get_size(ht->heap);
-		mem_adaptive_hash += (ulong) ht->n_cells * sizeof(hash_cell_t);
+		export_vars.innodb_mem_adaptive_hash += mem_heap_get_size(ht->heap);
+		export_vars.innodb_mem_adaptive_hash += 
+			ht->n_cells * sizeof(hash_cell_t);
 	}
-
-	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
 #endif
 
 	mutex_enter(&srv_innodb_monitor_mutex);
