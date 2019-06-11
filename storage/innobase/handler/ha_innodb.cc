@@ -945,7 +945,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"adaptive_hash_non_hash_searches", (char*) &btr_cur_n_non_sea, SHOW_LONG},
 #endif
   {"background_log_sync", 
-  (char*) &export_vars.innodb_background_log_sync,	  SHOW_LONG},
+  (char*) &srv_log_writes_and_flush,	  SHOW_LONG},
 #if defined(LINUX_NATIVE_AIO)
   {"buffered_aio_submitted",
   (char*) &srv_stats.buffered_aio_submitted,     SHOW_LONG},
@@ -1060,9 +1060,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"lsn_last_checkpoint",
   (char*) &export_vars.innodb_lsn_last_checkpoint,	  SHOW_LONGLONG},
   {"master_thread_active_loops",
-  (char*) &export_vars.innodb_master_thread_active_loops, SHOW_LONG},
+  (char*) &srv_main_active_loops, SHOW_LONG},
   {"master_thread_idle_loops",
-  (char*) &export_vars.innodb_master_thread_idle_loops,   SHOW_LONG},
+  (char*) &srv_main_idle_loops,   SHOW_LONG},
   {"max_trx_id",
   (char*) &export_vars.innodb_max_trx_id,		  SHOW_LONGLONG},
 #ifdef BTR_CUR_HASH_ADAPT

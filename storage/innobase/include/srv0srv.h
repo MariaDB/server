@@ -518,6 +518,12 @@ extern uint	srv_spin_wait_delay;
 extern ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 extern ulong	srv_available_undo_logs;
+/** Iterations of the loop bounded by 'srv_active' label. */
+extern ulint	srv_main_active_loops;
+/** Iterations of the loop bounded by the 'srv_idle' label. */
+extern ulint	srv_main_idle_loops;
+/** Log writes involving flush. */
+extern ulint	srv_log_writes_and_flush;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 extern my_bool	srv_ibuf_disable_background_merge;
@@ -907,7 +913,6 @@ srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
-	ulint innodb_background_log_sync;
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
@@ -964,8 +969,6 @@ struct export_var_t{
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;
 	lsn_t innodb_lsn_last_checkpoint;
-	ulint innodb_master_thread_active_loops;/*!< srv_main_active_loops */
-	ulint innodb_master_thread_idle_loops;	/*!< srv_main_idle_loops */
 	trx_id_t innodb_max_trx_id;
 #ifdef BTR_CUR_HASH_ADAPT
 	ulint innodb_mem_adaptive_hash;
@@ -998,7 +1001,6 @@ struct export_var_t{
 	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
 	ulint innodb_num_open_files;		/*!< fil_system_t::n_open */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
-	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs */
 
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;

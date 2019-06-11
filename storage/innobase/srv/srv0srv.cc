@@ -448,13 +448,13 @@ static ulint	srv_main_thread_id;
 /* The following counts are used by the srv_master_thread. */
 
 /** Iterations of the loop bounded by 'srv_active' label. */
-static ulint		srv_main_active_loops;
+ulint		srv_main_active_loops;
 /** Iterations of the loop bounded by the 'srv_idle' label. */
-static ulint		srv_main_idle_loops;
+ulint		srv_main_idle_loops;
 /** Iterations of the loop bounded by the 'srv_shutdown' label. */
 static ulint		srv_main_shutdown_loops;
 /** Log writes involving flush. */
-static ulint		srv_log_writes_and_flush;
+ulint		srv_log_writes_and_flush;
 
 /* This is only ever touched by the master thread. It records the
 time when the last flush of log file has happened. The master
@@ -1517,9 +1517,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_misc =
 		buf_pool_get_n_pages() - LRU_len - free_len;
 
-	export_vars.innodb_background_log_sync = srv_log_writes_and_flush;
-	export_vars.innodb_master_thread_active_loops = srv_main_active_loops;	
-	export_vars.innodb_master_thread_idle_loops = srv_main_idle_loops;
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.rseg_history_len;
 	export_vars.innodb_mem_dictionary = (dict_sys.table_hash->n_cells + 
