@@ -1352,6 +1352,8 @@ The following specify which files/extra groups are read (specified before remain
  --time-format=name  The TIME format (ignored)
  --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
  effect.
+ --tls-version=name  TLS protocol version for secure connections.. Any
+ combination of: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3
  --tmp-disk-table-size=# 
  Max size for data for an internal temporary on-disk
  MyISAM or Aria table.
