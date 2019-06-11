@@ -236,6 +236,7 @@ public:
   /* Expensive constant condition */
   Item *exec_const_cond;
   Item *outer_ref_cond;
+  Item *pseudo_bits_cond;
 
   /* HAVING condition */
   Item *having;

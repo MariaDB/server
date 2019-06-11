@@ -2348,6 +2348,12 @@ static void test_ps_query_cache()
                           "(2, 'hh', 'hh'), (1, 'ii', 'ii'), (2, 'ii', 'ii')");
   myquery(rc);
 
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type="
+                  "@@global.query_cache_type,"
+                  "@save_query_cache_size="
+                  "@@global.query_cache_size");
+  myquery(rc);
   rc= mysql_query(lmysql, "set global query_cache_type=ON");
   myquery(rc);
   rc= mysql_query(lmysql, "set local query_cache_type=ON");
@@ -2504,9 +2510,9 @@ static void test_ps_query_cache()
   if (lmysql != mysql)
     mysql_close(lmysql);
 
-  rc= mysql_query(mysql, "set global query_cache_size=default");
+  rc= mysql_query(mysql, "set global query_cache_size=@save_query_cache_size");
   myquery(rc);
-  rc= mysql_query(mysql, "set global query_cache_type=default");
+  rc= mysql_query(mysql, "set global query_cache_type=@save_query_cache_type");
   myquery(rc);
 }
 
@@ -13441,6 +13447,12 @@ static void test_open_cursor_prepared_statement_query_cache()
     return;
   }
 
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type="
+                  "@@global.query_cache_type,"
+                  "@save_query_cache_size="
+                  "@@global.query_cache_size");
+  myquery(rc);
   rc= mysql_query(mysql, "set global query_cache_type=ON");
   myquery(rc);
   rc= mysql_query(mysql, "set local query_cache_type=ON");
@@ -13467,9 +13479,9 @@ static void test_open_cursor_prepared_statement_query_cache()
   check_execute(stmt, rc);
   mysql_stmt_close(stmt);
 
-  rc= mysql_query(mysql, "set global query_cache_type=default");
+  rc= mysql_query(mysql, "set global query_cache_type=@save_query_cache_type");
   myquery(rc);
-  rc= mysql_query(mysql, "set global query_cache_size=default");
+  rc= mysql_query(mysql, "set global query_cache_size=@save_query_cache_size");
   myquery(rc);
 }
 
@@ -18254,6 +18266,12 @@ static void test_bug36326()
   myquery(rc);
   rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1)");
   myquery(rc);
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type="
+                  "@@global.query_cache_type,"
+                  "@save_query_cache_size="
+                  "@@global.query_cache_size");
+  myquery(rc);
   rc= mysql_query(mysql, "SET GLOBAL query_cache_type = 1");
   myquery(rc);
   rc= mysql_query(mysql, "SET LOCAL query_cache_type = 1");
@@ -18281,8 +18299,8 @@ static void test_bug36326()
   DIE_UNLESS(rc == 1);
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
-  rc= mysql_query(mysql, "SET GLOBAL query_cache_size = default");
-  rc= mysql_query(mysql, "SET GLOBAL query_cache_type = default");
+  rc= mysql_query(mysql, "SET GLOBAL query_cache_size = @save_query_cache_size");
+  rc= mysql_query(mysql, "SET GLOBAL query_cache_type = @save_query_cache_type");
   myquery(rc);
 
   DBUG_VOID_RETURN;

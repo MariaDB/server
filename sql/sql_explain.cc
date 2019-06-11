@@ -904,6 +904,11 @@ void Explain_select::print_explain_json(Explain_query *query,
       writer->add_member("outer_ref_condition");
       write_item(writer, outer_ref_cond);
     }
+    if (pseudo_bits_cond)
+    {
+      writer->add_member("pseudo_bits_condition");
+      write_item(writer, pseudo_bits_cond);
+    }
 
     /* we do not print HAVING which always evaluates to TRUE */
     if (having || (having_value == Item::COND_FALSE))
