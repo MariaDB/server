@@ -59,6 +59,11 @@ struct vio_keepalive_opts
 };
 
 
+#define VIO_TLSv1_0   1
+#define VIO_TLSv1_1   2
+#define VIO_TLSv1_2   4
+#define VIO_TLSv1_3   8
+
 #define VIO_LOCALHOST 1U                        /* a localhost connection */
 #define VIO_BUFFERED_READ 2U                    /* use buffered read */
 #define VIO_READ_BUFFER_SIZE 16384U             /* size of read buffer */
@@ -148,7 +153,8 @@ enum enum_ssl_init_error
 {
   SSL_INITERR_NOERROR= 0, SSL_INITERR_CERT, SSL_INITERR_KEY,
   SSL_INITERR_NOMATCH, SSL_INITERR_BAD_PATHS, SSL_INITERR_CIPHERS,
-  SSL_INITERR_MEMFAIL, SSL_INITERR_DH, SSL_INITERR_LASTERR
+  SSL_INITERR_MEMFAIL, SSL_INITERR_DH, SSL_INITERR_PROTOCOL,
+  SSL_INITERR_LASTERR
 };
 const char* sslGetErrString(enum enum_ssl_init_error err);
 
@@ -169,7 +175,8 @@ struct st_VioSSLFd
 *new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 		      const char *ca_file,const char *ca_path,
 		      const char *cipher, enum enum_ssl_init_error *error,
-                      const char *crl_file, const char *crl_path);
+		      const char *crl_file, const char *crl_path,
+		      ulonglong tls_version);
 void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd);
 #endif /* HAVE_OPENSSL */
 

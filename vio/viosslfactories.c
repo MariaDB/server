@@ -83,7 +83,8 @@ ssl_error_string[] =
   "SSL_CTX_set_default_verify_paths failed",
   "Failed to set ciphers to use",
   "SSL_CTX_new failed",
-  "SSL_CTX_set_tmp_dh failed"
+  "SSL_CTX_set_tmp_dh failed",
+  "Unknown TLS version"
 };
 
 const char*
@@ -183,21 +184,57 @@ static int wolfssl_send(WOLFSSL* ssl, char* buf, int sz, void* vio)
 }
 #endif /* HAVE_WOLFSSL */
 
+static long vio_tls_protocol_options(ulonglong tls_version)
+{
+   long tls_protocol_flags=
+#ifdef TLS1_3_VERSION
+    SSL_OP_NO_TLSv1_3 |
+#endif
+#if defined(TLS1_2_VERSION) || defined(HAVE_WOLFSSL)
+    SSL_OP_NO_TLSv1_2 |
+#endif
+    SSL_OP_NO_TLSv1_1 |
+    SSL_OP_NO_TLSv1;
+   long disabled_tls_protocols= tls_protocol_flags,
+        disabled_ssl_protocols= SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+
+  if (!tls_version)
+    return disabled_ssl_protocols;
+
+  if (tls_version & VIO_TLSv1_0)
+    disabled_tls_protocols&= ~SSL_OP_NO_TLSv1;
+  if (tls_version & VIO_TLSv1_1)
+    disabled_tls_protocols&= ~SSL_OP_NO_TLSv1_1;
+#if defined(TLS1_2_VERSION) || defined(HAVE_WOLFSSL)
+  if (tls_version & VIO_TLSv1_2)
+    disabled_tls_protocols&= ~SSL_OP_NO_TLSv1_2;
+#endif
+#ifdef TLS1_3_VERSION
+  if (tls_version & VIO_TLSv1_3)
+    disabled_tls_protocols&= ~SSL_OP_NO_TLSv1_3;
+#endif
+
+  /* some garbage was specified in tls_version option */
+  if (tls_protocol_flags == disabled_tls_protocols)
+    return -1;
+  return (disabled_tls_protocols | disabled_ssl_protocols);
+}
+
 /************************ VioSSLFd **********************************/
 static struct st_VioSSLFd *
 new_VioSSLFd(const char *key_file, const char *cert_file,
              const char *ca_file, const char *ca_path,
              const char *cipher, my_bool is_client_method,
              enum enum_ssl_init_error *error,
-             const char *crl_file, const char *crl_path)
+             const char *crl_file, const char *crl_path, ulonglong tls_version)
 {
   DH *dh;
   struct st_VioSSLFd *ssl_fd;
-  long ssl_ctx_options= SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+  long ssl_ctx_options;
   DBUG_ENTER("new_VioSSLFd");
   DBUG_PRINT("enter",
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
-              "cipher: '%s' crl_file: '%s' crl_path: '%s' ",
+              "cipher: '%s' crl_file: '%s' crl_path: '%s'",
               key_file ? key_file : "NULL",
               cert_file ? cert_file : "NULL",
               ca_file ? ca_file : "NULL",
@@ -216,6 +253,14 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
                                          SSLv23_server_method())))
   {
     *error= SSL_INITERR_MEMFAIL;
+    DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
+    goto err1;
+  }
+
+  ssl_ctx_options= vio_tls_protocol_options(tls_version);
+  if (ssl_ctx_options == -1)
+  {
+    *error= SSL_INITERR_PROTOCOL;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
     goto err1;
   }
@@ -342,7 +387,7 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
 
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file,
                              ca_path, cipher, TRUE, error,
-                             crl_file, crl_path)))
+                             crl_file, crl_path, 0)))
   {
     return 0;
   }
@@ -360,13 +405,14 @@ struct st_VioSSLFd *
 new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 		     const char *ca_file, const char *ca_path,
 		     const char *cipher, enum enum_ssl_init_error* error,
-                     const char *crl_file, const char *crl_path)
+                     const char *crl_file, const char *crl_path,
+                     ulonglong tls_version)
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file,
                              ca_path, cipher, FALSE, error,
-                             crl_file, crl_path)))
+                             crl_file, crl_path, tls_version)))
   {
     return 0;
   }

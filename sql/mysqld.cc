@@ -1444,8 +1444,8 @@ Query_cache query_cache;
 my_bool opt_use_ssl  = 0;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
   *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
-  *opt_ssl_crlpath= NULL;
-
+  *opt_ssl_crlpath= NULL, *opt_tls_version= NULL;
+ulonglong tls_version= 0;
 
 static scheduler_functions thread_scheduler_struct, extra_thread_scheduler_struct;
 scheduler_functions *thread_scheduler= &thread_scheduler_struct,
@@ -4722,7 +4722,8 @@ static void init_ssl()
     ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
 					  opt_ssl_ca, opt_ssl_capath,
 					  opt_ssl_cipher, &error,
-                                          opt_ssl_crl, opt_ssl_crlpath);
+					  opt_ssl_crl, opt_ssl_crlpath,
+					  tls_version);
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
@@ -4761,7 +4762,8 @@ int reinit_ssl()
 
   enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
   st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
-    opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl, opt_ssl_crlpath);
+    opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl,
+    opt_ssl_crlpath, tls_version);
 
   if (!new_fd)
   {
