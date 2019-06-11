@@ -519,11 +519,11 @@ extern ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 extern ulong	srv_available_undo_logs;
 /** Iterations of the loop bounded by 'srv_active' label. */
-extern ulint	srv_main_active_loops;
+extern ulong	srv_main_active_loops;
 /** Iterations of the loop bounded by the 'srv_idle' label. */
-extern ulint	srv_main_idle_loops;
+extern ulong	srv_main_idle_loops;
 /** Log writes involving flush. */
-extern ulint	srv_log_writes_and_flush;
+extern ulong	srv_log_writes_and_flush;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 extern my_bool	srv_ibuf_disable_background_merge;
