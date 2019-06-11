@@ -6894,17 +6894,22 @@ double JOIN::get_examined_rows()
 {
   ha_rows examined_rows;
   double prev_fanout= 1;
+  double records;
   JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
   JOIN_TAB *prev_tab= tab;
 
-  examined_rows= tab->get_examined_rows();
+  records= tab->get_examined_rows();
 
   while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
   {
-    prev_fanout *= prev_tab->records_read;
-    examined_rows+= (ha_rows) (tab->get_examined_rows() * prev_fanout);
+    prev_fanout= COST_MULT(prev_fanout, prev_tab->records_read);
+    records=
+      COST_ADD(records,
+               COST_MULT((double) (tab->get_examined_rows()), prev_fanout));
     prev_tab= tab;
   }
+  examined_rows=
+    records > (double) HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
   return examined_rows;
 }
 
@@ -10824,7 +10829,7 @@ ha_rows JOIN_TAB::get_examined_rows()
     }
   }
   else
-    examined_rows= (ha_rows) records_read;
+    examined_rows= records_read;
 
   return examined_rows;
 }
@@ -22987,9 +22992,7 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       else
       {
         ha_rows examined_rows= tab->get_examined_rows();
-        ha_rows displ_rows= examined_rows;
-        set_if_smaller(displ_rows, HA_ROWS_MAX/2);
-        item_list.push_back(new Item_int((longlong) (ulonglong) displ_rows,
+        item_list.push_back(new Item_int((ulonglong) examined_rows,
                                          MY_INT64_NUM_DECIMAL_DIGITS));
 
         /* Add "filtered" field to item_list. */
