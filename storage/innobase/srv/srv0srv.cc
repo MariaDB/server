@@ -1440,6 +1440,12 @@ srv_export_innodb_status(void)
 	}
 #endif
 
+	mutex_enter(&dict_sys.mutex);
+	export_vars.innodb_mem_dictionary = (dict_sys.table_hash->n_cells + 
+		dict_sys.table_id_hash->n_cells + dict_sys.get_temp_id_hash()->n_cells) 
+		* sizeof(hash_cell_t) + dict_sys_get_size();
+	mutex_exit(&dict_sys.mutex);
+
 	mutex_enter(&srv_innodb_monitor_mutex);
 
 	export_vars.innodb_data_pending_reads =
@@ -1518,9 +1524,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.rseg_history_len;
-	export_vars.innodb_mem_dictionary = (dict_sys.table_hash->n_cells + 
-		dict_sys.table_id_hash->n_cells + dict_sys.get_temp_id_hash()->n_cells) 
-		* sizeof(hash_cell_t) + dict_sys_get_size();
 
 #ifdef HAVE_ATOMIC_BUILTINS
 	export_vars.innodb_have_atomic_builtins = 1;
