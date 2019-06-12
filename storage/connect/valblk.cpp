@@ -1129,7 +1129,7 @@ void STRBLK::SetValues(PVBLK pv, int k, int n)
   CheckType(pv)
   PSZ *sp = ((STRBLK*)pv)->Strp;
 
-  for (register int i = k; i < n; i++)
+  for (int i = k; i < n; i++)
     Strp[i] = (!pv->IsNull(i)) ? sp[i] : NULL;
 
   } // end of SetValues
