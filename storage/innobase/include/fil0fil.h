@@ -38,6 +38,8 @@ Created 10/25/1995 Heikki Tuuri
 # include <set>
 #endif
 
+/** whether to reduce redo logging during ALTER TABLE */
+extern	my_bool	innodb_log_optimize_ddl;
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;

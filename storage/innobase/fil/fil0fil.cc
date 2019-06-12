@@ -4357,7 +4357,7 @@ fil_aio_wait(
 	fil_node_complete_io(node, type);
 	const fil_type_t	purpose	= node->space->purpose;
 	const ulint		space_id= node->space->id;
-	const bool		dblwr	= node->space->use_doublewrite();
+	bool			dblwr	= node->space->use_doublewrite();
 
 	mutex_exit(&fil_system.mutex);
 
@@ -4406,6 +4406,10 @@ fil_aio_wait(
 		}
 
 		ulint offset = bpage->id.page_no();
+		if (dblwr && bpage->init_on_flush) {
+			bpage->init_on_flush = false;
+			dblwr = false;
+		}
 		dberr_t err = buf_page_io_complete(bpage, dblwr);
 		if (err == DB_SUCCESS) {
 			return;

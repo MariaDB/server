@@ -34,8 +34,6 @@ Created 03/11/2014 Shaohua Wang
 
 /** Innodb B-tree index fill factor for bulk load. */
 extern	uint	innobase_fill_factor;
-/** whether to reduce redo logging during ALTER TABLE */
-extern	my_bool	innodb_log_optimize_ddl;
 
 /*
 The proper function call sequence of PageBulk is as below:
