@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2720,29 +2720,29 @@ recv_scan_log_recs(
 		log_block_convert_lsn_to_no(scanned_lsn));
 		*/
 
-		if (no != log_block_convert_lsn_to_no(scanned_lsn)
-		    || !log_block_checksum_is_ok_or_old_format(log_block, true)) {
+		if (no != log_block_convert_lsn_to_no(scanned_lsn)) {
+			/* Garbage or an incompletely written log block.
+			We will not report any error; because this can happen
+			when InnoDB was killed while it was writing
+			redo log. We simply treat this as an abrupt end of the
+			redo log. */
+			finished = true;
+			break;
+		} else if (!log_block_checksum_is_ok_or_old_format(
+					log_block, true)) {
 
-			if (no == log_block_convert_lsn_to_no(scanned_lsn)
-			    && !log_block_checksum_is_ok_or_old_format(
-				    log_block, true)) {
-				fprintf(stderr,
-					"InnoDB: Log block no %lu at"
-					" lsn " LSN_PF " has\n"
-					"InnoDB: ok header, but checksum field"
-					" contains %lu, should be %lu\n",
-					(ulong) no,
-					scanned_lsn,
-					(ulong) log_block_get_checksum(
-						log_block),
-					(ulong) log_block_calc_checksum(
-						log_block));
-			}
+			fprintf(stderr,
+				"InnoDB: Log block no %lu at"
+				" lsn " LSN_PF " has\n"
+				"InnoDB: ok header, but checksum field"
+				" contains %lu, should be %lu\n",
+				(ulong) no,
+				scanned_lsn,
+				(ulong) log_block_get_checksum(log_block),
+				(ulong) log_block_calc_checksum(log_block));
 
 			maybe_encrypted = log_crypt_block_maybe_encrypted(log_block,
 					&log_crypt_err);
-
-			/* Garbage or an incompletely written log block */
 
 			/* Print checkpoint encryption keys if present */
 			log_crypt_print_checkpoint_keys(log_block);
@@ -2764,7 +2764,6 @@ recv_scan_log_recs(
 			}
 
 			break;
-
 		}
 
 		if (log_block_get_flush_bit(log_block)) {

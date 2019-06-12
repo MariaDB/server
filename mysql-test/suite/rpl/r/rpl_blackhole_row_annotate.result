@@ -1,0 +1,446 @@
+include/master-slave.inc
+[connection master]
+SET timestamp=1000000000;
+RESET MASTER;
+connection slave;
+SET timestamp=1000000000;
+RESET MASTER;
+connection master;
+CREATE TABLE t1 (a INT, b INT, c INT);
+CREATE TABLE t2 (a INT, b INT, c INT);
+connection slave;
+ALTER TABLE t1 ENGINE=BLACKHOLE;
+connection master;
+INSERT INTO t2 VALUES (1,9,1), (2,9,2), (3,9,3), (4,9,4);
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1,1,1),(2,1,2),(3,1,3),(4,1,4);
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 1;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DELETE FROM t1 WHERE a % 2 = 0 AND b = 1;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+INSERT INTO t1 SELECT * FROM t2;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+ALTER TABLE t1 ADD PRIMARY KEY pk_t1 (a,b);
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1,2,1),(2,2,2),(3,2,3),(4,2,4);
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 2;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DELETE FROM t1 WHERE a % 2 = 0 AND b = 2;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+ALTER TABLE t1 DROP PRIMARY KEY, ADD KEY key_t1 (a);
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1,3,1),(2,3,2),(3,3,3),(4,3,4);
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 3;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DELETE FROM t1 WHERE a % 2 = 0 AND b = 3;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DROP TABLE t1,t2;
+connection slave;
+connection slave;
+FLUSH LOGS;
+show binlog events in 'slave-bin.000001' from <start_pos>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid_list	2	#	[]
+slave-bin.000001	#	Binlog_checkpoint	2	#	slave-bin.000001
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-1
+slave-bin.000001	#	Query	1	#	use `test`; CREATE TABLE t1 (a INT, b INT, c INT)
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-2
+slave-bin.000001	#	Query	1	#	use `test`; CREATE TABLE t2 (a INT, b INT, c INT)
+slave-bin.000001	#	Gtid	2	#	GTID 0-2-3
+slave-bin.000001	#	Query	2	#	use `test`; ALTER TABLE t1 ENGINE=BLACKHOLE
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-3
+slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t2 VALUES (1,9,1), (2,9,2), (3,9,3), (4,9,4)
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t2)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-4
+slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t1 VALUES (1,1,1),(2,1,2),(3,1,3),(4,1,4)
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-5
+slave-bin.000001	#	Annotate_rows	1	#	UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 1
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-6
+slave-bin.000001	#	Annotate_rows	1	#	DELETE FROM t1 WHERE a % 2 = 0 AND b = 1
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-7
+slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t1 SELECT * FROM t2
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-8
+slave-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t1 ADD PRIMARY KEY pk_t1 (a,b)
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-9
+slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t1 VALUES (1,2,1),(2,2,2),(3,2,3),(4,2,4)
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-10
+slave-bin.000001	#	Annotate_rows	1	#	UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 2
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-11
+slave-bin.000001	#	Annotate_rows	1	#	DELETE FROM t1 WHERE a % 2 = 0 AND b = 2
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-12
+slave-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t1 DROP PRIMARY KEY, ADD KEY key_t1 (a)
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-13
+slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t1 VALUES (1,3,1),(2,3,2),(3,3,3),(4,3,4)
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-14
+slave-bin.000001	#	Annotate_rows	1	#	UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 3
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-15
+slave-bin.000001	#	Annotate_rows	1	#	DELETE FROM t1 WHERE a % 2 = 0 AND b = 3
+slave-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-16
+slave-bin.000001	#	Query	1	#	use `test`; DROP TABLE IF EXISTS `t1`,`t2` /* generated by server */
+slave-bin.000001	#	Rotate	2	#	slave-bin.000002;pos=4
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Start: binlog v 4, server v #.##.## created 010909  4:46:40 at startup
+ROLLBACK/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Gtid list []
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Binlog checkpoint slave-bin.000001
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+use `test`/*!*/;
+SET TIMESTAMP=1000000000/*!*/;
+SET @@session.pseudo_thread_id=#/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C latin1 *//*!*/;
+SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+CREATE TABLE t1 (a INT, b INT, c INT)
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-2 ddl
+/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+CREATE TABLE t2 (a INT, b INT, c INT)
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-2-3 ddl
+/*!100001 SET @@session.server_id=2*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+ALTER TABLE t1 ENGINE=BLACKHOLE
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t2 VALUES (1,9,1), (2,9,2), (3,9,3), (4,9,4)
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
+/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1,1,1),(2,1,2),(3,1,3),(4,1,4)
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
+/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 1
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
+/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE a % 2 = 0 AND b = 1
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-7 trans
+/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 SELECT * FROM t2
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-8 ddl
+/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+ALTER TABLE t1 ADD PRIMARY KEY pk_t1 (a,b)
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-9 trans
+/*!100001 SET @@session.gtid_seq_no=9*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1,2,1),(2,2,2),(3,2,3),(4,2,4)
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-10 trans
+/*!100001 SET @@session.gtid_seq_no=10*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 2
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-11 trans
+/*!100001 SET @@session.gtid_seq_no=11*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE a % 2 = 0 AND b = 2
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-12 ddl
+/*!100001 SET @@session.gtid_seq_no=12*//*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+ALTER TABLE t1 DROP PRIMARY KEY, ADD KEY key_t1 (a)
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-13 trans
+/*!100001 SET @@session.gtid_seq_no=13*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1,3,1),(2,3,2),(3,3,3),(4,3,4)
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-14 trans
+/*!100001 SET @@session.gtid_seq_no=14*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 3
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-15 trans
+/*!100001 SET @@session.gtid_seq_no=15*//*!*/;
+BEGIN
+/*!*/;
+# at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE a % 2 = 0 AND b = 3
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-16 ddl
+/*!100001 SET @@session.gtid_seq_no=16*//*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=1000000000/*!*/;
+DROP TABLE IF EXISTS `t1`,`t2` /* generated by server */
+/*!*/;
+# at #
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Rotate to slave-bin.000002  pos: 4
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+include/rpl_end.inc

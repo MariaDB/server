@@ -1233,7 +1233,7 @@ bool Master_info_index::init_all_master_info()
   if (!err_num) // No Error on read Master_info
   {
     if (global_system_variables.log_warnings > 1)
-      sql_print_information("Reading of all Master_info entries succeded");
+      sql_print_information("Reading of all Master_info entries succeeded");
     DBUG_RETURN(0);
   }
   if (succ_num) // Have some Error and some Success
