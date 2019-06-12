@@ -2139,12 +2139,7 @@ void recv_apply_hashed_log_recs(bool last_batch)
 			break;
 		case recv_sys_t::recs_t::RECV_WILL_NOT_READ:
 			mlog_init_t::init& i = mlog_init.last(page_id);
-			lsn_t end_lsn = 0;
-			for (const recv_t* r = recs.log; r; r = r->next) {
-				ut_ad(r->end_lsn);
-				ut_ad(r->end_lsn >= end_lsn);
-				end_lsn = r->end_lsn;
-			}
+			const lsn_t end_lsn = recs.last->end_lsn;
 			if (end_lsn < i.lsn) {
 				DBUG_LOG("ib_log", "skip log for page "
 					 << page_id
