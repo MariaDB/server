@@ -8485,8 +8485,10 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     opt_specialflag|= SPECIAL_NO_HOST_CACHE;
     break;
   case (int) OPT_SKIP_RESOLVE:
-    opt_skip_name_resolve= 1;
-    opt_specialflag|=SPECIAL_NO_RESOLVE;
+    if ((opt_skip_name_resolve= (argument != disabled_my_option)))
+      opt_specialflag|= SPECIAL_NO_RESOLVE;
+    else
+      opt_specialflag&= ~SPECIAL_NO_RESOLVE;
     break;
   case (int) OPT_WANT_CORE:
     test_flags |= TEST_CORE_ON_SIGNAL;
@@ -8545,6 +8547,8 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     break;
   case OPT_PLUGIN_LOAD:
     free_list(opt_plugin_load_list_ptr);
+    if (argument == disabled_my_option)
+      break;                                    // Resets plugin list
     /* fall through */
   case OPT_PLUGIN_LOAD_ADD:
     opt_plugin_load_list_ptr->push_back(new i_string(argument));

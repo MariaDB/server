@@ -1,5 +1,3 @@
-#!/bin/awk
-
 /Query_time:/ {
   results["Rows_examined:"] = "uninit";
   results["RocksDB_key_skipped:"] = "uninit";

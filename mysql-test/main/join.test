@@ -1255,3 +1255,33 @@ SELECT STRAIGHT_JOIN * FROM t1, t2 AS t2_1, t2 AS t2_2
   WHERE t2_2.c = t2_1.c AND t2_2.b = t2_1.b AND ( a IS NULL OR t2_1.c = a );                  
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-19600: The optimizer should be able to produce rows=1 estimate for unique index with NULLable columns
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  pk int not null primary key auto_increment,
+  a int,
+  b int,
+  unique key(a)
+);
+
+# 10K of null values
+insert into t1 (a,b) select null, 12345 from t0 A, t0 B, t0 C;
+insert into t1 (a,b) select a,a from t0;
+
+--echo # Simulate InnoDB's persistent statistics (It always uses nulls_equal)
+set @tmp1= @@myisam_stats_method;
+set myisam_stats_method=nulls_equal;
+analyze table t1;
+set myisam_stats_method=@tmp1;
+show keys from t1;
+
+--echo # t1 must use ref(t1.a=t0.a) and rows must be 1 (and not 45):
+explain select * from t0,t1 where t0.a=t1.a;
+
+drop table t0,t1;

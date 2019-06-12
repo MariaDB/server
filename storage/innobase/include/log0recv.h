@@ -50,8 +50,8 @@ recv_find_max_checkpoint(ulint* max_field)
 
 /** Reduces recv_sys.n_addrs for the corrupted page.
 This function should called when srv_force_recovery > 0.
-@param[in]	bpage	buffer pool page */
-void recv_recover_corrupt_page(buf_page_t* bpage);
+@param[in]	page_id page id of the corrupted page */
+void recv_recover_corrupt_page(page_id_t page_id);
 
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	bpage	buffer pool page */

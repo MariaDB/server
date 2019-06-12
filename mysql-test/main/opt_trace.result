@@ -867,7 +867,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                 "table": "t1",
                 "field": "a",
                 "equals": "t2.b + 2",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t2",
@@ -1805,19 +1805,19 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "table": "t1",
                 "field": "a",
                 "equals": "1",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t1",
                 "field": "a",
                 "equals": "1",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t1",
                 "field": "b",
                 "equals": "2",
-                "null_rejecting": false
+                "null_rejecting": true
               }
             ]
           },
@@ -2821,37 +2821,37 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 "table": "t1",
                 "field": "pk",
                 "equals": "2",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t1",
                 "field": "pk",
                 "equals": "2",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t1",
                 "field": "a",
                 "equals": "5",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t1",
                 "field": "pk",
                 "equals": "2",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t1",
                 "field": "a",
                 "equals": "5",
-                "null_rejecting": false
+                "null_rejecting": true
               },
               {
                 "table": "t1",
                 "field": "b",
                 "equals": "1",
-                "null_rejecting": false
+                "null_rejecting": true
               }
             ]
           },
