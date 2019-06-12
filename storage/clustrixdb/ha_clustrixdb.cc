@@ -146,6 +146,22 @@ int st_clustrixdb_trx::begin_trans()
 }
 
 /****************************************************************************
+** Utility functions
+****************************************************************************/
+// This is a wastefull aproach but better then fixed sized buffer.RALLEL
+size_t estimate_row_size(TABLE *table)
+{
+  size_t row_size = 0;
+  size_t null_byte_count = (bitmap_bits_set(table->write_set) + 7) / 8;
+  row_size += null_byte_count;
+  Field **p_field= table->field, *field;
+  for ( ; (field= *p_field) ; p_field++) {
+    row_size += field->max_data_length();
+  }
+  return row_size;
+}
+
+/****************************************************************************
 ** Class ha_clustrixdb
 ****************************************************************************/
 
@@ -177,11 +193,7 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   enum tmp_table_type saved_tmp_table_type = form->s->tmp_table;
   Table_specification_st *create_info = &thd->lex->create_info;
   const bool is_tmp_table = info->options & HA_LEX_CREATE_TMP_TABLE;
-  char create_table_stmt_buffer[2048];
-  String create_table_stmt(create_table_stmt_buffer,
-                           sizeof(create_table_stmt_buffer),
-                           system_charset_info);
-  create_table_stmt.length(0);
+  String create_table_stmt;
 
   /* Create a copy of the CREATE TABLE statement */
   if (!is_tmp_table)
@@ -204,7 +216,7 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   if (error_code)
     return error_code;
 
-  error_code = trx->clustrix_net->create_table(create_table_stmt_buffer);
+  error_code = trx->clustrix_net->create_table(create_table_stmt);
   return error_code;
 }
 
@@ -216,20 +228,28 @@ int ha_clustrixdb::delete_table(const char *name)
   if (!trx)
     return error_code;
 
-  /* XXX: I know this is unsafe. */
-  char db_name[1000];
-  const char *ptr = name + 2;
-  int i = 0;
+  // This block isn't UTF aware yet.
+  // The format contains './' in the beginning of a path.
+  char *ptr = (char*) name + 2;
   while (*ptr != '/')
-    db_name[i++] = *ptr++;
-  db_name[i] = '\0';
-  char tbl_name[1000];
+  {
+    ptr++;
+  }
+  *ptr = '\0';
+  String db_name;
+  db_name.append(name + 2);
+  *ptr = '/';
   ptr++;
-  strcpy(tbl_name, ptr);
+  String tbl_name;
+  tbl_name.append(ptr);
 
-  char delete_cmd[2000];
-  /* XXX: I know this is unsafe. */
-  sprintf(delete_cmd, "drop table `%s`.`%s`", db_name, tbl_name);
+  String delete_cmd;
+  delete_cmd.append("DROP TABLE `");
+  delete_cmd.append(db_name);
+  delete_cmd.append("`.`");
+  delete_cmd.append(tbl_name);
+  delete_cmd.append("`");
+
   return trx->clustrix_net->delete_table(delete_cmd);
 }
 
@@ -278,21 +298,26 @@ int ha_clustrixdb::write_row(uchar *buf)
   assert(trx->has_transaction);
 
   /* Convert the row format to binlog (packed) format */
-  /* XXX: We cannot use a fixed length buffer for this. */
-  uchar packed_new_row[CLUSTRIXDB_ROW_LIMIT];
+  uchar *packed_new_row = (uchar*) my_alloca(estimate_row_size(table));
   size_t packed_size = pack_row(table, table->write_set, packed_new_row, buf);
 
   /* XXX: Clustrix may needs to return HA_ERR_AUTOINC_ERANGE if we hit that
      error. */
   if ((error_code = trx->clustrix_net->write_row(clustrix_table_oid,
                                                  packed_new_row, packed_size)))
+    goto err;
+
+  {
+    Field *auto_inc_field = table->next_number_field;
+    if (auto_inc_field)
+      insert_id_for_cur_row = trx->clustrix_net->last_insert_id;
+  }
+
+err:
+    if (packed_size)
+      my_afree(packed_new_row);
+
     return error_code;
-
-  Field *auto_inc_field = table->next_number_field;
-  if (auto_inc_field)
-    insert_id_for_cur_row = trx->clustrix_net->last_insert_id;
-
-  return error_code;
 }
 
 int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
@@ -305,14 +330,20 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
 
   assert(trx->has_transaction);
 
-  /* XXX: We cannot use a fixed length buffer for this. */
-  uchar packed_new_row[CLUSTRIXDB_ROW_LIMIT];
+  size_t row_size = estimate_row_size(table);
+  uchar *packed_new_row = (uchar*) my_alloca(row_size);
+  // Add checks for actual size of the packed data
   /*size_t packed_new_size =*/ pack_row(table, table->write_set, packed_new_row, new_data);
-  /* XXX: We cannot use a fixed length buffer for this. */
-  uchar packed_old_row[CLUSTRIXDB_ROW_LIMIT];
+  uchar *packed_old_row = (uchar*) my_alloca(row_size);
   /*size_t packed_old_size =*/ pack_row(table, table->write_set, packed_old_row, old_data);
 
   /* Send the packed rows to Clustrix */
+
+  if(packed_new_row)
+    my_afree(packed_new_row);
+
+  if(packed_old_row)
+    my_afree(packed_old_row);
 
   return error_code;
 }
@@ -327,14 +358,18 @@ int ha_clustrixdb::delete_row(const uchar *buf)
 
   assert(trx->has_transaction);
 
-  /* XXX: We cannot use a fixed length buffer for this. */
-  uchar packed_key[CLUSTRIXDB_ROW_LIMIT];
+  // The estimate should consider only key fields widths.
   size_t packed_key_len;
+  uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   build_key_packed_row(table->s->primary_key, packed_key, &packed_key_len);
 
   if ((error_code = trx->clustrix_net->key_delete(clustrix_table_oid,
                                                   packed_key, packed_key_len)))
-    return error_code;
+    goto err;
+
+err:
+    if (packed_key)
+      my_afree(packed_key);
 
   return error_code;
 }
@@ -450,9 +485,9 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
 
   is_scan = false;
   key_restore(table->record[0], key, &table->key_info[active_index], key_len);
-  /* XXX: We cannot use a fixed length buffer for this. */
-  uchar packed_key[CLUSTRIXDB_ROW_LIMIT];
+  // The estimate should consider only key fields widths.
   size_t packed_key_len;
+  uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   build_key_packed_row(active_index, packed_key, &packed_key_len);
 
   uchar *rowdata;
@@ -461,17 +496,21 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
                                                 active_index, table->read_set,
                                                 packed_key, packed_key_len,
                                                 &rowdata, &rowdata_length)))
-    DBUG_RETURN(error_code);
+    goto err;
 
   uchar const *current_row_end;
   ulong master_reclength;
   if ((error_code = unpack_row(rgi, table, table->s->fields, rowdata,
                               table->read_set, &current_row_end,
                               &master_reclength, rowdata + rowdata_length)))
-    DBUG_RETURN(error_code);
+    goto err;
 
-  DBUG_RETURN(0);
+  error_code = 0;
+err:
+  if (packed_key)
+    my_afree(packed_key);
 
+  DBUG_RETURN(error_code);
 }
 
 int ha_clustrixdb::index_first(uchar *buf)
@@ -669,8 +708,8 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
     key_restore(table->record[0], pos, &table->key_info[keyno], len);
   }
 
-  /* XXX: We cannot use a fixed length buffer for this. */
-  uchar packed_key[CLUSTRIXDB_ROW_LIMIT];
+  // The estimate should consider only key fields widths.
+  uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   size_t packed_key_len;
   build_key_packed_row(table->s->primary_key, packed_key, &packed_key_len);
 
@@ -680,16 +719,22 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
                                                 table->read_set,
                                                 packed_key, packed_key_len,
                                                 &rowdata, &rowdata_length)))
-    DBUG_RETURN(error_code);
+    goto err;
 
   uchar const *current_row_end;
   ulong master_reclength;
   if ((error_code = unpack_row(rgi, table, table->s->fields, rowdata,
                               table->read_set, &current_row_end,
                               &master_reclength, rowdata + rowdata_length)))
-    DBUG_RETURN(error_code);
+    goto err;
 
-  DBUG_RETURN(0);
+  error_code = 0;
+err:
+
+  if (packed_key)
+    my_afree(packed_key);
+
+  DBUG_RETURN(error_code);
 }
 
 int ha_clustrixdb::rnd_end()
@@ -791,14 +836,16 @@ void ha_clustrixdb::add_current_table_to_rpl_table_list()
   rgi->tables_to_lock->m_conv_table = NULL;
   rgi->tables_to_lock->master_had_triggers = FALSE;
   rgi->tables_to_lock->m_tabledef_valid = TRUE;
-  /* XXX: We cannot use a fixed length buffer for this. */
-  uchar col_type[CLUSTRIXDB_ROW_LIMIT];
+  // We need one byte per column to save a column's binlog type.
+  uchar *col_type = (uchar*) my_alloca(table->s->fields);
   for (uint i = 0 ; i < table->s->fields ; ++i)
     col_type[i] = table->field[i]->binlog_type();
 
   table_def *tabledef = &rgi->tables_to_lock->m_tabledef;
   new (tabledef) table_def(col_type, table->s->fields, NULL, 0, NULL, 0);
   rgi->tables_to_lock_count++;
+  if (col_type)
+    my_afree(col_type);
 }
 
 void ha_clustrixdb::remove_current_table_from_rpl_table_list()
@@ -906,7 +953,6 @@ static int clustrixdb_close_connection(handlerton* hton, THD* thd)
   if (trx->has_transaction)
     clustrixdb_rollback(clustrixdb_hton, thd, TRUE);
 
-  thd_set_ha_data(thd, clustrixdb_hton, NULL);
   delete trx;
 
   return 0;
