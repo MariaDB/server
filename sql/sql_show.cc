@@ -9839,8 +9839,6 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   char header[256];
   int len;
 
-  mysql_mutex_lock(&LOCK_thread_count);
-
   len= my_snprintf(header, sizeof(header),
                    "MySQL thread id %lu, OS thread handle 0x%lx, query id %lu",
                    thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
@@ -9885,7 +9883,6 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (str.c_ptr_safe() == buffer)
     return buffer;
