@@ -269,9 +269,6 @@ innodb_autoinc_lock_mode=2
    autoinc lock modes 0 and 1 can cause unresolved deadlock, and make
    the system unresponsive.
 
-innodb_locks_unsafe_for_binlog=1
-   This option is required for parallel applying.
-
 5.2 WSREP OPTIONS
 
 All options are optional except for wsrep_provider, wsrep_cluster_address, and
