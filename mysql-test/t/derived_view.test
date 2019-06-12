@@ -1936,7 +1936,7 @@ set optimizer_switch=@exit_optimizer_switch;
 set join_cache_level=@exit_join_cache_level;
 
 --echo #
---echo # Bug mdev-12812: EXPLAIN for query with many expensive derived
+--echo # Bug mdev-18479: EXPLAIN for query with many expensive derived
 --echo #
 
 CREATE TABLE t1
