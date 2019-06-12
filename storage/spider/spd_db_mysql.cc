@@ -56,6 +56,8 @@ extern HASH spider_open_connections;
 extern HASH spider_ipport_conns;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern const char spider_dig_upper[];
+extern const char **spd_mysqld_unix_port;
+extern uint *spd_mysqld_port;
 
 spider_db_mysql_util spider_db_mysql_utility;
 spider_db_mariadb_util spider_db_mariadb_utility;
@@ -1968,6 +1970,30 @@ int spider_db_mbase::connect(
         conn->tgt_default_group));
       mysql_options(db_conn, MYSQL_READ_DEFAULT_GROUP,
         conn->tgt_default_group);
+    }
+
+    if (!spider_param_same_server_link(thd))
+    {
+      if (!strcmp(tgt_host, my_localhost))
+      {
+        if (!strcmp(tgt_socket, *spd_mysqld_unix_port))
+        {
+          my_printf_error(ER_SPIDER_SAME_SERVER_LINK_NUM,
+            ER_SPIDER_SAME_SERVER_LINK_STR1, MYF(0),
+            tgt_host, tgt_socket);
+          DBUG_RETURN(ER_SPIDER_SAME_SERVER_LINK_NUM);
+        }
+      } else if (!strcmp(tgt_host, "127.0.0.1") ||
+        !strcmp(tgt_host, glob_hostname))
+      {
+        if (tgt_port == *spd_mysqld_port)
+        {
+          my_printf_error(ER_SPIDER_SAME_SERVER_LINK_NUM,
+            ER_SPIDER_SAME_SERVER_LINK_STR2, MYF(0),
+            tgt_host, tgt_port);
+          DBUG_RETURN(ER_SPIDER_SAME_SERVER_LINK_NUM);
+        }
+      }
     }
 
     if (connect_mutex)
