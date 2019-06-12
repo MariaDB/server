@@ -213,7 +213,6 @@ encryption.innodb_encryption_row_compressed : MDEV-16113 - Crash
 encryption.innodb_first_page                : MDEV-10689 - Crash
 encryption.innodb-first-page-read           : MDEV-14356 - Timeout on wait condition
 encryption.innodb-force-corrupt             : Modified in 10.1.38
-encryption.innodb_lotoftables               : MDEV-16111 - Wrong result
 encryption.innodb-page_encryption           : MDEV-10641 - mutex problem
 encryption.innodb-read-only                 : MDEV-14728 - Unable to get certificate; MDEV-16563 - Crash on startup
 encryption.innodb-redo-badkey               : MDEV-12898 - Server hang on startup
