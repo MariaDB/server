@@ -64,8 +64,8 @@ public:
   int commit_trans();
   int rollback_trans();
 
-  int create_table(char *stmt);
-  int delete_table(char *stmt);
+  int create_table(String &stmt);
+  int delete_table(String &stmt);
 
   int write_row(ulonglong clustrix_table_oid,
                 uchar *packed_row, size_t packed_size);

@@ -20,6 +20,8 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "mysql.h"
 #include "../../sql/rpl_record.h"
 
+size_t estimate_row_size(TABLE *table);
+
 class ha_clustrixdb;
 
 class st_clustrixdb_trx

@@ -178,18 +178,18 @@ int clustrix_connection::rollback_trans()
   return error_code;
 }
 
-int clustrix_connection::create_table(char *stmt)
+int clustrix_connection::create_table(String &stmt)
 {
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
+  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
   if (error_code)
     return mysql_errno(&clustrix_net);
 
   return error_code;
 }
 
-int clustrix_connection::delete_table(char *stmt)
+int clustrix_connection::delete_table(String &stmt)
 {
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
+  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
   if (error_code)
     return mysql_errno(&clustrix_net);
   return error_code;
@@ -412,8 +412,10 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
   get_oid.append(name);
   get_oid.append("'");
   if (mysql_real_query(&clustrix_net, get_oid.c_ptr(), get_oid.length())) {
-    if ((error_code = mysql_errno(&clustrix_net)))
-      return error_code;
+    if ((error_code = mysql_errno(&clustrix_net))) {
+       error_code = HA_ERR_NO_SUCH_TABLE;
+       goto error;
+    }
   }
 
   results = mysql_store_result(&clustrix_net);
@@ -447,8 +449,11 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
   show.append(".");
   show.append(name);
   if (mysql_real_query(&clustrix_net, show.c_ptr(), show.length())) {
-    if ((error_code = mysql_errno(&clustrix_net)))
-      return error_code;
+    if ((error_code = mysql_errno(&clustrix_net))) {
+      DBUG_PRINT("mysql_real_query returns ",("%d", error_code));
+      error_code = HA_ERR_NO_SUCH_TABLE;
+      goto error;
+    }
   }
 
   results = mysql_store_result(&clustrix_net);
