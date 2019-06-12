@@ -365,16 +365,12 @@ page_zip_dir_get(
 				- PAGE_ZIP_DIR_SLOT_SIZE * (slot + 1)));
 }
 
-/**********************************************************************//**
-Write a log record of compressing an index page. */
-static
-void
-page_zip_compress_write_log(
-/*========================*/
-	const page_zip_des_t*	page_zip,/*!< in: compressed page */
-	const page_t*		page,	/*!< in: uncompressed page */
-	dict_index_t*		index,	/*!< in: index of the B-tree node */
-	mtr_t*			mtr)	/*!< in: mini-transaction */
+/** Write a MLOG_ZIP_PAGE_COMPRESS record of compressing an index page.
+@param[in,out]	block	ROW_FORMAT=COMPRESSED index page
+@param[in]	index	the index that the block belongs to
+@param[in,out]	mtr	mini-transaction */
+static void page_zip_compress_write_log(buf_block_t* block,
+					dict_index_t* index, mtr_t* mtr)
 {
 	byte*	log_ptr;
 	ulint	trailer_size;
@@ -388,6 +384,8 @@ page_zip_compress_write_log(
 		return;
 	}
 
+	const page_t* page = block->frame;
+	const page_zip_des_t* page_zip = &block->page.zip;
 	/* Read the number of user records. */
 	trailer_size = ulint(page_dir_get_n_heap(page_zip->data))
 		- PAGE_HEAP_NO_USER_LOW;
@@ -406,9 +404,10 @@ page_zip_compress_write_log(
 	compile_time_assert(FIL_PAGE_DATA <= PAGE_DATA);
 	ut_a(page_zip->m_end + trailer_size <= page_zip_get_size(page_zip));
 
-	log_ptr = mlog_write_initial_log_record_fast((page_t*) page,
-						     MLOG_ZIP_PAGE_COMPRESS,
-						     log_ptr, mtr);
+	log_ptr = mlog_write_initial_log_record_low(MLOG_ZIP_PAGE_COMPRESS,
+						    block->page.id.space(),
+						    block->page.id.page_no(),
+						    log_ptr, mtr);
 	mach_write_to_2(log_ptr, ulint(page_zip->m_end - FIL_PAGE_TYPE));
 	log_ptr += 2;
 	mach_write_to_2(log_ptr, trailer_size);
@@ -425,6 +424,9 @@ page_zip_compress_write_log(
 	/* Write the uncompressed trailer of the compressed page. */
 	mlog_catenate_string(mtr, page_zip->data + page_zip_get_size(page_zip)
 			     - trailer_size, trailer_size);
+	if (!innodb_log_optimize_ddl) {
+		block->page.init_on_flush = true;
+	}
 }
 
 /******************************************************//**
@@ -1225,17 +1227,12 @@ page_zip_compress_clust(
 func_exit:
 	return(err);}
 
-/**********************************************************************//**
-Compress a page.
-@return TRUE on success, FALSE on failure; page_zip will be left
-intact on failure. */
-ibool
+/** Attempt to compress a ROW_FORMAT=COMPRESSED page.
+@retval true on success
+@retval false on failure; block->page.zip will be left intact. */
+bool
 page_zip_compress(
-/*==============*/
-	page_zip_des_t*		page_zip,	/*!< in: size; out: data,
-						n_blobs, m_start, m_end,
-						m_nonempty */
-	const page_t*		page,		/*!< in: uncompressed page */
+	buf_block_t*		block,		/*!< in/out: buffer block */
 	dict_index_t*		index,		/*!< in: index of the B-tree
 						node */
 	ulint			level,		/*!< in: commpression level */
@@ -1267,6 +1264,9 @@ page_zip_compress(
 	anytime. */
 	my_bool			cmp_per_index_enabled;
 	cmp_per_index_enabled	= srv_cmp_per_index_enabled;
+
+	page_t* page = block->frame;
+	page_zip_des_t* page_zip = &block->page.zip;
 
 	ut_a(page_is_comp(page));
 	ut_a(fil_page_index_page_check(page));
@@ -1518,7 +1518,7 @@ err_exit:
 				+= time_diff;
 			mutex_exit(&page_zip_stat_per_index_mutex);
 		}
-		return(FALSE);
+		return false;
 	}
 
 	err = deflateEnd(&c_stream);
@@ -1558,7 +1558,7 @@ err_exit:
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (mtr) {
-		page_zip_compress_write_log(page_zip, page, index, mtr);
+		page_zip_compress_write_log(block, index, mtr);
 	}
 
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
@@ -1589,7 +1589,7 @@ err_exit:
 		dict_index_zip_success(index);
 	}
 
-	return(TRUE);
+	return true;
 }
 
 /**********************************************************************//**
@@ -4704,7 +4704,6 @@ page_zip_reorganize(
 	mtr_t*		mtr)	/*!< in: mini-transaction */
 {
 	buf_pool_t*	buf_pool	= buf_pool_from_block(block);
-	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	page_t*		page		= buf_block_get_frame(block);
 	buf_block_t*	temp_block;
 	page_t*		temp_page;
@@ -4715,7 +4714,8 @@ page_zip_reorganize(
 	ut_ad(!index->table->is_temporary());
 	/* Note that page_zip_validate(page_zip, page, index) may fail here. */
 	UNIV_MEM_ASSERT_RW(page, srv_page_size);
-	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
+	UNIV_MEM_ASSERT_RW(buf_block_get_page_zip(block)->data,
+			   page_zip_get_size(buf_block_get_page_zip(block)));
 
 	/* Disable logging */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
@@ -4755,7 +4755,7 @@ page_zip_reorganize(
 	/* Restore logging. */
 	mtr_set_log_mode(mtr, log_mode);
 
-	if (!page_zip_compress(page_zip, page, index, page_zip_level, mtr)) {
+	if (!page_zip_compress(block, index, page_zip_level, mtr)) {
 		buf_block_free(temp_block);
 		return(FALSE);
 	}
@@ -4773,16 +4773,15 @@ related to the storage of records.  Also copy PAGE_MAX_TRX_ID.
 NOTE: The caller must update the lock table and the adaptive hash index. */
 void
 page_zip_copy_recs(
-/*===============*/
-	page_zip_des_t*		page_zip,	/*!< out: copy of src_zip
-						(n_blobs, m_start, m_end,
-						m_nonempty, data[0..size-1]) */
-	page_t*			page,		/*!< out: copy of src */
+	buf_block_t*		block,		/*!< in/out: buffer block */
 	const page_zip_des_t*	src_zip,	/*!< in: compressed page */
 	const page_t*		src,		/*!< in: page */
 	dict_index_t*		index,		/*!< in: index of the B-tree */
 	mtr_t*			mtr)		/*!< in: mini-transaction */
 {
+	page_t* page = block->frame;
+	page_zip_des_t* page_zip = &block->page.zip;
+
 	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr_memo_contains_page(mtr, src, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_ibuf(index));
@@ -4858,7 +4857,7 @@ page_zip_copy_recs(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-	page_zip_compress_write_log(page_zip, page, index, mtr);
+	page_zip_compress_write_log(block, index, mtr);
 }
 
 /** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.

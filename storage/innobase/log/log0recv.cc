@@ -1662,8 +1662,15 @@ parse_log:
 
 			ut_a(!page || ((ibool)!!page_is_comp(page)
 				== dict_table_is_comp(index->table)));
-			ptr = page_zip_parse_compress_no_data(
-				ptr, end_ptr, page, page_zip, index);
+			if (end_ptr == ptr) {
+				ptr = NULL;
+				break;
+			}
+			if (page &&
+			    !page_zip_compress(block, index, *ptr, NULL)) {
+				ut_error;
+			}
+			ptr++;
 		}
 		break;
 	case MLOG_ZIP_WRITE_TRX_ID:

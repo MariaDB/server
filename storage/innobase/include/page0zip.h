@@ -128,17 +128,12 @@ page_zip_set_alloc(
 	void*		stream,		/*!< in/out: zlib stream */
 	mem_heap_t*	heap);		/*!< in: memory heap to use */
 
-/**********************************************************************//**
-Compress a page.
-@return TRUE on success, FALSE on failure; page_zip will be left
-intact on failure. */
-ibool
+/** Attempt to compress a ROW_FORMAT=COMPRESSED page.
+@retval true on success
+@retval false on failure; block->page.zip will be left intact. */
+bool
 page_zip_compress(
-/*==============*/
-	page_zip_des_t*		page_zip,	/*!< in: size; out: data,
-						n_blobs, m_start, m_end,
-						m_nonempty */
-	const page_t*		page,		/*!< in: uncompressed page */
+	buf_block_t*		block,		/*!< in/out: buffer block */
 	dict_index_t*		index,		/*!< in: index of the B-tree
 						node */
 	ulint			level,		/*!< in: commpression level */
@@ -461,11 +456,7 @@ related to the storage of records.  Also copy PAGE_MAX_TRX_ID.
 NOTE: The caller must update the lock table and the adaptive hash index. */
 void
 page_zip_copy_recs(
-/*===============*/
-	page_zip_des_t*		page_zip,	/*!< out: copy of src_zip
-						(n_blobs, m_start, m_end,
-						m_nonempty, data[0..size-1]) */
-	page_t*			page,		/*!< out: copy of src */
+	buf_block_t*		block,		/*!< in/out: buffer block */
 	const page_zip_des_t*	src_zip,	/*!< in: compressed page */
 	const page_t*		src,		/*!< in: page */
 	dict_index_t*		index,		/*!< in: index of the B-tree */
@@ -511,19 +502,6 @@ page_zip_compress_write_log_no_data(
 	const page_t*	page,	/*!< in: page that is compressed */
 	dict_index_t*	index,	/*!< in: index */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**********************************************************************//**
-Parses a log record of compressing an index page without the data.
-@return end of log record or NULL */
-UNIV_INLINE
-byte*
-page_zip_parse_compress_no_data(
-/*============================*/
-	byte*		ptr,		/*!< in: buffer */
-	byte*		end_ptr,	/*!< in: buffer end */
-	page_t*		page,		/*!< in: uncompressed page */
-	page_zip_des_t*	page_zip,	/*!< out: compressed page */
-	dict_index_t*	index)		/*!< in: index */
-	MY_ATTRIBUTE((nonnull(1,2)));
 
 /**********************************************************************//**
 Reset the counters used for filling

@@ -373,8 +373,7 @@ PageBulk::compress()
 {
 	ut_ad(m_page_zip != NULL);
 
-	return(page_zip_compress(m_page_zip, m_page, m_index,
-				 page_zip_level, &m_mtr));
+	return page_zip_compress(m_block, m_index, page_zip_level, &m_mtr);
 }
 
 /** Get node pointer

@@ -458,10 +458,9 @@ page_create_zip(
 						handle */
 {
 	page_t*			page;
-	page_zip_des_t*		page_zip = buf_block_get_page_zip(block);
 
 	ut_ad(block);
-	ut_ad(page_zip);
+	ut_ad(buf_block_get_page_zip(block));
 	ut_ad(dict_table_is_comp(index->table));
 
 	/* PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC are always 0 for
@@ -484,7 +483,7 @@ page_create_zip(
 	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
 	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + page, max_trx_id);
 
-	if (!page_zip_compress(page_zip, page, index, page_zip_level, mtr)) {
+	if (!page_zip_compress(block, index, page_zip_level, mtr)) {
 		/* The compression of a newly created
 		page should always succeed. */
 		ut_error;
@@ -705,7 +704,7 @@ page_copy_rec_list_end(
 	if (new_page_zip) {
 		mtr_set_log_mode(mtr, log_mode);
 
-		if (!page_zip_compress(new_page_zip, new_page, index,
+		if (!page_zip_compress(new_block, index,
 				       page_zip_level, mtr)) {
 			/* Before trying to reorganize the page,
 			store the number of preceding records on the page. */
@@ -867,7 +866,7 @@ page_copy_rec_list_start(
 		DBUG_EXECUTE_IF("page_copy_rec_list_start_compress_fail",
 				goto zip_reorganize;);
 
-		if (!page_zip_compress(new_page_zip, new_page, index,
+		if (!page_zip_compress(new_block, index,
 				       page_zip_level, mtr)) {
 			ulint	ret_pos;
 #ifndef DBUG_OFF
