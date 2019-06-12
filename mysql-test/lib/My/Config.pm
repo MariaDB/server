@@ -327,7 +327,13 @@ sub new {
       # Skip comment
       next;
     }
-    
+    # Correctly process Replication Filter when they are defined
+    # with connection name.
+    elsif ( $line =~ /^([\w]+.[\w]+)\s*=\s*(.*)\s*/){
+       my $option= $1;
+       my $value= $2;
+       $self->insert($group_name, $option, $value);
+    }
     else {
       croak "Unexpected line '$line' found in '$path'";
     }
