@@ -6113,10 +6113,12 @@ database_corrupted:
 
 		if (err == DB_PAGE_CORRUPTED
 		    || err == DB_DECRYPTION_FAILED) {
+			const page_id_t corrupt_page_id = bpage->id;
+
 			buf_corrupt_page_release(bpage, space);
 
 			if (recv_recovery_is_on()) {
-				recv_recover_corrupt_page(bpage);
+				recv_recover_corrupt_page(corrupt_page_id);
 			}
 
 			space->release_for_io();

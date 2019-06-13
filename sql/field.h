@@ -1442,6 +1442,8 @@ public:
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment, ulong current_row=0) const;
+  virtual void print_key_value(String *out, uint32 length);
+  void print_key_value_binary(String *out, const uchar* key, uint32 length);
 protected:
   bool set_warning(unsigned int code, int cuted_increment) const
   {
@@ -3699,6 +3701,7 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
+  void print_key_value(String *out, uint32 length);
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -3815,6 +3818,7 @@ public:
   uint is_equal(Create_field *new_field);
   void hash(ulong *nr, ulong *nr2);
   uint length_size() { return length_bytes; }
+  void print_key_value(String *out, uint32 length);
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -4163,6 +4167,7 @@ public:
   uint32 char_length() const;
   uint32 character_octet_length() const;
   uint is_equal(Create_field *new_field);
+  void print_key_value(String *out, uint32 length);
 
   friend void TABLE::remember_blob_values(String *blob_storage);
   friend void TABLE::restore_blob_values(String *blob_storage);
@@ -4290,6 +4295,10 @@ public:
   geometry_type get_geometry_type() { return geom_type; };
   static geometry_type geometry_type_merge(geometry_type, geometry_type);
   uint get_srid() { return srid; }
+  void print_key_value(String *out, uint32 length)
+  {
+    out->append(STRING_WITH_LEN("unprintable_geometry_value"));
+  }
 };
 
 uint gis_field_options_image(uchar *buff, List<Create_field> &create_fields);
@@ -4608,6 +4617,11 @@ public:
   {
     return get_mm_leaf_int(param, key_part, cond, op, value, true);
   }
+  void print_key_value(String *out, uint32 length)
+  {
+    val_int_as_str(out, 1);
+  }
+
 private:
   virtual size_t do_last_null_byte() const;
   int save_field_metadata(uchar *first_byte);

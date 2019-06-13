@@ -5680,7 +5680,9 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
         table->field[16]->store_time(&time);
         table->field[16]->set_notnull();
       }
-      if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
+      if ((file->ha_table_flags() &
+            (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)) &&
+           !file->stats.checksum_null)
       {
         table->field[18]->store((longlong) file->stats.checksum, TRUE);
         table->field[18]->set_notnull();

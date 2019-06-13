@@ -679,6 +679,7 @@ public:
 
   int reserve(size_t space_needed)
   {
+    DBUG_ASSERT((ulonglong) str_length + space_needed < UINT_MAX32);
     return realloc(str_length + space_needed);
   }
   int reserve(size_t space_needed, size_t grow_by);
@@ -964,6 +965,8 @@ public:
   {
     return !sortcmp(this, other, cs);
   }
+private:
+  bool append_semi_hex(const char *s, uint len, CHARSET_INFO *cs);
 };
 
 

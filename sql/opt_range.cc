@@ -15835,12 +15835,10 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
     {
       // Byte 0 of a nullable key is the null-byte. If set, key is NULL.
       if (field->real_maybe_null() && *key)
+      {
         out->append(STRING_WITH_LEN("NULL"));
-      else
-        (field->type() == MYSQL_TYPE_GEOMETRY)
-            ? out->append(STRING_WITH_LEN("unprintable_geometry_value"))
-            : out->append(STRING_WITH_LEN("unprintable_blob_value"));
-      goto next;
+        goto next;
+      }
     }
 
     if (field->real_maybe_null())
@@ -15859,28 +15857,12 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
       store_length--;
     }
 
-    /*
-      Binary data cannot be converted to UTF8 which is what the
-      optimizer trace expects. If the column is binary, the hex
-      representation is printed to the trace instead.
-    */
-    if (field->flags & BINARY_FLAG)
-    {
-      out->append("0x");
-      for (uint i = 0; i < store_length; i++)
-      {
-        out->append(_dig_vec_lower[*(key + i) >> 4]);
-        out->append(_dig_vec_lower[*(key + i) & 0x0F]);
-      }
-      goto next;
-    }
-
     field->set_key_image(key, key_part->length);
-    if (field->type() == MYSQL_TYPE_BIT)
-      (void)field->val_int_as_str(&tmp, 1);  // may change tmp's charset
+    field->print_key_value(&tmp, key_part->length);
+    if (field->charset() == &my_charset_bin)
+      out->append(tmp.ptr(), tmp.length(), tmp.charset());
     else
-      field->val_str(&tmp);  // may change tmp's charset
-    out->append(tmp.ptr(), tmp.length(), tmp.charset());
+      tmp.print(out, system_charset_info);
 
   next:
     if (key + store_length < key_end)

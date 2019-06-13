@@ -444,4 +444,58 @@ select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) fr
 
 drop table t1;
 
+--echo #
+--echo # MDEV-18880: Optimizer trace prints date in hexadecimal
+--echo #
+
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10) CHARSET BINARY , INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ALTER TABLE t1 modify column b BINARY(10) AFTER i;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ALTER TABLE t1 modify column b VARBINARY(10) AFTER i;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b blob , INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b= 'ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, 'ab\n');
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int);
+insert into one_k select A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+create table t1 (start_date date, end_date date, filler char(100), key(start_date, end_date)) ;
+--disable_warnings
+insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
+--enable_warnings
+explain format=json select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1, t0, one_k;
+
 set optimizer_trace='enabled=off';

@@ -1971,11 +1971,11 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 /** Remove records for a corrupted page.
 This function should called when srv_force_recovery > 0.
-@param[in]	bpage	buffer pool page */
-void recv_recover_corrupt_page(buf_page_t* bpage)
+@param[in]	page_id	page id of the corrupted page */
+void recv_recover_corrupt_page(page_id_t page_id)
 {
 	mutex_enter(&recv_sys.mutex);
-	recv_sys.pages.erase(bpage->id);
+	recv_sys.pages.erase(page_id);
 	mutex_exit(&recv_sys.mutex);
 }
 
