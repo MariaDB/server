@@ -2102,8 +2102,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 /** Reduces recv_sys.n_addrs for the corrupted page.
 This function should called when srv_force_recovery > 0.
-@param[in]	bpage	buffer pool page */
-void recv_recover_corrupt_page(buf_page_t* bpage)
+@param[in]	page_id	page id of the corrupted page */
+void recv_recover_corrupt_page(page_id_t page_id)
 {
 	ut_ad(srv_force_recovery);
 	mutex_enter(&recv_sys.mutex);
@@ -2114,7 +2114,7 @@ void recv_recover_corrupt_page(buf_page_t* bpage)
 	}
 
 	recv_addr_t* recv_addr = recv_get_fil_addr_struct(
-		bpage->id.space(), bpage->id.page_no());
+		page_id.space(), page_id.page_no());
 
 	ut_ad(recv_addr->state != RECV_WILL_NOT_READ);
 

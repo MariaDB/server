@@ -11242,3 +11242,58 @@ bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
   thd->variables.sql_mode= sql_mode_backup;
   return rc;
 }
+
+
+void Field::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+    print_key_value_binary(out, ptr, length);
+  else
+    val_str(out);
+}
+
+
+void Field_string::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+  {
+    size_t len= field_charset->cset->lengthsp(field_charset, (const char*) ptr, length);
+    print_key_value_binary(out, ptr, static_cast<uint32>(len));
+  }
+  else
+  {
+    THD *thd= get_thd();
+    sql_mode_t sql_mode_backup= thd->variables.sql_mode;
+    thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+    val_str(out,out);
+    thd->variables.sql_mode= sql_mode_backup;
+  }
+}
+
+
+void Field_varstring::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+    print_key_value_binary(out, get_data(), get_length());
+  else
+    val_str(out,out);
+}
+
+
+void Field_blob::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+  {
+    uchar *blob;
+    memcpy(&blob, ptr+packlength, sizeof(uchar*));
+    print_key_value_binary(out, blob, get_length());
+  }
+  else
+    val_str(out, out);
+}
+
+
+void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
+{
+  out->append_semi_hex((const char*)key, length, charset());
+}

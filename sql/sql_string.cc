@@ -1196,3 +1196,15 @@ uint convert_to_printable(char *to, size_t to_len,
     *t= '\0';
   return (uint) (t - to);
 }
+
+
+bool String::append_semi_hex(const char *s, uint len, CHARSET_INFO *cs)
+{
+  size_t dst_len= len * 4 + 1; //extra length for the '\0' character
+  if (reserve(dst_len))
+    return true;
+  uint nbytes= convert_to_printable(Ptr + str_length, dst_len, s, len, cs);
+  DBUG_ASSERT((ulonglong) str_length + nbytes < UINT_MAX32);
+  str_length+= nbytes;
+  return false;
+}

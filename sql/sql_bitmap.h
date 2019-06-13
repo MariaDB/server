@@ -27,10 +27,14 @@
 #include <my_bitmap.h>
 #include <my_bit.h>
 
+
+template <uint width> class Bitmap
+{
+
 /*
   Workaround GCC optimizer bug (generating SSE instuctions on unaligned data)
 */
-#if defined (__GNUC__) && defined(__x86_64__) && (__GNUC__ < 6)
+#if defined (__GNUC__) && defined(__x86_64__) && (__GNUC__ < 6) && !defined(__clang__)
 #define NEED_GCC_NO_SSE_WORKAROUND
 #endif
 
@@ -39,8 +43,6 @@
 #pragma GCC target ("no-sse")
 #endif
 
-template <uint width> class Bitmap
-{
   uint32 buffer[(width + 31) / 32];
 public:
   Bitmap()
@@ -276,12 +278,14 @@ public:
     }
     enum { BITMAP_END = width };
   };
-};
 
 #ifdef NEED_GCC_NO_SSE_WORKAROUND
 #pragma GCC pop_options
 #undef NEED_GCC_NO_SSE_WORKAROUND
 #endif
+
+};
+
 
 /* An iterator to quickly walk over bits in ulonglong bitmap. */
 class Table_map_iterator

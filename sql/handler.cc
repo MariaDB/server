@@ -5054,7 +5054,7 @@ int handler::calculate_checksum()
       return HA_ERR_ABORTED_BY_USER;
 
     ha_checksum row_crc= 0;
-    error= table->file->ha_rnd_next(table->record[0]);
+    error= ha_rnd_next(table->record[0]);
     if (error)
       break;
 
@@ -5108,7 +5108,7 @@ int handler::calculate_checksum()
 
     stats.checksum+= row_crc;
   }
-  table->file->ha_rnd_end();
+  ha_rnd_end();
   return error == HA_ERR_END_OF_FILE ? 0 : error;
 }
 

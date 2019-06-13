@@ -10645,22 +10645,20 @@ int ha_partition::calculate_checksum()
     }
   }
   m_pre_calling= FALSE;
-  if ((table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)))
+
+  handler **file= m_file;
+  do
   {
-    handler **file= m_file;
-    do
+    if ((error= (*file)->calculate_checksum()))
     {
-      if ((error= (*file)->calculate_checksum()))
-      {
-        DBUG_RETURN(error);
-      }
-      if (!(*file)->stats.checksum_null)
-      {
-        stats.checksum+= (*file)->stats.checksum;
-        stats.checksum_null= FALSE;
-      }
-    } while (*(++file));
-  }
+      DBUG_RETURN(error);
+    }
+    if (!(*file)->stats.checksum_null)
+    {
+      stats.checksum+= (*file)->stats.checksum;
+      stats.checksum_null= FALSE;
+    }
+  } while (*(++file));
   DBUG_RETURN(0);
 }
 

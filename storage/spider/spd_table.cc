@@ -122,6 +122,8 @@ HASH *spd_db_att_xid_cache;
 struct charset_info_st *spd_charset_utf8_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
+const char **spd_mysqld_unix_port;
+uint *spd_mysqld_port;
 bool volatile *spd_abort_loop;
 Time_zone *spd_tz_system;
 extern long spider_conn_mutex_id;
@@ -6934,6 +6936,10 @@ int spider_db_init(
     GetProcAddress(current_module, "my_defaults_extra_file");
   spd_defaults_file = (const char **)
     GetProcAddress(current_module, "my_defaults_file");
+  spd_mysqld_unix_port = (const char **)
+    GetProcAddress(current_module, "?mysqld_unix_port@@3PADA");
+  spd_mysqld_port = (uint *)
+    GetProcAddress(current_module, "?mysqld_port@@3IA");
   spd_abort_loop = (bool volatile *)
     GetProcAddress(current_module, "?abort_loop@@3_NC");
   spd_tz_system = *(Time_zone **)
@@ -6960,6 +6966,8 @@ int spider_db_init(
   spd_charset_utf8_bin = &my_charset_utf8_bin;
   spd_defaults_extra_file = &my_defaults_extra_file;
   spd_defaults_file = &my_defaults_file;
+  spd_mysqld_unix_port = (const char **) &mysqld_unix_port;
+  spd_mysqld_port = &mysqld_port;
   spd_abort_loop = &abort_loop;
   spd_tz_system = my_tz_SYSTEM;
 #endif

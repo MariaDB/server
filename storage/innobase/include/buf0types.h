@@ -134,6 +134,77 @@ this must be equal to srv_page_size */
 #define BUF_BUDDY_HIGH	(BUF_BUDDY_LOW << BUF_BUDDY_SIZES)
 /* @} */
 
+/** Page identifier. */
+class page_id_t {
+public:
+
+	/** Constructor from (space, page_no).
+	@param[in]	space	tablespace id
+	@param[in]	page_no	page number */
+	page_id_t(ulint space, ulint page_no)
+		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
+	{
+		ut_ad(space <= 0xFFFFFFFFU);
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
+
+	bool operator==(const page_id_t& rhs) const
+	{
+		return m_space == rhs.m_space && m_page_no == rhs.m_page_no;
+	}
+	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
+
+	bool operator<(const page_id_t& rhs) const
+	{
+		if (m_space == rhs.m_space) {
+			return m_page_no < rhs.m_page_no;
+		}
+
+		return m_space < rhs.m_space;
+	}
+
+	/** Retrieve the tablespace id.
+	@return tablespace id */
+	uint32_t space() const { return m_space; }
+
+	/** Retrieve the page number.
+	@return page number */
+	uint32_t page_no() const { return m_page_no; }
+
+	/** Retrieve the fold value.
+	@return fold value */
+	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
+
+	/** Reset the page number only.
+	@param[in]	page_no	page number */
+	void set_page_no(ulint page_no)
+	{
+		m_page_no = uint32_t(page_no);
+
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
+
+private:
+
+	/** Tablespace id. */
+	uint32_t	m_space;
+
+	/** Page number. */
+	uint32_t	m_page_no;
+
+	/** Declare the overloaded global operator<< as a friend of this
+	class. Refer to the global declaration for further details.  Print
+	the given page_id_t object.
+	@param[in,out]	out	the output stream
+	@param[in]	page_id	the page_id_t object to be printed
+	@return the output stream */
+        friend
+        std::ostream&
+        operator<<(
+                std::ostream&           out,
+                const page_id_t        page_id);
+};
+
 #ifndef UNIV_INNOCHECKSUM
 
 #include "ut0mutex.h"

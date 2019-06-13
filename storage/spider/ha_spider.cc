@@ -9431,9 +9431,9 @@ int ha_spider::calculate_checksum()
     stats.checksum = 0;
   } else {
     share->stat.checksum_null = FALSE;
-    share->stat.checksum = checksum_val;
+    share->stat.checksum = (ha_checksum) checksum_val;
     stats.checksum_null = FALSE;
-    stats.checksum = checksum_val;
+    stats.checksum = (ha_checksum) checksum_val;
   }
   DBUG_RETURN(0);
 }
