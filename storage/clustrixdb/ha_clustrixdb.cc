@@ -230,24 +230,15 @@ int ha_clustrixdb::delete_table(const char *name)
 
   // This block isn't UTF aware yet.
   // The format contains './' in the beginning of a path.
-  char *ptr = (char*) name + 2;
-  while (*ptr != '/')
-  {
-    ptr++;
-  }
-  *ptr = '\0';
-  String db_name;
-  db_name.append(name + 2);
-  *ptr = '/';
-  ptr++;
-  String tbl_name;
-  tbl_name.append(ptr);
+  char *dbname_end = (char*) name + 2;
+  while (*dbname_end != '/')
+    dbname_end++;
 
   String delete_cmd;
   delete_cmd.append("DROP TABLE `");
-  delete_cmd.append(db_name);
+  delete_cmd.append(name + 2, dbname_end - name - 2);
   delete_cmd.append("`.`");
-  delete_cmd.append(tbl_name);
+  delete_cmd.append(dbname_end + 1);
   delete_cmd.append("`");
 
   return trx->clustrix_net->delete_table(delete_cmd);
@@ -307,11 +298,9 @@ int ha_clustrixdb::write_row(uchar *buf)
                                                  packed_new_row, packed_size)))
     goto err;
 
-  {
-    Field *auto_inc_field = table->next_number_field;
-    if (auto_inc_field)
-      insert_id_for_cur_row = trx->clustrix_net->last_insert_id;
-  }
+  Field *auto_inc_field = table->next_number_field;
+  if (auto_inc_field)
+    insert_id_for_cur_row = trx->clustrix_net->last_insert_id;
 
 err:
     if (packed_size)
@@ -505,7 +494,6 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
                               &master_reclength, rowdata + rowdata_length)))
     goto err;
 
-  error_code = 0;
 err:
   if (packed_key)
     my_afree(packed_key);
@@ -728,7 +716,6 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
                               &master_reclength, rowdata + rowdata_length)))
     goto err;
 
-  error_code = 0;
 err:
 
   if (packed_key)
