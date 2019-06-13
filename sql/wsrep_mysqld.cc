@@ -2694,9 +2694,9 @@ void* start_wsrep_THD(void *arg)
       'Error in my_thread_global_end(): 2 threads didn't exit'
       at server shutdown
     */
+    server_threads.erase(thd);
   }
 
-  server_threads.erase(thd);
   delete thd;
   my_thread_end();
   return(NULL);
