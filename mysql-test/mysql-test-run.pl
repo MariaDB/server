@@ -1396,6 +1396,11 @@ sub command_line_setup {
     $opt_big_test= 1;
   }
 
+  if ( $opt_max_test_fail != 1 && !$opt_force )
+  {
+    $opt_force= 1;
+  }
+
   # --------------------------------------------------------------------------
   # Find out type of logging that are being used
   # --------------------------------------------------------------------------
@@ -6342,7 +6347,7 @@ Options for debugging the product
                         $opt_max_save_datadir, set to 0 for no limit. Set
                         it's default with MTR_MAX_SAVE_DATADIR
   max-test-fail         Limit the number of test failures before aborting
-                        the current test run. Defaults to
+                        the current test run. Implies --force. Defaults to
                         $opt_max_test_fail, set to 0 for no limit. Set
                         it's default with MTR_MAX_TEST_FAIL
   core-in-failure	Generate a core even if run server is run with valgrind
