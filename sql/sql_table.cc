@@ -7824,16 +7824,13 @@ blob_length_by_type(enum_field_types type)
 }
 
 
-static void append_drop_column(THD *thd, bool dont, String *str,
-                               Field *field)
+static inline
+void append_drop_column(THD *thd, String *str, Field *field)
 {
-  if (!dont)
-  {
-    if (str->length())
-      str->append(STRING_WITH_LEN(", "));
-    str->append(STRING_WITH_LEN("DROP COLUMN "));
-    append_identifier(thd, str, &field->field_name);
-  }
+  if (str->length())
+    str->append(STRING_WITH_LEN(", "));
+  str->append(STRING_WITH_LEN("DROP COLUMN "));
+  append_identifier(thd, str, &field->field_name);
 }
 
 
@@ -8088,7 +8085,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
              field->invisible < INVISIBLE_SYSTEM)
     {
       StringBuffer<NAME_LEN*3> tmp;
-      append_drop_column(thd, false, &tmp, field);
+      append_drop_column(thd, &tmp, field);
       my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
       goto err;
     }
@@ -8141,10 +8138,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       !vers_system_invisible)
   {
     StringBuffer<NAME_LEN*3> tmp;
-    append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_START_FLAG,
-                       &tmp, table->vers_start_field());
-    append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_END_FLAG,
-                       &tmp, table->vers_end_field());
+    if (!(dropped_sys_vers_fields & VERS_SYS_START_FLAG))
+      append_drop_column(thd, &tmp, table->vers_start_field());
+    if (!(dropped_sys_vers_fields & VERS_SYS_END_FLAG))
+      append_drop_column(thd, &tmp, table->vers_end_field());
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
     goto err;
   }
