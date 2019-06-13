@@ -3856,7 +3856,14 @@ my_bool translog_init_with_table(const char *directory,
     my_bool pageok;
 
     DBUG_PRINT("info", ("The log is really present"));
-    DBUG_ASSERT(sure_page <= last_page);
+    if (sure_page > last_page)
+    {
+      my_printf_error(HA_ERR_GENERIC, "Aria engine: log data error\n"
+                      "last_log_page:   " LSN_FMT " is less than\n"
+                      "checkpoint page: " LSN_FMT, MYF(0),
+                      LSN_IN_PARTS(last_page), LSN_IN_PARTS(sure_page));
+      goto err;
+    }
 
     /* TODO: check page size */
 
@@ -4004,7 +4011,7 @@ my_bool translog_init_with_table(const char *directory,
   if (!logs_found)
   {
     TRANSLOG_FILE *file= (TRANSLOG_FILE*)my_malloc(sizeof(TRANSLOG_FILE),
-                                                   MYF(0));
+                                                   MYF(MY_WME));
     DBUG_PRINT("info", ("The log is not found => we will create new log"));
     if (file == NULL)
        goto err;
