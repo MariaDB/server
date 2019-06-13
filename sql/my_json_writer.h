@@ -108,6 +108,7 @@ public:
   void add_str(const String &str);
 
   void add_ll(longlong val);
+  void add_ull(ulonglong val);
   void add_size(longlong val);
   void add_double(double val);
   void add_bool(bool val);

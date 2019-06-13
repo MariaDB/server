@@ -4488,7 +4488,10 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
   }
   
   select_union *result= (select_union*)unit->result;
-  result->records+= records;
+  if (HA_ROWS_MAX - records > result->records)
+    result->records+= records;
+  else
+    result->records= HA_ROWS_MAX;
 }
 
 

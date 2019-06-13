@@ -1,7 +1,4 @@
 # Initialize
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
 
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
