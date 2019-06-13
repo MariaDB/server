@@ -5924,11 +5924,13 @@ the generated partition syntax in a correct manner.
                 0 == my_strcasecmp(system_charset_info, key_name, drop->name))
               break;
           }
-          if (!drop)
+          if (!drop && !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
             continue;
           for (uint kp= 0; kp < key_info->user_defined_key_parts; ++kp)
           {
             const KEY_PART_INFO &key_part= key_info->key_part[kp];
+            if (!drop && !key_part.field->vers_sys_field())
+              continue;
             for (Field **part_field= tab_part_info->part_field_array;
                 *part_field; ++part_field)
             {
