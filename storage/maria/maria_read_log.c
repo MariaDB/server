@@ -109,11 +109,11 @@ int main(int argc, char **argv)
       last_checkpoint_lsn != LSN_IMPOSSIBLE)
   {
     lsn= LSN_IMPOSSIBLE;             /* LSN set in maria_apply_log() */
-    fprintf(stdout, "Starting from checkpoint (%lu,0x%lx)\n",
+    fprintf(stdout, "Starting from checkpoint " LSN_FMT "\n",
             LSN_IN_PARTS(last_checkpoint_lsn));
   }
   else
-    fprintf(stdout, "The transaction log starts from lsn (%lu,0x%lx)\n",
+    fprintf(stdout, "The transaction log starts from lsn " LSN_FMT "\n",
             LSN_IN_PARTS(lsn));
 
   if (opt_start_from_lsn)
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
       goto err;
     }
     lsn= (LSN) opt_start_from_lsn;
-    fprintf(stdout, "Starting reading log from lsn (%lu,0x%lx)\n",
+    fprintf(stdout, "Starting reading log from lsn " LSN_FMT "\n",
             LSN_IN_PARTS(lsn));
   }
 

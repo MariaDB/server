@@ -170,7 +170,7 @@ static int really_execute_checkpoint(void)
     "Horizon" is a lower bound of the LSN of the next log record.
   */
   checkpoint_start_log_horizon= translog_get_horizon();
-  DBUG_PRINT("info",("checkpoint_start_log_horizon (%lu,0x%lx)",
+  DBUG_PRINT("info",("checkpoint_start_log_horizon " LSN_FMT "",
                      LSN_IN_PARTS(checkpoint_start_log_horizon)));
   lsn_store(checkpoint_start_log_horizon_char, checkpoint_start_log_horizon);
 
@@ -375,7 +375,7 @@ static void flush_all_tables(int what_to_flush)
                                   MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET|
                                   MA_STATE_INFO_WRITE_LOCK);
         DBUG_PRINT("maria_flush_states",
-                   ("is_of_horizon: LSN (%lu,0x%lx)",
+                   ("is_of_horizon: LSN " LSN_FMT "",
                     LSN_IN_PARTS(info->s->state.is_of_horizon)));
         break;
       case 2:

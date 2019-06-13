@@ -2793,7 +2793,7 @@ static void check_and_set_lsn(PAGECACHE *pagecache,
   */
   DBUG_ASSERT((block->type == PAGECACHE_LSN_PAGE) || maria_in_recovery);
   old= lsn_korr(block->buffer);
-  DBUG_PRINT("info", ("old lsn: (%lu, 0x%lx)  new lsn: (%lu, 0x%lx)",
+  DBUG_PRINT("info", ("old lsn: " LSN_FMT "  new lsn: " LSN_FMT,
                       LSN_IN_PARTS(old), LSN_IN_PARTS(lsn)));
   if (cmp_translog_addr(lsn, old) > 0)
   {

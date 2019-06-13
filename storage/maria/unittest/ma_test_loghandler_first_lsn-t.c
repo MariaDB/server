@@ -102,7 +102,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   first_lsn= translog_first_lsn_in_log();
   if (first_lsn != LSN_IMPOSSIBLE)
   {
-    fprintf(stderr, "Incorrect first lsn response (%lu,0x%lx).",
+    fprintf(stderr, "Incorrect first lsn response " LSN_FMT ".",
             LSN_IN_PARTS(first_lsn));
     translog_destroy();
     exit(1);
@@ -140,8 +140,8 @@ int main(int argc __attribute__((unused)), char *argv[])
   first_lsn= translog_first_lsn_in_log();
   if (first_lsn != theor_lsn)
   {
-    fprintf(stderr, "Incorrect first lsn: (%lu,0x%lx)  "
-            " theoretical first: (%lu,0x%lx)\n",
+    fprintf(stderr, "Incorrect first lsn: " LSN_FMT "  "
+            " theoretical first: " LSN_FMT "\n",
             LSN_IN_PARTS(first_lsn), LSN_IN_PARTS(theor_lsn));
     translog_destroy();
     exit(1);
