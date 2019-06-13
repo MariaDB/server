@@ -13292,12 +13292,17 @@ insert:
             Select->set_lock_for_tables($3, true);
             Lex->current_select= Lex->first_select_lex();
           }
-          insert_field_spec opt_insert_update opt_select_expressions_ins
+          insert_field_spec opt_insert_update
           {
-            Lex->pop_select(); //main select
-            if (Lex->check_main_unit_semantics())
-              MYSQL_YYABORT;
+            Lex->returning_list.swap(Lex->current_select->item_list);
           }
+          opt_select_expressions
+          {
+            Lex->returning_list.swap(Lex->current_select->item_list);
+             Lex->pop_select(); //main select
+             if (Lex->check_main_unit_semantics())
+               MYSQL_YYABORT;
+		  }
         ;
 
 replace:
@@ -13569,11 +13574,6 @@ update_table_list:
             $$->period_conditions= Lex->period_conditions;
           }
         | join_table_list { $$= $1; }
-        ;
-
-opt_select_expressions_ins:
-          /* empty */ 
-        | RETURNING_SYM select_item_list
         ;
 
 /* Update rows in a table */

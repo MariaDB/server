@@ -3092,6 +3092,7 @@ private:
 public:
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
+  List<Item> returning_list;
   SELECT_LEX *all_selects_list;
   /* current with clause in parsing if any, otherwise 0*/
   With_clause *curr_with_clause;  
