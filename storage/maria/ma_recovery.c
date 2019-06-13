@@ -531,8 +531,6 @@ end:
 
   if (error && !abort_message_printed)
   {
-    if (!trace_file)
-      fputc('\n', stderr);
     my_message(HA_ERR_INITIALIZATION,
                "Aria recovery failed. Please run aria_chk -r on all Aria "
                "tables and delete all aria_log.######## files", MYF(0));
@@ -667,13 +665,16 @@ prototype_redo_exec_hook(INCOMPLETE_LOG)
 {
   MARIA_HA *info;
 
+  /* We try to get table first, so that we get the table in in the trace log */
+  info= get_MARIA_HA_from_REDO_record(rec);
+
   if (skip_DDLs)
   {
     tprint(tracef, "we skip DDLs\n");
     return 0;
   }
 
-  if ((info= get_MARIA_HA_from_REDO_record(rec)) == NULL)
+  if (!info)
   {
     /* no such table, don't need to warn */
     return 0;
@@ -1144,6 +1145,9 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   my_bool quick_repair;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_REPAIR_TABLE");
 
+  /* We try to get table first, so that we get the table in in the trace log */
+  info= get_MARIA_HA_from_REDO_record(rec);
+
   if (skip_DDLs)
   {
     /*
@@ -1153,8 +1157,13 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
     tprint(tracef, "we skip DDLs\n");
     DBUG_RETURN(0);
   }
-  if ((info= get_MARIA_HA_from_REDO_record(rec)) == NULL)
-    DBUG_RETURN(0);
+
+  if (!info)
+  {
+    /* no such table, don't need to warn */
+    return 0;
+  }
+
   if (maria_is_crashed(info))
   {
     tprint(tracef, "we skip repairing crashed table\n");
@@ -1443,17 +1452,21 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (share->state.state.data_file_length != dfile_len)
   {
-    tprint(tracef, ", has wrong state.data_file_length (fixing it)");
+    tprint(tracef, ", has wrong state.data_file_length "
+           "(fixing it from %llu to %llu)",
+           (ulonglong) share->state.state.data_file_length, (ulonglong) dfile_len);
     share->state.state.data_file_length= dfile_len;
   }
   if (share->state.state.key_file_length != kfile_len)
   {
-    tprint(tracef, ", has wrong state.key_file_length (fixing it)");
+    tprint(tracef, ", has wrong state.key_file_length "
+           "(fixing it from %llu to %llu)",
+           (ulonglong) share->state.state.key_file_length, (ulonglong) kfile_len);
     share->state.state.key_file_length= kfile_len;
   }
   if ((dfile_len % share->block_size) || (kfile_len % share->block_size))
   {
-    tprint(tracef, ", has too short last page\n");
+    tprint(tracef, ", has too short last page");
     /* Recovery will fix this, no error */
     ALERT_USER();
   }
@@ -2764,7 +2777,7 @@ static int run_redo_phase(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply)
   {
     fprintf(stderr, " 100%%");
     fflush(stderr);
-    procent_printed= 1;
+    procent_printed= 1;                         /* Will be follwed by time */
   }
   DBUG_RETURN(0);
 
@@ -2914,7 +2927,6 @@ static int run_undo_phase(uint uncommitted)
       recovery_message_printed= REC_MSG_UNDO;
     }
     tprint(tracef, "%u transactions will be rolled back\n", uncommitted);
-    procent_printed= 1;
     for( ; ; )
     {
       char llbuf[22];
@@ -2967,7 +2979,6 @@ static int run_undo_phase(uint uncommitted)
       /* In the future, we want to have this phase *online* */
     }
   }
-  procent_printed= 0;
   DBUG_RETURN(0);
 }
 
@@ -3467,6 +3478,11 @@ static int close_all_tables(void)
     }
   }
 end:
+  if (recovery_message_printed == REC_MSG_FLUSH)
+  {
+    fputc('\n', stderr);
+    fflush(stderr);
+  }
   mysql_mutex_unlock(&THR_LOCK_maria);
   DBUG_RETURN(error);
 }
