@@ -298,8 +298,7 @@ int ha_clustrixdb::write_row(uchar *buf)
                                                  packed_new_row, packed_size)))
     goto err;
 
-  Field *auto_inc_field = table->next_number_field;
-  if (auto_inc_field)
+  if (table->next_number_field)
     insert_id_for_cur_row = trx->clustrix_net->last_insert_id;
 
 err:
