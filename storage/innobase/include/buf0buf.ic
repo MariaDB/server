@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -950,10 +950,11 @@ buf_block_get_modify_clock(
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_page_t*	bpage)
+buf_block_fix(buf_page_t* bpage)
 {
-	return(my_atomic_add32((int32*) &bpage->buf_fix_count, 1) + 1);
+	return uint32(my_atomic_add32_explicit(
+			      &bpage->buf_fix_count, 1,
+			      MY_MEMORY_ORDER_RELAXED)) + 1;
 }
 
 /** Increments the bufferfix count.
@@ -961,10 +962,30 @@ buf_block_fix(
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_block_t*	block)
+buf_block_fix(buf_block_t* block)
 {
-	return(buf_block_fix(&block->page));
+	return buf_block_fix(&block->page);
+}
+
+/** Get the bufferfix count.
+@param[in]	bpage	block to bufferfix
+@return the count */
+UNIV_INLINE
+ulint
+buf_block_get_fix(buf_page_t* bpage)
+{
+	return my_atomic_load32_explicit(&bpage->buf_fix_count,
+					 MY_MEMORY_ORDER_RELAXED);
+}
+
+/** Get the bufferfix count.
+@param[in]	bpage	block to bufferfix
+@return the count */
+UNIV_INLINE
+ulint
+buf_block_get_fix(buf_block_t* block)
+{
+	return buf_block_get_fix(&block->page);
 }
 
 /*******************************************************************//**
@@ -998,12 +1019,13 @@ buf_block_buf_fix_inc_func(
 @return	the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_page_t*	bpage)
+buf_block_unfix(buf_page_t* bpage)
 {
-	ulint	count = my_atomic_add32((int32*) &bpage->buf_fix_count, -1) - 1;
-	ut_ad(count + 1 != 0);
-	return(count);
+	uint32	count = uint32(my_atomic_add32_explicit(
+				       &bpage->buf_fix_count,
+				       -1, MY_MEMORY_ORDER_RELAXED));
+	ut_ad(count != 0);
+	return count - 1;
 }
 
 /** Decrements the bufferfix count.
@@ -1011,10 +1033,9 @@ buf_block_unfix(
 @return the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_block_t*	block)
+buf_block_unfix(buf_block_t* block)
 {
-	return(buf_block_unfix(&block->page));
+	return buf_block_unfix(&block->page);
 }
 
 /*******************************************************************//**

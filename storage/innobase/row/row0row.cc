@@ -980,7 +980,10 @@ row_search_on_row_ref(
 
 	ut_a(dtuple_get_n_fields(ref) == dict_index_get_n_unique(index));
 
-	btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr);
+	if (btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr)
+	    != DB_SUCCESS) {
+		return FALSE;
+	}
 
 	low_match = btr_pcur_get_low_match(pcur);
 

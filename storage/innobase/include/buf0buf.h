@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -609,31 +609,27 @@ buf_block_buf_fix_inc_func(
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_page_t*	bpage);
+buf_block_fix(buf_page_t* bpage);
 
 /** Increments the bufferfix count.
 @param[in,out]	block	block to bufferfix
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_block_t*	block);
+buf_block_fix(buf_block_t* block);
 
 /** Decrements the bufferfix count.
 @param[in,out]	bpage	block to bufferunfix
 @return	the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_page_t*	bpage);
+buf_block_unfix(buf_page_t* bpage);
 /** Decrements the bufferfix count.
 @param[in,out]	block	block to bufferunfix
 @return	the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_block_t*	block);
+buf_block_unfix(buf_block_t* block);
 
 # ifdef UNIV_DEBUG
 /** Increments the bufferfix count.
@@ -1435,7 +1431,7 @@ public:
 	page_size_t	size;
 
 	/** Count of how manyfold this block is currently bufferfixed. */
-	ib_uint32_t	buf_fix_count;
+	int32		buf_fix_count;
 
 	/** type of pending I/O operation; also protected by
 	buf_pool->mutex for writes only */
