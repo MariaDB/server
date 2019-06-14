@@ -3482,11 +3482,15 @@ int copy_to_tree(void* key, element_count count __attribute__((unused)),
 bool Item_func_group_concat::repack_tree(THD *thd)
 {
   struct st_repack_tree st;
+  int size= tree->size_of_element;
+  if (!tree->offset_to_key)
+    size-= sizeof(void*);
 
   init_tree(&st.tree, (size_t) MY_MIN(thd->variables.max_heap_table_size,
                                       thd->variables.sortbuff_size/16), 0,
-            tree->size_of_element, group_concat_key_cmp_with_order, NULL,
+            size, group_concat_key_cmp_with_order, NULL,
             (void*) this, MYF(MY_THREAD_SPECIFIC));
+  DBUG_ASSERT(tree->size_of_element == st.tree.size_of_element);
   st.table= table;
   st.len= 0;
   st.maxlen= (size_t)thd->variables.group_concat_max_len;
