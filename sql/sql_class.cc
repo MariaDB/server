@@ -776,6 +776,9 @@ THD::THD(bool is_wsrep_applier)
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
+#ifndef EMBEDDED_LIBRARY
+   audit_plugin_version(-1),
+#endif
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -1562,7 +1565,6 @@ THD::~THD()
 
   mdl_context.destroy();
   ha_close_connection(this);
-  mysql_audit_release(this);
   plugin_thdvar_cleanup(this);
 
   main_security_ctx.destroy();

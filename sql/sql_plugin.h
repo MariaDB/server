@@ -37,6 +37,7 @@ enum enum_plugin_load_option { PLUGIN_OFF, PLUGIN_ON, PLUGIN_FORCE,
   PLUGIN_FORCE_PLUS_PERMANENT };
 extern const char *global_plugin_typelib_names[];
 
+extern volatile int global_plugin_version;
 extern ulong dlopen_count;
 
 #include <my_sys.h>

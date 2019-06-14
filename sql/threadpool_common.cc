@@ -266,7 +266,8 @@ int threadpool_process_request(THD *thd)
   {
     Vio *vio;
     thd->net.reading_or_writing= 0;
-    mysql_audit_release(thd);
+    if (mysql_audit_release_required(thd))
+      mysql_audit_release(thd);
 
     if ((retval= do_command(thd)) != 0)
       goto end;

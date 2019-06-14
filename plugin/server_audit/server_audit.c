@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.4"
+#define PLUGIN_STR_VERSION "1.4.7"
 
 #define _my_thread_var loc_thread_var
 
@@ -295,7 +295,7 @@ static unsigned long long file_rotate_size;
 static unsigned int rotations;
 static my_bool rotate= TRUE;
 static char logging;
-static int internal_stop_logging= 0;
+static volatile int internal_stop_logging= 0;
 static char incl_user_buffer[1024];
 static char excl_user_buffer[1024];
 static char *big_buffer= NULL;
@@ -533,16 +533,20 @@ static struct st_mysql_show_var audit_status[]=
 #if defined(HAVE_PSI_INTERFACE) && !defined(FLOGGER_NO_PSI)
 /* These belong to the service initialization */
 static PSI_mutex_key key_LOCK_operations;
+static PSI_mutex_key key_LOCK_atomic;
 static PSI_mutex_key key_LOCK_bigbuffer;
 static PSI_mutex_info mutex_key_list[]=
 {
   { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
+    PSI_FLAG_GLOBAL},
+  { &key_LOCK_atomic, "SERVER_AUDIT_plugin::lock_atomic",
     PSI_FLAG_GLOBAL},
   { &key_LOCK_bigbuffer, "SERVER_AUDIT_plugin::lock_bigbuffer",
     PSI_FLAG_GLOBAL}
 };
 #endif
 static mysql_mutex_t lock_operations;
+static mysql_mutex_t lock_atomic;
 static mysql_mutex_t lock_bigbuffer;
 
 /* The Percona server and partly MySQL don't support         */
@@ -552,6 +556,14 @@ static mysql_mutex_t lock_bigbuffer;
 /* methods there properly, but at the moment i'm not sure it */
 /* worths doing.                                             */
 #define CLIENT_ERROR if (!started_mysql) my_printf_error
+
+#define ADD_ATOMIC(x, a)              \
+  do {                                \
+  flogger_mutex_lock(&lock_atomic);   \
+  x+= a;                              \
+  flogger_mutex_unlock(&lock_atomic); \
+  } while (0)
+
 
 static uchar *getkey_user(const char *entry, size_t *length,
                           my_bool nu __attribute__((unused)) )
@@ -731,20 +743,20 @@ static int user_coll_fill(struct user_coll *c, char *users,
 
       if (cmp_user && take_over_cmp)
       {
-        internal_stop_logging= 1;
+        ADD_ATOMIC(internal_stop_logging, 1);
         CLIENT_ERROR(1, "User '%.*s' was removed from the"
             " server_audit_excl_users.",
             MYF(ME_JUST_WARNING), (int) cmp_length, users);
-        internal_stop_logging= 0;
+        ADD_ATOMIC(internal_stop_logging, -1);
         blank_user(cmp_user);
         refill_cmp_coll= 1;
       }
       else if (cmp_user)
       {
-        internal_stop_logging= 1;
+        ADD_ATOMIC(internal_stop_logging, 1);
         CLIENT_ERROR(1, "User '%.*s' is in the server_audit_incl_users, "
             "so wasn't added.", MYF(ME_JUST_WARNING), (int) cmp_length, users);
-        internal_stop_logging= 0;
+        ADD_ATOMIC(internal_stop_logging, -1);
         remove_user(users);
         continue;
       }
@@ -1252,23 +1264,30 @@ static void change_connection(struct connection_info *cn,
             event->ip, event->ip_length);
 }
 
-static int write_log(const char *message, int len)
+static int write_log(const char *message, size_t len, int take_lock)
 {
+  int result= 0;
+  if (take_lock)
+    flogger_mutex_lock(&lock_operations);
+
   if (output_type == OUTPUT_FILE)
   {
     if (logfile &&
-        (is_active= (logger_write(logfile, message, len) == len)))
-      return 0;
+        (is_active= (logger_write(logfile, message, len) == (int) len)))
+      goto exit;
     ++log_write_failures;
-    return 1;
+    result= 1;
   }
   else if (output_type == OUTPUT_SYSLOG)
   {
     syslog(syslog_facility_codes[syslog_facility] |
            syslog_priority_codes[syslog_priority],
-           "%s %.*s", syslog_info, len, message);
+           "%s %.*s", syslog_info, (int) len, message);
   }
-  return 0;
+exit:
+  if (take_lock)
+    flogger_mutex_unlock(&lock_operations);
+  return result;
 }
 
 
@@ -1327,7 +1346,7 @@ static int log_connection(const struct connection_info *cn,
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
     ",%.*s,,%d", cn->db_length, cn->db, event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1);
+  return write_log(message, csize + 1, 1);
 }
 
 
@@ -1348,7 +1367,7 @@ static int log_connection_event(const struct mysql_event_connection *event,
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
     ",%.*s,,%d", event->database_length, event->database, event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1);
+  return write_log(message, csize + 1, 1);
 }
 
 
@@ -1477,21 +1496,28 @@ no_password:
 
 
 
-static int do_log_user(const char *name)
+static int do_log_user(const char *name, int take_lock)
 {
   size_t len;
+  int result;
 
   if (!name)
     return 0;
   len= strlen(name);
 
+  if (take_lock)
+    flogger_mutex_lock(&lock_operations);
+
   if (incl_user_coll.n_users)
-    return coll_search(&incl_user_coll, name, len) != 0;
+    result= coll_search(&incl_user_coll, name, len) != 0;
+  else if (excl_user_coll.n_users)
+    result=  coll_search(&excl_user_coll, name, len) == 0;
+  else
+    result= 1;
 
-  if (excl_user_coll.n_users)
-    return coll_search(&excl_user_coll, name, len) == 0;
-
-  return 1;
+  if (take_lock)
+    flogger_mutex_unlock(&lock_operations);
+  return result;
 }
 
 
@@ -1588,7 +1614,7 @@ not_in_list:
 static int log_statement_ex(const struct connection_info *cn,
                             time_t ev_time, unsigned long thd_id,
                             const char *query, unsigned int query_len,
-                            int error_code, const char *type)
+                            int error_code, const char *type, int take_lock)
 {
   size_t csize;
   char message_loc[1024];
@@ -1736,7 +1762,7 @@ do_log_query:
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
                       "\',%d", error_code);
   message[csize]= '\n';
-  result= write_log(message, csize + 1);
+  result= write_log(message, csize + 1, take_lock);
   if (message == big_buffer)
     flogger_mutex_unlock(&lock_bigbuffer);
 
@@ -1750,7 +1776,7 @@ static int log_statement(const struct connection_info *cn,
 {
   return log_statement_ex(cn, event->general_time, event->general_thread_id,
                           event->general_query, event->general_query_length,
-                          event->general_error_code, type);
+                          event->general_error_code, type, 1);
 }
 
 
@@ -1772,7 +1798,7 @@ static int log_table(const struct connection_info *cn,
             ",%.*s,%.*s,",event->database_length, event->database,
                           event->table_length, event->table);
   message[csize]= '\n';
-  return write_log(message, csize + 1);
+  return write_log(message, csize + 1, 1);
 }
 
 
@@ -1796,7 +1822,7 @@ static int log_rename(const struct connection_info *cn,
                          event->new_database_length, event->new_database,
                          event->new_table_length, event->new_table);
   message[csize]= '\n';
-  return write_log(message, csize + 1);
+  return write_log(message, csize + 1, 1);
 }
 
 
@@ -1988,8 +2014,6 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   if (!thd || internal_stop_logging)
     return;
 
-  flogger_mutex_lock(&lock_operations);
-
   if (maria_55_started && debug_server_started &&
       event_class == MYSQL_AUDIT_GENERAL_CLASS)
   {
@@ -2024,7 +2048,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     goto exit_func;
 
   if (event_class == MYSQL_AUDIT_GENERAL_CLASS && FILTER(EVENT_QUERY) &&
-      cn && do_log_user(cn->user))
+      cn && do_log_user(cn->user, 1))
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
@@ -2043,7 +2067,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   {
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
-    if (do_log_user(event->user))
+    if (do_log_user(event->user, 1))
     {
       switch (event->event_subclass)
       {
@@ -2109,7 +2133,6 @@ exit_func:
   }
   if (cn)
     cn->log_always= 0;
-  flogger_mutex_unlock(&lock_operations);
 }
 
 
@@ -2377,6 +2400,7 @@ static int server_audit_init(void *p __attribute__((unused)))
     PSI_server->register_mutex("server_audit", mutex_key_list, 1);
 #endif
   flogger_mutex_init(key_LOCK_operations, &lock_operations, MY_MUTEX_INIT_FAST);
+  flogger_mutex_init(key_LOCK_operations, &lock_atomic, MY_MUTEX_INIT_FAST);
   flogger_mutex_init(key_LOCK_operations, &lock_bigbuffer, MY_MUTEX_INIT_FAST);
 
   coll_init(&incl_user_coll);
@@ -2464,6 +2488,7 @@ static int server_audit_deinit(void *p __attribute__((unused)))
 
   (void) free(big_buffer);
   flogger_mutex_destroy(&lock_operations);
+  flogger_mutex_destroy(&lock_atomic);
   flogger_mutex_destroy(&lock_bigbuffer);
 
   error_header();
@@ -2553,10 +2578,10 @@ static void log_current_query(MYSQL_THD thd)
     return;
   cn= get_loc_info(thd);
   if (!ci_needs_setup(cn) && cn->query_length &&
-      FILTER(EVENT_QUERY) && do_log_user(cn->user))
+      FILTER(EVENT_QUERY) && do_log_user(cn->user, 0))
   {
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
-        cn->query, cn->query_length, 0, "QUERY");
+        cn->query, cn->query_length, 0, "QUERY", 0);
     cn->log_always= 1;
   }
 }
@@ -2568,11 +2593,12 @@ static void update_file_path(MYSQL_THD thd,
 {
   char *new_name= (*(char **) save) ? *(char **) save : empty_str;
 
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
+  ADD_ATOMIC(internal_stop_logging, 1);
   error_header();
   fprintf(stderr, "Log file name was changed to '%s'.\n", new_name);
+
+  if (!maria_55_started || !debug_server_started)
+    flogger_mutex_lock(&lock_operations);
 
   if (logging)
     log_current_query(thd);
@@ -2582,7 +2608,6 @@ static void update_file_path(MYSQL_THD thd,
     char *sav_path= file_path;
 
     file_path= new_name;
-    internal_stop_logging= 1;
     stop_logging();
     if (start_logging())
     {
@@ -2598,16 +2623,15 @@ static void update_file_path(MYSQL_THD thd,
       }
       goto exit_func;
     }
-    internal_stop_logging= 0;
   }
 
   strncpy(path_buffer, new_name, sizeof(path_buffer)-1);
   path_buffer[sizeof(path_buffer)-1]= 0;
   file_path= path_buffer;
 exit_func:
-  internal_stop_logging= 0;
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_unlock(&lock_operations);
+  ADD_ATOMIC(internal_stop_logging, -1);
 }
 
 
@@ -2692,8 +2716,8 @@ static void update_output_type(MYSQL_THD thd,
   if (output_type == new_output_type)
     return;
 
+  ADD_ATOMIC(internal_stop_logging, 1);
   flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
   if (logging)
   {
     log_current_query(thd);
@@ -2707,8 +2731,8 @@ static void update_output_type(MYSQL_THD thd,
 
   if (logging)
     start_logging();
-  internal_stop_logging= 0;
   flogger_mutex_unlock(&lock_operations);
+  ADD_ATOMIC(internal_stop_logging, -1);
 }
 
 
@@ -2756,9 +2780,9 @@ static void update_logging(MYSQL_THD thd,
   if (new_logging == logging)
     return;
 
+  ADD_ATOMIC(internal_stop_logging, 1);
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
   if ((logging= new_logging))
   {
     start_logging();
@@ -2773,9 +2797,9 @@ static void update_logging(MYSQL_THD thd,
     stop_logging();
   }
 
-  internal_stop_logging= 0;
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_unlock(&lock_operations);
+  ADD_ATOMIC(internal_stop_logging, -1);
 }
 
 
@@ -2787,16 +2811,16 @@ static void update_mode(MYSQL_THD thd  __attribute__((unused)),
   if (mode_readonly || new_mode == mode)
     return;
 
+  ADD_ATOMIC(internal_stop_logging, 1);
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_lock(&lock_operations);
-  internal_stop_logging= 1;
   mark_always_logged(thd);
   error_header();
   fprintf(stderr, "Logging mode was changed from %d to %d.\n", mode, new_mode);
   mode= new_mode;
-  internal_stop_logging= 0;
   if (!maria_55_started || !debug_server_started)
     flogger_mutex_unlock(&lock_operations);
+  ADD_ATOMIC(internal_stop_logging, -1);
 }
 
 

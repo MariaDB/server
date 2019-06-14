@@ -2978,6 +2978,7 @@ public:
     added to the list of audit plugins which are currently in use.
   */
   unsigned long audit_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
+  int audit_plugin_version;
 #endif
 
 #if defined(ENABLED_DEBUG_SYNC)

@@ -228,6 +228,7 @@ static DYNAMIC_ARRAY plugin_array;
 static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
 static bool reap_needed= false;
+volatile int global_plugin_version= 1;
 
 static bool initialized= 0;
 ulong dlopen_count;
@@ -2181,6 +2182,7 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
     reap_plugins();
   }
 err:
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   if (argv)
     free_defaults(argv);
@@ -2327,6 +2329,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   }
   reap_plugins();
 
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
 

@@ -1326,7 +1326,8 @@ void do_handle_one_connection(THD *thd_arg)
 
     while (thd_is_connection_alive(thd))
     {
-      mysql_audit_release(thd);
+      if (mysql_audit_release_required(thd))
+        mysql_audit_release(thd);
       if (do_command(thd))
 	break;
     }
