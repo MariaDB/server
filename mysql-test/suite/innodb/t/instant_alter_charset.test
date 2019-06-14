@@ -321,6 +321,67 @@ alter table boundary_255
 
 drop table boundary_255;
 
+
+create table t (
+  a char(10) collate utf8mb3_general_ci,
+  b char(70) collate utf8mb3_general_ci,
+  c char(100) collate utf8mb3_general_ci,
+
+  aa char(10) collate utf8mb3_general_ci unique,
+  bb char(70) collate utf8mb3_general_ci unique,
+  cc char(100) collate utf8mb3_general_ci unique,
+
+  d char(10) collate utf8mb3_general_ci,
+  dd char(10) collate utf8mb3_general_ci unique
+) engine=innodb;
+insert into t values
+  (repeat('a', 10), repeat('a', 70), repeat('a', 100),
+   repeat('a', 10), repeat('a', 70), repeat('a', 100),
+   repeat('a', 10), repeat('a', 10)
+);
+if ($row_format != 'redundant') {
+alter table t modify a char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify b char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify c char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+
+alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+
+alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+}
+if ($row_format == 'redundant') {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a char(10) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify b char(70) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify c char(100) collate utf8mb4_general_ci, algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+}
+select * from t;
+drop table t;
+
+
 create table fully_compatible (
   id int auto_increment unique key,
   from_charset char(255),
@@ -604,3 +665,53 @@ CREATE TABLE t1 (a VARCHAR(1), UNIQUE(a)) ENGINE=InnoDB;
 ALTER TABLE t1 MODIFY a INT, ADD b INT, ADD UNIQUE (b), ALGORITHM=INSTANT;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-17301 Change of COLLATE unnecessarily requires ALGORITHM=COPY
+--echo #
+
+create table t (
+  a char(10) collate latin1_general_ci primary key,
+  b char(10) collate latin1_general_ci,
+  c char(10) collate latin1_general_ci,
+  unique key b_key(b)
+) engine=innodb;
+
+insert into t values
+  ('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a char(10) collate latin1_general_cs, algorithm=inplace;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify b char(10) collate latin1_general_cs, algorithm=instant;
+alter table t modify b char(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+
+alter table t modify c char(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+
+drop table t;
+
+create table t (
+  a varchar(10) collate latin1_general_ci primary key,
+  b varchar(10) collate latin1_general_ci,
+  c varchar(10) collate latin1_general_ci,
+  unique key b_key(b)
+) engine=innodb;
+
+insert into t values
+  ('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a varchar(10) collate latin1_general_cs, algorithm=inplace;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=instant;
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+
+alter table t modify c varchar(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+
+drop table t;

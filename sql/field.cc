@@ -7073,36 +7073,40 @@ int Field_str::store(double nr)
   return store(buff, (uint)length, &my_charset_numeric);
 }
 
-
-bool Field_longstr::
-  csinfo_change_allows_instant_alter(const Create_field *to) const
+uint Field_longstr::
+  is_equal_for_different_charsets(const Column_definition &to) const
 {
-  Charset cs(field_charset);
-  const bool part_of_a_key= !to->field->part_of_key.is_clear_all();
-  return part_of_a_key ?
-    cs.encoding_and_order_allow_reinterpret_as(to->charset) :
-    cs.encoding_allows_reinterpret_as(to->charset);
-}
+  Charset field_cs(field_charset);
+  if (!field_cs.encoding_allows_reinterpret_as(to.charset))
+    return IS_EQUAL_NO;
 
+  if (!field_cs.eq_collation_specific_names(to.charset))
+    return IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET_BUT_COLLATE;
+
+  return IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET;
+}
 
 uint Field_string::is_equal(Create_field *new_field)
 {
   DBUG_ASSERT(!compression_method());
   if (new_field->type_handler() != type_handler())
     return IS_EQUAL_NO;
-  if (new_field->length < max_display_length())
-    return IS_EQUAL_NO;
   if (new_field->char_length < char_length())
     return IS_EQUAL_NO;
 
-  if (!csinfo_change_allows_instant_alter(new_field))
+  if (new_field->charset != field_charset)
+  {
+    if (new_field->length != max_display_length() &&
+        table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION)
+      return IS_EQUAL_NO;
+
+    return is_equal_for_different_charsets(*new_field);
+  }
+
+  if (new_field->length != max_display_length())
     return IS_EQUAL_NO;
 
-  if (new_field->length == max_display_length())
-    return new_field->charset == field_charset
-      ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
-
-  return IS_EQUAL_NO;
+  return IS_EQUAL_YES;
 }
 
 
@@ -7936,6 +7940,20 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
   return res;
 }
 
+/*
+  This check is InnoDB specific. ROW_FORMAT=REDUNDANT always allows such
+  enlargement. But other row formats can do this only for particular current
+  and new lengths. This is because InnoDB stores VARCHAR length in one or two
+  bytes.
+*/
+static bool supports_such_enlargement(const Field *field,
+                                      const Create_field *new_field)
+{
+  return field->field_length <= 127 || new_field->length <= 255 ||
+         field->field_length > 255 ||
+         (field->table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION);
+}
+
 uint Field_varstring::is_equal(Create_field *new_field)
 {
   if (new_field->length < field_length)
@@ -7944,24 +7962,26 @@ uint Field_varstring::is_equal(Create_field *new_field)
     return IS_EQUAL_NO;
   if (!new_field->compression_method() != !compression_method())
     return IS_EQUAL_NO;
-
-  if (!csinfo_change_allows_instant_alter(new_field))
+  if (new_field->type_handler() != type_handler())
     return IS_EQUAL_NO;
 
-  const Type_handler *new_type_handler= new_field->type_handler();
-  if (new_type_handler == type_handler())
+  if (new_field->charset != field_charset)
   {
-    if (new_field->length == field_length)
-      return new_field->charset == field_charset
-        ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
-    if (field_length <= 127 ||
-        new_field->length <= 255 ||
-        field_length > 255 ||
-        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
+    if (!supports_such_enlargement(this, new_field))
+      return IS_EQUAL_NO;
+
+    return is_equal_for_different_charsets(*new_field);
   }
 
-  return IS_EQUAL_NO;
+  if (new_field->length != field_length)
+  {
+    if (!supports_such_enlargement(this, new_field))
+      return IS_EQUAL_NO;
+
+    return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
+  }
+
+  return IS_EQUAL_YES;
 }
 
 
@@ -8728,25 +8748,16 @@ uint Field_blob::max_packed_col_length(uint max_length)
 uint Field_blob::is_equal(Create_field *new_field)
 {
   if (new_field->type_handler() != type_handler())
-  {
     return IS_EQUAL_NO;
-  }
-  if (!new_field->compression_method() != !compression_method())
-  {
-    return IS_EQUAL_NO;
-  }
-  if (new_field->pack_length != pack_length())
-  {
-    return IS_EQUAL_NO;
-  }
 
-  if (!csinfo_change_allows_instant_alter(new_field))
+  if (!new_field->compression_method() != !compression_method())
+    return IS_EQUAL_NO;
+
+  if (new_field->pack_length != pack_length())
     return IS_EQUAL_NO;
 
   if (field_charset != new_field->charset)
-  {
-    return IS_EQUAL_PACK_LENGTH;
-  }
+    return is_equal_for_different_charsets(*new_field);
 
   return IS_EQUAL_YES;
 }

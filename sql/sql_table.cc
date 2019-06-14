@@ -6568,14 +6568,18 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
                       ((Field_varstring *) old_field)->length_bytes);
     }
 
+    uint is_equal= key_part->field->is_equal(new_field);
     if (key_part->length == old_field_len &&
         key_part->length < new_part->length &&
-        (key_part->field->is_equal((Create_field *) new_field) ==
-         IS_EQUAL_PACK_LENGTH))
+        (is_equal == IS_EQUAL_PACK_LENGTH ||
+         is_equal == IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET))
     {
       result= Compare_keys::EqualButKeyPartLength;
     }
     else if (key_part->length != new_part->length)
+      return Compare_keys::NotEqual;
+
+    if (is_equal == IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET_BUT_COLLATE)
       return Compare_keys::NotEqual;
   }
 
@@ -6596,6 +6600,40 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     return Compare_keys::NotEqual;
 
   return result;
+}
+
+/**
+  Change Field::is_equal() result depending on field being a part of some index.
+*/
+static uint process_is_equal_result_for_key_parts(uint is_equal,
+                                                  const Field *old_field,
+                                                  const Create_field *new_field)
+{
+  if (is_equal == IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET)
+    return IS_EQUAL_PACK_LENGTH;
+
+  if (is_equal == IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET_BUT_COLLATE)
+  {
+    bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+
+    if (part_of_a_key)
+    {
+      const TABLE_SHARE *s= new_field->field->table->s;
+
+      bool part_of_a_primary_key=
+          s->primary_key != MAX_KEY &&
+          new_field->field->part_of_key.is_set(s->primary_key);
+
+      if (part_of_a_primary_key)
+        return IS_EQUAL_NO;
+
+      return IS_EQUAL_PACK_LENGTH;
+    }
+
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  return is_equal;
 }
 
 /**
@@ -6735,7 +6773,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         Check if type of column has changed to some incompatible type.
       */
       uint is_equal= field->is_equal(new_field);
-      switch (is_equal)
+      switch (process_is_equal_result_for_key_parts(is_equal, field, new_field))
       {
       case IS_EQUAL_NO:
         /* New column type is incompatible with old one. */

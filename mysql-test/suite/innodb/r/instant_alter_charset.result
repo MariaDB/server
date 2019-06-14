@@ -281,6 +281,52 @@ modify a varchar(70) charset utf8mb4,
 algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table boundary_255;
+create table t (
+a char(10) collate utf8mb3_general_ci,
+b char(70) collate utf8mb3_general_ci,
+c char(100) collate utf8mb3_general_ci,
+aa char(10) collate utf8mb3_general_ci unique,
+bb char(70) collate utf8mb3_general_ci unique,
+cc char(100) collate utf8mb3_general_ci unique,
+d char(10) collate utf8mb3_general_ci,
+dd char(10) collate utf8mb3_general_ci unique
+) engine=innodb;
+insert into t values
+(repeat('a', 10), repeat('a', 70), repeat('a', 100),
+repeat('a', 10), repeat('a', 70), repeat('a', 100),
+repeat('a', 10), repeat('a', 10)
+);
+alter table t modify a char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify b char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify c char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+select * from t;
+a	b	c	aa	bb	cc	d	dd
+aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaa
+drop table t;
 create table fully_compatible (
 id int auto_increment unique key,
 from_charset char(255),
@@ -784,7 +830,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -801,7 +847,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -818,7 +864,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -835,7 +881,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
 algorithm=instant;
@@ -852,7 +898,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset ascii collate ascii_bin,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset ascii collate ascii_bin,
 algorithm=instant;
@@ -869,7 +915,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
 algorithm=instant;
@@ -886,7 +932,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
 algorithm=instant;
@@ -903,7 +949,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
 algorithm=instant;
@@ -920,7 +966,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
 algorithm=instant;
@@ -937,7 +983,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset latin1 collate latin1_general_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset latin1 collate latin1_general_ci,
 algorithm=instant;
@@ -954,7 +1000,7 @@ algorithm=instant;
 alter table tmp
 modify b varchar(50) charset utf16 collate utf16_german2_ci,
 algorithm=instant;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 alter table tmp
 modify c varchar(50) charset utf16 collate utf16_german2_ci,
 algorithm=instant;
@@ -1827,3 +1873,48 @@ CREATE TABLE t1 (a VARCHAR(1), UNIQUE(a)) ENGINE=InnoDB;
 ALTER TABLE t1 MODIFY a INT, ADD b INT, ADD UNIQUE (b), ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 DROP TABLE t1;
+#
+# MDEV-17301 Change of COLLATE unnecessarily requires ALGORITHM=COPY
+#
+create table t (
+a char(10) collate latin1_general_ci primary key,
+b char(10) collate latin1_general_ci,
+c char(10) collate latin1_general_ci,
+unique key b_key(b)
+) engine=innodb;
+insert into t values
+('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+alter table t modify a char(10) collate latin1_general_cs, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table t modify b char(10) collate latin1_general_cs, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table t modify b char(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify c char(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;
+create table t (
+a varchar(10) collate latin1_general_ci primary key,
+b varchar(10) collate latin1_general_ci,
+c varchar(10) collate latin1_general_ci,
+unique key b_key(b)
+) engine=innodb;
+insert into t values
+('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+alter table t modify a varchar(10) collate latin1_general_cs, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify c varchar(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;

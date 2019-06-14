@@ -354,6 +354,14 @@
   data dictionary without changing table rows
 */
 #define IS_EQUAL_PACK_LENGTH 2
+/**
+  charsets are the same or compatible, collates are the same, the rest is equal
+*/
+#define IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET 3
+/**
+  charsets are the same or compatible, collates are different, the rest is equal
+*/
+#define IS_EQUAL_WITH_REINTERPRET_COMPATIBLE_CHARSET_BUT_COLLATE 4
 
 enum enum_parsing_place
 {

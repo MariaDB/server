@@ -9120,14 +9120,20 @@ innobase_rename_or_enlarge_column_try(
 	DBUG_ASSERT(col->len <= len);
 
 #ifdef UNIV_DEBUG
+	ut_ad(col->mbminlen <= col->mbmaxlen);
 	switch (mtype) {
+	case DATA_MYSQL:
+		if (!(prtype & DATA_BINARY_TYPE) || user_table->not_redundant()
+		    || col->mbminlen != col->mbmaxlen) {
+			/* NOTE: we could allow this when !(prtype &
+			DATA_BINARY_TYPE) and ROW_FORMAT is not REDUNDANT and
+			mbminlen<mbmaxlen. That is, we treat a UTF-8 CHAR(n)
+			column somewhat like a VARCHAR. */
+			break;
+		}
+		/* fall through */
 	case DATA_FIXBINARY:
 	case DATA_CHAR:
-	case DATA_MYSQL:
-		/* NOTE: we could allow this when !(prtype & DATA_BINARY_TYPE)
-		and ROW_FORMAT is not REDUNDANT and mbminlen<mbmaxlen.
-		That is, we treat a UTF-8 CHAR(n) column somewhat like
-		a VARCHAR. */
 		ut_ad(col->len == len);
 		break;
 	case DATA_BINARY:
