@@ -6979,7 +6979,7 @@ WHERE SLEEP(0.1) OR c < 'p' OR b = ( SELECT MIN(b) FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	b	NULL	NULL	NULL	2	Using where
-1	PRIMARY	t3	ref	d	d	5	test.t2.b	2	Using where; Using index
+1	PRIMARY	t3	ref	d	d	5	test.t2.b	2	Using index
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 set @tmp_mdev410=@@global.userstat;
 set global userstat=on;

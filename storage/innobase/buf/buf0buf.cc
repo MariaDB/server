@@ -4850,6 +4850,23 @@ evict_from_pool:
 	and block->lock. */
 	buf_wait_for_read(fix_block);
 
+	if (fix_block->page.id != page_id) {
+
+		buf_block_unfix(fix_block);
+
+#ifdef UNIV_DEBUG
+		if (!fsp_is_system_temporary(page_id.space())) {
+			rw_lock_s_unlock(&fix_block->debug_latch);
+		}
+#endif /* UNIV_DEBUG */
+
+		if (err) {
+			*err = DB_PAGE_CORRUPTED;
+		}
+
+		return NULL;
+	}
+
 	mtr_memo_type_t	fix_type;
 
 	switch (rw_latch) {
@@ -5820,14 +5837,18 @@ buf_corrupt_page_release(buf_page_t* bpage, const fil_space_t* space)
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const ibool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
+	page_id_t	old_page_id = bpage->id;
 
 	/* First unfix and release lock on the bpage */
 	buf_pool_mutex_enter(buf_pool);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
-	ut_ad(bpage->buf_fix_count == 0);
 	ut_ad(bpage->id.space() == space->id);
 
+	/* buf_fix_count can be greater than zero. Because other thread
+	can wait in buf_page_wait_read() for the page to be read. */
+
+	bpage->id.set_corrupt_id();
 	/* Set BUF_IO_NONE before we remove the block from LRU list */
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 
@@ -5844,7 +5865,7 @@ buf_corrupt_page_release(buf_page_t* bpage, const fil_space_t* space)
 	}
 
 	/* After this point bpage can't be referenced. */
-	buf_LRU_free_one_page(bpage);
+	buf_LRU_free_one_page(bpage, old_page_id);
 
 	ut_ad(buf_pool->n_pend_reads > 0);
 	buf_pool->n_pend_reads--;

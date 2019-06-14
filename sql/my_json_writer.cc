@@ -129,6 +129,13 @@ void Json_writer::add_ll(longlong val)
   add_unquoted_str(buf);
 }
 
+void Json_writer::add_ull(ulonglong val)
+{
+  char buf[64];
+  my_snprintf(buf, sizeof(buf), "%llu", val);
+  add_unquoted_str(buf);
+}
+
 
 /* Add a memory size, printing in Kb, Kb, Gb if necessary */
 void Json_writer::add_size(longlong val)
