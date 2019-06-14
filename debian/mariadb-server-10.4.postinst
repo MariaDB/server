@@ -17,11 +17,7 @@ ERR_LOGGER="logger -p daemon.err -t mariadb-server-$VER.postinst -i"
 set -o pipefail
 
 invoke() {
-  if [ -x /usr/sbin/invoke-rc.d ]; then
-    invoke-rc.d mysql $1
-  else
-    /etc/init.d/mysql $1
-  fi
+  systemctl $1 mysql
 }
 
 case "$1" in
