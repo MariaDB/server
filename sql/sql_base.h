@@ -248,17 +248,7 @@ lock_table_names(THD *thd, TABLE_LIST *table_list,
 }
 bool open_tables(THD *thd, const DDL_options_st &options,
                  TABLE_LIST **tables, uint *counter,
-                 Sroutine_hash_entry **sroutine_to_open, uint flags,
-                 Prelocking_strategy *prelocking_strategy);
-
-static inline bool
-open_tables(THD *thd, const DDL_options_st &options, TABLE_LIST **tables,
-            uint *counter, uint flags, Prelocking_strategy *prelocking_strategy)
-{
-  return open_tables(thd, options, tables, counter,
-                     &thd->lex->sroutines_list.first, flags,
-                     prelocking_strategy);
-}
+                 uint flags, Prelocking_strategy *prelocking_strategy);
 
 static inline bool
 open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
@@ -400,6 +390,7 @@ class Prelocking_strategy
 public:
   virtual ~Prelocking_strategy() { }
 
+  virtual void reset(THD *thd) { };
   virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
                               Sroutine_hash_entry *rt, sp_head *sp,
                               bool *need_prelocking) = 0;
@@ -407,6 +398,7 @@ public:
                             TABLE_LIST *table_list, bool *need_prelocking) = 0;
   virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                            TABLE_LIST *table_list, bool *need_prelocking)= 0;
+  virtual bool handle_end(THD *thd) { return 0; };
 };
 
 

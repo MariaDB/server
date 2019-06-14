@@ -202,14 +202,12 @@ void
 buf_LRU_stat_update(void);
 /*=====================*/
 
-/******************************************************************//**
-Remove one page from LRU list and put it to free list */
-void
-buf_LRU_free_one_page(
-/*==================*/
-	buf_page_t*	bpage)	/*!< in/out: block, must contain a file page and
-				be in a state where it can be freed; there
-				may or may not be a hash index to the page */
+/** Remove one page from LRU list and put it to free list.
+@param[in,out]	bpage		block, must contain a file page and be in
+				a freeable state; there may or may not be a
+				hash index to the page
+@param[in]	old_page_id	page number before bpage->id was invalidated */
+void buf_LRU_free_one_page(buf_page_t* bpage, page_id_t old_page_id)
 	MY_ATTRIBUTE((nonnull));
 
 /******************************************************************//**

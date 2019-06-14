@@ -355,7 +355,8 @@ protected:
   Sql_cmd_alter_table represents the generic ALTER TABLE statement.
   @todo move Alter_info and other ALTER specific structures from Lex here.
 */
-class Sql_cmd_alter_table : public Sql_cmd_common_alter_table
+class Sql_cmd_alter_table : public Sql_cmd_common_alter_table,
+                            public Storage_engine_name
 {
 public:
   /**
@@ -366,6 +367,8 @@ public:
 
   ~Sql_cmd_alter_table()
   {}
+
+  Storage_engine_name *option_storage_engine_name() { return this; }
 
   bool execute(THD *thd);
 };

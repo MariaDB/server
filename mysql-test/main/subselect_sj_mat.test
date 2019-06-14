@@ -2248,6 +2248,81 @@ explain SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
 SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
 drop table t1,t2;
 drop view v1;
+
+
+--echo #
+--echo # MDEV-19580: function invocation in the left part of IN subquery
+--echo #
+
+create table t1 (id int, a varchar(50), b int);
+insert into t1 values
+(1,'mrs',2), (2,'joe',2), (3,'paul',1), (4,'art',1);
+
+create table t2 (id int, a varchar(50), x int);
+insert into t2 values
+(1,'grand',1),(2,'average',1),(3,'serf',0);
+
+create table t3 (d1 date, d2 date, t1_id int, t2_id int );
+insert into t3 values
+('1972-01-01','1988-12-31',3,1), ('1972-01-01','1988-12-31',4,1),
+('1972-01-01','1988-12-31',1,2), ('1972-01-01','1988-12-31',2,3);
+
+create table t4 ( id int, a varchar(50) );
+insert into t4 values
+(1,'songwriter'),(2,'song character');
+
+delimiter $$;
+
+create function f1(who int, dt date) returns int
+deterministic
+begin
+    declare result int;
+    select t2_id into result from t3 where dt>=d1 and dt<=d2 and t1_id=who;
+    return result;
+end$$
+
+create function f2(who int, dt date) returns int
+begin
+    declare result int;
+    select t2_id into result from t3 where dt>=d1 and dt<=d2 and t1_id=who;
+    return result;
+end$$
+
+delimiter ;$$
+
+--echo # Deterministic function in left part of IN subquery: semi-join is OK
+
+let $q1=
+select * from t1
+    left join t4 on t1.b = t4.id
+    where f1(t1.id, '1980-01-01') in (select id from t2 where x=1);
+
+eval $q1;
+eval explain extended $q1;
+
+--echo # Non-deterministic function in left part of IN subq: semi-join is OK
+
+let $q2=
+select * from t1
+    left join t4 on t1.b = t4.id
+    where f2(t1.id, '1980-01-01') in (select id from t2 where x=1);
+
+eval $q2;
+eval explain extended $q2;
+
+let $q3=
+select t1.*, t4.*,
+       (select max(t4.id) from t4 where t4.id=t1.b and sleep(0) = 0) as s
+    from t1 left join t4 on t1.b = t4.id
+    where f2(t1.id, '1980-01-01') in (select id from t2 where x=1);
+
+eval $q3;
+eval explain extended $q3;
+
+drop function f1;
+drop function f2;
+drop table t1,t2,t3,t4;
+
 --echo # End of 5.5 tests
 --echo #
 --echo # MDEV-7220: Materialization strategy is not used for REPLACE ... SELECT
