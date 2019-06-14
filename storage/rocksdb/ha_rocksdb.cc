@@ -8745,7 +8745,7 @@ int ha_rocksdb::check(THD *const thd, HA_CHECK_OPT *const check_opt) {
       int res;
       // NO_LINT_DEBUG
       sql_print_verbose_info("CHECKTABLE %s:   Checking index %s", table_name,
-                             table->key_info[keyno].name);
+                             table->key_info[keyno].name.str);
       while (1) {
         if (!rows)
           res = index_first(table->record[0]);
