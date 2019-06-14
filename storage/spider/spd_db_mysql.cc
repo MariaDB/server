@@ -1986,7 +1986,7 @@ int spider_db_mbase::connect(
       } else if (!strcmp(tgt_host, "127.0.0.1") ||
         !strcmp(tgt_host, glob_hostname))
       {
-        if (tgt_port == *spd_mysqld_port)
+        if (tgt_port == long{*spd_mysqld_port})
         {
           my_printf_error(ER_SPIDER_SAME_SERVER_LINK_NUM,
             ER_SPIDER_SAME_SERVER_LINK_STR2, MYF(0),
