@@ -1,0 +1,41 @@
+# RETURNING * and RETURNING <COLUMN_NAME> should work. 
+# Other cases with RETURNING should output syntax error.
+drop table if exists t1,t2;
+CREATE TABLE t1(id1 INT, val1 VARCHAR(1));
+Table t1 created successfully. Fields: id1 INT, val1 VARCHAR(1);
+CREATE TABLE t2(id2 INT, val2 VARCHAR(1));
+Table t2 created successfully. Fields: id2 INT, val2 VARCHAR(1);
+#Simple insert statement
+INSERT INTO t1 (id1, val1) VALUES (1, 'a');
+INSERT INTO t1 (id1, val1) VALUES (2, 'b') RETURNING *;
+INSERT INTO t1 (id1, val1) VALUES (3, 'c') RETURNING id1, val1;
+INSERT INTO t1 (id1, val1) VALUES (3, 'c') RETURNING id1 AS id;
+SELECT * FROM t1;
+id1	val1
+1	a
+2	b
+3	c
+3	c
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+id1	val1
+#multiple values in one insert statement
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+INSERT INTO t1 VALUES (3,'c'),(4,'d') RETURNING *;
+INSERT INTO t1 VALUES (5,'e'),(6,'f') RETURNING id1, val1;
+INSERT INTO t1 VALUES (5,'e'),(6,'f') RETURNING id1 AS id;
+# INSERT...ON DULPICATE KEY UPDATE
+CREATE TABLE ins_duplicate (id INT PRIMARY KEY, val VARCHAR(1));
+INSERT INTO ins_duplicate VALUES (1,'a');
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING id,val;
+INSERT INTO ins_duplicate VALUES (3,'b') ON DUPLICATE KEY UPDATE val='c' RETURNING *;
+INSERT INTO ins_duplicate VALUES (4,'b') ON DUPLICATE KEY UPDATE val='d' RETURNING id AS id1;
+# INSERT...SET
+INSERT INTO  t1 SET id1 = 1, val1 = 'a';
+INSERT INTO  t1 SET id1 = 2, val1 = 'b' RETURNING *;
+INSERT INTO  t1 SET id1 = 3, val1 = 'c' RETURNING id1,val1;
+INSERT INTO  t1 SET id1 = 3, val1 = 'c' RETURNING id1 AS id;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE ins_duplicate;
+#End of test case 
