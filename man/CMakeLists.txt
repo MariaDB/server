@@ -77,9 +77,10 @@ macro(MARIADB_SYMLINK_MANPAGE)
 endmacro(MARIADB_SYMLINK_MANPAGE)
 
 macro(MARIADB_SYMLINK_MANPAGE_CREATE mysqlname index mannr dir comp)
-  list(GET MARIADB_SYMLINK_TOS ${index} _mariadbname)
-  set(symlinkname "${_mariadbname}.${mannr}")
-  CREATE_MARIADB_SYMLINK_IN_DIR(${mysqlname}.${mannr} ${symlinkname} ${INSTALL_MANDIR}/${dir} ${comp})
+  LIST(GET MARIADB_SYMLINK_TOS ${index} _mariadbname)
+  SET(dest "${CMAKE_CURRENT_BINARY_DIR}/${_mariadbname}.${mannr}")
+  FILE(WRITE ${dest} ".so ${mysqlname}.${mannr}")
+  INSTALL(FILES ${dest} DESTINATION ${INSTALL_MANDIR}/${dir} COMPONENT ${comp})
 endmacro(MARIADB_SYMLINK_MANPAGE_CREATE)
 
 MARIADB_SYMLINK_MANPAGE()

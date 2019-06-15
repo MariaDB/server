@@ -66,7 +66,16 @@ usr/share/man/man1/aria_pack.1
 usr/share/man/man1/aria_read_log.1
 usr/share/man/man1/galera_new_cluster.1
 usr/share/man/man1/galera_recovery.1
+usr/share/man/man1/mariadb-convert-table-format.1
+usr/share/man/man1/mariadb-hotcopy.1
+usr/share/man/man1/mariadb-secure-installation.1
 usr/share/man/man1/mariadb-service-convert.1
+usr/share/man/man1/mariadb-setpermission.1
+usr/share/man/man1/mariadb-show.1
+usr/share/man/man1/mariadb-tzinfo-to-sql.1
+usr/share/man/man1/mariadbd-multi.1
+usr/share/man/man1/mariadbd-safe-helper.1
+usr/share/man/man1/mariadbd-safe.1
 usr/share/man/man1/msql2mysql.1
 usr/share/man/man1/my_print_defaults.1
 usr/share/man/man1/myisam_ftdump.1

@@ -12,6 +12,7 @@ REGISTER_SYMLINK("mariabackup" "mariadb-backup")
 REGISTER_SYMLINK("mysqlbinlog" "mariadb-binlog")
 REGISTER_SYMLINK("mysqlcheck" "mariadb-check")
 REGISTER_SYMLINK("mysql_client_test_embedded" "mariadb-client-test-embedded")
+REGISTER_SYMLINK("mysql_client_test" "mariadb-client-test")
 REGISTER_SYMLINK("mariadb_config" "mariadb-config")
 REGISTER_SYMLINK("mysql_convert_table_format" "mariadb-convert-table-format")
 REGISTER_SYMLINK("mysqldump" "mariadb-dump")
@@ -30,7 +31,6 @@ REGISTER_SYMLINK("mysqlshow" "mariadb-show")
 REGISTER_SYMLINK("mysqlslap" "mariadb-slap")
 REGISTER_SYMLINK("mysqltest" "mariadb-test")
 REGISTER_SYMLINK("mysqltest_embedded" "mariadb-test-embedded")
-REGISTER_SYMLINK("mytop" "mariadb-top")
 REGISTER_SYMLINK("mysql_tzinfo_to_sql" "mariadb-tzinfo-to-sql")
 REGISTER_SYMLINK("mysql_upgrade" "mariadb-upgrade")
 REGISTER_SYMLINK("mysql_upgrade_service" "mariadb-upgrade-service")
@@ -59,7 +59,7 @@ endmacro(CREATE_MARIADB_SYMLINK)
 macro(CREATE_MARIADB_SYMLINK_IN_DIR src dest dir comp)
   if(UNIX)
     add_custom_target(
-      symlink_${dest}_${comp} ALL
+      SYM_${dest} ALL
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${dest}
     )
 
