@@ -1114,7 +1114,7 @@ update t1 set a = sleep(100) where pk = 1;
 
 --connect (con1,localhost,root,,)
 
-let $wait_condition= select State='User sleep' from information_schema.processlist where id=$con_id or srv_id=$con_id;
+let $wait_condition= select State='User sleep' from information_schema.processlist where id=$con_id/* or srv_id=$con_id*/;
 --source include/wait_condition.inc
 
 --echo kill query \$con_id;

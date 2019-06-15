@@ -29,7 +29,7 @@ begin;
 
 let $wait_condition=
     select 1 from INFORMATION_SCHEMA.PROCESSLIST
-    where (ID = $ID or SRV_ID = $ID) and STATE = "Waiting for row lock";
+    where (ID = $ID /* or SRV_ID = $ID */) and STATE = "Waiting for row lock";
 --source include/wait_condition.inc
 ## Waiting for row lock
 ## select connection_id();
