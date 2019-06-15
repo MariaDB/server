@@ -4817,7 +4817,6 @@ public:
   rpl_sid                   wsrep_po_sid;
 #endif /* GTID_SUPPORT */
   void                      *wsrep_apply_format;
-  bool                      wsrep_apply_toi; /* applier processing in TOI */
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
   //  wsrep_gtid_t              wsrep_last_written_gtid;
