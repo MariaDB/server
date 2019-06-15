@@ -86,120 +86,115 @@ b	timestamp(6)	YES		NULL	VIRTUAL GENERATED
 c	timestamp(6)	YES		NULL	STORED GENERATED
 d	timestamp(6)	NO		NULL	STORED GENERATED
 e	timestamp(6)	NO		NULL	STORED GENERATED
-select *,'---' from information_schema.columns where table_name='t1';
-TABLE_CATALOG	def
-TABLE_SCHEMA	test
-TABLE_NAME	t1
-COLUMN_NAME	a
-ORDINAL_POSITION	1
-COLUMN_DEFAULT	current_timestamp(6)
-IS_NULLABLE	NO
-DATA_TYPE	timestamp
-CHARACTER_MAXIMUM_LENGTH	NULL
-CHARACTER_OCTET_LENGTH	NULL
-NUMERIC_PRECISION	NULL
-NUMERIC_SCALE	NULL
-DATETIME_PRECISION	6
-CHARACTER_SET_NAME	NULL
-COLLATION_NAME	NULL
-COLUMN_TYPE	timestamp(6)
-COLUMN_KEY	
-EXTRA	on update current_timestamp(6)
-PRIVILEGES	select,insert,update,references
-COLUMN_COMMENT	
-IS_GENERATED	NEVER
-GENERATION_EXPRESSION	NULL
+select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,is_nullable,data_type,character_maximum_length,character_octet_length,numeric_precision,numeric_scale,datetime_precision,character_set_name,collation_name,column_type,column_key,extra,column_comment,is_generated,generation_expression,'---' from information_schema.columns where table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	a
+ordinal_position	1
+column_default	current_timestamp(6)
+is_nullable	NO
+data_type	timestamp
+character_maximum_length	NULL
+character_octet_length	NULL
+numeric_precision	NULL
+numeric_scale	NULL
+datetime_precision	6
+character_set_name	NULL
+collation_name	NULL
+column_type	timestamp(6)
+column_key	
+extra	on update current_timestamp(6)
+column_comment	
+is_generated	NEVER
+generation_expression	NULL
 ---	---
-TABLE_CATALOG	def
-TABLE_SCHEMA	test
-TABLE_NAME	t1
-COLUMN_NAME	b
-ORDINAL_POSITION	2
-COLUMN_DEFAULT	NULL
-IS_NULLABLE	YES
-DATA_TYPE	timestamp
-CHARACTER_MAXIMUM_LENGTH	NULL
-CHARACTER_OCTET_LENGTH	NULL
-NUMERIC_PRECISION	NULL
-NUMERIC_SCALE	NULL
-DATETIME_PRECISION	6
-CHARACTER_SET_NAME	NULL
-COLLATION_NAME	NULL
-COLUMN_TYPE	timestamp(6)
-COLUMN_KEY	
-EXTRA	VIRTUAL GENERATED
-PRIVILEGES	select,insert,update,references
-COLUMN_COMMENT	
-IS_GENERATED	ALWAYS
-GENERATION_EXPRESSION	`a` + interval 1 day
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	b
+ordinal_position	2
+column_default	NULL
+is_nullable	YES
+data_type	timestamp
+character_maximum_length	NULL
+character_octet_length	NULL
+numeric_precision	NULL
+numeric_scale	NULL
+datetime_precision	6
+character_set_name	NULL
+collation_name	NULL
+column_type	timestamp(6)
+column_key	
+extra	VIRTUAL GENERATED
+column_comment	
+is_generated	ALWAYS
+generation_expression	`a` + interval 1 day
 ---	---
-TABLE_CATALOG	def
-TABLE_SCHEMA	test
-TABLE_NAME	t1
-COLUMN_NAME	c
-ORDINAL_POSITION	3
-COLUMN_DEFAULT	NULL
-IS_NULLABLE	YES
-DATA_TYPE	timestamp
-CHARACTER_MAXIMUM_LENGTH	NULL
-CHARACTER_OCTET_LENGTH	NULL
-NUMERIC_PRECISION	NULL
-NUMERIC_SCALE	NULL
-DATETIME_PRECISION	6
-CHARACTER_SET_NAME	NULL
-COLLATION_NAME	NULL
-COLUMN_TYPE	timestamp(6)
-COLUMN_KEY	
-EXTRA	STORED GENERATED
-PRIVILEGES	select,insert,update,references
-COLUMN_COMMENT	
-IS_GENERATED	ALWAYS
-GENERATION_EXPRESSION	`a` + interval 1 month
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	c
+ordinal_position	3
+column_default	NULL
+is_nullable	YES
+data_type	timestamp
+character_maximum_length	NULL
+character_octet_length	NULL
+numeric_precision	NULL
+numeric_scale	NULL
+datetime_precision	6
+character_set_name	NULL
+collation_name	NULL
+column_type	timestamp(6)
+column_key	
+extra	STORED GENERATED
+column_comment	
+is_generated	ALWAYS
+generation_expression	`a` + interval 1 month
 ---	---
-TABLE_CATALOG	def
-TABLE_SCHEMA	test
-TABLE_NAME	t1
-COLUMN_NAME	d
-ORDINAL_POSITION	4
-COLUMN_DEFAULT	NULL
-IS_NULLABLE	NO
-DATA_TYPE	timestamp
-CHARACTER_MAXIMUM_LENGTH	NULL
-CHARACTER_OCTET_LENGTH	NULL
-NUMERIC_PRECISION	NULL
-NUMERIC_SCALE	NULL
-DATETIME_PRECISION	6
-CHARACTER_SET_NAME	NULL
-COLLATION_NAME	NULL
-COLUMN_TYPE	timestamp(6)
-COLUMN_KEY	
-EXTRA	STORED GENERATED
-PRIVILEGES	select,insert,update,references
-COLUMN_COMMENT	
-IS_GENERATED	ALWAYS
-GENERATION_EXPRESSION	ROW START
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	d
+ordinal_position	4
+column_default	NULL
+is_nullable	NO
+data_type	timestamp
+character_maximum_length	NULL
+character_octet_length	NULL
+numeric_precision	NULL
+numeric_scale	NULL
+datetime_precision	6
+character_set_name	NULL
+collation_name	NULL
+column_type	timestamp(6)
+column_key	
+extra	STORED GENERATED
+column_comment	
+is_generated	ALWAYS
+generation_expression	ROW START
 ---	---
-TABLE_CATALOG	def
-TABLE_SCHEMA	test
-TABLE_NAME	t1
-COLUMN_NAME	e
-ORDINAL_POSITION	5
-COLUMN_DEFAULT	NULL
-IS_NULLABLE	NO
-DATA_TYPE	timestamp
-CHARACTER_MAXIMUM_LENGTH	NULL
-CHARACTER_OCTET_LENGTH	NULL
-NUMERIC_PRECISION	NULL
-NUMERIC_SCALE	NULL
-DATETIME_PRECISION	6
-CHARACTER_SET_NAME	NULL
-COLLATION_NAME	NULL
-COLUMN_TYPE	timestamp(6)
-COLUMN_KEY	
-EXTRA	STORED GENERATED
-PRIVILEGES	select,insert,update,references
-COLUMN_COMMENT	
-IS_GENERATED	ALWAYS
-GENERATION_EXPRESSION	ROW END
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	e
+ordinal_position	5
+column_default	NULL
+is_nullable	NO
+data_type	timestamp
+character_maximum_length	NULL
+character_octet_length	NULL
+numeric_precision	NULL
+numeric_scale	NULL
+datetime_precision	6
+character_set_name	NULL
+collation_name	NULL
+column_type	timestamp(6)
+column_key	
+extra	STORED GENERATED
+column_comment	
+is_generated	ALWAYS
+generation_expression	ROW END
 ---	---
 drop table t1;
