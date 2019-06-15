@@ -700,7 +700,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
                   List<Item> &update_fields,
                   List<Item> &update_values,
                   enum_duplicates duplic,
-		  bool ignore)
+		  bool ignore, select_result* result)
 {
   bool retval= true;
   int error, res;
@@ -719,6 +719,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
+  SELECT_LEX* select_lex = thd->lex->first_select_lex();
+  bool with_select = !select_lex->returning_list.is_empty();
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
   /*
@@ -777,6 +779,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 			   update_fields, update_values, duplic, &unused_conds,
                            FALSE))
     goto abort;
+
+  if (with_select)
+	  (void)result->prepare(select_lex->returning_list, NULL);
 
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
