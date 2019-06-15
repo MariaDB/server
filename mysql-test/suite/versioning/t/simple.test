@@ -84,6 +84,6 @@ create table t1 (
   period for system_time(d,e)
 ) with system versioning;
 show columns from t1;
-query_vertical select *,'---' from information_schema.columns where table_name='t1';
+query_vertical select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,is_nullable,data_type,character_maximum_length,character_octet_length,numeric_precision,numeric_scale,datetime_precision,character_set_name,collation_name,column_type,column_key,extra,column_comment,is_generated,generation_expression,'---' from information_schema.columns where table_name='t1';
 drop table t1;
 
