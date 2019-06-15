@@ -4455,6 +4455,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_INSERT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
+	select_result * sel_result = NULL;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
@@ -4475,9 +4476,36 @@ mysql_execute_command(THD *thd)
       break;
 
     MYSQL_INSERT_START(thd->query());
+
+	Protocol* UNINIT_VAR(save_protocol);
+	bool replaced_protocol = false;
+
+	if (thd->lex->current_select->returning_list.is_empty())
+	{
+		/* This is DELETE ... RETURNING.  It will return output to the client */
+		if (thd->lex->analyze_stmt)
+		{
+			/*
+			  Actually, it is ANALYZE .. DELETE .. RETURNING. We need to produce
+			  output and then discard it.
+			*/
+			sel_result = new (thd->mem_root) select_send_analyze(thd);
+			replaced_protocol = true;
+			save_protocol = thd->protocol;
+			thd->protocol = new Protocol_discard(thd);
+		}
+		else
+		{
+			if (!lex->result && !(sel_result = new (thd->mem_root) select_send(thd)))
+				goto error;
+		}
+	}
+
     res= mysql_insert(thd, all_tables, lex->field_list, lex->many_values,
 		      lex->update_list, lex->value_list,
-                      lex->duplicates, lex->ignore);
+                      lex->duplicates, lex->ignore, lex->result ? lex->result : sel_result);
+
+	delete sel_result
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
       If we have inserted into a VIEW, and the base table has
