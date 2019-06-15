@@ -27,10 +27,36 @@
 #include <my_bitmap.h>
 #include <my_bit.h>
 
+/* An iterator to quickly walk over bits in unlonglong bitmap. */
+class Table_map_iterator
+{
+  ulonglong bmp;
+  uint no;
+public:
+  Table_map_iterator(ulonglong t) : bmp(t), no(0) {}
+  int next_bit()
+  {
+    static const char last_bit[16] = { 32, 0, 1, 0,
+                                      2, 0, 1, 0,
+                                      3, 0, 1, 0,
+                                      2, 0, 1, 0 };
+    uint bit;
+    while ((bit= last_bit[bmp & 0xF]) == 32)
+    {
+      no += 4;
+      bmp= bmp >> 4;
+      if (!bmp)
+        return BITMAP_END;
+    }
+    bmp &= ~(1LL << bit);
+    return no + bit;
+  }
+  int operator++(int) { return next_bit(); }
+  enum { BITMAP_END= 64 };
+};
 
 template <uint width> class Bitmap
 {
-
 /*
   Workaround GCC optimizer bug (generating SSE instuctions on unaligned data)
 */
@@ -43,12 +69,38 @@ template <uint width> class Bitmap
 #pragma GCC target ("no-sse")
 #endif
 
-  uint32 buffer[(width + 31) / 32];
-public:
-  Bitmap()
+private:
+  static const int BITS_PER_ELEMENT= sizeof(ulonglong) * 8;
+  static const int ARRAY_ELEMENTS= (width + BITS_PER_ELEMENT - 1) / BITS_PER_ELEMENT;
+  static const ulonglong ALL_BITS_SET= ULLONG_MAX;
+
+  ulonglong buffer[ARRAY_ELEMENTS];
+
+  uint bit_index(uint n) const
   {
-    clear_all();
+    DBUG_ASSERT(n < width);
+    return ARRAY_ELEMENTS == 1 ? 0 : n / BITS_PER_ELEMENT;
   }
+  ulonglong bit_mask(uint n) const
+  {
+    DBUG_ASSERT(n < width);
+    return ARRAY_ELEMENTS == 1 ? 1ULL << n : 1ULL << (n % BITS_PER_ELEMENT);
+  }
+  ulonglong last_element_mask(int n) const
+  {
+    DBUG_ASSERT(n % BITS_PER_ELEMENT != 0);
+    return bit_mask(n) - 1;
+  }
+
+public:
+  /*
+   The default constructor does nothing.
+   The caller is supposed to either zero the memory
+   or to call set_all()/clear_all()/set_prefix()
+   to initialize bitmap.
+  */
+  Bitmap() { }
+
   explicit Bitmap(uint prefix)
   {
     set_prefix(prefix);
@@ -57,50 +109,76 @@ public:
   {
     set_prefix(prefix);
   }
-
   uint length() const
   {
     return width;
   }
   void set_bit(uint n)
   {
-    DBUG_ASSERT(n < width);
-    ((uchar*)buffer)[n / 8] |= (1 << (n & 7));
+    buffer[bit_index(n)] |= bit_mask(n);
   }
   void clear_bit(uint n)
   {
-    DBUG_ASSERT(n < width);
-    ((uchar*)buffer)[n / 8] &= ~(1 << (n & 7));
+    buffer[bit_index(n)] &= ~bit_mask(n);
+  }
+  bool is_set(uint n) const
+  {
+    return buffer[bit_index(n)] & bit_mask(n);
   }
   void set_prefix(uint prefix_size)
   {
     set_if_smaller(prefix_size, width);
-    uint prefix_bytes, prefix_bits, d;
-    uchar* m = (uchar*)buffer;
 
-    if ((prefix_bytes = prefix_size / 8))
-      memset(m, 0xff, prefix_bytes);
-    m += prefix_bytes;
-    if ((prefix_bits = prefix_size & 7))
-    {
-      *(m++) = (1 << prefix_bits) - 1;
-      // As the prefix bits are set, lets count this byte too as a prefix byte.
-      prefix_bytes++;
-    }
-    if ((d = (width + 7) / 8 - prefix_bytes))
-      memset(m, 0, d);
+    size_t idx= prefix_size / BITS_PER_ELEMENT;
+
+    for (size_t i= 0; i < idx; i++)
+      buffer[i]= ALL_BITS_SET;
+
+    if (prefix_size % BITS_PER_ELEMENT)
+      buffer[idx++]= last_element_mask(prefix_size);
+
+    for (size_t i= idx; i < ARRAY_ELEMENTS; i++)
+      buffer[i]= 0;
+  }
+  bool is_prefix(uint prefix_size) const
+  {
+    DBUG_ASSERT(prefix_size <= width);
+
+    size_t idx= prefix_size / BITS_PER_ELEMENT;
+
+    for (size_t i= 0; i < idx; i++)
+      if (buffer[i] != ALL_BITS_SET)
+        return false;
+
+    if (prefix_size % BITS_PER_ELEMENT)
+      if (buffer[idx++] != last_element_mask(prefix_size))
+        return false;
+
+    for (size_t i= idx; i < ARRAY_ELEMENTS; i++)
+      if (buffer[i] != 0)
+        return false;
+
+    return true;
   }
   void set_all()
   {
-    set_prefix(width);
+    if (width % BITS_PER_ELEMENT)
+      set_prefix(width);
+    else if (ARRAY_ELEMENTS > 1)
+      memset(buffer, 0xff, sizeof(buffer));
+    else
+      buffer[0] = ALL_BITS_SET;
   }
   void clear_all()
   {
-    memset(buffer, 0x00, sizeof(buffer));
+    if (ARRAY_ELEMENTS > 1)
+      memset(buffer, 0, sizeof(buffer));
+    else
+      buffer[0]= 0;
   }
-  void intersect(Bitmap & map2)
+  void intersect(const Bitmap& map2)
   {
-    for (uint i = 0; i < array_elements(buffer); i++)
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
       buffer[i] &= map2.buffer[i];
   }
 
@@ -112,27 +190,13 @@ private:
   */
   void intersect_and_pad(ulonglong map2buff, bool pad_with_ones)
   {
-    compile_time_assert(sizeof(ulonglong) == 8);
-    uint32 tmp[2];
-    int8store(tmp, map2buff);
+    buffer[0] &= map2buff;
 
-    buffer[0] &= tmp[0];
-    if (array_elements(buffer) > 1)
-      buffer[1] &= tmp[1];
+    for (size_t i= 1; i < ARRAY_ELEMENTS; i++)
+      buffer[i]= pad_with_ones ? ALL_BITS_SET : 0;
 
-    if (array_elements(buffer) <= 2)
-      return;
-    if (pad_with_ones)
-    {
-      memset((char*)buffer + 8, 0xff , sizeof(buffer) - 8);
-      if (width != sizeof(buffer) * 8)
-      {
-        ((uchar*)buffer)[sizeof(buffer)-1] = last_byte_mask(width);
-      }
-    }
-    else
-      memset((char*)buffer + 8, 0 , sizeof(buffer) - 8);
-
+    if (ARRAY_ELEMENTS > 1 && (width % BITS_PER_ELEMENT) && pad_with_ones)
+      buffer[ARRAY_ELEMENTS - 1]= last_element_mask(width);
   }
 
 public:
@@ -140,141 +204,110 @@ public:
   {
     intersect_and_pad(map2buff, 0);
   }
-  /* Use highest bit for all bits above sizeof(ulonglong)*8. */
+  /* Use highest bit for all bits above first element. */
   void intersect_extended(ulonglong map2buff)
   {
     intersect_and_pad(map2buff, (map2buff & (1ULL << 63)));
   }
-  void subtract(Bitmap & map2)
+  void subtract(const Bitmap& map2)
   {
-    for (size_t i = 0; i < array_elements(buffer); i++)
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
       buffer[i] &= ~(map2.buffer[i]);
   }
-  void merge(Bitmap & map2)
+  void merge(const Bitmap& map2)
   {
-    for (size_t i = 0; i < array_elements(buffer); i++)
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
       buffer[i] |= map2.buffer[i];
-  }
-  bool is_set(uint n) const
-  {
-    DBUG_ASSERT(n < width);
-    return ((uchar*)buffer)[n / 8] & (1 << (n & 7));
-  }
-  bool is_prefix(uint prefix_size) const
-  {
-    uint prefix_mask = last_byte_mask(prefix_size);
-    uchar* m = (uchar*)buffer;
-    uchar* end_prefix = m + (prefix_size - 1) / 8;
-    uchar* end;
-    DBUG_ASSERT(prefix_size <= width);
-
-    /* Empty prefix is always true */
-    if (!prefix_size)
-      return true;
-
-    while (m < end_prefix)
-      if (*m++ != 0xff)
-        return false;
-
-    end = ((uchar*)buffer) + (width + 7) / 8 - 1;
-    if (m == end)
-      return ((*m & last_byte_mask(width)) == prefix_mask);
-
-    if (*m != prefix_mask)
-      return false;
-
-    while (++m < end)
-      if (*m != 0)
-        return false;
-    return ((*m & last_byte_mask(width)) == 0);
   }
   bool is_clear_all() const
   {
-    for (size_t i= 0; i < array_elements(buffer); i++)
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
       if (buffer[i])
         return false;
     return true;
   }
-  bool is_set_all() const
+  bool is_subset(const Bitmap& map2) const
   {
-    if (width == sizeof(buffer) * 8)
-    {
-      for (size_t i = 0; i < array_elements(buffer); i++)
-        if (buffer[i] != 0xFFFFFFFFU)
-          return false;
-      return true;
-    }
-    else
-      return is_prefix(width);
-  }
-
-  bool is_subset(const Bitmap & map2) const
-  {
-    for (size_t i= 0; i < array_elements(buffer); i++)
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
       if (buffer[i] & ~(map2.buffer[i]))
         return false;
     return true;
   }
-  bool is_overlapping(const Bitmap & map2) const
+  bool is_overlapping(const Bitmap& map2) const
   {
-    for (size_t i = 0; i < array_elements(buffer); i++)
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
       if (buffer[i] & map2.buffer[i])
         return true;
     return false;
   }
-  bool operator==(const Bitmap & map2) const
+  bool operator==(const Bitmap& map2) const
   {
-    return memcmp(buffer, map2.buffer, sizeof(buffer)) == 0;
+    if (ARRAY_ELEMENTS > 1)
+      return !memcmp(buffer,map2.buffer,sizeof(buffer));
+    return buffer[0] == map2.buffer[0];
   }
-  bool operator!=(const Bitmap & map2) const
+  bool operator!=(const Bitmap& map2) const
   {
     return !(*this == map2);
   }
+  /*
+    Print hexadecimal representation of bitmap.
+    Truncate trailing zeros.
+  */
   char *print(char *buf) const
   {
-    char *s=buf;
-    const uchar *e=(uchar *)buffer, *b=e+sizeof(buffer)-1;
-    while (!*b && b>e)
-      b--;
-    if ((*s=_dig_vec_upper[*b >> 4]) != '0')
-        s++;
-    *s++=_dig_vec_upper[*b & 15];
-    while (--b>=e)
+    size_t last; /*index of the last non-zero element, or 0. */
+
+    for (last= ARRAY_ELEMENTS - 1; last && !buffer[last]; last--){}
+
+    const int HEX_DIGITS_PER_ELEMENT= BITS_PER_ELEMENT / 4;
+    for (size_t i= 0; i < last; i++)
     {
-      *s++=_dig_vec_upper[*b >> 4];
-      *s++=_dig_vec_upper[*b & 15];
+      ulonglong num = buffer[i];
+      uint shift = BITS_PER_ELEMENT - 4;
+      size_t pos= i * HEX_DIGITS_PER_ELEMENT;
+      for (size_t j= 0; j < HEX_DIGITS_PER_ELEMENT; j++)
+      {
+        buf[pos + j]= _dig_vec_upper[(num >> shift) & 0xf];
+        shift += 4;
+      }
     }
-    *s=0;
+    longlong2str(buffer[last], buf, 16);
     return buf;
   }
   ulonglong to_ulonglong() const
   {
-    DBUG_ASSERT(sizeof(buffer) >= 4);
-    uchar *b=(uchar *)buffer;
-    if (sizeof(buffer) >= 8)
-      return uint8korr(b);
-    return (ulonglong) uint4korr(b);
+    return buffer[0];
   }
   uint bits_set()
   {
-    uint res = 0;
-    for (size_t i = 0; i < array_elements(buffer); i++)
-      res += my_count_bits_uint32(buffer[i]);
+    uint res= 0;
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
+      res += my_count_bits(buffer[i]);
     return res;
   }
   class Iterator
   {
-    Bitmap &map;
-    uint no;
+    const Bitmap& map;
+    uint offset;
+    Table_map_iterator tmi;
   public:
-    Iterator(Bitmap<width> &map2): map(map2), no(0) {}
-    int operator++(int) {
-      if (no == width) return BITMAP_END;
-      while (!map.is_set(no))
+    Iterator(const Bitmap<width>& map2) : map(map2), offset(0), tmi(map2.buffer[0]) {}
+    int operator++(int)
+    {
+      for (;;)
       {
-        if ((++no) == width) return BITMAP_END;
+        int nextbit= tmi++;
+
+        if (nextbit != Table_map_iterator::BITMAP_END)
+          return offset + nextbit;
+
+        if (offset + BITS_PER_ELEMENT >= map.length())
+          return BITMAP_END;
+
+        offset += BITS_PER_ELEMENT;
+        tmi= Table_map_iterator(map.buffer[offset / BITS_PER_ELEMENT]);
       }
-      return no++;
     }
     enum { BITMAP_END = width };
   };
@@ -283,98 +316,8 @@ public:
 #pragma GCC pop_options
 #undef NEED_GCC_NO_SSE_WORKAROUND
 #endif
-
 };
 
-
-/* An iterator to quickly walk over bits in ulonglong bitmap. */
-class Table_map_iterator
-{
-  ulonglong bmp;
-  uint no;
-public:
-  Table_map_iterator(ulonglong t) : bmp(t), no(0) {}
-  uint next_bit()
-  {
-    static const uchar last_bit[16]= {32, 0, 1, 0,
-                                      2, 0, 1, 0, 
-                                      3, 0, 1, 0,
-                                      2, 0, 1, 0};
-    uint bit;
-    while ((bit= last_bit[bmp & 0xF]) == 32)
-    {
-      no += 4;
-      bmp= bmp >> 4;
-      if (!bmp)
-        return BITMAP_END;
-    }
-    bmp &= ~(1ULL << bit);
-    return no + bit;
-  }
-  uint operator++(int) { return next_bit(); }
-  enum { BITMAP_END= 64 };
-};
-
-template <> class Bitmap<64>
-{
-  ulonglong map;
-public:
-  Bitmap<64>() { }
-  explicit Bitmap<64>(uint prefix_to_set) { set_prefix(prefix_to_set); }
-  void init(uint prefix_to_set) { set_prefix(prefix_to_set); }
-  uint length() const { return 64; }
-  void set_bit(uint n) { map|= ((ulonglong)1) << n; }
-  void clear_bit(uint n) { map&= ~(((ulonglong)1) << n); }
-  void set_prefix(uint n)
-  {
-    if (n >= length())
-      set_all();
-    else
-      map= (((ulonglong)1) << n)-1;
-  }
-  void set_all() { map=~(ulonglong)0; }
-  void clear_all() { map=(ulonglong)0; }
-  void intersect(Bitmap<64>& map2) { map&= map2.map; }
-  void intersect(ulonglong map2) { map&= map2; }
-  void intersect_extended(ulonglong map2) { map&= map2; }
-  void subtract(Bitmap<64>& map2) { map&= ~map2.map; }
-  void merge(Bitmap<64>& map2) { map|= map2.map; }
-  bool is_set(uint n) const { return MY_TEST(map & (((ulonglong) 1) << n)); }
-  bool is_prefix(uint n) const { return map == (((ulonglong)1) << n)-1; }
-  bool is_clear_all() const { return map == (ulonglong)0; }
-  bool is_set_all() const { return map == ~(ulonglong)0; }
-  bool is_subset(const Bitmap<64>& map2) const { return !(map & ~map2.map); }
-  bool is_overlapping(const Bitmap<64>& map2) const { return (map & map2.map)!= 0; }
-  bool operator==(const Bitmap<64>& map2) const { return map == map2.map; }
-  char *print(char *buf) const {
-    longlong2str(longlong(map), buf, 16);
-    return buf;
-  }
-  ulonglong to_ulonglong() const { return map; }
-  class Iterator : public Table_map_iterator
-  {
-  public:
-    Iterator(Bitmap<64> &map2) : Table_map_iterator(map2.map) {}
-  };
-  uint bits_set()
-  {
-    //TODO: use my_count_bits()
-    uint res= 0, i= 0;
-    for (; i < 64 ; i++)
-    {
-      if (map & ((ulonglong)1<<i))
-        res++;
-    }
-    return res;
-  }
-};
-
-#if MAX_INDEXES <= 64
-typedef Bitmap<64>  key_map;          /* Used for finding keys */
-#elif MAX_INDEXES > 128
-#error "MAX_INDEXES values greater than 128 is not supported."
-#else
-typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
-#endif
+typedef Bitmap<MAX_INDEXES> key_map; /* Used for finding keys */
 
 #endif /* SQL_BITMAP_INCLUDED */

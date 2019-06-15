@@ -7046,7 +7046,6 @@ void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
   }
 }
 
-
 /**
   Check for the presence of AGGFN(DISTINCT a) queries that may be subject
   to loose index scan.
@@ -7084,7 +7083,6 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
 {
   Item_sum **sum_item_ptr;
   bool result= false;
-  Field_map first_aggdistinct_fields;
 
   if (join->table_count != 1 ||                    /* reference more than 1 table */
       join->select_distinct ||                /* or a DISTINCT */
@@ -7094,10 +7092,11 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
   if (join->make_sum_func_list(join->all_fields, join->fields_list, true))
     return false;
 
+  Bitmap<MAX_FIELDS> first_aggdistinct_fields;
+  bool first_aggdistinct_fields_initialized= false;
   for (sum_item_ptr= join->sum_funcs; *sum_item_ptr; sum_item_ptr++)
   {
     Item_sum *sum_item= *sum_item_ptr;
-    Field_map cur_aggdistinct_fields;
     Item *expr;
     /* aggregate is not AGGFN(DISTINCT) or more than 1 argument to it */
     switch (sum_item->sum_func())
@@ -7120,6 +7119,8 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
       We don't worry about duplicates as these will be sorted out later in 
       get_best_group_min_max 
     */
+    Bitmap<MAX_FIELDS> cur_aggdistinct_fields;
+    cur_aggdistinct_fields.clear_all();
     for (uint i= 0; i < sum_item->get_arg_count(); i++)
     {
       expr= sum_item->get_arg(i);
@@ -7138,8 +7139,11 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
       If there are multiple aggregate functions, make sure that they all
       refer to exactly the same set of columns.
     */
-    if (first_aggdistinct_fields.is_clear_all())
-      first_aggdistinct_fields.merge(cur_aggdistinct_fields);
+    if (!first_aggdistinct_fields_initialized)
+    {
+      first_aggdistinct_fields= cur_aggdistinct_fields;
+      first_aggdistinct_fields_initialized=true;
+    }
     else if (first_aggdistinct_fields != cur_aggdistinct_fields)
       return false;
   }
