@@ -45,13 +45,13 @@ public:
   {
     m_thd->variables.option_bits&= ~OPTION_BEGIN;
     m_thd->server_status&= ~SERVER_STATUS_IN_TRANS;
-    m_thd->wsrep_cs().enter_toi(ws_meta);
+    m_thd->wsrep_cs().enter_toi_mode(ws_meta);
   }
   ~Wsrep_non_trans_mode()
   {
     m_thd->variables.option_bits= m_option_bits;
     m_thd->server_status= m_server_status;
-    m_thd->wsrep_cs().leave_toi();
+    m_thd->wsrep_cs().leave_toi_mode();
   }
 private:
   Wsrep_non_trans_mode(const Wsrep_non_trans_mode&);
@@ -266,7 +266,7 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
 
   ret= ret || trans_commit(m_thd);
 
-  m_thd->wsrep_cs().after_applying();
+  m_thd->wsrep_cs().after_applying(wsrep::const_buffer());
   m_thd->mdl_context.release_transactional_locks();
 
   thd_proc_info(m_thd, "wsrep applier committed");
@@ -343,7 +343,8 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
 }
 
 int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
-                                           const wsrep::const_buffer& data)
+                                           const wsrep::const_buffer& data,
+                                           wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_high_priority_service::apply_toi");
   THD* thd= m_thd;
@@ -418,7 +419,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
     m_thd->wsrep_cs().before_rollback();
     m_thd->wsrep_cs().after_rollback();
   }
-  m_thd->wsrep_cs().after_applying();
+  m_thd->wsrep_cs().after_applying(wsrep::const_buffer());
   DBUG_RETURN(ret);
 }
 
@@ -452,7 +453,8 @@ Wsrep_applier_service::~Wsrep_applier_service()
 }
 
 int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
-                                           const wsrep::const_buffer& data)
+                                           const wsrep::const_buffer& data,
+                                           wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_applier_service::apply_write_set");
   THD* thd= m_thd;
@@ -495,11 +497,11 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_RETURN(ret);
 }
 
-void Wsrep_applier_service::after_apply()
+int Wsrep_applier_service::after_apply(const wsrep::const_buffer&)
 {
   DBUG_ENTER("Wsrep_applier_service::after_apply");
-  wsrep_after_apply(m_thd);
-  DBUG_VOID_RETURN;
+  int ret= wsrep_after_apply(m_thd);
+  DBUG_RETURN(ret);
 }
 
 bool Wsrep_applier_service::check_exit_status() const
@@ -606,7 +608,8 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
 }
 
 int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
-                                                 const wsrep::const_buffer& data)
+                                            const wsrep::const_buffer& data,
+                                            wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_replayer_service::apply_write_set");
   THD* thd= m_thd;

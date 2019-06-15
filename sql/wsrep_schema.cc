@@ -1343,8 +1343,9 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
                                    ws_meta);
       }
       applier->store_globals();
-      applier->apply_write_set(ws_meta, data);
-      applier->after_apply();
+      wsrep::mutable_buffer unused;
+      applier->apply_write_set(ws_meta, data, unused);
+      applier->after_apply(wsrep::const_buffer());
       storage_service.store_globals();
     }
     else if (error == HA_ERR_END_OF_FILE)

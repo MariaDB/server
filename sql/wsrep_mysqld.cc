@@ -1782,7 +1782,7 @@ static void wsrep_TOI_begin_failed(THD* thd, const wsrep_buf_t* /* const err */)
     if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
     if (wsrep_write_dummy_event(thd, "TOI begin failed")) { goto fail; }
     wsrep::client_state& cs(thd->wsrep_cs());
-    int const ret= cs.leave_toi();
+    int const ret= cs.leave_toi_local(wsrep::const_buffer());
     if (ret)
     {
       WSREP_ERROR("Leaving critical section for failed TOI failed: thd: %lld, "
@@ -1850,10 +1850,10 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   thd_proc_info(thd, "acquiring total order isolation");
 
   wsrep::client_state& cs(thd->wsrep_cs());
-  int ret= cs.enter_toi(key_array,
-                        wsrep::const_buffer(buff.ptr, buff.len),
-                        wsrep::provider::flag::start_transaction |
-                        wsrep::provider::flag::commit);
+  int ret= cs.enter_toi_local(key_array,
+                              wsrep::const_buffer(buff.ptr, buff.len),
+                              wsrep::provider::flag::start_transaction |
+                              wsrep::provider::flag::commit);
 
   if (ret)
   {
@@ -1909,7 +1909,7 @@ static void wsrep_TOI_end(THD *thd) {
   if (wsrep_thd_is_local_toi(thd))
   {
     wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
-    int ret= client_state.leave_toi();
+    int ret= client_state.leave_toi_local(wsrep::const_buffer());
     if (!ret)
     {
       WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
@@ -2400,8 +2400,7 @@ int wsrep_must_ignore_error(THD* thd)
   const uint flags= sql_command_flags[thd->lex->sql_command];
 
   DBUG_ASSERT(error);
-  DBUG_ASSERT((wsrep_thd_is_toi(thd)) ||
-              (wsrep_thd_is_applying(thd) && thd->wsrep_apply_toi));
+  DBUG_ASSERT(wsrep_thd_is_toi(thd) || wsrep_thd_is_applying(thd));
 
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_DDL))
     goto ignore_error;

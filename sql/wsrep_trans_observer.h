@@ -388,11 +388,11 @@ int wsrep_after_statement(THD* thd)
               thd->wsrep_cs().after_statement() : 0);
 }
 
-static inline void wsrep_after_apply(THD* thd)
+static inline int wsrep_after_apply(THD* thd)
 {
   DBUG_ASSERT(wsrep_thd_is_applying(thd));
   WSREP_DEBUG("wsrep_after_apply %lld", thd->thread_id);
-  thd->wsrep_cs().after_applying();
+  return thd->wsrep_cs().after_applying(wsrep::const_buffer());
 }
 
 static inline void wsrep_open(THD* thd)

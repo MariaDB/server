@@ -171,7 +171,7 @@ static void wsrep_rollback_process(THD *rollbacker,
         DBUG_ASSERT(thd->wsrep_applier_service);
         thd->wsrep_applier_service->rollback(wsrep::ws_handle(),
                                              wsrep::ws_meta());
-        thd->wsrep_applier_service->after_apply();
+        thd->wsrep_applier_service->after_apply(wsrep::const_buffer());
         /* Will free THD */
         Wsrep_server_state::instance().server_service().
           release_high_priority_service(thd->wsrep_applier_service);
@@ -222,7 +222,7 @@ static void wsrep_rollback_process(THD *rollbacker,
       thd->wsrep_cs().store_globals();
       thd->wsrep_applier_service->rollback(wsrep::ws_handle(),
                                            wsrep::ws_meta());
-      thd->wsrep_applier_service->after_apply();
+      thd->wsrep_applier_service->after_apply(wsrep::const_buffer());
       /* Will free THD */
       Wsrep_server_state::instance().server_service()
         .release_high_priority_service(thd->wsrep_applier_service);

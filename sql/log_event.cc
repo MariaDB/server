@@ -5824,7 +5824,7 @@ compare_errors:
                     thd->get_db(), query_arg);
       thd->is_slave_error= 1;
 #ifdef WITH_WSREP
-      if (thd->wsrep_apply_toi && wsrep_must_ignore_error(thd))
+      if (wsrep_thd_is_toi(thd) && wsrep_must_ignore_error(thd))
       {
         thd->clear_error(1);
         thd->killed= NOT_KILLED;
