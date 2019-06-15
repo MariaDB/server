@@ -7,12 +7,12 @@ set global rocksdb_force_flush_memtable_now = true;
 CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb CHARACTER SET utf8;
 SHOW TABLE STATUS WHERE name IN ( 't1', 't2', 't3' );
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	ROCKSDB	10	Fixed	2	#	#	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		
-t2	ROCKSDB	10	Fixed	1	#	#	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		
+t1	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		
+t2	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		
 t3	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	NULL	NULL	NULL	utf8_general_ci	NULL		
 SHOW TABLE STATUS WHERE name LIKE 't2';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t2	ROCKSDB	10	Fixed	10000	#	#	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		
+t2	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL		
 DROP TABLE t1, t2, t3;
 CREATE DATABASE `db_new..............................................end`;
 USE `db_new..............................................end`;

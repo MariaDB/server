@@ -22,7 +22,7 @@
 namespace myrocks {
 
 class Rdb_logger : public rocksdb::Logger {
-public:
+ public:
   explicit Rdb_logger(const rocksdb::InfoLogLevel log_level =
                           rocksdb::InfoLogLevel::ERROR_LEVEL)
       : m_mysql_log_level(log_level) {}
@@ -77,9 +77,9 @@ public:
     m_mysql_log_level = log_level;
   }
 
-private:
+ private:
   std::shared_ptr<rocksdb::Logger> m_logger;
   rocksdb::InfoLogLevel m_mysql_log_level;
 };
 
-} // namespace myrocks
+}  // namespace myrocks

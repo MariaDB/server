@@ -1,6 +1,7 @@
 --source include/have_rocksdb.inc
 
 --let pk_cf=rev:cf1
+--let pk_cf_name=cf1
 --let data_order_desc=0
 
 --source ../include/bulk_load.inc

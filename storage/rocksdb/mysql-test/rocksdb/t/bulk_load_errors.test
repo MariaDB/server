@@ -35,7 +35,7 @@ SHOW VARIABLES LIKE 'rocksdb_bulk_load';
 SELECT * FROM t1;
 
 --let SEARCH_FILE=$LOG1
---let SEARCH_PATTERN=RocksDB: Error 198 finalizing last SST file while setting bulk loading variable
+--let SEARCH_PATTERN=RocksDB: Error 199 finalizing last SST file while setting bulk loading variable
 --source include/search_pattern_in_file.inc
 
 --let LOG2=$MYSQLTEST_VARDIR/tmp/rocksdb.bulk_load_errors.2.err
@@ -52,15 +52,30 @@ INSERT INTO t1 VALUES(1);
 INSERT INTO t1 VALUES(2);
 INSERT INTO t1 VALUES(20);
 INSERT INTO t1 VALUES(21);
+let $ID = `SELECT connection_id()`;
 --connection default
 --disconnect con1
 
 SELECT * FROM t1;
 
---source include/wait_until_count_sessions.inc
+if (`SELECT $RPC_PROTOCOL > 0`) {
+  # for --rpc_protocol mode wait for the background detached session to
+  # go away
+  let $wait_condition =
+      SELECT COUNT(*) = 0
+      FROM information_schema.srv_sessions
+      WHERE id = $ID;
+  --source include/wait_condition.inc
+}
+
+if (`SELECT $RPC_PROTOCOL = 0`) {
+  # for non --rpc_protocol mode simply wait until the number of sessions
+  # returns to earlier levels
+  --source include/wait_until_count_sessions.inc
+}
 
 --let SEARCH_FILE=$LOG2
---let SEARCH_PATTERN=RocksDB: Error 198 finalizing last SST file while disconnecting
+--let SEARCH_PATTERN=RocksDB: Error 199 finalizing last SST file while disconnecting
 --source include/search_pattern_in_file.inc
 
 --let LOG3=$MYSQLTEST_VARDIR/tmp/rocksdb.bulk_load_errors.3.err
@@ -117,7 +132,7 @@ DROP TABLE t1;
 SET @@global.table_open_cache=@orig_table_open_cache;
 
 --let SEARCH_FILE=$LOG3
---let SEARCH_PATTERN=RocksDB: Error 198 finalizing bulk load while closing handler
+--let SEARCH_PATTERN=RocksDB: Error 199 finalizing bulk load while closing handler
 --source include/search_pattern_in_file.inc
 
 --source include/restart_mysqld.inc

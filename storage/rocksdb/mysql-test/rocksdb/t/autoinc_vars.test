@@ -124,3 +124,23 @@ INSERT INTO t1 (a) VALUES (1);
 UPDATE t1 SET pk = 3;
 ALTER TABLE t1 AUTO_INCREMENT 2;
 DROP TABLE t1;
+
+--echo #----------------------------------
+--echo # Issue #902 Debug assert in autoincrement with small field type
+--echo #----------------------------------
+
+SET auto_increment_increment=100, auto_increment_offset=10;
+CREATE TABLE t1(i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=ROCKSDB AUTO_INCREMENT=18446744073709551615;
+# ha_rocksdb::get_auto_increment would assert here
+--error ER_AUTOINC_READ_FAILED
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1;
+ALTER TABLE t1 AUTO_INCREMENT=1;
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1;
+ALTER TABLE t1 AUTO_INCREMENT=18446744073709551615;
+# ha_rocksdb::get_auto_increment would assert here
+--error ER_AUTOINC_READ_FAILED
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1;
+DROP TABLE t1;

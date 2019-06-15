@@ -30,7 +30,8 @@ send insert into t1 values (1,2);
 
 connection con1;
 let $wait_condition= select 1 from INFORMATION_SCHEMA.PROCESSLIST
-                     where ID = $ID and STATE = "Waiting for row lock";
+                     where (ID = $ID or SRV_ID = $ID)
+                     and STATE = "Waiting for row lock";
 --source include/wait_condition.inc
 commit;
 

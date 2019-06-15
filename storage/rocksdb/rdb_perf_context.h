@@ -22,8 +22,8 @@
 #include <string>
 
 /* MySQL header files */
-#include "./handler.h"
 #include <my_global.h>
+#include "./handler.h"
 
 namespace myrocks {
 
@@ -106,7 +106,7 @@ class Rdb_perf_counters {
   Rdb_perf_counters(const Rdb_perf_counters &) = delete;
   Rdb_perf_counters &operator=(const Rdb_perf_counters &) = delete;
 
-public:
+ public:
   Rdb_perf_counters() = default;
   uint64_t m_value[PC_MAX_IDX];
 
@@ -156,8 +156,11 @@ class Rdb_io_perf {
   void end_and_record(const uint32_t perf_context_level);
 
   explicit Rdb_io_perf()
-      : m_atomic_counters(nullptr), m_shared_io_perf_read(nullptr),
-        m_stats(nullptr), io_write_bytes(0), io_write_requests(0) {}
+      : m_atomic_counters(nullptr),
+        m_shared_io_perf_read(nullptr),
+        m_stats(nullptr),
+        io_write_bytes(0),
+        io_write_requests(0) {}
 };
 
-} // namespace myrocks
+}  // namespace myrocks

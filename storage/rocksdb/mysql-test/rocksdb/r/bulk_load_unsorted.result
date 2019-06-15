@@ -58,13 +58,10 @@ ENGINE=ROCKSDB;
 CREATE TABLE t3(a INT, b INT, PRIMARY KEY(a) COMMENT "cf1")
 ENGINE=ROCKSDB PARTITION BY KEY() PARTITIONS 4;
 set session transaction isolation level repeatable read;
-select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
-STAT_TYPE	VALUE
-DB_NUM_SNAPSHOTS	0
 start transaction with consistent snapshot;
-select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
-STAT_TYPE	VALUE
-DB_NUM_SNAPSHOTS	1
+select VALUE > 0 as 'Has opened snapshots' from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
+Has opened snapshots
+1
 set rocksdb_bulk_load=1;
 set rocksdb_bulk_load_size=100000;
 LOAD DATA INFILE <input_file> INTO TABLE t1;

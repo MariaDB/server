@@ -1,0 +1,3 @@
+let $trx_isolation = REPEATABLE READ;
+--source blind_delete_without_tx_api.inc
+

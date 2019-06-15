@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/have_direct_io.inc
 
 # Issue221
 # Turning on both --rocksdb-allow-mmap-reads and --rocksdb-use-direct-reads

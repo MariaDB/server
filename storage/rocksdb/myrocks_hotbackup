@@ -45,12 +45,14 @@ class Writer(object):
 class StreamWriter(Writer):
   stream_cmd= ''
 
-  def __init__(self, stream_option):
+  def __init__(self, stream_option, direct = 0):
     super(StreamWriter, self).__init__()
     if stream_option == 'tar':
       self.stream_cmd= 'tar chf -'
     elif stream_option == 'xbstream':
       self.stream_cmd= 'xbstream -c'
+      if direct:
+        self.stream_cmd = self.stream_cmd + ' -d'
     else:
       raise Exception("Only tar or xbstream is supported as streaming option.")
 
@@ -342,6 +344,13 @@ class MySQLUtil:
     row = cur.fetchone()
     return row[0]
 
+  @staticmethod
+  def is_directio_enabled(dbh):
+    sql = "SELECT @@global.rocksdb_use_direct_reads"
+    cur = dbh.cursor()
+    cur.execute(sql)
+    row = cur.fetchone()
+    return row[0]
 
 class BackupRunner:
   datadir = None
@@ -363,9 +372,7 @@ class BackupRunner:
     try:
       signal.signal(signal.SIGINT, signal_handler)
       w = None
-      if opts.output_stream:
-        w = StreamWriter(opts.output_stream)
-      else:
+      if not opts.output_stream:
         raise Exception("Currently only streaming backup is supported.")
 
       snapshot_dir = opts.checkpoint_directory + '/' + str(backup_round)
@@ -373,6 +380,11 @@ class BackupRunner:
                               opts.mysql_password,
                               opts.mysql_port,
                               opts.mysql_socket)
+      direct = MySQLUtil.is_directio_enabled(dbh)
+      logger.info("Direct I/O: %d", direct)
+
+      w = StreamWriter(opts.output_stream, direct)
+
       if not self.datadir:
         self.datadir = MySQLUtil.get_datadir(dbh)
         logger.info("Set datadir: %s", self.datadir)

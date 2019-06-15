@@ -60,6 +60,7 @@ SET(ROCKSDB_SOURCES
   rdb_datadic.cc rdb_datadic.h
   rdb_cf_options.cc rdb_cf_options.h
   rdb_cf_manager.cc rdb_cf_manager.h
+  rdb_converter.cc rdb_converter.h
   properties_collector.cc properties_collector.h
   event_listener.cc event_listener.h
   rdb_i_s.cc rdb_i_s.h
@@ -71,6 +72,7 @@ SET(ROCKSDB_SOURCES
   rdb_sst_info.cc rdb_sst_info.h
   rdb_utils.cc rdb_utils.h rdb_buff.h
   rdb_threads.cc rdb_threads.h
+  nosql_access.cc nosql_access.h
   ${ROCKSDB_LIB_SOURCES}
 )
 
@@ -81,6 +83,25 @@ ELSE()
 ENDIF()
 
 SET(rocksdb_static_libs )
+
+IF (WITH_JEMALLOC)
+  FIND_LIBRARY(JEMALLOC_LIBRARY
+    NAMES libjemalloc${PIC_EXT}.a jemalloc
+    HINTS ${WITH_JEMALLOC}/lib)
+  SET(rocksdb_static_libs ${rocksdb_static_libs}
+    ${JEMALLOC_LIBRARY})
+  ADD_DEFINITIONS(-DROCKSDB_JEMALLOC)
+  ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
+ENDIF()
+
+IF (WITH_UNWIND)
+  FIND_LIBRARY(UNWIND_LIBRARY
+    NAMES libunwind${PIC_EXT}.a unwind
+    HINTS ${WITH_UNWIND}/lib)
+  SET(rocksdb_static_libs ${rocksdb_static_libs}
+    ${UNWIND_LIBRARY})
+ENDIF()
+
 IF (WITH_SNAPPY)
   FIND_LIBRARY(SNAPPY_LIBRARY
     NAMES libsnappy${PIC_EXT}.a snappy
@@ -111,6 +132,7 @@ ENDIF()
 IF (WITH_ZSTD)
   SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZSTD_LIBRARY})
   ADD_DEFINITIONS(-DZSTD)
+  ADD_DEFINITIONS(-DZSTD_STATIC_LINKING_ONLY)
 ENDIF()
 
 IF (WITH_TBB)
@@ -129,7 +151,7 @@ IF (HAVE_ZLIB_H)
   SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZLIB_LIBRARY})
 ENDIF()
 
-SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt")
+SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt" "-ldl" "-lpthread")
 
 MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SOURCES} STORAGE_ENGINE DEFAULT STATIC_ONLY
   LINK_LIBRARIES ${rocksdb_static_libs}

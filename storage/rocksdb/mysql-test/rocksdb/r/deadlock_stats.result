@@ -1,4 +1,5 @@
-set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout; set @prior_deadlock_detect = @@rocksdb_deadlock_detect; set global rocksdb_deadlock_detect = on; set global rocksdb_lock_wait_timeout = 100000;;
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout; set @prior_deadlock_detect = @@rocksdb_deadlock_detect;;
+set global rocksdb_deadlock_detect = on; set global rocksdb_lock_wait_timeout = 100000;;
 create table t (i int primary key) engine=rocksdb;
 insert into t values (1), (2), (3);
 begin;
