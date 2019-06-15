@@ -181,6 +181,11 @@ static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
 
   if (table->has_period())
   {
+    if (table->is_view_or_derived())
+    {
+      my_error(ER_IT_IS_A_VIEW, MYF(0), table->table_name.str);
+      return TRUE;
+    }
     DBUG_ASSERT(thd->lex->sql_command == SQLCOM_UPDATE);
     for (List_iterator_fast<Item> it(items); (item=it++);)
     {
