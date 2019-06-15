@@ -34,9 +34,7 @@
 #undef pthread_getspecific
 #endif
 #include <mysql/psi/mysql_table.h>
-#ifdef MARIAROCKS_NOT_YET
-#include <mysql/thread_pool_priv.h>
-#endif
+// #include <mysql/thread_pool_priv.h>
 
 /* MyRocks header files */
 #include "./rdb_utils.h"
@@ -45,7 +43,7 @@
 namespace myrocks {
 
 class Rdb_thread {
-private:
+ private:
   // Disable Copying
   Rdb_thread(const Rdb_thread &);
   Rdb_thread &operator=(const Rdb_thread &);
@@ -57,12 +55,12 @@ private:
 
   std::string m_name;
 
-protected:
+ protected:
   mysql_mutex_t m_signal_mutex;
   mysql_cond_t m_signal_cond;
   bool m_stop = false;
 
-public:
+ public:
   Rdb_thread() : m_run_once(false) {}
 
 #ifdef HAVE_PSI_INTERFACE
@@ -77,7 +75,7 @@ public:
 
   virtual void run(void) = 0;
 
-  void signal(const bool &stop_thread = false);
+  void signal(const bool stop_thread = false);
 
   int join()
   {
@@ -116,8 +114,7 @@ public:
     DBUG_ASSERT(!m_name.empty());
 #ifdef __linux__
     int err = pthread_setname_np(m_handle, m_name.c_str());
-    if (err)
-    {
+    if (err) {
       // NO_LINT_DEBUG
       sql_print_warning(
           "MyRocks: Failed to set name (%s) for current thread, errno=%d,%d",
@@ -130,7 +127,7 @@ public:
 
   virtual ~Rdb_thread() {}
 
-private:
+ private:
   static void *thread_func(void *const thread_ptr);
 };
 
@@ -141,7 +138,7 @@ private:
 */
 
 class Rdb_background_thread : public Rdb_thread {
-private:
+ private:
   bool m_save_stats = false;
 
   void reset() {
@@ -150,7 +147,7 @@ private:
     m_save_stats = false;
   }
 
-public:
+ public:
   virtual void run() override;
 
   void request_save_stats() {
@@ -195,4 +192,4 @@ struct Rdb_drop_index_thread : public Rdb_thread {
   virtual void run() override;
 };
 
-} // namespace myrocks
+}  // namespace myrocks

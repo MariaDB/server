@@ -27,8 +27,9 @@ begin;
 --connection default
 --echo ### Connection default
 
-let $wait_condition= select 1 from INFORMATION_SCHEMA.PROCESSLIST
-                     where ID = $ID and STATE = "Waiting for row lock";
+let $wait_condition=
+    select 1 from INFORMATION_SCHEMA.PROCESSLIST
+    where (ID = $ID or SRV_ID = $ID) and STATE = "Waiting for row lock";
 --source include/wait_condition.inc
 ## Waiting for row lock
 ## select connection_id();

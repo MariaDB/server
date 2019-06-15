@@ -59,4 +59,27 @@ insert into t4 values (1, 0xFFFF, 0xFFF, 12345);
 # This must not fail an assert:
 select * from t4 force index(kp1) where kp1=0xFFFFFFFF and kp2<=0xFFFFFFFF order by  kp2 desc;
 pk	kp1	kp2	col1
-drop table t1,t2,t3,t4;
+#
+#  Issue #881: Issue #809 still occurs for reverse scans on forward cfs
+#
+create table t5 (
+id1 bigint not null,
+id2 bigint not null,
+id3 varchar(100) not null,
+id4 int not null,
+id5 int not null,
+value bigint,
+value2 varchar(100),
+primary key (id1, id2, id3, id4) COMMENT 'bf5_1'
+) engine=ROCKSDB;
+insert into t5 select * from t1;
+set global rocksdb_force_flush_memtable_now=1;
+# An index scan starting from the end of the table:
+explain
+select * from t5 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	index	NULL	PRIMARY	122	NULL	1	NULL
+select * from t5 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
+id1	id2	id3	id4	id5	value	value2
+1000	2000	2000	10000	10000	1000	aaabbbccc
+drop table t1,t2,t3,t4,t5;

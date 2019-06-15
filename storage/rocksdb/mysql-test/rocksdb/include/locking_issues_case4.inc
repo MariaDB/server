@@ -52,8 +52,9 @@ let $ID = `SELECT connection_id()`;
 send SELECT * FROM t0 WHERE value > 0 FOR UPDATE;
 
 connection con2;
-let $wait_condition = SELECT 1 FROM information_schema.processlist
-                      WHERE id = $ID AND state = "Sending data";
+let $wait_condition =
+    SELECT 1 FROM information_schema.processlist
+    WHERE (id = $ID OR srv_id = $ID) AND state = "Sending data";
 --source include/wait_condition.inc
 eval SET SESSION TRANSACTION ISOLATION LEVEL $isolation_level;
 INSERT INTO t0 VALUES(200001,1), (-1,1);
