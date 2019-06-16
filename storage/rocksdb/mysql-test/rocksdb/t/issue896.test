@@ -11,7 +11,7 @@ KEY `d` (`d`)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='ttl_duration=1000;ttl_col=u';
 INSERT INTO t1 VALUES (100, 'aaabbb', UNIX_TIMESTAMP(), 200);
 --replace_column 9 #
-EXPLAIN SELECT COUNT(*) FROM t1;
+EXPLAIN SELECT COUNT(*) FROM t1 FORCE INDEX(d);
 --echo # segfault here without the fix
-SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t1 FORCE INDEX(d);
 DROP TABLE t1;

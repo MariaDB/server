@@ -1,5 +1,4 @@
-set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout; set @prior_deadlock_detect = @@rocksdb_deadlock_detect;;
-set global rocksdb_deadlock_detect = on; set global rocksdb_lock_wait_timeout = 100000;;
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout; set @prior_deadlock_detect = @@rocksdb_deadlock_detect; set global rocksdb_deadlock_detect = on; set global rocksdb_lock_wait_timeout = 100000;;
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connection default;

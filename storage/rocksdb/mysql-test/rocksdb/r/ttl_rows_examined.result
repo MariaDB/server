@@ -25,10 +25,10 @@ connection conn2;
 set debug_sync='now WAIT_FOR parked';
 affected rows: 0
 SHOW PROCESSLIST;
-Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-###	###	###	###	Query	###	debug sync point: rocksdb.ttl_rows_examined	SELECT * FROM t_re	1	###	###	###
-###	###	###	###	Query	###	init	SHOW PROCESSLIST	0	###	###	###
-###	###	###	###	Sleep	###		NULL	0	###	###	###
+Id	User	Host	db	Command	Time	State	Info	Progress
+###	###	###	###	Query	###	debug sync point: rocksdb.ttl_rows_examined	SELECT * FROM t_re	0.000
+###	###	###	###	Query	###	init	SHOW PROCESSLIST	0.000
+###	###	###	###	Sleep	###		NULL	0.000
 affected rows: 3
 set debug_sync='now SIGNAL go';
 affected rows: 0

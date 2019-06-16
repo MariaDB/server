@@ -59,6 +59,8 @@ let $ID = `SELECT connection_id()`;
 
 SELECT * FROM t1;
 
+--disable_parsing
+# MariaDB: no support for $RPC_PROTOCOL
 if (`SELECT $RPC_PROTOCOL > 0`) {
   # for --rpc_protocol mode wait for the background detached session to
   # go away
@@ -74,6 +76,9 @@ if (`SELECT $RPC_PROTOCOL = 0`) {
   # returns to earlier levels
   --source include/wait_until_count_sessions.inc
 }
+--enable_parsing
+# MariaDB:
+--source include/wait_until_count_sessions.inc
 
 # Note: in MariaDB, session count will be decremented *before* 
 #   myrocks::rocksdb_close_connection is called. This causes a race condition:

@@ -8774,7 +8774,6 @@ int ha_rocksdb::check(THD *const thd, HA_CHECK_OPT *const check_opt) {
       }
       // NO_LINT_DEBUG
       sql_print_verbose_info("CHECKTABLE %s:   ... %lld index entries checked "
-          "CHECKTABLE %s:   ... %lld index entries checked "
                              "(%lld had checksums)",
                              table_name, rows, checksums);
 

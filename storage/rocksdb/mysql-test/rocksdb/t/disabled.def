@@ -25,6 +25,15 @@ create_no_primary_key_table: MariaDB doesn't have --block_create_no_primary_key
 explicit_snapshot: MariaDB doesn't support Shared/Explicit snapshots
 percona_nonflushing_analyze_debug : Requires Percona Server's Non-flushing ANALYZE feature
 com_rpc_tx : Requires connection attributes and detached sessions
+mysqlbinlog_blind_replace: requires @@enable_blind_replace support
+optimize_myrocks_replace_into_base: requires @@enable_blind_replace support
+optimize_myrocks_replace_into_lock:  requires @@enable_blind_replace support
+rocksdb.skip_core_dump_on_error: requires @@binlog_error_action support
+bypass_select_basic_bloom : Query bypass is not supported
+bypass_select_basic : Query bypass is not supported
+
+rocksdb_read_free_rpl : Read-Free replication is not supported
+rocksdb_read_free_rpl_stress :  Read-Free replication is not supported
 
 ##
 ##  Tests that do not fit MariaDB's test environment. Upstream seems to test
@@ -60,7 +69,6 @@ ddl_high_priority: Needs fractional @@lock_wait_timeout
 deadlock_tracking : Needs SHOW ENGINE ROCKSDB TRANSACTION STATUS
 bytes_written: Needs I_S.TABLE_STATISTICS.IO_WRITE_BYTES
 trx_info_rpl : MariaRocks: @@rpl_skip_tx_api doesn't work, yet.
-rpl_read_free: MDEV-10976
 lock_wait_timeout_stats: MDEV-13404
 rpl_row_triggers : Requires read-free slave.
 
