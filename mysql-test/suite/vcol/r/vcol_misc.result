@@ -203,10 +203,10 @@ drop table t1;
 create table t1 (a int, b int);
 insert into t1 values (3, 30), (4, 20), (1, 20);
 create table t2 (c int, d int, v int as (d+1), index idx(c));
-insert into t2(c,d) values 
+insert into t2(c,d) values
 (20, 100), (20, 300), (30, 100), (30, 200), (40, 500),
 (70, 100), (40, 300), (60, 100), (40, 100), (70, 100);
-insert into t2(c,d) values 
+insert into t2(c,d) values
 (120, 100), (150, 300), (130, 100), (130, 200), (140, 500),
 (170, 100), (180, 300), (160, 100), (40, 100), (170, 100);
 set join_cache_level=6;
@@ -441,10 +441,10 @@ Warning	1264	Out of range value for column 'vcol_bit' at row 1
 drop table t1;
 #
 # MDEV-17837 REPLACE on table with virtual_field can cause crash in set_ok_status()
-# 
+#
 SET @old_sql_mode=@@sql_mode;
 SET sql_mode= STRICT_ALL_TABLES;
-CREATE TABLE t1 ( 
+CREATE TABLE t1 (
 pk INT,
 i TINYINT,
 vi TINYINT AS (i+1) PERSISTENT,
