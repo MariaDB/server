@@ -563,32 +563,32 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
 select count(*) from t1;
 count(*)
-270
+267
 insert into t1 values(concat('a',char(1)),concat('a',char(1)),concat('a',char(1)));
 select count(*) from t1 where v='a';
 count(*)
-10
+7
 select count(*) from t1 where c='a';
 count(*)
-10
+7
 select count(*) from t1 where t='a';
 count(*)
-10
+7
 select count(*) from t1 where v='a  ';
 count(*)
-10
+7
 select count(*) from t1 where c='a  ';
 count(*)
-10
+7
 select count(*) from t1 where t='a  ';
 count(*)
-10
+7
 select count(*) from t1 where v between 'a' and 'a ';
 count(*)
-10
+7
 select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
 count(*)
-10
+7
 explain select count(*) from t1 where v='a  ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	v	v	13	const	#	Using where
@@ -618,9 +618,6 @@ qq
 *a    *a*a    *
 *a     *a*a     *
 *a      *a*a      *
-*a       *a*a       *
-*a        *a*a        *
-*a         *a*a         *
 explain select * from t1 where v='a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	v	v	13	const	#	Using where
