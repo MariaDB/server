@@ -35,6 +35,9 @@ bypass_select_basic : Query bypass is not supported
 rocksdb_read_free_rpl : Read-Free replication is not supported
 rocksdb_read_free_rpl_stress :  Read-Free replication is not supported
 
+blind_delete_rr : Read-Free replication is not supported
+blind_delete_rc : Read-Free replication is not supported
+
 ##
 ##  Tests that do not fit MariaDB's test environment. Upstream seems to test
 ##  on boxes with much more RAM and CPU, some tests are more of a stress tests

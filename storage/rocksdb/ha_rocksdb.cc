@@ -3726,7 +3726,7 @@ static Rdb_transaction *get_or_create_tx(THD *const thd) {
   if (tx == nullptr) {
     bool rpl_skip_tx_api= false; // MARIAROCKS_NOT_YET.
     if ((rpl_skip_tx_api && thd->rgi_slave) ||
-        false /* MARIAROCKS_NOT_YET: THDVAR(thd, master_skip_tx_api) && !thd->rgi_slave)*/)
+        (THDVAR(thd, master_skip_tx_api) && !thd->rgi_slave))
     {
       tx = new Rdb_writebatch_impl(thd);
     } else {
@@ -8863,9 +8863,14 @@ rocksdb::Status ha_rocksdb::get_for_update(
 
 bool ha_rocksdb::is_blind_delete_enabled() {
   THD *thd = ha_thd();
+  /*
+    Note: in MariaDB, thd->lex->table_count is only set for multi-table DELETE,
+    not for single-table DELETE.  So we check thd->lex->query_tables instead.
+  */
   return (THDVAR(thd, blind_delete_primary_key) &&
           thd->lex->sql_command == SQLCOM_DELETE &&
-          thd->lex->table_count == 1 && table->s->keys == 1 &&
+          thd->lex->query_tables && !thd->lex->query_tables->next_global &&
+          table->s->keys == 1 &&
           !has_hidden_pk(table) && !thd->rgi_slave);
 }
 
@@ -13681,11 +13686,9 @@ bool ha_rocksdb::should_recreate_snapshot(const int rc,
  * using TX API and skipping row locking.
  */
 bool ha_rocksdb::can_assume_tracked(THD *thd) {
-#ifdef MARIAROCKS_NOT_YET  
-  if (use_read_free_rpl() || (THDVAR(thd, blind_delete_primary_key))) {
+  if (/* MARIAROCKS_NOT_YET use_read_free_rpl() ||*/ (THDVAR(thd, blind_delete_primary_key))) {
     return false;
   }
-#endif  
   return true;
 }
 
