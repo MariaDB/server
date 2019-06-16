@@ -162,23 +162,25 @@ if (UNIX AND NOT APPLE)
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
 
-IF (WITH_JEMALLOC)
-  FIND_LIBRARY(JEMALLOC_LIBRARY
-    NAMES libjemalloc${PIC_EXT}.a jemalloc
-    HINTS ${WITH_JEMALLOC}/lib)
-  SET(rocksdb_static_libs ${rocksdb_static_libs}
-    ${JEMALLOC_LIBRARY})
-  ADD_DEFINITIONS(-DROCKSDB_JEMALLOC)
-  ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
-ENDIF()
+# IF (WITH_JEMALLOC)
+#  FIND_LIBRARY(JEMALLOC_LIBRARY
+#    NAMES libjemalloc${PIC_EXT}.a jemalloc
+#    HINTS ${WITH_JEMALLOC}/lib)
+#  SET(rocksdb_static_libs ${rocksdb_static_libs}
+#    ${JEMALLOC_LIBRARY})
+#  ADD_DEFINITIONS(-DROCKSDB_JEMALLOC)
+#  ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
+# ENDIF()
 
-IF (WITH_UNWIND)
-  FIND_LIBRARY(UNWIND_LIBRARY
-    NAMES libunwind${PIC_EXT}.a unwind
-    HINTS ${WITH_UNWIND}/lib)
-  SET(rocksdb_static_libs ${rocksdb_static_libs}
-    ${UNWIND_LIBRARY})
-ENDIF()
+# MariaDB: Q: why does the upstream add libunwind for a particular 
+# storage engine?
+#IF (WITH_UNWIND)
+#  FIND_LIBRARY(UNWIND_LIBRARY
+#    NAMES libunwind${PIC_EXT}.a unwind
+#    HINTS ${WITH_UNWIND}/lib)
+#  SET(rocksdb_static_libs ${rocksdb_static_libs}
+#    ${UNWIND_LIBRARY})
+#ENDIF()
 
 
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
@@ -209,7 +211,8 @@ ENDIF()
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
-  ADD_DEFINITIONS(-DZSTD_STATIC_LINKING_ONLY)
+# MariaDB: don't do this:
+#  ADD_DEFINITIONS(-DZSTD_STATIC_LINKING_ONLY)
 ENDIF()
 
 IF (WITH_TBB)
