@@ -100,6 +100,8 @@ SET(ROCKSDB_SE_SOURCES
   rdb_psi.cc
   rdb_sst_info.cc
   rdb_sst_info.h
+  rdb_converter.cc
+  rdb_converter.h
 )
 
 # MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
@@ -145,7 +147,6 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   rdb_cf_options.h
   event_listener.cc
   event_listener.h
-  rdb_converter.cc rdb_converter.h
   rdb_perf_context.cc
   rdb_perf_context.h
   rdb_buff.h
