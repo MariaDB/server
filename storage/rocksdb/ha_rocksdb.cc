@@ -648,7 +648,7 @@ Regex_list_handler rdb_read_free_regex_handler(key_rwlock_read_free_rpl_tables);
 Regex_list_handler rdb_read_free_regex_handler;
 #endif
 enum read_free_rpl_type { OFF = 0, PK_ONLY, PK_SK };
-static uint64_t rocksdb_read_free_rpl = read_free_rpl_type::OFF;
+static unsigned long rocksdb_read_free_rpl = read_free_rpl_type::OFF;
 static my_bool rocksdb_error_on_suboptimal_collation = 1;
 static uint32_t rocksdb_stats_recalc_rate = 0;
 static uint32_t rocksdb_debug_manual_compaction_delay = 0;
