@@ -4482,11 +4482,11 @@ mysql_execute_command(THD *thd)
 
 	if (thd->lex->current_select->returning_list.is_empty())
 	{
-		/* This is DELETE ... RETURNING.  It will return output to the client */
+		/* This is INSERT ... RETURNING.  It will return output to the client */
 		if (thd->lex->analyze_stmt)
 		{
 			/*
-			  Actually, it is ANALYZE .. DELETE .. RETURNING. We need to produce
+			  Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
 			  output and then discard it.
 			*/
 			sel_result = new (thd->mem_root) select_send_analyze(thd);
