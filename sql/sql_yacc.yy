@@ -13294,11 +13294,11 @@ insert:
           }
           insert_field_spec opt_insert_update
           {
-            Lex->returning_list.swap(Lex->current_select->item_list);
+            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
           }
           opt_select_expressions
           {
-            Lex->returning_list.swap(Lex->current_select->item_list);
+            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
              Lex->pop_select(); //main select
              if (Lex->check_main_unit_semantics())
                MYSQL_YYABORT;

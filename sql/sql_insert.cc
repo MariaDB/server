@@ -780,8 +780,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
                            FALSE))
     goto abort;
 
-  if (with_select)
-	  (void)result->prepare(select_lex->returning_list, NULL);
+  //if (with_select)
+	//  (void)result->prepare(select_lex->returning_list, NULL);
 
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
