@@ -117,9 +117,7 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name);
 void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 
 void init_fill_schema_files_row(TABLE* table);
-bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
-COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table);
 
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const LEX_CSTRING *table_name,
                                    bool *in_plugin);

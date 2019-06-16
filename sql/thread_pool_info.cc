@@ -18,23 +18,28 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 #include <my_global.h>
 #include <sql_class.h>
-#include <table.h>
+#include <sql_i_s.h>
 #include <mysql/plugin.h>
 #include <sql_show.h>
 #include <threadpool_generic.h>
 
+namespace Show {
+
 static ST_FIELD_INFO groups_fields_info[] =
 {
-  {"GROUP_ID", 6, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"CONNECTIONS", 6, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"THREADS", 6, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"ACTIVE_THREADS",6, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"STANDBY_THREADS", 6, MYSQL_TYPE_LONG, 0, 0, 0,0},
-  {"QUEUE_LENGTH", 6, MYSQL_TYPE_LONG, 0,0, 0, 0},
-  {"HAS_LISTENER",1,MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"IS_STALLED",1,MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("GROUP_ID",        SLong(6), NOT_NULL),
+  Column("CONNECTIONS",     SLong(6), NOT_NULL),
+  Column("THREADS",         SLong(6), NOT_NULL),
+  Column("ACTIVE_THREADS",  SLong(6), NOT_NULL),
+  Column("STANDBY_THREADS", SLong(6), NOT_NULL),
+  Column("QUEUE_LENGTH",    SLong(6), NOT_NULL),
+  Column("HAS_LISTENER",    STiny(1), NOT_NULL),
+  Column("IS_STALLED",      STiny(1), NOT_NULL),
+  CEnd()
 };
+
+} // namespace Show
+
 
 static int groups_fill_table(THD* thd, TABLE_LIST* tables, COND*)
 {
@@ -74,21 +79,25 @@ static int groups_fill_table(THD* thd, TABLE_LIST* tables, COND*)
 static int groups_init(void* p)
 {
   ST_SCHEMA_TABLE* schema = (ST_SCHEMA_TABLE*)p;
-  schema->fields_info = groups_fields_info;
+  schema->fields_info = Show::groups_fields_info;
   schema->fill_table = groups_fill_table;
   return 0;
 }
 
 
+namespace Show {
+
 static ST_FIELD_INFO queues_field_info[] =
 {
-  {"GROUP_ID", 6, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"POSITION",6,MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"PRIORITY", 1, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"CONNECTION_ID", 19, MYSQL_TYPE_LONGLONG, MY_I_S_UNSIGNED, 0, 0, 0},
-  {"QUEUEING_TIME_MICROSECONDS", 19, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
-  {0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0}
+  Column("GROUP_ID",                   SLong(6),      NOT_NULL),
+  Column("POSITION",                   SLong(6),      NOT_NULL),
+  Column("PRIORITY",                   SLong(1),      NOT_NULL),
+  Column("CONNECTION_ID",              ULonglong(19), NOT_NULL),
+  Column("QUEUEING_TIME_MICROSECONDS", SLonglong(19), NOT_NULL),
+  CEnd()
 };
+
+} // namespace Show
 
 typedef connection_queue_t::Iterator connection_queue_iterator;
 
@@ -140,26 +149,31 @@ static int queues_fill_table(THD* thd, TABLE_LIST* tables, COND*)
 static int queues_init(void* p)
 {
   ST_SCHEMA_TABLE* schema = (ST_SCHEMA_TABLE*)p;
-  schema->fields_info = queues_field_info;
+  schema->fields_info = Show::queues_field_info;
   schema->fill_table = queues_fill_table;
   return 0;
 }
 
+namespace Show {
+
 static ST_FIELD_INFO stats_fields_info[] =
 {
-  {"GROUP_ID", 6, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"THREAD_CREATIONS",19,MYSQL_TYPE_LONGLONG,0,0, 0,0},
-  {"THREAD_CREATIONS_DUE_TO_STALL",19,MYSQL_TYPE_LONGLONG,0,0, 0,0},
-  {"WAKES",19,MYSQL_TYPE_LONGLONG,0,0, 0,0},
-  {"WAKES_DUE_TO_STALL",19,MYSQL_TYPE_LONGLONG,0,0, 0,0},
-  {"THROTTLES",19,MYSQL_TYPE_LONGLONG,0,0, 0,0},
-  {"STALLS",19,MYSQL_TYPE_LONGLONG,0,0, 0, 0},
-  {"POLLS_BY_LISTENER",19,MYSQL_TYPE_LONGLONG,0,0, 0, 0},
-  {"POLLS_BY_WORKER",19,MYSQL_TYPE_LONGLONG,0,0, 0, 0},
-  {"DEQUEUES_BY_LISTENER",19,MYSQL_TYPE_LONGLONG,0,0, 0, 0},
-  {"DEQUEUES_BY_WORKER",19,MYSQL_TYPE_LONGLONG,0,0, 0, 0},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("GROUP_ID",                      SLong(6),      NOT_NULL),
+  Column("THREAD_CREATIONS",              SLonglong(19), NOT_NULL),
+  Column("THREAD_CREATIONS_DUE_TO_STALL", SLonglong(19), NOT_NULL),
+  Column("WAKES",                         SLonglong(19), NOT_NULL),
+  Column("WAKES_DUE_TO_STALL",            SLonglong(19), NOT_NULL),
+  Column("THROTTLES",                     SLonglong(19), NOT_NULL),
+  Column("STALLS",                        SLonglong(19), NOT_NULL),
+  Column("POLLS_BY_LISTENER",             SLonglong(19), NOT_NULL),
+  Column("POLLS_BY_WORKER",               SLonglong(19), NOT_NULL),
+  Column("DEQUEUES_BY_LISTENER",          SLonglong(19), NOT_NULL),
+  Column("DEQUEUES_BY_WORKER",            SLonglong(19), NOT_NULL),
+  CEnd()
 };
+
+} // namespace Show
+
 
 static int stats_fill_table(THD* thd, TABLE_LIST* tables, COND*)
 {
@@ -206,20 +220,23 @@ static int stats_reset_table()
 static int stats_init(void* p)
 {
   ST_SCHEMA_TABLE* schema = (ST_SCHEMA_TABLE*)p;
-  schema->fields_info = stats_fields_info;
+  schema->fields_info = Show::stats_fields_info;
   schema->fill_table = stats_fill_table;
   schema->reset_table = stats_reset_table;
   return 0;
 }
 
 
+namespace Show {
 
 static ST_FIELD_INFO waits_fields_info[] =
 {
-  {"REASON", 16, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"COUNT",19,MYSQL_TYPE_LONGLONG,0,0, 0,0},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("REASON", Varchar(16),   NOT_NULL),
+  Column("COUNT",  SLonglong(19), NOT_NULL),
+  CEnd()
 };
+
+} // namespace Show
 
 /* See thd_wait_type enum for explanation*/
 static const LEX_CSTRING wait_reasons[THD_WAIT_LAST] =
@@ -267,7 +284,7 @@ static int waits_reset_table()
 static int waits_init(void* p)
 {
   ST_SCHEMA_TABLE* schema = (ST_SCHEMA_TABLE*)p;
-  schema->fields_info = waits_fields_info;
+  schema->fields_info = Show::waits_fields_info;
   schema->fill_table = waits_fill_table;
   schema->reset_table = waits_reset_table;
   return 0;
