@@ -457,20 +457,6 @@ private:
 	lsn_t			m_end_lsn;
 };
 
-/** Check if a mini-transaction is dirtying a clean page.
-@return true if the mtr is dirtying a clean page. */
-bool
-mtr_t::is_block_dirtied(const buf_block_t* block)
-{
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-	ut_ad(block->page.buf_fix_count > 0);
-
-	/* It is OK to read oldest_modification because no
-	other thread can be performing a write of it and it
-	is only during write that the value is reset to 0. */
-	return(block->page.oldest_modification == 0);
-}
-
 /** Write the block contents to the REDO log */
 struct mtr_write_log_t {
 	/** Append a block to the redo log buffer.

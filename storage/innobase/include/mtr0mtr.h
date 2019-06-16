@@ -550,7 +550,7 @@ struct mtr_t {
 	/** Check if this mini-transaction is dirtying a clean page.
 	@param block	block being x-fixed
 	@return true if the mtr is dirtying a clean page. */
-	static bool is_block_dirtied(const buf_block_t* block)
+	static inline bool is_block_dirtied(const buf_block_t* block)
 		MY_ATTRIBUTE((warn_unused_result));
 
 private:
