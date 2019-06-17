@@ -266,10 +266,10 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'insert into t2 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,READ,test,t2,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select * from t2',0
 TIME,HOSTNAME,root,localhost,ID,ID,ALTER,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,RENAME,test,t1|test.renamed_t1,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,table_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,column_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,index_stats,
-TIME,HOSTNAME,root,localhost,ID,ID,RENAME,test,t1|test.renamed_t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'alter table t1 rename renamed_t1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_events=\'connect,query\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 1,\n2,\n# comment\n3',0
