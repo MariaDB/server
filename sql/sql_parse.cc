@@ -4480,7 +4480,7 @@ mysql_execute_command(THD *thd)
 	Protocol* UNINIT_VAR(save_protocol);
 	bool replaced_protocol = false;
 
-	if (select_lex->returning_list.is_empty())
+	if (!select_lex->returning_list.is_empty())
 	{
 		/* This is INSERT ... RETURNING.  It will return output to the client */
 		if (thd->lex->analyze_stmt)
