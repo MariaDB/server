@@ -30,6 +30,8 @@
 #define IMPORT_VERSION "3.7"
 
 #include "client_priv.h"
+#include <my_sys.h>
+
 #include "mysql_version.h"
 
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
@@ -472,8 +474,9 @@ static MYSQL *db_connect(char *host, char *database,
 
   if (opt_default_auth && *opt_default_auth)
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
+  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, my_default_csname());
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlimport");

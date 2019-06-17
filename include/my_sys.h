@@ -1043,6 +1043,7 @@ extern char *get_tty_password(const char *opt_message);
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
 #endif
+extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
