@@ -69,9 +69,9 @@ my_bool	net_flush(NET *net);
 #include "errmsg.h"
 #include <violite.h>
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include <my_pthread.h>				/* because of signal()	*/
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
 
 #include <sys/stat.h>
 #include <signal.h>
@@ -81,29 +81,20 @@ my_bool	net_flush(NET *net);
 #include <pwd.h>
 #endif
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #ifdef HAVE_SELECT_H
 #  include <select.h>
 #endif
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
 #ifdef HAVE_SYS_UN_H
 #  include <sys/un.h>
 #endif
 
-#ifndef _WIN32
-#include <errno.h>
-#define SOCKET_ERROR -1
-#define INVALID_SOCKET -1
-#endif
 
-#ifdef __WIN__
-#define CONNECT_TIMEOUT 20
-#else
 #define CONNECT_TIMEOUT 0
-#endif
 
 #include "client_settings.h"
 #include <ssl_compat.h>
@@ -252,7 +243,7 @@ void set_mysql_extended_error(MYSQL *mysql, int errcode,
   Create a named pipe connection
 */
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 HANDLE create_named_pipe(MYSQL *mysql, uint connect_timeout, char **arg_host,
 			 char **arg_unix_socket)
@@ -1692,7 +1683,7 @@ typedef struct str2str_st
 
 const MY_CSET_OS_NAME charsets[]=
 {
-#ifdef __WIN__
+#ifdef _WIN32
   {"cp437",          "cp850",    my_cs_approx},
   {"cp850",          "cp850",    my_cs_exact},
   {"cp852",          "cp852",    my_cs_exact},
@@ -1878,7 +1869,7 @@ def:
 }
 
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <stdlib.h> /* for getenv() */
 #ifdef HAVE_LANGINFO_H
 #include <langinfo.h>
@@ -1886,7 +1877,7 @@ def:
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 
 static int
@@ -1894,7 +1885,7 @@ mysql_autodetect_character_set(MYSQL *mysql)
 {
   const char *csname= MYSQL_DEFAULT_CHARSET_NAME;
 
-#ifdef __WIN__
+#ifdef _WIN32
   char cpbuf[64];
   {
     UINT cp= GetConsoleCP();
@@ -2836,14 +2827,10 @@ set_connect_attributes(MYSQL *mysql, char *buff, size_t buf_len)
                       "_platform", MACHINE_TYPE);
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                       "_server_host", mysql->host);                      
-#ifdef __WIN__
-  snprintf(buff, buf_len, "%lu", (ulong) GetCurrentProcessId());
-#else
   snprintf(buff, buf_len, "%lu", (ulong) getpid());
-#endif
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD, "_pid", buff);
 
-#ifdef __WIN__
+#ifdef _WIN32
   snprintf(buff, buf_len, "%lu", (ulong) GetCurrentThreadId());
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD, "_thread", buff);
 #endif
@@ -2864,7 +2851,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   const char    *scramble_plugin;
   ulong		pkt_length;
   NET		*net= &mysql->net;
-#ifdef __WIN__
+#ifdef _WIN32
   HANDLE	hPipe=INVALID_HANDLE_VALUE;
 #endif
 #ifdef HAVE_SYS_UN_H
@@ -2986,21 +2973,19 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     }
     mysql->options.protocol=MYSQL_PROTOCOL_SOCKET;
   }
-#elif defined(__WIN__)
+#elif defined(_WIN32)
   if (!net->vio &&
       (mysql->options.protocol == MYSQL_PROTOCOL_PIPE ||
-       (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE)) ||
-       (! have_tcpip && (unix_socket || !host ))))
+       (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE))))
   {
     if ((hPipe= create_named_pipe(mysql, mysql->options.connect_timeout,
                                   (char**) &host, (char**) &unix_socket)) ==
 	INVALID_HANDLE_VALUE)
     {
       DBUG_PRINT("error",
-		 ("host: '%s'  socket: '%s'  have_tcpip: %d",
+		 ("host: '%s'  socket: '%s'",
 		  host ? host : "<null>",
-		  unix_socket ? unix_socket : "<null>",
-		  (int) have_tcpip));
+		  unix_socket ? unix_socket : "<null>"));
       if (mysql->options.protocol == MYSQL_PROTOCOL_PIPE ||
 	  (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE)) ||
 	  (unix_socket && !strcmp(unix_socket,MYSQL_NAMEDPIPE)))
