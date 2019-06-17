@@ -721,6 +721,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   Name_resolution_context_state ctx_state;
   SELECT_LEX* select_lex = thd->lex->first_select_lex();
   bool with_select = !select_lex->returning_list.is_empty();
+  List<Item>& temp_list = thd->lex->current_select->returning_list;
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
   /*
@@ -777,11 +778,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   if (mysql_prepare_insert(thd, table_list, table, fields, values,
 			   update_fields, update_values, duplic, &unused_conds,
-                           FALSE))
+                           FALSE,select_lex))
 	  goto abort;
  
   if (with_select)
-	  (void)result->prepare(fields, NULL);
+	  (void)result->prepare(temp_list, NULL);
 	  
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
@@ -954,7 +955,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   }
   if (with_select)
   {
-	  result->send_result_set_metadata(fields,
+	  result->send_result_set_metadata(temp_list,
 		  Protocol::SEND_NUM_ROWS |
 		  Protocol::SEND_EOF);
 		 
@@ -1072,10 +1073,14 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         break;
       }
 <<<<<<< HEAD
+<<<<<<< HEAD
 
       thd->decide_logging_format_low(table);
 =======
 	  if (with_select && result->send_data(fields) < 0)
+=======
+	  if (with_select && result->send_data(temp_list) < 0)
+>>>>>>> INSERT...RETURNING working successfully
 	  {
 		  error = 1;
 		  break;
@@ -1518,7 +1523,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                           TABLE *table, List<Item> &fields, List_item *values,
                           List<Item> &update_fields, List<Item> &update_values,
                           enum_duplicates duplic, COND **where,
-                          bool select_insert)
+                          bool select_insert,SELECT_LEX * sel_lex)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
@@ -1585,7 +1590,10 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     table_list->next_local= 0;
     context->resolve_in_table_list_only(table_list);
 
-    res= (setup_fields(thd, Ref_ptr_array(),
+    res= (((sel_lex->with_wild && setup_wild(thd, table_list, sel_lex->returning_list, NULL, sel_lex->with_wild,
+		&select_lex->hidden_bit_fields)) ||
+		setup_fields(thd, Ref_ptr_array(),
+			sel_lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0))||setup_fields(thd, Ref_ptr_array(),
                        *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
           check_insert_fields(thd, context->table_list, fields, *values,
                               !insert_into_view, 0, &map));
@@ -3600,7 +3608,7 @@ bool mysql_insert_select_prepare(THD *thd)
   if (mysql_prepare_insert(thd, lex->query_tables,
                            lex->query_tables->table, lex->field_list, 0,
                            lex->update_list, lex->value_list, lex->duplicates,
-                           &select_lex->where, TRUE))
+                           &select_lex->where, TRUE,NULL))
     DBUG_RETURN(TRUE);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);

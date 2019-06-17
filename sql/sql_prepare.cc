@@ -1298,7 +1298,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, table_list->table,
                              fields, values, update_fields, update_values,
-                             duplic, &unused_conds, FALSE))
+                             duplic, &unused_conds, FALSE,NULL))
       goto error;
 
     value_count= values->elements;
