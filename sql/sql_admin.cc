@@ -697,19 +697,23 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       MDL_SHARED_NO_READ_WRITE lock (MDL_SHARED_WRITE cannot be upgraded)
       by *not* having HA_CONCURRENT_OPTIMIZE table_flag.
     */
-    if (lock_type == TL_WRITE && !table->table->s->tmp_table &&
-                        table->mdl_request.type > MDL_SHARED_WRITE)
+    if (lock_type == TL_WRITE && table->mdl_request.type > MDL_SHARED_WRITE)
     {
-      if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
-        goto err;
-      DEBUG_SYNC(thd, "after_admin_flush");
-      /* Flush entries in the query cache involving this table. */
-      query_cache_invalidate3(thd, table->table, 0);
-      /*
-        XXX: hack: switch off open_for_modify to skip the
-        flush that is made later in the execution flow. 
-      */
-      open_for_modify= 0;
+      if (table->table->s->tmp_table)
+        thd->close_unused_temporary_table_instances(tables);
+      else
+      {
+        if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
+          goto err;
+        DEBUG_SYNC(thd, "after_admin_flush");
+        /* Flush entries in the query cache involving this table. */
+        query_cache_invalidate3(thd, table->table, 0);
+        /*
+          XXX: hack: switch off open_for_modify to skip the
+          flush that is made later in the execution flow.
+        */
+        open_for_modify= 0;
+      }
     }
 
     if (table->table->s->crashed && operator_func == &handler::ha_check)
