@@ -1503,13 +1503,16 @@ public:
   /* maximum possible display length */
   virtual uint32 max_display_length() const= 0;
   /**
-    Whether a field being created is compatible with a existing one.
-
-    Used by the ALTER TABLE code to evaluate whether the new definition
-    of a table is compatible with the old definition so that it can
-    determine if data needs to be copied over (table data change).
+    Whether a field being created has the samle type.
+    Used by the ALTER TABLE
   */
-  virtual uint is_equal(Create_field *new_field)= 0;
+  virtual bool is_equal(const Column_definition &new_field) const= 0;
+  // Used as double dispatch pattern: calls virtual method of handler
+  virtual bool
+  can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return false;
+  }
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
@@ -1809,7 +1812,7 @@ public:
            !((flags & UNSIGNED_FLAG) && !(from->flags & UNSIGNED_FLAG)) &&
            decimals() == from->decimals();
   }
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   uint row_pack_length() const { return pack_length(); }
   uint32 pack_length_from_metadata(uint field_metadata) {
     uint32 length= pack_length();
@@ -1874,7 +1877,7 @@ public:
   bool val_bool() { return val_real() != 0e0; }
   virtual bool str_needs_quotes() { return TRUE; }
   bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
-  virtual uint length_size() { return 0; }
+  virtual uint length_size() const { return 0; }
   double pos_in_interval(Field *min, Field *max)
   {
     return pos_in_interval_val_str(min, max, length_size());
@@ -1928,8 +1931,6 @@ protected:
                CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length);
-  uint is_equal_for_different_charsets(const Column_definition &to) const;
-
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -2142,7 +2143,7 @@ public:
   uint row_pack_length() const { return pack_length(); }
   bool compatible_field_size(uint field_metadata, Relay_log_info *rli,
                              uint16 mflags, int *order_var);
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
@@ -2646,7 +2647,7 @@ public:
   my_decimal *val_decimal(my_decimal *) { return 0; }
   String *val_str(String *value,String *value2)
   { value2->length(0); return value2;}
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   int cmp(const uchar *a, const uchar *b) { return 0;}
   void sort_string(uchar *buff, uint length)  {}
   uint32 pack_length() const { return 0; }
@@ -2729,7 +2730,7 @@ public:
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   bool binary() const { return true; }
   bool val_bool() { return val_real() != 0e0; }
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   bool eq_def(const Field *field) const
   {
     return (Field::eq_def(field) && decimals() == field->decimals());
@@ -3570,7 +3571,11 @@ public:
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   void sql_type(String &str) const;
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_string(this, new_type);
+  }
   virtual uchar *pack(uchar *to, const uchar *from,
                       uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
@@ -3698,9 +3703,13 @@ public:
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_varstring(this, new_type);
+  }
   void hash(ulong *nr, ulong *nr2);
-  uint length_size() { return length_bytes; }
+  uint length_size() const { return length_bytes; }
   void print_key_value(String *out, uint32 length);
 private:
   int save_field_metadata(uchar *first_byte);
@@ -4039,7 +4048,11 @@ public:
   uint32 max_display_length() const;
   uint32 char_length() const;
   uint32 character_octet_length() const;
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_blob(this, new_type);
+  }
   void print_key_value(String *out, uint32 length);
 
   friend void TABLE::remember_blob_values(String *blob_storage);
@@ -4154,7 +4167,12 @@ public:
             geom_type == static_cast<const Field_geom*>(from)->geom_type) &&
            !table->copy_blobs;
   }
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_geom(this, new_type);
+  }
+
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -4298,7 +4316,7 @@ public:
                           bool is_eq_func) const;
 private:
   int save_field_metadata(uchar *first_byte);
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
 };
 
 
@@ -4477,7 +4495,7 @@ public:
             bit_ptr == ((Field_bit *)field)->bit_ptr &&
             bit_ofs == ((Field_bit *)field)->bit_ofs);
   }
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   void move_field_offset(my_ptrdiff_t ptr_diff)
   {
     Field::move_field_offset(ptr_diff);

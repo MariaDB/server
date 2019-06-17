@@ -131,7 +131,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_COLUMN_NAME
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
-	| ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE
 	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_RENAME_INDEX
 	| ALTER_DROP_VIRTUAL_COLUMN;
@@ -8332,7 +8332,7 @@ ok_exit:
 	rebuild_templ
 	     = ctx->need_rebuild()
 	       || ((ha_alter_info->handler_flags
-		& ALTER_COLUMN_EQUAL_PACK_LENGTH)
+		& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE)
 		&& alter_templ_needs_rebuild(
 		   altered_table, ha_alter_info, ctx->new_table));
 
@@ -9194,7 +9194,7 @@ innobase_rename_or_enlarge_columns_try(
 	DBUG_ENTER("innobase_rename_or_enlarge_columns_try");
 
 	if (!(ha_alter_info->handler_flags
-	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
+	      & (ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE
 		 | ALTER_COLUMN_NAME))) {
 		DBUG_RETURN(false);
 	}
@@ -9242,7 +9242,7 @@ innobase_rename_or_enlarge_columns_cache(
 	dict_table_t*		user_table)
 {
 	if (!(ha_alter_info->handler_flags
-	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
+	      & (ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE
 		 | ALTER_COLUMN_NAME))) {
 		return;
 	}

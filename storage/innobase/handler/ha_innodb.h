@@ -437,6 +437,13 @@ public:
 	@retval	false if pushed (always) */
 	bool rowid_filter_push(Rowid_filter *rowid_filter);
 
+	bool can_convert_string(const Field_string* field,
+				const Column_definition& new_field) const;
+	bool can_convert_varstring(const Field_varstring* field,
+				   const Column_definition& new_field) const;
+	bool can_convert_blob(const Field_blob* field,
+			      const Column_definition& new_field) const;
+
 protected:
 	/**
 	MySQL calls this method at the end of each statement. This method

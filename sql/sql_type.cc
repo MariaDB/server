@@ -8367,6 +8367,5 @@ Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
 {
   LEX_CSTRING name0= collation_specific_name();
   LEX_CSTRING name1= Charset(cs).collation_specific_name();
-  /* Empty collations are not equal */
   return name0.length && !cmp(&name0, &name1);
 }

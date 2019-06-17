@@ -54,6 +54,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_bitmap.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
+#include "field.h"
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
@@ -6139,11 +6140,6 @@ no_such_table:
 		set_my_errno(ENOENT);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-	}
-
-	if (!ib_table->not_redundant()) {
-		m_int_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
-		cached_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
 	}
 
 	size_t n_fields = omits_virtual_cols(*table_share)
@@ -20873,6 +20869,146 @@ bool ha_innobase::rowid_filter_push(Rowid_filter* pk_filter)
 	DBUG_ASSERT(pk_filter != NULL);
 	pushed_rowid_filter= pk_filter;
 	DBUG_RETURN(false);
+}
+
+static bool
+is_part_of_a_primary_key(const Field* field)
+{
+	const TABLE_SHARE* s = field->table->s;
+
+	return s->primary_key != MAX_KEY
+	       && field->part_of_key.is_set(s->primary_key);
+}
+
+bool
+ha_innobase::can_convert_string(const Field_string* field,
+				const Column_definition& new_type) const
+{
+	DBUG_ASSERT(!field->compression_method());
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (new_type.char_length < field->char_length()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		if (new_type.length != field->max_display_length()
+		    && !m_prebuilt->table->not_redundant()) {
+			return IS_EQUAL_NO;
+		}
+
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			return !is_part_of_a_primary_key(field);
+		}
+
+		return true;
+	}
+
+	if (new_type.length != field->max_display_length()) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+supports_enlarging(const dict_table_t* table, const Field_varstring* field,
+		   const Column_definition& new_type)
+{
+	return field->field_length <= 127 || new_type.length <= 255
+	       || field->field_length > 255 || !table->not_redundant();
+}
+
+bool
+ha_innobase::can_convert_varstring(const Field_varstring* field,
+				   const Column_definition& new_type) const
+{
+	if (new_type.length < field->field_length) {
+		return false;
+	}
+
+	if (new_type.char_length < field->char_length()) {
+		return false;
+	}
+
+	if (!new_type.compression_method() != !field->compression_method()) {
+		return false;
+	}
+
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
+			return false;
+		}
+
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			return !is_part_of_a_primary_key(field);
+		}
+
+		return true;
+	}
+
+	if (new_type.length != field->field_length) {
+		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	return true;
+}
+
+bool
+ha_innobase::can_convert_blob(const Field_blob* field,
+			      const Column_definition& new_type) const
+{
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (!new_type.compression_method() != !field->compression_method()) {
+		return false;
+	}
+
+	if (new_type.pack_length != field->pack_length()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			bool is_part_of_a_key
+			    = !field->part_of_key.is_clear_all();
+			return !is_part_of_a_key;
+		}
+
+		return true;
+	}
+
+	return true;
 }
 
 /******************************************************************//**

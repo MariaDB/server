@@ -916,6 +916,9 @@ public:
     Item* idx_cond_push(uint keyno, class Item* idx_cond);
     void cancel_pushed_idx_cond();
 
+    bool can_convert_varstring(const Field_varstring* field,
+                               const Column_definition&new_type) const;
+
 #if defined(TOKU_INCLUDE_ALTER_56) && TOKU_INCLUDE_ALTER_56
  public:
     enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
