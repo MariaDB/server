@@ -80,6 +80,8 @@ sub skip_combinations {
     $_=<$f>;
     $skip{'main/tls_version.test'} = "TLSv1.1 disabled in $openssl_cnf"
       if /^\s*MinProtocol\s*=\s*TLSv1.[2-9]/m;
+    $skip{'main/tls_version1.test'} = "TLSv1.0 disabled in $openssl_cnf"
+      if /^\s*MinProtocol\s*=\s*TLSv1.[1-9]/m;
   }
 
   %skip;

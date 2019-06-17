@@ -19,7 +19,7 @@
 #define WOLFSSL_AES_COUNTER
 #define NO_WOLFSSL_STUB
 #define OPENSSL_ALL
-
+#define WOLFSSL_ALLOW_TLSV10
 
 #cmakedefine WOLFSSL_AESNI
 #cmakedefine USE_FAST_MATH
