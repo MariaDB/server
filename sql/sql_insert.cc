@@ -781,7 +781,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 	  goto abort;
  
   if (with_select)
-	  (void)result->prepare(select_lex->returning_list, NULL);
+	  (void)result->prepare(fields, NULL);
 	  
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
@@ -952,7 +952,13 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       goto values_loop_end;
     }
   }
-  
+  if (with_select)
+  {
+	  result->send_result_set_metadata(fields,
+		  Protocol::SEND_NUM_ROWS |
+		  Protocol::SEND_EOF);
+		 
+  }
   THD_STAGE_INFO(thd, stage_update);
   do
   {
@@ -1065,8 +1071,16 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         error= 1;
         break;
       }
+<<<<<<< HEAD
 
       thd->decide_logging_format_low(table);
+=======
+	  if (with_select && result->send_data(fields) < 0)
+	  {
+		  error = 1;
+		  break;
+	  }
+>>>>>>> successfully returning all the fields
 #ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {
@@ -1242,26 +1256,34 @@ values_loop_end:
   if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {
-    my_ok(thd, info.copied + info.deleted +
-               ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
-                info.touched : info.updated),
-          id);
+	  if (with_select)
+		  result->send_eof();
+	  else {
+		  my_ok(thd, info.copied + info.deleted +
+			  ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
+				  info.touched : info.updated),
+			  id);
+	  }
   }
   else
   {
     char buff[160];
     ha_rows updated=((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                      info.touched : info.updated);
-    if (ignore)
-      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-	      (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
-	      (ulong) (info.records - info.copied),
-              (long) thd->get_stmt_da()->current_statement_warn_count());
-    else
-      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-	      (ulong) (info.deleted + updated),
-              (long) thd->get_stmt_da()->current_statement_warn_count());
-    ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
+	if (ignore)
+		sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong)info.records,
+		(lock_type == TL_WRITE_DELAYED) ? (ulong)0 :
+			(ulong)(info.records - info.copied),
+			(long)thd->get_stmt_da()->current_statement_warn_count());
+	else
+		if (with_select)
+			result->send_eof();
+		else {
+			sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong)info.records,
+				(ulong)(info.deleted + updated),
+				(long)thd->get_stmt_da()->current_statement_warn_count());
+			::my_ok(thd, info.copied + info.deleted + updated, id, buff);
+		}
   }
   thd->abort_on_warning= 0;
   if (thd->lex->current_select->first_cond_optimization)
