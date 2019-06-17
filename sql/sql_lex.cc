@@ -2429,6 +2429,7 @@ void st_select_lex::init_query()
 
 void st_select_lex::init_select()
 {
+	returning_list.empty();
   sj_nests.empty();
   sj_subselects.empty();
   group_list.empty();
