@@ -9157,11 +9157,6 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME,
                               NULL);
 
-    (void) rename_table_in_stat_tables(thd, &alter_ctx->db,
-                                       &alter_ctx->table_name,
-                                       &alter_ctx->new_db,
-                                       &alter_ctx->new_alias);
-
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias, 0))
       error= -1;
@@ -9178,6 +9173,12 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                 NO_FK_CHECKS);
       error= -1;
     }
+    /* Update stat tables last. This is to be able to handle rename of a stat table */
+    if (error == 0)
+      (void) rename_table_in_stat_tables(thd, &alter_ctx->db,
+                                         &alter_ctx->table_name,
+                                         &alter_ctx->new_db,
+                                         &alter_ctx->new_alias);
   }
 
   if (likely(!error))
