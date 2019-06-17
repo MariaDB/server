@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -637,9 +638,9 @@ SPIDER_CONN_HOLDER *spider_fields::create_conn_holder(
   DBUG_PRINT("info",("spider this=%p", this));
   return_conn_holder = (SPIDER_CONN_HOLDER *)
     spider_bulk_malloc(spider_current_trx, 252, MYF(MY_WME | MY_ZEROFILL),
-      &return_conn_holder, sizeof(SPIDER_CONN_HOLDER),
+      &return_conn_holder, (uint) (sizeof(SPIDER_CONN_HOLDER)),
       &table_link_idx_holder,
-        table_count * sizeof(SPIDER_TABLE_LINK_IDX_HOLDER),
+        (uint) (table_count * sizeof(SPIDER_TABLE_LINK_IDX_HOLDER)),
       NullS
     );
   if (!return_conn_holder)

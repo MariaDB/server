@@ -1,4 +1,5 @@
-/* Copyright (C) 2009-2018 Kentoku Shiba
+/* Copyright (C) 2009-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -117,31 +118,32 @@ int spider_udf_direct_sql_create_table_list(
 #if MYSQL_VERSION_ID < 50500
   if (!(direct_sql->db_names = (char**)
     spider_bulk_malloc(spider_current_trx, 31, MYF(MY_WME | MY_ZEROFILL),
-      &direct_sql->db_names, sizeof(char*) * table_count,
-      &direct_sql->table_names, sizeof(char*) * table_count,
-      &direct_sql->tables, sizeof(TABLE*) * table_count,
-      &tmp_name_ptr, sizeof(char) * (
+      &direct_sql->db_names, (uint) (sizeof(char*) * table_count),
+      &direct_sql->table_names, (uint) (sizeof(char*) * table_count),
+      &direct_sql->tables, (uint) (sizeof(TABLE*) * table_count),
+      &tmp_name_ptr, (uint) (sizeof(char) * (
         table_name_list_length +
         thd->db_length * table_count +
         2 * table_count
-      ),
-      &direct_sql->iop, sizeof(int) * table_count,
+      )),
+      &direct_sql->iop, (uint) (sizeof(int) * table_count),
       NullS))
   )
 #else
   if (!(direct_sql->db_names = (char**)
     spider_bulk_malloc(spider_current_trx, 31, MYF(MY_WME | MY_ZEROFILL),
-      &direct_sql->db_names, sizeof(char*) * table_count,
-      &direct_sql->table_names, sizeof(char*) * table_count,
-      &direct_sql->tables, sizeof(TABLE*) * table_count,
-      &tmp_name_ptr, sizeof(char) * (
+      &direct_sql->db_names, (uint) (sizeof(char*) * table_count),
+      &direct_sql->table_names, (uint) (sizeof(char*) * table_count),
+      &direct_sql->tables, (uint) (sizeof(TABLE*) * table_count),
+      &tmp_name_ptr, (uint) (sizeof(char) * (
         table_name_list_length +
         SPIDER_THD_db_length(thd) * table_count +
         2 * table_count
-      ),
-      &direct_sql->iop, sizeof(int) * table_count,
-      &direct_sql->table_list, sizeof(TABLE_LIST) * table_count,
-      &direct_sql->real_table_bitmap, sizeof(uchar) * ((table_count + 7) / 8),
+      )),
+      &direct_sql->iop, (uint) (sizeof(int) * table_count),
+      &direct_sql->table_list, (uint) (sizeof(TABLE_LIST) * table_count),
+      &direct_sql->real_table_bitmap,
+        (uint) (sizeof(uchar) * ((table_count + 7) / 8)),
       NullS))
   )
 #endif
@@ -412,23 +414,23 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
 #endif
     if (!(conn = (SPIDER_CONN *)
       spider_bulk_malloc(spider_current_trx, 32, MYF(MY_WME | MY_ZEROFILL),
-        &conn, sizeof(*conn),
-        &tmp_name, direct_sql->conn_key_length + 1,
-        &tmp_host, direct_sql->tgt_host_length + 1,
-        &tmp_username, direct_sql->tgt_username_length + 1,
-        &tmp_password, direct_sql->tgt_password_length + 1,
-        &tmp_socket, direct_sql->tgt_socket_length + 1,
-        &tmp_wrapper, direct_sql->tgt_wrapper_length + 1,
-        &tmp_ssl_ca, direct_sql->tgt_ssl_ca_length + 1,
-        &tmp_ssl_capath, direct_sql->tgt_ssl_capath_length + 1,
-        &tmp_ssl_cert, direct_sql->tgt_ssl_cert_length + 1,
-        &tmp_ssl_cipher, direct_sql->tgt_ssl_cipher_length + 1,
-        &tmp_ssl_key, direct_sql->tgt_ssl_key_length + 1,
+        &conn, (uint) (sizeof(*conn)),
+        &tmp_name, (uint) (direct_sql->conn_key_length + 1),
+        &tmp_host, (uint) (direct_sql->tgt_host_length + 1),
+        &tmp_username, (uint) (direct_sql->tgt_username_length + 1),
+        &tmp_password, (uint) (direct_sql->tgt_password_length + 1),
+        &tmp_socket, (uint) (direct_sql->tgt_socket_length + 1),
+        &tmp_wrapper, (uint) (direct_sql->tgt_wrapper_length + 1),
+        &tmp_ssl_ca, (uint) (direct_sql->tgt_ssl_ca_length + 1),
+        &tmp_ssl_capath, (uint) (direct_sql->tgt_ssl_capath_length + 1),
+        &tmp_ssl_cert, (uint) (direct_sql->tgt_ssl_cert_length + 1),
+        &tmp_ssl_cipher, (uint) (direct_sql->tgt_ssl_cipher_length + 1),
+        &tmp_ssl_key, (uint) (direct_sql->tgt_ssl_key_length + 1),
         &tmp_default_file,
-          direct_sql->tgt_default_file_length + 1,
+          (uint) (direct_sql->tgt_default_file_length + 1),
         &tmp_default_group,
-          direct_sql->tgt_default_group_length + 1,
-        &need_mon, sizeof(int),
+          (uint) (direct_sql->tgt_default_group_length + 1),
+        &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
       *error_num = HA_ERR_OUT_OF_MEM;
@@ -439,12 +441,12 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   } else {
     if (!(conn = (SPIDER_CONN *)
       spider_bulk_malloc(spider_current_trx, 33, MYF(MY_WME | MY_ZEROFILL),
-        &conn, sizeof(*conn),
-        &tmp_name, direct_sql->conn_key_length + 1,
-        &tmp_host, direct_sql->tgt_host_length + 1,
-        &tmp_socket, direct_sql->tgt_socket_length + 1,
-        &tmp_wrapper, direct_sql->tgt_wrapper_length + 1,
-        &need_mon, sizeof(int),
+        &conn, (uint) (sizeof(*conn)),
+        &tmp_name, (uint) (direct_sql->conn_key_length + 1),
+        &tmp_host, (uint) (direct_sql->tgt_host_length + 1),
+        &tmp_socket, (uint) (direct_sql->tgt_socket_length + 1),
+        &tmp_wrapper, (uint) (direct_sql->tgt_wrapper_length + 1),
+        &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
       *error_num = HA_ERR_OUT_OF_MEM;
@@ -1602,8 +1604,8 @@ long long spider_direct_sql_body(
   SPIDER_BACKUP_DASTATUS;
   if (!(direct_sql = (SPIDER_DIRECT_SQL *)
     spider_bulk_malloc(spider_current_trx, 34, MYF(MY_WME | MY_ZEROFILL),
-      &direct_sql, sizeof(SPIDER_DIRECT_SQL),
-      &sql, sizeof(char) * args->lengths[0],
+      &direct_sql, (uint) (sizeof(SPIDER_DIRECT_SQL)),
+      &sql, (uint) (sizeof(char) * args->lengths[0]),
       NullS))
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
