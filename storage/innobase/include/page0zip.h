@@ -415,17 +415,18 @@ IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
 non-clustered index, the caller must update the insert buffer free
 bits in the same mini-transaction in such a way that the modification
 will be redo-logged.
-@return TRUE on success, FALSE on failure; page_zip will be left
-intact on failure, but page will be overwritten. */
-ibool
+@retval true on success
+@retval false on failure; the block_zip will be left intact */
+bool
 page_zip_reorganize(
-/*================*/
 	buf_block_t*	block,	/*!< in/out: page with compressed page;
 				on the compressed page, in: size;
 				out: data, n_blobs,
 				m_start, m_end, m_nonempty */
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
-	mtr_t*		mtr)	/*!< in: mini-transaction */
+	ulint		z_level,/*!< in: compression level */
+	mtr_t*		mtr,	/*!< in: mini-transaction */
+	bool		restore = false)/*!< whether to restore on failure */
 	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**

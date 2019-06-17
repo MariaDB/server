@@ -4682,17 +4682,18 @@ IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
 non-clustered index, the caller must update the insert buffer free
 bits in the same mini-transaction in such a way that the modification
 will be redo-logged.
-@return TRUE on success, FALSE on failure; page_zip will be left
-intact on failure, but page will be overwritten. */
-ibool
+@retval true on success
+@retval false on failure; the block will be left intact */
+bool
 page_zip_reorganize(
-/*================*/
 	buf_block_t*	block,	/*!< in/out: page with compressed page;
 				on the compressed page, in: size;
 				out: data, n_blobs,
 				m_start, m_end, m_nonempty */
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
-	mtr_t*		mtr)	/*!< in: mini-transaction */
+	ulint		z_level,/*!< in: compression level */
+	mtr_t*		mtr,	/*!< in: mini-transaction */
+	bool		restore)/*!< whether to restore on failure */
 {
 	page_t*		page		= buf_block_get_frame(block);
 	buf_block_t*	temp_block;
@@ -4746,15 +4747,39 @@ page_zip_reorganize(
 	/* Restore logging. */
 	mtr_set_log_mode(mtr, log_mode);
 
-	if (!page_zip_compress(block, index, page_zip_level, mtr)) {
+	if (!page_zip_compress(block, index, z_level, mtr)) {
+		if (restore) {
+			/* Restore the old page and exit. */
+#if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
+			/* Check that the bytes that we skip are identical. */
+			ut_a(!memcmp(page, temp_page, PAGE_HEADER));
+			ut_a(!memcmp(PAGE_HEADER + PAGE_N_RECS + page,
+				     PAGE_HEADER + PAGE_N_RECS + temp_page,
+				     PAGE_DATA - (PAGE_HEADER + PAGE_N_RECS)));
+			ut_a(!memcmp(srv_page_size - FIL_PAGE_DATA_END + page,
+				     srv_page_size - FIL_PAGE_DATA_END
+				     + temp_page,
+				     FIL_PAGE_DATA_END));
+#endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
+
+			memcpy(PAGE_HEADER + page, PAGE_HEADER + temp_page,
+			       PAGE_N_RECS - PAGE_N_DIR_SLOTS);
+			memcpy(PAGE_DATA + page, PAGE_DATA + temp_page,
+			       srv_page_size - PAGE_DATA - FIL_PAGE_DATA_END);
+
+#if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
+			ut_a(!memcmp(page, temp_page, srv_page_size));
+#endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
+		}
+
 		buf_block_free(temp_block);
-		return(FALSE);
+		return false;
 	}
 
 	lock_move_reorganize_page(block, temp_block);
 
 	buf_block_free(temp_block);
-	return(TRUE);
+	return true;
 }
 
 /**********************************************************************//**

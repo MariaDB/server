@@ -892,7 +892,8 @@ rtr_split_page_move_rec_list(
 			ret_pos == 0. */
 
 			if (UNIV_UNLIKELY
-			    (!page_zip_reorganize(new_block, index, mtr))) {
+			    (!page_zip_reorganize(new_block, index,
+						  page_zip_level, mtr))) {
 
 				if (UNIV_UNLIKELY
 				    (!page_zip_decompress(new_page_zip,

@@ -662,7 +662,8 @@ page_copy_rec_list_end(
 			that is smaller than "ret"). */
 			ut_a(ret_pos > 0);
 
-			if (!page_zip_reorganize(new_block, index, mtr)) {
+			if (!page_zip_reorganize(new_block, index,
+						 page_zip_level, mtr)) {
 
 				if (!page_zip_decompress(new_page_zip,
 							 new_page, FALSE)) {
@@ -678,11 +679,7 @@ page_copy_rec_list_end(
 			} else {
 				/* The page was reorganized:
 				Seek to ret_pos. */
-				ret = new_page + PAGE_NEW_INFIMUM;
-
-				do {
-					ret = rec_get_next_ptr(ret, TRUE);
-				} while (--ret_pos);
+				ret = page_rec_get_nth(new_page, ret_pos);
 			}
 		}
 	}
@@ -832,7 +829,8 @@ zip_reorganize:
 			ret_pos == 0. */
 
 			if (UNIV_UNLIKELY
-			    (!page_zip_reorganize(new_block, index, mtr))) {
+			    (!page_zip_reorganize(new_block, index,
+						  page_zip_level, mtr))) {
 
 				if (UNIV_UNLIKELY
 				    (!page_zip_decompress(new_page_zip,

@@ -349,7 +349,7 @@ btr_scrub_skip_page(
 }
 
 /****************************************************************
-Try to scrub a page using btr_page_reorganize_low
+Try to scrub a page.
 return DB_SUCCESS on success or DB_OVERFLOW on failure */
 static
 dberr_t
@@ -369,12 +369,8 @@ btr_optimistic_scrub(
 		return DB_OVERFLOW;
 	}
 #endif
-
-	page_cur_t cur;
-	page_cur_set_before_first(block, &cur);
-	bool recovery = false;
-	if (!btr_page_reorganize_low(recovery, scrub_compression_level,
-				     &cur, index, mtr)) {
+	if (!btr_page_reorganize_block(false, scrub_compression_level, block,
+				       index, mtr)) {
 		return DB_OVERFLOW;
 	}
 
