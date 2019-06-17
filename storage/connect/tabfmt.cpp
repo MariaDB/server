@@ -189,9 +189,11 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 		htrc("File %s Sep=%c Qot=%c Header=%d maxerr=%d\n",
 		SVP(tdp->Fn), tdp->Sep, tdp->Qot, tdp->Header, tdp->Maxerr);
 
+#if defined(ZIP_SUPPORT)
 	if (tdp->Zipped)
 		tcvp = new(g)TDBCSV(tdp, new(g)UNZFAM(tdp));
 	else
+#endif
 		tcvp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
 
 	tcvp->SetMode(MODE_READ);
