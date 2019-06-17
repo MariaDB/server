@@ -1895,7 +1895,7 @@ set @save_join_cache_level= @@join_cache_level;
 SET  @@join_cache_level = 3;
 SELECT t1.b1+'0' , t2.b2 + '0' FROM t1 LEFT JOIN t2 ON b1 = b2;
 DROP TABLE t1, t2;
-set @join_cache_level= @save_join_cache_level;
+set @@join_cache_level= @save_join_cache_level;
 
 --echo #
 --echo # MDEV-14779: using left join causes incorrect results with materialization and derived tables
@@ -1958,6 +1958,29 @@ WHERE tb1.pk = 40
 ORDER BY tb1.i1;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-19790 : IS NOT TRUE / IS NOT FALSE predicates over
+--echo #              inner tables of outer joins
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (3), (7), (1);
+insert into t2 values (7), (4), (3);
+select * from t1 left join t2 on a=b;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not true;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not false;
+eval $q;
+eval explain extended $q;
+
+drop table t1,t2;
 
 --echo # end of 5.5 tests
 

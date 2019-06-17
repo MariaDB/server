@@ -183,6 +183,8 @@ public:
   Item_func_isnottrue(Item *a) : Item_func_truth(a, true, false) {}
   ~Item_func_isnottrue() {}
   virtual const char* func_name() const { return "isnottrue"; }
+  bool eval_not_null_tables(uchar *opt_arg)
+  { not_null_tables_cache= 0; return false; }
 };
 
 
@@ -209,6 +211,8 @@ public:
   Item_func_isnotfalse(Item *a) : Item_func_truth(a, false, false) {}
   ~Item_func_isnotfalse() {}
   virtual const char* func_name() const { return "isnotfalse"; }
+  bool eval_not_null_tables(uchar *opt_arg)
+  { not_null_tables_cache= 0; return false; }
 };
 
 
