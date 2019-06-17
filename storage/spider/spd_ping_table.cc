@@ -1,4 +1,5 @@
-/* Copyright (C) 2009-2018 Kentoku Shiba
+/* Copyright (C) 2009-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -367,12 +368,15 @@ create_table_mon:
   do {
     if (!(table_mon = (SPIDER_TABLE_MON *)
       spider_bulk_malloc(spider_current_trx, 35, MYF(MY_WME | MY_ZEROFILL),
-        &table_mon, sizeof(SPIDER_TABLE_MON),
-        &tmp_share, sizeof(SPIDER_SHARE),
-        &tmp_connect_info, sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT,
-        &tmp_connect_info_length, sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT,
-        &tmp_long, sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT,
-        &tmp_longlong, sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT,
+        &table_mon, (uint) (sizeof(SPIDER_TABLE_MON)),
+        &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
+        &tmp_connect_info,
+          (uint) (sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT),
+        &tmp_connect_info_length,
+          (uint) (sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT),
+        &tmp_long, (uint) (sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT),
+        &tmp_longlong,
+          (uint) (sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT),
         NullS))
     ) {
       spider_sys_index_end(table_link_mon);
@@ -491,13 +495,17 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
   if (!(table_mon_list = (SPIDER_TABLE_MON_LIST *)
     spider_bulk_malloc(spider_current_trx, 36, MYF(MY_WME | MY_ZEROFILL),
-      &table_mon_list, sizeof(SPIDER_TABLE_MON_LIST),
-      &tmp_share, sizeof(SPIDER_SHARE),
-      &tmp_connect_info, sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT,
-      &tmp_connect_info_length, sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT,
-      &tmp_long, sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT,
-      &tmp_longlong, sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT,
-      &key_str, str->length() + 1,
+      &table_mon_list, (uint) (sizeof(SPIDER_TABLE_MON_LIST)),
+      &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
+      &tmp_connect_info,
+        (uint) (sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT),
+      &tmp_connect_info_length,
+        (uint) (sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT),
+      &tmp_long,
+        (uint) (sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT),
+      &tmp_longlong,
+        (uint) (sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT),
+      &key_str, (uint) (str->length() + 1),
       NullS))
   ) {
     my_error(HA_ERR_OUT_OF_MEM, MYF(0));
