@@ -278,10 +278,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 53 shift/reduce conflicts.
+  Currently there are 55 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 53
+%expect 55
 
 /*
    Comments for TOKENS.
@@ -1495,7 +1495,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
         opt_outer table_list table_name table_alias_ref_list table_alias_ref
-        opt_attribute opt_attribute_list attribute column_list column_list_id
+        attribute attribute_list
+        compressed_deprecated_data_type_attribute
+        compressed_deprecated_column_attribute
+        column_list column_list_id
         opt_column_list grant_privileges grant_ident grant_list grant_option
         object_privilege object_privilege_list user_list user_and_role_list
         rename_list table_or_tables
@@ -6625,7 +6628,10 @@ opt_asrow_attribute_list:
         ;
 
 field_def:
-          opt_attribute
+          /* empty */ { }
+        | attribute_list
+        | attribute_list compressed_deprecated_column_attribute
+        | attribute_list compressed_deprecated_column_attribute attribute_list
         | opt_generated_always AS virtual_column_func
          {
            Lex->last_field->vcol_info= $3;
@@ -6821,6 +6827,13 @@ field_type_numeric:
         ;
 
 
+opt_binary_and_compression:
+          /* empty */
+        | binary
+        | binary compressed_deprecated_data_type_attribute
+        | compressed opt_binary
+        ;
+
 field_type_string:
           char opt_field_length_default_1 opt_binary
           {
@@ -6836,25 +6849,25 @@ field_type_string:
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_string, $2);
           }
-        | varchar field_length opt_binary
+        | varchar field_length opt_binary_and_compression
           {
             $$.set(&type_handler_varchar, $2);
           }
-        | VARCHAR2_ORACLE_SYM field_length opt_binary
+        | VARCHAR2_ORACLE_SYM field_length opt_binary_and_compression
           {
             $$.set(&type_handler_varchar, $2);
           }
-        | nvarchar field_length opt_bin_mod
+        | nvarchar field_length opt_compressed opt_bin_mod
           {
             $$.set(&type_handler_varchar, $2);
-            bincmp_collation(national_charset_info, $3);
+            bincmp_collation(national_charset_info, $4);
           }
-        | VARBINARY field_length
+        | VARBINARY field_length opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_varchar, $2);
           }
-        | RAW_ORACLE_SYM field_length
+        | RAW_ORACLE_SYM field_length opt_compressed
           {
             Lex->charset= &my_charset_bin;
             $$.set(&type_handler_varchar, $2);
@@ -6962,17 +6975,17 @@ field_type_temporal:
 
 
 field_type_lob:
-          TINYBLOB
+          TINYBLOB opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_tiny_blob);
           }
-        | BLOB_MARIADB_SYM opt_field_length
+        | BLOB_MARIADB_SYM opt_field_length opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_blob, $2);
           }
-        | BLOB_ORACLE_SYM opt_field_length
+        | BLOB_ORACLE_SYM opt_field_length opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_long_blob);
@@ -6988,36 +7001,36 @@ field_type_lob:
                               sym_group_geom.needed_define));
 #endif
           }
-        | MEDIUMBLOB
+        | MEDIUMBLOB opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_medium_blob);
           }
-        | LONGBLOB
+        | LONGBLOB opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_long_blob);
           }
-        | LONG_SYM VARBINARY
+        | LONG_SYM VARBINARY opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_medium_blob);
           }
-        | LONG_SYM varchar opt_binary
+        | LONG_SYM varchar opt_binary_and_compression
           { $$.set(&type_handler_medium_blob); }
-        | TINYTEXT opt_binary
+        | TINYTEXT opt_binary_and_compression
           { $$.set(&type_handler_tiny_blob); }
-        | TEXT_SYM opt_field_length opt_binary
+        | TEXT_SYM opt_field_length opt_binary_and_compression
           { $$.set(&type_handler_blob, $2); }
-        | MEDIUMTEXT opt_binary
+        | MEDIUMTEXT opt_binary_and_compression
           { $$.set(&type_handler_medium_blob); }
-        | LONGTEXT opt_binary
+        | LONGTEXT opt_binary_and_compression
           { $$.set(&type_handler_long_blob); }
-        | CLOB_ORACLE_SYM opt_binary
+        | CLOB_ORACLE_SYM opt_binary_and_compression
           { $$.set(&type_handler_long_blob); }
-        | LONG_SYM opt_binary
+        | LONG_SYM opt_binary_and_compression
           { $$.set(&type_handler_medium_blob); }
-        | JSON_SYM
+        | JSON_SYM opt_compressed
           {
             Lex->charset= &my_charset_utf8mb4_bin;
             $$.set(&type_handler_long_blob);
@@ -7157,13 +7170,9 @@ opt_precision:
         | precision      { $$= $1; }
         ;
 
-opt_attribute:
-          /* empty */ {}
-        | opt_attribute_list {}
-        ;
 
-opt_attribute_list:
-          opt_attribute_list attribute {}
+attribute_list:
+          attribute_list attribute {}
         | attribute
         ;
 
@@ -7191,17 +7200,42 @@ attribute:
                                 $2->name,Lex->charset->csname));
             Lex->last_field->charset= $2;
           }
-        | COMPRESSED_SYM opt_compression_method
-          {
-            if (unlikely(Lex->last_field->set_compressed($2)))
-              MYSQL_YYABORT;
-          }
         | serial_attribute
         ;
 
 opt_compression_method:
           /* empty */ { $$= NULL; }
         | equal ident { $$= $2.str; }
+        ;
+
+opt_compressed:
+          /* empty */ {}
+        | compressed { }
+        ;
+
+compressed:
+          COMPRESSED_SYM opt_compression_method
+          {
+            if (unlikely(Lex->last_field->set_compressed($2)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+compressed_deprecated_data_type_attribute:
+          COMPRESSED_SYM opt_compression_method
+          {
+            if (unlikely(Lex->last_field->set_compressed_deprecated(thd, $2)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+compressed_deprecated_column_attribute:
+          COMPRESSED_SYM opt_compression_method
+          {
+            if (unlikely(Lex->last_field->
+                set_compressed_deprecated_column_attribute(thd, $1.pos(), $2)))
+              MYSQL_YYABORT;
+          }
         ;
 
 asrow_attribute:
@@ -7375,7 +7409,11 @@ charset_or_alias:
 
 opt_binary:
           /* empty */             { bincmp_collation(NULL, false); }
-        | BYTE_SYM                { bincmp_collation(&my_charset_bin, false); }
+        | binary {}
+        ;
+
+binary:
+          BYTE_SYM                { bincmp_collation(&my_charset_bin, false); }
         | charset_or_alias opt_bin_mod { bincmp_collation($1, $2); }
         | BINARY                  { bincmp_collation(NULL, true); }
         | BINARY charset_or_alias { bincmp_collation($2, true); }
@@ -15648,6 +15686,7 @@ keyword_label:
         | keyword_sp_var_and_label
         | keyword_sysvar_type
         | FUNCTION_SYM
+        | COMPRESSED_SYM
         ;
 
 keyword_sysvar_name:
@@ -15717,6 +15756,7 @@ keyword_sp_var_not_label:
         | COLUMN_DELETE_SYM
         | COLUMN_GET_SYM
         | COMMENT_SYM
+        | COMPRESSED_SYM
         | DEALLOCATE_SYM
         | EXAMINED_SYM
         | EXCLUDE_SYM
@@ -15929,7 +15969,6 @@ keyword_sp_var_and_label:
         | COMMITTED_SYM
         | COMPACT_SYM
         | COMPLETION_SYM
-        | COMPRESSED_SYM
         | CONCURRENT
         | CONNECTION_SYM
         | CONSISTENT_SYM

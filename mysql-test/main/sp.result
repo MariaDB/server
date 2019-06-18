@@ -8814,4 +8814,31 @@ Note	1050	Table 't1' already exists
 drop procedure p4;
 drop table t1;
 set @@sql_mode=@save_sql_mode;
+#
+# MDEV-17363 Compressed columns cannot be restored from dump
+# COMPRESSED conflicted between data type and SP label,
+# so it's not allowed as an SP label any more.
+#
+CREATE FUNCTION f1() RETURNS TEXT COMPRESSED
+BEGIN
+RETURN '';
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS text  COMPRESSED CHARSET latin1
+BEGIN
+RETURN '';
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS TEXT
+COMPRESSED:
+BEGIN
+RETURN '';
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':
+BEGIN
+RETURN '';
+END' at line 2
 # End of 10.3 tests

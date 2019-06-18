@@ -4559,6 +4559,10 @@ public:
     *this= *def;
   }
   bool set_compressed(const char *method);
+  bool set_compressed_deprecated(THD *thd, const char *method);
+  bool set_compressed_deprecated_column_attribute(THD *thd,
+                                                  const char *pos,
+                                                  const char *method);
   void set_compression_method(Compression_method *compression_method_arg)
   { compression_method_ptr= compression_method_arg; }
   Compression_method *compression_method() const

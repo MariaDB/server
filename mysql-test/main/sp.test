@@ -10335,4 +10335,30 @@ drop procedure p4;
 drop table t1;
 set @@sql_mode=@save_sql_mode;
 
+--echo #
+--echo # MDEV-17363 Compressed columns cannot be restored from dump
+--echo # COMPRESSED conflicted between data type and SP label,
+--echo # so it's not allowed as an SP label any more.
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS TEXT COMPRESSED
+BEGIN
+  RETURN '';
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION f1;
+DROP FUNCTION f1;
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1() RETURNS TEXT
+COMPRESSED:
+BEGIN
+  RETURN '';
+END;
+$$
+DELIMITER ;$$
+
 --echo # End of 10.3 tests
