@@ -101,9 +101,9 @@
 #   * datadir
 #
 #
-# PRE-10.3
+# PRE-10.4
 #
-# Before 10.3 MYSQLD_MULTI_INSTANCE was effectively --defaults-file=@sysconf2dir@/my%I.cnf
+# Before 10.4 MYSQLD_MULTI_INSTANCE was effectively --defaults-file=@sysconf2dir@/my%I.cnf
 # As @sysconfdir@/my.cnf included these files it was a bad choice as an
 # existing single instance would include all these files. If you want to
 # continue a file based multi-instance mysqld, recommend the Configuration File
