@@ -360,7 +360,7 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
 {
   THD* const thd((THD*)ctx);
 
-  assert(meta->gtid.seqno == wsrep_thd_trx_seqno(thd));
+  assert(meta->gtid.seqno >= wsrep_thd_trx_seqno(thd));
 
   wsrep_cb_status_t rcode;
 
