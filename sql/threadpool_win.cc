@@ -425,19 +425,13 @@ int TP_pool_win::init()
     }
   }
 
-  /*
-    Control stack size (OS must be Win7 or later)
-  */
-  if (SetThreadpoolStackInformation)
+  TP_POOL_STACK_INFORMATION stackinfo;
+  stackinfo.StackCommit = 0;
+  stackinfo.StackReserve = (SIZE_T)my_thread_stack_size;
+  if (!SetThreadpoolStackInformation(pool, &stackinfo))
   {
-    TP_POOL_STACK_INFORMATION stackinfo;
-    stackinfo.StackCommit = 0;
-    stackinfo.StackReserve = (SIZE_T)my_thread_stack_size;
-    if (!SetThreadpoolStackInformation(pool, &stackinfo))
-    {
-      tp_log_warning("Can't set threadpool stack size",
-        "SetThreadpoolStackInformation");
-    }
+    tp_log_warning("Can't set threadpool stack size",
+      "SetThreadpoolStackInformation");
   }
   return 0;
 }
