@@ -2743,7 +2743,8 @@ int ha_maria::external_lock(THD *thd, int lock_type)
     }
     else
     {
-      TRN *trn= (file->trn != &dummy_transaction_object ? file->trn : 0);
+      /* We have to test for THD_TRN to protect against implicit commits */
+      TRN *trn= (file->trn != &dummy_transaction_object && THD_TRN ? file->trn : 0);
       /* End of transaction */
 
       /*
