@@ -1431,3 +1431,11 @@ extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 
 extern uint _ma_file_callback_to_id(void *callback_data);
+
+static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
+{
+#ifdef HAVE_MMAP
+  if (info->s->file_map)
+    _ma_unmap_file(info);
+#endif
+}

@@ -382,6 +382,9 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
         rgi_slave->is_parallel_exec &&
         wait_for_prior_commit())
       DBUG_RETURN(true);
+
+    if (!table && is_error())
+      DBUG_RETURN(true);                        // Error when opening table
   }
 
   if (!table)
@@ -1103,7 +1106,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
 
   if (open_table_from_share(this, share, alias,
                             open_in_engine ? (uint)HA_OPEN_KEYFILE : 0,
-                            EXTRA_RECORD, ha_open_options, table,
+                            EXTRA_RECORD, open_options | ha_open_options, table,
                             open_in_engine ? false : true))
   {
     my_free(table);

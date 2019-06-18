@@ -197,8 +197,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   info->forms= &info->table;		/* Only one table */
   info->addon_field= addon_field;
   
-  if ((table->s->tmp_table == INTERNAL_TMP_TABLE ||
-       table->s->tmp_table == NON_TRANSACTIONAL_TMP_TABLE) &&
+  if ((table->s->tmp_table == INTERNAL_TMP_TABLE) &&
       !addon_field)
     (void) table->file->extra(HA_EXTRA_MMAP);
   
