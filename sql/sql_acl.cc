@@ -5084,7 +5084,6 @@ GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
   update_hostname(&host, hostname);
 
   db=    get_field(&grant_memroot,form->field[1]);
-  sort=  get_magic_sort("hdu", host.hostname, db, user);
   tname= get_field(&grant_memroot,form->field[3]);
   if (!db || !tname)
   {
@@ -5092,6 +5091,7 @@ GRANT_NAME::GRANT_NAME(TABLE *form, bool is_routine)
     privs= 0;
     return;					/* purecov: inspected */
   }
+  sort=  get_magic_sort("hdu", host.hostname, db, user);
   if (lower_case_table_names)
   {
     my_casedn_str(files_charset_info, db);

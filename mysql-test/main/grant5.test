@@ -124,3 +124,10 @@ connection default;
 
 drop database mysqltest_1;
 drop user twg@'%';
+
+#
+# test the empty db case
+#
+insert mysql.tables_priv (host,db,user,table_name,grantor,table_priv) values ('localhost','','otto','t1','root@localhost','select');
+flush privileges;
+delete from mysql.tables_priv where db='';
