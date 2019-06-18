@@ -2664,6 +2664,8 @@ create:
           create_or_replace opt_temporary TABLE_SYM opt_if_not_exists
           {
             LEX *lex= thd->lex;
+            if (!(lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_create_table()))
+              MYSQL_YYABORT;
             lex->create_info.init();
             if (lex->main_select_push())
               MYSQL_YYABORT;
@@ -2691,24 +2693,16 @@ create:
           create_body
           {
             LEX *lex= thd->lex;
-            if ((lex->create_info.used_fields & HA_CREATE_USED_ENGINE) &&
-                !lex->create_info.db_type)
-            {
-              lex->create_info.use_default_db_type(thd);
-              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                  ER_WARN_USING_OTHER_HANDLER,
-                                  ER_THD(thd, ER_WARN_USING_OTHER_HANDLER),
-                                  hton_name(lex->create_info.db_type)->str,
-                                  $6->table.str);
-            }
             create_table_set_open_action_and_adjust_tables(lex);
             Lex->pop_select(); //main select
           }
        | create_or_replace opt_temporary SEQUENCE_SYM opt_if_not_exists table_ident
          {
            LEX *lex= thd->lex;
-           if (Lex->main_select_push())
+           if (lex->main_select_push())
              MYSQL_YYABORT;
+           if (!(lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_create_sequence()))
+              MYSQL_YYABORT;
            lex->create_info.init();
            if (unlikely(lex->set_command_with_check(SQLCOM_CREATE_SEQUENCE, $2,
                         $1 | $4)))
@@ -2754,16 +2748,6 @@ create:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= 1;
 
-            if ((lex->create_info.used_fields & HA_CREATE_USED_ENGINE) &&
-                !lex->create_info.db_type)
-            {
-              lex->create_info.use_default_db_type(thd);
-              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                  ER_WARN_USING_OTHER_HANDLER,
-                                  ER_THD(thd, ER_WARN_USING_OTHER_HANDLER),
-                                  hton_name(lex->create_info.db_type)->str,
-                                  $5->table.str);
-            }
             create_table_set_open_action_and_adjust_tables(lex);
             Lex->pop_select(); //main select
           }
@@ -6119,10 +6103,20 @@ create_table_options:
         ;
 
 create_table_option:
-          ENGINE_SYM opt_equal storage_engines
+          ENGINE_SYM opt_equal ident_or_text
           {
-            Lex->create_info.db_type= $3;
-            Lex->create_info.used_fields|= HA_CREATE_USED_ENGINE;
+            LEX *lex= Lex;
+            if (!lex->m_sql_cmd)
+            {
+              DBUG_ASSERT(lex->sql_command == SQLCOM_ALTER_TABLE);
+              if (!(lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table()))
+                MYSQL_YYABORT;
+            }
+            Storage_engine_name *opt=
+              lex->m_sql_cmd->option_storage_engine_name();
+            DBUG_ASSERT(opt); // Expect a proper Sql_cmd
+            *opt= Storage_engine_name($3);
+            lex->create_info.used_fields|= HA_CREATE_USED_ENGINE;
           }
         | MAX_ROWS opt_equal ulonglong_num
           {
@@ -6417,21 +6411,10 @@ default_collation:
 storage_engines:
           ident_or_text
           {
-            plugin_ref plugin= ha_resolve_by_name(thd, &$1,
-                                            thd->lex->create_info.tmp_table());
-
-            if (likely(plugin))
-              $$= plugin_hton(plugin);
-            else
-            {
-              if (thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
-                my_yyabort_error((ER_UNKNOWN_STORAGE_ENGINE, MYF(0), $1.str));
-              $$= 0;
-              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                  ER_UNKNOWN_STORAGE_ENGINE,
-                                  ER_THD(thd, ER_UNKNOWN_STORAGE_ENGINE),
-                                  $1.str);
-            }
+            if (Storage_engine_name($1).
+                 resolve_storage_engine_with_error(thd, &$$,
+                                            thd->lex->create_info.tmp_table()))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -8453,11 +8436,6 @@ alter_list_item:
           {
             LEX *lex=Lex;
             lex->alter_info.flags|= ALTER_OPTIONS;
-            if ((lex->create_info.used_fields & HA_CREATE_USED_ENGINE) &&
-                !lex->create_info.db_type)
-            {
-              lex->create_info.used_fields&= ~HA_CREATE_USED_ENGINE;
-            }
           }
         | FORCE_SYM
           {

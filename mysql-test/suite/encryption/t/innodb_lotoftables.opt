@@ -1,3 +1,0 @@
---innodb-tablespaces-encryption
---innodb-encrypt-tables=off
---innodb-encryption-threads=0

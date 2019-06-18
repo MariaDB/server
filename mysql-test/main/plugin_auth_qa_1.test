@@ -13,6 +13,10 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 # CREATE...WITH/CREATE...BY/GRANT
 CREATE USER plug_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
+GRANT PROXY ON `plug%dest` TO plug_user;
+--error 1
+--exec $MYSQL -S $MASTER_MYSOCK -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
+REVOKE PROXY ON `plug%dest` FROM plug_user;
 GRANT PROXY ON plug_dest TO plug_user;
 --replace_result $MASTER_MYSOCK MASTER_MYSOCK
 --exec $MYSQL -S $MASTER_MYSOCK -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1

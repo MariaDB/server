@@ -2,6 +2,7 @@ debian/additions/debian-start etc/mysql
 debian/additions/debian-start.inc.sh usr/share/mysql
 debian/additions/echo_stderr usr/share/mysql
 debian/additions/mysqld_safe_syslog.cnf etc/mysql/conf.d
+debian/additions/mysql.init usr/share/mysql
 etc/apparmor.d/usr.sbin.mysqld
 lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
 usr/bin/aria_chk
@@ -65,7 +66,16 @@ usr/share/man/man1/aria_pack.1
 usr/share/man/man1/aria_read_log.1
 usr/share/man/man1/galera_new_cluster.1
 usr/share/man/man1/galera_recovery.1
+usr/share/man/man1/mariadb-convert-table-format.1
+usr/share/man/man1/mariadb-hotcopy.1
+usr/share/man/man1/mariadb-secure-installation.1
 usr/share/man/man1/mariadb-service-convert.1
+usr/share/man/man1/mariadb-setpermission.1
+usr/share/man/man1/mariadb-show.1
+usr/share/man/man1/mariadb-tzinfo-to-sql.1
+usr/share/man/man1/mariadbd-multi.1
+usr/share/man/man1/mariadbd-safe-helper.1
+usr/share/man/man1/mariadbd-safe.1
 usr/share/man/man1/msql2mysql.1
 usr/share/man/man1/my_print_defaults.1
 usr/share/man/man1/myisam_ftdump.1
@@ -87,9 +97,9 @@ usr/share/man/man1/replace.1
 usr/share/man/man1/resolve_stack_dump.1
 usr/share/man/man1/resolveip.1
 usr/share/man/man1/wsrep_sst_common.1
+usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
-usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/mysql/errmsg-utf8.txt
 usr/share/mysql/fill_help_tables.sql
 usr/share/mysql/maria_add_gis_sp_bootstrap.sql

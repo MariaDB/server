@@ -223,7 +223,8 @@ static COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
                                            table_map used_table,
                                            int join_tab_idx_arg,
                                            bool exclude_expensive_cond,
-                                           bool retain_ref_cond);
+                                           bool retain_ref_cond,
+                                           bool is_top_and_level);
 
 static Item* part_of_refkey(TABLE *form,Field *field);
 uint find_shortest_key(TABLE *table, const key_map *usable_keys);
@@ -5471,7 +5472,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(TRUE); /* purecov: inspected */
 
   {
-    ha_rows records= 1;
+    double records= 1;
     SELECT_LEX_UNIT *unit= join->select_lex->master_unit();
 
     /* Find an optimal join order of the non-constant tables. */
@@ -5496,10 +5497,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         table/view.
       */
       for (i= 0; i < join->table_count ; i++)
-        records*= join->best_positions[i].records_read ?
-                  (ha_rows)join->best_positions[i].records_read : 1;
-      set_if_smaller(records, unit->select_limit_cnt);
-      join->select_lex->increase_derived_records(records);
+        if (double rr= join->best_positions[i].records_read)
+          records= COST_MULT(records, rr);
+      ha_rows rows= records > HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
+      set_if_smaller(rows, unit->select_limit_cnt);
+      join->select_lex->increase_derived_records(rows);
     }
   }
 
@@ -8803,18 +8805,23 @@ double JOIN::get_examined_rows()
 {
   double examined_rows;
   double prev_fanout= 1;
+  double records;
   JOIN_TAB *tab= first_breadth_first_tab();
   JOIN_TAB *prev_tab= tab;
 
-  examined_rows= (double)tab->get_examined_rows();
+  records= (double)tab->get_examined_rows();
 
   while ((tab= next_breadth_first_tab(first_breadth_first_tab(),
                                       top_join_tab_count, tab)))
   {
-    prev_fanout *= prev_tab->records_read;
-    examined_rows+= tab->get_examined_rows() * prev_fanout;
+    prev_fanout= COST_MULT(prev_fanout, prev_tab->records_read);
+    records=
+      COST_ADD(records,
+               COST_MULT((double) (tab->get_examined_rows()), prev_fanout));
     prev_tab= tab;
   }
+  examined_rows= (double)
+    (records > (double) HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records);
   return examined_rows;
 }
 
@@ -11178,12 +11185,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                      RAND_TABLE_BIT;
       }
 
-      /*
-	Following force including random expression in last table condition.
-	It solve problem with select like SELECT * FROM t1 WHERE rand() > 0.5
-      */
-      if (tab == join->join_tab + last_top_base_tab_idx)
-        current_map|= RAND_TABLE_BIT;
       used_tables|=current_map;
 
       if (tab->type == JT_REF && tab->quick &&
@@ -11228,6 +11229,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           tmp= make_cond_for_table(thd, cond, used_tables, current_map, i,
                                    FALSE, FALSE);
+          if (tab == join->join_tab + last_top_base_tab_idx)
+          {
+            /*
+              This pushes conjunctive conditions of WHERE condition such that:
+              - their used_tables() contain RAND_TABLE_BIT
+              - the conditions does not refer to any fields
+              (such like rand() > 0.5)
+            */
+            table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
+            COND *rand_cond= make_cond_for_table(thd, cond, used_tables,
+                                                 rand_table_bit, -1,
+                                                 FALSE, FALSE);
+            add_cond_and_fix(thd, &tmp, rand_cond);
+          }
         }
         /* Add conditions added by add_not_null_conds(). */
         if (tab->select_cond)
@@ -11568,6 +11583,21 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                               current_map,
                                               /*(inner_tab - first_tab)*/ -1,
 					      FALSE, FALSE);
+          if (tab == last_tab)
+          {
+            /*
+              This pushes conjunctive conditions of ON expression of an outer
+              join such that:
+              - their used_tables() contain RAND_TABLE_BIT
+              - the conditions does not refer to any fields
+              (such like rand() > 0.5)
+            */
+            table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
+            COND *rand_cond= make_cond_for_table(thd, on_expr, used_tables2,
+                                                 rand_table_bit, -1,
+                                                 FALSE, FALSE);
+            add_cond_and_fix(thd, &tmp_cond, rand_cond);
+          }
           bool is_sjm_lookup_tab= FALSE;
           if (inner_tab->bush_children)
           {
@@ -13243,6 +13273,8 @@ ha_rows JOIN_TAB::get_examined_rows()
   else
     examined_rows= records_read;
 
+  if (examined_rows >= (double) HA_ROWS_MAX)
+    return HA_ROWS_MAX;
   return (ha_rows) examined_rows;
 }
 
@@ -22023,7 +22055,7 @@ make_cond_for_table(THD *thd, Item *cond, table_map tables,
   return make_cond_for_table_from_pred(thd, cond, cond, tables, used_table,
                                        join_tab_idx_arg,
                                        exclude_expensive_cond,
-                                       retain_ref_cond);
+                                       retain_ref_cond, true);
 }
 
 
@@ -22033,9 +22065,12 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                               int join_tab_idx_arg,
                               bool exclude_expensive_cond __attribute__
                               ((unused)),
-                              bool retain_ref_cond)
+                              bool retain_ref_cond,
+                              bool is_top_and_level)
 
 {
+  table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
+
   if (used_table && !(cond->used_tables() & used_table))
     return (COND*) 0;				// Already checked
 
@@ -22051,11 +22086,28 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
       Item *item;
       while ((item=li++))
       {
+        /*
+          Special handling of top level conjuncts with RAND_TABLE_BIT:
+          if such a conjunct contains a reference to a field that is not
+          an outer field then it is pushed to the corresponding table by
+          the same rule as all other conjuncts. Otherwise, if the conjunct
+          is used in WHERE is is pushed to the last joined table, if is it
+          is used in ON condition of an outer join it is pushed into the
+          last inner table of the outer join. Such conjuncts are pushed in
+          a call of make_cond_for_table_from_pred() with the
+          parameter 'used_table' equal to PSEUDO_TABLE_BITS.
+        */
+        if (is_top_and_level && used_table == rand_table_bit &&
+            (item->used_tables() & ~OUTER_REF_TABLE_BIT) != rand_table_bit)
+        {
+          /* The conjunct with RAND_TABLE_BIT has been allready pushed */
+          continue;
+        }
 	Item *fix=make_cond_for_table_from_pred(thd, root_cond, item, 
                                                 tables, used_table,
-						join_tab_idx_arg,
+                                                join_tab_idx_arg,
                                                 exclude_expensive_cond,
-                                                retain_ref_cond);
+                                                retain_ref_cond, false);
 	if (fix)
 	  new_cond->argument_list()->push_back(fix, thd->mem_root);
       }
@@ -22080,6 +22132,13 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     }
     else
     {						// Or list
+      if (is_top_and_level && used_table == rand_table_bit &&
+          (cond->used_tables() & ~OUTER_REF_TABLE_BIT) != rand_table_bit)
+      {
+        /* This top level formula with RAND_TABLE_BIT has been already pushed */
+        return (COND*) 0;
+      }
+
       Item_cond_or *new_cond=new (thd->mem_root) Item_cond_or(thd);
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
@@ -22091,7 +22150,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                                                 tables, 0L,
                                                 join_tab_idx_arg,
                                                 exclude_expensive_cond,
-                                                retain_ref_cond);
+                                                retain_ref_cond, false);
 	if (!fix)
 	  return (COND*) 0;			// Always true
 	new_cond->argument_list()->push_back(fix, thd->mem_root);
@@ -22106,6 +22165,13 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
       new_cond->top_level_item();
       return new_cond;
     }
+  }
+
+  if (is_top_and_level && used_table == rand_table_bit &&
+      (cond->used_tables() & ~OUTER_REF_TABLE_BIT) != rand_table_bit)
+  {
+    /* This top level formula with RAND_TABLE_BIT has been already pushed */
+    return (COND*) 0;
   }
 
   /*
@@ -26141,10 +26207,10 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   }
   else
   {
-    double examined_rows= (double)get_examined_rows();
+    ha_rows examined_rows= get_examined_rows();
 
     eta->rows_set= true;
-    eta->rows= (ha_rows) examined_rows;
+    eta->rows= examined_rows;
 
     /* "filtered"  */
     float f= 0.0; 

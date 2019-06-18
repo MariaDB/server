@@ -4,6 +4,9 @@ User	plugin	authentication_string
 ========== test 1.1.3.2 ====================================
 CREATE USER plug_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
+GRANT PROXY ON `plug%dest` TO plug_user;
+ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using password: YES)
+REVOKE PROXY ON `plug%dest` FROM plug_user;
 GRANT PROXY ON plug_dest TO plug_user;
 current_user()
 plug_dest@%

@@ -4862,7 +4862,10 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
     break;
   default:
     // usual UNION
-    result->est_records+= records;
+    if (HA_ROWS_MAX - records > result->est_records)
+      result->est_records+= records;
+    else
+      result->est_records= HA_ROWS_MAX;
     break;
   }
 }

@@ -49,12 +49,13 @@ ENDMACRO()
 
 MACRO (MYSQL_USE_BUNDLED_SSL)
   SET(INC_DIRS
+    ${CMAKE_BINARY_DIR}/extra/wolfssl
     ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl
     ${CMAKE_SOURCE_DIR}/extra/wolfssl/wolfssl/wolfssl
   )
   SET(SSL_LIBRARIES  wolfssl wolfcrypt)
   SET(SSL_INCLUDE_DIRS ${INC_DIRS})
-  SET(SSL_DEFINES "-DHAVE_OPENSSL -DHAVE_WOLFSSL  -DOPENSSL_ALL -DWOLFSSL_MYSQL_COMPATIBLE -DWC_NO_HARDEN")
+  SET(SSL_DEFINES "-DHAVE_OPENSSL -DHAVE_WOLFSSL  -DWOLFSSL_USER_SETTINGS")
   SET(HAVE_ERR_remove_thread_state ON CACHE INTERNAL "wolfssl doesn't have ERR_remove_thread_state")
   SET(HAVE_EncryptAes128Ctr OFF CACHE INTERNAL "wolfssl does support AES-CTR, but differently from openssl")
   SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "wolfssl does not support AES-GCM")

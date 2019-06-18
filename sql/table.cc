@@ -1688,8 +1688,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   if (!share->table_charset)
   {
+    const CHARSET_INFO *cs= thd->variables.collation_database;
     /* unknown charset in frm_image[38] or pre-3.23 frm */
-    if (use_mb(default_charset_info))
+    if (use_mb(cs))
     {
       /* Warn that we may be changing the size of character columns */
       sql_print_warning("'%s' had no or invalid character set, "
@@ -1697,7 +1698,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                         "so character column sizes may have changed",
                         share->path.str);
     }
-    share->table_charset= default_charset_info;
+    share->table_charset= cs;
   }
 
   share->db_record_offset= 1;
@@ -3036,8 +3037,20 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (create_info->data_file_name || create_info->index_file_name)
     return 1;
   // ... engine
-  if (create_info->db_type && create_info->db_type != engine)
-    return 1;
+  DBUG_ASSERT(lex->m_sql_cmd);
+  if (lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
+  {
+    /*
+      TODO: we could just compare engine names here, without resolving.
+      But this optimization is too late for 10.1.
+    */
+    Storage_engine_name *opt= lex->m_sql_cmd->option_storage_engine_name();
+    DBUG_ASSERT(opt); // lex->m_sql_cmd must be an Sql_cmd_create_table instance
+    if (opt->resolve_storage_engine_with_error(thd, &create_info->db_type,
+                                               false) ||
+        (create_info->db_type && create_info->db_type != engine))
+      return 1;
+  }
   // ... WITH SYSTEM VERSIONING
   if (create_info->versioned())
     return 1;

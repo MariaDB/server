@@ -184,6 +184,12 @@ public:
 		ut_ad(page_no <= 0xFFFFFFFFU);
 	}
 
+	/** Set the FIL_NULL for the space and page_no */
+	void set_corrupt_id()
+	{
+		m_space = m_page_no = ULINT32_UNDEFINED;
+	}
+
 private:
 
 	/** Tablespace id. */

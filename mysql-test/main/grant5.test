@@ -86,3 +86,41 @@ select user,select_priv,plugin,authentication_string from mysql.user where user 
 
 # but they still can be dropped
 drop user u1@h, u2@h, u3@h, u4@h, u5@h, u6@h, u7@h, u8@h;
+
+#
+# MDEV-14735 better matching order for grants
+# MDEV-14732 mysql.db privileges evaluated on order of grants rather than hierarchically
+# MDEV-8269 Correct fix for Bug #20181776 :- ACCESS CONTROL DOESN'T MATCH MOST SPECIFIC HOST WHEN IT CONTAINS WILDCARD
+#
+create database mysqltest_1;
+create user twg@'%' identified by 'test';
+create table mysqltest_1.t1(id int);
+
+# MDEV-14732 test case
+grant create, drop on `mysqltest_1%`.* to twg@'%';
+grant all privileges on `mysqltest_1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+
+# prefix%suffix
+revoke all privileges, grant option from twg@'%';
+grant create, drop on `mysqlt%`.* to twg@'%';
+grant all privileges on `mysqlt%1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+
+# more specific can even have a shorter prefix
+revoke all privileges, grant option from twg@'%';
+grant create, drop on `mysqlt%`.* to twg@'%';
+grant all privileges on `%mysqltest_1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+
+drop database mysqltest_1;
+drop user twg@'%';

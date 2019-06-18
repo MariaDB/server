@@ -18,6 +18,7 @@ MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-329 : wsrep_local_replays not stable
 MW-336 : MDEV-13549 incorrect wait_condition for wsrep_slave_threads changes
 MW-360 : needs rewrite to be MariaDB gtid compatible
+MW-336 : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 MW-416 : MDEV-13549 Galera test failures
 MW-44 : MDEV-15809 Test failure on galera.MW-44
 galera_account_management : MariaDB 10.0 does not support ALTER USER
@@ -49,6 +50,7 @@ galera_var_node_address : MDEV-17151 Galera test failure
 galera_var_notify_cmd : MDEV-13549 Galera test failures
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
+galera_var_slave_threads : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 partition : MDEV-13549 regularly showing auto_increment mismatch
