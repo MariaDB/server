@@ -1,0 +1,3 @@
+--source include/have_innodb.inc
+
+SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;

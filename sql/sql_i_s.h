@@ -257,6 +257,13 @@ public:
 };
 
 
+class Float: public Type
+{
+public:
+  Float(uint length) :Type(MYSQL_TYPE_FLOAT, length, false) { }
+};
+
+
 
 class Column: public ST_FIELD_INFO
 {

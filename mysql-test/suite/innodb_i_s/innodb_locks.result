@@ -1,0 +1,14 @@
+SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_LOCKS;
+Table	Create Table
+INNODB_LOCKS	CREATE TEMPORARY TABLE `INNODB_LOCKS` (
+  `lock_id` varchar(81) NOT NULL DEFAULT '',
+  `lock_trx_id` varchar(18) NOT NULL DEFAULT '',
+  `lock_mode` varchar(32) NOT NULL DEFAULT '',
+  `lock_type` varchar(32) NOT NULL DEFAULT '',
+  `lock_table` varchar(1024) NOT NULL DEFAULT '',
+  `lock_index` varchar(1024) DEFAULT NULL,
+  `lock_space` bigint(21) unsigned DEFAULT NULL,
+  `lock_page` bigint(21) unsigned DEFAULT NULL,
+  `lock_rec` bigint(21) unsigned DEFAULT NULL,
+  `lock_data` varchar(8192) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8

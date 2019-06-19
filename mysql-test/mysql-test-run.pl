@@ -185,6 +185,7 @@ my @DEFAULT_SUITES= qw(
     innodb-
     innodb_fts-
     innodb_gis-
+    innodb_i_s-
     innodb_zip-
     json-
     maria-
