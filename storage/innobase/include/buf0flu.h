@@ -51,9 +51,9 @@ class ut_stage_alter_t;
 
 /** Handled page counters for a single flush */
 struct flush_counters_t {
-	ulong	flushed;	/*!< number of dirty pages flushed */
-	ulong	evicted;	/*!< number of clean pages evicted */
-	ulong	unzip_LRU_evicted;/*!< number of uncompressed page images
+	ulint	flushed;	/*!< number of dirty pages flushed */
+	ulint	evicted;	/*!< number of clean pages evicted */
+	ulint	unzip_LRU_evicted;/*!< number of uncompressed page images
 				evicted */
 };
 
