@@ -113,10 +113,7 @@ int maria_close(register MARIA_HA *info)
       if (flush_pagecache_blocks(share->pagecache, &share->kfile,
                         share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
         error= my_errno;
-#ifdef HAVE_MMAP
-      if (share->file_map)
-        _ma_unmap_file(info);
-#endif
+      unmap_file(info);
       if (((share->changed && share->base.born_transactional) ||
            maria_is_crashed(info) || (share->temporary && !share->deleting)))
       {

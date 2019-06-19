@@ -20,7 +20,7 @@ let $typec= VARCHAR(10000) COMPRESSED;
 let $typeu= VARCHAR(10000);
 --source column_compression.inc
 
-let $typec= TEXT CHARSET ucs2 COMPRESSED;
+let $typec= TEXT COMPRESSED CHARSET ucs2;
 let $typeu= TEXT;
 --source column_compression.inc
 
@@ -29,21 +29,25 @@ let $typec= BLOB COMPRESSED;
 let $typeu= BLOB;
 --source column_compression.inc
 
---error ER_WRONG_FIELD_SPEC
+--error ER_PARSE_ERROR
 CREATE TABLE t1(a CHAR(100) COMPRESSED);
 --error ER_WRONG_FIELD_SPEC
+CREATE TABLE t1(a CHAR(100) NOT NULL COMPRESSED);
+--error ER_PARSE_ERROR
 CREATE TABLE t1(a INT COMPRESSED);
 --error ER_UNKNOWN_COMPRESSION_METHOD
 CREATE TABLE t1(a BLOB COMPRESSED=unknown);
+--error ER_PARSE_ERROR
 CREATE TABLE t1(a BLOB COMPRESSED COMPRESSED);
-DROP TABLE t1;
 CREATE TABLE t1(a INT);
---error ER_WRONG_FIELD_SPEC
+--error ER_PARSE_ERROR
 ALTER TABLE t1 MODIFY a INT COMPRESSED;
+--error ER_WRONG_FIELD_SPEC
+ALTER TABLE t1 MODIFY a INT NOT NULL COMPRESSED;
 DROP TABLE t1;
 
 --echo # Test CSV
-CREATE TABLE t1(a BLOB NOT NULL COMPRESSED) ENGINE=CSV;
+CREATE TABLE t1(a BLOB COMPRESSED NOT NULL) ENGINE=CSV;
 INSERT INTO t1 VALUES(REPEAT('a', 110));
 SELECT LENGTH(a) FROM t1;
 ALTER TABLE t1 ENGINE=MyISAM;
@@ -153,8 +157,8 @@ DROP TABLE t1;
 
 CREATE TABLE t1
 (
-  a VARCHAR(10) CHARACTER SET latin1 COMPRESSED,
-  b VARCHAR(10) CHARACTER SET utf8 COMPRESSED
+  a VARCHAR(10) COMPRESSED CHARACTER SET latin1,
+  b VARCHAR(10) COMPRESSED CHARACTER SET utf8
 );
 SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH
 FROM INFORMATION_SCHEMA.COLUMNS
@@ -176,8 +180,78 @@ DROP TABLE t1;
 --echo # MDEV-16729 VARCHAR COMPRESSED is created with a wrong length for multi-byte character sets
 --echo #
 
-CREATE OR REPLACE TABLE t1 (a VARCHAR(1000) CHARACTER SET utf8 COMPRESSED);
+CREATE OR REPLACE TABLE t1 (a VARCHAR(1000) COMPRESSED CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17363 - Compressed columns cannot be restored from dump
+--echo #
+--error ER_WRONG_FIELD_SPEC
+CREATE TABLE t1(a INT NOT NULL COMPRESSED);
+SHOW WARNINGS;
+
+CREATE TABLE t1(
+  a JSON COMPRESSED,
+  b VARCHAR(1000) COMPRESSED BINARY,
+  c NVARCHAR(1000) COMPRESSED BINARY,
+  d TINYTEXT COMPRESSED BINARY
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # VARCHAR and TEXT variants
+--echo #
+
+--let type=VARCHAR(10)
+--source include/column_compression_syntax_varchar.inc
+
+--let type=TINYTEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=TEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=MEDIUMTEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=LONGTEXT
+--source include/column_compression_syntax_varchar.inc
+
+
+--echo #
+--echo # VARBINARY and BLOB variables
+--echo #
+
+--let type=VARCHAR(10)
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=TINYBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=BLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=MEDIUMBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=LONGBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+
+--echo #
+--echo # NVARCHAR
+--echo #
+
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED BINARY COMPRESSED);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);

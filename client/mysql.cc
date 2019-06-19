@@ -40,6 +40,7 @@
 #include "my_readline.h"
 #include <signal.h>
 #include <violite.h>
+#include <my_sys.h>
 #include <source_revision.h>
 #if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
 #include <locale.h>
@@ -4694,7 +4695,8 @@ sql_real_connect(char *host,char *database,char *user,char *password,
 	    select_limit,max_join_size);
     mysql_options(&mysql, MYSQL_INIT_COMMAND, init_command);
   }
-
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
   my_bool can_handle_expired= opt_connect_expired_password || !status.batch;

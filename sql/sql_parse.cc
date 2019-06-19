@@ -794,8 +794,6 @@ void init_update_queries(void)
     Note that SQLCOM_RENAME_TABLE should not be in this list!
   */
   sql_command_flags[SQLCOM_CREATE_TABLE]|=    CF_PREOPEN_TMP_TABLES;
-  sql_command_flags[SQLCOM_DROP_TABLE]|=      CF_PREOPEN_TMP_TABLES;
-  sql_command_flags[SQLCOM_DROP_SEQUENCE]|=   CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_CREATE_INDEX]|=    CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_ALTER_TABLE]|=     CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_TRUNCATE]|=        CF_PREOPEN_TMP_TABLES;
@@ -4799,7 +4797,14 @@ mysql_execute_command(THD *thd)
   case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_DROP_TABLE:
   {
+    int result;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
+
+    thd->open_options|= HA_OPEN_FOR_REPAIR;
+    result= thd->open_temporary_tables(all_tables);
+    thd->open_options&= ~HA_OPEN_FOR_REPAIR;
+    if (result)
+      goto error;
     if (!lex->tmp_table())
     {
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))

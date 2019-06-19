@@ -390,6 +390,9 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
         rgi_slave->is_parallel_exec &&
         wait_for_prior_commit())
       DBUG_RETURN(true);
+
+    if (!table && is_error())
+      DBUG_RETURN(true);                        // Error when opening table
   }
 
   if (!table)

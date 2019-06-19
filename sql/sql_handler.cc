@@ -681,7 +681,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
                 HA_ONLY_WHOLE_INDEX))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
-                 table->file->index_type(handler->keyno), keyinfo->name);
+                 table->file->index_type(handler->keyno), keyinfo->name.str);
         return 1;
       }
 
