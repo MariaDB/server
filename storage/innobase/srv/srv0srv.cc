@@ -1442,9 +1442,8 @@ srv_export_innodb_status(void)
 #endif
 
 	mutex_enter(&dict_sys.mutex);
-	export_vars.innodb_mem_dictionary = (dict_sys.table_hash->n_cells + 
-		dict_sys.table_id_hash->n_cells + dict_sys.get_temp_id_hash()->n_cells) 
-		* sizeof(hash_cell_t) + dict_sys_get_size();
+	export_vars.innodb_mem_dictionary = dict_sys.get_cells_size() + 
+		dict_sys_get_size();
 	mutex_exit(&dict_sys.mutex);
 
 	export_vars.innodb_s_lock_os_waits = rw_lock_stats.rw_s_os_wait_count;

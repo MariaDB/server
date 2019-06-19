@@ -1634,7 +1634,11 @@ public:
     rw_lock_x_unlock(&latch);
   }
 
-  inline hash_table_t* get_temp_id_hash() { return temp_id_hash; }
+  inline ulint get_cells_size() 
+  { 
+    return (table_hash->n_cells + table_id_hash->n_cells + 
+	  temp_id_hash->n_cells) * sizeof(hash_cell_t);
+  }
 };
 
 /** the data dictionary cache */
