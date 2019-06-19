@@ -545,7 +545,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
       /* Request removal of table from cache. */
       tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
                        table_list->db.str,
-                       table_list->table_name.str, FALSE);
+                       table_list->table_name.str);
       /* Reset ticket to satisfy asserts in open_tables(). */
       table_list->mdl_request.ticket= NULL;
     }

@@ -287,7 +287,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
   {
     DBUG_ASSERT(!thd->locked_tables_mode);
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
-                     ren_table->db.str, ren_table->table_name.str, false);
+                     ren_table->db.str, ren_table->table_name.str);
 
     if (hton != view_pseudo_hton)
     {

@@ -1158,7 +1158,7 @@ send_result_message:
       else if (open_for_modify || fatal_error)
       {
         tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
-                         table->db.str, table->table_name.str, FALSE);
+                         table->db.str, table->table_name.str);
         /*
           May be something modified. Consequently, we have to
           invalidate the query cache.

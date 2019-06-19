@@ -1004,47 +1004,6 @@ void tdc_release_share(TABLE_SHARE *share)
 
 
 /**
-   Auxiliary function which allows to kill delayed threads for
-   particular table identified by its share.
-
-   @param share Table share.
-
-   @pre Caller should have TABLE_SHARE::tdc.LOCK_table_share mutex.
-*/
-
-static void kill_delayed_threads_for_table(TDC_element *element)
-{
-  All_share_tables_list::Iterator it(element->all_tables);
-  TABLE *tab;
-
-  mysql_mutex_assert_owner(&element->LOCK_table_share);
-
-  if (!delayed_insert_threads)
-    return;
-
-  while ((tab= it++))
-  {
-    THD *in_use= tab->in_use;
-
-    DBUG_ASSERT(in_use && tab->s->tdc->flushed);
-    if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
-        ! in_use->killed)
-    {
-      in_use->killed= KILL_SYSTEM_THREAD;
-      mysql_mutex_lock(&in_use->mysys_var->mutex);
-      if (in_use->mysys_var->current_cond)
-      {
-        mysql_mutex_lock(in_use->mysys_var->current_mutex);
-        mysql_cond_broadcast(in_use->mysys_var->current_cond);
-        mysql_mutex_unlock(in_use->mysys_var->current_mutex);
-      }
-      mysql_mutex_unlock(&in_use->mysys_var->mutex);
-    }
-  }
-}
-
-
-/**
    Remove all or some (depending on parameter) instances of TABLE and
    TABLE_SHARE from the table definition cache.
 
@@ -1077,15 +1036,13 @@ static void kill_delayed_threads_for_table(TDC_element *element)
                                                 metadata lock on the table.
    @param  db           Name of database
    @param  table_name   Name of table
-   @param  kill_delayed_threads     If TRUE, kill INSERT DELAYED threads
 
    @note It assumes that table instances are already not used by any
    (other) thread (this should be achieved by using meta-data locks).
 */
 
 bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
-                      const char *db, const char *table_name,
-                      bool kill_delayed_threads)
+                      const char *db, const char *table_name)
 {
   Share_free_tables::List purge_tables;
   TABLE *table;
@@ -1128,9 +1085,6 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 
   tc_remove_all_unused_tables(element, &purge_tables,
                               remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE);
-
-  if (kill_delayed_threads)
-    kill_delayed_threads_for_table(element);
 
   if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
       remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
