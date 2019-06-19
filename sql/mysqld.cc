@@ -7050,16 +7050,6 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff,
-                               enum enum_var_type scope)
-{
-  var->type= SHOW_LONGLONG;
-  var->value= buff;
-  *((longlong *) buff)= (longlong)tdc_refresh_version();
-  return 0;
-}
-
-
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 
 /*
@@ -7439,7 +7429,6 @@ SHOW_VAR status_vars[]= {
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
   {"Feature_window_functions", (char*) offsetof(STATUS_VAR, feature_window_functions), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
-  {"Flush_commands",           (char*) &show_flush_commands, SHOW_SIMPLE_FUNC},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
   {"Handler_discover",         (char*) offsetof(STATUS_VAR, ha_discover_count), SHOW_LONG_STATUS},

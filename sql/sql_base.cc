@@ -1404,9 +1404,9 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 {
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_ASSERT(!table->s->tmp_table);
-  DBUG_PRINT("enter", ("table: '%s'  share: %p  db_stat: %u  version: %lld",
+  DBUG_PRINT("enter", ("table: '%s'  share: %p  db_stat: %u",
                        table->s->table_name.str, table->s,
-                       table->db_stat, table->s->tdc->version));
+                       table->db_stat));
 
   if (thd->mdl_context.upgrade_shared_lock(
              table->mdl_ticket, MDL_EXCLUSIVE,
@@ -2013,8 +2013,6 @@ retry_share:
   {
     if (share->tdc->flushed)
     {
-      DBUG_PRINT("info", ("Found old share version: %lld  current: %lld",
-                          share->tdc->version, tdc_refresh_version()));
       /*
         We already have an MDL lock. But we have encountered an old
         version of table in the table definition cache which is possible

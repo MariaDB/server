@@ -68,7 +68,6 @@ I_P_List <TDC_element,
           I_P_List_null_counter,
           I_P_List_fast_push_back<TDC_element> > unused_shares;
 
-static tdc_version_t tdc_version;  /* Increments on each reload */
 static bool tdc_inited;
 
 
@@ -624,7 +623,6 @@ bool tdc_init(void)
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
-  tdc_version= 1L;  /* Increments on each reload */
   lf_hash_init(&tdc_hash, sizeof(TDC_element) +
                           sizeof(Share_free_tables) * (tc_instances - 1),
                LF_HASH_UNIQUE, 0, 0,
@@ -850,7 +848,6 @@ retry:
     element->share= share;
     share->tdc= element;
     element->ref_count++;
-    element->version= tdc_refresh_version();
     element->flushed= false;
     mysql_mutex_unlock(&element->LOCK_table_share);
 
@@ -965,9 +962,9 @@ void tdc_release_share(TABLE_SHARE *share)
 
   mysql_mutex_lock(&share->tdc->LOCK_table_share);
   DBUG_PRINT("enter",
-             ("share: %p  table: %s.%s  ref_count: %u  version: %lld",
+             ("share: %p  table: %s.%s  ref_count: %u",
               share, share->db.str, share->table_name.str,
-              share->tdc->ref_count, share->tdc->version));
+              share->tdc->ref_count));
   DBUG_ASSERT(share->tdc->ref_count);
 
   if (share->tdc->ref_count > 1)
@@ -1217,7 +1214,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 */
 
 int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
-                             ulong wait_timeout, uint deadlock_weight, tdc_version_t refresh_version)
+                             ulong wait_timeout, uint deadlock_weight)
 {
   TDC_element *element;
 
@@ -1225,7 +1222,7 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
     return FALSE;
   else if (element == MY_ERRPTR)
     return TRUE;
-  else if (element->flushed && refresh_version > element->version)
+  else if (element->flushed)
   {
     struct timespec abstime;
     set_timespec(abstime, wait_timeout);
@@ -1233,20 +1230,6 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
   }
   tdc_unlock_share(element);
   return FALSE;
-}
-
-
-tdc_version_t tdc_refresh_version(void)
-{
-  return (tdc_version_t)my_atomic_load64_explicit(&tdc_version, MY_MEMORY_ORDER_RELAXED);
-}
-
-
-tdc_version_t tdc_increment_refresh_version(void)
-{
-  tdc_version_t v= (tdc_version_t)my_atomic_add64_explicit(&tdc_version, 1, MY_MEMORY_ORDER_RELAXED);
-  DBUG_PRINT("tcache", ("incremented global refresh_version to: %lld", v));
-  return v + 1;
 }
 
 

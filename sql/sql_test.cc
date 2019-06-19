@@ -110,8 +110,6 @@ static void print_cached_tables(void)
 
   tdc_iterate(0, (my_hash_walk_action) print_cached_tables_callback, NULL, true);
 
-  printf("\nCurrent refresh version: %ld\n",
-         (long) tdc_refresh_version());
   fflush(stdout);
   /* purecov: end */
   return;
