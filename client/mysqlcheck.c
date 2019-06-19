@@ -440,8 +440,10 @@ static int get_options(int *argc, char ***argv)
     else
       default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
   }
-  if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
-      !get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(MY_WME)))
+  if (!strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
+
+  if (!get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(MY_WME)))
   {
     printf("Unsupported character set: %s\n", default_charset);
     DBUG_RETURN(1);

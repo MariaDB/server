@@ -3464,8 +3464,6 @@ restart:
         pagecache_pthread_mutex_lock(&pagecache->cache_lock);
 #endif
       }
-      if (status & PCBLOCK_ERROR)
-        my_errno= block->error;
     }
 
     remove_reader(block);
@@ -3497,6 +3495,7 @@ restart:
 
     if (status & PCBLOCK_ERROR)
     {
+      my_errno= block->error;
       DBUG_ASSERT(my_errno != 0);
       DBUG_PRINT("error", ("Got error %d when doing page read", my_errno));
       DBUG_RETURN((uchar *) 0);

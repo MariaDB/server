@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016 MariaDB Corporation
+  Copyright (c) 2016, 2019, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -395,6 +395,9 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
         rgi_slave->is_parallel_exec &&
         wait_for_prior_commit())
       DBUG_RETURN(true);
+
+    if (!table && is_error())
+      DBUG_RETURN(true);                        // Error when opening table
   }
 
   if (!table)

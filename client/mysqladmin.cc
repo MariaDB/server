@@ -26,6 +26,7 @@
 #include <welcome_copyright_notice.h>
 #include <my_rnd.h>
 #include <password.h>
+#include <my_sys.h>
 
 #define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
@@ -371,6 +372,8 @@ int main(int argc,char *argv[])
   if (shared_memory_base_name)
     mysql_options(&mysql,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
 #endif
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
   error_flags= (myf)(opt_nobeep ? 0 : ME_BELL);
 

@@ -11029,6 +11029,41 @@ void ha_rocksdb::read_thd_vars(THD *const thd) {
   m_checksums_pct = THDVAR(thd, checksums_pct);
 }
 
+ulonglong ha_rocksdb::table_flags() const
+{
+  DBUG_ENTER_FUNC();
+
+  /*
+    HA_BINLOG_STMT_CAPABLE
+    Upstream:  MyRocks advertises itself as it supports SBR, but has additional
+      checks in ha_rocksdb::external_lock()/ start_stmt() which will return an
+      error if one tries to run the statement.
+      Exceptions: @@rocksdb_unsafe_for_binlog or we are an SQL slave thread.
+
+    MariaDB: Inform the upper layer we don't support SBR, so it switches to RBR
+      if possible. The exceptions are the same as with the upstream.
+
+    HA_REC_NOT_IN_SEQ
+      If we don't set it, filesort crashes, because it assumes rowids are
+      1..8 byte numbers
+    HA_PRIMARY_KEY_IN_READ_INDEX
+      This flag is always set, even for tables that:
+      - have no PK
+      - have some (or all) of PK that can't be decoded from the secondary
+        index.
+  */
+  THD *thd= ha_thd();
+  DBUG_RETURN(HA_BINLOG_ROW_CAPABLE |
+              ((thd && (THDVAR(thd, unsafe_for_binlog) ||thd->rgi_slave))?
+                HA_BINLOG_STMT_CAPABLE : 0) |
+              HA_REC_NOT_IN_SEQ | HA_CAN_INDEX_BLOBS |
+              HA_PRIMARY_KEY_IN_READ_INDEX |
+              HA_PRIMARY_KEY_REQUIRED_FOR_POSITION | HA_NULL_IN_KEY |
+              HA_PARTIAL_COLUMN_READ |
+              HA_TABLE_SCAN_ON_INDEX);
+}
+
+
 
 /**
   @return
@@ -11041,6 +11076,9 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
   DBUG_ASSERT(thd != nullptr);
 
   int res = HA_EXIT_SUCCESS;
+#if 0
+  // MariaDB uses a different way to implement this, see ha_rocksdb::table_flags
+
   int binlog_format = my_core::thd_binlog_format(thd);
   bool unsafe_for_binlog = THDVAR(ha_thd(), unsafe_for_binlog);
 
@@ -11069,6 +11107,7 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
     my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
   }
+#endif
 
   if (lock_type == F_UNLCK) {
     Rdb_transaction *const tx = get_tx_from_thd(thd);
@@ -11170,20 +11209,6 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
 
 int ha_rocksdb::start_stmt(THD *const thd, thr_lock_type lock_type) {
   DBUG_ENTER_FUNC();
-
-  /*
-    MariaDB: the following is a copy of the check in ha_rocksdb::external_lock:
-  */
-  int binlog_format = my_core::thd_binlog_format(thd);
-  bool unsafe_for_binlog = THDVAR(ha_thd(), unsafe_for_binlog);
-  if (lock_type >= TL_WRITE_ALLOW_WRITE &&
-      !thd->rgi_slave && !unsafe_for_binlog &&
-      binlog_format != BINLOG_FORMAT_ROW &&
-      binlog_format != BINLOG_FORMAT_UNSPEC &&
-      my_core::thd_binlog_filter_ok(thd)) {
-    my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
-    DBUG_RETURN(HA_ERR_UNSUPPORTED);
-  }
 
   DBUG_ASSERT(thd != nullptr);
 
