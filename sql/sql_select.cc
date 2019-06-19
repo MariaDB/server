@@ -1570,16 +1570,7 @@ int JOIN::optimize()
 {
   int res= 0;
   join_optimization_state init_state= optimization_state;
-  if (select_lex->pushdown_select)
-  {
-    if (!(select_options & SELECT_DESCRIBE))
-    {
-      /* Prepare to execute the query pushed into a foreign engine */
-      res= select_lex->pushdown_select->init();
-    }
-    with_two_phase_optimization= false;
-  }
-  else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
+  if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
     res= optimize_stage2();
   else
   {
@@ -1589,6 +1580,17 @@ int JOIN::optimize()
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
     res= optimize_inner();
   }
+
+  if (select_lex->pushdown_select)
+  {
+    if (!(select_options & SELECT_DESCRIBE))
+    {
+      /* Prepare to execute the query pushed into a foreign engine */
+      res= select_lex->pushdown_select->init();
+    }
+    with_two_phase_optimization= false;
+  }
+
   if (!with_two_phase_optimization ||
       init_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
   {
@@ -28551,7 +28553,7 @@ select_handler *SELECT_LEX::find_select_handler(THD *thd)
       return 0;
   if (master_unit()->outer_select())
     return 0;
-  for (TABLE_LIST *tbl= join->tables_list; tbl; tbl= tbl->next_local)
+  for (TABLE_LIST *tbl= join->tables_list; tbl; tbl= tbl->next_global)
   {
     if (!tbl->table)
       continue;
