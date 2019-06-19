@@ -148,7 +148,7 @@ int st_clustrixdb_trx::begin_trans()
 /****************************************************************************
 ** Utility functions
 ****************************************************************************/
-// This is a wastefull aproach but better then fixed sized buffer.RALLEL
+// This is a wastefull aproach but better then fixed sized buffer.
 size_t estimate_row_size(TABLE *table)
 {
   size_t row_size = 0;
@@ -159,6 +159,22 @@ size_t estimate_row_size(TABLE *table)
     row_size += field->max_data_length();
   }
   return row_size;
+}
+
+/**
+ * @brief
+ *   Decodes object name.
+ *
+ * @details
+ *   Replaces the encoded object name in the path with a decoded variant,
+ *   e.g if path contains ./test/d@0024. This f() makes it ./test/d$
+ *
+ *   Used in delete and rename DDL processing.
+ **/
+void decode_objectname(char *buf, const char *path, size_t buf_size)
+{
+    size_t new_path_len = filename_to_tablename(path, buf, buf_size);
+    buf[new_path_len] = '\0';
 }
 
 /****************************************************************************
@@ -220,7 +236,7 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   return error_code;
 }
 
-int ha_clustrixdb::delete_table(const char *name)
+int ha_clustrixdb::delete_table(const char *path)
 {
   int error_code;
   THD *thd = ha_thd();
@@ -228,21 +244,62 @@ int ha_clustrixdb::delete_table(const char *name)
   if (!trx)
     return error_code;
 
-  // This block isn't UTF aware yet.
   // The format contains './' in the beginning of a path.
-  char *dbname_end = (char*) name + 2;
+  char *dbname_end = (char*) path + 2;
   while (*dbname_end != '/')
     dbname_end++;
 
+  char decoded_tbname[FN_REFLEN];
+  decode_objectname(decoded_tbname, dbname_end + 1, FN_REFLEN);
+  
   String delete_cmd;
   delete_cmd.append("DROP TABLE `");
-  delete_cmd.append(name + 2, dbname_end - name - 2);
+  delete_cmd.append(path + 2, dbname_end - path - 2);
   delete_cmd.append("`.`");
-  delete_cmd.append(dbname_end + 1);
+  delete_cmd.append(decoded_tbname);
   delete_cmd.append("`");
+
 
   return trx->clustrix_net->delete_table(delete_cmd);
 }
+
+int ha_clustrixdb::rename_table(const char* from, const char* to) 
+{
+  int error_code;
+  THD *thd = ha_thd();
+  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  if (!trx)
+    return error_code;
+
+  // The format contains './' in the beginning of a path.
+  char *from_dbname_end = (char*) from + 2;
+  while (*from_dbname_end != '/')
+    from_dbname_end++;
+
+  char decoded_from_tbname[FN_REFLEN];
+  decode_objectname(decoded_from_tbname, from_dbname_end + 1, FN_REFLEN);
+
+  char *to_dbname_end = (char*) to + 2;
+  while (*to_dbname_end != '/')
+    to_dbname_end++;
+
+  char decoded_to_tbname[FN_REFLEN];
+  decode_objectname(decoded_to_tbname, to_dbname_end + 1, FN_REFLEN);
+ 
+  String rename_cmd;
+  rename_cmd.append("RENAME TABLE `");
+  rename_cmd.append(from + 2, from_dbname_end - from - 2);
+  rename_cmd.append("`.`");
+  rename_cmd.append(decoded_from_tbname);
+  rename_cmd.append("` TO `");
+  rename_cmd.append(to + 2, to_dbname_end - to - 2);
+  rename_cmd.append("`.`");
+  rename_cmd.append(decoded_to_tbname);
+  rename_cmd.append("`;");
+
+  return trx->clustrix_net->rename_table(rename_cmd);
+}
+
 
 int ha_clustrixdb::open(const char *name, int mode, uint test_if_locked)
 {

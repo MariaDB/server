@@ -63,6 +63,7 @@ public:
   ~ha_clustrixdb();
   int create(const char *name, TABLE *form, HA_CREATE_INFO *info);
   int delete_table(const char *name);
+  int rename_table(const char* from, const char* to);
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   int reset();
