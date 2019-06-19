@@ -1068,6 +1068,13 @@ struct export_var_t{
 	ulint innodb_scrub_page_split_failures_missing_index;
 	ulint innodb_scrub_page_split_failures_unknown;
 	int64_t innodb_scrub_log;
+
+	ib_int64_t innodb_s_lock_os_waits;
+	ib_int64_t innodb_s_lock_spin_rounds;
+	ib_int64_t innodb_s_lock_spin_waits;
+	ib_int64_t innodb_x_lock_os_waits;
+	ib_int64_t innodb_x_lock_spin_rounds;
+	ib_int64_t innodb_x_lock_spin_waits;
 };
 
 /** Thread slot in the thread table.  */
