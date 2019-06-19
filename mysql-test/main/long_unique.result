@@ -184,8 +184,8 @@ t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `db_row_hash_1` int(11) DEFAULT NULL,
-  UNIQUE KEY `a` (`a`) USING HASH,
-  UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`)
+  UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
+  UNIQUE KEY `a` (`a`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values(45,1,55),(46,1,55);
 ERROR 23000: Duplicate entry '55' for key 'db_row_hash_1'
@@ -507,13 +507,13 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_1` int(11) DEFAULT NULL,
   `db_row_hash_2` int(11) DEFAULT NULL,
   `db_row_hash_3` int(11) DEFAULT NULL,
+  UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
+  UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
+  UNIQUE KEY `db_row_hash_3` (`db_row_hash_3`),
   UNIQUE KEY `a` (`a`) USING HASH,
   UNIQUE KEY `c` (`c`) USING HASH,
   UNIQUE KEY `d` (`d`) USING HASH,
-  UNIQUE KEY `e` (`e`) USING HASH,
-  UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
-  UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
-  UNIQUE KEY `db_row_hash_3` (`db_row_hash_3`)
+  UNIQUE KEY `e` (`e`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t1 add column db_row_hash_7 int, add column db_row_hash_5 int , add column db_row_hash_4 int ;
 alter table t1 drop column db_row_hash_7,drop column db_row_hash_3, drop column db_row_hash_4;
@@ -543,17 +543,17 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_1` int(11) DEFAULT NULL,
   `db_row_hash_2` int(11) DEFAULT NULL,
   `db_row_hash_5` int(11) DEFAULT NULL,
-  UNIQUE KEY `d` (`d`) USING HASH,
-  UNIQUE KEY `e` (`e`) USING HASH,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
-  UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`)
+  UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
+  UNIQUE KEY `d` (`d`) USING HASH,
+  UNIQUE KEY `e` (`e`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
 #add column with unique index on blob;
 alter table t1 add column a blob unique;
 show create table t1;
@@ -567,18 +567,18 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_2` int(11) DEFAULT NULL,
   `db_row_hash_5` int(11) DEFAULT NULL,
   `a` blob DEFAULT NULL,
-  UNIQUE KEY `d` (`d`) USING HASH,
-  UNIQUE KEY `e` (`e`) USING HASH,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
+  UNIQUE KEY `d` (`d`) USING HASH,
+  UNIQUE KEY `e` (`e`) USING HASH,
   UNIQUE KEY `a` (`a`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
 #try to change the blob unique column name;
 #this will change index to b tree;
@@ -594,19 +594,19 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_2` int(11) DEFAULT NULL,
   `db_row_hash_5` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
-  UNIQUE KEY `d` (`d`) USING HASH,
-  UNIQUE KEY `e` (`e`),
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
-  UNIQUE KEY `a` (`a`)
+  UNIQUE KEY `e` (`e`),
+  UNIQUE KEY `a` (`a`),
+  UNIQUE KEY `d` (`d`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
 alter table t1 add column clm1 blob unique,add column clm2 blob unique;
 #try changing the name; 
 alter table t1 change column clm1 clm_changed1 blob, change column clm2 clm_changed2 blob;
@@ -623,21 +623,21 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `clm_changed1` blob DEFAULT NULL,
   `clm_changed2` blob DEFAULT NULL,
-  UNIQUE KEY `d` (`d`) USING HASH,
-  UNIQUE KEY `e` (`e`),
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
+  UNIQUE KEY `e` (`e`),
   UNIQUE KEY `a` (`a`),
+  UNIQUE KEY `d` (`d`) USING HASH,
   UNIQUE KEY `clm1` (`clm_changed1`) USING HASH,
   UNIQUE KEY `clm2` (`clm_changed2`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
 t1	0	clm1	1	clm_changed1	A	NULL	NULL	NULL	YES	HASH		
 t1	0	clm2	1	clm_changed2	A	NULL	NULL	NULL	YES	HASH		
 #now drop the unique key;
@@ -655,19 +655,19 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `clm_changed1` blob DEFAULT NULL,
   `clm_changed2` blob DEFAULT NULL,
-  UNIQUE KEY `d` (`d`) USING HASH,
-  UNIQUE KEY `e` (`e`),
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
-  UNIQUE KEY `a` (`a`)
+  UNIQUE KEY `e` (`e`),
+  UNIQUE KEY `a` (`a`),
+  UNIQUE KEY `d` (`d`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
 drop table t1;
 #now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
@@ -1130,17 +1130,17 @@ t1	CREATE TABLE `t1` (
   `c` blob DEFAULT NULL,
   `d` blob DEFAULT NULL,
   `e` int(11) DEFAULT NULL,
+  UNIQUE KEY `e` (`e`),
   UNIQUE KEY `a` (`a`,`c`) USING HASH,
-  UNIQUE KEY `b` (`b`,`d`) USING HASH,
-  UNIQUE KEY `e` (`e`)
+  UNIQUE KEY `b` (`b`,`d`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
 t1	0	a	2	c	A	NULL	NULL	NULL	YES	HASH		
 t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
 t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	0	NULL	NULL	YES	BTREE		
 drop table t1;
 #visibility of db_row_hash 
 create table t1 (a blob unique , b blob unique);
