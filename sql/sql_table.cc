@@ -2773,6 +2773,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   - UNIQUE keys where all column are NOT NULL
   - UNIQUE keys that don't contain partial segments
   - Other UNIQUE keys
+  - LONG UNIQUE keys
   - Normal keys
   - Fulltext keys
 
@@ -2795,6 +2796,14 @@ static int sort_keys(KEY *a, KEY *b)
   if (a_flags & HA_NOSAME)
   {
     if (!(b_flags & HA_NOSAME))
+      return -1;
+    /*
+      Long Unique keys should always be last unique key.
+      Before this patch they used to change order wrt to partial keys (MDEV-19049)
+    */
+    if (a->algorithm == HA_KEY_ALG_LONG_HASH)
+      return 1;
+    if (b->algorithm == HA_KEY_ALG_LONG_HASH)
       return -1;
     if ((a_flags ^ b_flags) & HA_NULL_PART_KEY)
     {
