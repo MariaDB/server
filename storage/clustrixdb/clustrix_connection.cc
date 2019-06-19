@@ -19,7 +19,7 @@ extern char *clustrix_password;
 extern uint clustrix_port;
 extern char *clustrix_socket;
 
-static const char charset_name[] = "latin1";
+static const char charset_name[] = "utf8";
 
 enum clustrix_commands {
   CLUSTRIX_WRITE_ROW = 1,
@@ -188,6 +188,14 @@ int clustrix_connection::create_table(String &stmt)
 }
 
 int clustrix_connection::delete_table(String &stmt)
+{
+  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
+  if (error_code)
+    return mysql_errno(&clustrix_net);
+  return error_code;
+}
+
+int clustrix_connection::rename_table(String &stmt)
 {
   int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
   if (error_code)
@@ -398,7 +406,8 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
 {
   DBUG_ENTER("clustrix_connection::discover_table_details");
   int error_code = 0;
-  MYSQL_RES *results = NULL;
+  MYSQL_RES *results_oid = NULL;
+  MYSQL_RES *results_create = NULL;
   MYSQL_ROW row;
   String get_oid, show;
 
@@ -411,6 +420,7 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
   get_oid.append("' and r.name = '");
   get_oid.append(name);
   get_oid.append("'");
+
   if (mysql_real_query(&clustrix_net, get_oid.c_ptr(), get_oid.length())) {
     if ((error_code = mysql_errno(&clustrix_net))) {
       DBUG_PRINT("mysql_real_query returns ", ("%d", error_code));
@@ -419,17 +429,17 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
     }
   }
 
-  results = mysql_store_result(&clustrix_net);
+  results_oid = mysql_store_result(&clustrix_net);
   DBUG_PRINT("oid results",
-             ("rows: %llu, fields: %u", mysql_num_rows(results),
-              mysql_num_fields(results)));
+             ("rows: %llu, fields: %u", mysql_num_rows(results_oid),
+              mysql_num_fields(results_oid)));
 
-  if (mysql_num_rows(results) != 1) {
+  if (mysql_num_rows(results_oid) != 1) {
     error_code = HA_ERR_NO_SUCH_TABLE;
     goto error;
   }
 
-  while((row = mysql_fetch_row(results))) {
+  while((row = mysql_fetch_row(results_oid))) {
     DBUG_PRINT("row", ("%s", row[0]));
     uchar *to = (uchar*)alloc_root(&share->mem_root, strlen(row[0]) + 1);
     if (!to) {
@@ -441,8 +451,6 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
     share->tabledef_version.str = to;
     share->tabledef_version.length = strlen(row[0]);
   }
-
-  mysql_free_result(results);
 
   /* get show create statement */
   show.append("show create table ");
@@ -457,30 +465,33 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
     }
   }
 
-  results = mysql_store_result(&clustrix_net);
+  results_create = mysql_store_result(&clustrix_net);
   DBUG_PRINT("show table results",
-             ("rows: %llu, fields: %u", mysql_num_rows(results),
-              mysql_num_fields(results)));
+             ("rows: %llu, fields: %u", mysql_num_rows(results_create),
+              mysql_num_fields(results_create)));
 
-  if (mysql_num_rows(results) != 1) {
+  if (mysql_num_rows(results_create) != 1) {
     error_code = HA_ERR_NO_SUCH_TABLE;
     goto error;
   }
 
-  if (mysql_num_fields(results) != 2) {
+  if (mysql_num_fields(results_create) != 2) {
     error_code = HA_ERR_CORRUPT_EVENT;
     goto error;
   }
 
-  while((row = mysql_fetch_row(results))) {
+  while((row = mysql_fetch_row(results_create))) {
     DBUG_PRINT("row", ("%s - %s", row[0], row[1]));
     error_code = share->init_from_sql_statement_string(thd, false, row[1],
                                                        strlen(row[1]));
   }
 
 error:
-  if (results)
-    mysql_free_result(results);
+  if (results_oid)
+    mysql_free_result(results_oid);
+
+  if (results_create)
+    mysql_free_result(results_create);
   DBUG_RETURN(error_code);
 }
 
