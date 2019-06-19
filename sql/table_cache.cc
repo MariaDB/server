@@ -323,12 +323,12 @@ static my_bool tc_purge_callback(TDC_element *element, tc_purge_arg *arg)
 }
 
 
-void tc_purge(bool mark_flushed)
+void tc_purge()
 {
   tc_purge_arg argument;
   TABLE *table;
 
-  argument.mark_flushed= mark_flushed;
+  argument.mark_flushed= false;
   tdc_iterate(0, (my_hash_walk_action) tc_purge_callback, &argument);
   while ((table= argument.purge_tables.pop_front()))
     intern_close_table(table);
@@ -655,7 +655,7 @@ void tdc_start_shutdown(void)
     tdc_size= 0;
     tc_size= 0;
     /* Free all cached but unused TABLEs and TABLE_SHAREs. */
-    purge_tables(true);
+    purge_tables();
   }
   DBUG_VOID_RETURN;
 }

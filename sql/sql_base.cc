@@ -311,13 +311,9 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 
 /**
    Close all tables that are not in use in table definition cache
-
-   @param purge_flag  Argument for tc_purge. true if we should force all
-                      shares to be deleted. false if it's enough to just
-                      evict those that are not in use.
 */
 
-void purge_tables(bool purge_flag)
+void purge_tables()
 {
   /*
     Force close of all open tables.
@@ -331,7 +327,7 @@ void purge_tables(bool purge_flag)
     Get rid of all unused TABLE and TABLE_SHARE instances. By doing
     this we automatically close all tables which were marked as "old".
   */
-  tc_purge(purge_flag);
+  tc_purge();
   /* Free table shares which were not freed implicitly by loop above. */
   tdc_purge(true);
 }
@@ -360,7 +356,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
   if (!tables)
   {
     /* Free tables that are not used */
-    purge_tables(false);
+    purge_tables();
     if (!wait_for_refresh)
       DBUG_RETURN(false);
   }
@@ -561,7 +557,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   flush_tables_error_handler error_handler;
   DBUG_ENTER("flush_tables");
 
-  purge_tables(false);  /* Flush unused tables and shares */
+  purge_tables();  /* Flush unused tables and shares */
 
   /*
     Loop over all shares and collect shares that have open tables

@@ -91,7 +91,7 @@ extern int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                        bool no_dups= false);
 
 extern uint tc_records(void);
-extern void tc_purge(bool mark_flushed= false);
+extern void tc_purge();
 extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);
 extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);

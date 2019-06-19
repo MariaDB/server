@@ -204,7 +204,7 @@ static bool backup_flush(THD *thd)
     Free unused tables and table shares so that mariabackup knows what
     is safe to copy
   */
-  tc_purge(false);
+  tc_purge();
   tdc_purge(true);
 
   DBUG_RETURN(0);
