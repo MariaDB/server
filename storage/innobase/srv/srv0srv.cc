@@ -452,7 +452,7 @@ ulong		srv_main_active_loops;
 /** Iterations of the loop bounded by the 'srv_idle' label. */
 ulong		srv_main_idle_loops;
 /** Iterations of the loop bounded by the 'srv_shutdown' label. */
-static ulint		srv_main_shutdown_loops;
+static ulong		srv_main_shutdown_loops;
 /** Log writes involving flush. */
 ulong		srv_log_writes_and_flush;
 
@@ -678,9 +678,9 @@ srv_print_master_thread_info(
 /*=========================*/
 	FILE  *file)    /* in: output stream */
 {
-	fprintf(file, "srv_master_thread loops: " ULINTPF " srv_active, "
-		ULINTPF " srv_shutdown, " ULINTPF " srv_idle\n"
-		"srv_master_thread log flush and writes: " ULINTPF "\n",
+	fprintf(file, "srv_master_thread loops: " UINT32PF " srv_active, "
+		UINT32PF " srv_shutdown, " UINT32PF " srv_idle\n"
+		"srv_master_thread log flush and writes: " UINT32PF "\n",
 		srv_main_active_loops,
 		srv_main_shutdown_loops,
 		srv_main_idle_loops,
