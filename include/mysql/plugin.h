@@ -175,7 +175,7 @@ enum enum_mysql_show_type
   SHOW_ULONGLONG, SHOW_CHAR, SHOW_CHAR_PTR,
   SHOW_ARRAY, SHOW_FUNC, SHOW_DOUBLE,
   SHOW_SINT, SHOW_SLONG, SHOW_SLONGLONG, SHOW_SIMPLE_FUNC,
-  SHOW_always_last
+  SHOW_SIZE_T, SHOW_always_last
 };
 
 /* backward compatibility mapping. */
