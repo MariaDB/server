@@ -640,6 +640,8 @@ char *compression_types_val=
   const_cast<char*>(get_rocksdb_supported_compression_types());
 static unsigned long rocksdb_write_policy =
     rocksdb::TxnDBWritePolicy::WRITE_COMMITTED;
+
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
 char *rocksdb_read_free_rpl_tables;
 std::mutex rocksdb_read_free_rpl_tables_mutex;
 #if defined(HAVE_PSI_INTERFACE)
@@ -649,6 +651,8 @@ Regex_list_handler rdb_read_free_regex_handler;
 #endif
 enum read_free_rpl_type { OFF = 0, PK_ONLY, PK_SK };
 static unsigned long rocksdb_read_free_rpl = read_free_rpl_type::OFF;
+#endif
+
 static my_bool rocksdb_error_on_suboptimal_collation = 1;
 static uint32_t rocksdb_stats_recalc_rate = 0;
 static uint32_t rocksdb_debug_manual_compaction_delay = 0;
@@ -758,12 +762,14 @@ static TYPELIB write_policy_typelib = {array_elements(write_policy_names) - 1,
                                        "write_policy_typelib",
                                        write_policy_names, nullptr};
 
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
 /* This array needs to be kept up to date with myrocks::read_free_rpl_type */
 static const char *read_free_rpl_names[] = {"OFF", "PK_ONLY", "PK_SK", NullS};
 
 static TYPELIB read_free_rpl_typelib = {array_elements(read_free_rpl_names) - 1,
                                         "read_free_rpl_typelib",
                                         read_free_rpl_names, nullptr};
+#endif
 
 /* This enum needs to be kept up to date with rocksdb::InfoLogLevel */
 static const char *info_log_level_names[] = {"debug_level", "info_level",
@@ -985,6 +991,8 @@ static MYSQL_THDVAR_BOOL(
     " Blind delete is disabled if the table has secondary key",
     nullptr, nullptr, FALSE);
 
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
+
 static const char *DEFAULT_READ_FREE_RPL_TABLES = ".*";
 
 static int rocksdb_validate_read_free_rpl_tables(
@@ -1059,6 +1067,7 @@ static MYSQL_SYSVAR_ENUM(
     "primary key. PK_ONLY will enable it on tables where the only key is the "
     "primary key (i.e. no secondary keys).",
     nullptr, nullptr, read_free_rpl_type::OFF, &read_free_rpl_typelib);
+#endif
 
 static MYSQL_THDVAR_BOOL(skip_bloom_filter_on_read, PLUGIN_VAR_RQCMDARG,
                          "Skip using bloom filter for reads", nullptr, nullptr,
@@ -1986,8 +1995,10 @@ static struct st_mysql_sys_var *rocksdb_system_variables[] = {
     MYSQL_SYSVAR(trace_sst_api),
     MYSQL_SYSVAR(commit_in_the_middle),
     MYSQL_SYSVAR(blind_delete_primary_key),
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
     MYSQL_SYSVAR(read_free_rpl_tables),
     MYSQL_SYSVAR(read_free_rpl),
+#endif    
     MYSQL_SYSVAR(bulk_load_size),
     MYSQL_SYSVAR(merge_buf_size),
     MYSQL_SYSVAR(enable_bulk_load_api),
@@ -5287,7 +5298,9 @@ static int rocksdb_init_func(void *const p) {
     rocksdb_db_options->max_open_files = open_files_limit / 2;
   }
 
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
   rdb_read_free_regex_handler.set_patterns(DEFAULT_READ_FREE_RPL_TABLES);
+#endif
 
   rocksdb_stats = rocksdb::CreateDBStatistics();
   rocksdb_stats->set_stats_level(
@@ -14418,9 +14431,11 @@ void ha_rocksdb::rpl_after_update_rows() {
   DBUG_VOID_RETURN;
 }
 
+#if 0
 bool ha_rocksdb::is_read_free_rpl_table() const {
   return table->s && m_tbl_def->m_is_read_free_rpl_table;
 }
+#endif
 
 /**
   @brief
@@ -14430,10 +14445,11 @@ bool ha_rocksdb::is_read_free_rpl_table() const {
 bool ha_rocksdb::use_read_free_rpl() const {
   DBUG_ENTER_FUNC();
 
-  if (!ha_thd()->rli_slave || table->triggers || !is_read_free_rpl_table()) {
+  if (!ha_thd()->rli_slave || table->triggers || /* !is_read_free_rpl_table()*/ ) {
     DBUG_RETURN(false);
   }
 
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
   switch (rocksdb_read_free_rpl) {
     case read_free_rpl_type::OFF:
       DBUG_RETURN(false);
@@ -14442,6 +14458,9 @@ bool ha_rocksdb::use_read_free_rpl() const {
     case read_free_rpl_type::PK_SK:
       DBUG_RETURN(!has_hidden_pk(table));
   }
+#else
+  DBUG_RETURN(false);
+#endif
 
   DBUG_ASSERT(false);
   DBUG_RETURN(false);

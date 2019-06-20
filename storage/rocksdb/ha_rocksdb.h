@@ -91,12 +91,13 @@ enum collations_used {
   COLLATION_UTF8_BIN    = 83
 };
 
-
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
 extern char *rocksdb_read_free_rpl_tables;
 #if defined(HAVE_PSI_INTERFACE)
 extern PSI_rwlock_key key_rwlock_read_free_rpl_tables;
 #endif
 extern Regex_list_handler rdb_read_free_regex_handler;
+#endif
 
 /**
   @brief
@@ -969,10 +970,10 @@ public:
       TABLE *const altered_table,
       my_core::Alter_inplace_info *const ha_alter_info, bool commit) override;
 
-#ifdef MARIAROCKS_NOT_YET // MDEV-10976
-#endif
   void set_skip_unique_check_tables(const char *const whitelist);
+#ifdef MARIAROCKS_NOT_YET // MDEV-10976
   bool is_read_free_rpl_table() const;
+#endif
 
 #ifdef MARIAROCKS_NOT_YET // MDEV-10976
  public:

@@ -1,0 +1,5 @@
+# Disabled tests
+
+rocksdb_read_free_rpl_basic : MariaDB: Read-Free replication is not supported
+rocksdb_read_free_rpl_tables_basic :  MariaDB: Read-Free replication is not supported
+

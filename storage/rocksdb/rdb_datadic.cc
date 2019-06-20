@@ -3654,7 +3654,11 @@ void Rdb_tbl_def::check_if_is_mysql_system_table() {
 
 void Rdb_tbl_def::check_and_set_read_free_rpl_table() {
   m_is_read_free_rpl_table =
+#if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
       rdb_read_free_regex_handler.matches(base_tablename());
+#else
+      false;
+#endif
 }
 
 void Rdb_tbl_def::set_name(const std::string &name) {
