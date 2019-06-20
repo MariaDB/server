@@ -126,6 +126,7 @@ size_t my_copy_with_hex_escaping(CHARSET_INFO *cs,
 uint convert_to_printable(char *to, size_t to_len,
                           const char *from, size_t from_len,
                           CHARSET_INFO *from_cs, size_t nbytes= 0);
+size_t convert_to_printable_required_length(uint len);
 
 
 class Charset

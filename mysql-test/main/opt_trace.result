@@ -6554,4 +6554,12 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
     }
 ]
 drop table t1, t0, one_k;
+#
+# MDEV-19776: Assertion `to_len >= 8' failed in convert_to_printable with optimizer trace enabled
+#
+CREATE TABLE t1 (f VARBINARY(16) NOT NULL, KEY(f));
+INSERT INTO t1 VALUES ('a'),('b');
+SET optimizer_trace = 'enabled=on';
+DELETE FROM t1 WHERE f = 'x';
+DROP TABLE t1;
 set optimizer_trace='enabled=off';

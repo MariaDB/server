@@ -1197,10 +1197,14 @@ uint convert_to_printable(char *to, size_t to_len,
   return (uint) (t - to);
 }
 
+size_t convert_to_printable_required_length(uint len)
+{
+  return static_cast<size_t>(len) * 4 +  3/*dots*/  + 1/*trailing \0 */;
+}
 
 bool String::append_semi_hex(const char *s, uint len, CHARSET_INFO *cs)
 {
-  size_t dst_len= len * 4 + 1; //extra length for the '\0' character
+  size_t dst_len= convert_to_printable_required_length(len);
   if (reserve(dst_len))
     return true;
   uint nbytes= convert_to_printable(Ptr + str_length, dst_len, s, len, cs);

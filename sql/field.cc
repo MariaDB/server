@@ -6949,6 +6949,7 @@ Field_longstr::check_string_copy_error(const String_copier *copier,
 
   if (!is_stat_field)
   {
+    DBUG_ASSERT(sizeof(tmp) >= convert_to_printable_required_length(6));
     convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
     set_warning_truncated_wrong_value("string", tmp);
   }
