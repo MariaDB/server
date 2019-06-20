@@ -3170,3 +3170,10 @@ SET time_zone=DEFAULT;
 
 SELECT MAKETIME('01', '01', LEAST( -100, NULL ));
 SELECT CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )));
+
+
+--echo #
+--echo # MDEV-19774 Assertion `sec.se c() <= 0x7FFFFFFFL' failed in Item_func_from_unixtime::get_date
+--echo #
+
+SELECT FROM_UNIXTIME(LEAST(3696610869, NULL));

@@ -499,12 +499,42 @@ public:
 };
 
 
-class VSec9: public Sec9
+class VSec9: protected Sec9
 {
   bool m_is_null;
+  Sec9& to_sec9()
+  {
+    DBUG_ASSERT(!is_null());
+    return *this;
+  }
 public:
   VSec9(THD *thd, Item *item, const char *type_str, ulonglong limit);
   bool is_null() const { return m_is_null; }
+  const Sec9& to_const_sec9() const
+  {
+    DBUG_ASSERT(!is_null());
+    return *this;
+  }
+  bool neg() const { return to_const_sec9().neg(); }
+  bool truncated() const { return to_const_sec9().truncated(); }
+  ulonglong sec() const { return to_const_sec9().sec(); }
+  long usec() const { return to_const_sec9().usec(); }
+  bool sec_to_time(MYSQL_TIME *ltime, uint dec) const
+  {
+    return to_const_sec9().sec_to_time(ltime, dec);
+  }
+  void make_truncated_warning(THD *thd, const char *type_str) const
+  {
+    return to_const_sec9().make_truncated_warning(thd, type_str);
+  }
+  Sec9 &round(uint dec)
+  {
+    return to_sec9().round(dec);
+  }
+  Sec9 &round(uint dec, time_round_mode_t mode)
+  {
+    return to_sec9().round(dec, mode);
+  }
 };
 
 
