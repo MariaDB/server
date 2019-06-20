@@ -7827,7 +7827,7 @@ dup_fk:
 					Sql_condition::WARN_LEVEL_WARN,
 					HA_ERR_WRONG_INDEX,
 					"InnoDB could not find key"
-					" with name %s", key->name);
+					" with name %s", key->name.str);
 			} else {
 				ut_ad(!index->to_be_dropped);
 				if (!index->is_primary()) {

@@ -10098,6 +10098,8 @@ do_continue:;
 
     DEBUG_SYNC(thd, "alter_table_copy_after_lock_upgrade");
   }
+  else
+    thd->close_unused_temporary_table_instances(table_list);
 
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx.tables_opened,

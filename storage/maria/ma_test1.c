@@ -292,6 +292,11 @@ static int run_test(const char *filename)
     if (!silent)
       printf("- Updating rows\n");
 
+    create_key(key, j);
+    if ((maria_rkey(file, read_record, 0, key,
+                           HA_WHOLE_KEY, HA_READ_KEY_EXACT)))
+      printf("Can't find last written row with maria_rkey\n");
+
     /* Update first last row to force extend of file */
     if (maria_rsame(file,read_record,-1))
     {

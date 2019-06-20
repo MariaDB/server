@@ -176,11 +176,11 @@ algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 drop table enum_and_set;
 create table compressed (
-a varchar(255) charset utf8mb3 compressed
+a varchar(255) compressed charset utf8mb3
 ) engine=innodb;
 insert into compressed values ('AAA'), ('bbb'), ('CCC');
 alter table compressed
-modify a varchar(255) charset utf8mb4 compressed,
+modify a varchar(255) compressed charset utf8mb4,
 algorithm=instant;
 select * from compressed;
 a
