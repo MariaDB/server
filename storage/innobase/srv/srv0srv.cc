@@ -1445,13 +1445,6 @@ srv_export_innodb_status(void)
 		dict_sys_get_size();
 	mutex_exit(&dict_sys.mutex);
 
-	export_vars.innodb_s_lock_os_waits = rw_lock_stats.rw_s_os_wait_count;
-	export_vars.innodb_s_lock_spin_rounds = rw_lock_stats.rw_s_spin_round_count;
-	export_vars.innodb_s_lock_spin_waits = rw_lock_stats.rw_s_spin_wait_count;
-	export_vars.innodb_x_lock_os_waits = rw_lock_stats.rw_x_os_wait_count;
-	export_vars.innodb_x_lock_spin_rounds = rw_lock_stats.rw_x_spin_round_count;
-	export_vars.innodb_x_lock_spin_waits = rw_lock_stats.rw_x_spin_wait_count;
-
 	mutex_enter(&srv_innodb_monitor_mutex);
 
 	export_vars.innodb_data_pending_reads =
