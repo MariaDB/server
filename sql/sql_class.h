@@ -766,6 +766,7 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
+  my_bool session_track_user_variables;
   my_bool tcp_nodelay;
 
   ulong threadpool_priority;
@@ -6319,7 +6320,7 @@ class user_var_entry
 
   double val_real(bool *null_value);
   longlong val_int(bool *null_value) const;
-  String *val_str(bool *null_value, String *str, uint decimals);
+  String *val_str(bool *null_value, String *str, uint decimals) const;
   my_decimal *val_decimal(bool *null_value, my_decimal *result);
   CHARSET_INFO *charset() const { return m_charset; }
   void set_charset(CHARSET_INFO *cs) { m_charset= cs; }

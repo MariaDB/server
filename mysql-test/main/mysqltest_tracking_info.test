@@ -23,3 +23,14 @@ SET NAMES 'big5';
 --disable_session_track_info
 
 SET @@session.session_track_system_variables= default;
+
+--echo #
+--echo # MDEV-16470 - Session user variables tracker
+--echo #
+SET @@session.session_track_user_variables=1;
+--enable_session_track_info
+SET @a=1;
+SET @b=NULL;
+SELECT @c:=10;
+--disable_session_track_info
+SET @@session.session_track_user_variables=0;

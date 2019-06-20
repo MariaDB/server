@@ -4671,6 +4671,10 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
     entry->unsigned_flag= unsigned_arg;
   }
   entry->type=type;
+#ifndef EMBEDDED_LIBRARY
+  THD *thd= current_thd;
+  thd->session_tracker.user_variables.mark_as_changed(thd, entry);
+#endif
   return 0;
 }
 
@@ -4760,7 +4764,7 @@ longlong user_var_entry::val_int(bool *null_value) const
 /** Get the value of a variable as a string. */
 
 String *user_var_entry::val_str(bool *null_value, String *str,
-				uint decimals)
+                                uint decimals) const
 {
   if ((*null_value= (value == 0)))
     return (String*) 0;

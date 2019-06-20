@@ -6378,6 +6378,22 @@ static Sys_var_mybool Sys_session_track_state_change(
        ON_CHECK(0),
        ON_UPDATE(update_session_track_state_change));
 
+
+static bool update_session_track_user_variables(sys_var *self, THD *thd,
+                                                enum_var_type type)
+{
+  return thd->session_tracker.user_variables.update(thd, 0);
+}
+
+static Sys_var_mybool Sys_session_track_user_variables(
+       "session_track_user_variables",
+       "Track changes to user variables.",
+       SESSION_VAR(session_track_user_variables),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0),
+       ON_UPDATE(update_session_track_user_variables));
+
 #endif //EMBEDDED_LIBRARY
 
 static Sys_var_uint Sys_in_subquery_conversion_threshold(

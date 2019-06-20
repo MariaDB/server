@@ -19,12 +19,14 @@
 
 #include "m_string.h"
 #include "thr_lock.h"
+#include "sql_hset.h"
 
 #ifndef EMBEDDED_LIBRARY
 /* forward declarations */
 class THD;
 class set_var;
 class String;
+class user_var_entry;
 
 
 enum enum_session_tracker
@@ -33,6 +35,7 @@ enum enum_session_tracker
   CURRENT_SCHEMA_TRACKER,                        /* Current schema */
   SESSION_STATE_CHANGE_TRACKER,
   TRANSACTION_INFO_TRACKER,                      /* Transaction state */
+  USER_VARIABLES_TRACKER,
   SESSION_TRACKER_END                            /* must be the last */
 };
 
@@ -388,6 +391,35 @@ private:
 
 
 /**
+  User_variables_tracker
+
+  This is a tracker class that enables & manages the tracking of user variables.
+*/
+
+class User_variables_tracker: public State_tracker
+{
+  Hash_set<const user_var_entry> m_changed_user_variables;
+public:
+  User_variables_tracker():
+    m_changed_user_variables(&my_charset_bin, 0, 0,
+                             sizeof(const user_var_entry*), 0, 0,
+                             HASH_UNIQUE | (mysqld_server_initialized ?
+                             HASH_THREAD_SPECIFIC : 0)) {}
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+  void mark_as_changed(THD *thd, const user_var_entry *var)
+  {
+    if (is_enabled())
+    {
+      m_changed_user_variables.insert(var);
+      set_changed(thd);
+    }
+  }
+  void deinit() { m_changed_user_variables.~Hash_set(); }
+};
+
+
+/**
   Session_tracker
 
   This class holds an object each for all tracker classes and provides
@@ -415,6 +447,7 @@ public:
   Session_state_change_tracker state_change;
   Transaction_state_tracker transaction_info;
   Session_sysvars_tracker sysvars;
+  User_variables_tracker user_variables;
 
   Session_tracker()
   {
@@ -422,6 +455,7 @@ public:
     m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
     m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
     m_trackers[TRANSACTION_INFO_TRACKER]= &transaction_info;
+    m_trackers[USER_VARIABLES_TRACKER]= &user_variables;
   }
 
   void enable(THD *thd)

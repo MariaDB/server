@@ -56,7 +56,6 @@
 #include "rpl_filter.h"
 #include "sql_table.h"                          // build_table_filename
 #include "datadict.h"   // dd_frm_is_view()
-#include "sql_hset.h"   // Hash_set
 #include "rpl_rli.h"   // rpl_group_info
 #ifdef  __WIN__
 #include <io.h>

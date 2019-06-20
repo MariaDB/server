@@ -601,6 +601,7 @@ enum enum_session_state_type
   SESSION_TRACK_GTIDS,
   SESSION_TRACK_TRANSACTION_CHARACTERISTICS,  /* Transaction chistics */
   SESSION_TRACK_TRANSACTION_STATE,            /* Transaction state */
+  SESSION_TRACK_USER_VARIABLES,
   SESSION_TRACK_always_at_the_end             /* must be last */
 };
 

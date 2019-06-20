@@ -29,3 +29,13 @@ SET NAMES 'utf8';
 # tracking info off once
 SET NAMES 'big5';
 SET @@session.session_track_system_variables= default;
+#
+# MDEV-16470 - Session user variables tracker
+#
+SET @@session.session_track_user_variables=1;
+SET @a=1;
+SET @b=NULL;
+SELECT @c:=10;
+@c:=10
+10
+SET @@session.session_track_user_variables=0;

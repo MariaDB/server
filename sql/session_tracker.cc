@@ -16,7 +16,6 @@
 
 
 #include "sql_plugin.h"
-#include "hash.h"
 #include "table.h"
 #include "rpl_gtid.h"
 #include "sql_class.h"
@@ -1179,6 +1178,38 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
   DBUG_ASSERT(is_changed());
   buf->q_append('1');
 
+  return false;
+}
+
+
+bool User_variables_tracker::update(THD *thd, set_var *)
+{
+  m_enabled= thd->variables.session_track_user_variables;
+  return false;
+}
+
+
+bool User_variables_tracker::store(THD *thd, String *buf)
+{
+  for (ulong i= 0; i < m_changed_user_variables.size(); i++)
+  {
+    auto var= m_changed_user_variables.at(i);
+    String value_str;
+    bool null_value;
+
+    var->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
+    buf->q_append(static_cast<char>(SESSION_TRACK_USER_VARIABLES));
+    ulonglong length= net_length_size(var->name.length) + var->name.length;
+    if (!null_value)
+      length+= net_length_size(value_str.length()) + value_str.length();
+    buf->q_net_store_length(length);
+    buf->q_net_store_data(reinterpret_cast<const uchar*>(var->name.str),
+                          var->name.length);
+    if (!null_value)
+      buf->q_net_store_data(reinterpret_cast<const uchar*>(value_str.ptr()),
+                            value_str.length());
+  }
+  m_changed_user_variables.clear();
   return false;
 }
 
