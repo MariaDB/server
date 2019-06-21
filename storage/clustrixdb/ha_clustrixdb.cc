@@ -5,6 +5,7 @@ Copyright (c) 2019, MariaDB Corporation.
 /** @file ha_clustrixdb.cc */
 
 #include "ha_clustrixdb.h"
+#include "ha_clustrixdb_pushdown.h"
 #include "key.h"
 
 handlerton *clustrixdb_hton = NULL;
@@ -1052,6 +1053,8 @@ int clustrixdb_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
   return error_code;
 }
 
+#include "ha_clustrixdb_pushdown.cc"
+
 static int clustrixdb_init(void *p)
 {
   clustrixdb_hton = (handlerton *) p;
@@ -1065,6 +1068,7 @@ static int clustrixdb_init(void *p)
   clustrixdb_hton->show_status = clustrixdb_show_status;
   clustrixdb_hton->discover_table_names = clustrixdb_discover_table_names;
   clustrixdb_hton->discover_table = clustrixdb_discover_table;
+  clustrixdb_hton->create_select = create_clustrixdb_select_handler;
 
   return 0;
 }

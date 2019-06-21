@@ -28,6 +28,7 @@ private:
 # define COMMAND_BUFFER_SIZE_INCREMENT_BITS 10
 
   MYSQL clustrix_net;
+  MYSQL_RES *results;
   uchar *command_buffer;
   size_t command_buffer_length;
   size_t command_length;
@@ -68,6 +69,7 @@ public:
   int delete_table(String &stmt);
   int rename_table(String &stmt);
 
+
   int write_row(ulonglong clustrix_table_oid,
                 uchar *packed_row, size_t packed_size);
   int key_delete(ulonglong clustrix_table_oid,
@@ -82,6 +84,10 @@ public:
                 ulonglong *scan_refid);
   int scan_next(ulonglong scan_refid, uchar **rowdata, ulong *rowdata_length);
   int scan_end(ulonglong scan_refid);
+  int scan_query_init(String &stmt, uchar *fieldtype,
+                uint fields, uchar *null_bits,
+                uint null_bits_size, uchar *field_metadata,
+                uint field_metadata_size, ulonglong *scan_refid);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
@@ -93,6 +99,7 @@ private:
   int add_command_operand_ulonglong(ulonglong value);
   int add_command_operand_lcb(ulonglong value);
   int add_command_operand_str(const uchar *str, size_t length);
+  int add_command_operand_vlstr(const uchar *str, size_t length);
   int add_command_operand_lex_string(LEX_CSTRING str);
   int add_command_operand_bitmap(MY_BITMAP *bitmap);
   int send_command();
