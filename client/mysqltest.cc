@@ -873,17 +873,10 @@ static char *my_fgets(char * s, int n, FILE * stream, int *len)
 
 /*
   Wrapper for popen().
-  On Windows, uses binary mode to workaround
-  C runtime bug mentioned in MDEV-9409
 */
 static FILE* my_popen(const char *cmd, const char *mode)
 {
-  FILE *f= popen(cmd, mode);
-#ifdef _WIN32
-  if (f)
-    _setmode(fileno(f), O_BINARY);
-#endif
-  return f;
+  return popen(cmd, mode);
 }
 
 #ifdef EMBEDDED_LIBRARY
