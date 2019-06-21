@@ -226,6 +226,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_field= with_field || item->with_field;
       used_tables_cache|=     item->used_tables();
       const_item_cache&=      item->const_item();
+      not_null_tables_cache|= item->not_null_tables();
       with_subselect|=        item->has_subquery();
     }
   }
