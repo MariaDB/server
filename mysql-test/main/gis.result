@@ -5019,5 +5019,21 @@ ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
 ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 #
+# MDEV-19819 ALTER from POINT to LINESTRING erroneously preserves POINT values
+#
+CREATE TABLE t1 (a POINT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (Point(0,0));
+ALTER TABLE t1 MODIFY a LINESTRING;
+ERROR 22007: Incorrect LINESTRING value: 'POINT' for column `test`.`t1`.`a` at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a LINESTRING);
+CREATE TABLE t2 (a POINT);
+INSERT INTO t2 VALUES (POINT(0,0));
+INSERT INTO t1 SELECT * FROM t2;
+ERROR 22007: Incorrect LINESTRING value: 'POINT' for column `test`.`t1`.`a` at row 1
+SELECT AsText(a) FROM t1;
+AsText(a)
+DROP TABLE t1, t2;
+#
 # End of 10.4 tests
 #

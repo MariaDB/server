@@ -1528,7 +1528,7 @@ public:
   {
     return field_length / charset()->mbmaxlen;
   }
-  virtual geometry_type get_geometry_type()
+  virtual geometry_type get_geometry_type() const
   {
     /* shouldn't get here. */
     DBUG_ASSERT(0);
@@ -4138,6 +4138,21 @@ public:
                                   const Item *item,
                                   bool is_eq_func) const;
   void sql_type(String &str) const;
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    if (type_handler() == from->type_handler() &&
+        (geom_type == GEOM_GEOMETRY ||
+         geom_type == static_cast<const Field_geom*>(from)->geom_type))
+      return get_identical_copy_func();
+    return do_conv_blob;
+  }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    return type_handler() == from->type_handler() &&
+           (geom_type == GEOM_GEOMETRY ||
+            geom_type == static_cast<const Field_geom*>(from)->geom_type) &&
+           !table->copy_blobs;
+  }
   uint is_equal(Create_field *new_field);
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
@@ -4161,7 +4176,7 @@ public:
   bool load_data_set_null(THD *thd);
   bool load_data_set_no_data(THD *thd, bool fixed_format);
 
-  geometry_type get_geometry_type() { return geom_type; };
+  geometry_type get_geometry_type() const { return geom_type; };
   static geometry_type geometry_type_merge(geometry_type, geometry_type);
   uint get_srid() { return srid; }
   void print_key_value(String *out, uint32 length)
