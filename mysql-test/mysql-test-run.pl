@@ -366,6 +366,8 @@ main();
 
 
 sub main {
+  $ENV{MTR_PERL}=$^X;
+
   # Default, verbosity on
   report_option('verbose', 0);
 
