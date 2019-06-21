@@ -1,0 +1,4 @@
+--source include/have_binlog_format_row.inc
+
+--source rpl_row_not_found.inc
+

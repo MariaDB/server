@@ -29,14 +29,17 @@
 namespace myrocks {
 
 Rdb_index_merge::Rdb_index_merge(const char *const tmpfile_path,
-                                 const ulonglong &merge_buf_size,
-                                 const ulonglong &merge_combine_read_size,
-                                 const ulonglong &merge_tmp_file_removal_delay,
+                                 const ulonglong merge_buf_size,
+                                 const ulonglong merge_combine_read_size,
+                                 const ulonglong merge_tmp_file_removal_delay,
                                  rocksdb::ColumnFamilyHandle *cf)
-    : m_tmpfile_path(tmpfile_path), m_merge_buf_size(merge_buf_size),
+    : m_tmpfile_path(tmpfile_path),
+      m_merge_buf_size(merge_buf_size),
       m_merge_combine_read_size(merge_combine_read_size),
       m_merge_tmp_file_removal_delay(merge_tmp_file_removal_delay),
-      m_cf_handle(cf), m_rec_buf_unsorted(nullptr), m_output_buf(nullptr) {}
+      m_cf_handle(cf),
+      m_rec_buf_unsorted(nullptr),
+      m_output_buf(nullptr) {}
 
 Rdb_index_merge::~Rdb_index_merge() {
   /*
@@ -152,8 +155,9 @@ int Rdb_index_merge::add(const rocksdb::Slice &key, const rocksdb::Slice &val) {
     */
     if (m_offset_tree.empty()) {
       // NO_LINT_DEBUG
-      sql_print_error("Sort buffer size is too small to process merge. "
-                      "Please set merge buffer size to a higher value.");
+      sql_print_error(
+          "Sort buffer size is too small to process merge. "
+          "Please set merge buffer size to a higher value.");
       return HA_ERR_ROCKSDB_MERGE_FILE_ERR;
     }
 
@@ -623,4 +627,4 @@ void Rdb_index_merge::merge_reset() {
   }
 }
 
-} // namespace myrocks
+}  // namespace myrocks

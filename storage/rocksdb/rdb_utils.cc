@@ -21,9 +21,9 @@
 
 /* C++ standard header files */
 #include <array>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 /* C standard header files */
 #include <ctype.h>
@@ -209,8 +209,8 @@ const char *rdb_skip_id(const struct charset_info_st *const cs,
 /*
   Parses a given string into tokens (if any) separated by a specific delimiter.
 */
-const std::vector<std::string> parse_into_tokens(
-  const std::string& s, const char delim) {
+const std::vector<std::string> parse_into_tokens(const std::string &s,
+                                                 const char delim) {
   std::vector<std::string> tokens;
   std::string t;
   std::stringstream ss(s);
@@ -338,14 +338,18 @@ void rdb_persist_corruption_marker() {
   /* O_SYNC is not supported on windows */
   int fd = my_open(fileName.c_str(), O_CREAT | IF_WIN(0, O_SYNC), MYF(MY_WME));
   if (fd < 0) {
-    sql_print_error("RocksDB: Can't create file %s to mark rocksdb as "
-                    "corrupted.",
-                    fileName.c_str());
+    // NO_LINT_DEBUG
+    sql_print_error(
+        "RocksDB: Can't create file %s to mark rocksdb as "
+        "corrupted.",
+        fileName.c_str());
   } else {
-    sql_print_information("RocksDB: Creating the file %s to abort mysqld "
-                          "restarts. Remove this file from the data directory "
-                          "after fixing the corruption to recover. ",
-                          fileName.c_str());
+    // NO_LINT_DEBUG
+    sql_print_information(
+        "RocksDB: Creating the file %s to abort mysqld "
+        "restarts. Remove this file from the data directory "
+        "after fixing the corruption to recover. ",
+        fileName.c_str());
   }
 
 #ifdef _WIN32
@@ -362,4 +366,4 @@ void rdb_persist_corruption_marker() {
   }
 }
 
-} // namespace myrocks
+}  // namespace myrocks

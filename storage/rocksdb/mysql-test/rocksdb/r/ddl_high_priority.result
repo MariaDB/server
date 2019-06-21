@@ -36,8 +36,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 alter table t1 modify i bigint;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -52,7 +52,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -89,8 +89,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 alter table t1 rename t1_new;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -105,7 +105,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 select * from t1_new;
 i
 1
@@ -143,8 +143,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop table t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -160,8 +160,8 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -193,8 +193,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop table t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -209,7 +209,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -241,9 +241,9 @@ connection: default (for show processlist)
 # both con1 and con2 exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: con2
 alter table t1 modify i bigint;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -259,9 +259,9 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -293,8 +293,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 create index idx1 on t1 (i);;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -309,7 +309,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -333,8 +333,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop index idx1 on t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -349,7 +349,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -381,8 +381,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 truncate t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -397,7 +397,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -429,8 +429,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 create trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -445,7 +445,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -469,8 +469,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop trigger ins_sum;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -485,7 +485,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -517,8 +517,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 optimize table t1;;
 Table	Op	Msg_type	Msg_text
@@ -537,7 +537,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 1;
@@ -569,8 +569,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 lock tables t1 write;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -585,7 +585,7 @@ set high_priority_ddl = 0;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 unlock tables;
 drop user test_user1@localhost;
 drop user test_user2@localhost;
@@ -628,8 +628,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 alter table t1 modify i bigint;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -637,7 +637,7 @@ alter high_priority table t1 modify i bigint;;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -674,8 +674,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 alter table t1 rename t1_new;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -683,7 +683,7 @@ alter high_priority table t1 rename t1_new;;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 select * from t1_new;
 i
 1
@@ -721,8 +721,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop table t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -731,8 +731,8 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on 
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -764,8 +764,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop table t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -773,7 +773,7 @@ drop high_priority table t1;;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -805,9 +805,9 @@ connection: default (for show processlist)
 # both con1 and con2 exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: con2
 alter table t1 modify i bigint;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -816,9 +816,9 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on 
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -850,8 +850,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 create index idx1 on t1 (i);;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -859,7 +859,7 @@ create high_priority index idx1 on t1 (i);;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -883,8 +883,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop index idx1 on t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -892,7 +892,7 @@ drop high_priority index idx1 on t1;;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -924,8 +924,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 truncate t1;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -933,7 +933,7 @@ truncate high_priority t1;;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -965,8 +965,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 create trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -974,7 +974,7 @@ create high_priority trigger ins_sum before insert on t1 for each row set @sum =
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -998,8 +998,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 drop trigger ins_sum;;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
@@ -1007,7 +1007,7 @@ drop high_priority trigger ins_sum;;
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 
 ## Test parameters:
 ## use_sys_var       = 0;
@@ -1039,8 +1039,8 @@ connection: default (for show processlist)
 # both con1 and default exist
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
-<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 connection: default
 optimize table t1;;
 Table	Op	Msg_type	Msg_text
@@ -1052,7 +1052,7 @@ test.t1	optimize	status	OK
 connection: default (for show processlist)
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
-<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	0
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
 drop user test_user1@localhost;
 drop user test_user2@localhost;
 drop table if exists t1;

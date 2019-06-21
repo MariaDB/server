@@ -1,0 +1,45 @@
+set debug_sync='RESET';
+set global rocksdb_debug_ttl_read_filter_ts = -10;
+connect  conn1, localhost, root,,test;
+connect  conn2, localhost, root,,test;
+connection conn1;
+CREATE TABLE t_re (
+a INT, b INT, PRIMARY KEY (a)
+) ENGINE=ROCKSDB
+COMMENT 'ttl_duration=1';
+affected rows: 0
+set global rocksdb_debug_ttl_rec_ts = -13;
+affected rows: 0
+insert into t_re values (1,1);
+affected rows: 1
+insert into t_re values (2,2);
+affected rows: 1
+set global rocksdb_debug_ttl_rec_ts = 0;
+affected rows: 0
+commit;
+affected rows: 0
+set debug_sync='rocksdb.ttl_rows_examined SIGNAL parked WAIT_FOR go';
+affected rows: 0
+SELECT * FROM t_re;
+connection conn2;
+set debug_sync='now WAIT_FOR parked';
+affected rows: 0
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+###	###	###	###	Query	###	debug sync point: rocksdb.ttl_rows_examined	SELECT * FROM t_re	0.000
+###	###	###	###	Query	###	init	SHOW PROCESSLIST	0.000
+###	###	###	###	Sleep	###		NULL	0.000
+affected rows: 3
+set debug_sync='now SIGNAL go';
+affected rows: 0
+connection conn1;
+a	b
+affected rows: 0
+set debug_sync='RESET';
+affected rows: 0
+set global rocksdb_debug_ttl_read_filter_ts = DEFAULT;
+affected rows: 0
+drop table t_re;
+affected rows: 0
+disconnect conn1;
+disconnect conn2;
