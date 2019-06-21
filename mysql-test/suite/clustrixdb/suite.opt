@@ -1,0 +1,4 @@
+--plugin-load=clustrixdb=ha_clustrixdb.so 
+--core-file 
+--clustrixdb_port=3306 
+--plugin-maturity=unknown
