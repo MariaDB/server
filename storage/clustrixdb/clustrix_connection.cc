@@ -28,6 +28,7 @@ enum clustrix_commands {
   CLUSTRIX_SCAN_STOP,
   CLUSTRIX_KEY_READ,
   CLUSTRIX_KEY_DELETE,
+  CLUSTRIX_QUERY_INIT
 };
 
 /****************************************************************************
@@ -322,6 +323,70 @@ int clustrix_connection::scan_init(ulonglong clustrix_table_oid, uint index,
   return error_code;
 }
 
+/*int clustrix_connection::scan_init_select(String &stmt)
+{
+  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
+  if (error_code)
+    return mysql_errno(&clustrix_net);
+
+  results = mysql_store_result(&clustrix_net);
+
+  return error_code;
+}*/
+
+/**
+ * @brief
+ *   Sends a command to initiate query scan.
+ * @details
+ *   Sends a command over mysql protocol connection to initiate an
+ *   arbitrary query using a query text.
+ *   Uses field types, field metadata and nullability to explicitly
+ *   cast result to expected data type. Exploits RBR TABLE_MAP_EVENT 
+ *   format + sends SQL text.
+ * @args
+ *   stmt& Query text to send
+ *   fieldtype* array of byte wide field types of result projection
+ *   null_bits* fields nullability bitmap of result projection
+ *   field_metadata* Field metadata of result projection
+ *   scan_refid id used to reference this scan later
+ *   Used in pushdowns to initiate query scan.
+ **/
+int clustrix_connection::scan_query_init(String &stmt, uchar *fieldtype,
+                                  uint fields, uchar *null_bits,
+                                  uint null_bits_size, uchar *field_metadata,
+                                  uint field_metadata_size, ulonglong *scan_refid)
+{
+  int error_code;
+  command_length = 0;
+
+  if ((error_code = add_command_operand_uchar(CLUSTRIX_QUERY_INIT)))
+    return error_code;
+
+  if ((error_code = add_command_operand_str(fieldtype, fields)))
+    return error_code;
+    
+  if ((error_code = add_command_operand_str(field_metadata, field_metadata_size)))
+    return error_code;
+
+  // This variable length string calls for an additional store w/o lcb lenth prefix.
+  if ((error_code = add_command_operand_vlstr(null_bits, null_bits_size)))
+    return error_code;
+
+  if ((error_code = add_command_operand_str((uchar*)stmt.ptr(), stmt.length())))
+    return error_code;
+
+  if ((error_code = send_command()))
+    return error_code;
+
+  ulong packet_length = cli_safe_read(&clustrix_net);
+  if (packet_length == packet_error)
+    return mysql_errno(&clustrix_net);
+
+  unsigned char *pos = clustrix_net.net.read_pos;
+  *scan_refid = safe_net_field_length_ll(&pos, packet_length);
+  return error_code;
+}
+
 int clustrix_connection::scan_next(ulonglong scan_refid, uchar **rowdata,
                                    ulong *rowdata_length)
 {
@@ -576,6 +641,29 @@ int clustrix_connection::add_command_operand_str(const uchar *str,
     return error_code;
 
   error_code = expand_command_buffer(str_length);
+  if (error_code)
+    return error_code;
+
+  memcpy(command_buffer + command_length, str, str_length);
+  command_length += str_length;
+  return 0;
+}
+
+/**
+ * @brief
+ *   Puts variable length string into the buffer.
+ * @details
+ *   Puts into the buffer variable length string the size
+ *   of which is send by other means. For details see
+ *   MDB Client/Server Protocol.
+ * @args
+ *   str - string to send
+ *   str_length - size
+ **/
+int clustrix_connection::add_command_operand_vlstr(const uchar *str,
+                                                 size_t str_length)
+{
+  int error_code = expand_command_buffer(str_length);
   if (error_code)
     return error_code;
 
