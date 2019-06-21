@@ -3593,12 +3593,13 @@ bool Delayed_insert::handle_inserts(void)
     TRUE  Error
 */
 
-bool mysql_insert_select_prepare(THD *thd)
+bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
 {
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
   DBUG_ENTER("mysql_insert_select_prepare");
-
+  bool with_ret = lex->current_select->returning_list.is_empty()?false:true;
+  List<Item>& ret_list = thd->lex->current_select->returning_list;
 
   /*
     SELECT_LEX do not belong to INSERT statement, so we can't add WHERE
@@ -3608,13 +3609,17 @@ bool mysql_insert_select_prepare(THD *thd)
   if (mysql_prepare_insert(thd, lex->query_tables,
                            lex->query_tables->table, lex->field_list, 0,
                            lex->update_list, lex->value_list, lex->duplicates,
-                           &select_lex->where, TRUE,NULL))
+                           &select_lex->where, TRUE,with_ret?select_lex:NULL))
     DBUG_RETURN(TRUE);
+
+  if (with_ret)
+	  (void)sel_res->prepare(lex->field_list, NULL);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
   TABLE_LIST *table;
   uint insert_tables;
+
 
   if (select_lex->first_cond_optimization)
   {
@@ -3643,11 +3648,12 @@ bool mysql_insert_select_prepare(THD *thd)
   while ((table= ti++) && insert_tables--)
     ti.remove();
 
+
   DBUG_RETURN(FALSE);
 }
 
 
-select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
+select_insert::select_insert(bool with_ret_list, select_result *sel_ret_list,THD *thd_arg, TABLE_LIST *table_list_par,
                              TABLE *table_par,
                              List<Item> *fields_par,
                              List<Item> *update_fields,
@@ -3666,6 +3672,8 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   info.update_values= update_values;
   info.view= (table_list_par->view ? table_list_par : 0);
   info.table_list= table_list_par;
+  sel_result_list= sel_ret_list;
+  with_returning_list= with_ret_list;
 }
 
 
@@ -3856,13 +3864,23 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
 int select_insert::prepare2(JOIN *)
 {
+  
   DBUG_ENTER("select_insert::prepare2");
+  List<Item>& ret_list = thd->lex->current_select->returning_list;
+  LEX* lex = thd->lex;
   if (thd->lex->current_select->options & OPTION_BUFFER_RESULT &&
       thd->locked_tables_mode <= LTM_LOCK_TABLES &&
       !thd->lex->describe)
     table->file->ha_start_bulk_insert((ha_rows) 0);
   if (table->validate_default_values_of_unset_fields(thd))
     DBUG_RETURN(1);
+  if (select_insert::with_returning_list)
+  {
+	  select_insert::sel_result_list->send_result_set_metadata(lex->field_list,
+		  Protocol::SEND_NUM_ROWS |
+		  Protocol::SEND_EOF);
+
+  }
   DBUG_RETURN(0);
 }
 
@@ -3876,6 +3894,8 @@ void select_insert::cleanup()
 select_insert::~select_insert()
 {
   DBUG_ENTER("~select_insert");
+  sel_result_list=NULL;
+  with_returning_list=false;
   if (table && table->is_created())
   {
     table->next_number_field=0;
@@ -3891,6 +3911,8 @@ select_insert::~select_insert()
 int select_insert::send_data(List<Item> &values)
 {
   DBUG_ENTER("select_insert::send_data");
+  LEX* lex = thd->lex;
+  List<Item>& ret_list = thd->lex->current_select->returning_list;
   bool error=0;
 
   if (unit->offset_limit_cnt)
@@ -3923,7 +3945,10 @@ int select_insert::send_data(List<Item> &values)
       DBUG_RETURN(1);
     }
   }
-
+  if (select_insert::with_returning_list && select_insert::sel_result_list->send_data(lex->field_list) < 0)
+  {
+	  error = 1;
+  }
   error= write_record(thd, table, &info);
   table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
@@ -4080,7 +4105,10 @@ bool select_insert::send_ok_packet() {
      thd->first_successful_insert_id_in_prev_stmt :
      (info.copied ? autoinc_value_of_last_inserted_row : 0));
 
-  ::my_ok(thd, row_count, id, message);
+  if (select_insert::with_returning_list)
+	  select_insert::sel_result_list->send_eof();
+  else
+     ::my_ok(thd, row_count, id, message);
 
   DBUG_RETURN(false);
 }

@@ -4505,7 +4505,7 @@ mysql_execute_command(THD *thd)
 		      lex->update_list, lex->value_list,
                       lex->duplicates, lex->ignore, lex->result ? lex->result : sel_result);
 
-	delete sel_result
+	delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
       If we have inserted into a VIEW, and the base table has
@@ -4541,6 +4541,8 @@ mysql_execute_command(THD *thd)
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     select_insert *sel_result;
+	select_result* select_res_list = NULL;
+	bool with_ret_list = false;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
@@ -4589,6 +4591,32 @@ mysql_execute_command(THD *thd)
         Only the INSERT table should be merged. Other will be handled by
         select.
       */
+
+	  Protocol* UNINIT_VAR(save_protocol);
+	  bool replaced_protocol = false;
+
+	  if (!select_lex->returning_list.is_empty())
+	  {
+		  with_ret_list = true;
+		  /* This is INSERT ... RETURNING.  It will return output to the client */
+		  if (thd->lex->analyze_stmt)
+		  {
+			  /*
+				Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
+				output and then discard it.
+			  */
+			  select_res_list = new (thd->mem_root) select_send_analyze(thd);
+			  replaced_protocol = true;
+			  save_protocol = thd->protocol;
+			  thd->protocol = new Protocol_discard(thd);
+		  }
+		  else
+		  {
+			  if (!lex->result && !(select_res_list = new (thd->mem_root) select_send(thd)))
+				  goto error;
+		  }
+	  }
+
       /* Skip first table, which is the table we are inserting in */
       TABLE_LIST *second_table= first_table->next_local;
       /*
@@ -4601,8 +4629,8 @@ mysql_execute_command(THD *thd)
       select_lex->table_list.first= second_table;
       select_lex->context.table_list= 
         select_lex->context.first_name_resolution_table= second_table;
-      res= mysql_insert_select_prepare(thd);
-      if (!res && (sel_result= new (thd->mem_root) select_insert(thd,
+      res= mysql_insert_select_prepare(thd, lex->result ? lex->result : select_res_list);
+      if (!res && (sel_result= new (thd->mem_root) select_insert(with_ret_list, lex->result ? lex->result : select_res_list, thd,
                                                              first_table,
                                                              first_table->table,
                                                              &lex->field_list,
@@ -4624,6 +4652,7 @@ mysql_execute_command(THD *thd)
           TODO: this is workaround. right way will be move invalidating in
           the unlock procedure.
         */
+		
         if (!res && first_table->lock_type ==  TL_WRITE_CONCURRENT_INSERT &&
             thd->lock)
         {
@@ -4644,6 +4673,8 @@ mysql_execute_command(THD *thd)
           sel_result->abort_result_set();
         }
         delete sel_result;
+		delete select_res_list;
+
       }
 
       if (!res && (explain || lex->analyze_stmt))
