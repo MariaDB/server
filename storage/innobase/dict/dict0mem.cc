@@ -171,10 +171,6 @@ dict_mem_table_create(
 		new (&table->v_cols[i]) dict_v_col_t();
 	}
 
-	/* true means that the stats latch will be enabled -
-	dict_table_stats_lock() will not be noop. */
-	dict_table_stats_latch_create(table, true);
-
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
 
@@ -189,6 +185,9 @@ dict_mem_table_create(
 
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
+
+	rw_lock_create(dict_table_stats_key, &table->stats_latch,
+		       SYNC_INDEX_TREE);
 
 	return(table);
 }
@@ -215,7 +214,6 @@ dict_mem_table_free(
 	}
 
 	dict_mem_table_free_foreign_vcol_set(table);
-	dict_table_stats_latch_destroy(table);
 
 	table->foreign_set.~dict_foreign_set();
 	table->referenced_set.~dict_foreign_set();
@@ -230,6 +228,8 @@ dict_mem_table_free(
 	}
 
 	UT_DELETE(table->s_cols);
+
+	rw_lock_free(&table->stats_latch);
 
 	mem_heap_free(table->heap);
 }

@@ -1965,9 +1965,6 @@ public:
 
 	/** Statistics for query optimization. @{ */
 
-	/** Creation state of 'stats_latch'. */
-	volatile os_once::state_t		stats_latch_created;
-
 	/** This latch protects:
 	dict_table_t::stat_initialized,
 	dict_table_t::stat_n_rows (*),
@@ -1979,7 +1976,7 @@ public:
 	dict_table_t::indexes*::stat_n_leaf_pages.
 	(*) Those are not always protected for
 	performance reasons. */
-	rw_lock_t*				stats_latch;
+	rw_lock_t				stats_latch;
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */

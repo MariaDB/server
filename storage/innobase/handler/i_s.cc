@@ -6263,7 +6263,7 @@ i_s_dict_fill_sys_tablestats(
 	OK(field_store_string(fields[SYS_TABLESTATS_NAME],
 			      table->name.m_name));
 
-	dict_table_stats_lock(table, RW_S_LATCH);
+	rw_lock_s_lock(&table->stats_latch);
 
 	if (table->stat_initialized) {
 		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
@@ -6293,7 +6293,7 @@ i_s_dict_fill_sys_tablestats(
 		OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
 	}
 
-	dict_table_stats_unlock(table, RW_S_LATCH);
+	rw_lock_s_unlock(&table->stats_latch);
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 

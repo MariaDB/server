@@ -14000,7 +14000,7 @@ ha_innobase::info_low(
 		ulint	stat_sum_of_other_index_sizes;
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
+			rw_lock_s_lock(&ib_table->stats_latch);
 		}
 
 		ut_a(ib_table->stat_initialized);
@@ -14014,7 +14014,7 @@ ha_innobase::info_low(
 			= ib_table->stat_sum_of_other_index_sizes;
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+			rw_lock_s_unlock(&ib_table->stats_latch);
 		}
 
 		/*
@@ -14118,7 +14118,7 @@ ha_innobase::info_low(
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
+			rw_lock_s_lock(&ib_table->stats_latch);
 		}
 
 		ut_a(ib_table->stat_initialized);
@@ -14200,7 +14200,7 @@ ha_innobase::info_low(
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+			rw_lock_s_unlock(&ib_table->stats_latch);
 		}
 
 		snprintf(path, sizeof(path), "%s/%s%s",

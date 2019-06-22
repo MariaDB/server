@@ -1341,41 +1341,6 @@ dict_index_calc_min_rec_len(
 #define dict_mutex_enter_for_mysql() mutex_enter(&dict_sys.mutex)
 #define dict_mutex_exit_for_mysql() mutex_exit(&dict_sys.mutex)
 
-/** Create a dict_table_t's stats latch or delay for lazy creation.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to create
-@param[in]	enabled	if false then the latch is disabled
-and dict_table_stats_lock()/unlock() become noop on this table. */
-void
-dict_table_stats_latch_create(
-	dict_table_t*	table,
-	bool		enabled);
-
-/** Destroy a dict_table_t's stats latch.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-void
-dict_table_stats_latch_destroy(
-	dict_table_t*	table);
-
-/** Lock the appropriate latch to protect a given table's statistics.
-@param[in]	table		table whose stats to lock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_lock(
-	dict_table_t*	table,
-	ulint		latch_mode);
-
-/** Unlock the latch that has been locked by dict_table_stats_lock().
-@param[in]	table		table whose stats to unlock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_unlock(
-	dict_table_t*	table,
-	ulint		latch_mode);
-
 /********************************************************************//**
 Checks if the database name in two table names is the same.
 @return TRUE if same db name */
