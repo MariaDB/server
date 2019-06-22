@@ -65,7 +65,6 @@ ib_warn_row_too_big(const dict_table_t*	table);
 #include "lock0lock.h"
 #include "mach0data.h"
 #include "mem0mem.h"
-#include "os0once.h"
 #include "page0page.h"
 #include "page0zip.h"
 #include "pars0pars.h"

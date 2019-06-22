@@ -44,7 +44,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "buf0buf.h"
 #include "gis0type.h"
-#include "os0once.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include <sql_const.h>

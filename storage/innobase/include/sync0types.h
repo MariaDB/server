@@ -28,7 +28,6 @@ Created 9/5/1995 Heikki Tuuri
 #define sync0types_h
 
 #include <vector>
-#include <my_atomic.h>
 
 #include "ut0new.h"
 
