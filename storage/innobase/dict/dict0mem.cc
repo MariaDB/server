@@ -740,7 +740,7 @@ dict_mem_index_create(
 
 	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
-	dict_index_zip_pad_mutex_create_lazy(index);
+	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, &index->zip_pad.mutex);
 
 	if (type & DICT_SPATIAL) {
 		mutex_create(LATCH_ID_RTR_SSN_MUTEX, &index->rtr_ssn.mutex);
@@ -1050,7 +1050,7 @@ dict_mem_index_free(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	dict_index_zip_pad_mutex_destroy(index);
+	mutex_free(&index->zip_pad.mutex);
 
 	if (dict_index_is_spatial(index)) {
 		for (auto& rtr_info : index->rtr_track->rtr_active) {

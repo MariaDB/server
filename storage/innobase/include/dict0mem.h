@@ -883,7 +883,7 @@ extern ulong	zip_pad_max;
 an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
-	SysMutex*	mutex;	/*!< mutex protecting the info */
+	SysMutex	mutex;	/*!< mutex protecting the info */
 	Atomic_counter<ulint>
 			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
@@ -892,9 +892,6 @@ struct zip_pad_info_t {
 				current round */
 	ulint		n_rounds;/*!< number of currently successful
 				rounds */
-	volatile os_once::state_t
-			mutex_created;
-				/*!< Creation state of mutex member */
 };
 
 /** Number of samples of data size kept when page compression fails for
@@ -2285,45 +2282,6 @@ struct dict_foreign_add_to_referenced_table {
 		}
 	}
 };
-
-/** Request a lazy creation of dict_index_t::zip_pad::mutex.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	index	index whose zip_pad mutex is to be created */
-inline
-void
-dict_index_zip_pad_mutex_create_lazy(
-	dict_index_t*	index)
-{
-	index->zip_pad.mutex = NULL;
-	index->zip_pad.mutex_created = os_once::NEVER_DONE;
-}
-
-/** Destroy the zip_pad_mutex of the given index.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-inline
-void
-dict_index_zip_pad_mutex_destroy(
-	dict_index_t*	index)
-{
-	if (index->zip_pad.mutex_created == os_once::DONE
-	    && index->zip_pad.mutex != NULL) {
-		mutex_free(index->zip_pad.mutex);
-		UT_DELETE(index->zip_pad.mutex);
-	}
-}
-
-/** Release the zip_pad_mutex of a given index.
-@param[in,out]	index	index whose zip_pad_mutex is to be released */
-inline
-void
-dict_index_zip_pad_unlock(
-	dict_index_t*	index)
-{
-	mutex_exit(index->zip_pad.mutex);
-}
 
 /** Check whether the col is used in spatial index or regular index.
 @param[in]	col	column to check

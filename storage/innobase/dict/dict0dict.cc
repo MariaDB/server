@@ -568,33 +568,6 @@ dict_table_get_nth_v_col_mysql(
 	return(dict_table_get_nth_v_col(table, i));
 }
 
-/** Allocate and init the zip_pad_mutex of a given index.
-This function must not be called concurrently on the same index object.
-@param[in,out]	index_void	index whose zip_pad_mutex to create */
-static
-void
-dict_index_zip_pad_alloc(
-	void*	index_void)
-{
-	dict_index_t*	index = static_cast<dict_index_t*>(index_void);
-	index->zip_pad.mutex = UT_NEW_NOKEY(SysMutex());
-	ut_a(index->zip_pad.mutex != NULL);
-	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, index->zip_pad.mutex);
-}
-
-/** Acquire the zip_pad_mutex latch.
-@param[in,out]	index	the index whose zip_pad_mutex to acquire.*/
-static
-void
-dict_index_zip_pad_lock(
-	dict_index_t*	index)
-{
-	os_once::do_or_wait_for_done(
-		&index->zip_pad.mutex_created,
-		dict_index_zip_pad_alloc, index);
-
-	mutex_enter(index->zip_pad.mutex);
-}
 
 /** Get all the FTS indexes on a table.
 @param[in]	table	table
@@ -6453,10 +6426,10 @@ dict_index_zip_success(
 		return;
 	}
 
-	dict_index_zip_pad_lock(index);
+	mutex_enter(&index->zip_pad.mutex);
 	++index->zip_pad.success;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	dict_index_zip_pad_unlock(index);
+	mutex_exit(&index->zip_pad.mutex);
 }
 
 /*********************************************************************//**
@@ -6473,10 +6446,10 @@ dict_index_zip_failure(
 		return;
 	}
 
-	dict_index_zip_pad_lock(index);
+	mutex_enter(&index->zip_pad.mutex);
 	++index->zip_pad.failure;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	dict_index_zip_pad_unlock(index);
+	mutex_exit(&index->zip_pad.mutex);
 }
 
 /*********************************************************************//**
