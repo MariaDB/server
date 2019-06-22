@@ -3960,9 +3960,9 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
   ST_SCHEMA_TABLE *schema_table= table->schema_table;
   ST_FIELD_INFO *field_info= schema_table->fields_info;
   const char *field_name1= schema_table->idx_field1 >= 0 ?
-    field_info[schema_table->idx_field1].field_name : "";
+    field_info[schema_table->idx_field1].name().str : "";
   const char *field_name2= schema_table->idx_field2 >= 0 ?
-    field_info[schema_table->idx_field2].field_name : "";
+    field_info[schema_table->idx_field2].name().str : "";
 
   if (item_func->functype() == Item_func::EQ_FUNC ||
       item_func->functype() == Item_func::EQUAL_FUNC)
@@ -4098,9 +4098,9 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
     ST_SCHEMA_TABLE *schema_table= table->schema_table;
     ST_FIELD_INFO *field_info= schema_table->fields_info;
     const char *field_name1= schema_table->idx_field1 >= 0 ?
-      field_info[schema_table->idx_field1].field_name : "";
+      field_info[schema_table->idx_field1].name().str : "";
     const char *field_name2= schema_table->idx_field2 >= 0 ?
-      field_info[schema_table->idx_field2].field_name : "";
+      field_info[schema_table->idx_field2].name().str : "";
     if (table->table != item_field->field->table ||
         (cs->coll->strnncollsp(cs, (uchar *) field_name1, strlen(field_name1),
                                (uchar *) item_field->field_name.str,
@@ -4806,18 +4806,18 @@ uint get_table_open_method(TABLE_LIST *tables,
   if (schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
   {
     Field **ptr, *field;
-    int table_open_method= 0, field_indx= 0;
+    uint table_open_method= 0, field_indx= 0;
     uint star_table_open_method= OPEN_FULL_TABLE;
     bool used_star= true;                  // true if '*' is used in select
     for (ptr=tables->table->field; (field= *ptr) ; ptr++)
     {
+      const ST_FIELD_INFO &def= schema_table->fields_info[field_indx];
       star_table_open_method=
-        MY_MIN(star_table_open_method,
-            (uint) schema_table->fields_info[field_indx].open_method);
+        MY_MIN(star_table_open_method, (uint) def.open_method());
       if (bitmap_is_set(tables->table->read_set, field->field_index))
       {
         used_star= false;
-        table_open_method|= schema_table->fields_info[field_indx].open_method;
+        table_open_method|= (uint) def.open_method();
       }
       field_indx++;
     }
@@ -8132,9 +8132,9 @@ mark_all_fields_used_in_query(THD *thd,
         bitmap_set_all(bitmap);
         break;
       }
-      for (count=0; fields->field_name; fields++, count++)
+      for (count=0; !fields->end_marker(); fields++, count++)
       {
-        if (!my_strcasecmp(system_charset_info, fields->field_name,
+        if (!my_strcasecmp(system_charset_info, fields->name().str,
                            item_field->field_name.str))
         {
           bitmap_set_bit(bitmap, count);
@@ -8179,7 +8179,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   my_bitmap_map *buf;
   DBUG_ENTER("create_schema_table");
 
-  for (field_count= 0, fields= fields_info; fields->field_name; fields++)
+  for (field_count= 0, fields= fields_info; !fields->end_marker(); fields++)
     field_count++;
   if (!(buf= (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count))))
     DBUG_RETURN(NULL);
@@ -8239,16 +8239,16 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
   ST_FIELD_INFO *field_info= schema_table->fields_info;
   Name_resolution_context *context= &thd->lex->first_select_lex()->context;
-  for (; field_info->field_name; field_info++)
+  for (; !field_info->end_marker(); field_info++)
   {
-    if (field_info->old_name)
+    if (field_info->old_name().str)
     {
-      LEX_CSTRING field_name= field_info->get_name();
+      LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
         Item_field(thd, context, field_name);
       if (field)
       {
-        field->set_name(thd, field_info->get_old_name());
+        field->set_name(thd, field_info->old_name());
         if (add_item_to_list(thd, field))
           return 1;
       }
@@ -8270,11 +8270,11 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     ST_FIELD_INFO *field_info= &schema_table->fields_info[1];
     String buffer(tmp,sizeof(tmp), system_charset_info);
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                                      field_info->get_name());
+                                                      field_info->name());
     if (!field || add_item_to_list(thd, field))
       return 1;
     buffer.length(0);
-    buffer.append(field_info->get_old_name());
+    buffer.append(field_info->old_name());
     if (lex->wild && lex->wild->ptr())
     {
       buffer.append(STRING_WITH_LEN(" ("));
@@ -8294,10 +8294,10 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   LEX *lex= thd->lex;
   Name_resolution_context *context= &lex->first_select_lex()->context;
   ST_FIELD_INFO *field_info= &schema_table->fields_info[2];
-  LEX_CSTRING field_name= Lex_cstring_strlen(field_info->field_name);
+  LEX_CSTRING field_name= field_info->name();
 
   buffer.length(0);
-  buffer.append(field_info->get_old_name());
+  buffer.append(field_info->old_name());
   buffer.append(&lex->first_select_lex()->db);
   if (lex->wild && lex->wild->ptr())
   {
@@ -8312,11 +8312,10 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   if (thd->lex->verbose)
   {
     field_info= &schema_table->fields_info[3];
-    field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+    field= new (thd->mem_root) Item_field(thd, context, field_info->name());
     if (add_item_to_list(thd, field))
       return 1;
-    field->set_name(thd, field_info->get_old_name());
+    field->set_name(thd, field_info->old_name());
   }
   return 0;
 }
@@ -8337,10 +8336,10 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
                                *field_num == 19))
       continue;
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }
@@ -8360,10 +8359,10 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     field_info= &schema_table->fields_info[*field_num];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }
@@ -8383,10 +8382,10 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     field_info= &schema_table->fields_info[*field_num];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }
@@ -9437,7 +9436,7 @@ ST_FIELD_INFO files_fields_info[]=
 void init_fill_schema_files_row(TABLE* table)
 {
   int i;
-  for(i=0; Show::files_fields_info[i].field_name!=NULL; i++)
+  for(i=0; !Show::files_fields_info[i].end_marker(); i++)
     table->field[i]->set_null();
 
   table->field[IS_FILES_STATUS]->set_notnull();
@@ -9729,8 +9728,8 @@ int initialize_schema_table(st_plugin_int *plugin)
     }
 
     if (!schema_table->old_format)
-      for (ST_FIELD_INFO *f= schema_table->fields_info; f->field_name; f++)
-        if (f->old_name && f->old_name[0])
+      for (ST_FIELD_INFO *f= schema_table->fields_info; !f->end_marker(); f++)
+        if (f->old_name().str && f->old_name().str[0])
         {
           schema_table->old_format= make_old_format;
           break;

@@ -18730,12 +18730,12 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
   MEM_ROOT *mem_root_save= thd->mem_root;
   thd->mem_root= &table->mem_root;
 
-  for (fieldnr= 0; defs[fieldnr].field_name; fieldnr++)
+  for (fieldnr= 0; !defs[fieldnr].end_marker(); fieldnr++)
   {
     const ST_FIELD_INFO &def= defs[fieldnr];
     bool visible= bitmap_is_set(&bitmap, fieldnr);
-    Record_addr addr(def.field_flags & MY_I_S_MAYBE_NULL);
-    const Type_handler *h= Type_handler::get_handler_by_real_type(def.field_type);
+    Record_addr addr(def.nullable());
+    const Type_handler *h= def.type_handler();
     Field *field= h->make_schema_field(table, addr, def, visible);
     if (!field)
     {
@@ -26173,16 +26173,14 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
         table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
     {
       IS_table_read_plan *is_table_read_plan= table_list->is_table_read_plan;
-      const char *tmp_buff;
-      int f_idx;
       StringBuffer<64> key_name_buf;
       if (is_table_read_plan->trivial_show_command ||
           is_table_read_plan->has_db_lookup_value())
       {
         /* The "key" has the name of the column referring to the database */
-        f_idx= table_list->schema_table->idx_field1;
-        tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-        key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
+        int f_idx= table_list->schema_table->idx_field1;
+        LEX_CSTRING tmp= table_list->schema_table->fields_info[f_idx].name();
+        key_name_buf.append(tmp, cs);
       }          
       if (is_table_read_plan->trivial_show_command ||
           is_table_read_plan->has_table_lookup_value())
@@ -26191,9 +26189,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
             is_table_read_plan->has_db_lookup_value())
           key_name_buf.append(',');
 
-        f_idx= table_list->schema_table->idx_field2;
-        tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-        key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
+        int f_idx= table_list->schema_table->idx_field2;
+        LEX_CSTRING tmp= table_list->schema_table->fields_info[f_idx].name();
+        key_name_buf.append(tmp, cs);
       }
 
       if (key_name_buf.length())

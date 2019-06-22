@@ -19,7 +19,7 @@
 class Item;
 struct TABLE_LIST;
 class THD;
-struct ST_FIELD_INFO;
+class ST_FIELD_INFO;
 typedef struct st_schema_table ST_SCHEMA_TABLE;
 
 namespace Show {

@@ -904,6 +904,10 @@ public:
 
   // Append with optional character set conversion from cs to charset()
   bool append(const char *s, size_t arg_length, CHARSET_INFO *cs);
+  bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
+  {
+    return append(s.str, s.length, cs);
+  }
 
   void strip_sp();
   friend int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);

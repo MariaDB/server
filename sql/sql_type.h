@@ -86,7 +86,7 @@ struct SORT_FIELD_ATTR;
 class Vers_history_point;
 class Virtual_column_info;
 class Conv_source;
-struct ST_FIELD_INFO;
+class ST_FIELD_INFO;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -6044,10 +6044,6 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
-  Field *make_schema_field(TABLE *table,
-                           const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6128,6 +6124,10 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,

@@ -22,6 +22,7 @@
 #include "lex_string.h"             // LEX_CSTRING
 #include "mysql_com.h"              // enum_field_types
 #include "my_time.h"                // TIME_SECOND_PART_DIGITS
+#include "sql_type.h"               // Type_handler_xxx
 
 struct TABLE_LIST;
 struct TABLE;
@@ -36,10 +37,6 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table);
 
 
-#define MY_I_S_MAYBE_NULL 1U
-#define MY_I_S_UNSIGNED   2U
-
-
 enum enum_show_open_table
 {
   SKIP_OPEN_TABLE= 0U,              // do not open table
@@ -48,86 +45,88 @@ enum enum_show_open_table
 };
 
 
-struct ST_FIELD_INFO
+namespace Show {
+class Type
 {
-  /** 
-      This is used as column name. 
-  */
-  const char* field_name;
-  /**
-     For string-type columns, this is the maximum number of
-     characters. Otherwise, it is the 'display-length' for the column.
-  */
-  uint field_length;
   /**
      This denotes data type for the column. For the most part, there seems to
      be one entry in the enum for each SQL data type, although there seem to
      be a number of additional entries in the enum.
   */
-  enum enum_field_types field_type;
-  int value;
+  const Type_handler *m_type_handler;
   /**
-     This is used to set column attributes. By default, columns are @c NOT
-     @c NULL and @c SIGNED, and you can deviate from the default
-     by setting the appopriate flags. You can use either one of the flags
-     @c MY_I_S_MAYBE_NULL and @cMY_I_S_UNSIGNED or
-     combine them using the bitwise or operator @c |. Both flags are
-     defined in table.h.
-   */
-  uint field_flags;        // Field atributes(maybe_null, signed, unsigned etc.)
-  const char* old_name;
-  /**
-     This should be one of @c SKIP_OPEN_TABLE,
-     @c OPEN_FRM_ONLY or @c OPEN_FULL_TABLE.
+     For string-type columns, this is the maximum number of
+     characters. Otherwise, it is the 'display-length' for the column.
   */
-  uint open_method;
-
-  LEX_CSTRING get_name() const
-  {
-    return LEX_CSTRING({field_name, strlen(field_name)});
-  }
-  LEX_CSTRING get_old_name() const
-  {
-    return LEX_CSTRING({old_name, strlen(old_name)});
-   }
-  bool unsigned_flag() const { return field_flags & MY_I_S_UNSIGNED; }
+  uint m_char_length;
+  uint m_unsigned_flag;
+public:
+  Type(const Type_handler *th, uint length, uint unsigned_flag)
+   :m_type_handler(th), m_char_length(length), m_unsigned_flag(unsigned_flag)
+  { }
+  const Type_handler *type_handler() const { return m_type_handler; }
+  uint char_length()      const { return m_char_length; }
+  uint decimal_precision() const { return (m_char_length / 100) % 100; }
+  uint decimal_scale() const { return m_char_length % 10; }
   uint fsp() const
   {
-    DBUG_ASSERT(field_length <= TIME_SECOND_PART_DIGITS);
-    return field_length;
+    DBUG_ASSERT(m_char_length <= TIME_SECOND_PART_DIGITS);
+    return m_char_length;
   }
+  uint unsigned_flag()    const { return m_unsigned_flag; }
+};
+} // namespace Show
+
+
+
+class ST_FIELD_INFO: public Show::Type
+{
+protected:
+  LEX_CSTRING m_name;                 // I_S column name
+  enum_nullability m_nullability;     // NULLABLE or NOT NULL
+  LEX_CSTRING m_old_name;             // SHOW column name
+  enum_show_open_table m_open_method;
+public:
+  ST_FIELD_INFO(const LEX_CSTRING &name, const Type &type,
+                enum_nullability nullability,
+                LEX_CSTRING &old_name,
+                enum_show_open_table open_method)
+   :Type(type), m_name(name), m_nullability(nullability), m_old_name(old_name),
+    m_open_method(open_method)
+  { }
+  ST_FIELD_INFO(const char *name, const Type &type,
+                enum_nullability nullability,
+                const char *old_name,
+                enum_show_open_table open_method)
+   :Type(type), m_nullability(nullability), m_open_method(open_method)
+  {
+    m_name.str= name;
+    m_name.length= safe_strlen(name);
+    m_old_name.str= old_name;
+    m_old_name.length= safe_strlen(old_name);
+  }
+  const LEX_CSTRING &name() const { return m_name; }
+  bool nullable() const { return m_nullability == NULLABLE; }
+  const LEX_CSTRING &old_name() const { return m_old_name; }
+  enum_show_open_table open_method() const { return  m_open_method; }
+  bool end_marker() const { return m_name.str == NULL; }
 };
 
 
 namespace Show
 {
 
-class Type
-{
-  enum enum_field_types m_type;
-  uint m_char_length;
-  uint m_unsigned_flag;
-public:
-  Type(enum_field_types type, uint length, uint unsigned_flag)
-   :m_type(type), m_char_length(length), m_unsigned_flag(unsigned_flag)
-  { }
-  enum_field_types type() const { return m_type; }
-  uint char_length()      const { return m_char_length; }
-  uint unsigned_flag()    const { return m_unsigned_flag; }
-};
-
-
 class Blob: public Type
 {
 public:
-  Blob(uint length) :Type(MYSQL_TYPE_BLOB, length, false) { }
+  Blob(uint length) :Type(&type_handler_blob, length, false) { }
 };
 
 
 class Varchar: public Type
 {
 public:
-  Varchar(uint length) :Type(MYSQL_TYPE_STRING, length, false)
+  Varchar(uint length) :Type(&type_handler_varchar, length, false)
   {
     DBUG_ASSERT(length * 3 <= MAX_FIELD_VARCHARLENGTH);
   }
@@ -137,7 +136,7 @@ public:
 class Longtext: public Type
 {
 public:
-  Longtext(uint length) :Type(MYSQL_TYPE_STRING, length, false) { }
+  Longtext(uint length) :Type(&type_handler_varchar, length, false) { }
 };
 
 
@@ -193,21 +192,21 @@ public:
 class Datetime: public Type
 {
 public:
-  Datetime(uint dec) :Type(MYSQL_TYPE_DATETIME, dec, false) { }
+  Datetime(uint dec) :Type(&type_handler_datetime2, dec, false) { }
 };
 
 
 class Decimal: public Type
 {
 public:
-  Decimal(uint length) :Type(MYSQL_TYPE_DECIMAL, length, false) { }
+  Decimal(uint length) :Type(&type_handler_newdecimal, length, false) { }
 };
 
 
 class ULonglong: public Type
 {
 public:
-  ULonglong(uint length) :Type(MYSQL_TYPE_LONGLONG, length, true) { }
+  ULonglong(uint length) :Type(&type_handler_longlong, length, true) { }
   ULonglong() :ULonglong(MY_INT64_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -215,7 +214,7 @@ public:
 class ULong: public Type
 {
 public:
-  ULong(uint length) :Type(MYSQL_TYPE_LONG, length, true) { }
+  ULong(uint length) :Type(&type_handler_long, length, true) { }
   ULong() :ULong(MY_INT32_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -223,7 +222,7 @@ public:
 class SLonglong: public Type
 {
 public:
-  SLonglong(uint length) :Type(MYSQL_TYPE_LONGLONG, length, false) { }
+  SLonglong(uint length) :Type(&type_handler_longlong, length, false) { }
   SLonglong() :SLonglong(MY_INT64_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -231,7 +230,7 @@ public:
 class SLong: public Type
 {
 public:
-  SLong(uint length) :Type(MYSQL_TYPE_LONG, length, false) { }
+  SLong(uint length) :Type(&type_handler_long, length, false) { }
   SLong() :SLong(MY_INT32_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -239,28 +238,28 @@ public:
 class SShort: public Type
 {
 public:
-  SShort(uint length) :Type(MYSQL_TYPE_SHORT, length, false) { }
+  SShort(uint length) :Type(&type_handler_short, length, false) { }
 };
 
 
 class STiny: public Type
 {
 public:
-  STiny(uint length) :Type(MYSQL_TYPE_TINY, length, false) { }
+  STiny(uint length) :Type(&type_handler_tiny, length, false) { }
 };
 
 
 class Double: public Type
 {
 public:
-  Double(uint length) :Type(MYSQL_TYPE_DOUBLE, length, false) { }
+  Double(uint length) :Type(&type_handler_double, length, false) { }
 };
 
 
 class Float: public Type
 {
 public:
-  Float(uint length) :Type(MYSQL_TYPE_FLOAT, length, false) { }
+  Float(uint length) :Type(&type_handler_float, length, false) { }
 };
 
 
@@ -271,17 +270,8 @@ public:
   Column(const char *name, const Type &type, enum_nullability nullability,
          const char *old_name,
          enum_show_open_table open_method= SKIP_OPEN_TABLE)
-  {
-    ST_FIELD_INFO::field_name= name;
-    ST_FIELD_INFO::field_length= type.char_length();
-    ST_FIELD_INFO::field_type= type.type();
-    ST_FIELD_INFO::value= 0;
-    ST_FIELD_INFO::field_flags=
-      (type.unsigned_flag() ? MY_I_S_UNSIGNED : 0) |
-      (nullability == NULLABLE ? MY_I_S_MAYBE_NULL : 0);
-    ST_FIELD_INFO::old_name= old_name;
-    ST_FIELD_INFO::open_method= open_method;
-  }
+   :ST_FIELD_INFO(name, type, nullability, old_name, open_method)
+  { }
   Column(const char *name, const Type &type, enum_nullability nullability,
          enum_show_open_table open_method= SKIP_OPEN_TABLE)
    :Column(name, type, nullability, NullS, open_method)

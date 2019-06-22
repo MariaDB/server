@@ -115,17 +115,17 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
   Name_resolution_context *context= &thd->lex->first_select_lex()->context;
   int i;
 
-  for (i= 0; schema_table->fields_info[i].field_name != NULL; i++)
+  for (i= 0; !schema_table->fields_info[i].end_marker(); i++)
   {
     if (! fields_include_condition_truth_values[i])
       continue;
 
     field_info= &schema_table->fields_info[i];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }
