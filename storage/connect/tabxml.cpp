@@ -235,7 +235,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
         } else
           break;
       }
-      
+
       xcol->Name[vp->n] = 0;
       fmt[vp->m] = 0;
 
