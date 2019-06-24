@@ -5,7 +5,6 @@ Copyright (c) 2019, MariaDB Corporation.
 /** @file ha_clustrixdb.cc */
 
 #include "ha_clustrixdb.h"
-#include "ha_clustrixdb_pushdown.h"
 #include "key.h"
 
 handlerton *clustrixdb_hton = NULL;
@@ -90,10 +89,26 @@ static MYSQL_SYSVAR_STR
   NULL, NULL, ""
 );
 
+// Per thread select handler knob
+static MYSQL_THDVAR_BOOL(
+    enable_sh,
+    PLUGIN_VAR_NOCMDARG,
+    "",
+    NULL,
+    NULL,
+    1
+);
+
+bool get_enable_sh(THD* thd)
+{
+    return ( thd == NULL ) ? false : THDVAR(thd, enable_sh);
+}
+
+
+
 /****************************************************************************
 ** Class ha_clustrixdb_trx
 ****************************************************************************/
-
 st_clustrixdb_trx::st_clustrixdb_trx(THD *trx_thd)
 {
   thd = trx_thd;
@@ -178,6 +193,27 @@ void decode_objectname(char *buf, const char *path, size_t buf_size)
     buf[new_path_len] = '\0';
 }
 
+st_clustrixdb_trx *get_trx(THD *thd, int *error_code)
+{
+  *error_code = 0;
+  st_clustrixdb_trx *trx;
+  if (!(trx = (st_clustrixdb_trx *)thd_get_ha_data(thd, clustrixdb_hton)))
+  {
+    if (!(trx = new st_clustrixdb_trx(thd))) {
+      *error_code = HA_ERR_OUT_OF_MEM;
+      return NULL;
+    }
+
+    if ((*error_code = trx->net_init())) {
+      delete trx;
+      return NULL;
+    }
+
+    thd_set_ha_data(thd, clustrixdb_hton, trx);
+  }
+
+  return trx;
+}
 /****************************************************************************
 ** Class ha_clustrixdb
 ****************************************************************************/
@@ -322,6 +358,7 @@ int ha_clustrixdb::open(const char *name, int mode, uint test_if_locked)
   if (!clustrix_table_oid)
     clustrix_table_oid = atoll((const char *)table->s->tabledef_version.str);
 
+  // Surrogate key marker
   has_hidden_key = table->s->primary_key == MAX_KEY;
   if (has_hidden_key) {
     ref_length = 8;
@@ -915,28 +952,6 @@ void ha_clustrixdb::remove_current_table_from_rpl_table_list()
   delete rgi;
 }
 
-st_clustrixdb_trx *ha_clustrixdb::get_trx(THD *thd, int *error_code)
-{
-  *error_code = 0;
-  st_clustrixdb_trx *trx;
-  if (!(trx = (st_clustrixdb_trx *)thd_get_ha_data(thd, clustrixdb_hton)))
-  {
-    if (!(trx = new st_clustrixdb_trx(thd))) {
-      *error_code = HA_ERR_OUT_OF_MEM;
-      return NULL;
-    }
-
-    if ((*error_code = trx->net_init())) {
-      delete trx;
-      return NULL;
-    }
-
-    thd_set_ha_data(thd, clustrixdb_hton, trx);
-  }
-
-  return trx;
-}
-
 void ha_clustrixdb::build_key_packed_row(uint index, uchar *packed_key,
                                          size_t *packed_key_len)
 {
@@ -1088,6 +1103,7 @@ static struct st_mysql_sys_var* clustrixdb_system_variables[] =
   MYSQL_SYSVAR(password),
   MYSQL_SYSVAR(port),
   MYSQL_SYSVAR(socket),
+  MYSQL_SYSVAR(enable_sh),
   NULL
 };
 

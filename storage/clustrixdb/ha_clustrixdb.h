@@ -21,6 +21,9 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "../../sql/rpl_record.h"
 
 size_t estimate_row_size(TABLE *table);
+class st_clustrixdb_trx;
+st_clustrixdb_trx *get_trx(THD *thd, int *error_code);
+bool get_enable_sh(THD* thd);
 
 class ha_clustrixdb;
 
@@ -117,7 +120,6 @@ public:
   int info_push(uint info_type, void *info);
 
 private:
-  st_clustrixdb_trx *get_trx(THD *thd, int *error_code);
   void add_current_table_to_rpl_table_list();
   void remove_current_table_from_rpl_table_list();
   void build_key_packed_row(uint index, uchar *packed_key,

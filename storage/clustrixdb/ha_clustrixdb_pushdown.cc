@@ -89,6 +89,10 @@ static select_handler*
 create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
 {
   ha_clustrixdb_select_handler *sh = NULL;
+  if (!get_enable_sh(thd)) {
+    return sh;
+  }
+
   String query;
   // Print the query into a string provided
   select_lex->print(thd, &query, QT_ORDINARY);
@@ -127,10 +131,10 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
 
   if ((error_code = clustrix_net->scan_query_init(query, fieldtype, items_number,
         null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
-    goto err;
+    //goto err;
   }
 
-  sh = new ha_clustrixdb_select_handler(thd, select_lex, clustrix_net);
+  sh = new ha_clustrixdb_select_handler(thd, select_lex, clustrix_net, scan_refid);
 
 err:
   // reuse the connection
@@ -153,10 +157,15 @@ err:
 ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
       THD *thd,
       SELECT_LEX* select_lex,
-      clustrix_connection* clustrix_net)
-  : select_handler(thd, clustrixdb_hton), clustrix_net(clustrix_net)
+      clustrix_connection* clustrix_net_,
+      ulonglong scan_refid_)
+  : select_handler(thd, clustrixdb_hton), clustrix_net(clustrix_net_),
+    scan_refid(scan_refid_)
 {
   select = select_lex;
+  rli = NULL;
+  rgi = NULL;
+  scan_refid = 0;
 }
 
 /***********************************************************
@@ -165,6 +174,9 @@ ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
  **********************************************************/
 ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
 {
+    remove_current_table_from_rpl_table_list();
+
+    // WIP reuse the connection
     if (clustrix_net)
       delete clustrix_net;
 }
@@ -178,8 +190,16 @@ ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
  *  rc as int
  * ********************************************************/
 int ha_clustrixdb_select_handler::init_scan()
-{
-    return 0;
+{  
+  // need this bitmap future in next_row()
+  // WIP look whether table->read_set->n_bits is valid or not
+  if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
+    return ER_OUTOFMEMORY;
+  bitmap_set_all(&scan_fields);
+
+  add_current_table_to_rpl_table_list();
+
+  return 0;
 }
 
 /*@brief  Fetch next row for select_handler           */
@@ -193,12 +213,10 @@ int ha_clustrixdb_select_handler::init_scan()
 int ha_clustrixdb_select_handler::next_row()
 {
   int error_code = 0;
-  THD *thd = ha_thd();
   st_clustrixdb_trx *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
-  assert(is_scan);
   assert(scan_refid);
 
   uchar *rowdata;
@@ -206,12 +224,6 @@ int ha_clustrixdb_select_handler::next_row()
   if ((error_code = trx->clustrix_net->scan_next(scan_refid, &rowdata,
                                                  &rowdata_length)))
     return error_code;
-
-  if (has_hidden_key) {
-    last_hidden_key = *(ulonglong *)rowdata;
-    rowdata += 8;
-    rowdata_length -= 8;
-  }
 
   uchar const *current_row_end;
   ulong master_reclength;
@@ -225,24 +237,20 @@ int ha_clustrixdb_select_handler::next_row()
 
   return 0;
 
-    //return HA_ERR_END_OF_FILE;
+  //return HA_ERR_END_OF_FILE;
 }
 
 /*@brief  Finishes the scan and clean it up               */
 /***********************************************************
  * DESCRIPTION:
  * Finishes the scan for select handler
- * ATM this function sets vtable_state and restores it
- * afterwards since it reuses existed vtable code internally.
  * PARAMETERS:
  * RETURN:
  *   rc as int
  ***********************************************************/
 int ha_clustrixdb_select_handler::end_scan()
 {
-/*
   int error_code = 0;
-  THD *thd = ha_thd();
   st_clustrixdb_trx *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
@@ -250,13 +258,81 @@ int ha_clustrixdb_select_handler::end_scan()
   my_bitmap_free(&scan_fields);
   if (scan_refid && (error_code = trx->clustrix_net->scan_end(scan_refid)))
     return error_code;
-  scan_refid = 0;
 
-  return 0;
-*/
-    return 0;
+  return error_code;
 }
 
 void ha_clustrixdb_select_handler::print_error(int, unsigned long)
 {
 }
+
+/*@brief clone of ha_clustrixdb method                    */
+/***********************************************************
+ * DESCRIPTION:
+ * Creates structures to unpack RBR rows in ::next_row()
+ * PARAMETERS:
+ * RETURN:
+ *   rc as int
+ ***********************************************************/
+void ha_clustrixdb_select_handler::add_current_table_to_rpl_table_list()
+{
+  if (rli)
+    return;
+
+  rli = new Relay_log_info(FALSE);
+  rli->sql_driver_thd = thd;
+
+  rgi = new rpl_group_info(rli);
+  rgi->thd = thd;
+  rgi->tables_to_lock_count = 0;
+  rgi->tables_to_lock = NULL;
+  if (rgi->tables_to_lock_count)
+    return;
+
+  rgi->tables_to_lock = (RPL_TABLE_LIST *)my_malloc(sizeof(RPL_TABLE_LIST),
+                                                    MYF(MY_WME));
+  rgi->tables_to_lock->init_one_table(&table->s->db, &table->s->table_name, 0,
+                                      TL_READ);
+  rgi->tables_to_lock->table = table;
+  rgi->tables_to_lock->table_id = table->tablenr;
+  rgi->tables_to_lock->m_conv_table = NULL;
+  rgi->tables_to_lock->master_had_triggers = FALSE;
+  rgi->tables_to_lock->m_tabledef_valid = TRUE;
+  // We need one byte per column to save a column's binlog type.
+  uchar *col_type = (uchar*) my_alloca(table->s->fields);
+  for (uint i = 0 ; i < table->s->fields ; ++i)
+    col_type[i] = table->field[i]->binlog_type();
+
+  table_def *tabledef = &rgi->tables_to_lock->m_tabledef;
+  new (tabledef) table_def(col_type, table->s->fields, NULL, 0, NULL, 0);
+  rgi->tables_to_lock_count++;
+  if (col_type)
+    my_afree(col_type);
+}
+
+/*@brief clone of ha_clustrixdb method                    */
+/***********************************************************
+ * DESCRIPTION:
+ * Deletes structures that are used to unpack RBR rows 
+ * in ::next_row(). Called from dtor
+ * PARAMETERS:
+ * RETURN:
+ *   rc as int
+ ***********************************************************/
+void ha_clustrixdb_select_handler::remove_current_table_from_rpl_table_list()
+{
+  // the 2nd cond might be unnecessary
+  if (!rgi || !rgi->tables_to_lock)
+    return;
+
+  rgi->tables_to_lock->m_tabledef.table_def::~table_def();
+  rgi->tables_to_lock->m_tabledef_valid = FALSE;
+  my_free(rgi->tables_to_lock);
+  rgi->tables_to_lock_count--;
+  rgi->tables_to_lock = NULL;
+  delete rli;
+  delete rgi;
+}
+
+
+
