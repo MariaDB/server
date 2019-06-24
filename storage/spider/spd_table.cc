@@ -5074,8 +5074,7 @@ SPIDER_SHARE *spider_get_share(
       share->init_error = TRUE;
       share->init_error_time = (time_t) time((time_t*) 0);
       share->init = TRUE;
-      spider_free_share(share);
-      goto error_but_no_delete;
+      goto error_after_alloc_conn_keys;
     }
 
     if (
@@ -5123,8 +5122,7 @@ SPIDER_SHARE *spider_get_share(
           share->init_error = TRUE;
           share->init_error_time = (time_t) time((time_t*) 0);
           share->init = TRUE;
-          spider_free_share(share);
-          goto error_but_no_delete;
+          goto error_after_alloc_dbton_handler;
         }
         spider->conns[roop_count]->error_mode &= spider->error_mode;
       }
@@ -5142,8 +5140,7 @@ SPIDER_SHARE *spider_get_share(
         share->init_error = TRUE;
         share->init_error_time = (time_t) time((time_t*) 0);
         share->init = TRUE;
-        spider_free_share(share);
-        goto error_but_no_delete;
+        goto error_after_alloc_dbton_handler;
       }
       char *table_name = db + table_share->db.length + 1;
       memcpy(db, table_share->db.str, table_share->db.length);
@@ -5158,16 +5155,14 @@ SPIDER_SHARE *spider_get_share(
       share->init_error = TRUE;
       share->init_error_time = (time_t) time((time_t*) 0);
       share->init = TRUE;
-      spider_free_share(share);
-      goto error_but_no_delete;
+      goto error_after_alloc_dbton_handler;
     } else if (search_link_idx == -2)
     {
       *error_num = HA_ERR_OUT_OF_MEM;
       share->init_error = TRUE;
       share->init_error_time = (time_t) time((time_t*) 0);
       share->init = TRUE;
-      spider_free_share(share);
-      goto error_but_no_delete;
+      goto error_after_alloc_dbton_handler;
     }
     spider->search_link_idx = search_link_idx;
 
@@ -5224,8 +5219,7 @@ SPIDER_SHARE *spider_get_share(
           share->init = TRUE;
           pthread_mutex_unlock(&share->crd_mutex);
           pthread_mutex_unlock(&share->sts_mutex);
-          spider_free_share(share);
-          goto error_but_no_delete;
+          goto error_after_alloc_dbton_handler;
         }
       }
 
@@ -5234,28 +5228,48 @@ SPIDER_SHARE *spider_get_share(
           !same_server_link ||
           load_sts_at_startup
         ) &&
-        spider_get_sts(share, spider->search_link_idx, tmp_time,
+        (*error_num = spider_get_sts(share, spider->search_link_idx, tmp_time,
           spider, sts_interval, sts_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           sts_sync,
 #endif
-          1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO)
+          1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
       ) {
-        thd->clear_error();
+        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+        {
+          thd->clear_error();
+        } else {
+          pthread_mutex_unlock(&share->crd_mutex);
+          pthread_mutex_unlock(&share->sts_mutex);
+          share->init_error = TRUE;
+          share->init_error_time = (time_t) time((time_t*) 0);
+          share->init = TRUE;
+          goto error_after_alloc_dbton_handler;
+        }
       }
       if (
         (
           !same_server_link ||
           load_crd_at_startup
         ) &&
-        spider_get_crd(share, spider->search_link_idx, tmp_time,
+        (*error_num = spider_get_crd(share, spider->search_link_idx, tmp_time,
           spider, table, crd_interval, crd_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           crd_sync,
 #endif
-          1)
+          1))
       ) {
-        thd->clear_error();
+        if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+        {
+          thd->clear_error();
+        } else {
+          pthread_mutex_unlock(&share->crd_mutex);
+          pthread_mutex_unlock(&share->sts_mutex);
+          share->init_error = TRUE;
+          share->init_error_time = (time_t) time((time_t*) 0);
+          share->init = TRUE;
+          goto error_after_alloc_dbton_handler;
+        }
       }
       pthread_mutex_unlock(&share->crd_mutex);
       pthread_mutex_unlock(&share->sts_mutex);
@@ -5596,8 +5610,7 @@ SPIDER_SHARE *spider_get_share(
           spider->dbton_handler[dbton_id] = NULL;
         }
       }
-      spider_free_share(share);
-      goto error_but_no_delete;
+      goto error_after_alloc_conn_keys;
     }
 
     if (
@@ -5642,8 +5655,7 @@ SPIDER_SHARE *spider_get_share(
                 FALSE
               );
           }
-          spider_free_share(share);
-          goto error_but_no_delete;
+          goto error_after_alloc_dbton_handler;
         }
         spider->conns[roop_count]->error_mode &= spider->error_mode;
       }
@@ -5658,8 +5670,7 @@ SPIDER_SHARE *spider_get_share(
       if (!db)
       {
         *error_num = HA_ERR_OUT_OF_MEM;
-        spider_free_share(share);
-        goto error_but_no_delete;
+        goto error_after_alloc_dbton_handler;
       }
       char *table_name = db + table_share->db.length + 1;
       memcpy(db, table_share->db.str, table_share->db.length);
@@ -5671,13 +5682,11 @@ SPIDER_SHARE *spider_get_share(
         ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
       my_afree(db);
       *error_num = ER_SPIDER_ALL_LINKS_FAILED_NUM;
-      spider_free_share(share);
-      goto error_but_no_delete;
+      goto error_after_alloc_dbton_handler;
     } else if (search_link_idx == -2)
     {
       *error_num = HA_ERR_OUT_OF_MEM;
-      spider_free_share(share);
-      goto error_but_no_delete;
+      goto error_after_alloc_dbton_handler;
     }
     spider->search_link_idx = search_link_idx;
 
@@ -5737,8 +5746,7 @@ SPIDER_SHARE *spider_get_share(
                   spider_init_error_table->init_error_msg, MYF(0));
               pthread_mutex_unlock(&share->crd_mutex);
               pthread_mutex_unlock(&share->sts_mutex);
-              spider_free_share(share);
-              goto error_but_no_delete;
+              goto error_after_alloc_dbton_handler;
             }
           }
 
@@ -5747,28 +5755,42 @@ SPIDER_SHARE *spider_get_share(
               !same_server_link ||
               load_sts_at_startup
             ) &&
-            spider_get_sts(share, spider->search_link_idx,
+            (*error_num = spider_get_sts(share, spider->search_link_idx,
               tmp_time, spider, sts_interval, sts_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
               sts_sync,
 #endif
-              1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO)
+              1, HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_AUTO))
           ) {
-            thd->clear_error();
+            if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+            {
+              thd->clear_error();
+            } else {
+              pthread_mutex_unlock(&share->crd_mutex);
+              pthread_mutex_unlock(&share->sts_mutex);
+              goto error_after_alloc_dbton_handler;
+            }
           }
           if (
             (
               !same_server_link ||
               load_crd_at_startup
             ) &&
-            spider_get_crd(share, spider->search_link_idx,
+            (*error_num = spider_get_crd(share, spider->search_link_idx,
               tmp_time, spider, table, crd_interval, crd_mode,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
               crd_sync,
 #endif
-              1)
+              1))
           ) {
-            thd->clear_error();
+            if (*error_num != ER_SPIDER_SYS_TABLE_VERSION_NUM)
+            {
+              thd->clear_error();
+            } else {
+              pthread_mutex_unlock(&share->crd_mutex);
+              pthread_mutex_unlock(&share->sts_mutex);
+              goto error_after_alloc_dbton_handler;
+            }
           }
         }
         share->init_error = FALSE;
@@ -5780,6 +5802,22 @@ SPIDER_SHARE *spider_get_share(
 
   DBUG_PRINT("info",("spider share=%p", share));
   DBUG_RETURN(share);
+
+error_after_alloc_dbton_handler:
+  for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
+  {
+    uint dbton_id = share->use_dbton_ids[roop_count];
+    if (spider->dbton_handler[dbton_id])
+    {
+      delete spider->dbton_handler[dbton_id];
+      spider->dbton_handler[dbton_id] = NULL;
+    }
+  }
+error_after_alloc_conn_keys:
+  spider_free(spider_current_trx, spider->conn_keys, MYF(0));
+  spider->conn_keys = NULL;
+  spider_free_share(share);
+  goto error_but_no_delete;
 
 error_hash_insert:
   spider_free_share_resource_only(share);
