@@ -1208,7 +1208,6 @@ bool XINDEX::MapInit(PGLOBAL g)
   PCOL    colp;
   PXCOL   prev = NULL, kcp = NULL;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
-  PlgGetUser(g);
 
   /*********************************************************************/
   /*  Get the estimated table size.                                    */
