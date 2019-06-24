@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -247,20 +248,6 @@ err:
   my_errno=save_errno;
   DBUG_RETURN (NULL);
 } /* maria_clone_internal */
-
-
-/* Make a clone of a maria table */
-
-MARIA_HA *maria_clone(MARIA_SHARE *share, int mode)
-{
-  MARIA_HA *new_info;
-  mysql_mutex_lock(&THR_LOCK_maria);
-  new_info= maria_clone_internal(share, mode,
-                                 share->data_file_type == BLOCK_RECORD ?
-                                 share->bitmap.file.file : -1, 0);
-  mysql_mutex_unlock(&THR_LOCK_maria);
-  return new_info;
-}
 
 
 /******************************************************************************
