@@ -218,8 +218,8 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
     while (true) {
       if (!vp->atp &&
-				!(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, tdp->Usedom ? node : NULL)
-				                  : NULL)) {
+        !(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, tdp->Usedom ? node : NULL)
+                          : NULL)) {
         if (j) {
           vp = lvlp[--j];
 
