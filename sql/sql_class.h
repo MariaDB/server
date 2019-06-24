@@ -5196,7 +5196,7 @@ public:
   inline static int get_cost_calc_buff_size(size_t nkeys, uint key_size,
                                             ulonglong max_in_memory_size)
   {
-    register ulonglong max_elems_in_tree=
+    ulonglong max_elems_in_tree=
       max_in_memory_size / ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size);
     return (int) (sizeof(uint)*(1 + nkeys/max_elems_in_tree));
   }

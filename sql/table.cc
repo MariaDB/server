@@ -3063,7 +3063,7 @@ partititon_err:
     free_share		Is 1 if we also want to free table_share
 */
 
-int closefrm(register TABLE *table, bool free_share)
+int closefrm(TABLE *table, bool free_share)
 {
   int error=0;
   DBUG_ENTER("closefrm");
@@ -3111,7 +3111,7 @@ int closefrm(register TABLE *table, bool free_share)
 
 /* Deallocate temporary blob storage */
 
-void free_blobs(register TABLE *table)
+void free_blobs(TABLE *table)
 {
   uint *ptr, *end;
   for (ptr= table->s->blob_field, end=ptr + table->s->blob_fields ;

@@ -6302,7 +6302,7 @@ int spider_panic(
 int spider_db_init(
   void *p
 ) {
-  int error_num, roop_count;
+  int error_num = 0, roop_count;
   uint dbton_id = 0;
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");

@@ -5901,8 +5901,8 @@ void Item_func_like::turboBM_compute_bad_character_shifts()
 
 bool Item_func_like::turboBM_matches(const char* text, int text_len) const
 {
-  register int bcShift;
-  register int turboShift;
+  int bcShift;
+  int turboShift;
   int shift = pattern_len;
   int j     = 0;
   int u     = 0;
@@ -5916,7 +5916,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
   {
     while (j <= tlmpl)
     {
-      register int i= plm1;
+      int i= plm1;
       while (i >= 0 && pattern[i] == text[i + j])
       {
 	i--;
@@ -5926,7 +5926,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
       if (i < 0)
 	return 1;
 
-      register const int v = plm1 - i;
+      const int v = plm1 - i;
       turboShift = u - v;
       bcShift    = bmBc[(uint) (uchar) text[i + j]] - plm1 + i;
       shift      = MY_MAX(turboShift, bcShift);
@@ -5947,7 +5947,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
   {
     while (j <= tlmpl)
     {
-      register int i = plm1;
+      int i = plm1;
       while (i >= 0 && likeconv(cs,pattern[i]) == likeconv(cs,text[i + j]))
       {
 	i--;
@@ -5957,7 +5957,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
       if (i < 0)
 	return 1;
 
-      register const int v = plm1 - i;
+      const int v = plm1 - i;
       turboShift = u - v;
       bcShift    = bmBc[(uint) likeconv(cs, text[i + j])] - plm1 + i;
       shift      = MY_MAX(turboShift, bcShift);

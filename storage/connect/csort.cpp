@@ -178,9 +178,9 @@ void CSORT::DebugSort(int ph, int n, int *base, int *mid, int *tmp)
 /***********************************************************************/
 int CSORT::Qsortx(void)
   {
-  register int  c;
-  register int  lo, hi, min;
-  register int  i, j, rc = 0;
+  int  c;
+  int  lo, hi, min;
+  int  i, j, rc = 0;
   // To do: rc should be checked for being used uninitialized
   int          *top;
 #ifdef DEBTRACE
@@ -344,7 +344,7 @@ int CSORT::Qsortx(void)
 /***********************************************************************/
 void CSORT::Qstx(int *base, int *max)
   {
-  register int *i, *j, *jj, *mid, *him, c;
+  int *i, *j, *jj, *mid, *him, c;
   int          *tmp;
   int           lo, hi, rc;
   size_t        zlo, zhi, cnm;
@@ -543,9 +543,9 @@ void CSORT::Qstx(int *base, int *max)
 /***********************************************************************/
 int CSORT::Qsortc(void)
   {
-  register int  c;
-  register int  lo, hi, min;
-  register int  i, j, k, m, rc = 0;
+  int  c;
+  int  lo, hi, min;
+  int  i, j, k, m, rc = 0;
   // To do: rc should be checked for being used uninitialized
   int          *max;
 #ifdef DEBTRACE
@@ -720,7 +720,7 @@ int CSORT::Qsortc(void)
 /***********************************************************************/
 void CSORT::Qstc(int *base, int *max)
   {
-  register int *i, *j, *jj, *lt, *eq, *gt, *mid;
+  int *i, *j, *jj, *lt, *eq, *gt, *mid;
   int           c = 0, lo, hi, rc;
   size_t        zlo, zhi, cnm;
 
@@ -907,9 +907,9 @@ void CSORT::Qstc(int *base, int *max)
 /***********************************************************************/
 void CSORT::Istc(int *base, int *hi, int *max)
   {
-  register int  c = 0;
-  register int *lo;
-  register int *i, *j;
+  int  c = 0;
+  int *lo;
+  int *i, *j;
 
   /*********************************************************************/
   /*  First put smallest element, which must be in the first THRESH,   */

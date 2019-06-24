@@ -60,8 +60,8 @@
 #define EXTRA_DEBUG_fflush fflush
 #define EXTRA_DEBUG_ASSERT DBUG_ASSERT
 #else
-static void inline EXTRA_DEBUG_fprintf(...) {}
-static int inline EXTRA_DEBUG_fflush(...) { return 0; }
+#define EXTRA_DEBUG_fprintf(...)
+#define EXTRA_DEBUG_fflush(...)
 #define EXTRA_DEBUG_ASSERT(X) do {} while(0)
 #endif
 #ifdef MYSQL_SERVER

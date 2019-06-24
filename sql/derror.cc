@@ -146,7 +146,7 @@ static bool check_error_mesg(const char *file_name, const char **errmsg)
 bool read_texts(const char *file_name, const char *language,
                 const char ***point, uint error_messages)
 {
-  register uint i;
+  uint i;
   uint count,funktpos;
   size_t offset, length;
   File file;

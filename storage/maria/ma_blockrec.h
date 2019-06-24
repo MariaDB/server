@@ -190,8 +190,7 @@ MARIA_RECORD_POS _ma_write_init_block_record(MARIA_HA *info,
                                              const uchar *record);
 my_bool _ma_write_block_record(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_block_record(MARIA_HA *info);
-my_bool _ma_compare_block_record(register MARIA_HA *info,
-                                 register const uchar *record);
+my_bool _ma_compare_block_record(MARIA_HA *info, const uchar *record);
 void    _ma_compact_block_page(MARIA_SHARE *share, uchar *buff, uint rownr,
                                my_bool extend_block, TrID min_read_from,
                                uint min_row_length);

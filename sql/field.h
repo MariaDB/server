@@ -1406,7 +1406,7 @@ public:
     // Exactly the same rules with REF access
     return can_optimize_keypart_ref(cond, item);
   }
-  friend int cre_myisam(char * name, register TABLE *form, uint options,
+  friend int cre_myisam(char * name, TABLE *form, uint options,
 			ulonglong auto_increment_value);
   friend class Copy_field;
   friend class Item_avg_field;

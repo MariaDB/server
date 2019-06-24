@@ -1393,8 +1393,6 @@ write_xtrabackup_info(MYSQL *connection)
 	const char *xb_stream_name[] = {"file", "tar", "xbstream"};
 
 
-	ut_ad(xtrabackup_stream_fmt < 3);
-
 	uuid = read_mysql_one_value(connection, "SELECT UUID()");
 	server_version = read_mysql_one_value(connection, "SELECT VERSION()");
 	localtime_r(&history_start_time, &tm);
