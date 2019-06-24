@@ -204,7 +204,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 				*pcrp = crp->Next;
 			} else
 				pcrp = &crp->Next;
-        }
+		}
 		if (!Rblkp) {
 			strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
 			goto err;
