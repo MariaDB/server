@@ -1291,7 +1291,6 @@ bool ODBConn::DriverConnect(DWORD Options)
 #endif  // !__WIN__
   PGLOBAL& g = m_G;
 
-//if (Options & noOdbcDialog || PlgGetUser(g)->Remote)
     wConnectOption = SQL_DRIVER_NOPROMPT;
 //else if (Options & forceOdbcDialog)
 //  wConnectOption = SQL_DRIVER_PROMPT;
