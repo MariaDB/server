@@ -90,3 +90,17 @@ check table t2;
 Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 DROP TABLE t1,t2;
+#
+# MDEV-17576
+# Assertion `share->reopen == 1' failed in maria_extra upon ALTER on
+# Aria table with triggers and locks
+#
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t1 SELECT * FROM t1;
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 FORCE, LOCK=EXCLUSIVE;
+DROP TRIGGER tr;
+DROP TABLE t1;
+#
+# End of 10.2 test
+#
