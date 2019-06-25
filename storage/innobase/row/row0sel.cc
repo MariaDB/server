@@ -3902,10 +3902,24 @@ row_search_idx_cond_check(
 
 	switch (result) {
 	case ICP_MATCH:
-		if (handler_rowid_filter_is_active(prebuilt->pk_filter)
-		    && !handler_rowid_filter_check(prebuilt->pk_filter)) {
-			MONITOR_INC(MONITOR_ICP_MATCH);
-			return(ICP_NO_MATCH);
+	        if (handler_rowid_filter_is_active(prebuilt->pk_filter)) {
+		        ut_ad(!prebuilt->index->is_primary());
+		        if (prebuilt->clust_index_was_generated) {
+                               ulint len;
+                               dict_index_t* index = prebuilt->index;
+                               const byte* data = rec_get_nth_field(
+                                       rec, offsets, index->n_fields - 1,
+                                       &len);
+                               ut_ad(dict_index_get_nth_col(index,
+                                                            index->n_fields - 1)
+                                     ->prtype == (DATA_ROW_ID | DATA_NOT_NULL));
+                               ut_ad(len == DATA_ROW_ID_LEN);
+                               memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
+                        }
+                        if (!handler_rowid_filter_check(prebuilt->pk_filter)) {
+			        MONITOR_INC(MONITOR_ICP_MATCH);
+			        return(ICP_NO_MATCH);
+                        }
 		}
 		/* Convert the remaining fields to MySQL format.
 		If this is a secondary index record, we must defer
