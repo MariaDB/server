@@ -52,7 +52,7 @@ SET(BOOTSTRAP_COMMAND
   --datadir=.
   --default-storage-engine=MyISAM
   --max_allowed_packet=8M
-  --net_buffer_length=16K
+  --net_buffer_length=32K
 )
 
 GET_FILENAME_COMPONENT(CWD . ABSOLUTE)
