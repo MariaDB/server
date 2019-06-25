@@ -8256,6 +8256,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 
 int TABLE::update_virtual_field(Field *vf)
 {
+  DBUG_ASSERT(!in_use->is_error());
   Query_arena backup_arena;
   DBUG_ENTER("TABLE::update_virtual_field");
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
