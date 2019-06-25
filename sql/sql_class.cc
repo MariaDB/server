@@ -4848,6 +4848,11 @@ unsigned long long thd_get_query_id(const MYSQL_THD thd)
   return((unsigned long long)thd->query_id);
 }
 
+void thd_clear_error(MYSQL_THD thd)
+{
+  thd->clear_error();
+}
+
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
   return(thd->charset());

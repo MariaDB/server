@@ -1,0 +1,34 @@
+#
+# MDEV-16222 Assertion `0' failed in row_purge_remove_sec_if_poss_leaf on table with virtual columns and indexes
+#
+set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
+set global innodb_purge_rseg_truncate_frequency= 1;
+set @saved_dbug= @@global.debug_dbug;
+set global debug_dbug= "+d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
+create table t1 (
+pk serial, vb tinyblob as (b) virtual, b tinyblob,
+primary key(pk), index (vb(64)))
+engine innodb;
+insert ignore into t1 (b) values ('foo');
+select * from t1 into outfile 'load.data';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+load data infile 'load.data' replace into table t1;
+set debug_sync= "now WAIT_FOR latch_released";
+set global debug_dbug= "-d,ib_purge_virtual_mdev_16222_1";
+drop table t1;
+set debug_sync= "now SIGNAL drop_started WAIT_FOR got_no_such_table";
+create table t1 (
+pk serial, vb tinyblob as (b) virtual, b tinyblob,
+primary key(pk), index (vb(64)))
+engine innodb;
+insert ignore into t1 (b) values ('foo');
+select * from t1 into outfile 'load.data';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+load data infile 'load.data' replace into table t1;
+set debug_sync= "now WAIT_FOR got_no_such_table";
+set debug_sync= "RESET";
+drop table t1;
+set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
+set global debug_dbug= @saved_dbug;
