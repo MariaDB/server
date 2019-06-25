@@ -1,3 +1,7 @@
+if (!$TEST_VERSIONING_SO)
+{
+  --skip needs test_versioning plugin
+}
 -- source include/have_innodb.inc
 
 set default_storage_engine= innodb;

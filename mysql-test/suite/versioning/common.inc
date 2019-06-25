@@ -1,4 +1,8 @@
 --disable_query_log
+if (!$TEST_VERSIONING_SO)
+{
+  --skip needs test_versioning plugin
+}
 source include/have_innodb.inc;
 
 set @@session.time_zone='+00:00';
