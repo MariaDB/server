@@ -5030,5 +5030,9 @@ uint8_t ms3_move(ms3_st *ms3, const char *source_bucket, const char *source_key,
   return 1;
 }
 
+void ms3_debug()
+{
+}
+
 C_MODE_END
 #endif /* WITH_S3_STORAGE_ENGINE */

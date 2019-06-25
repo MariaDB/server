@@ -78,6 +78,7 @@ static ulonglong s3_pagecache_buffer_size;
 static char *s3_bucket, *s3_access_key=0, *s3_secret_key=0, *s3_region;
 static char *s3_host_name;
 static char *s3_tmp_access_key=0, *s3_tmp_secret_key=0;
+static my_bool s3_debug= 0;
 handlerton *s3_hton= 0;
 
 /* Don't show access or secret keys to users if they exists */
@@ -116,6 +117,11 @@ static MYSQL_SYSVAR_ULONG(block_size, s3_block_size,
        PLUGIN_VAR_RQCMDARG,
        "Block size for S3", 0, 0,
        4*1024*1024, 65536, 16*1024*1024, 8192);
+
+static MYSQL_SYSVAR_BOOL(debug, s3_debug,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "Generates trace file from libmarias3 on stderr for debugging",
+       0, 0, 0);
 
 static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
                          PLUGIN_VAR_RQCMDARG,
@@ -172,7 +178,6 @@ static MYSQL_SYSVAR_STR(region, s3_region,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "AWS region",
        0, 0, "");
-
 
 ha_create_table_option s3_table_option_list[]=
 {
@@ -696,6 +701,8 @@ static int ha_s3_init(void *p)
   s3_pagecache.big_block_read= s3_block_read;
   s3_pagecache.big_block_free= s3_free;
   s3_init_library();
+  if (s3_debug)
+    ms3_debug();
   return res ? HA_ERR_INITIALIZATION : 0;
 }
 
@@ -716,6 +723,7 @@ static SHOW_VAR status_variables[]= {
 
 static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(block_size),
+  MYSQL_SYSVAR(debug),
   MYSQL_SYSVAR(protocol_version),
   MYSQL_SYSVAR(pagecache_age_threshold),
   MYSQL_SYSVAR(pagecache_buffer_size),
