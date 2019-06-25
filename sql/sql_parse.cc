@@ -4079,31 +4079,7 @@ mysql_execute_command(THD *thd)
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
-  case SQLCOM_SHOW_SLAVE_STAT:
-  {
-    /* Accept one of two privileges */
-    if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
-      goto error;
 
-    if (lex->verbose)
-    {
-      mysql_mutex_lock(&LOCK_active_mi);
-      res= show_all_master_info(thd);
-      mysql_mutex_unlock(&LOCK_active_mi);
-    }
-    else
-    {
-      LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
-      Master_info *mi;
-      if ((mi= get_master_info(&lex_mi->connection_name,
-                               Sql_condition::WARN_LEVEL_ERROR)))
-      {
-        res= show_master_info(thd, mi, 0);
-        mi->release();
-      }
-    }
-    break;
-  }
   case SQLCOM_SHOW_MASTER_STAT:
   {
     /* Accept one of two privileges */
@@ -6074,6 +6050,7 @@ mysql_execute_command(THD *thd)
       DBUG_ASSERT(first_table == all_tables && first_table != 0);
     /* fall through */
   case SQLCOM_ALTER_SEQUENCE:
+  case SQLCOM_SHOW_SLAVE_STAT:
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
   case SQLCOM_GET_DIAGNOSTICS:

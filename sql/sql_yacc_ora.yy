@@ -14329,19 +14329,25 @@ show_param:
         | ALL SLAVES STATUS_SYM
           {
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
-            Lex->verbose= 1;
+            if (!(Lex->m_sql_cmd= new (thd->mem_root)
+                  Sql_cmd_show_slave_status(true)))
+              MYSQL_YYABORT;
           }
         | SLAVE STATUS_SYM
           {
             LEX *lex= thd->lex;
             lex->mi.connection_name= null_clex_str;
             lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
-            lex->verbose= 0;
+            if (!(lex->m_sql_cmd= new (thd->mem_root)
+                  Sql_cmd_show_slave_status()))
+              MYSQL_YYABORT;
           }
         | SLAVE connection_name STATUS_SYM
           {
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
-            Lex->verbose= 0;
+            if (!(Lex->m_sql_cmd= new (thd->mem_root)
+                  Sql_cmd_show_slave_status()))
+              MYSQL_YYABORT;
           }
         | CREATE PROCEDURE_SYM sp_name
           {

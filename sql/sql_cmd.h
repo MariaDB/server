@@ -208,6 +208,26 @@ protected:
   }
 };
 
+class Sql_cmd_show_slave_status: public Sql_cmd
+{
+protected:
+  bool show_all_slaves_status;
+public:
+  Sql_cmd_show_slave_status()
+    :show_all_slaves_status(false)
+  {}
+
+  Sql_cmd_show_slave_status(bool status_all)
+    :show_all_slaves_status(status_all)
+  {}
+
+  enum_sql_command sql_command_code() const { return SQLCOM_SHOW_SLAVE_STAT; }
+
+  bool execute(THD *thd);
+  bool is_show_all_slaves_stat() { return show_all_slaves_status; }
+};
+
+
 class Sql_cmd_create_table_like: public Sql_cmd,
                                  public Storage_engine_name
 {
