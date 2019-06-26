@@ -60,9 +60,12 @@ class Type
   */
   uint m_char_length;
   uint m_unsigned_flag;
+  const Typelib *m_typelib;
 public:
-  Type(const Type_handler *th, uint length, uint unsigned_flag)
-   :m_type_handler(th), m_char_length(length), m_unsigned_flag(unsigned_flag)
+  Type(const Type_handler *th, uint length, uint unsigned_flag,
+       const Typelib *typelib= NULL)
+   :m_type_handler(th), m_char_length(length), m_unsigned_flag(unsigned_flag),
+    m_typelib(typelib)
   { }
   const Type_handler *type_handler() const { return m_type_handler; }
   uint char_length()      const { return m_char_length; }
@@ -74,6 +77,7 @@ public:
     return m_char_length;
   }
   uint unsigned_flag()    const { return m_unsigned_flag; }
+  const Typelib *typelib() const { return m_typelib; }
 };
 } // namespace Show
 
@@ -115,6 +119,14 @@ public:
 
 namespace Show
 {
+
+
+class Enum: public Type
+{
+public:
+  Enum(const Typelib *typelib) :Type(&type_handler_enum, 0, false, typelib) { }
+};
+
 
 class Blob: public Type
 {

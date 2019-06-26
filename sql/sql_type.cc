@@ -2347,6 +2347,28 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
 }
 
 
+Field *Type_handler_enum::make_schema_field(TABLE *table,
+                                            const Record_addr &addr,
+                                            const ST_FIELD_INFO &def,
+                                            bool show_field) const
+{
+  LEX_CSTRING name= def.name();
+  const Typelib *typelib= def.typelib();
+  DBUG_ASSERT(typelib);
+  /*
+    Assume I_S columns don't have non-ASCII characters in names.
+    If we eventually want to, Typelib::max_char_length() must be implemented.
+  */
+  return new (table->in_use->mem_root)
+         Field_enum(addr.ptr(), (uint32) typelib->max_octet_length(),
+                    addr.null_ptr(), addr.null_bit(),
+                    Field::NONE, &name,
+                    get_enum_pack_length(typelib->count),
+                    typelib, system_charset_info);
+
+}
+
+
 /*************************************************************************/
 
 bool Type_handler::

@@ -3914,6 +3914,19 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_stats =
         STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
+
+static const LEX_CSTRING io_values[]=
+{
+  STRING_WITH_LEN("IO_NONE"),
+  STRING_WITH_LEN("IO_READ"),
+  STRING_WITH_LEN("IO_WRITE"),
+  STRING_WITH_LEN("IO_PIN")
+};
+
+
+static TypelibBuffer<4> io_values_typelib(io_values);
+
+
 namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
 static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
@@ -3972,7 +3985,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
   Column("PAGE_STATE", Varchar(64), NULLABLE),
 
 #define IDX_BUFFER_PAGE_IO_FIX		16 + I_S_AHI
-  Column("IO_FIX", Varchar(64), NULLABLE),
+  Column("IO_FIX", Enum(&io_values_typelib), NULLABLE),
 
 #define IDX_BUFFER_PAGE_IS_OLD		17 + I_S_AHI
   Column("IS_OLD", Varchar(3), NULLABLE),

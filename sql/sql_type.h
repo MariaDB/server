@@ -144,6 +144,54 @@ public:
 };
 
 
+class Typelib: public TYPELIB
+{
+public:
+  Typelib(uint count, const char **type_names, unsigned int *type_lengths)
+  {
+    TYPELIB::count= count;
+    TYPELIB::name= "";
+    TYPELIB::type_names= type_names;
+    TYPELIB::type_lengths= type_lengths;
+  }
+  uint max_octet_length() const
+  {
+    uint max_length= 0;
+    for (uint i= 0; i < TYPELIB::count; i++)
+    {
+      const uint length= TYPELIB::type_lengths[i];
+      set_if_bigger(max_length, length);
+    }
+    return max_length;
+  }
+};
+
+
+template<uint sz>
+class TypelibBuffer: public Typelib
+{
+  const char *m_type_names[sz + 1];
+  unsigned int m_type_lengths[sz + 1];
+public:
+  TypelibBuffer(uint count, const LEX_CSTRING *values)
+   :Typelib(count, m_type_names, m_type_lengths)
+  {
+    DBUG_ASSERT(sz >= count);
+    for (uint i= 0; i <  count; i++)
+    {
+      DBUG_ASSERT(values[i].str != NULL);
+      m_type_names[i]= values[i].str;
+      m_type_lengths[i]= values[i].length;
+    }
+    m_type_names[sz]= NullS; // End marker
+    m_type_lengths[sz]= 0;   // End marker
+  }
+  TypelibBuffer(const LEX_CSTRING *values)
+   :TypelibBuffer(sz, values)
+  { }
+};
+
+
 class Native: public Binary_string
 {
 public:
@@ -6474,6 +6522,10 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const;
+  Field *make_schema_field(TABLE *table,
+                           const Record_addr &addr,
+                           const ST_FIELD_INFO &def,
+                           bool show_field) const;
 };
 
 
