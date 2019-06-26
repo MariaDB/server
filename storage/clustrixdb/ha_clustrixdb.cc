@@ -232,6 +232,15 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   if (error_code)
     return error_code;
 
+  // To syncronize the schemas of MDB FE and CLX BE.
+  if (form->s && form->s->db.length) {
+      String createdb_stmt;
+      createdb_stmt.append("CREATE DATABASE IF NOT EXISTS `");
+      createdb_stmt.append(form->s->db.str, form->s->db.length);
+      createdb_stmt.append("`");
+      trx->clustrix_net->create_table(createdb_stmt);
+  }
+
   error_code = trx->clustrix_net->create_table(create_table_stmt);
   return error_code;
 }
