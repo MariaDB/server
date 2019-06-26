@@ -3216,8 +3216,13 @@ fil_rename_tablespace(
 		space, node, new_name, new_path);
 
 	if (success) {
+		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+				goto skip_second_rename; );
 		success = os_file_rename(
 			innodb_file_data_key, old_path, new_path);
+		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+skip_second_rename:
+				success = FALSE; );
 
 		if (!success) {
 			/* We have to revert the changes we made
