@@ -2867,6 +2867,9 @@ static my_bool read_big_block(PAGECACHE *pagecache,
       remove_reader(block_to_read);
       unreg_request(pagecache, block_to_read, 1);
     }
+    /* Signal that all pending requests for this page now can be processed */
+    if (block->wqueue[COND_FOR_REQUESTED].last_thread)
+      wqueue_release_queue(&block->wqueue[COND_FOR_REQUESTED]);
     DBUG_RETURN(FALSE); // no retry
   }
 
@@ -2940,6 +2943,8 @@ static my_bool read_big_block(PAGECACHE *pagecache,
   }
   if (block->wqueue[COND_FOR_BIG_BLOCK].last_thread)
     wqueue_release_queue(&block->wqueue[COND_FOR_BIG_BLOCK]);
+  if (block->wqueue[COND_FOR_REQUESTED].last_thread)
+    wqueue_release_queue(&block->wqueue[COND_FOR_REQUESTED]);
 
   DBUG_RETURN(FALSE);
 }
@@ -3684,7 +3689,7 @@ restart:
     if (((block->status & PCBLOCK_ERROR) == 0) && (page_st != PAGE_READ))
     {
 #ifdef WITH_S3_STORAGE_ENGINE
-      if (!pagecache->big_block_read)
+      if (!pagecache->big_block_read || page_st == PAGE_WAIT_TO_BE_READ)
 #endif /* WITH_S3_STORAGE_ENGINE */
       {
         /* The requested page is to be read into the block buffer */
