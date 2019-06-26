@@ -3,6 +3,7 @@
 SET SESSION STORAGE_ENGINE='InnoDB';
 
 --source rowid_filter.test
+--source include/have_sequence.inc
 
 --echo #
 --echo # MDEV-18755: possible RORI-plan and possible plan with range filter
@@ -64,5 +65,34 @@ eval explain extended $q;
 
 drop table t1, t2;
 
+
+--echo #
+--echo # MDEV-19820: use of rowid filter for innodb table without primary key
+--echo #
+
+create table t1 (a int, b int, key (b), key (a)) engine=innodb;
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1;
+
+let $q=
+select count(*) from t1 where a in (22,83,11) and b=2;
+let $q1=
+select * from t1 where a in (22,83,11) and b=2;
+
+set @save_optimizer_switch= @@optimizer_switch;
+
+set optimizer_switch='rowid_filter=off';
+eval $q;
+eval explain extended $q;
+eval $q1;
+
+set optimizer_switch='rowid_filter=on';
+eval $q;
+eval explain extended $q;
+eval $q1;
+
+drop table t1;
+set optimizer_switch=@save_optimizer_switch;
 
 SET SESSION STORAGE_ENGINE=DEFAULT;

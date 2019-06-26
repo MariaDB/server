@@ -5632,16 +5632,10 @@ int mysqld_main(int argc, char **argv)
   init_ssl();
   network_init();
 
-#ifdef __WIN__
+#ifdef _WIN32
   if (!opt_console)
   {
     FreeConsole();				// Remove window
-  }
-
-  if (fileno(stdin) >= 0)
-  {
-    /* Disable CRLF translation (MDEV-9409). */
-    _setmode(fileno(stdin), O_BINARY);
   }
 #endif
 

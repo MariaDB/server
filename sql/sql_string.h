@@ -126,6 +126,7 @@ size_t my_copy_with_hex_escaping(CHARSET_INFO *cs,
 uint convert_to_printable(char *to, size_t to_len,
                           const char *from, size_t from_len,
                           CHARSET_INFO *from_cs, size_t nbytes= 0);
+size_t convert_to_printable_required_length(uint len);
 
 
 class Charset
@@ -171,7 +172,7 @@ public:
   */
   LEX_CSTRING collation_specific_name() const;
   bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
-  bool encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const;
+  bool eq_collation_specific_names(CHARSET_INFO *cs) const;
 };
 
 

@@ -131,7 +131,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_COLUMN_NAME
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
-	| ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE
 	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_RENAME_INDEX
 	| ALTER_DROP_VIRTUAL_COLUMN;
@@ -8332,7 +8332,7 @@ ok_exit:
 	rebuild_templ
 	     = ctx->need_rebuild()
 	       || ((ha_alter_info->handler_flags
-		& ALTER_COLUMN_EQUAL_PACK_LENGTH)
+		& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE)
 		&& alter_templ_needs_rebuild(
 		   altered_table, ha_alter_info, ctx->new_table));
 
@@ -9120,14 +9120,20 @@ innobase_rename_or_enlarge_column_try(
 	DBUG_ASSERT(col->len <= len);
 
 #ifdef UNIV_DEBUG
+	ut_ad(col->mbminlen <= col->mbmaxlen);
 	switch (mtype) {
+	case DATA_MYSQL:
+		if (!(prtype & DATA_BINARY_TYPE) || user_table->not_redundant()
+		    || col->mbminlen != col->mbmaxlen) {
+			/* NOTE: we could allow this when !(prtype &
+			DATA_BINARY_TYPE) and ROW_FORMAT is not REDUNDANT and
+			mbminlen<mbmaxlen. That is, we treat a UTF-8 CHAR(n)
+			column somewhat like a VARCHAR. */
+			break;
+		}
+		/* fall through */
 	case DATA_FIXBINARY:
 	case DATA_CHAR:
-	case DATA_MYSQL:
-		/* NOTE: we could allow this when !(prtype & DATA_BINARY_TYPE)
-		and ROW_FORMAT is not REDUNDANT and mbminlen<mbmaxlen.
-		That is, we treat a UTF-8 CHAR(n) column somewhat like
-		a VARCHAR. */
 		ut_ad(col->len == len);
 		break;
 	case DATA_BINARY:
@@ -9188,7 +9194,7 @@ innobase_rename_or_enlarge_columns_try(
 	DBUG_ENTER("innobase_rename_or_enlarge_columns_try");
 
 	if (!(ha_alter_info->handler_flags
-	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
+	      & (ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE
 		 | ALTER_COLUMN_NAME))) {
 		DBUG_RETURN(false);
 	}
@@ -9236,7 +9242,7 @@ innobase_rename_or_enlarge_columns_cache(
 	dict_table_t*		user_table)
 {
 	if (!(ha_alter_info->handler_flags
-	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
+	      & (ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE
 		 | ALTER_COLUMN_NAME))) {
 		return;
 	}

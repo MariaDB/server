@@ -33,6 +33,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "pars0pars.h"
 #include <mysql_com.h>
 #include "btr0btr.h"
+#include "sync0sync.h"
 
 #include <algorithm>
 #include <map>
@@ -417,11 +418,6 @@ dict_stats_table_clone_create(
 
 	t->corrupted = table->corrupted;
 
-	/* This private object "t" is not shared with other threads, so
-	we do not need the stats_latch (thus we pass false below). The
-	dict_table_stats_lock()/unlock() routines will do nothing. */
-	dict_table_stats_latch_create(t, false);
-
 	UT_LIST_INIT(t->indexes, &dict_index_t::indexes);
 
 	for (index = dict_table_get_first_index(table);
@@ -484,6 +480,8 @@ dict_stats_table_clone_create(
 
 	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);
 
+	rw_lock_create(dict_table_stats_key, &t->stats_latch, SYNC_INDEX_TREE);
+
 	return(t);
 }
 
@@ -496,15 +494,13 @@ dict_stats_table_clone_free(
 /*========================*/
 	dict_table_t*	t)	/*!< in: dummy table object to free */
 {
-	dict_table_stats_latch_destroy(t);
+	rw_lock_free(&t->stats_latch);
 	mem_heap_free(t->heap);
 }
 
 /*********************************************************************//**
 Write all zeros (or 1 where it makes sense) into an index
-statistics members. The resulting stats correspond to an empty index.
-The caller must own index's table stats latch in X mode
-(dict_table_stats_lock(table, RW_X_LATCH)) */
+statistics members. The resulting stats correspond to an empty index. */
 static
 void
 dict_stats_empty_index(
@@ -515,6 +511,7 @@ dict_stats_empty_index(
 {
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(rw_lock_own(&index->table->stats_latch, RW_LOCK_X));
 
 	ulint	n_uniq = index->n_uniq;
 
@@ -546,7 +543,7 @@ dict_stats_empty_table(
 {
 	/* Zero the stats members */
 
-	dict_table_stats_lock(table, RW_X_LATCH);
+	rw_lock_x_lock(&table->stats_latch);
 
 	table->stat_n_rows = 0;
 	table->stat_clustered_index_size = 1;
@@ -572,7 +569,7 @@ dict_stats_empty_table(
 
 	table->stat_initialized = TRUE;
 
-	dict_table_stats_unlock(table, RW_X_LATCH);
+	rw_lock_x_unlock(&table->stats_latch);
 }
 
 /*********************************************************************//**
@@ -788,7 +785,7 @@ dict_stats_snapshot_create(
 {
 	mutex_enter(&dict_sys.mutex);
 
-	dict_table_stats_lock(table, RW_S_LATCH);
+	rw_lock_s_lock(&table->stats_latch);
 
 	dict_stats_assert_initialized(table);
 
@@ -803,7 +800,7 @@ dict_stats_snapshot_create(
 	t->stats_sample_pages = table->stats_sample_pages;
 	t->stats_bg_flag = table->stats_bg_flag;
 
-	dict_table_stats_unlock(table, RW_S_LATCH);
+	rw_lock_s_unlock(&table->stats_latch);
 
 	mutex_exit(&dict_sys.mutex);
 
@@ -2215,7 +2212,7 @@ dict_stats_update_persistent(
 
 	DEBUG_PRINTF("%s(table=%s)\n", __func__, table->name);
 
-	dict_table_stats_lock(table, RW_X_LATCH);
+	rw_lock_x_lock(&table->stats_latch);
 
 	/* analyze the clustered index first */
 
@@ -2226,7 +2223,7 @@ dict_stats_update_persistent(
 	    || (index->type | DICT_UNIQUE) != (DICT_CLUSTERED | DICT_UNIQUE)) {
 
 		/* Table definition is corrupt */
-		dict_table_stats_unlock(table, RW_X_LATCH);
+		rw_lock_x_unlock(&table->stats_latch);
 		dict_stats_empty_table(table, true);
 
 		return(DB_CORRUPTION);
@@ -2278,7 +2275,7 @@ dict_stats_update_persistent(
 
 	dict_stats_assert_initialized(table);
 
-	dict_table_stats_unlock(table, RW_X_LATCH);
+	rw_lock_x_unlock(&table->stats_latch);
 
 	return(DB_SUCCESS);
 }
@@ -3097,11 +3094,11 @@ dict_stats_update_for_index(
 	if (dict_stats_is_persistent_enabled(index->table)) {
 
 		if (dict_stats_persistent_storage_check(false)) {
-			dict_table_stats_lock(index->table, RW_X_LATCH);
+			rw_lock_x_lock(&index->table->stats_latch);
 			dict_stats_analyze_index(index);
 			index->table->stat_sum_of_other_index_sizes
 				+= index->stat_index_size;
-			dict_table_stats_unlock(index->table, RW_X_LATCH);
+			rw_lock_x_unlock(&index->table->stats_latch);
 			dict_stats_save(index->table, &index->id);
 			DBUG_VOID_RETURN;
 		}
@@ -3122,9 +3119,9 @@ dict_stats_update_for_index(
 		}
 	}
 
-	dict_table_stats_lock(index->table, RW_X_LATCH);
+	rw_lock_x_lock(&index->table->stats_latch);
 	dict_stats_update_transient_for_index(index);
-	dict_table_stats_unlock(index->table, RW_X_LATCH);
+	rw_lock_x_unlock(&index->table->stats_latch);
 
 	DBUG_VOID_RETURN;
 }
@@ -3278,7 +3275,7 @@ dict_stats_update(
 		switch (err) {
 		case DB_SUCCESS:
 
-			dict_table_stats_lock(table, RW_X_LATCH);
+			rw_lock_x_lock(&table->stats_latch);
 
 			/* Pass reset_ignored_indexes=true as parameter
 			to dict_stats_copy. This will cause statictics
@@ -3287,7 +3284,7 @@ dict_stats_update(
 
 			dict_stats_assert_initialized(table);
 
-			dict_table_stats_unlock(table, RW_X_LATCH);
+			rw_lock_x_unlock(&table->stats_latch);
 
 			dict_stats_table_clone_free(t);
 
@@ -3342,11 +3339,11 @@ dict_stats_update(
 
 transient:
 
-	dict_table_stats_lock(table, RW_X_LATCH);
+	rw_lock_x_lock(&table->stats_latch);
 
 	dict_stats_update_transient(table);
 
-	dict_table_stats_unlock(table, RW_X_LATCH);
+	rw_lock_x_unlock(&table->stats_latch);
 
 	return(DB_SUCCESS);
 }

@@ -152,10 +152,11 @@ static void update_log_file_size(MYSQL_THD thd,
                                  struct st_mysql_sys_var *var,
                                  void *var_ptr, const void *save);
 
+/* The 4096 is there because of MariaDB privilege tables */
 static MYSQL_SYSVAR_ULONG(block_size, maria_block_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Block size to be used for Aria index pages.", 0, 0,
-       MARIA_KEY_BLOCK_LENGTH, MARIA_MIN_KEY_BLOCK_LENGTH,
+       MARIA_KEY_BLOCK_LENGTH, 4096,
        MARIA_MAX_KEY_BLOCK_LENGTH, MARIA_MIN_KEY_BLOCK_LENGTH);
 
 static MYSQL_SYSVAR_ULONG(checkpoint_interval, checkpoint_interval,

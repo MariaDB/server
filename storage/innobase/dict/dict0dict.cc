@@ -65,7 +65,6 @@ ib_warn_row_too_big(const dict_table_t*	table);
 #include "lock0lock.h"
 #include "mach0data.h"
 #include "mem0mem.h"
-#include "os0once.h"
 #include "page0page.h"
 #include "page0zip.h"
 #include "pars0pars.h"
@@ -225,145 +224,6 @@ dict_get_db_name_len(
 	ut_a(s);
 	return ulint(s - name);
 }
-
-/** Allocate and init a dict_table_t's stats latch.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table_void	table whose stats latch to create */
-static
-void
-dict_table_stats_latch_alloc(
-	void*	table_void)
-{
-	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
-
-	/* Note: rw_lock_create() will call the constructor */
-
-	table->stats_latch = static_cast<rw_lock_t*>(
-		ut_malloc_nokey(sizeof(rw_lock_t)));
-
-	ut_a(table->stats_latch != NULL);
-
-	rw_lock_create(dict_table_stats_key, table->stats_latch,
-		       SYNC_INDEX_TREE);
-}
-
-/** Deinit and free a dict_table_t's stats latch.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table	table whose stats latch to free */
-static
-void
-dict_table_stats_latch_free(
-	dict_table_t*	table)
-{
-	rw_lock_free(table->stats_latch);
-	ut_free(table->stats_latch);
-}
-
-/** Create a dict_table_t's stats latch or delay for lazy creation.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to create
-@param[in]	enabled	if false then the latch is disabled
-and dict_table_stats_lock()/unlock() become noop on this table. */
-void
-dict_table_stats_latch_create(
-	dict_table_t*	table,
-	bool		enabled)
-{
-	if (!enabled) {
-		table->stats_latch = NULL;
-		table->stats_latch_created = os_once::DONE;
-		return;
-	}
-
-	/* We create this lazily the first time it is used. */
-	table->stats_latch = NULL;
-	table->stats_latch_created = os_once::NEVER_DONE;
-}
-
-/** Destroy a dict_table_t's stats latch.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-void
-dict_table_stats_latch_destroy(
-	dict_table_t*	table)
-{
-	if (table->stats_latch_created == os_once::DONE
-	    && table->stats_latch != NULL) {
-
-		dict_table_stats_latch_free(table);
-	}
-}
-
-/** Lock the appropriate latch to protect a given table's statistics.
-@param[in]	table		table whose stats to lock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_lock(
-	dict_table_t*	table,
-	ulint		latch_mode)
-{
-	ut_ad(table != NULL);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	os_once::do_or_wait_for_done(
-		&table->stats_latch_created,
-		dict_table_stats_latch_alloc, table);
-
-	if (table->stats_latch == NULL) {
-		/* This is a dummy table object that is private in the current
-		thread and is not shared between multiple threads, thus we
-		skip any locking. */
-		return;
-	}
-
-	switch (latch_mode) {
-	case RW_S_LATCH:
-		rw_lock_s_lock(table->stats_latch);
-		break;
-	case RW_X_LATCH:
-		rw_lock_x_lock(table->stats_latch);
-		break;
-	case RW_NO_LATCH:
-		/* fall through */
-	default:
-		ut_error;
-	}
-}
-
-/** Unlock the latch that has been locked by dict_table_stats_lock().
-@param[in]	table		table whose stats to unlock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_unlock(
-	dict_table_t*	table,
-	ulint		latch_mode)
-{
-	ut_ad(table != NULL);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	if (table->stats_latch == NULL) {
-		/* This is a dummy table object that is private in the current
-		thread and is not shared between multiple threads, thus we
-		skip any locking. */
-		return;
-	}
-
-	switch (latch_mode) {
-	case RW_S_LATCH:
-		rw_lock_s_unlock(table->stats_latch);
-		break;
-	case RW_X_LATCH:
-		rw_lock_x_unlock(table->stats_latch);
-		break;
-	case RW_NO_LATCH:
-		/* fall through */
-	default:
-		ut_error;
-	}
-}
-
 
 /** Open a persistent table.
 @param[in]	table_id	persistent table identifier
@@ -707,61 +567,6 @@ dict_table_get_nth_v_col_mysql(
 	return(dict_table_get_nth_v_col(table, i));
 }
 
-/** Allocate and init the autoinc latch of a given table.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table_void	table whose autoinc latch to create */
-static
-void
-dict_table_autoinc_alloc(
-	void*	table_void)
-{
-	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
-	table->autoinc_mutex = UT_NEW_NOKEY(ib_mutex_t());
-	ut_a(table->autoinc_mutex != NULL);
-	mutex_create(LATCH_ID_AUTOINC, table->autoinc_mutex);
-}
-
-/** Allocate and init the zip_pad_mutex of a given index.
-This function must not be called concurrently on the same index object.
-@param[in,out]	index_void	index whose zip_pad_mutex to create */
-static
-void
-dict_index_zip_pad_alloc(
-	void*	index_void)
-{
-	dict_index_t*	index = static_cast<dict_index_t*>(index_void);
-	index->zip_pad.mutex = UT_NEW_NOKEY(SysMutex());
-	ut_a(index->zip_pad.mutex != NULL);
-	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, index->zip_pad.mutex);
-}
-
-/********************************************************************//**
-Acquire the autoinc lock. */
-void
-dict_table_autoinc_lock(
-/*====================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	os_once::do_or_wait_for_done(
-		&table->autoinc_mutex_created,
-		dict_table_autoinc_alloc, table);
-
-	mutex_enter(table->autoinc_mutex);
-}
-
-/** Acquire the zip_pad_mutex latch.
-@param[in,out]	index	the index whose zip_pad_mutex to acquire.*/
-static
-void
-dict_index_zip_pad_lock(
-	dict_index_t*	index)
-{
-	os_once::do_or_wait_for_done(
-		&index->zip_pad.mutex_created,
-		dict_index_zip_pad_alloc, index);
-
-	mutex_enter(index->zip_pad.mutex);
-}
 
 /** Get all the FTS indexes on a table.
 @param[in]	table	table
@@ -786,16 +591,6 @@ dict_table_get_all_fts_indexes(
 	}
 
 	return(ib_vector_size(indexes));
-}
-
-/********************************************************************//**
-Release the autoinc lock. */
-void
-dict_table_autoinc_unlock(
-/*======================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	mutex_exit(table->autoinc_mutex);
 }
 
 /** Looks for column n in an index.
@@ -1191,6 +986,8 @@ inline void dict_sys_t::add(dict_table_t* table)
 	ut_ad(!find(table));
 
 	ulint fold = ut_fold_string(table->name.m_name);
+
+	mutex_create(LATCH_ID_AUTOINC, &table->autoinc_mutex);
 
 	/* Look for a table with the same name: error if such exists */
 	{
@@ -1938,6 +1735,8 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		dict_free_vc_templ(table->vc_templ);
 		UT_DELETE(table->vc_templ);
 	}
+
+	mutex_free(&table->autoinc_mutex);
 
 	if (!keep) {
 		dict_mem_table_free(table);
@@ -6626,10 +6425,10 @@ dict_index_zip_success(
 		return;
 	}
 
-	dict_index_zip_pad_lock(index);
+	mutex_enter(&index->zip_pad.mutex);
 	++index->zip_pad.success;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	dict_index_zip_pad_unlock(index);
+	mutex_exit(&index->zip_pad.mutex);
 }
 
 /*********************************************************************//**
@@ -6646,10 +6445,10 @@ dict_index_zip_failure(
 		return;
 	}
 
-	dict_index_zip_pad_lock(index);
+	mutex_enter(&index->zip_pad.mutex);
 	++index->zip_pad.failure;
 	dict_index_zip_pad_update(&index->zip_pad, zip_threshold);
-	dict_index_zip_pad_unlock(index);
+	mutex_exit(&index->zip_pad.mutex);
 }
 
 /*********************************************************************//**

@@ -171,15 +171,8 @@ dict_mem_table_create(
 		new (&table->v_cols[i]) dict_v_col_t();
 	}
 
-	/* true means that the stats latch will be enabled -
-	dict_table_stats_lock() will not be noop. */
-	dict_table_stats_latch_create(table, true);
-
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
-
-	/* lazy creation of table autoinc latch */
-	dict_table_autoinc_create_lazy(table);
 
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
@@ -192,6 +185,9 @@ dict_mem_table_create(
 
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
+
+	rw_lock_create(dict_table_stats_key, &table->stats_latch,
+		       SYNC_INDEX_TREE);
 
 	return(table);
 }
@@ -217,9 +213,7 @@ dict_mem_table_free(
 		}
 	}
 
-	dict_table_autoinc_destroy(table);
 	dict_mem_table_free_foreign_vcol_set(table);
-	dict_table_stats_latch_destroy(table);
 
 	table->foreign_set.~dict_foreign_set();
 	table->referenced_set.~dict_foreign_set();
@@ -234,6 +228,8 @@ dict_mem_table_free(
 	}
 
 	UT_DELETE(table->s_cols);
+
+	rw_lock_free(&table->stats_latch);
 
 	mem_heap_free(table->heap);
 }
@@ -744,7 +740,7 @@ dict_mem_index_create(
 
 	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
-	dict_index_zip_pad_mutex_create_lazy(index);
+	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, &index->zip_pad.mutex);
 
 	if (type & DICT_SPATIAL) {
 		mutex_create(LATCH_ID_RTR_SSN_MUTEX, &index->rtr_ssn.mutex);
@@ -1054,7 +1050,7 @@ dict_mem_index_free(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	dict_index_zip_pad_mutex_destroy(index);
+	mutex_free(&index->zip_pad.mutex);
 
 	if (dict_index_is_spatial(index)) {
 		for (auto& rtr_info : index->rtr_track->rtr_active) {

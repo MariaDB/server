@@ -4553,7 +4553,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   alter_table_operations inplace_offline_operations=
-    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+    ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |
     ALTER_COLUMN_NAME |
     ALTER_RENAME_COLUMN |
     ALTER_CHANGE_COLUMN_DEFAULT |
@@ -4589,7 +4589,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   uint table_changes= (ha_alter_info->handler_flags &
-                       ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
+                       ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) ?
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
   if (table->file->check_if_incompatible_data(create_info, table_changes)
       == COMPATIBLE_DATA_YES)

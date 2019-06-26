@@ -2776,6 +2776,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   - UNIQUE keys where all column are NOT NULL
   - UNIQUE keys that don't contain partial segments
   - Other UNIQUE keys
+  - LONG UNIQUE keys
   - Normal keys
   - Fulltext keys
 
@@ -2798,6 +2799,14 @@ static int sort_keys(KEY *a, KEY *b)
   if (a_flags & HA_NOSAME)
   {
     if (!(b_flags & HA_NOSAME))
+      return -1;
+    /*
+      Long Unique keys should always be last unique key.
+      Before this patch they used to change order wrt to partial keys (MDEV-19049)
+    */
+    if (a->algorithm == HA_KEY_ALG_LONG_HASH)
+      return 1;
+    if (b->algorithm == HA_KEY_ALG_LONG_HASH)
       return -1;
     if ((a_flags ^ b_flags) & HA_NULL_PART_KEY)
     {
@@ -6592,23 +6601,28 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       if the user key part length is different.
     */
     const Field *old_field= table->field[key_part->fieldnr - 1];
-    auto old_field_len= old_field->pack_length();
 
-    if (old_field->type() == MYSQL_TYPE_VARCHAR)
+    bool is_equal= key_part->field->is_equal(*new_field);
+    /* TODO: below is an InnoDB specific code which should be moved to InnoDB */
+    if (!is_equal)
     {
-      old_field_len= (old_field->pack_length() -
-                      ((Field_varstring *) old_field)->length_bytes);
+      if (!key_part->field->can_be_converted_by_engine(*new_field))
+        return Compare_keys::NotEqual;
+
+      if (!Charset(old_field->charset())
+               .eq_collation_specific_names(new_field->charset))
+        return Compare_keys::NotEqual;
     }
 
-    if (key_part->length == old_field_len &&
-        key_part->length < new_part->length &&
-        (key_part->field->is_equal((Create_field *) new_field) ==
-         IS_EQUAL_PACK_LENGTH))
+    if (key_part->length != new_part->length)
     {
+      if (key_part->length != old_field->field_length ||
+          key_part->length >= new_part->length || is_equal)
+      {
+        return Compare_keys::NotEqual;
+      }
       result= Compare_keys::EqualButKeyPartLength;
     }
-    else if (key_part->length != new_part->length)
-      return Compare_keys::NotEqual;
   }
 
   /*
@@ -6764,61 +6778,50 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       /* Field is not dropped. Evaluate changes bitmap for it. */
 
       /*
-        Check if type of column has changed to some incompatible type.
+        Check if type of column has changed.
       */
-      uint is_equal= field->is_equal(new_field);
-      switch (is_equal)
+      bool is_equal= field->is_equal(*new_field);
+      if (!is_equal)
       {
-      case IS_EQUAL_NO:
-        /* New column type is incompatible with old one. */
-        if (field->stored_in_db())
-          ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
-        else
-          ha_alter_info->handler_flags|= ALTER_VIRTUAL_COLUMN_TYPE;
-        if (table->s->tmp_table == NO_TMP_TABLE)
+        if (field->can_be_converted_by_engine(*new_field))
         {
-          delete_statistics_for_column(thd, table, field);
-          KEY *key_info= table->key_info; 
-          for (uint i=0; i < table->s->keys; i++, key_info++)
+          /*
+            New column type differs from the old one, but storage engine can
+            change it by itself.
+            (for example, VARCHAR(300) is changed to VARCHAR(400)).
+          */
+          ha_alter_info->handler_flags|= ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE;
+        }
+        else
+        {
+          /* New column type is incompatible with old one. */
+          ha_alter_info->handler_flags|= field->stored_in_db()
+                                             ? ALTER_STORED_COLUMN_TYPE
+                                             : ALTER_VIRTUAL_COLUMN_TYPE;
+
+          if (table->s->tmp_table == NO_TMP_TABLE)
           {
-            if (field->part_of_key.is_set(i))
+            delete_statistics_for_column(thd, table, field);
+            KEY *key_info= table->key_info;
+            for (uint i= 0; i < table->s->keys; i++, key_info++)
             {
+              if (!field->part_of_key.is_set(i))
+                continue;
+
               uint key_parts= table->actual_n_key_parts(key_info);
               for (uint j= 0; j < key_parts; j++)
               {
-                if (key_info->key_part[j].fieldnr-1 == field->field_index)
+                if (key_info->key_part[j].fieldnr - 1 == field->field_index)
                 {
-                  delete_statistics_for_index(thd, table, key_info,
-                                       j >= key_info->user_defined_key_parts);
+                  delete_statistics_for_index(
+                      thd, table, key_info,
+                      j >= key_info->user_defined_key_parts);
                   break;
                 }
-              }           
+              }
             }
-          }      
+          }
         }
-        break;
-      case IS_EQUAL_YES:
-        /*
-          New column is the same as the old one or the fully compatible with
-          it (for example, ENUM('a','b') was changed to ENUM('a','b','c')).
-          Such a change if any can ALWAYS be carried out by simply updating
-          data-dictionary without even informing storage engine.
-          No flag is set in this case.
-        */
-        break;
-      case IS_EQUAL_PACK_LENGTH:
-        /*
-          New column type differs from the old one, but has compatible packed
-          data representation. Depending on storage engine, such a change can
-          be carried out by simply updating data dictionary without changing
-          actual data (for example, VARCHAR(300) is changed to VARCHAR(400)).
-        */
-        ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH;
-        break;
-      default:
-        DBUG_ASSERT(0);
-        /* Safety. */
-        ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
       }
 
       if (field->vcol_info || new_field->vcol_info)
@@ -6829,7 +6832,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
                                            ALTER_VIRTUAL_COLUMN_TYPE);
         if (field->vcol_info && new_field->vcol_info)
         {
-          bool value_changes= is_equal == IS_EQUAL_NO;
+          bool value_changes= !is_equal;
           alter_table_operations alter_expr;
           if (field->stored_in_db())
             alter_expr= ALTER_STORED_GCOL_EXPR;
@@ -6923,7 +6926,6 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         ha_alter_info->create_info->fields_option_struct[f_ptr - table->field]=
           new_field->option_struct;
       }
-
     }
     else
     {
@@ -7288,7 +7290,7 @@ bool mysql_compare_tables(TABLE *table,
       DBUG_RETURN(false);
 
     /* Evaluate changes bitmap and send to check_if_incompatible_data() */
-    uint field_changes= field->is_equal(tmp_new_field);
+    uint field_changes= field->is_equal(*tmp_new_field);
     if (field_changes != IS_EQUAL_YES)
       DBUG_RETURN(false);
 
@@ -8790,7 +8792,7 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         return FK_COLUMN_RENAMED;
       }
 
-      if ((old_field->is_equal(new_field) == IS_EQUAL_NO) ||
+      if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {

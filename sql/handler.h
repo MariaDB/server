@@ -49,6 +49,11 @@ class Alter_info;
 class Virtual_column_info;
 class sequence_definition;
 class Rowid_filter;
+class Field_string;
+class Field_varstring;
+class Field_blob;
+class Field_geom;
+class Column_definition;
 
 // the following is for checking tables
 
@@ -323,10 +328,6 @@ enum enum_alter_inplace_result {
 
 /* Safe for online backup */
 #define HA_CAN_ONLINE_BACKUPS (1ULL << 56)
-
-/** whether every data field explicitly stores length
-(holds for InnoDB ROW_FORMAT=REDUNDANT) */
-#define HA_EXTENDED_TYPES_CONVERSION (1ULL << 57)
 
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 58)
@@ -710,13 +711,9 @@ typedef ulonglong alter_table_operations;
 #define ALTER_VIRTUAL_COLUMN_TYPE            (1ULL << 47)
 #define ALTER_STORED_COLUMN_TYPE             (1ULL << 48)
 
-/**
-  Change column datatype in such way that new type has compatible
-  packed representation with old type, so it is theoretically
-  possible to perform change by only updating data dictionary
-  without changing table rows.
-*/
-#define ALTER_COLUMN_EQUAL_PACK_LENGTH       (1ULL << 49)
+
+// Engine can handle type change by itself in ALGORITHM=INPLACE
+#define ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE       (1ULL << 49)
 
 // Reorder column
 #define ALTER_STORED_COLUMN_ORDER            (1ULL << 50)
@@ -4804,6 +4801,32 @@ public:
   {}
 
   virtual bool is_clustering_key(uint index) { return false; }
+
+  /**
+    Some engines can perform column type conversion with ALGORITHM=INPLACE.
+    These functions check for such possibility.
+    Implementation could be based on Field_xxx::is_equal()
+   */
+  virtual bool can_convert_string(const Field_string *field,
+                                  const Column_definition &new_type) const
+  {
+    return false;
+  }
+  virtual bool can_convert_varstring(const Field_varstring *field,
+                                     const Column_definition &new_type) const
+  {
+    return false;
+  }
+  virtual bool can_convert_blob(const Field_blob *field,
+                                const Column_definition &new_type) const
+  {
+    return false;
+  }
+  virtual bool can_convert_geom(const Field_geom *field,
+                                const Column_definition &new_type) const
+  {
+    return false;
+  }
 
 protected:
   Handler_share *get_ha_share_ptr();

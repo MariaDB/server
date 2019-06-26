@@ -738,7 +738,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
           (const char **) thd->alloc(sizeof(char*) * 
                                      (field->interval->count+1));
         tmpint->type_lengths=
-          (uint *) thd->alloc(sizeof(uint) * field->interval->count);
+          (uint *) thd->alloc(sizeof(uint) * field->interval->count+1);
         tmpint->type_names[field->interval->count]= 0;
         tmpint->type_lengths[field->interval->count]= 0;
 

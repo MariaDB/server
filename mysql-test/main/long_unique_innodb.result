@@ -9,8 +9,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
-  UNIQUE KEY `a` (`a`) USING HASH,
-  UNIQUE KEY `c` (`c`)
+  UNIQUE KEY `c` (`c`),
+  UNIQUE KEY `a` (`a`) USING HASH
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;
 #test for concurrent insert of long unique in innodb

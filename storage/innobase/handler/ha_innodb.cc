@@ -54,6 +54,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_bitmap.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
+#include "field.h"
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
@@ -2532,8 +2533,7 @@ ha_innobase::innobase_reset_autoinc(
 	if (error == DB_SUCCESS) {
 
 		dict_table_autoinc_initialize(m_prebuilt->table, autoinc);
-
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 	}
 
 	return(error);
@@ -5924,7 +5924,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 
 	const unsigned	col_no = innodb_col_no(field);
 
-	dict_table_autoinc_lock(table);
+	mutex_enter(&table->autoinc_mutex);
 
 	table->persistent_autoinc = 1
 		+ dict_table_get_nth_col_pos(table, col_no, NULL);
@@ -5932,7 +5932,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 	if (table->autoinc) {
 		/* Already initialized. Our caller checked
 		table->persistent_autoinc without
-		dict_table_autoinc_lock(), and there might be multiple
+		autoinc_mutex protection, and there might be multiple
 		ha_innobase::open() executing concurrently. */
 	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If the recovery level is set so high that writes
@@ -5954,7 +5954,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 			innobase_get_int_col_max_value(field));
 	}
 
-	dict_table_autoinc_unlock(table);
+	mutex_exit(&table->autoinc_mutex);
 }
 
 /** Open an InnoDB table
@@ -6008,11 +6008,6 @@ no_such_table:
 		set_my_errno(ENOENT);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-	}
-
-	if (!ib_table->not_redundant()) {
-		m_int_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
-		cached_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
 	}
 
 	size_t n_fields = omits_virtual_cols(*table_share)
@@ -7795,7 +7790,7 @@ ha_innobase::innobase_lock_autoinc(void)
 	switch (innobase_autoinc_lock_mode) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
-		dict_table_autoinc_lock(m_prebuilt->table);
+		mutex_enter(&m_prebuilt->table->autoinc_mutex);
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
@@ -7810,14 +7805,14 @@ ha_innobase::innobase_lock_autoinc(void)
 		) {
 
 			/* Acquire the AUTOINC mutex. */
-			dict_table_autoinc_lock(m_prebuilt->table);
+			mutex_enter(&m_prebuilt->table->autoinc_mutex);
 
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (m_prebuilt->table->n_waiting_or_granted_auto_inc_locks) {
 				/* Release the mutex to avoid deadlocks and
 				fall back to old style locking. */
-				dict_table_autoinc_unlock(m_prebuilt->table);
+				mutex_exit(&m_prebuilt->table->autoinc_mutex);
 			} else {
 				/* Do not fall back to old style locking. */
 				break;
@@ -7833,7 +7828,7 @@ ha_innobase::innobase_lock_autoinc(void)
 		if (error == DB_SUCCESS) {
 
 			/* Acquire the AUTOINC mutex. */
-			dict_table_autoinc_lock(m_prebuilt->table);
+			mutex_enter(&m_prebuilt->table->autoinc_mutex);
 		}
 		break;
 
@@ -7861,8 +7856,7 @@ ha_innobase::innobase_set_max_autoinc(
 	if (error == DB_SUCCESS) {
 
 		dict_table_autoinc_update_if_greater(m_prebuilt->table, auto_inc);
-
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 	}
 
 	return(error);
@@ -12446,7 +12440,7 @@ create_table_info_t::create_table_update_dict()
 			autoinc = 1;
 		}
 
-		dict_table_autoinc_lock(innobase_table);
+		mutex_enter(&innobase_table->autoinc_mutex);
 		dict_table_autoinc_initialize(innobase_table, autoinc);
 
 		if (innobase_table->is_temporary()) {
@@ -12471,7 +12465,7 @@ create_table_info_t::create_table_update_dict()
 			}
 		}
 
-		dict_table_autoinc_unlock(innobase_table);
+		mutex_exit(&innobase_table->autoinc_mutex);
 	}
 
 	innobase_parse_hint_from_comment(m_thd, innobase_table, m_form->s);
@@ -13860,7 +13854,7 @@ ha_innobase::info_low(
 		ulint	stat_sum_of_other_index_sizes;
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
+			rw_lock_s_lock(&ib_table->stats_latch);
 		}
 
 		ut_a(ib_table->stat_initialized);
@@ -13874,7 +13868,7 @@ ha_innobase::info_low(
 			= ib_table->stat_sum_of_other_index_sizes;
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+			rw_lock_s_unlock(&ib_table->stats_latch);
 		}
 
 		/*
@@ -13978,7 +13972,7 @@ ha_innobase::info_low(
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
+			rw_lock_s_lock(&ib_table->stats_latch);
 		}
 
 		ut_a(ib_table->stat_initialized);
@@ -14060,7 +14054,7 @@ ha_innobase::info_low(
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+			rw_lock_s_unlock(&ib_table->stats_latch);
 		}
 
 		snprintf(path, sizeof(path), "%s/%s%s",
@@ -16314,7 +16308,7 @@ ha_innobase::innobase_get_autoinc(
 		/* It should have been initialized during open. */
 		if (*value == 0) {
 			m_prebuilt->autoinc_error = DB_UNSUPPORTED;
-			dict_table_autoinc_unlock(m_prebuilt->table);
+			mutex_exit(&m_prebuilt->table->autoinc_mutex);
 		}
 	}
 
@@ -16338,7 +16332,7 @@ ha_innobase::innobase_peek_autoinc(void)
 
 	innodb_table = m_prebuilt->table;
 
-	dict_table_autoinc_lock(innodb_table);
+	mutex_enter(&innodb_table->autoinc_mutex);
 
 	auto_inc = dict_table_autoinc_read(innodb_table);
 
@@ -16347,7 +16341,7 @@ ha_innobase::innobase_peek_autoinc(void)
 			" '" << innodb_table->name << "'";
 	}
 
-	dict_table_autoinc_unlock(innodb_table);
+	mutex_exit(&innodb_table->autoinc_mutex);
 
 	return(auto_inc);
 }
@@ -16454,7 +16448,7 @@ ha_innobase::get_auto_increment(
 		/* Out of range number. Let handler::update_auto_increment()
 		take care of this */
 		m_prebuilt->autoinc_last_value = 0;
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 		*nb_reserved_values= 0;
 		return;
 	}
@@ -16518,7 +16512,7 @@ ha_innobase::get_auto_increment(
 	m_prebuilt->autoinc_offset = offset;
 	m_prebuilt->autoinc_increment = increment;
 
-	dict_table_autoinc_unlock(m_prebuilt->table);
+	mutex_exit(&m_prebuilt->table->autoinc_mutex);
 }
 
 /*******************************************************************//**
@@ -20671,6 +20665,146 @@ bool ha_innobase::rowid_filter_push(Rowid_filter* pk_filter)
 	DBUG_ASSERT(pk_filter != NULL);
 	pushed_rowid_filter= pk_filter;
 	DBUG_RETURN(false);
+}
+
+static bool
+is_part_of_a_primary_key(const Field* field)
+{
+	const TABLE_SHARE* s = field->table->s;
+
+	return s->primary_key != MAX_KEY
+	       && field->part_of_key.is_set(s->primary_key);
+}
+
+bool
+ha_innobase::can_convert_string(const Field_string* field,
+				const Column_definition& new_type) const
+{
+	DBUG_ASSERT(!field->compression_method());
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (new_type.char_length < field->char_length()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		if (new_type.length != field->max_display_length()
+		    && !m_prebuilt->table->not_redundant()) {
+			return IS_EQUAL_NO;
+		}
+
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			return !is_part_of_a_primary_key(field);
+		}
+
+		return true;
+	}
+
+	if (new_type.length != field->max_display_length()) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+supports_enlarging(const dict_table_t* table, const Field_varstring* field,
+		   const Column_definition& new_type)
+{
+	return field->field_length <= 127 || new_type.length <= 255
+	       || field->field_length > 255 || !table->not_redundant();
+}
+
+bool
+ha_innobase::can_convert_varstring(const Field_varstring* field,
+				   const Column_definition& new_type) const
+{
+	if (new_type.length < field->field_length) {
+		return false;
+	}
+
+	if (new_type.char_length < field->char_length()) {
+		return false;
+	}
+
+	if (!new_type.compression_method() != !field->compression_method()) {
+		return false;
+	}
+
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
+			return false;
+		}
+
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			return !is_part_of_a_primary_key(field);
+		}
+
+		return true;
+	}
+
+	if (new_type.length != field->field_length) {
+		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	return true;
+}
+
+bool
+ha_innobase::can_convert_blob(const Field_blob* field,
+			      const Column_definition& new_type) const
+{
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (!new_type.compression_method() != !field->compression_method()) {
+		return false;
+	}
+
+	if (new_type.pack_length != field->pack_length()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			bool is_part_of_a_key
+			    = !field->part_of_key.is_clear_all();
+			return !is_part_of_a_key;
+		}
+
+		return true;
+	}
+
+	return true;
 }
 
 /******************************************************************//**

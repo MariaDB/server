@@ -44,7 +44,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "buf0buf.h"
 #include "gis0type.h"
-#include "os0once.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include <sql_const.h>
@@ -883,7 +882,7 @@ extern ulong	zip_pad_max;
 an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
-	SysMutex*	mutex;	/*!< mutex protecting the info */
+	SysMutex	mutex;	/*!< mutex protecting the info */
 	Atomic_counter<ulint>
 			pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
@@ -892,9 +891,6 @@ struct zip_pad_info_t {
 				current round */
 	ulint		n_rounds;/*!< number of currently successful
 				rounds */
-	volatile os_once::state_t
-			mutex_created;
-				/*!< Creation state of mutex member */
 };
 
 /** Number of samples of data size kept when page compression fails for
@@ -1965,9 +1961,6 @@ public:
 
 	/** Statistics for query optimization. @{ */
 
-	/** Creation state of 'stats_latch'. */
-	volatile os_once::state_t		stats_latch_created;
-
 	/** This latch protects:
 	dict_table_t::stat_initialized,
 	dict_table_t::stat_n_rows (*),
@@ -1979,7 +1972,7 @@ public:
 	dict_table_t::indexes*::stat_n_leaf_pages.
 	(*) Those are not always protected for
 	performance reasons. */
-	rw_lock_t*				stats_latch;
+	rw_lock_t				stats_latch;
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */
@@ -2103,11 +2096,8 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-	/** Creation state of autoinc_mutex member */
-	volatile os_once::state_t		autoinc_mutex_created;
-
 	/** Mutex protecting the autoincrement counter. */
-	ib_mutex_t*				autoinc_mutex;
+	ib_mutex_t				autoinc_mutex;
 
 	/** Autoinc counter value to give to the next inserted row. */
 	ib_uint64_t				autoinc;
@@ -2291,87 +2281,6 @@ struct dict_foreign_add_to_referenced_table {
 		}
 	}
 };
-
-/** Destroy the autoinc latch of the given table.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-inline
-void
-dict_table_autoinc_destroy(
-	dict_table_t*	table)
-{
-	if (table->autoinc_mutex_created == os_once::DONE
-	    && table->autoinc_mutex != NULL) {
-		mutex_free(table->autoinc_mutex);
-		UT_DELETE(table->autoinc_mutex);
-	}
-}
-
-/** Request for lazy creation of the autoinc latch of a given table.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose autoinc latch is to be created. */
-inline
-void
-dict_table_autoinc_create_lazy(
-	dict_table_t*	table)
-{
-	table->autoinc_mutex = NULL;
-	table->autoinc_mutex_created = os_once::NEVER_DONE;
-}
-
-/** Request a lazy creation of dict_index_t::zip_pad::mutex.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	index	index whose zip_pad mutex is to be created */
-inline
-void
-dict_index_zip_pad_mutex_create_lazy(
-	dict_index_t*	index)
-{
-	index->zip_pad.mutex = NULL;
-	index->zip_pad.mutex_created = os_once::NEVER_DONE;
-}
-
-/** Destroy the zip_pad_mutex of the given index.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-inline
-void
-dict_index_zip_pad_mutex_destroy(
-	dict_index_t*	index)
-{
-	if (index->zip_pad.mutex_created == os_once::DONE
-	    && index->zip_pad.mutex != NULL) {
-		mutex_free(index->zip_pad.mutex);
-		UT_DELETE(index->zip_pad.mutex);
-	}
-}
-
-/** Release the zip_pad_mutex of a given index.
-@param[in,out]	index	index whose zip_pad_mutex is to be released */
-inline
-void
-dict_index_zip_pad_unlock(
-	dict_index_t*	index)
-{
-	mutex_exit(index->zip_pad.mutex);
-}
-
-#ifdef UNIV_DEBUG
-/** Check if the current thread owns the autoinc_mutex of a given table.
-@param[in]	table	the autoinc_mutex belongs to this table
-@return true, if the current thread owns the autoinc_mutex, false otherwise.*/
-inline
-bool
-dict_table_autoinc_own(
-	const dict_table_t*	table)
-{
-	return(mutex_own(table->autoinc_mutex));
-}
-#endif /* UNIV_DEBUG */
 
 /** Check whether the col is used in spatial index or regular index.
 @param[in]	col	column to check
