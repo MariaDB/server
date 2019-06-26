@@ -6832,7 +6832,7 @@ class Type_holder: public Sql_alloc,
                    public Type_all_attributes,
                    public Type_geometry_attributes
 {
-  TYPELIB *m_typelib;
+  const TYPELIB *m_typelib;
   bool m_maybe_null;
 public:
   Type_holder()
@@ -6863,11 +6863,11 @@ public:
   {
     return Type_geometry_attributes::get_geometry_type();
   }
-  void set_typelib(TYPELIB *typelib)
+  void set_typelib(const TYPELIB *typelib)
   {
     m_typelib= typelib;
   }
-  TYPELIB *get_typelib() const
+  const TYPELIB *get_typelib() const
   {
     return m_typelib;
   }

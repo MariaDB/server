@@ -1114,9 +1114,9 @@ public:
   {
     return type_handler()->max_display_length(this);
   }
-  TYPELIB *get_typelib() const { return NULL; }
+  const TYPELIB *get_typelib() const { return NULL; }
   void set_maybe_null(bool maybe_null_arg) { maybe_null= maybe_null_arg; }
-  void set_typelib(TYPELIB *typelib)
+  void set_typelib(const TYPELIB *typelib)
   {
     // Non-field Items (e.g. hybrid functions) never have ENUM/SET types yet.
     DBUG_ASSERT(0);
@@ -3352,7 +3352,7 @@ public:
                                           const Tmp_field_param *param);
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
-  TYPELIB *get_typelib() const { return field->get_typelib(); }
+  const TYPELIB *get_typelib() const { return field->get_typelib(); }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -5213,7 +5213,7 @@ public:
   {
     return ref ? (*ref)->real_item() : this;
   }
-  TYPELIB *get_typelib() const
+  const TYPELIB *get_typelib() const
   {
     return ref ? (*ref)->get_typelib() : NULL;
   }
@@ -6962,7 +6962,7 @@ class Item_type_holder: public Item,
                         public Type_geometry_attributes
 {
 protected:
-  TYPELIB *enum_set_typelib;
+  const TYPELIB *enum_set_typelib;
 public:
   Item_type_holder(THD *thd, Item *item)
    :Item(thd, item),
@@ -6998,7 +6998,7 @@ public:
   }
 
   enum Type type() const { return TYPE_HOLDER; }
-  TYPELIB *get_typelib() const { return enum_set_typelib; }
+  const TYPELIB *get_typelib() const { return enum_set_typelib; }
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);

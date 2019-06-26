@@ -2971,8 +2971,8 @@ public:
   */
   virtual uint uint_geometry_type() const= 0;
   virtual void set_geometry_type(uint type)= 0;
-  virtual TYPELIB *get_typelib() const= 0;
-  virtual void set_typelib(TYPELIB *typelib)= 0;
+  virtual const TYPELIB *get_typelib() const= 0;
+  virtual void set_typelib(const TYPELIB *typelib)= 0;
 };
 
 

@@ -9372,7 +9372,7 @@ bool TR_table::check(bool error)
   }
 
   Field_enum *iso_level= static_cast<Field_enum *>(table->field[FLD_ISO_LEVEL]);
-  st_typelib *typelib= iso_level->typelib;
+  const st_typelib *typelib= iso_level->typelib;
 
   if (typelib->count != 4)
     goto wrong_enum;

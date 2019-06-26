@@ -3402,7 +3402,7 @@ Field *Type_handler_enum::make_table_field(const LEX_CSTRING *name,
                                            const Type_all_attributes &attr,
                                            TABLE *table) const
 {
-  TYPELIB *typelib= attr.get_typelib();
+  const TYPELIB *typelib= attr.get_typelib();
   DBUG_ASSERT(typelib);
   return new (table->in_use->mem_root)
          Field_enum(addr.ptr(), attr.max_length,
@@ -3419,7 +3419,7 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
                                           TABLE *table) const
 
 {
-  TYPELIB *typelib= attr.get_typelib();
+  const TYPELIB *typelib= attr.get_typelib();
   DBUG_ASSERT(typelib);
   return new (table->in_use->mem_root)
          Field_set(addr.ptr(), attr.max_length,
@@ -4091,10 +4091,10 @@ bool Type_handler_typelib::
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  TYPELIB *typelib= NULL;
+  const TYPELIB *typelib= NULL;
   for (uint i= 0; i < nitems; i++)
   {
-    TYPELIB *typelib2;
+    const TYPELIB *typelib2;
     if ((typelib2= items[i]->get_typelib()))
     {
       if (typelib)

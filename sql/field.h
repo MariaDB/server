@@ -1430,7 +1430,7 @@ public:
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  virtual TYPELIB *get_typelib() const { return NULL; }
+  virtual const TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
   virtual CHARSET_INFO *charset_for_protocol(void) const
   { return binary() ? &my_charset_bin : charset(); }
@@ -4313,12 +4313,12 @@ class Field_enum :public Field_str {
 protected:
   uint packlength;
 public:
-  TYPELIB *typelib;
+  const TYPELIB *typelib;
   Field_enum(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
              uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
              uint packlength_arg,
-             TYPELIB *typelib_arg,
+             const TYPELIB *typelib_arg,
              const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 	       unireg_check_arg, field_name_arg, collation),
@@ -4391,7 +4391,7 @@ public:
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   uint decimals() const { return 0; }
-  TYPELIB *get_typelib() const { return typelib; }
+  const TYPELIB *get_typelib() const { return typelib; }
 
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
@@ -4426,7 +4426,7 @@ public:
 	    uchar null_bit_arg,
 	    enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	    uint32 packlength_arg,
-	    TYPELIB *typelib_arg, const DTCollation &collation)
+	    const TYPELIB *typelib_arg, const DTCollation &collation)
     :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		    unireg_check_arg, field_name_arg,
                 packlength_arg,
@@ -4687,7 +4687,7 @@ public:
   */
   ulonglong length;
   Field::utype unireg_check;
-  TYPELIB *interval;			// Which interval to use
+  const TYPELIB *interval;            // Which interval to use
   CHARSET_INFO *charset;
   uint32 srid;
   Field::geometry_type geom_type;
@@ -5170,7 +5170,7 @@ public:
   LEX_CSTRING change;			// If done with alter table
   LEX_CSTRING after;			// Put column after this one
   Field *field;				// For alter table
-  TYPELIB *save_interval;               // Temporary copy for the above
+  const TYPELIB *save_interval;         // Temporary copy for the above
                                         // Used only for UCS2 intervals
 
   /** structure with parsed options (for comparing fields in ALTER TABLE) */

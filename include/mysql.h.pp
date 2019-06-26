@@ -256,7 +256,7 @@ extern int find_type_with_warning(const char *x, TYPELIB *typelib,
 extern int find_type(const char *x, const TYPELIB *typelib, unsigned int flags);
 extern void make_type(char *to,unsigned int nr,TYPELIB *typelib);
 extern const char *get_type(TYPELIB *typelib,unsigned int nr);
-extern TYPELIB *copy_typelib(MEM_ROOT *root, TYPELIB *from);
+extern TYPELIB *copy_typelib(MEM_ROOT *root, const TYPELIB *from);
 extern TYPELIB sql_protocol_typelib;
 my_ulonglong find_set_from_flags(const TYPELIB *lib, unsigned int default_name,
                               my_ulonglong cur_set, my_ulonglong default_set,

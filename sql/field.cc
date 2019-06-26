@@ -9462,7 +9462,8 @@ bool Field::eq_def(const Field *field) const
   @return TRUE if the type names of t1 match those of t2. FALSE otherwise.
 */
 
-static bool compare_type_names(CHARSET_INFO *charset, TYPELIB *t1, TYPELIB *t2)
+static bool compare_type_names(CHARSET_INFO *charset, const TYPELIB *t1,
+                                                      const TYPELIB *t2)
 {
   for (uint i= 0; i < t1->count; i++)
     if (my_strnncoll(charset,
@@ -9481,7 +9482,7 @@ static bool compare_type_names(CHARSET_INFO *charset, TYPELIB *t1, TYPELIB *t2)
 
 bool Field_enum::eq_def(const Field *field) const
 {
-  TYPELIB *values;
+  const TYPELIB *values;
 
   if (!Field::eq_def(field))
     return FALSE;
@@ -9507,7 +9508,7 @@ bool Field_enum::eq_def(const Field *field) const
 
 uint Field_enum::is_equal(Create_field *new_field)
 {
-  TYPELIB *values= new_field->interval;
+  const TYPELIB *values= new_field->interval;
 
   /*
     The fields are compatible if they have the same flags,
@@ -10240,7 +10241,8 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
 {
   DBUG_ENTER("Column_definition::create_interval_from_interval_list");
   DBUG_ASSERT(!interval);
-  if (!(interval= (TYPELIB*) alloc_root(mem_root, sizeof(TYPELIB))))
+  TYPELIB *tmpint;
+  if (!(interval= tmpint= (TYPELIB*) alloc_root(mem_root, sizeof(TYPELIB))))
     DBUG_RETURN(true); // EOM
 
   List_iterator<String> it(interval_list);
@@ -10254,17 +10256,17 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
   DBUG_ASSERT(comma_length >= 0 && comma_length <= (int) sizeof(comma_buf));
 
   if (!multi_alloc_root(mem_root,
-                        &interval->type_names,
+                        &tmpint->type_names,
                         sizeof(char*) * (interval_list.elements + 1),
-                        &interval->type_lengths,
+                        &tmpint->type_lengths,
                         sizeof(uint) * (interval_list.elements + 1),
                         NullS))
     goto err; // EOM
 
-  interval->name= "";
-  interval->count= interval_list.elements;
+  tmpint->name= "";
+  tmpint->count= interval_list.elements;
 
-  for (uint i= 0; i < interval->count; i++)
+  for (uint i= 0; i < interval_list.elements; i++)
   {
     uint32 dummy;
     String *tmp= it++;
@@ -10302,11 +10304,11 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
         goto err;
       }
     }
-    interval->type_names[i]= value.str;
-    interval->type_lengths[i]= (uint)value.length;
+    tmpint->type_names[i]= value.str;
+    tmpint->type_lengths[i]= (uint)value.length;
   }
-  interval->type_names[interval->count]= 0;    // End marker
-  interval->type_lengths[interval->count]= 0;
+  tmpint->type_names[interval_list.elements]= 0;    // End marker
+  tmpint->type_lengths[interval_list.elements]= 0;
   interval_list.empty();  // Don't need interval_list anymore
   DBUG_RETURN(false);
 err:

@@ -2846,7 +2846,7 @@ static int sort_keys(KEY *a, KEY *b)
 */
 
 bool check_duplicates_in_interval(const char *set_or_name,
-                                  const char *name, TYPELIB *typelib,
+                                  const char *name, const TYPELIB *typelib,
                                   CHARSET_INFO *cs, unsigned int *dup_val_count)
 {
   TYPELIB tmp= *typelib;
