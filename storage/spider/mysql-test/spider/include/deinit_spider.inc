@@ -27,11 +27,11 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     DROP TABLE IF EXISTS mysql.spider_rewritten_tables;
   }
 }
-DROP FUNCTION spider_direct_sql;
-DROP FUNCTION spider_bg_direct_sql;
-DROP FUNCTION spider_ping_table;
-DROP FUNCTION spider_copy_tables;
 DROP FUNCTION spider_flush_table_mon_cache;
+DROP FUNCTION spider_copy_tables;
+DROP FUNCTION spider_ping_table;
+DROP FUNCTION spider_bg_direct_sql;
+DROP FUNCTION spider_direct_sql;
 UNINSTALL PLUGIN spider_alloc_mem;
 UNINSTALL PLUGIN spider;
 DROP TABLE IF EXISTS mysql.spider_xa;

@@ -30,6 +30,7 @@
 #include "sql_servers.h"
 #include "sql_select.h"
 #include "tztime.h"
+#include "sql_parse.h"
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -45,6 +46,7 @@
 #include "spd_direct_sql.h"
 #include "spd_malloc.h"
 #include "spd_group_by_handler.h"
+#include "spd_init_query.h"
 
 /* Background thread management */
 #ifdef SPIDER_HAS_NEXT_THREAD_ID
@@ -6627,6 +6629,14 @@ handler* spider_create_handler(
   MEM_ROOT *mem_root
 ) {
   DBUG_ENTER("spider_create_handler");
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+  if (unlikely(spider_table_sts_threads[0].init_command))
+  {
+    /* wait for finishing init_command */
+    pthread_mutex_lock(&spider_table_sts_threads[0].mutex);
+    pthread_mutex_unlock(&spider_table_sts_threads[0].mutex);
+  }
+#endif
   DBUG_RETURN(new (mem_root) ha_spider(hton, table));
 }
 
@@ -7433,6 +7443,7 @@ int spider_db_init(
       NullS))
   )
     goto error_alloc_mon_mutxes;
+  spider_table_sts_threads[0].init_command = TRUE;
 
   for (roop_count = 0;
     roop_count < (int) spider_param_table_sts_thread_count();
@@ -7485,6 +7496,29 @@ int spider_db_init(
     }
   }
 
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+  DBUG_PRINT("info",("spider before getting mutex"));
+  pthread_mutex_lock(&spider_table_sts_threads[0].mutex);
+  DBUG_PRINT("info",("spider after getting mutex"));
+  if (spider_table_sts_threads[0].init_command)
+  {
+    if (spider_table_sts_threads[0].thd_wait)
+    {
+      pthread_cond_signal(&spider_table_sts_threads[0].cond);
+    }
+    spider_table_sts_threads[0].first_free_wait = TRUE;
+    pthread_cond_wait(&spider_table_sts_threads[0].sync_cond,
+      &spider_table_sts_threads[0].mutex);
+    spider_table_sts_threads[0].first_free_wait = FALSE;
+    if (spider_table_sts_threads[0].thd_wait)
+    {
+      pthread_cond_signal(&spider_table_sts_threads[0].cond);
+    }
+  }
+  DBUG_PRINT("info",("spider before releasing mutex"));
+  pthread_mutex_unlock(&spider_table_sts_threads[0].mutex);
+  DBUG_PRINT("info",("spider after releasing mutex"));
+#endif
   DBUG_RETURN(0);
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -10172,6 +10206,54 @@ void *spider_table_bg_sts_action(
   }
   trx->thd = thd;
   /* init end */
+
+  if (thread->init_command)
+  {
+    uint i = 0;
+    tmp_disable_binlog(thd);
+    thd->security_ctx->skip_grants();
+    thd->client_capabilities |= CLIENT_MULTI_RESULTS;
+    while (spider_init_queries[i + 2].length)
+    {
+      dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
+        (uint) spider_init_queries[i].length, FALSE, FALSE);
+      if (unlikely(thd->is_error()))
+      {
+        fprintf(stderr, "[ERROR] %s\n", thd->get_stmt_da()->message());
+        thd->clear_error();
+        break;
+      }
+      ++i;
+    }
+    DBUG_PRINT("info",("spider first_free_wait=%s",
+      thread->first_free_wait ? "TRUE" : "FALSE"));
+    if (!thread->first_free_wait)
+    {
+      thread->thd_wait = TRUE;
+      pthread_cond_wait(&thread->cond, &thread->mutex);
+      thread->thd_wait = FALSE;
+    }
+    DBUG_ASSERT(thread->first_free_wait);
+    pthread_cond_signal(&thread->sync_cond);
+    thread->thd_wait = TRUE;
+    pthread_cond_wait(&thread->cond, &thread->mutex);
+    thread->thd_wait = FALSE;
+    while (spider_init_queries[i].length)
+    {
+      dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
+        (uint) spider_init_queries[i].length, FALSE, FALSE);
+      if (unlikely(thd->is_error()))
+      {
+        fprintf(stderr, "[ERROR] %s\n", thd->get_stmt_da()->message());
+        thd->clear_error();
+        break;
+      }
+      ++i;
+    }
+    thd->client_capabilities -= CLIENT_MULTI_RESULTS;
+    reenable_binlog(thd);
+    thread->init_command = FALSE;
+  }
 
   while (TRUE)
   {

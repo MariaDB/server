@@ -302,6 +302,7 @@ typedef struct st_spider_thread
   volatile bool         killed;
   volatile bool         thd_wait;
   volatile bool         first_free_wait;
+  volatile bool         init_command;
   pthread_t             thread;
   pthread_cond_t        cond;
   pthread_mutex_t       mutex;
