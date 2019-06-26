@@ -171,7 +171,7 @@ template<uint sz>
 class TypelibBuffer: public Typelib
 {
   const char *m_type_names[sz + 1];
-  unsigned int m_type_lengths[sz + 1];
+  uint m_type_lengths[sz + 1];
 public:
   TypelibBuffer(uint count, const LEX_CSTRING *values)
    :Typelib(count, m_type_names, m_type_lengths)
@@ -181,7 +181,7 @@ public:
     {
       DBUG_ASSERT(values[i].str != NULL);
       m_type_names[i]= values[i].str;
-      m_type_lengths[i]= values[i].length;
+      m_type_lengths[i]= (uint) values[i].length;
     }
     m_type_names[sz]= NullS; // End marker
     m_type_lengths[sz]= 0;   // End marker
