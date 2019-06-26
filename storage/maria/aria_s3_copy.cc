@@ -77,9 +77,9 @@ static struct my_option my_long_options[] =
    &opt_block_size, &opt_block_size, 0, GET_ULONG, REQUIRED_ARG,
    4*1024*1024, 64*1024, 16*1024*1024, MALLOC_OVERHEAD, 1024, 0 },
   {"s3_protocol_version", 'L',
-   "Protocol used to communication with S3. One of \"Amazon\" or \"Original\".",
+   "Protocol used to communication with S3. One of \"Auto\", \"Amazon\" or \"Original\".",
    &opt_protocol_version, &opt_protocol_version, &s3_protocol_typelib,
-   GET_ENUM, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
+   GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force copy even if target exists",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Write more information", &opt_verbose, &opt_verbose,
@@ -209,10 +209,12 @@ int main(int argc, char** argv)
 
   {
     size_t block_size= opt_block_size;
-    uint8_t protocol_version= (uint8_t) opt_protocol_version+1;
+    uint8_t protocol_version= (uint8_t) opt_protocol_version;
     ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
-    ms3_set_option(global_s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
-                   &protocol_version);
+
+    if (protocol_version)
+      ms3_set_option(global_s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
+                     &protocol_version);
   }
 
   for (; *argv ; argv++)

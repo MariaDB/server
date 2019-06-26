@@ -127,8 +127,8 @@ static MYSQL_SYSVAR_BOOL(debug, s3_debug,
 static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
                          PLUGIN_VAR_RQCMDARG,
                          "Protocol used to communication with S3. One of "
-                         "\"Amazon\" or \"Original\".",
-                         NULL, NULL, 1, &s3_protocol_typelib);
+                         "\"Auto\", \"Amazon\" or \"Original\".",
+                         NULL, NULL, 0, &s3_protocol_typelib);
 
 static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        s3_pagecache_age_threshold, PLUGIN_VAR_RQCMDARG,
@@ -259,7 +259,7 @@ static my_bool s3_info_init(S3_INFO *info)
 {
   if (!s3_usable())
     return 1;
-  info->protocol_version= (uint8_t) s3_protocol_version+1;
+  info->protocol_version= (uint8_t) s3_protocol_version;
   lex_string_set(&info->host_name,  s3_host_name);
   lex_string_set(&info->access_key, s3_access_key);
   lex_string_set(&info->secret_key, s3_secret_key);
