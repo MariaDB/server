@@ -569,6 +569,10 @@ static int s3_discover_table_existance(handlerton *hton, const char *db,
   int res;
   DBUG_ENTER("s3_discover_table_existance");
 
+  /* Ignore names in "mysql" database to speed up boot */
+  if (!strcmp(db, MYSQL_SCHEMA_NAME.str))
+    DBUG_RETURN(0);
+
   if (s3_info_init(&s3_info))
     DBUG_RETURN(0);
   if (!(s3_client= s3_open_connection(&s3_info)))
@@ -600,6 +604,10 @@ static int s3_discover_table_names(handlerton *hton __attribute__((unused)),
   ms3_list_st *list, *org_list= 0;
   int error;
   DBUG_ENTER("s3_discover_table_names");
+
+  /* Ignore names in "mysql" database to speed up boot */
+  if (!strcmp(db->str, MYSQL_SCHEMA_NAME.str))
+    DBUG_RETURN(0);
 
   if (s3_info_init(&s3_info))
     DBUG_RETURN(0);
