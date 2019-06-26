@@ -563,21 +563,13 @@ dtuple_convert_big_rec(
 	dict_field_t*	ifield;
 	ulint		size;
 	ulint		n_fields;
-	ulint		local_len;
 	ulint		local_prefix_len;
 
 	if (!dict_index_is_clust(index)) {
 		return(NULL);
 	}
 
-	if (dict_table_get_format(index->table) < UNIV_FORMAT_B) {
-		/* up to MySQL 5.1: store a 768-byte prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE
-			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
-	} else {
-		/* new-format table: do not store any BLOB prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE;
-	}
+	const ulint local_len = index->table->get_overflow_field_local_len();
 
 	ut_a(dtuple_check_typed_no_assert(entry));
 

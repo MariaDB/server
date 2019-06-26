@@ -2691,22 +2691,15 @@ created_clustered:
 	DBUG_RETURN(indexdefs);
 }
 
-/*******************************************************************//**
-Check each index column size, make sure they do not exceed the max limit
-@return true if index column size exceeds limit */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-bool
-innobase_check_column_length(
-/*=========================*/
-	ulint		max_col_len,	/*!< in: maximum column length */
-	const KEY*	key_info)	/*!< in: Indexes to be created */
+MY_ATTRIBUTE((warn_unused_result))
+bool too_big_key_part_length(size_t max_field_len, const KEY& key)
 {
-	for (ulint key_part = 0; key_part < key_info->user_defined_key_parts; key_part++) {
-		if (key_info->key_part[key_part].length > max_col_len) {
-			return(true);
+	for (ulint i = 0; i < key.user_defined_key_parts; i++) {
+		if (key.key_part[i].length > max_field_len) {
+			return true;
 		}
 	}
-	return(false);
+	return false;
 }
 
 /********************************************************************//**
@@ -5555,7 +5548,7 @@ check_if_ok_to_rename:
 			continue;
 		}
 
-		if (innobase_check_column_length(max_col_len, key)) {
+		if (too_big_key_part_length(max_col_len, *key)) {
 			my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
 				 max_col_len);
 			goto err_exit_no_heap;

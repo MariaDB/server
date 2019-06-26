@@ -1,3 +1,4 @@
+call mtr.add_suppression("Cannot add field `u` in table `test`.`t2` because after adding it, the row size is");
 CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 o blob,p blob,q blob,r blob,s blob,t blob,u blob,
@@ -7,6 +8,7 @@ ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
 oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
 va blob, wa blob, xa blob, ya blob, za blob)
 ENGINE=InnoDB ROW_FORMAT=dynamic;
+SET innodb_strict_mode=OFF;
 CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 o blob,p blob,q blob,r blob,s blob,t blob,u blob,
@@ -16,6 +18,9 @@ ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
 oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
 va blob, wa blob, xa blob, ya blob, za blob)
 ENGINE=InnoDB ROW_FORMAT=compact;
+Warnings:
+Warning	139	Row size too large (> 16318). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+SET innodb_strict_mode=ON;
 SET @a = repeat('a', 767);
 SET @b = repeat('b', 767);
 SET @c = repeat('c', 767);
@@ -131,6 +136,8 @@ v=@h,w=@h,x=@b,y=@h,z=@h,
 aa=@h,ba=@h,ca=@h,da=@h,ea=@h,fa=@h,ga=@h,ha=@h,ia=@h,ja=@h,
 ka=@h,la=@h,ma=@h,na=@h,oa=@h,pa=@h,qa=@h,ra=@h,sa=@h,ta=@b,ua=@h,
 va=@h,wa=@h,xa=@h,ya=@h,za=@h;
+Warnings:
+Warning	139	Row size too large (> 16318). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 BEGIN;
 UPDATE t1 SET a=@g,b=@g,c=@g,d=@g,e=@g;
 UPDATE t1 SET f=@g,g=@g,h=@g,i=@g,j=@g;

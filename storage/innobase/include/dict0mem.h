@@ -1028,6 +1028,14 @@ struct dict_index_t{
 			n_fields = 0;
 		}
 	}
+
+	/** If a record of this index might not fit on a single B-tree page,
+	  return true.
+	@param[in]	candidate_table	where we're goint to attach this index
+	@param[in]	strict	issue error or warning
+	@return true if the index record could become too big */
+	bool rec_potentially_too_big(const dict_table_t* candidate_table,
+				     bool strict) const;
 };
 
 /** Detach a column from an index.
@@ -1415,6 +1423,9 @@ struct dict_table_t {
 	{
 		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
 	}
+
+	/** For overflow fields returns potential max length stored inline */
+	size_t get_overflow_field_local_len() const;
 
 	/** Id of the table. */
 	table_id_t				id;
