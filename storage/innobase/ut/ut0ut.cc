@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -281,27 +281,6 @@ ut_sprintf_timestamp(
 		cal_tm_ptr->tm_min,
 		cal_tm_ptr->tm_sec);
 #endif
-}
-
-/*************************************************************//**
-Runs an idle loop on CPU. The argument gives the desired delay
-in microseconds on 100 MHz Pentium + Visual C++.
-@return dummy value */
-void
-ut_delay(
-/*=====*/
-	ulint	delay)	/*!< in: delay in microseconds on 100 MHz Pentium */
-{
-	ulint	i;
-
-	HMT_low();
-
-	for (i = 0; i < delay * 50; i++) {
-		MY_RELAX_CPU();
-		UT_COMPILER_BARRIER();
-	}
-
-	HMT_medium();
 }
 
 /*************************************************************//**
