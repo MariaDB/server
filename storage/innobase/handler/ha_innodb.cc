@@ -6329,7 +6329,7 @@ no_such_table:
 
 	if (!thd_tablespace_op(thd) && no_tablespace) {
 		set_my_errno(ENOENT);
-		int ret_err = HA_ERR_NO_SUCH_TABLE;
+		int ret_err = HA_ERR_TABLESPACE_MISSING;
 
 		/* If table has no talespace but it has crypt data, check
 		is tablespace made unaccessible because encryption service
@@ -9528,7 +9528,7 @@ ha_innobase::index_read(
 			table->s->table_name.str);
 
 		table->status = STATUS_NOT_FOUND;
-		error = HA_ERR_NO_SUCH_TABLE;
+		error = HA_ERR_TABLESPACE_MISSING;
 		break;
 
 	case DB_TABLESPACE_NOT_FOUND:
@@ -9539,8 +9539,7 @@ ha_innobase::index_read(
 			table->s->table_name.str);
 
 		table->status = STATUS_NOT_FOUND;
-		//error = HA_ERR_TABLESPACE_MISSING;
-		error =  HA_ERR_NO_SUCH_TABLE;
+		error = HA_ERR_TABLESPACE_MISSING;
 		break;
 
 	default:
@@ -9787,7 +9786,7 @@ ha_innobase::general_fetch(
 			table->s->table_name.str);
 
 		table->status = STATUS_NOT_FOUND;
-		error = HA_ERR_NO_SUCH_TABLE;
+		error = HA_ERR_TABLESPACE_MISSING;
 		break;
 	case DB_TABLESPACE_NOT_FOUND:
 
@@ -10097,7 +10096,7 @@ ha_innobase::ft_init_ext(
 
 	/* If tablespace is discarded, we should return here */
 	if (dict_table_is_discarded(ft_table)) {
-		my_error(ER_NO_SUCH_TABLE, MYF(0), table->s->db.str,
+		my_error(ER_TABLESPACE_MISSING, MYF(0), table->s->db.str,
 			 table->s->table_name.str);
 		return(NULL);
 	}
@@ -10314,7 +10313,7 @@ next_record:
 				table->s->table_name.str);
 
 			table->status = STATUS_NOT_FOUND;
-			error = HA_ERR_NO_SUCH_TABLE;
+			error = HA_ERR_TABLESPACE_MISSING;
 			break;
 		case DB_TABLESPACE_NOT_FOUND:
 
@@ -15858,7 +15857,7 @@ ha_innobase::external_lock(
 					    ER_TABLESPACE_DISCARDED,
 					    table->s->table_name.str);
 
-				DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+				DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
 			}
 
 			row_quiesce_table_start(m_prebuilt->table, trx);
