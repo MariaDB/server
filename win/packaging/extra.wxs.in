@@ -860,23 +860,12 @@
       </Component>
     </Feature>
 
-    <!-- Extra condition to block the installer if NSIS based installation is detected-->
-    <Property Id="NSISINSTALLKEY">
-      <RegistrySearch Id='NSISKey' Type='raw'
-        Root='HKLM' Key='Software\Microsoft\Windows\CurrentVersion\Uninstall\MariaDB' Name='DisplayName' />
-    </Property>
-    <Condition
-      Message=
-      'Previous version of MariaDB was found, that used incompatible installer.&#xD;&#xA;Please remove &quot;[NSISINSTALLKEY]&quot; before you proceed with this installation.'
-      >
-      <![CDATA[ NOT(NSISINSTALLKEY << "MariaDB @MAJOR_VERSION@.@MINOR_VERSION@.") OR Installed]]>
-    </Condition>
     <Condition Message=
        'Setting the ALLUSERS property is not allowed because [ProductName] is a per-machine application. Setup will now exit.'>
       <![CDATA[ALLUSERS = "1"]]>
     </Condition>
-	<Condition Message='This application is only supported on Windows Vista, Windows Server 2008, or higher.'>
-      <![CDATA[Installed OR (VersionNT >= 600)]]>
+	<Condition Message='This application is only supported on Windows 10, Windows Server 2016, or higher.'>
+      <![CDATA[Installed OR (VersionNT >= 603)]]>
     </Condition>
   </Fragment>
 </Wix>
