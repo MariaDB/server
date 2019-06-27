@@ -29,6 +29,7 @@ Created 2013-03-26 Sunny Bains.
 #ifndef ib0mutex_h
 #define ib0mutex_h
 
+#include "my_atomic.h"
 #include "my_cpu.h"
 #include "os0event.h"
 #include "sync0arr.h"
