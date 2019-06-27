@@ -11,14 +11,14 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*************** Mycat CC Program Source Code File (.CC) ***************/
 /* PROGRAM NAME: MYCAT                                                 */
 /* -------------                                                       */
-/*  Version 1.6                                                        */
+/*  Version 1.7                                                        */
 /*                                                                     */
-/*  Author: Olivier Bertrand                       2012 - 2018         */
+/*  Author: Olivier Bertrand                       2012 - 2019         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -93,6 +93,9 @@
 #if defined(ZIP_SUPPORT)
 #include "tabzip.h"
 #endif   // ZIP_SUPPORT
+#if defined(REST_SUPPORT)
+#include "tabrest.h"
+#endif   // Rest_SUPPORT
 #include "mycat.h"
 
 /***********************************************************************/
@@ -101,11 +104,9 @@
 #if defined(__WIN__)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !__WIN__
-
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 bool MongoEnabled(void);
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
-
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
 /***********************************************************************/
@@ -181,7 +182,8 @@ bool IsFileType(TABTYPE type)
     case TAB_INI:
     case TAB_VEC:
     case TAB_JSON:
-//	case TAB_ZIP:
+    case TAB_REST:
+ // case TAB_ZIP:
       isfile= true;
       break;
     default:
@@ -488,8 +490,8 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, PTABLE tablep,
 		printf("GetTableDesc: name=%s am=%s\n", tablep->GetName(), SVP(type));
 
  	// If not specified get the type of this table
-  if (!type)
-    type= Hc->GetStringOption("Type","*");
+  //if (!type)
+  //  type= Hc->GetStringOption("Type","*");
 
   return MakeTableDesc(g, tablep, type);
   } // end of GetTableDesc
@@ -501,8 +503,8 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, PTABLE tablep,
 PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
   {
   TABTYPE tc;
-	LPCSTR  name = (PSZ)PlugDup(g, tablep->GetName());
-	LPCSTR  schema = (PSZ)PlugDup(g, tablep->GetSchema());
+	LPCSTR  name= (PSZ)PlugDup(g, tablep->GetName());
+	LPCSTR  schema= (PSZ)PlugDup(g, tablep->GetSchema());
   PRELDEF tdp= NULL;
 
 	if (trace(1))
@@ -512,7 +514,11 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
   /*********************************************************************/
   /*  Get a unique enum identifier for types.                          */
   /*********************************************************************/
-  tc= GetTypeID(am);
+	if (!am) {
+		tc= Hc->GetRealType();
+		am= Hc->GetStringOption("Type","*");
+	} else
+		tc= GetTypeID(am);
 
   switch (tc) {
     case TAB_FIX:
@@ -551,6 +557,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #if defined(ZIP_SUPPORT)
 		case TAB_ZIP: tdp = new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT
+#if defined(REST_SUPPORT)
+    case TAB_REST: tdp= new (g) RESTDEF; break;
+#endif   // REST_SUPPORT
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 		case TAB_MONGO:
 			if (MongoEnabled()) {

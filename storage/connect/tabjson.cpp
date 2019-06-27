@@ -572,7 +572,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	Sep = *GetStringCatInfo(g, "Separator", ".");
 	Accept = GetBoolCatInfo("Accept", false);
 
-	// Don't use url as uri when called from REST OEM module
+	// Don't use url as MONGO uri when called from REST
 	if (stricmp(am, "REST") && (Uri = GetStringCatInfo(g, "Connect", NULL))) {
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 		Collname = GetStringCatInfo(g, "Name",
