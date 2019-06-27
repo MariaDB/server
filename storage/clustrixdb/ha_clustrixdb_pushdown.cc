@@ -97,9 +97,9 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   // Print the query into a string provided
   select_lex->print(thd, &query, QT_ORDINARY);
   int error_code = 0;
-  clustrix_connection *clustrix_net = NULL;
   int field_metadata_size = 0;
   ulonglong scan_refid = 0;
+  st_clustrixdb_trx *trx = 0;
 
   // We presume this number is equal to types.elements in get_field_types
   uint items_number = select_lex->get_item_list()->elements;
@@ -108,8 +108,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   uchar *null_bits = NULL;
   uchar *field_metadata = NULL;
   uchar *meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME), &fieldtype, items_number,
-    &null_bits, num_null_bytes, &field_metadata, (items_number * 2),
-    NULL);
+    &null_bits, num_null_bytes, &field_metadata, (items_number * 2), NULL);
 
   if (!meta_memory) {
      // The only way to say something here is to raise warning
@@ -121,25 +120,19 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
     get_field_types(thd, select_lex, fieldtype, field_metadata, null_bits, num_null_bytes)) < 0) {
      goto err;
   }
-  // Use buffers filled by get_field_types here.
 
-  // WIP reuse the connections
-  clustrix_net = new clustrix_connection();
-  error_code = clustrix_net->connect();
-  if (error_code)
+  trx = get_trx(thd, &error_code);
+  if (!trx)
     goto err;
 
-  if ((error_code = clustrix_net->scan_query_init(query, fieldtype, items_number,
+  if ((error_code = trx->clustrix_net->scan_query_init(query, fieldtype, items_number,
         null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
-    //goto err;
+    goto err;
   }
 
-  sh = new ha_clustrixdb_select_handler(thd, select_lex, clustrix_net, scan_refid);
+  sh = new ha_clustrixdb_select_handler(thd, select_lex, scan_refid);
 
 err:
-  // reuse the connection
-  if (!sh)
-    delete clustrix_net;
   // deallocate buffers
   if (meta_memory)
     my_free(meta_memory);
@@ -157,34 +150,40 @@ err:
 ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
       THD *thd,
       SELECT_LEX* select_lex,
-      clustrix_connection* clustrix_net_,
       ulonglong scan_refid_)
-  : select_handler(thd, clustrixdb_hton), clustrix_net(clustrix_net_),
-    scan_refid(scan_refid_)
+  : select_handler(thd, clustrixdb_hton), scan_refid(scan_refid_)
 {
   select = select_lex;
   rli = NULL;
   rgi = NULL;
-  scan_refid = 0;
 }
 
 /***********************************************************
  * DESCRIPTION:
  * select_handler constructor
+ * This frees dynamic memory allocated for bitmap
+ * and disables replication to SH temp table.
  **********************************************************/
 ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
 {
-    remove_current_table_from_rpl_table_list();
+    int error_code;
+    st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+    if (!trx) {
+      // WIP BANG
+    }
+    if (scan_refid)
+      trx->clustrix_net->scan_end(scan_refid);
 
-    // WIP reuse the connection
-    if (clustrix_net)
-      delete clustrix_net;
+    my_bitmap_free(&scan_fields);
+
+    remove_current_table_from_rpl_table_list();
 }
 
 /*@brief  Initiate the query for select_handler           */
 /***********************************************************
  * DESCRIPTION:
- *  Does nothing ATM.
+ *  Initializes dynamic structures and sets SH temp table
+ *  as RBR replication destination to unpack rows.
  *  * PARAMETERS:
  * RETURN:
  *  rc as int
@@ -192,7 +191,6 @@ ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
 int ha_clustrixdb_select_handler::init_scan()
 {  
   // need this bitmap future in next_row()
-  // WIP look whether table->read_set->n_bits is valid or not
   if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
     return ER_OUTOFMEMORY;
   bitmap_set_all(&scan_fields);
@@ -236,8 +234,6 @@ int ha_clustrixdb_select_handler::next_row()
     return error_code;
 
   return 0;
-
-  //return HA_ERR_END_OF_FILE;
 }
 
 /*@brief  Finishes the scan and clean it up               */
@@ -250,16 +246,7 @@ int ha_clustrixdb_select_handler::next_row()
  ***********************************************************/
 int ha_clustrixdb_select_handler::end_scan()
 {
-  int error_code = 0;
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
-  if (!trx)
-    return error_code;
-
-  my_bitmap_free(&scan_fields);
-  if (scan_refid && (error_code = trx->clustrix_net->scan_end(scan_refid)))
-    return error_code;
-
-  return error_code;
+    return 0;
 }
 
 void ha_clustrixdb_select_handler::print_error(int, unsigned long)
