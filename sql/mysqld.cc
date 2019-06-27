@@ -4891,6 +4891,7 @@ static int init_server_components()
     We need to call each of these following functions to ensure that
     all things are initialized so that unireg_abort() doesn't fail
   */
+  my_cpu_init();
   mdl_init();
   if (tdc_init() || hostname_cache_init())
     unireg_abort(1);
