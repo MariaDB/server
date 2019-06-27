@@ -24,8 +24,15 @@ unsigned my_cpu_relax_multiplier = 200;
 
 # ifdef _MSC_VER
 #  include <intrin.h>
+#  define my_timer_cycles __rdtsc
+# elif !defined __x86_64__
+/* On some x86 targets, __rdtsc() causes an unresolved external symbol error,
+instead of being inlined. Let us fall back to my_timer_cycles(), which
+internally invokes rdtsc. */
+#  include <my_rdtsc.h>
 # else
 #  include <x86intrin.h>
+#  define my_timer_cycles __rdtsc
 # endif
 
 #define PAUSE4  MY_RELAX_CPU(); MY_RELAX_CPU(); MY_RELAX_CPU(); MY_RELAX_CPU()
@@ -70,11 +77,11 @@ unsigned my_cpu_relax_multiplier = 200;
 void my_cpu_init(void)
 {
   uint64_t t0, t1, t2;
-  t0= __rdtsc();
+  t0= my_timer_cycles();
   PAUSE16;
-  t1= __rdtsc();
+  t1= my_timer_cycles();
   PAUSE16;
-  t2= __rdtsc();
+  t2= my_timer_cycles();
   if (t2 - t1 > 30 * 16 && t1 - t0 > 30 * 16)
     my_cpu_relax_multiplier= 20;
 }
