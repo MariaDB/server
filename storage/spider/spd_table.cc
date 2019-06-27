@@ -7049,7 +7049,11 @@ int spider_db_init(
   spd_defaults_file = (const char **)
     GetProcAddress(current_module, "my_defaults_file");
   spd_mysqld_unix_port = (const char **)
+#ifdef _WIN64
+    GetProcAddress(current_module, "?mysqld_unix_port@@3PEADEA");
+#else
     GetProcAddress(current_module, "?mysqld_unix_port@@3PADA");
+#endif
   spd_mysqld_port = (uint *)
     GetProcAddress(current_module, "?mysqld_port@@3IA");
   spd_abort_loop = (bool volatile *)
