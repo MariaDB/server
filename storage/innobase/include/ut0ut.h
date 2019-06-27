@@ -54,14 +54,6 @@ Created 1/20/1994 Heikki Tuuri
 /** Time stamp */
 typedef time_t	ib_time_t;
 
-#if defined (__GNUC__)
-# define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
-#elif defined (_MSC_VER)
-# define UT_COMPILER_BARRIER() _ReadWriteBarrier()
-#else
-# define UT_COMPILER_BARRIER()
-#endif
-
 /*********************************************************************//**
 Delays execution for at most max_wait_us microseconds or returns earlier
 if cond becomes true.
@@ -270,14 +262,7 @@ void
 ut_sprintf_timestamp(
 /*=================*/
 	char*	buf); /*!< in: buffer where to sprintf */
-/*************************************************************//**
-Runs an idle loop on CPU. The argument gives the desired delay
-in microseconds on 100 MHz Pentium + Visual C++.
-@return dummy value */
-void
-ut_delay(
-/*=====*/
-	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
+
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void
