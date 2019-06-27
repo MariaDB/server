@@ -362,6 +362,9 @@ int clustrix_connection::scan_query_init(String &stmt, uchar *fieldtype,
   if ((error_code = add_command_operand_uchar(CLUSTRIX_QUERY_INIT)))
     return error_code;
 
+  if ((error_code = add_command_operand_str((uchar*)stmt.ptr(), stmt.length())))
+    return error_code;
+
   if ((error_code = add_command_operand_str(fieldtype, fields)))
     return error_code;
     
@@ -370,9 +373,6 @@ int clustrix_connection::scan_query_init(String &stmt, uchar *fieldtype,
 
   // This variable length string calls for an additional store w/o lcb lenth prefix.
   if ((error_code = add_command_operand_vlstr(null_bits, null_bits_size)))
-    return error_code;
-
-  if ((error_code = add_command_operand_str((uchar*)stmt.ptr(), stmt.length())))
     return error_code;
 
   if ((error_code = send_command()))
