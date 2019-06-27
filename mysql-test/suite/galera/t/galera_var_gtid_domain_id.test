@@ -48,6 +48,13 @@ source include/print_gtid.inc;
 # Cleanup
 DROP TABLE t1, t2;
 
+--echo #cleanup
+--connection node_1
+reset master;
+
+--connection node_2
+reset master;
+
 --source include/galera_end.inc
 --echo # End of test
 

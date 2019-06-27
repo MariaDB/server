@@ -14,3 +14,7 @@ gtid_binlog_state_equal
 DROP TABLE t1;
 STOP SLAVE;
 RESET SLAVE ALL;
+#cleanup
+reset master;
+reset master;
+reset master;
