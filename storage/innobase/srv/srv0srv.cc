@@ -450,6 +450,9 @@ my_bool	srv_print_innodb_lock_monitor;
 PRIMARY KEY */
 my_bool	srv_force_primary_key;
 
+/** Key version to encrypt the temporary tablespace */
+my_bool innodb_encrypt_temporary_tables;
+
 /* Array of English strings describing the current state of an
 i/o handler thread */
 
@@ -1645,6 +1648,12 @@ srv_export_innodb_status(void)
 	export_vars.innodb_n_merge_blocks_decrypted = srv_stats.n_merge_blocks_decrypted;
 	export_vars.innodb_n_rowlog_blocks_encrypted = srv_stats.n_rowlog_blocks_encrypted;
 	export_vars.innodb_n_rowlog_blocks_decrypted = srv_stats.n_rowlog_blocks_decrypted;
+
+	export_vars.innodb_n_temp_blocks_encrypted =
+		srv_stats.n_temp_blocks_encrypted;
+
+	export_vars.innodb_n_temp_blocks_decrypted =
+		srv_stats.n_temp_blocks_decrypted;
 
 	export_vars.innodb_defragment_compression_failures =
 		btr_defragment_compression_failures;

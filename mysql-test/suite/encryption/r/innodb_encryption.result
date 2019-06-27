@@ -3,6 +3,7 @@ SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	ON
 innodb_encrypt_tables	ON
+innodb_encrypt_temporary_tables	OFF
 innodb_encryption_rotate_key_age	15
 innodb_encryption_rotation_iops	100
 innodb_encryption_threads	4
@@ -57,6 +58,7 @@ SHOW VARIABLES LIKE 'innodb_encrypt%';
 Variable_name	Value
 innodb_encrypt_log	ON
 innodb_encrypt_tables	OFF
+innodb_encrypt_temporary_tables	OFF
 innodb_encryption_rotate_key_age	15
 innodb_encryption_rotation_iops	100
 innodb_encryption_threads	0

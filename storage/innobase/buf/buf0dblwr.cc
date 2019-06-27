@@ -338,20 +338,6 @@ too_small:
 	goto start_again;
 }
 
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page frame size
-@return	whether the page is all zeroes */
-static bool buf_page_is_zeroes(const byte* read_buf, size_t page_size)
-{
-	for (ulint i = 0; i < page_size; i++) {
-		if (read_buf[i] != 0) {
-			return false;
-		}
-	}
-	return true;
-}
-
 /**
 At database startup initializes the doublewrite buffer memory structure if
 we already have a doublewrite buffer created in the data files. If we are

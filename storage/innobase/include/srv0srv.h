@@ -187,6 +187,12 @@ struct srv_stats_t
 
 	/** Number of spaces in keyrotation list */
 	ulint_ctr_64_t		key_rotation_list_length;
+
+	/** Number of temporary tablespace blocks encrypted */
+	ulint_ctr_64_t		n_temp_blocks_encrypted;
+
+	/** Number of temporary tablespace blocks decrypted */
+	ulint_ctr_64_t		n_temp_blocks_decrypted;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -499,6 +505,9 @@ extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 
 extern ulong	srv_replication_delay;
+
+extern my_bool	innodb_encrypt_temporary_tables;
+
 /*-------------------------------------------*/
 
 /** Modes of operation */
@@ -1065,6 +1074,12 @@ struct export_var_t{
 	ib_int64_t innodb_n_rowlog_blocks_encrypted;
 	/*!< Number of row log blocks decrypted */
 	ib_int64_t innodb_n_rowlog_blocks_decrypted;
+
+	/* Number of temporary tablespace pages encrypted */
+	ib_int64_t innodb_n_temp_blocks_encrypted;
+
+	/* Number of temporary tablespace pages decrypted */
+	ib_int64_t innodb_n_temp_blocks_decrypted;
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
 	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */
