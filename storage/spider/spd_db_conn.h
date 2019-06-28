@@ -429,6 +429,14 @@ int spider_db_append_name_with_quote_str_internal(
   uint dbton_id
 );
 
+int spider_db_append_name_with_quote_str_internal(
+  spider_string *str,
+  const char *name,
+  int length,
+  CHARSET_INFO *cs,
+  uint dbton_id
+);
+
 int spider_db_append_select(
   ha_spider *spider
 );

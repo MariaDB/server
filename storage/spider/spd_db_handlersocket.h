@@ -34,6 +34,17 @@ public:
     uint name_length,
     CHARSET_INFO *name_charset
   );
+  int append_escaped_name(
+    spider_string *str,
+    const char *name,
+    uint name_length
+  );
+  int append_escaped_name_with_charset(
+    spider_string *str,
+    const char *name,
+    uint name_length,
+    CHARSET_INFO *name_charset
+  );
   bool is_name_quote(
     const char head_code
   );

@@ -1,0 +1,75 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+this test is for MDEV-17204
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+txt_utf8 char(8) NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 MASTER_1_COMMENT_2_1
+INSERT INTO tbl_a (pkey,txt_utf8) VALUES (0,'01234567'),(1,'12345678'),(2,'23456789'),(3,'34567890'),(4,'45678901'),(5,'56789012'),(6,'67890123'),(7,'78901234'),(8,'89012345'),(9,'90123456');
+FLUSH TABLES;
+
+test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SET NAMES utf8;
+SELECT `pkey`, LEFT(`txt_utf8`, 4) FROM `auto_test_local`.`tbl_a` ORDER BY LEFT(`txt_utf8`, 4) LIMIT 3;
+pkey	LEFT(`txt_utf8`, 4)
+0	0123
+1	1234
+2	2345
+connection child2_1;
+SET NAMES utf8;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select t0.`pkey` `pkey`,(left(t0.`txt_utf8` , 4)) `LEFT(``txt_utf8``, 4)` from `auto_test_remote`.`tbl_a` t0 order by `LEFT(``txt_utf8``, 4)` limit 3
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey, txt_utf8 FROM tbl_a ORDER BY pkey;
+pkey	txt_utf8
+0	01234567
+1	12345678
+2	23456789
+3	34567890
+4	45678901
+5	56789012
+6	67890123
+7	78901234
+8	89012345
+9	90123456
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test
