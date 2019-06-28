@@ -40,6 +40,33 @@ public:
 };
 
 
+class Json_engine_scan: public json_engine_t
+{
+public:
+  Json_engine_scan(CHARSET_INFO *i_cs, const uchar *str, const uchar *end)
+  {
+    json_scan_start(this, i_cs, str, end);
+  }
+  Json_engine_scan(const String &str)
+   :Json_engine_scan(str.charset(), (const uchar *) str.ptr(),
+                                    (const uchar *) str.end())
+  { }
+  bool check_and_get_value_scalar(String *res, int *error);
+  bool check_and_get_value_complex(String *res, int *error);
+};
+
+
+class Json_path_extractor: public json_path_with_flags
+{
+protected:
+  String tmp_js, tmp_path;
+  virtual ~Json_path_extractor() { }
+  virtual bool check_and_get_value(Json_engine_scan *je,
+                                   String *to, int *error)=0;
+  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs);
+};
+
+
 class Item_func_json_valid: public Item_bool_func
 {
 protected:
@@ -78,32 +105,65 @@ public:
 };
 
 
-class Item_func_json_value: public Item_str_func
+class Item_json_func: public Item_str_func
 {
-protected:
-  json_path_with_flags path;
-  String tmp_js, tmp_path;
+public:
+  Item_json_func(THD *thd)
+   :Item_str_func(thd) { }
+  Item_json_func(THD *thd, Item *a)
+   :Item_str_func(thd, a) { }
+  Item_json_func(THD *thd, Item *a, Item *b)
+   :Item_str_func(thd, a, b) { }
+  Item_json_func(THD *thd, List<Item> &list)
+   :Item_str_func(thd, list) { }
+  bool is_json_type() { return true; }
+};
+
+
+class Item_func_json_value: public Item_str_func,
+                            public Json_path_extractor
+{
 
 public:
   Item_func_json_value(THD *thd, Item *js, Item *i_path):
     Item_str_func(thd, js, i_path) {}
   const char *func_name() const { return "json_value"; }
   bool fix_length_and_dec();
-  String *val_str(String *);
-  virtual bool check_and_get_value(json_engine_t *je, String *res, int *error);
+  String *val_str(String *to)
+  {
+    null_value= Json_path_extractor::extract(to, args[0], args[1],
+                                             collation.collation);
+    return null_value ? NULL : to;
+  }
+  bool check_and_get_value(Json_engine_scan *je,
+                           String *res, int *error) override
+  {
+    return je->check_and_get_value_scalar(res, error);
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_value>(thd, this); }
 };
 
 
-class Item_func_json_query: public Item_func_json_value
+class Item_func_json_query: public Item_json_func,
+                            public Json_path_extractor
 {
 public:
   Item_func_json_query(THD *thd, Item *js, Item *i_path):
-    Item_func_json_value(thd, js, i_path) {}
-  bool is_json_type() { return true; }
+    Item_json_func(thd, js, i_path) {}
   const char *func_name() const { return "json_query"; }
-  bool check_and_get_value(json_engine_t *je, String *res, int *error);
+  bool fix_length_and_dec();
+  String *val_str(String *to)
+  {
+    null_value= Json_path_extractor::extract(to, args[0], args[1],
+                                             collation.collation);
+    return null_value ? NULL : to;
+  }
+  bool check_and_get_value(Json_engine_scan *je,
+                           String *res, int *error) override
+  {
+    return je->check_and_get_value_complex(res, error);
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_query>(thd, this); }
 };
@@ -139,18 +199,17 @@ public:
 };
 
 
-class Item_json_str_multipath: public Item_str_func
+class Item_json_str_multipath: public Item_json_func
 {
 protected:
   json_path_with_flags *paths;
   String *tmp_paths;
 public:
   Item_json_str_multipath(THD *thd, List<Item> &list):
-    Item_str_func(thd, list), tmp_paths(0) {}
+    Item_json_func(thd, list), tmp_paths(0) {}
   bool fix_fields(THD *thd, Item **ref);
   void cleanup();
   virtual uint get_n_paths() const = 0;
-  bool is_json_type() { return true; }
 };
 
 
@@ -217,18 +276,17 @@ public:
 };
 
 
-class Item_func_json_array: public Item_str_func
+class Item_func_json_array: public Item_json_func
 {
 protected:
   String tmp_val;
   ulong result_limit;
 public:
   Item_func_json_array(THD *thd):
-    Item_str_func(thd) {}
+    Item_json_func(thd) {}
   Item_func_json_array(THD *thd, List<Item> &list):
-    Item_str_func(thd, list) {}
+    Item_json_func(thd, list) {}
   String *val_str(String *);
-  bool is_json_type() { return true; }
   bool fix_length_and_dec();
   const char *func_name() const { return "json_array"; }
   Item *get_copy(THD *thd)
@@ -273,7 +331,6 @@ public:
   Item_func_json_object(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
   String *val_str(String *);
-  bool is_json_type() { return true; }
   const char *func_name() const { return "json_object"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_object>(thd, this); }
@@ -288,7 +345,6 @@ public:
   Item_func_json_merge(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
   String *val_str(String *);
-  bool is_json_type() { return true; }
   const char *func_name() const { return "json_merge_preserve"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_merge>(thd, this); }
@@ -439,7 +495,7 @@ public:
 };
 
 
-class Item_func_json_format: public Item_str_func
+class Item_func_json_format: public Item_json_func
 {
 public:
   enum formats
@@ -454,15 +510,14 @@ protected:
   String tmp_js;
 public:
   Item_func_json_format(THD *thd, Item *js, formats format):
-    Item_str_func(thd, js), fmt(format) {}
+    Item_json_func(thd, js), fmt(format) {}
   Item_func_json_format(THD *thd, List<Item> &list):
-    Item_str_func(thd, list), fmt(DETAILED) {}
+    Item_json_func(thd, list), fmt(DETAILED) {}
 
   const char *func_name() const;
   bool fix_length_and_dec();
   String *val_str(String *str);
   String *val_json(String *str);
-  bool is_json_type() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_format>(thd, this); }
 };
