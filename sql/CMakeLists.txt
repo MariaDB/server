@@ -146,11 +146,11 @@ SET (SQL_SOURCE
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+               ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
   
@@ -179,12 +179,19 @@ RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 DTRACE_INSTRUMENT(sql)
-TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
+TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
   ${WSREP_LIB}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
+
+FOREACH(se aria partition perfschema sql_sequence)
+  # These engines are used directly in sql sources.
+  IF(TARGET ${se})
+    TARGET_LINK_LIBRARIES(sql ${se})
+  ENDIF()
+ENDFOREACH()
 
 IF(WIN32)
   SET(MYSQLD_SOURCE main.cc nt_servc.cc message.rc)
@@ -288,6 +295,9 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
 ENDIF()
 
+ADD_LIBRARY( sql_builtins  ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
+TARGET_LINK_LIBRARIES(sql_builtins ${MYSQLD_STATIC_PLUGIN_LIBS})
+
 MYSQL_ADD_EXECUTABLE(mysqld ${MYSQLD_SOURCE} DESTINATION ${INSTALL_SBINDIR} COMPONENT Server)
 
 IF(APPLE) 
@@ -315,7 +325,8 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql)
+TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql sql_builtins)
+
 
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
