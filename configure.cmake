@@ -437,8 +437,6 @@ SET(CMAKE_REQUIRED_FLAGS)
 CHECK_INCLUDE_FILES(time.h HAVE_TIME_H)
 CHECK_INCLUDE_FILES(sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES(sys/times.h HAVE_SYS_TIMES_H)
-CHECK_INCLUDE_FILES(asm/msr.h HAVE_ASM_MSR_H)
-#msr.h has rdtscll()
 
 CHECK_INCLUDE_FILES(ia64intrin.h HAVE_IA64INTRIN_H)
 
@@ -452,9 +450,6 @@ CHECK_FUNCTION_EXISTS(ftime HAVE_FTIME)
 
 CHECK_FUNCTION_EXISTS(time HAVE_TIME)
 # We can use time() on Macintosh if there is no ftime().
-
-CHECK_FUNCTION_EXISTS(rdtscll HAVE_RDTSCLL)
-# I doubt that we'll ever reach the check for this.
 
 
 #
