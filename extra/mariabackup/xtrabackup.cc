@@ -5893,7 +5893,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 
 	srv_operation = SRV_OPERATION_RESTORE;
 
-	files_charset_info = &my_charset_utf8_general_ci;
+	files_charset_info = &my_charset_utf8mb3_general_ci;
 
 
 	setup_error_messages();
@@ -6117,7 +6117,7 @@ int main(int argc, char **argv)
 		die("mysql_server_init() failed");
 	}
 
-	system_charset_info = &my_charset_utf8_general_ci;
+	system_charset_info = &my_charset_utf8mb3_general_ci;
 	key_map_full.set_all();
 
 	logger.init_base();

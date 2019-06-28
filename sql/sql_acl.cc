@@ -2244,7 +2244,7 @@ bool acl_init(bool dont_read_acl_tables)
   acl_cache= new Hash_filo<acl_entry>(ACL_CACHE_SIZE, 0, 0,
                            (my_hash_get_key) acl_entry_get_key,
                            (my_hash_free_key) free,
-                           &my_charset_utf8_bin);
+                           &my_charset_utf8mb3_bin);
 
   /*
     cache built-in native authentication plugins,
@@ -2681,10 +2681,10 @@ bool acl_reload(THD *thd)
   my_init_dynamic_array(&acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(50, 100);
   my_init_dynamic_array(&acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
-  my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
+  my_hash_init2(&acl_roles,50, &my_charset_utf8mb3_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
                 (void (*)(void *))free_acl_role, 0);
-  my_hash_init2(&acl_roles_mappings, 50, &my_charset_utf8_bin, 0, 0, 0,
+  my_hash_init2(&acl_roles_mappings, 50, &my_charset_utf8mb3_bin, 0, 0, 0,
                 (my_hash_get_key) acl_role_map_get_key, 0, 0, 0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
@@ -7572,16 +7572,16 @@ static bool grant_load(THD *thd,
 
   Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
-  (void) my_hash_init(&column_priv_hash, &my_charset_utf8_bin,
+  (void) my_hash_init(&column_priv_hash, &my_charset_utf8mb3_bin,
                       0,0,0, (my_hash_get_key) get_grant_table,
                       (my_hash_free_key) free_grant_table,0);
-  (void) my_hash_init(&proc_priv_hash, &my_charset_utf8_bin,
+  (void) my_hash_init(&proc_priv_hash, &my_charset_utf8mb3_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-  (void) my_hash_init(&func_priv_hash, &my_charset_utf8_bin,
+  (void) my_hash_init(&func_priv_hash, &my_charset_utf8mb3_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-  (void) my_hash_init(&package_spec_priv_hash, &my_charset_utf8_bin,
+  (void) my_hash_init(&package_spec_priv_hash, &my_charset_utf8mb3_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-  (void) my_hash_init(&package_body_priv_hash, &my_charset_utf8_bin,
+  (void) my_hash_init(&package_body_priv_hash, &my_charset_utf8mb3_bin,
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
   init_sql_alloc(&grant_memroot, "GRANT", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
@@ -11305,7 +11305,7 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
     for (counter= 0, revoked= 0 ; counter < hash->records ; )
     {
       GRANT_NAME *grant_proc= (GRANT_NAME*) my_hash_element(hash, counter);
-      if (!my_strcasecmp(&my_charset_utf8_bin, grant_proc->db, sp_db) &&
+      if (!my_strcasecmp(&my_charset_utf8mb3_bin, grant_proc->db, sp_db) &&
 	  !my_strcasecmp(system_charset_info, grant_proc->tname, sp_name))
       {
         LEX_USER lex_user;

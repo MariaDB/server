@@ -744,7 +744,7 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
   DBUG_ASSERT(format != NULL);
 
   va_start(args,format);
-  my_vsnprintf_ex(&my_charset_utf8_general_ci, warning,
+  my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, warning,
                   sizeof(warning), format, args);
   va_end(args);
   push_warning(thd, level, code, warning);

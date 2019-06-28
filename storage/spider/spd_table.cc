@@ -119,7 +119,7 @@ uint *spd_db_att_xid_cache_split_num;
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
 #endif
-struct charset_info_st *spd_charset_utf8_bin;
+struct charset_info_st *spd_charset_utf8mb3_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
 const char **spd_mysqld_unix_port;
@@ -6088,7 +6088,7 @@ SPIDER_PARTITION_SHARE *spider_get_pt_share(
     }
 
     if(
-      my_hash_init(&partition_share->pt_handler_hash, spd_charset_utf8_bin,
+      my_hash_init(&partition_share->pt_handler_hash, spd_charset_utf8mb3_bin,
         32, 0, 0, (my_hash_get_key) spider_pt_handler_share_get_key, 0, 0)
     ) {
       *error_num = HA_ERR_OUT_OF_MEM;
@@ -6929,8 +6929,8 @@ int spider_db_init(
     GetProcAddress(current_module, "?xid_cache@@3Ust_hash@@A");
 #endif
 #endif
-  spd_charset_utf8_bin = (struct charset_info_st *)
-    GetProcAddress(current_module, "my_charset_utf8_bin");
+  spd_charset_utf8mb3_bin = (struct charset_info_st *)
+    GetProcAddress(current_module, "my_charset_utf8mb3_bin");
   spd_defaults_extra_file = (const char **)
     GetProcAddress(current_module, "my_defaults_extra_file");
   spd_defaults_file = (const char **)
@@ -6962,7 +6962,7 @@ int spider_db_init(
   spd_db_att_xid_cache = &xid_cache;
 #endif
 #endif
-  spd_charset_utf8_bin = &my_charset_utf8_bin;
+  spd_charset_utf8mb3_bin = &my_charset_utf8mb3_bin;
   spd_defaults_extra_file = &my_defaults_extra_file;
   spd_defaults_file = &my_defaults_file;
   spd_mysqld_unix_port = (const char **) &mysqld_unix_port;
@@ -7097,7 +7097,7 @@ int spider_db_init(
 #endif
     goto error_mem_calc_mutex_init;
 
-  if (my_hash_init(&spider_open_tables, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_open_tables, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_open_tables_hash_init;
 
@@ -7106,7 +7106,7 @@ int spider_db_init(
     spider_open_tables,
     spider_open_tables.array.max_element *
     spider_open_tables.array.size_of_element);
-  if (my_hash_init(&spider_init_error_tables, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_init_error_tables, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_init_error_tables_hash_init;
 
@@ -7116,7 +7116,7 @@ int spider_db_init(
     spider_init_error_tables.array.max_element *
     spider_init_error_tables.array.size_of_element);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (my_hash_init(&spider_open_pt_share, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_open_pt_share, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_pt_share_get_key, 0, 0))
     goto error_open_pt_share_hash_init;
 
@@ -7126,7 +7126,7 @@ int spider_db_init(
     spider_open_pt_share.array.max_element *
     spider_open_pt_share.array.size_of_element);
 #endif
-  if (my_hash_init(&spider_lgtm_tblhnd_share_hash, spd_charset_utf8_bin,
+  if (my_hash_init(&spider_lgtm_tblhnd_share_hash, spd_charset_utf8mb3_bin,
                    32, 0, 0,
                    (my_hash_get_key) spider_lgtm_tblhnd_share_hash_get_key,
                    0, 0))
@@ -7137,11 +7137,11 @@ int spider_db_init(
     spider_lgtm_tblhnd_share_hash,
     spider_lgtm_tblhnd_share_hash.array.max_element *
     spider_lgtm_tblhnd_share_hash.array.size_of_element);
-  if (my_hash_init(&spider_open_connections, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_open_connections, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_open_connections_hash_init;
 
-  if (my_hash_init(&spider_ipport_conns, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_ipport_conns, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_ipport_conn_get_key,
                    spider_free_ipport_conn, 0))
       goto error_ipport_conn__hash_init;
@@ -7152,7 +7152,7 @@ int spider_db_init(
     spider_open_connections.array.max_element *
     spider_open_connections.array.size_of_element);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if (my_hash_init(&spider_hs_r_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_hs_r_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_hs_r_conn_hash_init;
 
@@ -7161,7 +7161,7 @@ int spider_db_init(
     spider_hs_r_conn_hash,
     spider_hs_r_conn_hash.array.max_element *
     spider_hs_r_conn_hash.array.size_of_element);
-  if (my_hash_init(&spider_hs_w_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_hs_w_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_hs_w_conn_hash_init;
 
@@ -7171,7 +7171,7 @@ int spider_db_init(
     spider_hs_w_conn_hash.array.max_element *
     spider_hs_w_conn_hash.array.size_of_element);
 #endif
-  if (my_hash_init(&spider_allocated_thds, spd_charset_utf8_bin, 32, 0, 0,
+  if (my_hash_init(&spider_allocated_thds, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_allocated_thds_get_key, 0, 0))
     goto error_allocated_thds_hash_init;
 
@@ -7233,7 +7233,7 @@ int spider_db_init(
     roop_count++)
   {
     if (my_hash_init(&spider_udf_table_mon_list_hash[roop_count],
-      spd_charset_utf8_bin, 32, 0, 0,
+      spd_charset_utf8mb3_bin, 32, 0, 0,
       (my_hash_get_key) spider_udf_tbl_mon_list_key, 0, 0))
       goto error_init_udf_table_mon_list_hash;
 

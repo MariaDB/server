@@ -1049,8 +1049,8 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 
 #ifdef HAVE_CHARSET_utf8mb4
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb4"
-#elif defined(HAVE_CHARSET_utf8)
-#define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8"
+#elif defined(HAVE_CHARSET_utf8mb3)
+#define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb3"
 #else
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET MYSQL_DEFAULT_CHARSET_NAME
 #endif

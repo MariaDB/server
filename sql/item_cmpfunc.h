@@ -2809,8 +2809,8 @@ public:
   Regexp_processor_pcre() :
     m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
-    m_data_charset(&my_charset_utf8_general_ci),
-    m_library_charset(&my_charset_utf8_general_ci)
+    m_data_charset(&my_charset_utf8mb3_general_ci),
+    m_library_charset(&my_charset_utf8mb3_general_ci)
   {
     m_pcre_extra.flags= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
     m_pcre_extra.match_limit_recursion= 100L;
@@ -2827,7 +2827,7 @@ public:
 
     // Convert text data to utf-8.
     m_library_charset= data_charset == &my_charset_bin ?
-                       &my_charset_bin : &my_charset_utf8_general_ci;
+                       &my_charset_bin : &my_charset_utf8mb3_general_ci;
 
     m_conversion_is_needed= (data_charset != &my_charset_bin) &&
                             !my_charset_same(data_charset, m_library_charset);

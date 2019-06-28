@@ -4508,11 +4508,11 @@ class Item_empty_string :public Item_partition_func_safe_string
 {
 public:
   Item_empty_string(THD *thd, const LEX_CSTRING &header, uint length,
-                    CHARSET_INFO *cs= &my_charset_utf8_general_ci)
+                    CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci)
    :Item_partition_func_safe_string(thd, header, length * cs->mbmaxlen, cs)
   { }
   Item_empty_string(THD *thd, const char *header, uint length,
-                    CHARSET_INFO *cs= &my_charset_utf8_general_ci)
+                    CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci)
    :Item_partition_func_safe_string(thd, LEX_CSTRING({header, strlen(header)}),
                                     length * cs->mbmaxlen, cs)
   { }

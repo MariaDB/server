@@ -413,7 +413,7 @@ tailoring_append2(MY_XML_PARSER *st,
 static size_t
 scan_one_character(const char *s, const char *e, my_wc_t *wc)
 {
-  CHARSET_INFO *cs= &my_charset_utf8_general_ci;
+  CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci;
   if (s >= e)
     return 0;
 

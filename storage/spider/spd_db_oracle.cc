@@ -48,7 +48,7 @@
 #include "spd_sys_table.h"
 #include "spd_table.h"
 
-extern struct charset_info_st *spd_charset_utf8_bin;
+extern struct charset_info_st *spd_charset_utf8mb3_bin;
 
 extern handlerton *spider_hton_ptr;
 extern pthread_mutex_t spider_open_conn_mutex;
@@ -1148,7 +1148,7 @@ int spider_db_oracle::init()
   DBUG_ENTER("spider_db_oracle::init");
   DBUG_PRINT("info",("spider this=%p", this));
   if (
-    my_hash_init(&lock_table_hash, spd_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&lock_table_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
       (my_hash_get_key) spider_link_get_key, 0, 0)
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);

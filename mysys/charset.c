@@ -262,7 +262,7 @@ static my_bool simple_cs_is_full(CHARSET_INFO *cs)
 }
 
 
-#if defined(HAVE_UCA_COLLATIONS) && (defined(HAVE_CHARSET_ucs2) || defined(HAVE_CHARSET_utf8))
+#if defined(HAVE_UCA_COLLATIONS) && (defined(HAVE_CHARSET_ucs2) || defined(HAVE_CHARSET_utf8mb3))
 /**
   Initialize a loaded collation.
   @param [OUT] to     - The new charset_info_st structure to initialize.
@@ -350,12 +350,12 @@ static int add_collation(struct charset_info_st *cs)
       }
       else if (!strcmp(cs->csname, "utf8") || !strcmp(cs->csname, "utf8mb3"))
       {
-#if defined (HAVE_CHARSET_utf8) && defined(HAVE_UCA_COLLATIONS)
+#if defined (HAVE_CHARSET_utf8mb3) && defined(HAVE_UCA_COLLATIONS)
         copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
-                                  &my_charset_utf8_unicode_nopad_ci :
-                                  &my_charset_utf8_unicode_ci,
+                                  &my_charset_utf8mb3_unicode_nopad_ci :
+                                  &my_charset_utf8mb3_unicode_ci,
                                   cs);
-        newcs->ctype= my_charset_utf8_unicode_ci.ctype;
+        newcs->ctype= my_charset_utf8mb3_unicode_ci.ctype;
         if (init_state_maps(newcs))
           return MY_XML_ERROR;
 #endif

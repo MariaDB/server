@@ -5294,7 +5294,7 @@ static char *encode(PGLOBAL g, const char *cnm)
   char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) * 3);
   uint   dummy_errors;
   uint32 len= copy_and_convert(buf, strlen(cnm) * 3,
-                               &my_charset_utf8_general_ci,
+                               &my_charset_utf8mb3_general_ci,
                                cnm, strlen(cnm),
                                &my_charset_latin1,
                                &dummy_errors);
@@ -6331,7 +6331,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endif charset
 
-    if (type == TAB_XML && data_charset != &my_charset_utf8_general_ci) {
+    if (type == TAB_XML && data_charset != &my_charset_utf8mb3_general_ci) {
       my_printf_error(ER_UNKNOWN_ERROR,
                       "DATA_CHARSET='%s' is not supported for TABLE_TYPE=XML",
                         MYF(0), options->data_charset);

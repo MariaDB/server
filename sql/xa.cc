@@ -814,7 +814,7 @@ static my_bool xa_recover_callback_verbose(XID_cache_element *xs,
   char buf[SQL_XIDSIZE];
   uint len= get_sql_xid(&xs->xid, buf);
   return xa_recover_callback(xs, protocol, buf, len,
-                             &my_charset_utf8_general_ci);
+                             &my_charset_utf8mb3_general_ci);
 }
 
 
@@ -842,7 +842,7 @@ bool mysql_xa_recover(THD *thd)
     if (thd->lex->verbose)
     {
       len= SQL_XIDSIZE;
-      cs= &my_charset_utf8_general_ci;
+      cs= &my_charset_utf8mb3_general_ci;
       action= (my_hash_walk_action) xa_recover_callback_verbose;
     }
     else

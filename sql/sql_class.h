@@ -6743,8 +6743,8 @@ public:
   bool eq(const Database_qualified_name *other) const
   {
     CHARSET_INFO *cs= lower_case_table_names ?
-                      &my_charset_utf8_general_ci :
-                      &my_charset_utf8_bin;
+                      &my_charset_utf8mb3_general_ci :
+                      &my_charset_utf8mb3_bin;
     return
       m_db.length == other->m_db.length &&
       m_name.length == other->m_name.length &&

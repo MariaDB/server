@@ -986,7 +986,7 @@ String* Item_func_monthname::val_str(String* str)
     return (String *) 0;
 
   month_name= locale->month_names->type_names[d.get_mysql_time()->month - 1];
-  str->copy(month_name, (uint) strlen(month_name), &my_charset_utf8_bin,
+  str->copy(month_name, (uint) strlen(month_name), &my_charset_utf8mb3_bin,
 	    collation.collation, &err);
   return str;
 }
@@ -1130,7 +1130,7 @@ String* Item_func_dayname::val_str(String* str)
     return (String*) 0;
   
   day_name= locale->day_names->type_names[weekday];
-  str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8_bin,
+  str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8mb3_bin,
 	    collation.collation, &err);
   return str;
 }

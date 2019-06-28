@@ -297,7 +297,7 @@ mysql_stmt_next_result
 # Charsets
 my_charset_bin
 my_charset_latin1
-my_charset_utf8_general_ci
+my_charset_utf8mb3_general_ci
 # Client plugins
 mysql_client_find_plugin
 mysql_client_register_plugin

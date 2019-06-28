@@ -3916,7 +3916,7 @@ bool Type_handler_string_result::
     the query should return only the row with 'oe'.
     It should not return 'o-umlaut', because 'o-umlaut' does not match
     the right part of the condition: a='oe'
-    ('o-umlaut' is not equal to 'oe' in utf8_general_ci,
+    ('o-umlaut' is not equal to 'oe' in utf8mb3_general_ci,
      which is the collation of the field "a").
 
     If we change the right part from:

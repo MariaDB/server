@@ -40,7 +40,7 @@ void test_blob_parser()
   unsigned char packet[10000], *ptr;
   uint name_len, value_len, idx, packet_length;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
 
   diag("test_blob_parser");
 
@@ -157,7 +157,7 @@ void test_multibyte_lengths()
   char name[100], value[4096];
   uint name_len, value_len;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
 
   unsigned char var_len_packet[] = {
     252, 2, 0, 'k', '1',
@@ -190,7 +190,7 @@ void test_utf8_parser()
   char name[33 * 6], value[1024 * 6], packet[1500 * 6], *ptr;
   uint name_len, value_len;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
 
   /* note : this is encoded in utf-8 */
   const char *attr1= "Георги";
@@ -242,7 +242,7 @@ void test_utf8_parser_bad_encoding()
   char name[33 * 3], value[1024 * 3], packet[1500 * 3], *ptr;
   uint name_len, value_len;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
 
   /* note : this is encoded in utf-8 */
   const char *attr= "Георги";

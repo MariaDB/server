@@ -595,7 +595,7 @@ String *Item_func_json_quote::val_str(String *str)
 
 bool Item_func_json_unquote::fix_length_and_dec()
 {
-  collation.set(&my_charset_utf8_general_ci,
+  collation.set(&my_charset_utf8mb3_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
   maybe_null= 1;
@@ -640,12 +640,12 @@ String *Item_func_json_unquote::val_str(String *str)
     return js;
 
   str->length(0);
-  str->set_charset(&my_charset_utf8_general_ci);
+  str->set_charset(&my_charset_utf8mb3_general_ci);
 
   if (str->realloc_with_extra_if_needed(je.value_len) ||
       (c_len= json_unescape(js->charset(),
         je.value, je.value + je.value_len,
-        &my_charset_utf8_general_ci,
+        &my_charset_utf8mb3_general_ci,
         (uchar *) str->ptr(), (uchar *) (str->ptr() + je.value_len))) < 0)
     goto error;
 
@@ -675,7 +675,7 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
         return 1;
 
       for (uint c_path=0; c_path < n_paths; c_path++)
-        (*tmp_paths)[c_path].set_charset(&my_charset_utf8_general_ci);
+        (*tmp_paths)[c_path].set_charset(&my_charset_utf8mb3_general_ci);
     }
 
     return 0;
@@ -2614,7 +2614,7 @@ longlong Item_func_json_depth::val_int()
 
 bool Item_func_json_type::fix_length_and_dec()
 {
-  collation.set(&my_charset_utf8_general_ci);
+  collation.set(&my_charset_utf8mb3_general_ci);
   max_length= 12;
   maybe_null= 1;
   return FALSE;
@@ -2660,7 +2660,7 @@ String *Item_func_json_type::val_str(String *str)
     break;
   }
 
-  str->set(type, strlen(type), &my_charset_utf8_general_ci);
+  str->set(type, strlen(type), &my_charset_utf8mb3_general_ci);
   return str;
 
 error:
@@ -3562,7 +3562,7 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
        if (value2.realloc_with_extra_if_needed(je.value_len) ||
          (c_len= json_unescape(js->charset(), je.value,
                                je.value + je.value_len,
-                               &my_charset_utf8_general_ci,
+                               &my_charset_utf8mb3_general_ci,
                                (uchar *) value2.ptr(),
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
          goto error;
@@ -3611,7 +3611,7 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
     if (value1.realloc_with_extra_if_needed(value_len) ||
         (c_len= json_unescape(value1.charset(), (uchar *) value,
                               (uchar *) value+value_len,
-                              &my_charset_utf8_general_ci,
+                              &my_charset_utf8mb3_general_ci,
                               (uchar *) value1.ptr(),
                               (uchar *) (value1.ptr() + value_len))) < 0)
       return 1;

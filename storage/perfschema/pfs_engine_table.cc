@@ -368,7 +368,7 @@ void PFS_engine_table::set_field_char_utf8(Field *f, const char* str,
 {
   DBUG_ASSERT(f->real_type() == MYSQL_TYPE_STRING);
   Field_string *f2= (Field_string*) f;
-  f2->store(str, len, &my_charset_utf8_bin);
+  f2->store(str, len, &my_charset_utf8mb3_bin);
 }
 
 void PFS_engine_table::set_field_varchar_utf8(Field *f, const char* str,
@@ -376,7 +376,7 @@ void PFS_engine_table::set_field_varchar_utf8(Field *f, const char* str,
 {
   DBUG_ASSERT(f->real_type() == MYSQL_TYPE_VARCHAR);
   Field_varstring *f2= (Field_varstring*) f;
-  f2->store(str, len, &my_charset_utf8_bin);
+  f2->store(str, len, &my_charset_utf8mb3_bin);
 }
 
 void PFS_engine_table::set_field_longtext_utf8(Field *f, const char* str,
@@ -384,7 +384,7 @@ void PFS_engine_table::set_field_longtext_utf8(Field *f, const char* str,
 {
   DBUG_ASSERT(f->real_type() == MYSQL_TYPE_BLOB);
   Field_blob *f2= (Field_blob*) f;
-  f2->store(str, len, &my_charset_utf8_bin);
+  f2->store(str, len, &my_charset_utf8mb3_bin);
 }
 
 void PFS_engine_table::set_field_enum(Field *f, ulonglong value)

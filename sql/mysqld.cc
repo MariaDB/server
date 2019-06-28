@@ -5369,13 +5369,13 @@ static void test_lc_time_sz()
     for (const char **month= (*loc)->month_names->type_names; *month; month++)
     {
       set_if_bigger(max_month_len,
-                    my_numchars_mb(&my_charset_utf8_general_ci,
+                    my_numchars_mb(&my_charset_utf8mb3_general_ci,
                                    *month, *month + strlen(*month)));
     }
     for (const char **day= (*loc)->day_names->type_names; *day; day++)
     {
       set_if_bigger(max_day_len,
-                    my_numchars_mb(&my_charset_utf8_general_ci,
+                    my_numchars_mb(&my_charset_utf8mb3_general_ci,
                                    *day, *day + strlen(*day)));
     }
     if ((*loc)->max_month_name_length != max_month_len ||
@@ -5436,7 +5436,7 @@ int mysqld_main(int argc, char **argv)
   remaining_argv= argv;
 
   /* Must be initialized early for comparison of options name */
-  system_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
 
   sys_var_init();
 
@@ -5966,7 +5966,7 @@ int mysqld_main(int argc, char **argv)
                                                   "MySQLShutdown"), 10);
 
   /* Must be initialized early for comparison of service name */
-  system_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
 
   if (my_init())
   {
@@ -7891,9 +7891,9 @@ static int mysql_init_variables(void)
   key_map_full.set_all();
 
   /* Character sets */
-  system_charset_info= &my_charset_utf8_general_ci;
-  files_charset_info= &my_charset_utf8_general_ci;
-  national_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
+  files_charset_info= &my_charset_utf8mb3_general_ci;
+  national_charset_info= &my_charset_utf8mb3_general_ci;
   table_alias_charset= &my_charset_bin;
   character_set_filesystem= &my_charset_bin;
 
