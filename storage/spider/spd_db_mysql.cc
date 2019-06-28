@@ -93,6 +93,9 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_WAIT_TIMEOUT_STR "set session wait_timeout = "
 #define SPIDER_SQL_WAIT_TIMEOUT_LEN sizeof(SPIDER_SQL_WAIT_TIMEOUT_STR) - 1
 
+#define SPIDER_SQL_SQL_MODE_STR "set session sql_mode = '"
+#define SPIDER_SQL_SQL_MODE_LEN sizeof(SPIDER_SQL_SQL_MODE_STR) - 1
+
 #define SPIDER_SQL_TIME_ZONE_STR "set session time_zone = '"
 #define SPIDER_SQL_TIME_ZONE_LEN sizeof(SPIDER_SQL_TIME_ZONE_STR) - 1
 
@@ -2878,6 +2881,54 @@ int spider_db_mbase::set_wait_timeout(
   DBUG_RETURN(0);
 }
 
+bool spider_db_mbase::set_sql_mode_in_bulk_sql()
+{
+  DBUG_ENTER("spider_db_mbase::set_sql_mode_in_bulk_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(TRUE);
+}
+
+int spider_db_mbase::set_sql_mode(
+  sql_mode_t sql_mode,
+  int *need_mon
+) {
+  int error_num;
+  char sql_buf[MAX_FIELD_WIDTH];
+  spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
+  DBUG_ENTER("spider_db_mbase::set_sql_mode");
+  DBUG_PRINT("info",("spider this=%p", this));
+  sql_str.init_calc_mem(265);
+  sql_str.length(0);
+  if (sql_str.reserve(SPIDER_SQL_SQL_MODE_LEN))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  sql_str.q_append(SPIDER_SQL_SQL_MODE_STR, SPIDER_SQL_SQL_MODE_LEN);
+  if ((error_num = spider_db_mbase_utility->append_sql_mode_internal(&sql_str, sql_mode)))
+  {
+    DBUG_RETURN(error_num);
+  }
+  if (sql_str.length() > SPIDER_SQL_SQL_MODE_LEN)
+  {
+    sql_str.length(sql_str.length() - SPIDER_SQL_COMMA_LEN);
+  } else {
+    if (sql_str.reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+  }
+  sql_str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+  if (spider_db_query(
+    conn,
+    sql_str.ptr(),
+    sql_str.length(),
+    -1,
+    need_mon)
+  )
+    DBUG_RETURN(spider_db_errorno(conn));
+  SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  pthread_mutex_unlock(&conn->mta_conn_mutex);
+  DBUG_RETURN(0);
+}
+
 bool spider_db_mbase::set_time_zone_in_bulk_sql()
 {
   DBUG_ENTER("spider_db_mbase::set_time_zone_in_bulk_sql");
@@ -3877,6 +3928,861 @@ int spider_db_mbase_util::append_wait_timeout(
   }
   str->q_append(SPIDER_SQL_WAIT_TIMEOUT_STR, SPIDER_SQL_WAIT_TIMEOUT_LEN);
   str->q_append(timeout_str, timeout_str_length);
+  DBUG_RETURN(0);
+}
+
+#define SPIDER_REAL_AS_FLOAT_STR              "real_as_float"
+#define SPIDER_REAL_AS_FLOAT_LEN              (sizeof(SPIDER_REAL_AS_FLOAT_STR) - 1)
+#define SPIDER_PIPES_AS_CONCAT_STR            "pipes_as_concat"
+#define SPIDER_PIPES_AS_CONCAT_LEN            (sizeof(SPIDER_PIPES_AS_CONCAT_STR) - 1)
+#define SPIDER_ANSI_QUOTES_STR                "ansi_quotes"
+#define SPIDER_ANSI_QUOTES_LEN                (sizeof(SPIDER_ANSI_QUOTES_STR) - 1)
+#define SPIDER_IGNORE_SPACE_STR               "ignore_space"
+#define SPIDER_IGNORE_SPACE_LEN               (sizeof(SPIDER_IGNORE_SPACE_STR) - 1)
+#define SPIDER_IGNORE_BAD_TABLE_OPTIONS_STR   "ignore_bad_table_options"
+#define SPIDER_IGNORE_BAD_TABLE_OPTIONS_LEN   (sizeof(SPIDER_IGNORE_BAD_TABLE_OPTIONS_STR) - 1)
+#define SPIDER_ONLY_FULL_GROUP_BY_STR         "only_full_group_by"
+#define SPIDER_ONLY_FULL_GROUP_BY_LEN         (sizeof(SPIDER_ONLY_FULL_GROUP_BY_STR) - 1)
+#define SPIDER_NO_UNSIGNED_SUBTRACTION_STR    "no_unsigned_subtraction"
+#define SPIDER_NO_UNSIGNED_SUBTRACTION_LEN    (sizeof(SPIDER_NO_UNSIGNED_SUBTRACTION_STR) - 1)
+#define SPIDER_NO_DIR_IN_CREATE_STR           "no_dir_in_create"
+#define SPIDER_NO_DIR_IN_CREATE_LEN           (sizeof(SPIDER_NO_DIR_IN_CREATE_STR) - 1)
+#define SPIDER_POSTGRESQL_STR                 "postgresql"
+#define SPIDER_POSTGRESQL_LEN                 (sizeof(SPIDER_POSTGRESQL_STR) - 1)
+#define SPIDER_ORACLE_STR                     "oracle"
+#define SPIDER_ORACLE_LEN                     (sizeof(SPIDER_ORACLE_STR) - 1)
+#define SPIDER_MSSQL_STR                      "mssql"
+#define SPIDER_MSSQL_LEN                      (sizeof(SPIDER_MSSQL_STR) - 1)
+#define SPIDER_DB2_STR                        "db2"
+#define SPIDER_DB2_LEN                        (sizeof(SPIDER_DB2_STR) - 1)
+#define SPIDER_MAXDB_STR                      "maxdb"
+#define SPIDER_MAXDB_LEN                      (sizeof(SPIDER_MAXDB_STR) - 1)
+#define SPIDER_NO_KEY_OPTIONS_STR             "no_key_options"
+#define SPIDER_NO_KEY_OPTIONS_LEN             (sizeof(SPIDER_NO_KEY_OPTIONS_STR) - 1)
+#define SPIDER_NO_TABLE_OPTIONS_STR           "no_table_options"
+#define SPIDER_NO_TABLE_OPTIONS_LEN           (sizeof(SPIDER_NO_TABLE_OPTIONS_STR) - 1)
+#define SPIDER_NO_FIELD_OPTIONS_STR           "no_field_options"
+#define SPIDER_NO_FIELD_OPTIONS_LEN           (sizeof(SPIDER_NO_FIELD_OPTIONS_STR) - 1)
+#define SPIDER_MYSQL323_STR                   "mysql323"
+#define SPIDER_MYSQL323_LEN                   (sizeof(SPIDER_MYSQL323_STR) - 1)
+#define SPIDER_MYSQL40_STR                    "mysql40"
+#define SPIDER_MYSQL40_LEN                    (sizeof(SPIDER_MYSQL40_STR) - 1)
+#define SPIDER_ANSI_STR                       "ansi"
+#define SPIDER_ANSI_LEN                       (sizeof(SPIDER_ANSI_STR) - 1)
+#define SPIDER_NO_AUTO_VALUE_ON_ZERO_STR      "no_auto_value_on_zero"
+#define SPIDER_NO_AUTO_VALUE_ON_ZERO_LEN      (sizeof(SPIDER_NO_AUTO_VALUE_ON_ZERO_STR) - 1)
+#define SPIDER_NO_BACKSLASH_ESCAPES_STR       "no_backslash_escapes"
+#define SPIDER_NO_BACKSLASH_ESCAPES_LEN       (sizeof(SPIDER_NO_BACKSLASH_ESCAPES_STR) - 1)
+#define SPIDER_STRICT_TRANS_TABLES_STR        "strict_trans_tables"
+#define SPIDER_STRICT_TRANS_TABLES_LEN        (sizeof(SPIDER_STRICT_TRANS_TABLES_STR) - 1)
+#define SPIDER_STRICT_ALL_TABLES_STR          "strict_all_tables"
+#define SPIDER_STRICT_ALL_TABLES_LEN          (sizeof(SPIDER_STRICT_ALL_TABLES_STR) - 1)
+#define SPIDER_NO_ZERO_IN_DATE_STR            "no_zero_in_date"
+#define SPIDER_NO_ZERO_IN_DATE_LEN            (sizeof(SPIDER_NO_ZERO_IN_DATE_STR) - 1)
+#define SPIDER_NO_ZERO_DATE_STR               "no_zero_date"
+#define SPIDER_NO_ZERO_DATE_LEN               (sizeof(SPIDER_NO_ZERO_DATE_STR) - 1)
+#define SPIDER_INVALID_DATES_STR              "allow_invalid_dates"
+#define SPIDER_INVALID_DATES_LEN              (sizeof(SPIDER_INVALID_DATES_STR) - 1)
+#define SPIDER_ERROR_FOR_DIVISION_BY_ZERO_STR "error_for_division_by_zero"
+#define SPIDER_ERROR_FOR_DIVISION_BY_ZERO_LEN (sizeof(SPIDER_ERROR_FOR_DIVISION_BY_ZERO_STR) - 1)
+#define SPIDER_TRADITIONAL_STR                "traditional"
+#define SPIDER_TRADITIONAL_LEN                (sizeof(SPIDER_TRADITIONAL_STR) - 1)
+#define SPIDER_NO_AUTO_CREATE_USER_STR        "no_auto_create_user"
+#define SPIDER_NO_AUTO_CREATE_USER_LEN        (sizeof(SPIDER_NO_AUTO_CREATE_USER_STR) - 1)
+#define SPIDER_HIGH_NOT_PRECEDENCE_STR        "high_not_precedence"
+#define SPIDER_HIGH_NOT_PRECEDENCE_LEN        (sizeof(SPIDER_HIGH_NOT_PRECEDENCE_STR) - 1)
+#define SPIDER_NO_ENGINE_SUBSTITUTION_STR     "no_engine_substitution"
+#define SPIDER_NO_ENGINE_SUBSTITUTION_LEN     (sizeof(SPIDER_NO_ENGINE_SUBSTITUTION_STR) - 1)
+#define SPIDER_PAD_CHAR_TO_FULL_LENGTH_STR    "pad_char_to_full_length"
+#define SPIDER_PAD_CHAR_TO_FULL_LENGTH_LEN    (sizeof(SPIDER_PAD_CHAR_TO_FULL_LENGTH_STR) - 1)
+#define SPIDER_EMPTY_STRING_IS_NULL_STR       "empty_string_is_null"
+#define SPIDER_EMPTY_STRING_IS_NULL_LEN       (sizeof(SPIDER_EMPTY_STRING_IS_NULL_STR) - 1)
+#define SPIDER_SIMULTANEOUS_ASSIGNMENT_STR    "simultaneous_assignment"
+#define SPIDER_SIMULTANEOUS_ASSIGNMENT_LEN    (sizeof(SPIDER_SIMULTANEOUS_ASSIGNMENT_STR) - 1)
+#define SPIDER_TIME_ROUND_FRACTIONAL_STR      "time_round_fractional"
+#define SPIDER_TIME_ROUND_FRACTIONAL_LEN      (sizeof(SPIDER_TIME_ROUND_FRACTIONAL_STR) - 1)
+
+sql_mode_t full_sql_mode =
+#ifdef MODE_REAL_AS_FLOAT
+  MODE_REAL_AS_FLOAT |
+#endif
+#ifdef MODE_PIPES_AS_CONCAT
+  MODE_PIPES_AS_CONCAT |
+#endif
+#ifdef MODE_ANSI_QUOTES
+  MODE_ANSI_QUOTES |
+#endif
+#ifdef MODE_IGNORE_SPACE
+  MODE_IGNORE_SPACE |
+#endif
+#ifdef MODE_IGNORE_BAD_TABLE_OPTIONS
+  MODE_IGNORE_BAD_TABLE_OPTIONS |
+#endif
+#ifdef MODE_ONLY_FULL_GROUP_BY
+  MODE_ONLY_FULL_GROUP_BY |
+#endif
+#ifdef MODE_NO_UNSIGNED_SUBTRACTION
+  MODE_NO_UNSIGNED_SUBTRACTION |
+#endif
+#ifdef MODE_NO_DIR_IN_CREATE
+  MODE_NO_DIR_IN_CREATE |
+#endif
+#ifdef MODE_POSTGRESQL
+  MODE_POSTGRESQL |
+#endif
+#ifdef MODE_ORACLE
+  MODE_ORACLE |
+#endif
+#ifdef MODE_MSSQL
+  MODE_MSSQL |
+#endif
+#ifdef MODE_DB2
+  MODE_DB2 |
+#endif
+#ifdef MODE_MAXDB
+  MODE_MAXDB |
+#endif
+#ifdef MODE_NO_KEY_OPTIONS
+  MODE_NO_KEY_OPTIONS |
+#endif
+#ifdef MODE_NO_TABLE_OPTIONS
+  MODE_NO_TABLE_OPTIONS |
+#endif
+#ifdef MODE_NO_FIELD_OPTIONS
+  MODE_NO_FIELD_OPTIONS |
+#endif
+#ifdef MODE_MYSQL323
+  MODE_MYSQL323 |
+#endif
+#ifdef MODE_MYSQL40
+  MODE_MYSQL40 |
+#endif
+#ifdef MODE_ANSI
+  MODE_ANSI |
+#endif
+#ifdef MODE_NO_AUTO_VALUE_ON_ZERO
+  MODE_NO_AUTO_VALUE_ON_ZERO |
+#endif
+#ifdef MODE_NO_BACKSLASH_ESCAPES
+  MODE_NO_BACKSLASH_ESCAPES |
+#endif
+#ifdef MODE_STRICT_TRANS_TABLES
+  MODE_STRICT_TRANS_TABLES |
+#endif
+#ifdef MODE_STRICT_ALL_TABLES
+  MODE_STRICT_ALL_TABLES |
+#endif
+#ifdef MODE_NO_ZERO_IN_DATE
+  MODE_NO_ZERO_IN_DATE |
+#endif
+#ifdef MODE_NO_ZERO_DATE
+  MODE_NO_ZERO_DATE |
+#endif
+#ifdef MODE_INVALID_DATES
+  MODE_INVALID_DATES |
+#endif
+#ifdef MODE_ERROR_FOR_DIVISION_BY_ZERO
+  MODE_ERROR_FOR_DIVISION_BY_ZERO |
+#endif
+#ifdef MODE_TRADITIONAL
+  MODE_TRADITIONAL |
+#endif
+#ifdef MODE_NO_AUTO_CREATE_USER
+  MODE_NO_AUTO_CREATE_USER |
+#endif
+#ifdef MODE_HIGH_NOT_PRECEDENCE
+  MODE_HIGH_NOT_PRECEDENCE |
+#endif
+#ifdef MODE_NO_ENGINE_SUBSTITUTION
+  MODE_NO_ENGINE_SUBSTITUTION |
+#endif
+#ifdef MODE_PAD_CHAR_TO_FULL_LENGTH
+  MODE_PAD_CHAR_TO_FULL_LENGTH |
+#endif
+#ifdef MODE_EMPTY_STRING_IS_NULL
+  MODE_EMPTY_STRING_IS_NULL |
+#endif
+#ifdef MODE_SIMULTANEOUS_ASSIGNMENT
+  MODE_SIMULTANEOUS_ASSIGNMENT |
+#endif
+#ifdef MODE_TIME_ROUND_FRACTIONAL
+  MODE_TIME_ROUND_FRACTIONAL |
+#endif
+  0;
+
+#ifdef MODE_REAL_AS_FLOAT
+/* pushdown */
+#define SPIDER_SQL_MODE_REAL_AS_FLOAT
+#endif
+#ifdef MODE_PIPES_AS_CONCAT
+/* no pushdown */
+#endif
+#ifdef MODE_ANSI_QUOTES
+/* no pushdown */
+#endif
+#ifdef MODE_IGNORE_SPACE
+/* no pushdown */
+#endif
+#ifdef MODE_IGNORE_BAD_TABLE_OPTIONS
+/* pushdown */
+#define SPIDER_SQL_MODE_IGNORE_BAD_TABLE_OPTIONS
+#endif
+#ifdef MODE_ONLY_FULL_GROUP_BY
+/* no pushdown */
+#endif
+#ifdef MODE_NO_UNSIGNED_SUBTRACTION
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_UNSIGNED_SUBTRACTION
+#endif
+#ifdef MODE_NO_DIR_IN_CREATE
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_DIR_IN_CREATE
+#endif
+#ifdef MODE_POSTGRESQL
+/* no pushdown */
+#endif
+#ifdef MODE_ORACLE
+/* no pushdown */
+#endif
+#ifdef MODE_MSSQL
+/* no pushdown */
+#endif
+#ifdef MODE_DB2
+/* no pushdown */
+#endif
+#ifdef MODE_MAXDB
+/* no pushdown */
+#endif
+#ifdef MODE_NO_KEY_OPTIONS
+/* no pushdown */
+#endif
+#ifdef MODE_NO_TABLE_OPTIONS
+/* no pushdown */
+#endif
+#ifdef MODE_NO_FIELD_OPTIONS
+/* no pushdown */
+#endif
+#ifdef MODE_MYSQL323
+/* no pushdown */
+#endif
+#ifdef MODE_MYSQL40
+/* no pushdown */
+#endif
+#ifdef MODE_ANSI
+/* no pushdown */
+#endif
+#ifdef MODE_NO_AUTO_VALUE_ON_ZERO
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_AUTO_VALUE_ON_ZERO
+#endif
+#ifdef MODE_NO_BACKSLASH_ESCAPES
+/* no pushdown */
+#endif
+#ifdef MODE_STRICT_TRANS_TABLES
+/* pushdown */
+#define SPIDER_SQL_MODE_STRICT_TRANS_TABLES
+#endif
+#ifdef MODE_STRICT_ALL_TABLES
+/* pushdown */
+#define SPIDER_SQL_MODE_STRICT_ALL_TABLES
+#endif
+#ifdef MODE_NO_ZERO_IN_DATE
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_ZERO_IN_DATE
+#endif
+#ifdef MODE_NO_ZERO_DATE
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_ZERO_DATE
+#endif
+#ifdef MODE_INVALID_DATES
+/* pushdown */
+#define SPIDER_SQL_MODE_INVALID_DATES
+#endif
+#ifdef MODE_ERROR_FOR_DIVISION_BY_ZERO
+/* pushdown */
+#define SPIDER_SQL_MODE_ERROR_FOR_DIVISION_BY_ZERO
+#endif
+#ifdef MODE_TRADITIONAL
+/* no pushdown */
+#endif
+#ifdef MODE_NO_AUTO_CREATE_USER
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_AUTO_CREATE_USER
+#endif
+#ifdef MODE_HIGH_NOT_PRECEDENCE
+/* pushdown */
+#define SPIDER_SQL_MODE_HIGH_NOT_PRECEDENCE
+#endif
+#ifdef MODE_NO_ENGINE_SUBSTITUTION
+/* pushdown */
+#define SPIDER_SQL_MODE_NO_ENGINE_SUBSTITUTION
+#endif
+#ifdef MODE_PAD_CHAR_TO_FULL_LENGTH
+/* pushdown */
+#define SPIDER_SQL_MODE_PAD_CHAR_TO_FULL_LENGTH
+#endif
+#ifdef MODE_EMPTY_STRING_IS_NULL
+/* pushdown */
+#define SPIDER_SQL_MODE_EMPTY_STRING_IS_NULL
+#endif
+#ifdef MODE_SIMULTANEOUS_ASSIGNMENT
+/* pushdown */
+#define SPIDER_SQL_MODE_SIMULTANEOUS_ASSIGNMENT
+#endif
+#ifdef MODE_TIME_ROUND_FRACTIONAL
+/* pushdown */
+#define SPIDER_SQL_MODE_TIME_ROUND_FRACTIONAL
+#endif
+
+sql_mode_t pushdown_sql_mode =
+#ifdef SPIDER_SQL_MODE_REAL_AS_FLOAT
+  MODE_REAL_AS_FLOAT |
+#endif
+#ifdef SPIDER_SQL_MODE_PIPES_AS_CONCAT
+  MODE_PIPES_AS_CONCAT |
+#endif
+#ifdef SPIDER_SQL_MODE_ANSI_QUOTES
+  MODE_ANSI_QUOTES |
+#endif
+#ifdef SPIDER_SQL_MODE_IGNORE_SPACE
+  MODE_IGNORE_SPACE |
+#endif
+#ifdef SPIDER_SQL_MODE_IGNORE_BAD_TABLE_OPTIONS
+  MODE_IGNORE_BAD_TABLE_OPTIONS |
+#endif
+#ifdef SPIDER_SQL_MODE_ONLY_FULL_GROUP_BY
+  MODE_ONLY_FULL_GROUP_BY |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_UNSIGNED_SUBTRACTION
+  MODE_NO_UNSIGNED_SUBTRACTION |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_DIR_IN_CREATE
+  MODE_NO_DIR_IN_CREATE |
+#endif
+#ifdef SPIDER_SQL_MODE_POSTGRESQL
+  MODE_POSTGRESQL |
+#endif
+#ifdef SPIDER_SQL_MODE_ORACLE
+  MODE_ORACLE |
+#endif
+#ifdef SPIDER_SQL_MODE_MSSQL
+  MODE_MSSQL |
+#endif
+#ifdef SPIDER_SQL_MODE_DB2
+  MODE_DB2 |
+#endif
+#ifdef SPIDER_SQL_MODE_MAXDB
+  MODE_MAXDB |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_KEY_OPTIONS
+  MODE_NO_KEY_OPTIONS |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_TABLE_OPTIONS
+  MODE_NO_TABLE_OPTIONS |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_FIELD_OPTIONS
+  MODE_NO_FIELD_OPTIONS |
+#endif
+#ifdef SPIDER_SQL_MODE_MYSQL323
+  MODE_MYSQL323 |
+#endif
+#ifdef SPIDER_SQL_MODE_MYSQL40
+  MODE_MYSQL40 |
+#endif
+#ifdef SPIDER_SQL_MODE_ANSI
+  MODE_ANSI |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_AUTO_VALUE_ON_ZERO
+  MODE_NO_AUTO_VALUE_ON_ZERO |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_BACKSLASH_ESCAPES
+  MODE_NO_BACKSLASH_ESCAPES |
+#endif
+#ifdef SPIDER_SQL_MODE_STRICT_TRANS_TABLES
+  MODE_STRICT_TRANS_TABLES |
+#endif
+#ifdef SPIDER_SQL_MODE_STRICT_ALL_TABLES
+  MODE_STRICT_ALL_TABLES |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_ZERO_IN_DATE
+  MODE_NO_ZERO_IN_DATE |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_ZERO_DATE
+  MODE_NO_ZERO_DATE |
+#endif
+#ifdef SPIDER_SQL_MODE_INVALID_DATES
+  MODE_INVALID_DATES |
+#endif
+#ifdef SPIDER_SQL_MODE_ERROR_FOR_DIVISION_BY_ZERO
+  MODE_ERROR_FOR_DIVISION_BY_ZERO |
+#endif
+#ifdef SPIDER_SQL_MODE_TRADITIONAL
+  MODE_TRADITIONAL |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_AUTO_CREATE_USER
+  MODE_NO_AUTO_CREATE_USER |
+#endif
+#ifdef SPIDER_SQL_MODE_HIGH_NOT_PRECEDENCE
+  MODE_HIGH_NOT_PRECEDENCE |
+#endif
+#ifdef SPIDER_SQL_MODE_NO_ENGINE_SUBSTITUTION
+  MODE_NO_ENGINE_SUBSTITUTION |
+#endif
+#ifdef SPIDER_SQL_MODE_PAD_CHAR_TO_FULL_LENGTH
+  MODE_PAD_CHAR_TO_FULL_LENGTH |
+#endif
+#ifdef SPIDER_SQL_MODE_EMPTY_STRING_IS_NULL
+  MODE_EMPTY_STRING_IS_NULL |
+#endif
+#ifdef SPIDER_SQL_MODE_SIMULTANEOUS_ASSIGNMENT
+  MODE_SIMULTANEOUS_ASSIGNMENT |
+#endif
+#ifdef SPIDER_SQL_MODE_TIME_ROUND_FRACTIONAL
+  MODE_TIME_ROUND_FRACTIONAL |
+#endif
+  0;
+
+int spider_db_mbase_util::append_sql_mode_internal(
+  spider_string *str,
+  sql_mode_t sql_mode
+) {
+  DBUG_ENTER("spider_db_mbase_util::append_sql_mode_internal");
+  DBUG_PRINT("info",("spider this=%p", this));
+#ifdef SPIDER_SQL_MODE_REAL_AS_FLOAT
+  if (sql_mode & MODE_REAL_AS_FLOAT)
+  {
+    if (str->reserve(SPIDER_REAL_AS_FLOAT_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_REAL_AS_FLOAT_STR, SPIDER_REAL_AS_FLOAT_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_PIPES_AS_CONCAT
+  if (sql_mode & MODE_PIPES_AS_CONCAT)
+  {
+    if (str->reserve(SPIDER_PIPES_AS_CONCAT_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_PIPES_AS_CONCAT_STR, SPIDER_PIPES_AS_CONCAT_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_ANSI_QUOTES
+  if (sql_mode & MODE_ANSI_QUOTES)
+  {
+    if (str->reserve(SPIDER_ANSI_QUOTES_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_ANSI_QUOTES_STR, SPIDER_ANSI_QUOTES_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_IGNORE_SPACE
+  if (sql_mode & MODE_IGNORE_SPACE)
+  {
+    if (str->reserve(SPIDER_IGNORE_SPACE_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_IGNORE_SPACE_STR, SPIDER_IGNORE_SPACE_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_IGNORE_BAD_TABLE_OPTIONS
+  if (sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS)
+  {
+    if (str->reserve(SPIDER_IGNORE_BAD_TABLE_OPTIONS_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_IGNORE_BAD_TABLE_OPTIONS_STR, SPIDER_IGNORE_BAD_TABLE_OPTIONS_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_ONLY_FULL_GROUP_BY
+  if (sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  {
+    if (str->reserve(SPIDER_ONLY_FULL_GROUP_BY_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_ONLY_FULL_GROUP_BY_STR, SPIDER_ONLY_FULL_GROUP_BY_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_UNSIGNED_SUBTRACTION
+  if (sql_mode & MODE_NO_UNSIGNED_SUBTRACTION)
+  {
+    if (str->reserve(SPIDER_NO_UNSIGNED_SUBTRACTION_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_UNSIGNED_SUBTRACTION_STR, SPIDER_NO_UNSIGNED_SUBTRACTION_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_DIR_IN_CREATE
+  if (sql_mode & MODE_NO_DIR_IN_CREATE)
+  {
+    if (str->reserve(SPIDER_NO_DIR_IN_CREATE_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_DIR_IN_CREATE_STR, SPIDER_NO_DIR_IN_CREATE_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_POSTGRESQL
+  if (sql_mode & MODE_POSTGRESQL)
+  {
+    if (str->reserve(SPIDER_POSTGRESQL_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_POSTGRESQL_STR, SPIDER_POSTGRESQL_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_ORACLE
+  if (sql_mode & MODE_ORACLE)
+  {
+    if (str->reserve(SPIDER_ORACLE_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_ORACLE_STR, SPIDER_ORACLE_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_MSSQL
+  if (sql_mode & MODE_MSSQL)
+  {
+    if (str->reserve(SPIDER_MSSQL_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_MSSQL_STR, SPIDER_MSSQL_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_DB2
+  if (sql_mode & MODE_DB2)
+  {
+    if (str->reserve(SPIDER_DB2_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_DB2_STR, SPIDER_DB2_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_MAXDB
+  if (sql_mode & MODE_MAXDB)
+  {
+    if (str->reserve(SPIDER_MAXDB_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_MAXDB_STR, SPIDER_MAXDB_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_KEY_OPTIONS
+  if (sql_mode & MODE_NO_KEY_OPTIONS)
+  {
+    if (str->reserve(SPIDER_NO_KEY_OPTIONS_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_KEY_OPTIONS_STR, SPIDER_NO_KEY_OPTIONS_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_TABLE_OPTIONS
+  if (sql_mode & MODE_NO_TABLE_OPTIONS)
+  {
+    if (str->reserve(SPIDER_NO_TABLE_OPTIONS_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_TABLE_OPTIONS_STR, SPIDER_NO_TABLE_OPTIONS_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_FIELD_OPTIONS
+  if (sql_mode & MODE_NO_FIELD_OPTIONS)
+  {
+    if (str->reserve(SPIDER_NO_FIELD_OPTIONS_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_FIELD_OPTIONS_STR, SPIDER_NO_FIELD_OPTIONS_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_MYSQL323
+  if (sql_mode & MODE_MYSQL323)
+  {
+    if (str->reserve(SPIDER_MYSQL323_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_MYSQL323_STR, SPIDER_MYSQL323_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_MYSQL40
+  if (sql_mode & MODE_MYSQL40)
+  {
+    if (str->reserve(SPIDER_MYSQL40_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_MYSQL40_STR, SPIDER_MYSQL40_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_ANSI
+  if (sql_mode & MODE_ANSI)
+  {
+    if (str->reserve(SPIDER_ANSI_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_ANSI_STR, SPIDER_ANSI_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_AUTO_VALUE_ON_ZERO
+  if (sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO)
+  {
+    if (str->reserve(SPIDER_NO_AUTO_VALUE_ON_ZERO_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_AUTO_VALUE_ON_ZERO_STR, SPIDER_NO_AUTO_VALUE_ON_ZERO_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_BACKSLASH_ESCAPES
+  if (sql_mode & MODE_NO_BACKSLASH_ESCAPES)
+  {
+    if (str->reserve(SPIDER_NO_BACKSLASH_ESCAPES_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_BACKSLASH_ESCAPES_STR, SPIDER_NO_BACKSLASH_ESCAPES_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_STRICT_TRANS_TABLES
+  if (sql_mode & MODE_STRICT_TRANS_TABLES)
+  {
+    if (str->reserve(SPIDER_STRICT_TRANS_TABLES_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_STRICT_TRANS_TABLES_STR, SPIDER_STRICT_TRANS_TABLES_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_STRICT_ALL_TABLES
+  if (sql_mode & MODE_STRICT_ALL_TABLES)
+  {
+    if (str->reserve(SPIDER_STRICT_ALL_TABLES_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_STRICT_ALL_TABLES_STR, SPIDER_STRICT_ALL_TABLES_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_ZERO_IN_DATE
+  if (sql_mode & MODE_NO_ZERO_IN_DATE)
+  {
+    if (str->reserve(SPIDER_NO_ZERO_IN_DATE_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_ZERO_IN_DATE_STR, SPIDER_NO_ZERO_IN_DATE_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_ZERO_DATE
+  if (sql_mode & MODE_NO_ZERO_DATE)
+  {
+    if (str->reserve(SPIDER_NO_ZERO_DATE_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_ZERO_DATE_STR, SPIDER_NO_ZERO_DATE_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_INVALID_DATES
+  if (sql_mode & MODE_INVALID_DATES)
+  {
+    if (str->reserve(SPIDER_INVALID_DATES_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_INVALID_DATES_STR, SPIDER_INVALID_DATES_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_ERROR_FOR_DIVISION_BY_ZERO
+  if (sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
+  {
+    if (str->reserve(SPIDER_ERROR_FOR_DIVISION_BY_ZERO_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_ERROR_FOR_DIVISION_BY_ZERO_STR, SPIDER_ERROR_FOR_DIVISION_BY_ZERO_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_TRADITIONAL
+  if (sql_mode & MODE_TRADITIONAL)
+  {
+    if (str->reserve(SPIDER_TRADITIONAL_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_TRADITIONAL_STR, SPIDER_TRADITIONAL_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_AUTO_CREATE_USER
+  if (sql_mode & MODE_NO_AUTO_CREATE_USER)
+  {
+    if (str->reserve(SPIDER_NO_AUTO_CREATE_USER_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_AUTO_CREATE_USER_STR, SPIDER_NO_AUTO_CREATE_USER_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_HIGH_NOT_PRECEDENCE
+  if (sql_mode & MODE_HIGH_NOT_PRECEDENCE)
+  {
+    if (str->reserve(SPIDER_HIGH_NOT_PRECEDENCE_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_HIGH_NOT_PRECEDENCE_STR, SPIDER_HIGH_NOT_PRECEDENCE_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_NO_ENGINE_SUBSTITUTION
+  if (sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
+  {
+    if (str->reserve(SPIDER_NO_ENGINE_SUBSTITUTION_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_NO_ENGINE_SUBSTITUTION_STR, SPIDER_NO_ENGINE_SUBSTITUTION_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_PAD_CHAR_TO_FULL_LENGTH
+  if (sql_mode & MODE_PAD_CHAR_TO_FULL_LENGTH)
+  {
+    if (str->reserve(SPIDER_PAD_CHAR_TO_FULL_LENGTH_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_PAD_CHAR_TO_FULL_LENGTH_STR, SPIDER_PAD_CHAR_TO_FULL_LENGTH_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+  DBUG_RETURN(0);
+}
+
+int spider_db_mariadb_util::append_sql_mode_internal(
+  spider_string *str,
+  sql_mode_t sql_mode
+) {
+  int error_num;
+  DBUG_ENTER("spider_db_mbase_util::append_sql_mode_internal");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if ((error_num = spider_db_mbase_util::append_sql_mode_internal(
+    str, sql_mode)))
+  {
+    DBUG_RETURN(error_num);
+  }
+#ifdef SPIDER_SQL_MODE_EMPTY_STRING_IS_NULL
+  if (sql_mode & MODE_EMPTY_STRING_IS_NULL)
+  {
+    if (str->reserve(SPIDER_EMPTY_STRING_IS_NULL_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_EMPTY_STRING_IS_NULL_STR, SPIDER_EMPTY_STRING_IS_NULL_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_SIMULTANEOUS_ASSIGNMENT
+  if (sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+  {
+    if (str->reserve(SPIDER_SIMULTANEOUS_ASSIGNMENT_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_SIMULTANEOUS_ASSIGNMENT_STR, SPIDER_SIMULTANEOUS_ASSIGNMENT_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+#ifdef SPIDER_SQL_MODE_TIME_ROUND_FRACTIONAL
+  if (sql_mode & MODE_TIME_ROUND_FRACTIONAL)
+  {
+    if (str->reserve(SPIDER_TIME_ROUND_FRACTIONAL_LEN + SPIDER_SQL_COMMA_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_TIME_ROUND_FRACTIONAL_STR, SPIDER_TIME_ROUND_FRACTIONAL_LEN);
+    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+  }
+#endif
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_sql_mode(
+  spider_string *str,
+  sql_mode_t sql_mode
+) {
+  int error_num;
+  uint length;
+  DBUG_ENTER("spider_db_mbase_util::append_sql_mode");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_SQL_MODE_LEN))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  if (str->length())
+  {
+    str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
+  }
+  str->q_append(SPIDER_SQL_SQL_MODE_STR, SPIDER_SQL_SQL_MODE_LEN);
+  length = str->length();
+  if ((error_num = append_sql_mode_internal(str, sql_mode)))
+  {
+    DBUG_RETURN(error_num);
+  }
+  if (str->length() > length)
+  {
+    str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+  } else {
+    if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+  }
+  str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   DBUG_RETURN(0);
 }
 
