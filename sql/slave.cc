@@ -1046,7 +1046,7 @@ bool init_slave_transaction_retry_errors(const char* arg)
   {
     if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
       break;
-    if (err_code > 0 && err_code < ER_ERROR_LAST)
+    if (err_code > 0)
       slave_transaction_retry_errors[i++]= (uint) err_code;
     while (!my_isdigit(system_charset_info,*p) && *p)
       p++;
