@@ -75,6 +75,7 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   backup_mysql.cc
   backup_copy.cc
   encryption_plugin.cc
+  ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
   ${NT_SERVICE_SOURCE}
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c
@@ -82,13 +83,14 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   )
 
 
+
+
 # Export all symbols on Unix, for better crash callstacks
 SET_TARGET_PROPERTIES(mariabackup PROPERTIES ENABLE_EXPORTS TRUE)
 ADD_SUBDIRECTORY(crc)
 
 
-TARGET_LINK_LIBRARIES(mariabackup sql crc)
-
+TARGET_LINK_LIBRARIES(mariabackup sql sql_builtins crc)
 IF(NOT HAVE_SYSTEM_REGEX)
   TARGET_LINK_LIBRARIES(mariabackup pcreposix)
 ENDIF()
