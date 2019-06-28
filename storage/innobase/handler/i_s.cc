@@ -265,36 +265,21 @@ field_store_string(
 	return field->store(str, uint(strlen(str)), system_charset_info);
 }
 
-/*******************************************************************//**
-Auxiliary function to store ulint value in MYSQL_TYPE_LONGLONG field.
-If the value is ULINT_UNDEFINED then the field is set to NULL.
-@return 0 on success */
-int
-field_store_ulint(
-/*==============*/
-	Field*	field,	/*!< in/out: target field for storage */
-	ulint	n)	/*!< in: value to store */
-{
-	int	ret;
-
-	if (n != ULINT_UNDEFINED) {
-
-		ret = field->store(longlong(n), true);
-		field->set_notnull();
-	} else {
-
-		ret = 0; /* success */
-		field->set_null();
-	}
-
-	return(ret);
-}
-
 #ifdef BTR_CUR_HASH_ADAPT
 # define I_S_AHI 1 /* Include the IS_HASHED column */
 #else
 # define I_S_AHI 0 /* Omit the IS_HASHED column */
 #endif
+
+static const LEX_CSTRING isolation_level_values[] =
+{
+	{ STRING_WITH_LEN("READ UNCOMMITTED") },
+	{ STRING_WITH_LEN("READ COMMITTED") },
+	{ STRING_WITH_LEN("REPEATABLE READ") },
+	{ STRING_WITH_LEN("SERIALIZABLE") }
+};
+
+static TypelibBuffer<4> isolation_level_values_typelib(isolation_level_values);
 
 namespace Show {
 
@@ -302,7 +287,7 @@ namespace Show {
 static ST_FIELD_INFO	innodb_trx_fields_info[] =
 {
 #define IDX_TRX_ID		0
-  Column("trx_id", Varchar(TRX_ID_MAX_LEN + 1), NOT_NULL),
+  Column("trx_id", ULonglong(), NOT_NULL),
 
 #define IDX_TRX_STATE		1
   Column("trx_state", Varchar(TRX_QUE_STATE_STR_MAX_LEN + 1), NOT_NULL),
@@ -327,8 +312,7 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
   Column("trx_query", Varchar(TRX_I_S_TRX_QUERY_MAX_LEN), NULLABLE),
 
 #define IDX_TRX_OPERATION_STATE	8
-  Column("trx_operation_state",
-         Varchar(TRX_I_S_TRX_OP_STATE_MAX_LEN), NULLABLE),
+  Column("trx_operation_state", Varchar(64), NULLABLE),
 
 #define IDX_TRX_TABLES_IN_USE	9
   Column("trx_tables_in_use", ULonglong(), NOT_NULL),
@@ -353,7 +337,7 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
 
 #define IDX_TRX_ISOLATION_LEVEL	16
   Column("trx_isolation_level",
-         Varchar(TRX_I_S_TRX_ISOLATION_LEVEL_MAX_LEN), NOT_NULL),
+         Enum(&isolation_level_values_typelib), NOT_NULL),
 
 #define IDX_TRX_UNIQUE_CHECKS	17
   Column("trx_unique_checks", SLong(1), NOT_NULL),
@@ -404,15 +388,13 @@ fill_innodb_trx_from_cache(
 	for (i = 0; i < rows_num; i++) {
 
 		i_s_trx_row_t*	row;
-		char		trx_id[TRX_ID_MAX_LEN + 1];
 
 		row = (i_s_trx_row_t*)
 			trx_i_s_cache_get_nth_row(
 				cache, I_S_INNODB_TRX, i);
 
 		/* trx_id */
-		snprintf(trx_id, sizeof(trx_id), TRX_ID_FMT, row->trx_id);
-		OK(field_store_string(fields[IDX_TRX_ID], trx_id));
+		OK(fields[IDX_TRX_ID]->store(row->trx_id, true));
 
 		/* trx_state */
 		OK(field_store_string(fields[IDX_TRX_STATE],
@@ -496,8 +478,8 @@ fill_innodb_trx_from_cache(
 			   row->trx_concurrency_tickets, true));
 
 		/* trx_isolation_level */
-		OK(field_store_string(fields[IDX_TRX_ISOLATION_LEVEL],
-				      row->trx_isolation_level));
+		OK(fields[IDX_TRX_ISOLATION_LEVEL]->store(
+			   1 + row->trx_isolation_level, true));
 
 		/* trx_unique_checks */
 		OK(fields[IDX_TRX_UNIQUE_CHECKS]->store(
@@ -517,8 +499,7 @@ fill_innodb_trx_from_cache(
 
 		/* trx_is_autocommit_non_locking */
 		OK(fields[IDX_TRX_AUTOCOMMIT_NON_LOCKING]->store(
-			   (longlong) row->trx_is_autocommit_non_locking,
-			   true));
+			   row->trx_is_autocommit_non_locking, true));
 
 		OK(schema_table_store_record(thd, table));
 	}
@@ -601,6 +582,29 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_trx =
         STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
+static const LEX_CSTRING lock_mode_values[] =
+{
+	{ STRING_WITH_LEN("S") },
+	{ STRING_WITH_LEN("S,GAP") },
+	{ STRING_WITH_LEN("X") },
+	{ STRING_WITH_LEN("X,GAP") },
+	{ STRING_WITH_LEN("IS") },
+	{ STRING_WITH_LEN("IS,GAP") },
+	{ STRING_WITH_LEN("IX") },
+	{ STRING_WITH_LEN("IX,GAP") },
+	{ STRING_WITH_LEN("AUTO_INC") }
+};
+
+static TypelibBuffer<9> lock_mode_values_typelib(lock_mode_values);
+
+static const LEX_CSTRING lock_type_values[] =
+{
+	{ STRING_WITH_LEN("RECORD") },
+	{ STRING_WITH_LEN("TABLE") }
+};
+
+static TypelibBuffer<2> lock_type_values_typelib(lock_type_values);
+
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_locks */
 static ST_FIELD_INFO	innodb_locks_fields_info[] =
@@ -609,15 +613,13 @@ static ST_FIELD_INFO	innodb_locks_fields_info[] =
   Column("lock_id",     Varchar(TRX_I_S_LOCK_ID_MAX_LEN + 1),  NOT_NULL),
 
 #define IDX_LOCK_TRX_ID		1
-  Column("lock_trx_id", Varchar(TRX_ID_MAX_LEN + 1), NOT_NULL),
+  Column("lock_trx_id", ULonglong(), NOT_NULL),
 
 #define IDX_LOCK_MODE		2
-  // S[,GAP] X[,GAP] IS[,GAP] IX[,GAP] AUTO_INC UNKNOWN
-  Column("lock_mode",   Varchar(32),   NOT_NULL),
+  Column("lock_mode",   Enum(&lock_mode_values_typelib), NOT_NULL),
 
 #define IDX_LOCK_TYPE		3
-  // RECORD|TABLE|UNKNOWN
-  Column("lock_type",   Varchar(32),   NOT_NULL),
+  Column("lock_type",   Enum(&lock_type_values_typelib), NOT_NULL),
 
 #define IDX_LOCK_TABLE		4
   Column("lock_table",  Varchar(1024), NOT_NULL),
@@ -626,13 +628,13 @@ static ST_FIELD_INFO	innodb_locks_fields_info[] =
   Column("lock_index",  Varchar(1024), NULLABLE),
 
 #define IDX_LOCK_SPACE		6
-  Column("lock_space",  ULonglong(),   NULLABLE),
+  Column("lock_space",  ULong(),   NULLABLE),
 
 #define IDX_LOCK_PAGE		7
-  Column("lock_page",   ULonglong(),   NULLABLE),
+  Column("lock_page",   ULong(),   NULLABLE),
 
 #define IDX_LOCK_REC		8
-  Column("lock_rec",    ULonglong(),   NULLABLE),
+  Column("lock_rec",    ULong(),   NULLABLE),
 
 #define IDX_LOCK_DATA		9
   Column("lock_data",   Varchar(TRX_I_S_LOCK_DATA_MAX_LEN), NULLABLE),
@@ -670,8 +672,6 @@ fill_innodb_locks_from_cache(
 		char			buf[MAX_FULL_NAME_LEN + 1];
 		const char*		bufend;
 
-		char			lock_trx_id[TRX_ID_MAX_LEN + 1];
-
 		row = (i_s_locks_row_t*)
 			trx_i_s_cache_get_nth_row(
 				cache, I_S_INNODB_LOCKS, i);
@@ -682,17 +682,14 @@ fill_innodb_locks_from_cache(
 				      lock_id));
 
 		/* lock_trx_id */
-		snprintf(lock_trx_id, sizeof(lock_trx_id),
-			 TRX_ID_FMT, row->lock_trx_id);
-		OK(field_store_string(fields[IDX_LOCK_TRX_ID], lock_trx_id));
+		OK(fields[IDX_LOCK_TRX_ID]->store(row->lock_trx_id, true));
 
 		/* lock_mode */
-		OK(field_store_string(fields[IDX_LOCK_MODE],
-				      row->lock_mode));
+		OK(fields[IDX_LOCK_MODE]->store(row->lock_mode, true));
 
 		/* lock_type */
-		OK(field_store_string(fields[IDX_LOCK_TYPE],
-				      row->lock_type));
+		OK(fields[IDX_LOCK_TYPE]->store(
+			   row->lock_index ? 1 : 2, true));
 
 		/* lock_table */
 		bufend = innobase_convert_name(buf, sizeof(buf),
@@ -702,25 +699,27 @@ fill_innodb_locks_from_cache(
 		OK(fields[IDX_LOCK_TABLE]->store(
 			buf, uint(bufend - buf), system_charset_info));
 
-		/* lock_index */
-		OK(field_store_string(fields[IDX_LOCK_INDEX],
-				      row->lock_index));
-
-		/* lock_space */
-		OK(field_store_ulint(fields[IDX_LOCK_SPACE],
-				     row->lock_space));
-
-		/* lock_page */
-		OK(field_store_ulint(fields[IDX_LOCK_PAGE],
-				     row->lock_page));
-
-		/* lock_rec */
-		OK(field_store_ulint(fields[IDX_LOCK_REC],
-				     row->lock_rec));
-
-		/* lock_data */
-		OK(field_store_string(fields[IDX_LOCK_DATA],
-				      row->lock_data));
+		if (row->lock_index) {
+			/* record lock */
+			OK(field_store_string(fields[IDX_LOCK_INDEX],
+					      row->lock_index));
+			OK(fields[IDX_LOCK_SPACE]->store(
+				   row->lock_space, true));
+			fields[IDX_LOCK_SPACE]->set_notnull();
+			OK(fields[IDX_LOCK_PAGE]->store(
+				   row->lock_page, true));
+			fields[IDX_LOCK_PAGE]->set_notnull();
+			OK(fields[IDX_LOCK_REC]->store(
+				   row->lock_rec, true));
+			fields[IDX_LOCK_REC]->set_notnull();
+			OK(field_store_string(fields[IDX_LOCK_DATA],
+					      row->lock_data));
+		} else {
+			fields[IDX_LOCK_INDEX]->set_null();
+			fields[IDX_LOCK_SPACE]->set_null();
+			fields[IDX_LOCK_REC]->set_null();
+			fields[IDX_LOCK_DATA]->set_null();
+		}
 
 		OK(schema_table_store_record(thd, table));
 	}
@@ -804,13 +803,13 @@ namespace Show {
 static ST_FIELD_INFO	innodb_lock_waits_fields_info[] =
 {
 #define IDX_REQUESTING_TRX_ID	0
-  Column("requesting_trx_id", Varchar(TRX_ID_MAX_LEN + 1),          NOT_NULL),
+  Column("requesting_trx_id", ULonglong(), NOT_NULL),
 
 #define IDX_REQUESTED_LOCK_ID	1
   Column("requested_lock_id", Varchar(TRX_I_S_LOCK_ID_MAX_LEN + 1), NOT_NULL),
 
 #define IDX_BLOCKING_TRX_ID	2
-  Column("blocking_trx_id",   Varchar(TRX_ID_MAX_LEN + 1),          NOT_NULL),
+  Column("blocking_trx_id",   ULonglong(), NOT_NULL),
 
 #define IDX_BLOCKING_LOCK_ID	3
   Column("blocking_lock_id",  Varchar(TRX_I_S_LOCK_ID_MAX_LEN + 1), NOT_NULL),
@@ -848,18 +847,13 @@ fill_innodb_lock_waits_from_cache(
 
 		i_s_lock_waits_row_t*	row;
 
-		char	requesting_trx_id[TRX_ID_MAX_LEN + 1];
-		char	blocking_trx_id[TRX_ID_MAX_LEN + 1];
-
 		row = (i_s_lock_waits_row_t*)
 			trx_i_s_cache_get_nth_row(
 				cache, I_S_INNODB_LOCK_WAITS, i);
 
 		/* requesting_trx_id */
-		snprintf(requesting_trx_id, sizeof(requesting_trx_id),
-			 TRX_ID_FMT, row->requested_lock_row->lock_trx_id);
-		OK(field_store_string(fields[IDX_REQUESTING_TRX_ID],
-				      requesting_trx_id));
+		OK(fields[IDX_REQUESTING_TRX_ID]->store(
+				      row->requested_lock_row->lock_trx_id, true));
 
 		/* requested_lock_id */
 		OK(field_store_string(
@@ -870,10 +864,8 @@ fill_innodb_lock_waits_from_cache(
 				   sizeof(requested_lock_id))));
 
 		/* blocking_trx_id */
-		snprintf(blocking_trx_id, sizeof(blocking_trx_id),
-			 TRX_ID_FMT, row->blocking_lock_row->lock_trx_id);
-		OK(field_store_string(fields[IDX_BLOCKING_TRX_ID],
-				      blocking_trx_id));
+		OK(fields[IDX_BLOCKING_TRX_ID]->store(
+				      row->blocking_lock_row->lock_trx_id, true));
 
 		/* blocking_lock_id */
 		OK(field_store_string(
@@ -1305,13 +1297,13 @@ information_schema.innodb_cmp_per_index_reset. */
 static ST_FIELD_INFO	i_s_cmp_per_index_fields_info[] =
 {
 #define IDX_DATABASE_NAME	0
-  Column("database_name",   Varchar(192), NOT_NULL),
+  Column("database_name",   Varchar(NAME_CHAR_LEN), NOT_NULL),
 
-#define IDX_TABLE_NAME		1
-  Column("table_name",      Varchar(192), NOT_NULL),
+#define IDX_TABLE_NAME		1 /* FIXME: this is in my_charset_filename! */
+  Column("table_name",      Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define IDX_INDEX_NAME		2
-  Column("index_name",      Varchar(192), NOT_NULL),
+  Column("index_name",      Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define IDX_COMPRESS_OPS	3
   Column("compress_ops",    SLong(),      NOT_NULL),
@@ -1862,6 +1854,17 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmpmem_reset =
 };
 
 
+static const LEX_CSTRING metric_type_values[] =
+{
+	{ STRING_WITH_LEN("value") },
+	{ STRING_WITH_LEN("status_counter") },
+	{ STRING_WITH_LEN("set_owner") },
+	{ STRING_WITH_LEN("set_member") },
+	{ STRING_WITH_LEN("counter") }
+};
+
+static TypelibBuffer<5> metric_type_values_typelib(metric_type_values);
+
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_metrics */
 static ST_FIELD_INFO	innodb_metrics_fields_info[] =
@@ -1909,10 +1912,10 @@ static ST_FIELD_INFO	innodb_metrics_fields_info[] =
   Column("TIME_RESET",      Datetime(0),                 NULLABLE),
 
 #define	METRIC_STATUS		14
-  Column("STATUS",          Varchar(NAME_LEN + 1),       NOT_NULL),
+  Column("ENABLED", SLong(1), NOT_NULL),
 
 #define	METRIC_TYPE		15
-  Column("TYPE",            Varchar(NAME_LEN + 1),       NOT_NULL),
+  Column("TYPE",            Enum(&metric_type_values_typelib), NOT_NULL),
 
 #define	METRIC_DESC		16
   Column("COMMENT",         Varchar(NAME_LEN + 1),       NOT_NULL),
@@ -2135,7 +2138,6 @@ i_s_metrics_fill(
 			fields[METRIC_AVG_VALUE_RESET]->set_null();
 		}
 
-
 		if (MONITOR_IS_ON(count)) {
 			/* If monitor is on, the stop time will set to NULL */
 			fields[METRIC_STOP_TIME]->set_null();
@@ -2152,9 +2154,7 @@ i_s_metrics_fill(
 				fields[METRIC_RESET_TIME]->set_null();
 			}
 
-			/* Display the monitor status as "enabled" */
-			OK(field_store_string(fields[METRIC_STATUS],
-					      "enabled"));
+			OK(fields[METRIC_STATUS]->store(1, true));
 		} else {
 			if (MONITOR_FIELD(count, mon_stop_time)) {
 				OK(field_store_time_t(fields[METRIC_STOP_TIME],
@@ -2166,26 +2166,24 @@ i_s_metrics_fill(
 
 			fields[METRIC_RESET_TIME]->set_null();
 
-			OK(field_store_string(fields[METRIC_STATUS],
-					      "disabled"));
+			OK(fields[METRIC_STATUS]->store(0, true));
 		}
 
+		uint metric_type;
+
 		if (monitor_info->monitor_type & MONITOR_DISPLAY_CURRENT) {
-			OK(field_store_string(fields[METRIC_TYPE],
-					      "value"));
+			metric_type = 1; /* "value" */
 		} else if (monitor_info->monitor_type & MONITOR_EXISTING) {
-			OK(field_store_string(fields[METRIC_TYPE],
-					      "status_counter"));
+			metric_type = 2; /* "status_counter" */
 		} else if (monitor_info->monitor_type & MONITOR_SET_OWNER) {
-			OK(field_store_string(fields[METRIC_TYPE],
-					      "set_owner"));
-		} else if ( monitor_info->monitor_type & MONITOR_SET_MEMBER) {
-			OK(field_store_string(fields[METRIC_TYPE],
-					      "set_member"));
+			metric_type = 3; /* "set_owner" */
+		} else if (monitor_info->monitor_type & MONITOR_SET_MEMBER) {
+			metric_type = 4; /* "set_member" */
 		} else {
-			OK(field_store_string(fields[METRIC_TYPE],
-					      "counter"));
+			metric_type = 5; /* "counter" */
 		}
+
+		OK(fields[METRIC_TYPE]->store(metric_type, true));
 
 		OK(schema_table_store_record(thd, table_to_fill));
 	}
@@ -3562,7 +3560,7 @@ namespace Show {
 static ST_FIELD_INFO	i_s_innodb_buffer_stats_fields_info[] =
 {
 #define IDX_BUF_STATS_POOL_ID		0
-  Column("POOL_ID", ULonglong(), NOT_NULL),
+  Column("POOL_ID", ULong(), NOT_NULL),
 
 #define IDX_BUF_STATS_POOL_SIZE		1
   Column("POOL_SIZE", ULonglong(), NOT_NULL),
@@ -3823,7 +3821,7 @@ i_s_innodb_buffer_stats_fill_table(
 		srv_buf_pool_instances *  sizeof *pool_info);
 
 	/* Walk through each buffer pool */
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+	for (uint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t*		buf_pool;
 
 		buf_pool = buf_pool_from_array(i);
@@ -3914,47 +3912,57 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_stats =
         STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
-
-static const LEX_CSTRING io_values[]=
+/** These must correspond to the last values of buf_page_state */
+static const LEX_CSTRING page_state_values[] =
 {
-  STRING_WITH_LEN("IO_NONE"),
-  STRING_WITH_LEN("IO_READ"),
-  STRING_WITH_LEN("IO_WRITE"),
-  STRING_WITH_LEN("IO_PIN")
+	{ STRING_WITH_LEN("NOT_USED") },
+	{ STRING_WITH_LEN("READY_FOR_USE") },
+	{ STRING_WITH_LEN("FILE_PAGE") },
+	{ STRING_WITH_LEN("MEMORY") },
+	{ STRING_WITH_LEN("REMOVE_HASH") }
+};
+
+static const TypelibBuffer<5> page_state_values_typelib(page_state_values);
+
+static const LEX_CSTRING io_values[] =
+{
+	{ STRING_WITH_LEN("IO_NONE") },
+	{ STRING_WITH_LEN("IO_READ") },
+	{ STRING_WITH_LEN("IO_WRITE") },
+	{ STRING_WITH_LEN("IO_PIN") }
 };
 
 
 static TypelibBuffer<4> io_values_typelib(io_values);
-
 
 namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
 static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 {
 #define IDX_BUFFER_POOL_ID		0
-  Column("POOL_ID",ULonglong(), NOT_NULL),
+  Column("POOL_ID", ULong(), NOT_NULL),
 
 #define IDX_BUFFER_BLOCK_ID		1
   Column("BLOCK_ID", ULonglong(), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_SPACE		2
-  Column("SPACE", ULonglong(), NOT_NULL),
+  Column("SPACE", ULong(), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_NUM		3
-  Column("PAGE_NUMBER", ULonglong(), NOT_NULL),
+  Column("PAGE_NUMBER", ULong(), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_TYPE		4
   Column("PAGE_TYPE", Varchar(64), NULLABLE),
 
 #define IDX_BUFFER_PAGE_FLUSH_TYPE	5
-  Column("FLUSH_TYPE", ULonglong(), NOT_NULL),
+  Column("FLUSH_TYPE", ULong(), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_FIX_COUNT	6
-  Column("FIX_COUNT", ULonglong(), NOT_NULL),
+  Column("FIX_COUNT", ULong(), NOT_NULL),
 
 #ifdef BTR_CUR_HASH_ADAPT
 #define IDX_BUFFER_PAGE_HASHED		7
-  Column("IS_HASHED", Varchar(3), NULLABLE),
+  Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
 
 #define IDX_BUFFER_PAGE_NEWEST_MOD	7 + I_S_AHI
@@ -3970,7 +3978,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
   Column("TABLE_NAME", Varchar(1024), NULLABLE),
 
 #define IDX_BUFFER_PAGE_INDEX_NAME	11 + I_S_AHI
-  Column("INDEX_NAME", Varchar(1024), NULLABLE),
+  Column("INDEX_NAME", Varchar(NAME_CHAR_LEN), NULLABLE),
 
 #define IDX_BUFFER_PAGE_NUM_RECS	12 + I_S_AHI
   Column("NUMBER_RECORDS", ULonglong(), NOT_NULL),
@@ -3982,13 +3990,13 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
   Column("COMPRESSED_SIZE", ULonglong(), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_STATE		15 + I_S_AHI
-  Column("PAGE_STATE", Varchar(64), NULLABLE),
+  Column("PAGE_STATE", Enum(&page_state_values_typelib), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_IO_FIX		16 + I_S_AHI
-  Column("IO_FIX", Enum(&io_values_typelib), NULLABLE),
+  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_IS_OLD		17 + I_S_AHI
-  Column("IS_OLD", Varchar(3), NULLABLE),
+  Column("IS_OLD", SLong(1), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_FREE_CLOCK	18 + I_S_AHI
   Column("FREE_PAGE_CLOCK", ULonglong(), NOT_NULL),
@@ -4028,12 +4036,8 @@ i_s_innodb_buffer_page_fill(
 		const buf_page_info_t*	page_info;
 		char			table_name[MAX_FULL_NAME_LEN + 1];
 		const char*		table_name_end = NULL;
-		const char*		state_str;
-		enum buf_page_state	state;
 
 		page_info = info_array + i;
-
-		state_str = NULL;
 
 		OK(fields[IDX_BUFFER_POOL_ID]->store(
 			   page_info->pool_id, true));
@@ -4058,8 +4062,8 @@ i_s_innodb_buffer_page_fill(
 			   page_info->fix_count, true));
 
 #ifdef BTR_CUR_HASH_ADAPT
-		OK(field_store_string(fields[IDX_BUFFER_PAGE_HASHED],
-				      page_info->hashed ? "YES" : "NO"));
+		OK(fields[IDX_BUFFER_PAGE_HASHED]->store(
+			   page_info->hashed, true));
 #endif /* BTR_CUR_HASH_ADAPT */
 
 		OK(fields[IDX_BUFFER_PAGE_NEWEST_MOD]->store(
@@ -4128,57 +4132,20 @@ i_s_innodb_buffer_page_fill(
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
 		compile_time_assert(BUF_PAGE_STATE_BITS == 3);
-		state = static_cast<enum buf_page_state>(page_info->page_state);
 
-		switch (state) {
 		/* First three states are for compression pages and
 		are not states we would get as we scan pages through
 		buffer blocks */
-		case BUF_BLOCK_POOL_WATCH:
-		case BUF_BLOCK_ZIP_PAGE:
-		case BUF_BLOCK_ZIP_DIRTY:
-			state_str = NULL;
-			break;
-		case BUF_BLOCK_NOT_USED:
-			state_str = "NOT_USED";
-			break;
-		case BUF_BLOCK_READY_FOR_USE:
-			state_str = "READY_FOR_USE";
-			break;
-		case BUF_BLOCK_FILE_PAGE:
-			state_str = "FILE_PAGE";
-			break;
-		case BUF_BLOCK_MEMORY:
-			state_str = "MEMORY";
-			break;
-		case BUF_BLOCK_REMOVE_HASH:
-			state_str = "REMOVE_HASH";
-			break;
-		};
+		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
+			   page_info->page_state >= BUF_BLOCK_NOT_USED
+			   ? page_info->page_state - (BUF_BLOCK_NOT_USED - 1)
+			   : 0, true));
 
-		OK(field_store_string(fields[IDX_BUFFER_PAGE_STATE],
-				      state_str));
+		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(
+			   1 + page_info->io_fix, true));
 
-		switch (page_info->io_fix) {
-		case BUF_IO_NONE:
-			state_str = "IO_NONE";
-			break;
-		case BUF_IO_READ:
-			state_str = "IO_READ";
-			break;
-		case BUF_IO_WRITE:
-			state_str = "IO_WRITE";
-			break;
-		case BUF_IO_PIN:
-			state_str = "IO_PIN";
-			break;
-		}
-
-		OK(field_store_string(fields[IDX_BUFFER_PAGE_IO_FIX],
-				      state_str));
-
-		OK(field_store_string(fields[IDX_BUFFER_PAGE_IS_OLD],
-				      (page_info->is_old) ? "YES" : "NO"));
+		OK(fields[IDX_BUFFER_PAGE_IS_OLD]->store(
+			   page_info->is_old, true));
 
 		OK(fields[IDX_BUFFER_PAGE_FREE_CLOCK]->store(
 			   page_info->freed_page_clock, true));
@@ -4543,16 +4510,16 @@ namespace Show {
 static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 {
 #define IDX_BUF_LRU_POOL_ID		0
-  Column("POOL_ID", ULonglong(), NOT_NULL),
+  Column("POOL_ID", ULong(), NOT_NULL),
 
 #define IDX_BUF_LRU_POS			1
   Column("LRU_POSITION", ULonglong(), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_SPACE		2
-  Column("SPACE",ULonglong(), NOT_NULL),
+  Column("SPACE", ULong(), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_NUM		3
-  Column("PAGE_NUMBER",ULonglong(), NOT_NULL),
+  Column("PAGE_NUMBER", ULong(), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_TYPE		4
   Column("PAGE_TYPE", Varchar(64), NULLABLE),
@@ -4561,12 +4528,11 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
   Column("FLUSH_TYPE", ULonglong(), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_FIX_COUNT	6
-  Column("FIX_COUNT", ULonglong(), NOT_NULL),
+  Column("FIX_COUNT", ULong(), NOT_NULL),
 
 #ifdef BTR_CUR_HASH_ADAPT
 #define IDX_BUF_LRU_PAGE_HASHED		7
-  Column("IS_HASHED", Varchar(3), NULLABLE),
-
+  Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
 
 #define IDX_BUF_LRU_PAGE_NEWEST_MOD	7 + I_S_AHI
@@ -4582,7 +4548,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
   Column("TABLE_NAME", Varchar(1024), NULLABLE),
 
 #define IDX_BUF_LRU_PAGE_INDEX_NAME	11 + I_S_AHI
-  Column("INDEX_NAME", Varchar(1024), NULLABLE),
+  Column("INDEX_NAME", Varchar(NAME_CHAR_LEN), NULLABLE),
 
 #define IDX_BUF_LRU_PAGE_NUM_RECS	12 + I_S_AHI
   Column("NUMBER_RECORDS", ULonglong(), NOT_NULL),
@@ -4594,13 +4560,13 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
   Column("COMPRESSED_SIZE",ULonglong(), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_STATE		15 + I_S_AHI
-  Column("COMPRESSED", Varchar(3), NULLABLE),
+  Column("COMPRESSED", SLong(1), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_IO_FIX		16 + I_S_AHI
-  Column("IO_FIX", Varchar(64),	NULLABLE),
+  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_IS_OLD		17 + I_S_AHI
-  Column("IS_OLD", Varchar(3), NULLABLE),
+  Column("IS_OLD", SLong(1), NULLABLE),
 
 #define IDX_BUF_LRU_PAGE_FREE_CLOCK	18 + I_S_AHI
   Column("FREE_PAGE_CLOCK", ULonglong(), NOT_NULL),
@@ -4634,10 +4600,6 @@ i_s_innodb_buf_page_lru_fill(
 		const buf_page_info_t*	page_info;
 		char			table_name[MAX_FULL_NAME_LEN + 1];
 		const char*		table_name_end = NULL;
-		const char*		state_str;
-		enum buf_page_state	state;
-
-		state_str = NULL;
 
 		page_info = info_array + i;
 
@@ -4664,8 +4626,8 @@ i_s_innodb_buf_page_lru_fill(
 			   page_info->fix_count, true));
 
 #ifdef BTR_CUR_HASH_ADAPT
-		OK(field_store_string(fields[IDX_BUF_LRU_PAGE_HASHED],
-				      page_info->hashed ? "YES" : "NO"));
+		OK(fields[IDX_BUF_LRU_PAGE_HASHED]->store(
+			   page_info->hashed, true));
 #endif /* BTR_CUR_HASH_ADAPT */
 
 		OK(fields[IDX_BUF_LRU_PAGE_NEWEST_MOD]->store(
@@ -4733,51 +4695,16 @@ i_s_innodb_buf_page_lru_fill(
 			   page_info->zip_ssize
 			   ? 512 << page_info->zip_ssize : 0, true));
 
-		state = static_cast<enum buf_page_state>(page_info->page_state);
+		OK(fields[IDX_BUF_LRU_PAGE_STATE]->store(
+			   page_info->page_state == BUF_BLOCK_ZIP_PAGE
+			   || page_info->page_state == BUF_BLOCK_ZIP_DIRTY,
+			   true));
 
-		switch (state) {
-		/* Compressed page */
-		case BUF_BLOCK_ZIP_PAGE:
-		case BUF_BLOCK_ZIP_DIRTY:
-			state_str = "YES";
-			break;
-		/* Uncompressed page */
-		case BUF_BLOCK_FILE_PAGE:
-			state_str = "NO";
-			break;
-		/* We should not see following states */
-		case BUF_BLOCK_POOL_WATCH:
-		case BUF_BLOCK_READY_FOR_USE:
-		case BUF_BLOCK_NOT_USED:
-		case BUF_BLOCK_MEMORY:
-		case BUF_BLOCK_REMOVE_HASH:
-			state_str = NULL;
-			break;
-		};
+		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(
+			   1 + page_info->io_fix, true));
 
-		OK(field_store_string(fields[IDX_BUF_LRU_PAGE_STATE],
-				      state_str));
-
-		switch (page_info->io_fix) {
-		case BUF_IO_NONE:
-			state_str = "IO_NONE";
-			break;
-		case BUF_IO_READ:
-			state_str = "IO_READ";
-			break;
-		case BUF_IO_WRITE:
-			state_str = "IO_WRITE";
-			break;
-		case BUF_IO_PIN:
-			state_str = "IO_PIN";
-			break;
-		}
-
-		OK(field_store_string(fields[IDX_BUF_LRU_PAGE_IO_FIX],
-				      state_str));
-
-		OK(field_store_string(fields[IDX_BUF_LRU_PAGE_IS_OLD],
-				      page_info->is_old ? "YES" : "NO"));
+		OK(fields[IDX_BUF_LRU_PAGE_IS_OLD]->store(
+			   page_info->is_old, true));
 
 		OK(fields[IDX_BUF_LRU_PAGE_FREE_CLOCK]->store(
 			   page_info->freed_page_clock, true));
@@ -4985,6 +4912,24 @@ static int i_s_common_deinit(void*)
 	DBUG_RETURN(0);
 }
 
+static const LEX_CSTRING row_format_values[] =
+{
+  { STRING_WITH_LEN("Redundant") },
+  { STRING_WITH_LEN("Compact") },
+  { STRING_WITH_LEN("Compressed") },
+  { STRING_WITH_LEN("Dynamic") }
+};
+
+static TypelibBuffer<4> row_format_values_typelib(row_format_values);
+
+static const LEX_CSTRING space_type_values[] =
+{
+	{ STRING_WITH_LEN("Single") },
+	{ STRING_WITH_LEN("System") }
+};
+
+static TypelibBuffer<2> space_type_values_typelib(space_type_values);
+
 namespace Show {
 /**  SYS_TABLES  ***************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.SYS_TABLES */
@@ -5000,19 +4945,19 @@ static ST_FIELD_INFO	innodb_sys_tables_fields_info[] =
   Column("FLAG", SLong(), NOT_NULL),
 
 #define SYS_TABLES_NUM_COLUMN		3
-  Column("N_COLS", SLong(), NOT_NULL),
+  Column("N_COLS", ULong(), NOT_NULL),
 
 #define SYS_TABLES_SPACE		4
-  Column("SPACE", SLong(), NOT_NULL),
+  Column("SPACE", ULong(), NOT_NULL),
 
 #define SYS_TABLES_ROW_FORMAT		5
-  Column("ROW_FORMAT", Varchar(12), NULLABLE),
+  Column("ROW_FORMAT", Enum(&row_format_values_typelib), NULLABLE),
 
 #define SYS_TABLES_ZIP_PAGE_SIZE	6
   Column("ZIP_PAGE_SIZE", ULong(), NOT_NULL),
 
 #define SYS_TABLES_SPACE_TYPE		7
-  Column("SPACE_TYPE", Varchar(10), NULLABLE),
+  Column("SPACE_TYPE", Enum(&space_type_values_typelib), NULLABLE),
 
   CEnd()
 };
@@ -5221,10 +5166,10 @@ static ST_FIELD_INFO	innodb_sys_tablestats_fields_info[] =
   Column("TABLE_ID", ULonglong(), NOT_NULL),
 
 #define SYS_TABLESTATS_NAME		1
-  Column("NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+  Column("NAME", Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define SYS_TABLESTATS_INIT		2
-  Column("STATS_INITIALIZED", Varchar(NAME_LEN + 1), NOT_NULL),
+  Column("STATS_INITIALIZED", SLong(1), NOT_NULL),
 
 #define SYS_TABLESTATS_NROW		3
   Column("NUM_ROWS", ULonglong(), NOT_NULL),
@@ -5276,10 +5221,9 @@ i_s_dict_fill_sys_tablestats(
 
 	rw_lock_s_lock(&table->stats_latch);
 
-	if (table->stat_initialized) {
-		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
-				      "Initialized"));
+	OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
 
+	if (table->stat_initialized) {
 		OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows,
 						      true));
 
@@ -5292,9 +5236,6 @@ i_s_dict_fill_sys_tablestats(
 		OK(fields[SYS_TABLESTATS_MODIFIED]->store(
 			   table->stat_modified_counter, true));
 	} else {
-		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
-				      "Uninitialized"));
-
 		OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
 
 		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
@@ -5474,7 +5415,7 @@ static ST_FIELD_INFO	innodb_sysindex_fields_info[] =
   Column("INDEX_ID", ULonglong(), NOT_NULL),
 
 #define SYS_INDEX_NAME		1
-  Column("NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+  Column("NAME", Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define SYS_INDEX_TABLE_ID	2
   Column("TABLE_ID", ULonglong(), NOT_NULL),
@@ -5713,7 +5654,7 @@ static ST_FIELD_INFO	innodb_sys_columns_fields_info[] =
   Column("TABLE_ID", ULonglong(), NOT_NULL),
 
 #define SYS_COLUMN_NAME		1
-  Column("NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+  Column("NAME", Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define SYS_COLUMN_POSITION	2
   Column("POS", ULonglong(), NOT_NULL),
@@ -6113,7 +6054,7 @@ static ST_FIELD_INFO	innodb_sys_fields_fields_info[] =
   Column("INDEX_ID", ULonglong(), NOT_NULL),
 
 #define SYS_FIELD_NAME		1
-  Column("NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+  Column("NAME", Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define SYS_FIELD_POS		2
   Column("POS", ULong(), NOT_NULL),
@@ -6504,10 +6445,10 @@ static ST_FIELD_INFO	innodb_sys_foreign_cols_fields_info[] =
   Column("ID", Varchar(NAME_LEN + 1), NOT_NULL),
 
 #define SYS_FOREIGN_COL_FOR_NAME	1
-  Column("FOR_COL_NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+  Column("FOR_COL_NAME", Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define SYS_FOREIGN_COL_REF_NAME	2
-  Column("REF_COL_NAME", Varchar(NAME_LEN + 1), NOT_NULL),
+  Column("REF_COL_NAME", Varchar(NAME_CHAR_LEN), NOT_NULL),
 
 #define SYS_FOREIGN_COL_POS		3
   Column("POS", ULong(), NOT_NULL),
@@ -6713,16 +6654,13 @@ static ST_FIELD_INFO	innodb_sys_tablespaces_fields_info[] =
 #define SYS_TABLESPACES_ZIP_PAGE_SIZE	5
   Column("ZIP_PAGE_SIZE", ULong(), NOT_NULL),
 
-#define SYS_TABLESPACES_SPACE_TYPE	6
-  Column("SPACE_TYPE", Varchar(10), NULLABLE),
-
-#define SYS_TABLESPACES_FS_BLOCK_SIZE	7
+#define SYS_TABLESPACES_FS_BLOCK_SIZE	6
   Column("FS_BLOCK_SIZE", ULong(),NOT_NULL),
 
-#define SYS_TABLESPACES_FILE_SIZE	8
+#define SYS_TABLESPACES_FILE_SIZE	7
   Column("FILE_SIZE", ULonglong(), NOT_NULL),
 
-#define SYS_TABLESPACES_ALLOC_SIZE	9
+#define SYS_TABLESPACES_ALLOC_SIZE	8
   Column("ALLOCATED_SIZE", ULonglong(), NOT_NULL),
 
   CEnd()
@@ -6738,7 +6676,7 @@ int
 i_s_dict_fill_sys_tablespaces(
 /*==========================*/
 	THD*		thd,		/*!< in: thread */
-	ulint		space,		/*!< in: space ID */
+	uint32_t	space,		/*!< in: space ID */
 	const char*	name,		/*!< in: tablespace name */
 	ulint		flags,		/*!< in: tablespace flags */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
@@ -6770,10 +6708,6 @@ i_s_dict_fill_sys_tablespaces(
 	OK(fields[SYS_TABLESPACES_FLAGS]->store(flags, true));
 
 	OK(field_store_string(fields[SYS_TABLESPACES_ROW_FORMAT], row_format));
-
-	OK(field_store_string(fields[SYS_TABLESPACES_SPACE_TYPE],
-			      is_system_tablespace(space)
-			      ? "System" : "Single"));
 
 	ulint cflags = fil_space_t::is_valid_flags(flags, space)
 		? flags : fsp_flags_convert_from_101(flags);
@@ -6890,7 +6824,7 @@ i_s_sys_tablespaces_fill_table(
 	     rec = dict_getnext_system(&pcur, &mtr)) {
 
 		const char*	err_msg;
-		ulint		space;
+		uint32_t	space;
 		const char*	name;
 		ulint		flags;
 
@@ -7018,7 +6952,7 @@ int
 i_s_dict_fill_sys_datafiles(
 /*========================*/
 	THD*		thd,		/*!< in: thread */
-	ulint		space,		/*!< in: space ID */
+	uint32_t	space,		/*!< in: space ID */
 	const char*	path,		/*!< in: absolute path */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
 {
@@ -7028,7 +6962,7 @@ i_s_dict_fill_sys_datafiles(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_ulint(fields[SYS_DATAFILES_SPACE], space));
+	OK(fields[SYS_DATAFILES_SPACE]->store(space, true));
 
 	OK(field_store_string(fields[SYS_DATAFILES_PATH], path));
 
@@ -7070,7 +7004,7 @@ i_s_sys_datafiles_fill_table(
 
 	while (rec) {
 		const char*	err_msg;
-		ulint		space;
+		uint32_t	space;
 		const char*	path;
 
 		/* Extract necessary information from a SYS_DATAFILES row */
@@ -7206,7 +7140,7 @@ static ST_FIELD_INFO	innodb_tablespaces_encryption_fields_info[] =
   Column("CURRENT_KEY_ID", ULong(), NOT_NULL),
 
 #define TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING 9
-  Column("ROTATING_OR_FLUSHING", ULong(1), NOT_NULL),
+  Column("ROTATING_OR_FLUSHING", SLong(1), NOT_NULL),
 
   CEnd()
 };
@@ -7257,7 +7191,7 @@ i_s_dict_fill_tablespaces_encryption(
 	OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_ID]->store(
 		   status.key_id, true));
 	OK(fields[TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING]->store(
-		   status.rotating || status.flushing, true));
+			   status.rotating || status.flushing, true));
 
 	if (status.rotating) {
 		fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->set_notnull();
@@ -7697,7 +7631,7 @@ i_s_innodb_mutexes_fill_table(
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
 		OK(fields[MUTEXES_CREATE_LINE]->store(block_mutex->cline, true));
 		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_mutex_oswait_count));
+		OK(fields[MUTEXES_OS_WAITS]->store((longlong)block_mutex_oswait_count), true);
 		OK(schema_table_store_record(thd, tables->table));
 	}
 

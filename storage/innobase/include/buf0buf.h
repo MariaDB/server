@@ -137,7 +137,7 @@ enum buf_page_state {
 will be used to print table IO stats */
 struct buf_pool_info_t{
 	/* General buffer pool info */
-	ulint	pool_unique_id;		/*!< Buffer Pool ID */
+	uint	pool_unique_id;		/*!< Buffer Pool ID */
 	ulint	pool_size;		/*!< Buffer Pool size in pages */
 	ulint	lru_len;		/*!< Length of buf_pool->LRU */
 	ulint	old_lru_len;		/*!< buf_pool->LRU_old_len */
@@ -828,7 +828,7 @@ void
 buf_stats_get_pool_info(
 /*====================*/
 	buf_pool_t*		buf_pool,	/*!< in: buffer pool */
-	ulint			pool_id,	/*!< in: buffer pool ID */
+	uint			pool_id,	/*!< in: buffer pool ID */
 	buf_pool_info_t*	all_pool_info);	/*!< in/out: buffer pool info
 						to fill */
 /** Return the ratio in percents of modified pages in the buffer pool /

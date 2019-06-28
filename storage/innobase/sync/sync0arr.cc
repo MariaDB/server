@@ -1308,13 +1308,15 @@ sync_arr_fill_sys_semphore_waits_table(
 			WaitMutex* mutex;
 			type = cell->request_type;
 			/* JAN: FIXME
-			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_THREAD_ID],
-			(longlong)os_thread_pf(cell->thread)));
+			OK(fields[SYS_SEMAPHORE_WAITS_THREAD_ID]->store(,
+			(longlong)os_thread_pf(cell->thread), true));
 			*/
 			OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_FILE], innobase_basename(cell->file)));
 			OK(fields[SYS_SEMAPHORE_WAITS_LINE]->store(cell->line, true));
 			fields[SYS_SEMAPHORE_WAITS_LINE]->set_notnull();
-			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME], (ulint)difftime(time(NULL), cell->reservation_time)));
+			OK(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME]->store(
+				   difftime(time(NULL),
+					    cell->reservation_time)));
 
 			if (type == SYNC_MUTEX) {
 				mutex = static_cast<WaitMutex*>(cell->latch.mutex);
@@ -1322,21 +1324,21 @@ sync_arr_fill_sys_semphore_waits_table(
 				if (mutex) {
 					// JAN: FIXME
 					// OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_OBJECT_NAME], mutex->cmutex_name));
-					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT], (longlong)mutex));
+					OK(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT]->store((longlong)mutex, true));
 					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "MUTEX"));
-					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)mutex->thread_id));
+					//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID]->store(mutex->thread_id, true));
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(mutex->file_name)));
 					//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(mutex->line, true));
 					//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_CREATED_FILE], innobase_basename(mutex->cfile_name)));
 					//OK(fields[SYS_SEMAPHORE_WAITS_CREATED_LINE]->store(mutex->cline, true));
 					//fields[SYS_SEMAPHORE_WAITS_CREATED_LINE]->set_notnull();
-					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)mutex->waiters));
-					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)mutex->lock_word));
+					//OK(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG]->store(mutex->waiters, true));
+					//OK(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD]->store(mutex->lock_word, true));
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(mutex->file_name)));
 					//OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(mutex->line, true));
 					//fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();
-					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], mutex->count_os_wait));
+					//OK(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT]->store(mutex->count_os_wait, true));
 				}
 			} else if (type == RW_LOCK_X_WAIT
 				|| type == RW_LOCK_X
@@ -1349,7 +1351,7 @@ sync_arr_fill_sys_semphore_waits_table(
 				if (rwlock) {
 					ulint writer = rw_lock_get_writer(rwlock);
 
-					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT], (longlong)rwlock));
+					OK(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT]->store((longlong)rwlock, true));
 					if (type == RW_LOCK_X) {
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "RW_LOCK_X"));
 					} else if (type == RW_LOCK_X_WAIT) {
@@ -1363,7 +1365,7 @@ sync_arr_fill_sys_semphore_waits_table(
 					if (writer != RW_LOCK_NOT_LOCKED) {
 						// JAN: FIXME
 						// OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_OBJECT_NAME], rwlock->lock_name));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WRITER_THREAD], (longlong)os_thread_pf(rwlock->writer_thread)));
+						OK(fields[SYS_SEMAPHORE_WAITS_WRITER_THREAD]->store(os_thread_pf(rwlock->writer_thread), true));
 
 						if (writer == RW_LOCK_X) {
 							OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_RESERVATION_MODE], "RW_LOCK_X"));
@@ -1373,19 +1375,21 @@ sync_arr_fill_sys_semphore_waits_table(
 							OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_RESERVATION_MODE], "RW_LOCK_SX"));
 						}
 
-						//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)rwlock->thread_id));
+						//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID]->store(rwlock->thread_id, true));
 						//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(rwlock->file_name)));
 						//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(rwlock->line, true));
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG],
-						   rwlock->waiters.load(std::memory_order_relaxed)));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
-						   rwlock->lock_word.load(std::memory_order_relaxed)));
+						OK(fields[SYS_SEMAPHORE_WAITS_READERS]->store(rw_lock_get_reader_count(rwlock), true));
+						OK(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG]->store(
+							   rwlock->waiters.load(std::memory_order_relaxed),
+							   true));
+						OK(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD]->store(
+							   rwlock->lock_word.load(std::memory_order_relaxed),
+							   true));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
 						OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(rwlock->last_x_line, true));
 						fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], rwlock->count_os_wait));
+						OK(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT]->store(rwlock->count_os_wait, true));
 					}
 				}
 			}

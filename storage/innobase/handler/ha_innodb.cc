@@ -859,7 +859,7 @@ innodb_tmpdir_validate(
 Maps a MySQL trx isolation level code to the InnoDB isolation level code
 @return	InnoDB isolation level */
 static inline
-ulint
+uint
 innobase_map_isolation_level(
 /*=========================*/
 	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code */
@@ -14322,7 +14322,6 @@ ha_innobase::check(
 	ulint		n_rows;
 	ulint		n_rows_in_table	= ULINT_UNDEFINED;
 	bool		is_ok		= true;
-	ulint		old_isolation_level;
 	dberr_t		ret;
 
 	DBUG_ENTER("ha_innobase::check");
@@ -14385,7 +14384,7 @@ ha_innobase::check(
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
 
-	old_isolation_level = m_prebuilt->trx->isolation_level;
+	uint old_isolation_level = m_prebuilt->trx->isolation_level;
 
 	/* We must run the index record counts at an isolation level
 	>= READ COMMITTED, because a dirty read can see a wrong number
@@ -15331,7 +15330,7 @@ ha_innobase::start_stmt(
 Maps a MySQL trx isolation level code to the InnoDB isolation level code
 @return InnoDB isolation level */
 static inline
-ulint
+uint
 innobase_map_isolation_level(
 /*=========================*/
 	enum_tx_isolation	iso)	/*!< in: MySQL isolation level code */

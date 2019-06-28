@@ -6948,7 +6948,7 @@ void
 buf_stats_get_pool_info(
 /*====================*/
 	buf_pool_t*		buf_pool,	/*!< in: buffer pool */
-	ulint			pool_id,	/*!< in: buffer pool ID */
+	uint			pool_id,	/*!< in: buffer pool ID */
 	buf_pool_info_t*	all_pool_info)	/*!< in/out: buffer pool info
 						to fill */
 {
