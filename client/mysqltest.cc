@@ -11282,7 +11282,10 @@ static int setenv(const char *name, const char *value, int overwrite)
   that always reads from stdin with explicit echo.
 
 */
-MYSQL_PLUGIN_EXPORT
+extern "C"
+#ifdef _MSC_VER
+__declspec(dllexport)
+#endif
 char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
                                       const char *prompt,
                                       char *buf, int buf_len)

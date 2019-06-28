@@ -4636,7 +4636,10 @@ static char *get_arg(char *line, get_arg_mode mode)
                         string, and the "dialog" plugin will free() it.
 */
 
-MYSQL_PLUGIN_EXPORT
+extern "C"
+#ifdef _MSC_VER
+__declspec(dllexport)
+#endif
 char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
                                       const char *prompt,
                                       char *buf, int buf_len)
