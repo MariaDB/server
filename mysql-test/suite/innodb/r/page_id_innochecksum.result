@@ -1,0 +1,6 @@
+# Set the environmental variables
+create table t1(f1 int not null)engine=innodb;
+insert into t1 values(1), (2), (3);
+# Change the page offset
+FOUND 1 /page id mismatch/ in result.log
+drop table t1;
