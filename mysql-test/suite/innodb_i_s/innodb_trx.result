@@ -1,7 +1,7 @@
 SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_TRX;
 Table	Create Table
 INNODB_TRX	CREATE TEMPORARY TABLE `INNODB_TRX` (
-  `trx_id` varchar(18) NOT NULL DEFAULT '',
+  `trx_id` bigint(21) unsigned NOT NULL DEFAULT 0,
   `trx_state` varchar(13) NOT NULL DEFAULT '',
   `trx_started` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
   `trx_requested_lock_id` varchar(81) DEFAULT NULL,
@@ -17,7 +17,7 @@ INNODB_TRX	CREATE TEMPORARY TABLE `INNODB_TRX` (
   `trx_rows_locked` bigint(21) unsigned NOT NULL DEFAULT 0,
   `trx_rows_modified` bigint(21) unsigned NOT NULL DEFAULT 0,
   `trx_concurrency_tickets` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `trx_isolation_level` varchar(16) NOT NULL DEFAULT '',
+  `trx_isolation_level` enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE') NOT NULL DEFAULT '',
   `trx_unique_checks` int(1) NOT NULL DEFAULT 0,
   `trx_foreign_key_checks` int(1) NOT NULL DEFAULT 0,
   `trx_last_foreign_key_error` varchar(256) DEFAULT NULL,

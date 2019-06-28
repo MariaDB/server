@@ -15,7 +15,7 @@ INNODB_METRICS	CREATE TEMPORARY TABLE `INNODB_METRICS` (
   `TIME_DISABLED` datetime DEFAULT NULL,
   `TIME_ELAPSED` bigint(21) DEFAULT NULL,
   `TIME_RESET` datetime DEFAULT NULL,
-  `STATUS` varchar(193) NOT NULL DEFAULT '',
-  `TYPE` varchar(193) NOT NULL DEFAULT '',
+  `ENABLED` int(1) NOT NULL DEFAULT 0,
+  `TYPE` enum('value','status_counter','set_owner','set_member','counter') NOT NULL DEFAULT '',
   `COMMENT` varchar(193) NOT NULL DEFAULT ''
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8

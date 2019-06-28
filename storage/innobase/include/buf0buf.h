@@ -137,7 +137,7 @@ enum buf_page_state {
 will be used to print table IO stats */
 struct buf_pool_info_t{
 	/* General buffer pool info */
-	ulint	pool_unique_id;		/*!< Buffer Pool ID */
+	uint	pool_unique_id;		/*!< Buffer Pool ID */
 	ulint	pool_size;		/*!< Buffer Pool size in pages */
 	ulint	lru_len;		/*!< Length of buf_pool->LRU */
 	ulint	old_lru_len;		/*!< buf_pool->LRU_old_len */

@@ -871,7 +871,7 @@ public:
 	const char*	op_info;	/*!< English text describing the
 					current operation, or an empty
 					string */
-	ulint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
+	uint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
 	bool		check_foreigns;	/*!< normally TRUE, but if the user
 					wants to suppress foreign key checks,
 					(in table imports, for example) we

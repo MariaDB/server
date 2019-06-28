@@ -405,25 +405,20 @@ i_s_locks_row_validate(
 /*===================*/
 	const i_s_locks_row_t*	row)	/*!< in: row to validate */
 {
-	ut_ad(row->lock_mode != NULL);
-	ut_ad(row->lock_type != NULL);
+	ut_ad(row->lock_mode);
 	ut_ad(row->lock_table != NULL);
 	ut_ad(row->lock_table_id != 0);
 
-	if (row->lock_space == ULINT_UNDEFINED) {
+	if (!row->lock_index) {
 		/* table lock */
-		ut_ad(!strcmp("TABLE", row->lock_type));
-		ut_ad(row->lock_index == NULL);
-		ut_ad(row->lock_data == NULL);
-		ut_ad(row->lock_page == ULINT_UNDEFINED);
-		ut_ad(row->lock_rec == ULINT_UNDEFINED);
+		ut_ad(!row->lock_data);
+		ut_ad(!row->lock_space);
+		ut_ad(!row->lock_page);
+		ut_ad(!row->lock_rec);
 	} else {
 		/* record lock */
-		ut_ad(!strcmp("RECORD", row->lock_type));
-		ut_ad(row->lock_index != NULL);
 		/* row->lock_data == NULL if buf_page_try_get() == NULL */
-		ut_ad(row->lock_page != ULINT_UNDEFINED);
-		ut_ad(row->lock_rec != ULINT_UNDEFINED);
+		ut_ad(row->lock_page);
 	}
 
 	return(TRUE);
@@ -507,21 +502,7 @@ fill_trx_row(
 	}
 
 thd_done:
-	s = trx->op_info;
-
-	if (s != NULL && s[0] != '\0') {
-
-		TRX_I_S_STRING_COPY(s, row->trx_operation_state,
-				    TRX_I_S_TRX_OP_STATE_MAX_LEN, cache);
-
-		if (row->trx_operation_state == NULL) {
-
-			return(FALSE);
-		}
-	} else {
-
-		row->trx_operation_state = NULL;
-	}
+	row->trx_operation_state = trx->op_info;
 
 	row->trx_tables_in_use = trx->n_mysql_tables_in_use;
 
@@ -541,23 +522,7 @@ thd_done:
 
 	row->trx_concurrency_tickets = trx->n_tickets_to_enter_innodb;
 
-	switch (trx->isolation_level) {
-	case TRX_ISO_READ_UNCOMMITTED:
-		row->trx_isolation_level = "READ UNCOMMITTED";
-		break;
-	case TRX_ISO_READ_COMMITTED:
-		row->trx_isolation_level = "READ COMMITTED";
-		break;
-	case TRX_ISO_REPEATABLE_READ:
-		row->trx_isolation_level = "REPEATABLE READ";
-		break;
-	case TRX_ISO_SERIALIZABLE:
-		row->trx_isolation_level = "SERIALIZABLE";
-		break;
-	/* Should not happen as TRX_ISO_READ_COMMITTED is default */
-	default:
-		row->trx_isolation_level = "UNKNOWN";
-	}
+	row->trx_isolation_level = trx->isolation_level;
 
 	row->trx_unique_checks = (ibool) trx->check_unique_secondary;
 
@@ -767,9 +732,32 @@ fill_locks_row(
 	trx_i_s_cache_t* cache)	/*!< in/out: cache into which to copy
 				volatile strings */
 {
-	row->lock_trx_id = lock_get_trx_id(lock);
-	row->lock_mode = lock_get_mode_str(lock);
-	row->lock_type = lock_get_type_str(lock);
+	row->lock_trx_id = lock->trx->id;
+	const auto lock_type = lock_get_type(lock);
+	ut_ad(lock_type == LOCK_REC || lock_type == LOCK_TABLE);
+
+	const bool is_gap_lock = lock_type == LOCK_REC
+		&& (lock->type_mode & LOCK_GAP);
+	switch (lock->type_mode & LOCK_MODE_MASK) {
+	case LOCK_S:
+		row->lock_mode = 1 + is_gap_lock;
+		break;
+	case LOCK_X:
+		row->lock_mode = 3 + is_gap_lock;
+		break;
+	case LOCK_IS:
+		row->lock_mode = 5 + is_gap_lock;
+		break;
+	case LOCK_IX:
+		row->lock_mode = 7 + is_gap_lock;
+		break;
+	case LOCK_AUTO_INC:
+		row->lock_mode = 9;
+		break;
+	default:
+		ut_ad(!"unknown lock mode");
+		row->lock_mode = 0;
+	}
 
 	row->lock_table = ha_storage_put_str_memlim(
 		cache->storage, lock_get_table_name(lock).m_name,
@@ -781,8 +769,7 @@ fill_locks_row(
 		return(FALSE);
 	}
 
-	switch (lock_get_type(lock)) {
-	case LOCK_REC:
+	if (lock_type == LOCK_REC) {
 		row->lock_index = ha_storage_put_str_memlim(
 			cache->storage, lock_rec_get_index_name(lock),
 			MAX_ALLOWED_FOR_STORAGE(cache));
@@ -802,20 +789,14 @@ fill_locks_row(
 			/* memory could not be allocated */
 			return(FALSE);
 		}
-
-		break;
-	case LOCK_TABLE:
+	} else {
 		row->lock_index = NULL;
 
-		row->lock_space = ULINT_UNDEFINED;
-		row->lock_page = ULINT_UNDEFINED;
-		row->lock_rec = ULINT_UNDEFINED;
+		row->lock_space = 0;
+		row->lock_page = 0;
+		row->lock_rec = 0;
 
 		row->lock_data = NULL;
-
-		break;
-	default:
-		ut_error;
 	}
 
 	row->lock_table_id = lock_get_table_id(lock);
@@ -877,7 +858,7 @@ fold_lock(
 	case LOCK_REC:
 		ut_a(heap_no != ULINT_UNDEFINED);
 
-		ret = ut_fold_ulint_pair((ulint) lock_get_trx_id(lock),
+		ret = ut_fold_ulint_pair((ulint) lock->trx->id,
 					 lock_rec_get_space_id(lock));
 
 		ret = ut_fold_ulint_pair(ret,
@@ -924,7 +905,7 @@ locks_row_eq_lock(
 	case LOCK_REC:
 		ut_a(heap_no != ULINT_UNDEFINED);
 
-		return(row->lock_trx_id == lock_get_trx_id(lock)
+		return(row->lock_trx_id == lock->trx->id
 		       && row->lock_space == lock_rec_get_space_id(lock)
 		       && row->lock_page == lock_rec_get_page_no(lock)
 		       && row->lock_rec == heap_no);
@@ -935,7 +916,7 @@ locks_row_eq_lock(
 		it fails. */
 		ut_a(heap_no == ULINT_UNDEFINED);
 
-		return(row->lock_trx_id == lock_get_trx_id(lock)
+		return(row->lock_trx_id == lock->trx->id
 		       && row->lock_table_id == lock_get_table_id(lock));
 
 	default:
@@ -1539,11 +1520,11 @@ trx_i_s_create_lock_id(
 
 	/* please adjust TRX_I_S_LOCK_ID_MAX_LEN if you change this */
 
-	if (row->lock_space != ULINT_UNDEFINED) {
+	if (row->lock_index) {
 		/* record lock */
 		res_len = snprintf(lock_id, lock_id_size,
 				   TRX_ID_FMT
-				   ":" ULINTPF ":" ULINTPF ":" ULINTPF,
+				   ":%u:%u:%u",
 				   row->lock_trx_id, row->lock_space,
 				   row->lock_page, row->lock_rec);
 	} else {

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -607,42 +607,6 @@ lock module.
 ulint
 lock_get_type(
 /*==========*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*******************************************************************//**
-Gets the trx of the lock. Non-inline version for using outside of the
-lock module.
-@return	trx_t* */
-UNIV_INTERN
-trx_t*
-lock_get_trx(
-/*=========*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*******************************************************************//**
-Gets the id of the transaction owning a lock.
-@return transaction id */
-trx_id_t
-lock_get_trx_id(
-/*============*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*******************************************************************//**
-Gets the mode of a lock in a human readable string.
-The string should not be free()'d or modified.
-@return lock mode */
-const char*
-lock_get_mode_str(
-/*==============*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*******************************************************************//**
-Gets the type of a lock in a human readable string.
-The string should not be free()'d or modified.
-@return lock type */
-const char*
-lock_get_type_str(
-/*==============*/
 	const lock_t*	lock);	/*!< in: lock */
 
 /*******************************************************************//**
