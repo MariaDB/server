@@ -2792,7 +2792,6 @@ class Regexp_processor_pcre
   bool m_conversion_is_needed;
   bool m_is_const;
   int m_library_flags;
-  CHARSET_INFO *m_data_charset;
   CHARSET_INFO *m_library_charset;
   String m_prev_pattern;
   int m_pcre_exec_rc;
@@ -2809,7 +2808,6 @@ public:
   Regexp_processor_pcre() :
     m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
-    m_data_charset(&my_charset_utf8mb3_general_ci),
     m_library_charset(&my_charset_utf8mb3_general_ci)
   {
     m_pcre_extra.flags= PCRE_EXTRA_MATCH_LIMIT_RECURSION;

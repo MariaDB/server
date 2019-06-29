@@ -127,9 +127,9 @@ class Item_func_json_value: public Item_str_func,
 public:
   Item_func_json_value(THD *thd, Item *js, Item *i_path):
     Item_str_func(thd, js, i_path) {}
-  const char *func_name() const { return "json_value"; }
-  bool fix_length_and_dec();
-  String *val_str(String *to)
+  const char *func_name() const override { return "json_value"; }
+  bool fix_length_and_dec() override ;
+  String *val_str(String *to) override
   {
     null_value= Json_path_extractor::extract(to, args[0], args[1],
                                              collation.collation);
@@ -140,7 +140,7 @@ public:
   {
     return je->check_and_get_value_scalar(res, error);
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_value>(thd, this); }
 };
 
@@ -151,9 +151,9 @@ class Item_func_json_query: public Item_json_func,
 public:
   Item_func_json_query(THD *thd, Item *js, Item *i_path):
     Item_json_func(thd, js, i_path) {}
-  const char *func_name() const { return "json_query"; }
-  bool fix_length_and_dec();
-  String *val_str(String *to)
+  const char *func_name() const override { return "json_query"; } 
+  bool fix_length_and_dec() override;
+  String *val_str(String *to) override
   {
     null_value= Json_path_extractor::extract(to, args[0], args[1],
                                              collation.collation);
@@ -164,7 +164,7 @@ public:
   {
     return je->check_and_get_value_complex(res, error);
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_query>(thd, this); }
 };
 

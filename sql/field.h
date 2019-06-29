@@ -84,7 +84,6 @@ public:
 
 class Conv_source: public Type_handler_hybrid_field_type
 {
-  enum_field_types m_type;
   uint16 m_metadata;
   CHARSET_INFO *m_cs;
 public:
