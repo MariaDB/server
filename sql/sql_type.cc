@@ -70,8 +70,83 @@ Type_handler_blob_compressed type_handler_blob_compressed;
 
 Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 
+
+class Type_collection_std: public Type_collection
+{
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return Type_handler::aggregate_for_result_traditional(a, b);
+  }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override;
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override;
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override;
+};
+
+
+static Type_collection_std type_collection_std;
+
+const Type_collection *Type_handler::type_collection() const
+{
+  return &type_collection_std;
+}
+
+
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
+
+class Type_collection_geometry: public Type_collection
+{
+  const Type_handler *aggregate_common(const Type_handler *a,
+                                       const Type_handler *b) const
+  {
+    DBUG_ASSERT(a == &type_handler_geometry);
+    DBUG_ASSERT(b == &type_handler_geometry);
+    return &type_handler_geometry;
+  }
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return aggregate_common(a, b);
+  }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  {
+    return aggregate_common(a, b);
+  }
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  {
+    return aggregate_common(a, b);
+  }
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+};
+
+
+static Type_collection_geometry type_collection_geometry;
+
+const Type_collection *Type_handler_geometry::type_collection() const
+{
+  return &type_collection_geometry;
+}
+
 #endif
 
 
@@ -80,6 +155,14 @@ bool Type_handler_data::init()
 #ifdef HAVE_SPATIAL
 
 #ifndef DBUG_OFF
+  /*
+    The rule (geometry,geometry)->geometry is needed here to make sure
+    (in gis-debug.test) that is does not affect anything, and this pair
+    returns an error in an expression like (POINT(0,0)+POINT(0,0)).
+    Both sides are from the same type collection here,
+    so aggregation goes only through Type_collection_xxx::aggregate_yyy()
+    and never reaches Type_aggregator::find_handler().
+  */
   if (m_type_aggregator_non_commutative_test.add(&type_handler_geometry,
                                                  &type_handler_geometry,
                                                  &type_handler_geometry) ||
@@ -92,9 +175,6 @@ bool Type_handler_data::init()
   return
     m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_null,
-                                     &type_handler_geometry) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_geometry,
                                      &type_handler_geometry) ||
     m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_hex_hybrid,
@@ -117,9 +197,6 @@ bool Type_handler_data::init()
     m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_string,
                                      &type_handler_long_blob) ||
-    m_type_aggregator_for_comparison.add(&type_handler_geometry,
-                                         &type_handler_geometry,
-                                         &type_handler_geometry) ||
     m_type_aggregator_for_comparison.add(&type_handler_geometry,
                                          &type_handler_null,
                                          &type_handler_geometry) ||
@@ -1446,14 +1523,12 @@ const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 bool
 Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 {
-  if (m_type_handler->is_traditional_type() && other->is_traditional_type())
-  {
-    m_type_handler=
-      Type_handler::aggregate_for_result_traditional(m_type_handler, other);
-    return false;
-  }
-  other= type_handler_data->
-         m_type_aggregator_for_result.find_handler(m_type_handler, other);
+  const Type_collection *collection0= m_type_handler->type_collection();
+  if (collection0 == other->type_collection())
+    other= collection0->aggregate_for_result(m_type_handler, other);
+  else
+    other= type_handler_data->
+             m_type_aggregator_for_result.find_handler(m_type_handler, other);
   if (!other)
     return true;
   m_type_handler= other;
@@ -1572,37 +1647,42 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 {
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
   DBUG_ASSERT(h == h->type_handler_for_comparison());
-
-  if (!m_type_handler->is_traditional_type() ||
-      !h->is_traditional_type())
-  {
+  const Type_collection *collection0= m_type_handler->type_collection();
+  if (collection0 == h->type_collection())
+    h= collection0->aggregate_for_comparison(m_type_handler, h);
+  else
     h= type_handler_data->
-       m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
-    if (!h)
-      return true;
-    m_type_handler= h;
-    DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
-    return false;
-  }
+         m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
+  if (!h)
+    return true;
+  m_type_handler= h;
+  DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+  return false;
+}
 
-  Item_result a= cmp_type();
-  Item_result b= h->cmp_type();
+
+const Type_handler *
+Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
+                                              const Type_handler *hb) const
+{
+  Item_result a= ha->cmp_type();
+  Item_result b= hb->cmp_type();
   if (a == STRING_RESULT && b == STRING_RESULT)
-    m_type_handler= &type_handler_long_blob;
-  else if (a == INT_RESULT && b == INT_RESULT)
-    m_type_handler= &type_handler_longlong;
-  else if (a == ROW_RESULT || b == ROW_RESULT)
-    m_type_handler= &type_handler_row;
-  else if (a == TIME_RESULT || b == TIME_RESULT)
+    return &type_handler_long_blob;
+  if (a == INT_RESULT && b == INT_RESULT)
+    return &type_handler_longlong;
+  if (a == ROW_RESULT || b == ROW_RESULT)
+    return &type_handler_row;
+  if (a == TIME_RESULT || b == TIME_RESULT)
   {
     if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
     {
       /*
         We're here if there's only one temporal data type:
         either m_type_handler or h.
+        Temporal types bit non-temporal types.
       */
-      if (b == TIME_RESULT)
-        m_type_handler= h; // Temporal types bit non-temporal types
+      const Type_handler *res= b == TIME_RESULT ? hb : ha;
       /*
         Compare TIMESTAMP to a non-temporal type as DATETIME.
         This is needed to make queries with fuzzy dates work:
@@ -1610,9 +1690,9 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
         WHERE
           ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00';
       */
-      if (m_type_handler->type_handler_for_native_format() ==
-          &type_handler_timestamp2)
-        m_type_handler= &type_handler_datetime;
+      if (res->type_handler_for_native_format() == &type_handler_timestamp2)
+        return &type_handler_datetime;
+      return res;
     }
     else
     {
@@ -1624,19 +1704,15 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
           to print DATE constants using proper format:
           'YYYY-MM-DD' rather than 'YYYY-MM-DD 00:00:00'.
       */
-      if (m_type_handler->field_type() != h->field_type())
-        m_type_handler= &type_handler_datetime;
+      if (ha->field_type() != hb->field_type())
+        return &type_handler_datetime;
+      return ha;
     }
   }
-  else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
-           (b == INT_RESULT || b == DECIMAL_RESULT))
-  {
-    m_type_handler= &type_handler_newdecimal;
-  }
-  else
-    m_type_handler= &type_handler_double;
-  DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
-  return false;
+  if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
+      (b == INT_RESULT || b == DECIMAL_RESULT))
+    return &type_handler_newdecimal;
+  return &type_handler_double;
 }
 
 
@@ -1652,12 +1728,12 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 bool
 Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
 {
-  if (!m_type_handler->is_traditional_type() ||
-      !h->is_traditional_type())
+  const Type_collection *collection0= m_type_handler->type_collection();
+  if (collection0 == h->type_collection())
+    h= collection0->aggregate_for_min_max(m_type_handler, h);
+  else
   {
     /*
-      If at least one data type is non-traditional,
-      do aggregation for result immediately.
       For now we suppose that these two expressions:
         - LEAST(type1, type2)
         - COALESCE(type1, type2)
@@ -1666,78 +1742,73 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
       This may change in the future.
     */
     h= type_handler_data->
-       m_type_aggregator_for_result.find_handler(m_type_handler, h);
-    if (!h)
-      return true;
-    m_type_handler= h;
-    return false;
+         m_type_aggregator_for_result.find_handler(m_type_handler, h);
   }
+  if (!h)
+    return true;
+  m_type_handler= h;
+  return false;
+}
 
-  Item_result a= cmp_type();
-  Item_result b= h->cmp_type();
+
+const Type_handler *
+Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
+                                           const Type_handler *hb) const
+{
+  Item_result a= ha->cmp_type();
+  Item_result b= hb->cmp_type();
   DBUG_ASSERT(a != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
   DBUG_ASSERT(b != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
 
   if (a == STRING_RESULT && b == STRING_RESULT)
-    m_type_handler=
-      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
-  else if (a == INT_RESULT && b == INT_RESULT)
+    return Type_collection_std::aggregate_for_result(ha, hb);
+  if (a == INT_RESULT && b == INT_RESULT)
   {
     // BIT aggregates with non-BIT as BIGINT
-    if (m_type_handler != h)
+    if (ha != hb)
     {
-      if (m_type_handler == &type_handler_bit)
-        m_type_handler= &type_handler_longlong;
-      else if (h == &type_handler_bit)
-        h= &type_handler_longlong;
+      if (ha == &type_handler_bit)
+        ha= &type_handler_longlong;
+      else if (hb == &type_handler_bit)
+        hb= &type_handler_longlong;
     }
-    m_type_handler=
-      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+    return Type_collection_std::aggregate_for_result(ha, hb);
   }
-  else if (a == TIME_RESULT || b == TIME_RESULT)
+  if (a == TIME_RESULT || b == TIME_RESULT)
   {
-    if ((m_type_handler->type_handler_for_native_format() ==
-         &type_handler_timestamp2) +
-        (h->type_handler_for_native_format() ==
-         &type_handler_timestamp2) == 1)
+    if ((ha->type_handler_for_native_format() == &type_handler_timestamp2) +
+        (hb->type_handler_for_native_format() == &type_handler_timestamp2) == 1)
     {
       /*
         Handle LEAST(TIMESTAMP, non-TIMESTAMP) as DATETIME,
         to make sure fuzzy dates work in this context:
           LEAST('2001-00-00', timestamp_field)
       */
-      m_type_handler= &type_handler_datetime2;
+      return &type_handler_datetime2;
     }
-    else if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
+    if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
     {
       /*
         We're here if there's only one temporal data type:
         either m_type_handler or h.
+        Temporal types bit non-temporal types.
       */
-      if (b == TIME_RESULT)
-        m_type_handler= h; // Temporal types bit non-temporal types
+      return (b == TIME_RESULT) ? hb : ha;
     }
-    else
-    {
-      /*
-        We're here if both m_type_handler and h are temporal data types.
-      */
-      m_type_handler=
-        Type_handler::aggregate_for_result_traditional(m_type_handler, h);
-    }
+    /*
+      We're here if both m_type_handler and h are temporal data types.
+    */
+    return Type_collection_std::aggregate_for_result(ha, hb);
   }
-  else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
-           (b == INT_RESULT || b == DECIMAL_RESULT))
+  if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
+      (b == INT_RESULT || b == DECIMAL_RESULT))
   {
-    m_type_handler= &type_handler_newdecimal;
+    return &type_handler_newdecimal;
   }
-  else
-  {
-    // Preserve FLOAT if two FLOATs, set to DOUBLE otherwise.
-    if (m_type_handler != &type_handler_float || h != &type_handler_float)
-      m_type_handler= &type_handler_double;
-  }
-  return false;
+  // Preserve FLOAT if two FLOATs, set to DOUBLE otherwise.
+  if (ha == &type_handler_float && hb == &type_handler_float)
+    return &type_handler_float;
+  return &type_handler_double;
 }
 
 
@@ -1772,8 +1843,8 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
 
 
 const Type_handler *
-Type_handler::aggregate_for_num_op_traditional(const Type_handler *h0,
-                                               const Type_handler *h1)
+Type_collection_std::aggregate_for_num_op(const Type_handler *h0,
+                                          const Type_handler *h1) const
 {
   Item_result r0= h0->cmp_type();
   Item_result r1= h1->cmp_type();
@@ -1814,17 +1885,15 @@ Type_handler_hybrid_field_type::aggregate_for_num_op(const Type_aggregator *agg,
                                                      const Type_handler *h1)
 {
   const Type_handler *hres;
-  if (h0->is_traditional_type() && h1->is_traditional_type())
-  {
-    set_handler(Type_handler::aggregate_for_num_op_traditional(h0, h1));
-    return false;
-  }
-  if ((hres= agg->find_handler(h0, h1)))
-  {
-    set_handler(hres);
-    return false;
-  }
-  return true;
+  const Type_collection *collection0= h0->type_collection();
+  if (collection0 == h1->type_collection())
+    hres= collection0->aggregate_for_num_op(h0, h1);
+  else
+    hres= agg->find_handler(h0, h1);
+  if (!hres)
+    return true;
+  m_type_handler= hres;
+  return false;
 }
 
 

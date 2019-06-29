@@ -87,6 +87,7 @@ class Vers_history_point;
 class Virtual_column_info;
 class Conv_source;
 class ST_FIELD_INFO;
+class Type_collection;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -3281,11 +3282,9 @@ public:
     DBUG_ASSERT(type != TIME_RESULT);
     return get_handler_by_cmp_type(type);
   }
+  virtual const Type_collection *type_collection() const;
   static const
   Type_handler *aggregate_for_result_traditional(const Type_handler *h1,
-                                                 const Type_handler *h2);
-  static const
-  Type_handler *aggregate_for_num_op_traditional(const Type_handler *h1,
                                                  const Type_handler *h2);
 
   virtual const Name name() const= 0;
@@ -6372,6 +6371,7 @@ public:
   bool is_param_long_data_type() const { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const;
   uint32 calc_pack_length(uint32 length) const;
+  const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const;
   bool type_can_have_key_part() const
   {
@@ -6569,6 +6569,24 @@ public:
                              const Type_cast_attributes &attr) const;
 };
 
+
+class Type_collection
+{
+public:
+  virtual ~Type_collection() {}
+  virtual const Type_handler *aggregate_for_result(const Type_handler *h1,
+                                                   const Type_handler *h2)
+                                                   const= 0;
+  virtual const Type_handler *aggregate_for_comparison(const Type_handler *h1,
+                                                       const Type_handler *h2)
+                                                       const= 0;
+  virtual const Type_handler *aggregate_for_min_max(const Type_handler *h1,
+                                                    const Type_handler *h2)
+                                                    const= 0;
+  virtual const Type_handler *aggregate_for_num_op(const Type_handler *h1,
+                                                   const Type_handler *h2)
+                                                   const= 0;
+};
 
 
 /**
