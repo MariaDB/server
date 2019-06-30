@@ -15,5 +15,24 @@ DROP TABLE cx1;
 --error ER_NO_SUCH_TABLE
 SHOW CREATE TABLE cx1;
 
+DROP TABLE IF EXISTS intandtext;
+CREATE TABLE intandtext(i bigint, t text)ENGINE=clustrixdb;
+INSERT INTO intandtext VALUES(10, 'someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
+
+SELECT i,t FROM intandtext;
+
+EXPLAIN SELECT i,t FROM intandtext;
+SET clustrixdb_select_handler=OFF;
+
+SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+SET clustrixdb_select_handler=OFF;
+
+SELECT i,t FROM intandtext;
+SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
+
+DROP TABLE intandtext;
+
 USE test;
 DROP DATABASE clx;
