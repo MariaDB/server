@@ -752,7 +752,7 @@ fi
 safe_mysql_unix_port=${mysql_unix_port:-${MYSQL_UNIX_PORT:-@MYSQL_UNIX_ADDR@}}
 # Make sure that directory for $safe_mysql_unix_port exists
 mysql_unix_port_dir=`dirname $safe_mysql_unix_port`
-if [ ! -d $mysql_unix_port_dir ]
+if [ ! -d $mysql_unix_port_dir -a $dry_run -eq 0 ]
 then
   if ! mkdir -p $mysql_unix_port_dir
   then
