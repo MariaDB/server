@@ -3191,7 +3191,7 @@ while (argc > 1 && argv[op][0] == '-')
 #endif
   else if (strcmp(arg, "-C") == 0)
     {
-    int rc;
+    int rc=0;
     unsigned long int lrc;
 
     if (argc > 2)
