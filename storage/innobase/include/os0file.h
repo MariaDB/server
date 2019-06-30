@@ -1442,17 +1442,6 @@ os_aio_wait_until_no_pending_writes();
 void
 os_aio_simulated_wake_handler_threads();
 
-#ifdef _WIN32
-/** This function can be called if one wants to post a batch of reads and
-prefers an i/o-handler thread to handle them all at once later. You must
-call os_aio_simulated_wake_handler_threads later to ensure the threads
-are not left sleeping! */
-void
-os_aio_simulated_put_read_threads_to_sleep();
-#else /* _WIN32 */
-# define os_aio_simulated_put_read_threads_to_sleep()
-#endif /* _WIN32 */
-
 /** This is the generic AIO handler interface function.
 Waits for an aio operation to complete. This function is used to wait the
 for completed requests. The AIO array of pending requests is divided

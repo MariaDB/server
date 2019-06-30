@@ -703,12 +703,6 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 	ulint ibuf_mode = ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
 
-	/* Since Windows XP seems to schedule the i/o handler thread
-	very eagerly, and consequently it does not wait for the
-	full read batch to be posted, we use special heuristics here */
-
-	os_aio_simulated_put_read_threads_to_sleep();
-
 	for (i = low; i < high; i++) {
 		/* It is only sensible to do read-ahead in the non-sync
 		aio mode: hence FALSE as the first parameter */

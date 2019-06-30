@@ -4693,48 +4693,6 @@ os_file_set_eof(
 	return(SetEndOfFile(h));
 }
 
-/** This function can be called if one wants to post a batch of reads and
-prefers an i/o-handler thread to handle them all at once later. You must
-call os_aio_simulated_wake_handler_threads later to ensure the threads
-are not left sleeping! */
-void
-os_aio_simulated_put_read_threads_to_sleep()
-{
-	AIO::simulated_put_read_threads_to_sleep();
-}
-
-/** This function can be called if one wants to post a batch of reads and
-prefers an i/o-handler thread to handle them all at once later. You must
-call os_aio_simulated_wake_handler_threads later to ensure the threads
-are not left sleeping! */
-void
-AIO::simulated_put_read_threads_to_sleep()
-{
-	/* The idea of putting background IO threads to sleep is only for
-	Windows when using simulated AIO. Windows XP seems to schedule
-	background threads too eagerly to allow for coalescing during
-	readahead requests. */
-
-	if (srv_use_native_aio) {
-		/* We do not use simulated AIO: do nothing */
-
-		return;
-	}
-
-	os_aio_recommend_sleep_for_read_threads	= true;
-
-	for (ulint i = 0; i < os_aio_n_segments; i++) {
-		AIO*	array;
-
-		get_array_and_local_segment(&array, i);
-
-		if (array == s_reads) {
-
-			os_event_reset(os_aio_segment_wait_events[i]);
-		}
-	}
-}
-
 #endif /* !_WIN32*/
 
 /** Does a syncronous read or write depending upon the type specified
