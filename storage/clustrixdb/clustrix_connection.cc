@@ -323,17 +323,6 @@ int clustrix_connection::scan_init(ulonglong clustrix_table_oid, uint index,
   return error_code;
 }
 
-/*int clustrix_connection::scan_init_select(String &stmt)
-{
-  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
-  if (error_code)
-    return mysql_errno(&clustrix_net);
-
-  results = mysql_store_result(&clustrix_net);
-
-  return error_code;
-}*/
-
 /**
  * @brief
  *   Sends a command to initiate query scan.
