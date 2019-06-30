@@ -134,15 +134,19 @@ IF(MSVC)
    CMAKE_C_FLAGS_MINSIZEREL  CMAKE_CXX_FLAGS_MINSIZEREL
    )
    STRING(REGEX REPLACE "/M[TD][d]?"  "${MSVC_CRT_TYPE}" "${flag}"  "${${flag}}" )
-   IF(NOT "${${flag}}" MATCHES "/Zi")
+   STRING(REPLACE "/ZI " "/Zi "  "${flag}"  "${${flag}}")
+   IF((NOT "${${flag}}" MATCHES "/Zi") AND (NOT "${${flag}}" MATCHES "/Z7"))
     STRING(APPEND ${flag} " /Zi")
    ENDIF()
   ENDFOREACH()
 
   IF(CMAKE_CXX_COMPILER_ID MATCHES Clang)
      SET(CLANG_CL_FLAGS
-"-Wno-unused-parameter -Wno-unused-command-line-argument -Wno-pointer-sign -Wno-deprecated-register \
--Wno-missing-braces -Wno-unused-function -msse4.2 "
+"-Wno-unknown-warning-option -Wno-unused-private-field \
+-Wno-unused-parameter -Wno-inconsistent-missing-override \
+-Wno-unused-command-line-argument -Wno-pointer-sign \
+-Wno-deprecated-register -Wno-missing-braces \
+-Wno-unused-function -Wno-unused-local-typedef -msse4.2 "
     )
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CLANG_CL_FLAGS}")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CLANG_CL_FLAGS}")
@@ -152,8 +156,6 @@ IF(MSVC)
    STRING(REGEX REPLACE "/STACK:([^ ]+)" "" CMAKE_${type}_LINKER_FLAGS "${CMAKE_${type}_LINKER_FLAGS}")
    STRING(REGEX REPLACE "/INCREMENTAL:([^ ]+)" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO}")
    STRING(REGEX REPLACE "/INCREMENTAL$" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO}")
-   STRING(REGEX REPLACE "/INCREMENTAL:([^ ]+)" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_DEBUG "${CMAKE_${type}_LINKER_FLAGS_DEBUG}")
-   STRING(REGEX REPLACE "/INCREMENTAL$" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_DEBUG "${CMAKE_${type}_LINKER_FLAGS_DEBUG}")
    SET(CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO} /OPT:REF /release")
    IF(DYNAMIC_UCRT_LINK AND (MSVC_CRT_TYPE STREQUAL "/MT"))
      FOREACH(config RELEASE RELWITHDEBINFO DEBUG MINSIZEREL)
