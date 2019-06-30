@@ -2072,7 +2072,7 @@ static int set_user_salt(ACL_USER::AUTH *auth, plugin_ref plugin)
     auth->salt.length= len;
   }
   else
-    auth->salt= auth->auth_string;
+    auth->salt= safe_lexcstrdup_root(&acl_memroot, auth->auth_string);
 
   return 0;
 }

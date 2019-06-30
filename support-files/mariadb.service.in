@@ -43,7 +43,7 @@ PrivateNetwork=false
 User=mysql
 Group=mysql
 
-# To allow memlock to be used as non-root user if set in configuration
+# CAP_IPC_LOCK To allow memlock to be used as non-root user
 CapabilityBoundingSet=CAP_IPC_LOCK
 
 # Prevent writes to /usr, /boot, and /etc
@@ -51,8 +51,6 @@ ProtectSystem=full
 
 # Doesn't yet work properly with SELinux enabled
 # NoNewPrivileges=true
-
-PrivateDevices=true
 
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
@@ -97,6 +95,17 @@ Restart=on-abort
 RestartSec=5s
 
 UMask=007
+
+##############################################################################
+## PAM plugin section
+#
+# CAP_DAC_OVERRIDE To allow auth_pam_tool (which is SUID root) to read /etc/shadow when it's chmod 0
+#   does nothing for non-root, not needed if /etc/shadow is u+r
+# CAP_AUDIT_WRITE Needed on Debian for whatever reason
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+
+# PrivateDevices=true implies NoNewPrivileges=true and SUID doesn't work at all
+PrivateDevices=false
 
 ##############################################################################
 ## USERs can override

@@ -15,7 +15,12 @@ EOF
 
 --write_file $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
 crash pam module
-666
+616
+select user(), current_user(), database();
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+9212
 select user(), current_user(), database();
 EOF
 
@@ -37,6 +42,18 @@ EOF
 --error 1
 --exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
 
+--echo #
+--echo # athentication is successful
+--echo #
+--error 0
+--exec $MYSQL_TEST -u test_pam -pgoodpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+
+--echo #
+--echo # athentication is unsuccessful
+--echo #
+--error 1
+--exec $MYSQL_TEST -u test_pam -pbadpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+
 drop user test_pam;
 drop user pam_test;
 create user PAM_TEST identified via pam using 'mariadb_mtr';
@@ -54,6 +71,7 @@ set global pam_winbind_workaround=1;
 --exec $MYSQL_TEST -u PAM_TEST < $MYSQLTEST_VARDIR/tmp/pam_good.txt
 
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/pam_good2.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_bad.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
 drop user PAM_TEST;
