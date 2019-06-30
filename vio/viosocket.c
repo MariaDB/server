@@ -148,6 +148,10 @@ int vio_socket_io_wait(Vio *vio, enum enum_vio_io_event event)
 #define VIO_DONTWAIT 0
 #endif
 
+#ifndef SOCKET_EAGAIN
+#define SOCKET_EAGAIN SOCKET_EWOULDBLOCK
+#endif
+
 /*
   returns number of bytes read or -1 in case of an error
 */
