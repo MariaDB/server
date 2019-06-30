@@ -121,12 +121,10 @@ select x from t1;
 x
 1
 2
-# Bug #260: incorrect IB partitioning warning
+# Bug tempesta-tech/mariadb#260: incorrect IB partitioning warning
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 1 (
-partition p0 history,
-partition pn current);
+partition by system_time limit 1;
 alter table t1 change x big int;
 create or replace table t1 (i int) engine myisam partition by hash(i) partitions 2;
 alter table t1 add partition (partition px history);
@@ -134,9 +132,7 @@ ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
 ## INSERT, UPDATE, DELETE
 create or replace table t1 (x int)
 with system versioning
-partition by system_time (
-partition p0 history,
-partition pn current);
+partition by system_time;
 set @now= now(6);
 insert into t1 values (1);
 set @str= concat('select x, row_start < @now as A, row_end > @now as B from t1 partition (p0)');
@@ -222,26 +218,18 @@ select @ts2 = @ts3;
 ## rotation by LIMIT
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 0 (
-partition p0 history,
-partition p1 history,
-partition pn current);
+partition by system_time limit 0 partitions 3;
 ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 2 (
-partition p0 history,
-partition p1 history,
-partition pn current);
+partition by system_time limit 2 partitions 3;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 2
-(PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
- PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
- PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+PARTITIONS 3
 alter table t1 drop partition non_existent;
 ERROR HY000: Error in list of partitions to DROP
 insert into t1 values (1), (2), (3), (4), (5), (6);
@@ -289,25 +277,17 @@ partition pn current);
 ## rotation by INTERVAL
 create or replace table t1 (x int)
 with system versioning
-partition by system_time interval 0 second (
-partition p0 history,
-partition p1 history,
-partition pn current);
+partition by system_time interval 0 second partitions 3;
 ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
 create table t1 (i int) with system versioning
-partition by system_time interval 6 day limit 98
-(partition p0 history, partition ver_pn current);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'limit 98
-(partition p0 history, partition ver_pn current)' at line 2
+partition by system_time interval 6 day limit 98;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'limit 98' at line 2
 ## Subpartitions
 create or replace table t1 (x int)
 with system versioning
-partition by system_time limit 2
+partition by system_time limit 2 partitions 3
 subpartition by key (x)
-subpartitions 2 (
-partition p0 history,
-partition p1 history,
-partition pn current);
+subpartitions 2;
 insert into t1 (x) values (1), (2), (3), (4), (5);
 select * from t1 partition (pnsp0);
 x
@@ -366,9 +346,7 @@ add system versioning;
 insert into t1 values();
 # MDEV-14722 Assertion in ha_commit_trans for sub-statement
 create or replace table t1 (i int) with system versioning
-partition by system_time interval 1 day (
-partition p1 history,
-partition pc current);
+partition by system_time interval 1 day;
 create or replace table t2 (f int);
 create or replace trigger tr before insert on t2
 for each row select table_rows from information_schema.tables
@@ -378,9 +356,7 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 insert into t2 values (1);
 # MDEV-14740 Locking assertion for system_time partitioning
 create or replace table t1 (i int) with system versioning
-partition by system_time interval 1 week (
-partition p1 history,
-partition pn current);
+partition by system_time interval 1 week;
 create or replace table t2 (f int);
 create or replace trigger tr before insert on t2
 for each row select count(*) from t1 into @a;
@@ -415,22 +391,17 @@ delete from t1 where x = 1;
 delete from t1 where x = 2;
 # MDEV-14923 Assertion upon INSERT into locked versioned partitioned table
 create or replace table t1 (x int) with system versioning
-partition by system_time (partition p1 history, partition pn current);
+partition by system_time;
 lock table t1 write;
-alter table t1 add partition (partition p1 history);
-ERROR HY000: Duplicate partition name p1
+alter table t1 add partition (partition p0 history);
+ERROR HY000: Duplicate partition name p0
 insert into t1 values (1);
 unlock tables;
 create or replace table t1 (pk int) with system versioning
-partition by system_time interval 10 year (
-partition p1 history,
-partition p2 history,
-partition pn current
-);
+partition by system_time interval 10 year partitions 3;
 ERROR 22003: TIMESTAMP value is out of range in 'INTERVAL'
 create or replace table t1 (i int) with system versioning
-partition by system_time interval 1 hour (
-partition p0 history, partition pn current);
+partition by system_time interval 1 hour;
 set @ts=(select partition_description from information_schema.partitions
 where table_schema='test' and table_name='t1' and partition_name='p0');
 alter table t1 add column b int;
@@ -470,7 +441,7 @@ Warning	1292	Incorrect time value: 'CURRENT'
 # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
 #
 create or replace table t1 (pk int primary key, f int) with system versioning
-partition by system_time limit 100 (partition p1 history, partition pn current);
+partition by system_time limit 100;
 insert into t1 values (1,10), (2,20);
 create or replace view v1 as select * from t1;
 update v1 set f= 30;
@@ -478,7 +449,7 @@ update v1 set f= 30;
 # MDEV-15168 Unexpected ER_VERS_ENGINE_UNSUPPORTED upon dropping versioning on a partitioned table
 #
 create or replace table t (a int) with system versioning
-partition by system_time (partition p1 history, partition pn current);
+partition by system_time;
 alter table t drop system versioning;
 ERROR HY000: Can not DROP SYSTEM VERSIONING for table `t` partitioned BY SYSTEM_TIME
 # MDEV-15191 Assertion `bit < (map)->n_bits' failed in bitmap_is_set upon INSERT
@@ -492,15 +463,13 @@ insert into t1 values (4);
 unlock tables;
 # MDEV-15036 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' in Diagnostics_area::set_ok_status or unexpected ER_RANGE_NOT_INCREASING_ERROR
 create or replace table t1 (a int) with system versioning
-partition by system_time limit 2 (
-partition p1 history, partition p2 history,
-partition p3 history, partition pn current);
+partition by system_time limit 2 partitions 4;
 insert into t1 values (1),(2),(3);
 update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
 # MDEV-14823 Wrong error message upon selecting from a system_time partition
-create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
+create or replace table t1 (i int) with system versioning partition by system_time limit 10;
 select * from t1 partition (p0) for system_time all;
 ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
 # MDEV-15380 Index for versioned table gets corrupt after partitioning and DELETE
@@ -525,9 +494,7 @@ delete from t1 where pk in (11, 12);
 # MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
 #
 create or replace table t1 (pk int) with system versioning
-partition by system_time interval 7 second (
-partition ver_p1 history,
-partition ver_pn current);
+partition by system_time interval 7 second;
 alter table t1
 partition by system_time interval column_get(column_create(7,7), 7 as int) second (
 partition ver_p1 history,
@@ -563,5 +530,39 @@ unlock tables;
 create or replace table t1 (pk int primary key) with system versioning partition by system_time limit 100 (partition p1 history, partition pn current);
 execute immediate 'select * from t1 for update';
 pk
+#
+# MDEV-19903 Setup default partitions for system versioning
+#
+create or replace table t1 (x int) with system versioning partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 2
+# 2 partitions are created: p0 and pn
+select PARTITION_NAME, PARTITION_METHOD, PARTITION_DESCRIPTION from information_schema.partitions where table_name = 't1' order by PARTITION_NAME;
+PARTITION_NAME	PARTITION_METHOD	PARTITION_DESCRIPTION
+p0	SYSTEM_TIME	NULL
+pn	SYSTEM_TIME	CURRENT
+create or replace table t1 (x int) with system versioning partition by system_time partitions 4;
+Warnings:
+Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 4
+# 4 partitions are created: p0, p1, p2 and pn
+select PARTITION_NAME, PARTITION_METHOD, PARTITION_DESCRIPTION from information_schema.partitions where table_name = 't1' order by PARTITION_NAME;
+PARTITION_NAME	PARTITION_METHOD	PARTITION_DESCRIPTION
+p0	SYSTEM_TIME	NULL
+p1	SYSTEM_TIME	NULL
+p2	SYSTEM_TIME	NULL
+pn	SYSTEM_TIME	CURRENT
+# Test cleanup
 drop view v1;
 drop tables t, t1, t2, t3, t4;
