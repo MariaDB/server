@@ -8,6 +8,14 @@ pam_use_cleartext_plugin	ON
 #
 # same test as in pam.test now fails
 #
+#
+# success
+#
+user()	current_user()	database()
+test_pam@localhost	pam_test@%	NULL
+#
+# failure
+#
 drop user test_pam;
 drop user pam_test;
 uninstall plugin pam;

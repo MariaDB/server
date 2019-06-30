@@ -38,23 +38,29 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
   if (pam_err != PAM_SUCCESS || !resp || !((r1= resp[1].resp)))
     goto ret;
 
-  free(resp);
-
-  msg[0].msg_style = PAM_PROMPT_ECHO_ON;
-  msg[0].msg = "PIN:";
-  pam_err = (*conv->conv)(1, msgp, &resp, conv->appdata_ptr);
-
-  if (pam_err != PAM_SUCCESS || !resp || !((r2= resp[0].resp)))
-    goto ret;
-
-  /* Produce the crash for testing purposes. */
-  if (strcmp(r1, "crash pam module") == 0 && atoi(r2) == 616)
-    abort();
-
-  if (strlen(r1) == (uint)atoi(r2) % 100)
+  if (strcmp(r1, "cleartext good") == 0)
     retval = PAM_SUCCESS;
-  else
+  else if (strcmp(r1, "cleartext bad") == 0)
     retval = PAM_AUTH_ERR;
+  else
+  {
+    free(resp);
+    msg[0].msg_style = PAM_PROMPT_ECHO_ON;
+    msg[0].msg = "PIN:";
+    pam_err = (*conv->conv)(1, msgp, &resp, conv->appdata_ptr);
+
+    if (pam_err != PAM_SUCCESS || !resp || !((r2= resp[0].resp)))
+      goto ret;
+
+    /* Produce the crash for testing purposes. */
+    if (strcmp(r1, "crash pam module") == 0 && atoi(r2) == 616)
+      abort();
+
+    if (strlen(r1) == (uint)atoi(r2) % 100)
+      retval = PAM_SUCCESS;
+    else
+      retval = PAM_AUTH_ERR;
+  }
 
   if (argc > 0 && argv[0])
     pam_set_item(pamh, PAM_USER, argv[0]);
