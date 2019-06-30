@@ -1,6 +1,8 @@
+CREATE DATABASE clx;
+USE clx;
 DROP TABLE IF EXISTS cx1;
 Warnings:
-Note	1051	Unknown table 'test.cx1'
+Note	1051	Unknown table 'clx.cx1'
 CREATE TABLE cx1(i BIGINT)ENGINE=clustrixdb;
 CREATE TABLE cx1(i BIGINT)ENGINE=clustrixdb;
 ERROR 42S01: Table 'cx1' already exists
@@ -10,4 +12,6 @@ i
 42
 DROP TABLE cx1;
 SHOW CREATE TABLE cx1;
-ERROR 42S02: Table 'test.cx1' doesn't exist
+ERROR 42S02: Table 'clx.cx1' doesn't exist
+USE test;
+DROP DATABASE clx;
