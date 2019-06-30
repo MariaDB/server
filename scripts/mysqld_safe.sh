@@ -754,7 +754,7 @@ safe_mysql_unix_port=${mysql_unix_port:-${MYSQL_UNIX_PORT:-@MYSQL_UNIX_ADDR@}}
 mysql_unix_port_dir=`dirname $safe_mysql_unix_port`
 if [ ! -d $mysql_unix_port_dir ]
 then
-  if ! `mkdir -p $mysql_unix_port_dir`
+  if ! mkdir -p $mysql_unix_port_dir
   then
     log_error "Fatal error Can't create database directory '$mysql_unix_port'"
     exit 1
