@@ -31,7 +31,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
   int pam_err, retval = PAM_SYSTEM_ERR;
   struct pam_message msg[N] = {
     { PAM_TEXT_INFO, "Challenge input first." },
-    { PAM_PROMPT_ECHO_ON, "Enter:" },
+    { PAM_PROMPT_ECHO_OFF, "Enter:" },
     { PAM_ERROR_MSG, "Now, the magic number!" }
   };
   const struct pam_message *msgp[N] = { msg, msg+1, msg+2 };
@@ -48,27 +48,21 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
   free(resp);
 
-  msg[0].msg_style = PAM_PROMPT_ECHO_OFF;
+  msg[0].msg_style = PAM_PROMPT_ECHO_ON;
   msg[0].msg = "PIN:";
   pam_err = (*conv->conv)(1, msgp, &resp, conv->appdata_ptr);
 
   if (pam_err != PAM_SUCCESS || !resp || !((r2= resp[0].resp)))
     goto ret;
 
+  /* Produce the crash for testing purposes. */
+  if (strcmp(r1, "crash pam module") == 0 && atoi(r2) == 616)
+    abort();
+
   if (strlen(r1) == atoi(r2) % 100)
     retval = PAM_SUCCESS;
   else
-  {
-    /* Produce the crash for testing purposes. */
-    if ((strlen(r1) == 16) &&
-        memcmp(r1, "crash pam module", 16) == 0 &&
-        atoi(r2) == 666)
-    {
-      r1= 0;
-      *((struct pam_message *) r1)= msg[0];
-    }
     retval = PAM_AUTH_ERR;
-  }
 
   if (argc > 0 && argv[0])
     pam_set_item(pamh, PAM_USER, argv[0]);
