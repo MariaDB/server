@@ -91,7 +91,16 @@ static MYSQL_SYSVAR_STR
 
 // Per thread select handler knob
 static MYSQL_THDVAR_BOOL(
-    enable_sh,
+    select_handler,
+    PLUGIN_VAR_NOCMDARG,
+    "",
+    NULL,
+    NULL,
+    1
+);
+// Per thread derived handler knob
+static MYSQL_THDVAR_BOOL(
+    derived_handler,
     PLUGIN_VAR_NOCMDARG,
     "",
     NULL,
@@ -99,12 +108,15 @@ static MYSQL_THDVAR_BOOL(
     1
 );
 
-bool get_enable_sh(THD* thd)
+bool select_handler_setting(THD* thd)
 {
-    return ( thd == NULL ) ? false : THDVAR(thd, enable_sh);
+    return ( thd == NULL ) ? false : THDVAR(thd, select_handler);
 }
 
-
+bool derived_handler_setting(THD* thd)
+{
+    return ( thd == NULL ) ? false : THDVAR(thd, derived_handler);
+}
 
 /****************************************************************************
 ** Class ha_clustrixdb_trx
@@ -1084,6 +1096,7 @@ static int clustrixdb_init(void *p)
   clustrixdb_hton->discover_table_names = clustrixdb_discover_table_names;
   clustrixdb_hton->discover_table = clustrixdb_discover_table;
   clustrixdb_hton->create_select = create_clustrixdb_select_handler;
+  clustrixdb_hton->create_derived = create_clustrixdb_derived_handler;
 
   return 0;
 }
@@ -1103,7 +1116,8 @@ static struct st_mysql_sys_var* clustrixdb_system_variables[] =
   MYSQL_SYSVAR(password),
   MYSQL_SYSVAR(port),
   MYSQL_SYSVAR(socket),
-  MYSQL_SYSVAR(enable_sh),
+  MYSQL_SYSVAR(select_handler),
+  MYSQL_SYSVAR(derived_handler),
   NULL
 };
 
