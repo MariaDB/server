@@ -1009,7 +1009,6 @@ static int fix_win_file_permissions(const char *file)
 	ACL* pOldDACL;
 	SECURITY_DESCRIPTOR* pSD = NULL;
 	EXPLICIT_ACCESS ea = { 0 };
-	BOOL isWellKnownSID = FALSE;
 	PSID pSid = NULL;
 
 	GetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
@@ -1030,15 +1029,15 @@ static int fix_win_file_permissions(const char *file)
 	ea.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
 	ACL* pNewDACL = 0;
 	DWORD err = SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
-	if (pNewDACL)
+	if (!err)
 	{
+		DBUG_ASSERT(pNewDACL);
 		SetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
 			pNewDACL, NULL);
+		LocalFree((HLOCAL)pNewDACL);
 	}
 	if (pSD != NULL)
 		LocalFree((HLOCAL)pSD);
-	if (pNewDACL != NULL)
-		LocalFree((HLOCAL)pNewDACL);
 	CloseHandle(hFile);
 	return 0;
 }

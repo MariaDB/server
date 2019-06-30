@@ -1865,7 +1865,7 @@ static enum json_types smart_read_value(json_engine_t *je,
     *value_len= (int) ((char *) je->s.c_str - *value);
   }
 
-  return je->value_type;
+  return (enum json_types)je->value_type;
 
 err_return:
   return JSV_BAD_JSON;

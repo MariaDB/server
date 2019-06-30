@@ -5709,6 +5709,7 @@ int spider_db_simple_action(
 #endif
     default:
       DBUG_ASSERT(0);
+      error_num = 0;
       break;
   }
   DBUG_RETURN(error_num);

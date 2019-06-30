@@ -5588,6 +5588,9 @@ AIO::AIO(
 	ulint		n,
 	ulint		segments)
 	:
+#ifdef WIN_ASYNC_IO
+	m_completion_port(new_completion_port()),
+#endif
 	m_slots(n),
 	m_n_segments(segments),
 	m_n_reserved()
@@ -5595,9 +5598,6 @@ AIO::AIO(
 	,m_aio_ctx(),
 	m_events(m_slots.size())
 # endif /* LINUX_NATIVE_AIO */
-#ifdef WIN_ASYNC_IO
-	,m_completion_port(new_completion_port())
-#endif
 {
 	ut_a(n > 0);
 	ut_a(m_n_segments > 0);

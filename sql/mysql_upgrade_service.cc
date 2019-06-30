@@ -514,7 +514,7 @@ int main(int argc, char **argv)
     }
     char pipe_name[64];
     snprintf(pipe_name, sizeof(pipe_name), "\\\\.\\pipe\\mysql_upgrade_service_%u",
-      GetCurrentProcessId());
+      (uint)GetCurrentProcessId());
     for (;;)
     {
       if (WaitForSingleObject(mysqld_process, 0) != WAIT_TIMEOUT)
