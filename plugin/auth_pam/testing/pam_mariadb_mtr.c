@@ -1,19 +1,11 @@
 /*
   This code is in the public domain and has no copyright.
 
-  Pam module to test pam authentication plugin. Used in pam.test.
+  Pam module to test pam authentication plugin. Used in pam tests.
   Linux only.
-
-  Compile as
   
-     gcc pam_mariadb_mtr.c -shared -lpam -fPIC -o pam_mariadb_mtr.so
-
   Install as appropriate (for example, in /lib/security/).
-  Create /etc/pam.d/mariadb_mtr with
-=========================================================
-auth            required        pam_mariadb_mtr.so pam_test
-account         required        pam_permit.so
-=========================================================
+  see also mariadb_mtr.conf
 */
 
 #include <stdlib.h>
@@ -59,7 +51,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
   if (strcmp(r1, "crash pam module") == 0 && atoi(r2) == 616)
     abort();
 
-  if (strlen(r1) == atoi(r2) % 100)
+  if (strlen(r1) == (uint)atoi(r2) % 100)
     retval = PAM_SUCCESS;
   else
     retval = PAM_AUTH_ERR;
