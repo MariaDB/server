@@ -140,7 +140,7 @@ send ALTER TABLE t1 ADD FOREIGN KEY(pk) REFERENCES t2(pk) ON UPDATE CASCADE;
 
 connect con1, localhost, root;
 SET debug_sync='now WAIT_FOR ready';
-SET lock_wait_timeout=1; # change to 0 in 10.3
+SET lock_wait_timeout=0;
 --error ER_LOCK_WAIT_TIMEOUT
 UPDATE t2 SET pk=10 WHERE pk=1;
 PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';

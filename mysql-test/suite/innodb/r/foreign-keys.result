@@ -110,7 +110,7 @@ SET debug_sync='alter_table_intermediate_table_created SIGNAL ready WAIT_FOR go'
 ALTER TABLE t1 ADD FOREIGN KEY(pk) REFERENCES t2(pk) ON UPDATE CASCADE;
 connect con1, localhost, root;
 SET debug_sync='now WAIT_FOR ready';
-SET lock_wait_timeout=1;
+SET lock_wait_timeout=0;
 UPDATE t2 SET pk=10 WHERE pk=1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
