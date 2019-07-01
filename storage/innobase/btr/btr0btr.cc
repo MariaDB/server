@@ -3453,7 +3453,8 @@ btr_lift_page_up(
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(father_block->frame));
 
-	if (page_level == 0 && index->is_instant()) {
+	if (index->is_instant()
+	    && father_block->page.id.page_no() == root_page_no) {
 		ut_ad(!father_page_zip);
 		byte* page_type = father_block->frame + FIL_PAGE_TYPE;
 		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
