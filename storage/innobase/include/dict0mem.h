@@ -1037,6 +1037,9 @@ struct dict_index_t{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether this is a spatial index */
+	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
