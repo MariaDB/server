@@ -14,6 +14,8 @@ sub skip_combinations {
   my %skip;
   $skip{'t/pam_init.inc'} = 'No pam setup for mtr'
              unless -e '/etc/pam.d/mariadb_mtr';
+  $skip{'t/pam_init.inc'} = 'Not run as user owning auth_pam_tool_dir'
+             unless -o $::plugindir . '/auth_pam_tool_dir';
   $skip{'t/cassandra.test'} = 'Cassandra is not running'
              unless cassandra_running();
   $skip{'t/cassandra_qcache.test'} = $skip{'t/cassandra.test'};
