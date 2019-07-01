@@ -2580,80 +2580,70 @@ sub setup_vardir() {
   copytree("$glob_mysql_test_dir/std_data", "$opt_vardir/std_data", "0022");
 
   # create a plugin dir and copy or symlink plugins into it
-  if ($source_dist)
+  unless($plugindir)
   {
-    $plugindir="$opt_vardir/plugins";
-    mkpath($plugindir);
-    if (IS_WINDOWS)
+    if ($source_dist)
     {
-      if (!$opt_embedded_server)
+      $plugindir="$opt_vardir/plugins";
+      mkpath($plugindir);
+      if (IS_WINDOWS)
       {
-        for (<$bindir/storage/*$opt_vs_config/*.dll>,
-             <$bindir/plugin/*$opt_vs_config/*.dll>,
-             <$bindir/libmariadb$opt_vs_config/*.dll>,
-             <$bindir/sql$opt_vs_config/*.dll>)
+        if (!$opt_embedded_server)
+        {
+          for (<$bindir/storage/*$opt_vs_config/*.dll>,
+               <$bindir/plugin/*$opt_vs_config/*.dll>,
+               <$bindir/libmariadb$opt_vs_config/*.dll>,
+               <$bindir/sql$opt_vs_config/*.dll>)
+          {
+            my $pname=basename($_);
+            copy rel2abs($_), "$plugindir/$pname";
+            set_plugin_var($pname);
+          }
+        }
+      }
+      else
+      {
+        my $opt_use_copy= 1;
+        if (symlink "$opt_vardir/run", "$plugindir/symlink_test")
+        {
+          $opt_use_copy= 0;
+          unlink "$plugindir/symlink_test";
+        }
+
+        for (<$bindir/storage/*/*.so>,
+             <$bindir/plugin/*/*.so>,
+             <$bindir/plugin/*/auth_pam_tool_dir>,
+             <$bindir/libmariadb/plugins/*/*.so>,
+             <$bindir/libmariadb/*.so>,
+             <$bindir/sql/*.so>)
         {
           my $pname=basename($_);
-          copy rel2abs($_), "$plugindir/$pname";
+          if ($opt_use_copy)
+          {
+            copy rel2abs($_), "$plugindir/$pname";
+          }
+          else
+          {
+            symlink rel2abs($_), "$plugindir/$pname";
+          }
           set_plugin_var($pname);
         }
       }
     }
     else
     {
-      my $opt_use_copy= 1;
-      if (symlink "$opt_vardir/run", "$plugindir/symlink_test")
-      {
-        $opt_use_copy= 0;
-        unlink "$plugindir/symlink_test";
-      }
-
-      for (<$bindir/plugin/auth_pam/auth_pam_tool>)
-      {
-        mkpath("$plugindir/auth_pam_tool_dir");
-        if ($opt_use_copy)
-        {
-          copy rel2abs($_), "$plugindir/auth_pam_tool_dir/auth_pam_tool"
-        }
-        else
-        {
-          symlink rel2abs($_), "$plugindir/auth_pam_tool_dir/auth_pam_tool";
-        }
-      }
-
-      for (<$bindir/storage/*/*.so>,
-           <$bindir/plugin/*/*.so>,
-           <$bindir/plugin/*/auth_pam_tool_dir>,
-           <$bindir/libmariadb/plugins/*/*.so>,
-           <$bindir/libmariadb/*.so>,
-           <$bindir/sql/*.so>)
+      # hm, what paths work for debs and for rpms ?
+      for (<$bindir/lib64/mysql/plugin/*.so>,
+           <$bindir/lib/mysql/plugin/*.so>,
+           <$bindir/lib64/mariadb/plugin/*.so>,
+           <$bindir/lib/mariadb/plugin/*.so>,
+           <$bindir/lib/plugin/*.so>,             # bintar
+           <$bindir/lib/plugin/*.dll>)
       {
         my $pname=basename($_);
-        if ($opt_use_copy)
-        {
-          copy rel2abs($_), "$plugindir/$pname";
-        }
-        else
-        {
-          symlink rel2abs($_), "$plugindir/$pname";
-        }
         set_plugin_var($pname);
+        $plugindir=dirname($_) unless $plugindir;
       }
-    }
-  }
-  else
-  {
-    $plugindir= $mysqld_variables{'plugin-dir'} || '.';
-    # hm, what paths work for debs and for rpms ?
-    for (<$bindir/lib64/mysql/plugin/*.so>,
-         <$bindir/lib/mysql/plugin/*.so>,
-         <$bindir/lib64/mariadb/plugin/*.so>,
-         <$bindir/lib/mariadb/plugin/*.so>,
-         <$bindir/lib/plugin/*.so>,             # bintar
-         <$bindir/lib/plugin/*.dll>)
-    {
-      my $pname=basename($_);
-      set_plugin_var($pname);
     }
   }
 
