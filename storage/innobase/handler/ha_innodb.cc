@@ -941,14 +941,14 @@ static MYSQL_THDVAR_STR(tmpdir,
 
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
-  {"adaptive_hash_hash_searches", (char*) &btr_cur_n_sea,	      SHOW_LONG},
-  {"adaptive_hash_non_hash_searches", (char*) &btr_cur_n_non_sea, SHOW_LONG},
+  {"adaptive_hash_hash_searches", (char*) &btr_cur_n_sea,	      SHOW_SIZE_T},
+  {"adaptive_hash_non_hash_searches", (char*) &btr_cur_n_non_sea, SHOW_SIZE_T},
 #endif
   {"background_log_sync", 
-  (char*) &srv_log_writes_and_flush,	  SHOW_ULONG},
+  (char*) &srv_log_writes_and_flush,	  SHOW_SIZE_T},
 #if defined(LINUX_NATIVE_AIO)
   {"buffered_aio_submitted",
-  (char*) &srv_stats.buffered_aio_submitted,     SHOW_LONG},
+  (char*) &srv_stats.buffered_aio_submitted,     SHOW_SIZE_T},
 #endif
   {"buffer_pool_dump_status",
   (char*) &export_vars.innodb_buffer_pool_dump_status,	  SHOW_CHAR},
@@ -985,7 +985,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"buffer_pool_pages_total",
   (char*) &export_vars.innodb_buffer_pool_pages_total,	  SHOW_LONG},
   {"buffer_pool_pages_LRU_flushed", 
-  &buf_lru_flush_page_count, 							  SHOW_ULONG},
+  (char*) &buf_lru_flush_page_count, 					  SHOW_SIZE_T},
   {"buffer_pool_read_ahead_rnd",
   (char*) &export_vars.innodb_buffer_pool_read_ahead_rnd, SHOW_LONG},
   {"buffer_pool_read_ahead",
@@ -1071,7 +1071,7 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_mem_adaptive_hash,	  SHOW_SIZE_T},
 #endif
   {"mem_dictionary",
-  (char*) &export_vars.innodb_mem_dictionary,		  SHOW_LONG},
+  (char*) &export_vars.innodb_mem_dictionary,		  SHOW_SIZE_T},
   {"os_log_fsyncs",
   (char*) &export_vars.innodb_os_log_fsyncs,		  SHOW_LONG},
   {"os_log_pending_fsyncs",

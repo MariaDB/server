@@ -32,7 +32,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0types.h"
 
 /** Number of pages flushed through non flush_list flushes. */
-extern ulong buf_lru_flush_page_count;
+extern ulint buf_lru_flush_page_count;
 
 /** Flag indicating if the page_cleaner is in active state. */
 extern bool buf_page_cleaner_is_active;
