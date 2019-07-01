@@ -64,7 +64,7 @@
     CREATE TABLE t1 (c VARBINARY(65534));
     CREATE TABLE t1 (c VARBINARY(65535));
   Like VARCHAR(65536), they will be converted to BLOB automatically
-  in non-sctict mode.
+  in non-strict mode.
 */
 #define MAX_FIELD_VARCHARLENGTH	(65535-2-1)
 #define MAX_FIELD_BLOBLENGTH UINT_MAX32         /* cf field_blob::get_length() */
