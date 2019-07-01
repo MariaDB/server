@@ -491,6 +491,9 @@ create_log_files(
 
 	/* Create a log checkpoint. */
 	log_mutex_enter();
+	if (log_sys->is_encrypted() && !log_crypt_init()) {
+		return DB_ERROR;
+	}
 	ut_d(recv_no_log_write = false);
 	log_sys->lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
 
@@ -1920,8 +1923,7 @@ innobase_start_or_create_for_mysql()
 
 	srv_log_file_size_requested = srv_log_file_size;
 
-	if ((srv_encrypt_log || innodb_encrypt_temporary_tables)
-	    && !log_crypt_init()) {
+	if (innodb_encrypt_temporary_tables && !log_crypt_init()) {
 		return srv_init_abort(DB_ERROR);
 	}
 
