@@ -1,0 +1,11 @@
+#
+# Bug#19419026 WHEN A TABLESPACE IS NOT FOUND, DO NOT REPORT "TABLE NOT FOUND"
+#
+CREATE DATABASE `..................................................`;
+USE `..................................................`;
+CREATE TABLE `..................................................` (ID INT)
+ENGINE=INNODB;
+select * from `..................................................`;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+DROP TABLE `..................................................`;
+DROP DATABASE `..................................................`;

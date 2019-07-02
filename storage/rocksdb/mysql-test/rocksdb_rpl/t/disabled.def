@@ -28,4 +28,5 @@ rpl_gtid_crash_safe : Didn't try with MariaDB, yet
 rpl_gtid_crash_safe_wal_corrupt : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot_without_gtid : Didn't try with MariaDB, yet
-
+rpl_rocksdb_slave_gtid_info_optimized: requires slave-gtid-info=optimized which is an FB/MySQL-only feature
+rocksdb_slave_check_before_image_consistency: requires slave_check_before_image_consistency feature

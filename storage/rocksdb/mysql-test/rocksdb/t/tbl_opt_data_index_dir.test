@@ -34,6 +34,7 @@ CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=rocksdb PARTITION BY RANGE 
         DATA DIRECTORY =  '/foo/bar/data/',
     PARTITION P2 VALUES LESS THAN (MAXVALUE)
 );
+show warnings;
 
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE t1 (id int not null primary key) ENGINE=rocksdb PARTITION BY RANGE (id)
@@ -44,3 +45,4 @@ CREATE TABLE t1 (id int not null primary key) ENGINE=rocksdb PARTITION BY RANGE 
        INDEX DIRECTORY =  '/foo/bar/data/',
    PARTITION P2 VALUES LESS THAN (MAXVALUE)
 );
+show warnings;

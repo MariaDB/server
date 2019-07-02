@@ -1,0 +1,97 @@
+--source include/have_rocksdb.inc
+
+--source include/have_debug.inc
+--source include/not_valgrind.inc
+
+connect (conn1, localhost, root,,test);
+
+create table t1 (
+  pk int not null primary key,
+  col1 varchar(10)
+) engine=rocksdb;
+
+insert into t1 values (1,1),(2,2),(3,3);
+
+connection conn1;
+set session debug= "+d,myrocks_busy_loop_on_row_read";
+send select * from t1 where pk=1;
+
+--echo # testing unclean shutdown on stuck instance
+connection default;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+    where info = 'select * from t1 where pk=1';
+--source include/wait_condition.inc
+--echo # Run shutdown sql command with forcing kill (exit code 127)
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2006,2013
+shutdown 1;
+--source include/wait_until_disconnected.inc
+
+--echo # verifying exit code is printed
+let $error_log=$MYSQLTEST_VARDIR/log/testlog.err;
+let SEARCH_FILE=$error_log;
+--echo # restart the server
+--exec echo "restart:--log-error=$error_log" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--error 2006,2013
+shutdown 230;
+--source include/wait_until_disconnected.inc
+let SEARCH_PATTERN=COM_SHUTDOWN received from host/user = localhost/root, exit code 230;
+--source include/search_pattern_in_file.inc
+
+--echo # restart the server
+--exec echo "restart:" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--echo # verifying SHUTDOWN is refused if exit code > 255
+--error ER_UNKNOWN_ERROR
+SHUTDOWN 256;
+--error ER_UNKNOWN_ERROR
+SHUTDOWN 10000; 
+
+--echo # verifying SHUTDOWN is refused if instances are not read only
+--error ER_UNKNOWN_ERROR
+SHUTDOWN 0 read_only;
+--error ER_UNKNOWN_ERROR
+SHUTDOWN 127 read_only;
+--error 2006,2013
+SHUTDOWN 127;
+--source include/wait_until_disconnected.inc
+
+--echo # restart the server
+--exec echo "restart:" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+connect (conn2, localhost, root,,test);
+
+connection conn2;
+set session debug= "+d,myrocks_busy_loop_on_row_read";
+send select * from t1 where pk=1;
+
+connection default;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+    where info = 'select * from t1 where pk=1';
+--source include/wait_condition.inc
+
+SET GLOBAL read_only=1;
+--echo # verifying SHUTDOWN read_only works with read_only instance
+--echo # Run shutdown sql command with forcing kill (exit code 127)
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2006,2013
+shutdown 255 read_only;
+--source include/wait_until_disconnected.inc
+
+--echo # restart the server
+--exec echo "restart:" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+disconnect conn1;
+disconnect conn2;
+drop table t1;

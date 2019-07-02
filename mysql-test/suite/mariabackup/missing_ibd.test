@@ -30,7 +30,6 @@ exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir
 
 rmdir $targetdir;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_GET_ERRNO
 select * from t1;
 drop table t1;
-

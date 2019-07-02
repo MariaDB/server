@@ -4816,20 +4816,6 @@ ibuf_print(
 	mutex_exit(&ibuf_mutex);
 }
 
-/** Check if a page is all zeroes.
-@param[in]	read_buf	database page
-@param[in]	size		page size
-@return	whether the page is all zeroes */
-static bool buf_page_is_zeroes(const byte* read_buf, const page_size_t& size)
-{
-	for (ulint i = 0; i < size.physical(); i++) {
-		if (read_buf[i] != 0) {
-			return false;
-		}
-	}
-	return true;
-}
-
 /** Check the insert buffer bitmaps on IMPORT TABLESPACE.
 @param[in]	trx	transaction
 @param[in,out]	space	tablespace being imported
@@ -4890,7 +4876,7 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		bitmap_page = ibuf_bitmap_get_map_page(
 			page_id_t(space->id, page_no), page_size, &mtr);
 
-		if (buf_page_is_zeroes(bitmap_page, page_size)) {
+		if (buf_page_is_zeroes(bitmap_page, page_size.physical())) {
 			/* This means we got all-zero page instead of
 			ibuf bitmap page. The subsequent page should be
 			all-zero pages. */
@@ -4902,7 +4888,8 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 					page_id_t(space->id, curr_page),
 					page_size, RW_S_LATCH, &mtr);
 	                        page_t*	page = buf_block_get_frame(block);
-				ut_ad(buf_page_is_zeroes(page, page_size));
+				ut_ad(buf_page_is_zeroes(
+					page, page_size.physical()));
 			}
 #endif /* UNIV_DEBUG */
 			ibuf_exit(&mtr);

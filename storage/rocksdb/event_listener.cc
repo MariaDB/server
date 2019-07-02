@@ -33,9 +33,9 @@
 
 namespace myrocks {
 
-static std::vector<Rdb_index_stats>
-extract_index_stats(const std::vector<std::string> &files,
-                    const rocksdb::TablePropertiesCollection &props) {
+static std::vector<Rdb_index_stats> extract_index_stats(
+    const std::vector<std::string> &files,
+    const rocksdb::TablePropertiesCollection &props) {
   std::vector<Rdb_index_stats> ret;
   for (auto fn : files) {
     const auto it = props.find(fn);
@@ -86,10 +86,11 @@ void Rdb_event_listener::OnExternalFileIngested(
 void Rdb_event_listener::OnBackgroundError(
     rocksdb::BackgroundErrorReason reason, rocksdb::Status *status) {
   rdb_log_status_error(*status, "Error detected in background");
+  // NO_LINT_DEBUG
   sql_print_error("RocksDB: BackgroundErrorReason: %d", (int)reason);
   if (status->IsCorruption()) {
     rdb_persist_corruption_marker();
     abort();
   }
 }
-} // namespace myrocks
+}  // namespace myrocks

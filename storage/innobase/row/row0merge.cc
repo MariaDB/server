@@ -1093,7 +1093,7 @@ row_merge_read(
 	/* If encryption is enabled decrypt buffer */
 	if (success && log_tmp_is_encrypted()) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
-					   crypt_buf, ofs, space)) {
+					   crypt_buf, ofs)) {
 			return (FALSE);
 		}
 
@@ -1142,7 +1142,7 @@ row_merge_write(
 		if (!log_tmp_block_encrypt(static_cast<const byte*>(buf),
 					   buf_len,
 					   static_cast<byte*>(crypt_buf),
-					   ofs, space)) {
+					   ofs)) {
 			return false;
 		}
 

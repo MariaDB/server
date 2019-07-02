@@ -286,6 +286,7 @@ public:
   virtual const char* func_name() const { return "isnottrue"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnottrue>(thd, this); }
+  bool eval_not_null_tables(void *) { not_null_tables_cache= 0; return false; }
 };
 
 
@@ -317,6 +318,7 @@ public:
   virtual const char* func_name() const { return "isnotfalse"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnotfalse>(thd, this); }
+  bool eval_not_null_tables(void *) { not_null_tables_cache= 0; return false; }
 };
 
 
