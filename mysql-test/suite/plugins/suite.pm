@@ -8,7 +8,7 @@ if (-d '../sql') {
   my $src = "$::bindir/plugin/auth_pam/auth_pam_tool";
   my $dst = "$::plugindir/auth_pam_tool_dir/auth_pam_tool";
   ::mkpath( "$::plugindir/auth_pam_tool_dir");
-  symlink $src, $dst or ::copy $src, $dst;
+  eval { symlink $src, $dst } or ::copy $src, $dst;
 }
 
 sub cassandra_running() { 
