@@ -9531,9 +9531,9 @@ ha_innobase::change_active_index(
 	since FT search returns rank only. In addition engine should
 	be able to retrieve FTS_DOC_ID column value if necessary. */
 	if (m_prebuilt->index->type & DICT_FTS) {
-		for (ulint i = 0; i < table->s->fields; i++) {
+		for (uint i = 0; i < table->s->fields; i++) {
 			if (m_prebuilt->read_just_key
-			    && bitmap_get_next_set(table->read_set, i)
+			    && bitmap_is_set(table->read_set, i)
 			    && !strcmp(table->s->field[i]->field_name.str,
 				       FTS_DOC_ID_COL_NAME)) {
 				m_prebuilt->fts_doc_id_in_read_set = true;
