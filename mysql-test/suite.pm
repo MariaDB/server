@@ -77,11 +77,11 @@ sub skip_combinations {
   my $openssl_cnf='/etc/ssl/openssl.cnf';
   if ($openssl_ver and open my $f, '<', $openssl_cnf) {
     local $/;
-    $_=<$f>;
+    my $cnf=<$f>;
     $skip{'main/tls_version.test'} = "TLSv1.1 disabled in $openssl_cnf"
-      if /^\s*MinProtocol\s*=\s*TLSv1.[2-9]/m;
+      if $cnf =~ /^\s*MinProtocol\s*=\s*TLSv1.[2-9]/m;
     $skip{'main/tls_version1.test'} = "TLSv1.0 disabled in $openssl_cnf"
-      if /^\s*MinProtocol\s*=\s*TLSv1.[1-9]/m;
+      if $cnf =~ /^\s*MinProtocol\s*=\s*TLSv1.[1-9]/m;
   }
 
   %skip;
