@@ -9691,7 +9691,7 @@ ha_innobase::change_active_index(
 		for (uint i = 0; i < table->s->fields; i++) {
 			if (m_prebuilt->read_just_key
 			    && bitmap_is_set(table->read_set, i)
-			    && !strcmp(table->s->field[i]->field_name.str,
+			    && !strcmp(table->s->field[i]->field_name,
 				       FTS_DOC_ID_COL_NAME)) {
 				m_prebuilt->fts_doc_id_in_read_set = true;
 				break;
