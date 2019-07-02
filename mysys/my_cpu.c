@@ -58,8 +58,13 @@ unsigned my_cpu_relax_multiplier = 200;
   that. In some AMD processors, the PAUSE instruction could take 40 or
   50 cycles. Let us use a shorter delay multiplier for them as well.
 
-  The 1/10 scaling factor (200/20) was derived experimentally by
-  Mikhail Sinyavin from Intel.
+  The 1/2 scaling factor (200/100) was derived experimentally by
+  Steve Shaw from Intel and Sergey Vojtovich from MariaDB Foundation.
+  In an earlier experiment on MySQL code base, a 1/10 scaling factor
+  (200/20) seemed to work best.
+
+  The basic idea of the detection algorithm (run 16 PAUSE instructions
+  between RDTSC) was suggested by Mikhail Sinyavin from Intel.
 */
 void my_cpu_init(void)
 {
@@ -70,6 +75,6 @@ void my_cpu_init(void)
   PAUSE16;
   t2= my_timer_cycles();
   if (t2 - t1 > 30 * 16 && t1 - t0 > 30 * 16)
-    my_cpu_relax_multiplier= 20;
+    my_cpu_relax_multiplier= 100;
 }
 #endif

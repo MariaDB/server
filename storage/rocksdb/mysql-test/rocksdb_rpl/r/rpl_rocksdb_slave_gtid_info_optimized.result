@@ -1,0 +1,43 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+Make changes in master
+create table test1 (a int primary key, b int) engine=rocksdb;
+insert into test1 values (1, 1);
+Make sure slave is up-to-date and mysql.slave_gtid_info is good
+select * from test1;
+a	b
+1	1
+select id, database_name, last_gtid from mysql.slave_gtid_info;
+id	database_name	last_gtid
+1	test	UUID:2
+Make changes in master
+insert into test1 values (2, 2);
+Make sure slave is up-to-date and mysql.slave_gtid_info is good
+select @@slave_gtid_info;
+@@slave_gtid_info
+OPTIMIZED
+select * from test1;
+a	b
+1	1
+2	2
+select * from mysql.slave_gtid_info;
+Id	Database_name	Last_gtid
+1	test	UUID:3
+Make changes in master
+insert into test1 values (3, 3);
+insert into test1 values (4, 4);
+Make sure slave is up-to-date and mysql.slave_gtid_info is good
+select * from test1;
+a	b
+1	1
+2	2
+3	3
+4	4
+select id, database_name, last_gtid from mysql.slave_gtid_info;
+id	database_name	last_gtid
+1	test	UUID:5
+DROP TABLE IF EXISTS test1;
+include/rpl_end.inc

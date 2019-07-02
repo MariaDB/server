@@ -3810,7 +3810,7 @@ open_or_create_log_file(
 	fil_space_t* space,
 	ulint	i)			/*!< in: log file number in group */
 {
-	char	name[10000];
+	char	name[FN_REFLEN];
 	ulint	dirnamelen;
 
 	os_normalize_path(srv_log_group_home_dir);

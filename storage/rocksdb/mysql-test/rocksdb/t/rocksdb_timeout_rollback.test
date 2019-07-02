@@ -1,0 +1,78 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+SET @@global.rocksdb_rollback_on_timeout = 1;
+show variables like 'rocksdb_rollback_on_timeout';
+
+create table t1 (a int unsigned not null primary key) engine = rocksdb;
+insert into t1 values (1);
+commit;
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+connection con2;
+begin work;
+insert into t1 values (5);
+insert into t1 values (6);
+
+update t1 set a = a + 1 where a = 1;
+
+connection con1;
+begin work;
+insert into t1 values (7);
+insert into t1 values (8);
+
+# This statement will time out. The whole transaction will be
+# rolled back. So values 7 and 8 are not inserted.
+--error ER_LOCK_WAIT_TIMEOUT
+update t1 set a = a + 1 where a = 1;
+
+select * from t1;
+commit;
+
+connection con2;
+select * from t1;
+commit;
+
+connection default;
+select * from t1;
+
+SET @@global.rocksdb_rollback_on_timeout = 0;
+show variables like 'rocksdb_rollback_on_timeout';
+
+connection con2;
+begin work;
+insert into t1 values (9);
+insert into t1 values (10);
+
+update t1 set a = a + 1 where a = 2;
+
+connection con1;
+begin work;
+insert into t1 values (11);
+insert into t1 values (12);
+
+# This statement will time out. Only this statement will be
+# rolled back. So values 11 and 12 are inserted.
+--error ER_LOCK_WAIT_TIMEOUT
+update t1 set a = a + 1 where a = 2;
+
+select * from t1;
+commit;
+
+connection con2;
+select * from t1;
+commit;
+
+connection default;
+select * from t1;
+
+SET @@global.rocksdb_rollback_on_timeout = DEFAULT;
+
+drop table t1;
+disconnect con1;
+disconnect con2;

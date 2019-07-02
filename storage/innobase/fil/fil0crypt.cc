@@ -2621,7 +2621,8 @@ fil_space_crypt_close_tablespace(
 {
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 
-	if (!crypt_data || srv_n_fil_crypt_threads == 0) {
+	if (!crypt_data || srv_n_fil_crypt_threads == 0
+	    || !fil_crypt_threads_inited) {
 		return;
 	}
 

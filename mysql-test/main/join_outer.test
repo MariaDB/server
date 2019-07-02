@@ -2041,6 +2041,29 @@ ORDER BY tb1.i1;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-19790 : IS NOT TRUE / IS NOT FALSE predicates over
+--echo #              inner tables of outer joins
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (3), (7), (1);
+insert into t2 values (7), (4), (3);
+select * from t1 left join t2 on a=b;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not true;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not false;
+eval $q;
+eval explain extended $q;
+
+drop table t1,t2;
+
 --echo # end of 5.5 tests
 
 --echo #

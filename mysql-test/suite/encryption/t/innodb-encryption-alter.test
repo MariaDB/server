@@ -123,6 +123,8 @@ SET DEBUG_SYNC = 'now WAIT_FOR done';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 COMMIT;
 
+let $restart_parameters = --innodb_encryption_threads=2;
+let $restart_noprint = 2;
 --let $shutdown_timeout= 0
 --source include/restart_mysqld.inc
 disconnect con1;

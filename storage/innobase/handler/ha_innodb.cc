@@ -1151,6 +1151,12 @@ static SHOW_VAR innodb_status_variables[]= {
   {"encryption_n_rowlog_blocks_decrypted",
   (char*)&export_vars.innodb_n_rowlog_blocks_decrypted,
    SHOW_LONGLONG},
+  {"encryption_n_temp_blocks_encrypted",
+  (char*)&export_vars.innodb_n_temp_blocks_encrypted,
+   SHOW_LONGLONG},
+  {"encryption_n_temp_blocks_decrypted",
+  (char*)&export_vars.innodb_n_temp_blocks_decrypted,
+   SHOW_LONGLONG},
 
   /* scrubing */
   {"scrub_background_page_reorganizations",
@@ -3792,7 +3798,8 @@ static int innodb_init_params()
 	}
 #endif
 
-	if ((srv_encrypt_tables || srv_encrypt_log)
+	if ((srv_encrypt_tables || srv_encrypt_log
+	     || innodb_encrypt_temporary_tables)
 	     && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
 		sql_print_error("InnoDB: cannot enable encryption, "
 				"encryption plugin is not available");
@@ -6195,7 +6202,7 @@ no_such_table:
 
 		if (!thd_tablespace_op(thd)) {
 			set_my_errno(ENOENT);
-			int ret_err = HA_ERR_NO_SUCH_TABLE;
+			int ret_err = HA_ERR_TABLESPACE_MISSING;
 
 			if (space && space->crypt_data
 			    && space->crypt_data->is_encrypted()) {
@@ -9378,7 +9385,7 @@ ha_innobase::index_read(
 			table->s->table_name.str);
 
 		table->status = STATUS_NOT_FOUND;
-		error = HA_ERR_NO_SUCH_TABLE;
+		error = HA_ERR_TABLESPACE_MISSING;
 		break;
 
 	case DB_TABLESPACE_NOT_FOUND:
@@ -9389,8 +9396,7 @@ ha_innobase::index_read(
 			table->s->table_name.str);
 
 		table->status = STATUS_NOT_FOUND;
-		//error = HA_ERR_TABLESPACE_MISSING;
-		error =  HA_ERR_NO_SUCH_TABLE;
+		error = HA_ERR_TABLESPACE_MISSING;
 		break;
 
 	default:
@@ -9531,15 +9537,16 @@ ha_innobase::change_active_index(
 	/* Initialization of search_tuple is not needed for FT index
 	since FT search returns rank only. In addition engine should
 	be able to retrieve FTS_DOC_ID column value if necessary. */
-	if ((m_prebuilt->index->type & DICT_FTS)) {
-#ifdef MYSQL_STORE_FTS_DOC_ID
-		if (table->fts_doc_id_field
-		    && bitmap_is_set(table->read_set,
-				     table->fts_doc_id_field->field_index
-				     && m_prebuilt->read_just_key)) {
-			m_prebuilt->fts_doc_id_in_read_set = 1;
+	if (m_prebuilt->index->type & DICT_FTS) {
+		for (uint i = 0; i < table->s->fields; i++) {
+			if (m_prebuilt->read_just_key
+			    && bitmap_is_set(table->read_set, i)
+			    && !strcmp(table->s->field[i]->field_name.str,
+				       FTS_DOC_ID_COL_NAME)) {
+				m_prebuilt->fts_doc_id_in_read_set = true;
+				break;
+			}
 		}
-#endif
 	} else {
 		ulint n_fields = dict_index_get_n_unique_in_tree(
 			m_prebuilt->index);
@@ -9552,13 +9559,10 @@ ha_innobase::change_active_index(
 
 		/* If it's FTS query and FTS_DOC_ID exists FTS_DOC_ID field is
 		always added to read_set. */
-
-#ifdef MYSQL_STORE_FTS_DOC_ID
-		m_prebuilt->fts_doc_id_in_read_set =
-			(m_prebuilt->read_just_key && table->fts_doc_id_field
-			 && m_prebuilt->in_fts_query);
-#endif
-
+		m_prebuilt->fts_doc_id_in_read_set = m_prebuilt->in_fts_query
+			&& m_prebuilt->read_just_key
+			&& m_prebuilt->index->contains_col_or_prefix(
+				m_prebuilt->table->fts->doc_col, false);
 	}
 
 	/* MySQL changes the active index for a handle also during some
@@ -9637,7 +9641,7 @@ ha_innobase::general_fetch(
 			table->s->table_name.str);
 
 		table->status = STATUS_NOT_FOUND;
-		error = HA_ERR_NO_SUCH_TABLE;
+		error = HA_ERR_TABLESPACE_MISSING;
 		break;
 	case DB_TABLESPACE_NOT_FOUND:
 
@@ -9946,7 +9950,7 @@ ha_innobase::ft_init_ext(
 
 	/* If tablespace is discarded, we should return here */
 	if (!ft_table->space) {
-		my_error(ER_NO_SUCH_TABLE, MYF(0), table->s->db.str,
+		my_error(ER_TABLESPACE_MISSING, MYF(0), table->s->db.str,
 			 table->s->table_name.str);
 		return(NULL);
 	}
@@ -10163,7 +10167,7 @@ next_record:
 				table->s->table_name.str);
 
 			table->status = STATUS_NOT_FOUND;
-			error = HA_ERR_NO_SUCH_TABLE;
+			error = HA_ERR_TABLESPACE_MISSING;
 			break;
 		case DB_TABLESPACE_NOT_FOUND:
 
@@ -11144,6 +11148,17 @@ err_col:
 	dict_table_add_system_columns(table, heap);
 
 	if (table->is_temporary()) {
+		if ((options->encryption == 1
+		     && !innodb_encrypt_temporary_tables)
+		    || (options->encryption == 2
+			&& innodb_encrypt_temporary_tables)) {
+			push_warning_printf(m_thd,
+					    Sql_condition::WARN_LEVEL_WARN,
+					    ER_ILLEGAL_HA_CREATE_OPTION,
+					    "Ignoring encryption parameter during "
+					    "temporary table creation.");
+		}
+
 		m_trx->table_id = table->id
 			= dict_sys.get_temporary_table_id();
 		ut_ad(dict_tf_get_rec_format(table->flags)
@@ -15599,7 +15614,7 @@ ha_innobase::external_lock(
 					    ER_TABLESPACE_DISCARDED,
 					    table->s->table_name.str);
 
-				DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+				DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
 			}
 
 			row_quiesce_table_start(m_prebuilt->table, trx);
@@ -19949,6 +19964,11 @@ static MYSQL_SYSVAR_BOOL(debug_force_scrubbing,
 			 NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
+static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tables,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Enrypt the temporary table data.",
+  NULL, NULL, false);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -20155,6 +20175,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #endif
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
+  MYSQL_SYSVAR(encrypt_temporary_tables),
 
   NULL
 };

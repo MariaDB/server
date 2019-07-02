@@ -2514,6 +2514,40 @@ WHERE tb1.pk = 40
 ORDER BY tb1.i1;
 v2
 DROP TABLE t1,t2;
+#
+# MDEV-19790 : IS NOT TRUE / IS NOT FALSE predicates over
+#              inner tables of outer joins
+#
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (3), (7), (1);
+insert into t2 values (7), (4), (3);
+select * from t1 left join t2 on a=b;
+a	b
+3	3
+7	7
+1	NULL
+select * from t1 left join t2 on a=b where (b > 3) is not true;
+a	b
+3	3
+1	NULL
+explain extended select * from t1 left join t2 on a=b where (b > 3) is not true;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`b` = `test`.`t1`.`a`) where `test`.`t2`.`b` > 3 is not true
+select * from t1 left join t2 on a=b where (b > 3) is not false;
+a	b
+7	7
+1	NULL
+explain extended select * from t1 left join t2 on a=b where (b > 3) is not false;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`b` = `test`.`t1`.`a`) where `test`.`t2`.`b` > 3 is not false
+drop table t1,t2;
 # end of 5.5 tests
 #
 # MDEV-19258: chained right joins all converted to inner joins

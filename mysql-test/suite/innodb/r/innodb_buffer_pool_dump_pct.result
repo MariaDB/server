@@ -1,0 +1,22 @@
+CREATE TABLE tab5 (col1 int auto_increment primary key,
+col2 VARCHAR(25), col3 varchar(25)) ENGINE=InnoDB;
+CREATE INDEX idx1 ON tab5(col2(10));
+CREATE INDEX idx2 ON tab5(col3(10));
+SET GLOBAL innodb_buffer_pool_filename=ib_buffer_pool100;
+SET GLOBAL innodb_buffer_pool_dump_pct=100;
+SELECT variable_value INTO @IBPDS
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
+SET GLOBAL innodb_buffer_pool_dump_now=ON;
+SET GLOBAL innodb_buffer_pool_filename=ib_buffer_pool1;
+SET GLOBAL innodb_buffer_pool_dump_pct=1;
+SELECT @@global.innodb_buffer_pool_dump_pct;
+@@global.innodb_buffer_pool_dump_pct
+1
+SELECT variable_value INTO @IBPDS
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
+SET GLOBAL innodb_buffer_pool_dump_now=ON;
+SET GLOBAL innodb_buffer_pool_dump_pct=DEFAULT;
+SET GLOBAL innodb_buffer_pool_filename=DEFAULT;
+DROP TABLE tab5;

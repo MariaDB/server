@@ -4295,6 +4295,11 @@ fil_io(
 
 	req_type.set_fil_node(node);
 
+	ut_ad(!req_type.is_write()
+	      || page_id.space() == SRV_LOG_SPACE_FIRST_ID
+	      || !fil_is_user_tablespace_id(page_id.space())
+	      || offset == page_id.page_no() * zip_size);
+
 	/* Queue the aio request */
 	dberr_t err = os_aio(
 		req_type,
