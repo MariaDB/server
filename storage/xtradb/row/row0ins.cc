@@ -1299,7 +1299,7 @@ row_ins_foreign_check_on_constraint(
 	err = wsrep_append_foreign_key(
 				       thr_get_trx(thr),
 				       foreign,
-				       clust_rec,
+				       cascade->pcur->old_rec,
 				       clust_index,
 				       FALSE, WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
@@ -1676,6 +1676,11 @@ run_again:
 						check_index,
 						check_ref,
 						key_type);
+
+					if (err != DB_SUCCESS) {
+						fprintf(stderr,
+							"WSREP: foreign key append failed: %d\n", err);
+					}
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
