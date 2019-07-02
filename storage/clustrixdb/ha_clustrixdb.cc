@@ -119,61 +119,6 @@ bool derived_handler_setting(THD* thd)
 }
 
 /****************************************************************************
-** Class ha_clustrixdb_trx
-****************************************************************************/
-st_clustrixdb_trx::st_clustrixdb_trx(THD *trx_thd)
-{
-  thd = trx_thd;
-  clustrix_net = NULL;
-  //query_id = 0;
-  //mem_root = NULL;
-  has_transaction = FALSE;
-}
-
-st_clustrixdb_trx::~st_clustrixdb_trx()
-{
-  if (clustrix_net)
-    delete clustrix_net;
-}
-
-
-int st_clustrixdb_trx::net_init()
-{
-  if (!this->clustrix_net)
-  {
-    this->clustrix_net = new clustrix_connection();
-    int error_code = this->clustrix_net->connect();
-    if (error_code)
-      return error_code;
-  }
-
-  return 0;
-}
-
-int st_clustrixdb_trx::begin_trans()
-{
-  // XXX: What were these for?
-  //if (thd->transaction.stmt.trans_did_ddl() ||
-  //  thd->transaction.stmt.modified_non_trans_table)
-
-  if (!has_transaction) {
-    int error_code = this->clustrix_net->begin_trans();
-    if (error_code)
-      return error_code;
-
-    /* Register for commit/rollback on the transaction */
-    if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-      trans_register_ha(thd, FALSE, clustrixdb_hton);
-    else
-      trans_register_ha(thd, TRUE, clustrixdb_hton);
-
-    has_transaction = TRUE;
-  }
-
-  return 0;
-}
-
-/****************************************************************************
 ** Utility functions
 ****************************************************************************/
 // This is a wastefull aproach but better then fixed sized buffer.
@@ -205,18 +150,19 @@ void decode_objectname(char *buf, const char *path, size_t buf_size)
     buf[new_path_len] = '\0';
 }
 
-st_clustrixdb_trx *get_trx(THD *thd, int *error_code)
+clustrix_connection *get_trx(THD *thd, int *error_code)
 {
   *error_code = 0;
-  st_clustrixdb_trx *trx;
-  if (!(trx = (st_clustrixdb_trx *)thd_get_ha_data(thd, clustrixdb_hton)))
+  clustrix_connection *trx;
+  if (!(trx = (clustrix_connection *)thd_get_ha_data(thd, clustrixdb_hton)))
   {
-    if (!(trx = new st_clustrixdb_trx(thd))) {
+    if (!(trx = new clustrix_connection())) {
       *error_code = HA_ERR_OUT_OF_MEM;
       return NULL;
     }
 
-    if ((*error_code = trx->net_init())) {
+    *error_code = trx->connect();
+    if (*error_code) {
       delete trx;
       return NULL;
     }
@@ -251,7 +197,7 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 {
   int error_code;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -287,10 +233,10 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
       createdb_stmt.append("CREATE DATABASE IF NOT EXISTS `");
       createdb_stmt.append(form->s->db.str, form->s->db.length);
       createdb_stmt.append("`");
-      trx->clustrix_net->create_table(createdb_stmt);
+      trx->create_table(createdb_stmt);
   }
 
-  error_code = trx->clustrix_net->create_table(create_table_stmt);
+  error_code = trx->create_table(create_table_stmt);
   return error_code;
 }
 
@@ -298,7 +244,7 @@ int ha_clustrixdb::delete_table(const char *path)
 {
   int error_code;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -309,7 +255,7 @@ int ha_clustrixdb::delete_table(const char *path)
 
   char decoded_tbname[FN_REFLEN];
   decode_objectname(decoded_tbname, dbname_end + 1, FN_REFLEN);
-  
+
   String delete_cmd;
   delete_cmd.append("DROP TABLE `");
   delete_cmd.append(path + 2, dbname_end - path - 2);
@@ -318,14 +264,14 @@ int ha_clustrixdb::delete_table(const char *path)
   delete_cmd.append("`");
 
 
-  return trx->clustrix_net->delete_table(delete_cmd);
+  return trx->delete_table(delete_cmd);
 }
 
-int ha_clustrixdb::rename_table(const char* from, const char* to) 
+int ha_clustrixdb::rename_table(const char* from, const char* to)
 {
   int error_code;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -343,7 +289,7 @@ int ha_clustrixdb::rename_table(const char* from, const char* to)
 
   char decoded_to_tbname[FN_REFLEN];
   decode_objectname(decoded_to_tbname, to_dbname_end + 1, FN_REFLEN);
- 
+
   String rename_cmd;
   rename_cmd.append("RENAME TABLE `");
   rename_cmd.append(from + 2, from_dbname_end - from - 2);
@@ -355,7 +301,7 @@ int ha_clustrixdb::rename_table(const char* from, const char* to)
   rename_cmd.append(decoded_to_tbname);
   rename_cmd.append("`;");
 
-  return trx->clustrix_net->rename_table(rename_cmd);
+  return trx->rename_table(rename_cmd);
 }
 
 
@@ -398,11 +344,11 @@ int ha_clustrixdb::write_row(uchar *buf)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
-  assert(trx->has_transaction);
+  assert(trx->has_stmt_trans());
 
   /* Convert the row format to binlog (packed) format */
   uchar *packed_new_row = (uchar*) my_alloca(estimate_row_size(table));
@@ -410,12 +356,12 @@ int ha_clustrixdb::write_row(uchar *buf)
 
   /* XXX: Clustrix may needs to return HA_ERR_AUTOINC_ERANGE if we hit that
      error. */
-  if ((error_code = trx->clustrix_net->write_row(clustrix_table_oid,
-                                                 packed_new_row, packed_size)))
+  if ((error_code = trx->write_row(clustrix_table_oid,
+                                   packed_new_row, packed_size)))
     goto err;
 
   if (table->next_number_field)
-    insert_id_for_cur_row = trx->clustrix_net->last_insert_id;
+    insert_id_for_cur_row = trx->last_insert_id;
 
 err:
     if (packed_size)
@@ -428,11 +374,11 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
 {
   int error_code;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
-  assert(trx->has_transaction);
+  assert(trx->has_stmt_trans());
 
   size_t row_size = estimate_row_size(table);
   uchar *packed_new_row = (uchar*) my_alloca(row_size);
@@ -456,19 +402,19 @@ int ha_clustrixdb::delete_row(const uchar *buf)
 {
   int error_code;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
-  assert(trx->has_transaction);
+  assert(trx->has_stmt_trans());
 
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   build_key_packed_row(table->s->primary_key, packed_key, &packed_key_len);
 
-  if ((error_code = trx->clustrix_net->key_delete(clustrix_table_oid,
-                                                  packed_key, packed_key_len)))
+  if ((error_code = trx->key_delete(clustrix_table_oid,
+                                    packed_key, packed_key_len)))
     goto err;
 
 err:
@@ -565,7 +511,7 @@ int ha_clustrixdb::index_init(uint idx, bool sorted)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -583,7 +529,7 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   DBUG_ENTER("ha_clustrixdb::index_read");
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
@@ -596,10 +542,9 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->clustrix_net->key_read(clustrix_table_oid,
-                                                active_index, table->read_set,
-                                                packed_key, packed_key_len,
-                                                &rowdata, &rowdata_length)))
+  if ((error_code = trx->key_read(clustrix_table_oid, active_index,
+                                  table->read_set, packed_key, packed_key_len,
+                                  &rowdata, &rowdata_length)))
     goto err;
 
   uchar const *current_row_end;
@@ -620,7 +565,7 @@ int ha_clustrixdb::index_first(uchar *buf)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -640,11 +585,9 @@ int ha_clustrixdb::index_first(uchar *buf)
   bitmap_set_all(&scan_fields);
 #endif
 
-  if ((error_code = trx->clustrix_net->scan_init(clustrix_table_oid,
-                                                 active_index,
-                                                 clustrix_connection::SORT_NONE,
-                                                 &scan_fields,
-                                                 &scan_refid)))
+  if ((error_code = trx->scan_init(clustrix_table_oid, active_index,
+                                   clustrix_connection::SORT_NONE, &scan_fields,
+                                   &scan_refid)))
     return error_code;
 
 
@@ -655,7 +598,7 @@ int ha_clustrixdb::index_last(uchar *buf)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -675,11 +618,9 @@ int ha_clustrixdb::index_last(uchar *buf)
   bitmap_set_all(&scan_fields);
 #endif
 
-  if ((error_code = trx->clustrix_net->scan_init(clustrix_table_oid,
-                                                 active_index,
-                                                 clustrix_connection::SORT_NONE,
-                                                 &scan_fields,
-                                                 &scan_refid)))
+  if ((error_code = trx->scan_init(clustrix_table_oid, active_index,
+                                   clustrix_connection::SORT_NONE, &scan_fields,
+                                   &scan_refid)))
     return error_code;
 
 
@@ -721,7 +662,7 @@ int ha_clustrixdb::rnd_init(bool scan)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -744,11 +685,9 @@ int ha_clustrixdb::rnd_init(bool scan)
   bitmap_set_all(&scan_fields);
 #endif
 
-  if ((error_code = trx->clustrix_net->scan_init(clustrix_table_oid,
-                                                 0,
-                                                 clustrix_connection::SORT_NONE,
-                                                 &scan_fields,
-                                                 &scan_refid)))
+  if ((error_code = trx->scan_init(clustrix_table_oid, 0,
+                                   clustrix_connection::SORT_NONE, &scan_fields,
+                                   &scan_refid)))
     return error_code;
 
   return 0;
@@ -758,7 +697,7 @@ int ha_clustrixdb::rnd_next(uchar *buf)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -767,8 +706,7 @@ int ha_clustrixdb::rnd_next(uchar *buf)
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->clustrix_net->scan_next(scan_refid, &rowdata,
-                                                 &rowdata_length)))
+  if ((error_code = trx->scan_next(scan_refid, &rowdata, &rowdata_length)))
     return error_code;
 
   if (has_hidden_key) {
@@ -797,7 +735,7 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
 
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
@@ -818,10 +756,9 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->clustrix_net->key_read(clustrix_table_oid, 0,
-                                                table->read_set,
-                                                packed_key, packed_key_len,
-                                                &rowdata, &rowdata_length)))
+  if ((error_code = trx->key_read(clustrix_table_oid, 0, table->read_set,
+                                  packed_key, packed_key_len,
+                                  &rowdata, &rowdata_length)))
     goto err;
 
   uchar const *current_row_end;
@@ -843,12 +780,12 @@ int ha_clustrixdb::rnd_end()
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
   my_bitmap_free(&scan_fields);
-  if (scan_refid && (error_code = trx->clustrix_net->scan_end(scan_refid)))
+  if (scan_refid && (error_code = trx->scan_end(scan_refid)))
     return error_code;
   scan_refid = 0;
 
@@ -885,9 +822,14 @@ THR_LOCK_DATA **ha_clustrixdb::store_lock(THD *thd,
 int ha_clustrixdb::external_lock(THD *thd, int lock_type)
 {
   int error_code;
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
-  if (lock_type != F_UNLCK)
+  clustrix_connection *trx = get_trx(thd, &error_code);
+  if (lock_type != F_UNLCK) {
     trx->begin_trans();
+    trx->begin_stmt_trans();
+    trans_register_ha(thd, FALSE, clustrixdb_hton);
+    if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+      trans_register_ha(thd, TRUE, clustrixdb_hton);
+  }
 
   //if (lock_type != F_UNLCK)
     //DBUG_ASSERT(trx && trx == get_trx(thd, &error_code));
@@ -985,17 +927,14 @@ void ha_clustrixdb::build_key_packed_row(uint index, uchar *packed_key,
 static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
 {
   int error_code = 0;
-  st_clustrixdb_trx* trx = (st_clustrixdb_trx *) thd_get_ha_data(thd, hton);
+  clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  if (trx->has_transaction)
-  {
-    if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-    {
-      error_code = trx->clustrix_net->commit_trans();
-      trx->has_transaction = FALSE;
-    }
-  }
+  if (trx->has_stmt_trans() && ((error_code = trx->commit_stmt_trans())))
+    return error_code;
+
+  if (all && trx->has_trans())
+      error_code = trx->commit_trans();
 
   return error_code;
 }
@@ -1003,17 +942,14 @@ static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
 static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
 {
   int error_code = 0;
-  st_clustrixdb_trx* trx = (st_clustrixdb_trx *) thd_get_ha_data(thd, hton);
+  clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  if (trx->has_transaction)
-  {
-    if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-    {
-      error_code = trx->clustrix_net->rollback_trans();
-      trx->has_transaction = FALSE;
-    }
-  }
+  if (trx->has_stmt_trans() && ((error_code = trx->rollback_stmt_trans())))
+    return error_code;
+
+  if (all || trx->has_trans())
+    error_code = trx->rollback_trans();
 
   return error_code;
 }
@@ -1026,11 +962,11 @@ static handler* clustrixdb_create_handler(handlerton *hton, TABLE_SHARE *table,
 
 static int clustrixdb_close_connection(handlerton* hton, THD* thd)
 {
-  st_clustrixdb_trx* trx = (st_clustrixdb_trx *) thd_get_ha_data(thd, hton);
+  clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   if (!trx)
     return 0; /* Transaction is not started */
 
-  if (trx->has_transaction)
+  if (trx->has_stmt_trans())
     clustrixdb_rollback(clustrixdb_hton, thd, TRUE);
 
   delete trx;

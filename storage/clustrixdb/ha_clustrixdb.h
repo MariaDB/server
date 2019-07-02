@@ -21,26 +21,8 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "../../sql/rpl_record.h"
 
 size_t estimate_row_size(TABLE *table);
-class st_clustrixdb_trx;
-st_clustrixdb_trx *get_trx(THD *thd, int *error_code);
+clustrix_connection *get_trx(THD *thd, int *error_code);
 bool get_enable_sh(THD* thd);
-
-class ha_clustrixdb;
-
-class st_clustrixdb_trx
-{
-public:
-  THD *thd;
-  clustrix_connection *clustrix_net;
-  //query_id_t query_id;
-  //MEM_ROOT mem_root;  /* Memory allocated for the executing transaction */
-  bool has_transaction;
-
-  st_clustrixdb_trx(THD* trx_thd);
-  ~st_clustrixdb_trx();
-  int net_init();
-  int begin_trans();
-};
 
 class ha_clustrixdb : public handler
 {
