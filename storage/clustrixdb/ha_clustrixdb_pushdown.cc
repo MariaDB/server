@@ -99,7 +99,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   int error_code = 0;
   int field_metadata_size = 0;
   ulonglong scan_refid = 0;
-  st_clustrixdb_trx *trx = 0;
+  clustrix_connection *trx = NULL;
 
   // We presume this number is equal to types.elements in get_field_types
   uint items_number = select_lex->get_item_list()->elements;
@@ -125,7 +125,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   if (!trx)
     goto err;
 
-  if ((error_code = trx->clustrix_net->scan_query_init(query, fieldtype, items_number,
+  if ((error_code = trx->scan_query_init(query, fieldtype, items_number,
         null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
     goto err;
   }
@@ -169,12 +169,12 @@ ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
 ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
 {
     int error_code;
-    st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+    clustrix_connection *trx = get_trx(thd, &error_code);
     if (!trx) {
       // TBD Log this
     }
     if (trx && scan_refid)
-      trx->clustrix_net->scan_end(scan_refid);
+      trx->scan_end(scan_refid);
 
     // If the ::init_scan has been executed
     if (table__)
@@ -217,7 +217,7 @@ int ha_clustrixdb_select_handler::init_scan()
 int ha_clustrixdb_select_handler::next_row()
 {
   int error_code = 0;
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -225,8 +225,7 @@ int ha_clustrixdb_select_handler::next_row()
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->clustrix_net->scan_next(scan_refid, &rowdata,
-                                                 &rowdata_length)))
+  if ((error_code = trx->scan_next(scan_refid, &rowdata, &rowdata_length)))
     return error_code;
 
   uchar const *current_row_end;
@@ -284,7 +283,7 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
   int error_code = 0;
   int field_metadata_size = 0;
   ulonglong scan_refid = 0;
-  st_clustrixdb_trx *trx = 0;
+  clustrix_connection *trx = NULL;
 
   // We presume this number is equal to types.elements in get_field_types
   uint items_number = select_lex->get_item_list()->elements;
@@ -310,7 +309,7 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
   if (!trx)
     goto err;
 
-  if ((error_code = trx->clustrix_net->scan_query_init(query, fieldtype, items_number,
+  if ((error_code = trx->scan_query_init(query, fieldtype, items_number,
         null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
     goto err;
   }
@@ -354,12 +353,12 @@ ha_clustrixdb_derived_handler::ha_clustrixdb_derived_handler(
 ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
 {
     int error_code;
-    st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+    clustrix_connection *trx = get_trx(thd, &error_code);
     if (!trx) {
       // TBD Log this.
     }
     if (trx && scan_refid)
-      trx->clustrix_net->scan_end(scan_refid);
+      trx->scan_end(scan_refid);
 
     // If the ::init_scan has been executed
     if (table__)
@@ -402,7 +401,7 @@ int ha_clustrixdb_derived_handler::init_scan()
 int ha_clustrixdb_derived_handler::next_row()
 {
   int error_code = 0;
-  st_clustrixdb_trx *trx = get_trx(thd, &error_code);
+  clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -410,8 +409,7 @@ int ha_clustrixdb_derived_handler::next_row()
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->clustrix_net->scan_next(scan_refid, &rowdata,
-                                                 &rowdata_length)))
+  if ((error_code = trx->scan_next(scan_refid, &rowdata, &rowdata_length)))
     return error_code;
 
   uchar const *current_row_end;

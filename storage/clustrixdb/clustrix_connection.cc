@@ -154,10 +154,14 @@ int clustrix_connection::read_query_response()
 
 int clustrix_connection::begin_trans()
 {
+  if (has_transaction)
+      return 0;
+
   const char *stmt = "BEGIN TRANSACTION";
   int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
   if (error_code)
     return mysql_errno(&clustrix_net);
+  has_transaction = TRUE;
   return error_code;
 }
 
@@ -167,6 +171,8 @@ int clustrix_connection::commit_trans()
   int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
   if (error_code)
     return mysql_errno(&clustrix_net);
+  has_transaction = FALSE;
+  has_statement_trans = FALSE;
   return error_code;
 }
 
@@ -176,6 +182,41 @@ int clustrix_connection::rollback_trans()
   int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
   if (error_code)
     return mysql_errno(&clustrix_net);
+  has_transaction = FALSE;
+  has_statement_trans = FALSE;
+  return error_code;
+}
+
+int clustrix_connection::begin_stmt_trans()
+{
+  if (has_statement_trans)
+    return 0;
+
+  const char *stmt = "SAVEPOINT STMT_TRANS";
+  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
+  if (error_code)
+    return mysql_errno(&clustrix_net);
+  has_statement_trans = TRUE;
+  return error_code;
+}
+
+int clustrix_connection::commit_stmt_trans()
+{
+  const char *stmt = "RELEASE SAVEPOINT STMT_TRANS";
+  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
+  if (error_code)
+    return mysql_errno(&clustrix_net);
+  has_statement_trans = FALSE;
+  return error_code;
+}
+
+int clustrix_connection::rollback_stmt_trans()
+{
+  const char *stmt = "ROLLBACK TO STMT_TRANS";
+  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
+  if (error_code)
+    return mysql_errno(&clustrix_net);
+  has_statement_trans = FALSE;
   return error_code;
 }
 
@@ -330,7 +371,7 @@ int clustrix_connection::scan_init(ulonglong clustrix_table_oid, uint index,
  *   Sends a command over mysql protocol connection to initiate an
  *   arbitrary query using a query text.
  *   Uses field types, field metadata and nullability to explicitly
- *   cast result to expected data type. Exploits RBR TABLE_MAP_EVENT 
+ *   cast result to expected data type. Exploits RBR TABLE_MAP_EVENT
  *   format + sends SQL text.
  * @args
  *   stmt& Query text to send
@@ -356,7 +397,7 @@ int clustrix_connection::scan_query_init(String &stmt, uchar *fieldtype,
 
   if ((error_code = add_command_operand_str(fieldtype, fields)))
     return error_code;
-    
+
   if ((error_code = add_command_operand_str(field_metadata, field_metadata_size)))
     return error_code;
 

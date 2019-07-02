@@ -36,12 +36,17 @@ private:
   uchar *reply_buffer;
   size_t reply_length;
 
+  bool has_transaction;
+  bool has_statement_trans;
+
 public:
   ulonglong last_insert_id;
   clustrix_connection()
     : command_buffer(NULL), command_buffer_length(0), command_length(0)
   {
     memset(&clustrix_net, 0, sizeof(MYSQL));
+    has_statement_trans = FALSE;
+    has_transaction = FALSE;
   }
 
   ~clustrix_connection()
@@ -64,6 +69,18 @@ public:
   int begin_trans();
   int commit_trans();
   int rollback_trans();
+  inline bool has_trans()
+  {
+    return has_transaction;
+  }
+
+  int begin_stmt_trans();
+  int commit_stmt_trans();
+  int rollback_stmt_trans();
+  inline bool has_stmt_trans()
+  {
+    return has_statement_trans;
+  }
 
   int create_table(String &stmt);
   int delete_table(String &stmt);
