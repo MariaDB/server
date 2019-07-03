@@ -3613,7 +3613,7 @@ bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
     DBUG_RETURN(TRUE);
 
   if (with_ret)
-	  (void)sel_res->prepare(lex->field_list, NULL);
+	  (void)sel_res->prepare(ret_list, NULL);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
@@ -3685,6 +3685,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   table_map map= 0;
   SELECT_LEX *lex_current_select_save= lex->current_select;
   DBUG_ENTER("select_insert::prepare");
+  SELECT_LEX* select_lex = thd->lex->first_select_lex();
 
   unit= u;
 
@@ -3695,7 +3696,10 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   */
   lex->current_select= lex->first_select_lex();
 
-  res= (setup_fields(thd, Ref_ptr_array(),
+  res= (((select_lex->with_wild && setup_wild(thd, table_list, select_lex->returning_list, NULL, select_lex->with_wild,
+		&select_lex->hidden_bit_fields)) ||
+		setup_fields(thd, Ref_ptr_array(),
+			select_lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0))||setup_fields(thd, Ref_ptr_array(),
                      values, MARK_COLUMNS_READ, 0, NULL, 0) ||
         check_insert_fields(thd, table_list, *fields, values,
                             !insert_into_view, 1, &map));
@@ -3876,7 +3880,7 @@ int select_insert::prepare2(JOIN *)
     DBUG_RETURN(1);
   if (select_insert::with_returning_list)
   {
-	  select_insert::sel_result_list->send_result_set_metadata(lex->field_list,
+	  sel_result_list->send_result_set_metadata(ret_list,
 		  Protocol::SEND_NUM_ROWS |
 		  Protocol::SEND_EOF);
 
@@ -3945,7 +3949,7 @@ int select_insert::send_data(List<Item> &values)
       DBUG_RETURN(1);
     }
   }
-  if (select_insert::with_returning_list && select_insert::sel_result_list->send_data(lex->field_list) < 0)
+  if (with_returning_list && sel_result_list->send_data(ret_list) < 0)
   {
 	  error = 1;
   }
@@ -4106,7 +4110,7 @@ bool select_insert::send_ok_packet() {
      (info.copied ? autoinc_value_of_last_inserted_row : 0));
 
   if (select_insert::with_returning_list)
-	  select_insert::sel_result_list->send_eof();
+	  sel_result_list->send_eof();
   else
      ::my_ok(thd, row_count, id, message);
 
