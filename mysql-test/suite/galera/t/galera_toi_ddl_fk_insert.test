@@ -6,13 +6,12 @@
 # This test creates a new FK constraint while concurrent INSERTS are running
 #
 
-CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 
 CREATE TABLE parent (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    f2 INTEGER,
-    KEY (id)
+    f2 INTEGER
 ) ENGINE=InnoDB;
 
 CREATE TABLE child (
@@ -41,7 +40,6 @@ INSERT INTO parent VALUES (1, 0);
 --let $galera_server_number = 1
 --source include/galera_connect.inc
 --connection node_1b
---sleep 2
 --send ALTER TABLE child ADD FOREIGN KEY (parent_id) REFERENCES parent(id);
 
 --connection node_1a
@@ -57,14 +55,15 @@ INSERT INTO parent VALUES (1, 0);
 --reap
 
 --connection node_1
-SELECT COUNT(*) = 20001 FROM parent;
-SELECT COUNT(*) = 10000 FROM child;
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) FROM parent;
+SELECT COUNT(*) FROM child;
 
 --connection node_2
-SELECT COUNT(*) = 20001 FROM parent;
-SELECT COUNT(*) = 10000 FROM child;
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) FROM parent;
+SELECT COUNT(*) FROM child;
 
 DROP TABLE child;
 DROP TABLE parent;
-
 DROP TABLE ten;

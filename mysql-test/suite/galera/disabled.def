@@ -32,7 +32,6 @@ galera_parallel_autoinc_largetrx : MDEV-19746 Galera test failures because of ws
 galera_parallel_autoinc_manytrx : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
-galera_toi_ddl_fk_insert : MDEV-19939: Galera test failure on galera_toi_ddl_fk_insert
 galera_var_slave_threads : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 
