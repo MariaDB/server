@@ -794,8 +794,6 @@ void init_update_queries(void)
     Note that SQLCOM_RENAME_TABLE should not be in this list!
   */
   sql_command_flags[SQLCOM_CREATE_TABLE]|=    CF_PREOPEN_TMP_TABLES;
-  sql_command_flags[SQLCOM_DROP_TABLE]|=      CF_PREOPEN_TMP_TABLES;
-  sql_command_flags[SQLCOM_DROP_SEQUENCE]|=   CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_CREATE_INDEX]|=    CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_ALTER_TABLE]|=     CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_TRUNCATE]|=        CF_PREOPEN_TMP_TABLES;
@@ -4081,31 +4079,7 @@ mysql_execute_command(THD *thd)
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
-  case SQLCOM_SHOW_SLAVE_STAT:
-  {
-    /* Accept one of two privileges */
-    if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
-      goto error;
 
-    if (lex->verbose)
-    {
-      mysql_mutex_lock(&LOCK_active_mi);
-      res= show_all_master_info(thd);
-      mysql_mutex_unlock(&LOCK_active_mi);
-    }
-    else
-    {
-      LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
-      Master_info *mi;
-      if ((mi= get_master_info(&lex_mi->connection_name,
-                               Sql_condition::WARN_LEVEL_ERROR)))
-      {
-        res= show_master_info(thd, mi, 0);
-        mi->release();
-      }
-    }
-    break;
-  }
   case SQLCOM_SHOW_MASTER_STAT:
   {
     /* Accept one of two privileges */
@@ -4130,285 +4104,6 @@ mysql_execute_command(THD *thd)
       res = ha_show_status(thd, lex->create_info.db_type, HA_ENGINE_MUTEX);
       break;
     }
-  case SQLCOM_CREATE_SEQUENCE:
-  case SQLCOM_CREATE_TABLE:
-  {
-    DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    bool link_to_local;
-    TABLE_LIST *create_table= first_table;
-    TABLE_LIST *select_tables= lex->create_last_non_select_table->next_global;
-
-    if (lex->tmp_table())
-    {
-      status_var_decrement(thd->status_var.com_stat[SQLCOM_CREATE_TABLE]);
-      status_var_increment(thd->status_var.com_create_tmp_table);
-    }
-
-    /*
-      Code below (especially in mysql_create_table() and select_create
-      methods) may modify HA_CREATE_INFO structure in LEX, so we have to
-      use a copy of this structure to make execution prepared statement-
-      safe. A shallow copy is enough as this code won't modify any memory
-      referenced from this structure.
-    */
-    Table_specification_st create_info(lex->create_info);
-    /*
-      We need to copy alter_info for the same reasons of re-execution
-      safety, only in case of Alter_info we have to do (almost) a deep
-      copy.
-    */
-    Alter_info alter_info(lex->alter_info, thd->mem_root);
-    if (unlikely(thd->is_fatal_error))
-    {
-      /* If out of memory when creating a copy of alter_info. */
-      res= 1;
-      goto end_with_restore_list;
-    }
-
-    /* Check privileges */
-    if ((res= create_table_precheck(thd, select_tables, create_table)))
-      goto end_with_restore_list;
-
-    /* Might have been updated in create_table_precheck */
-    create_info.alias= create_table->alias;
-
-    /* Fix names if symlinked or relocated tables */
-    if (append_file_to_dir(thd, &create_info.data_file_name,
-			   &create_table->table_name) ||
-	append_file_to_dir(thd, &create_info.index_file_name,
-			   &create_table->table_name))
-      goto end_with_restore_list;
-
-    /*
-      If no engine type was given, work out the default now
-      rather than at parse-time.
-    */
-    if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
-      create_info.use_default_db_type(thd);
-
-    /*
-      If we are using SET CHARSET without DEFAULT, add an implicit
-      DEFAULT to not confuse old users. (This may change).
-    */
-    if ((create_info.used_fields &
-	 (HA_CREATE_USED_DEFAULT_CHARSET | HA_CREATE_USED_CHARSET)) ==
-	HA_CREATE_USED_CHARSET)
-    {
-      create_info.used_fields&= ~HA_CREATE_USED_CHARSET;
-      create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
-      create_info.default_table_charset= create_info.table_charset;
-      create_info.table_charset= 0;
-    }
-
-    /*
-      If we are a slave, we should add OR REPLACE if we don't have
-      IF EXISTS. This will help a slave to recover from
-      CREATE TABLE OR EXISTS failures by dropping the table and
-      retrying the create.
-    */
-    if (thd->slave_thread &&
-        slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
-        !lex->create_info.if_not_exists())
-    {
-      create_info.add(DDL_options_st::OPT_OR_REPLACE);
-      create_info.add(DDL_options_st::OPT_OR_REPLACE_SLAVE_GENERATED);
-    }
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    thd->work_part_info= 0;
-    {
-      partition_info *part_info= thd->lex->part_info;
-      if (part_info && !(part_info= part_info->get_clone(thd)))
-      {
-        res= -1;
-        goto end_with_restore_list;
-      }
-      thd->work_part_info= part_info;
-    }
-#endif
-
-    if (select_lex->item_list.elements)		// With select
-    {
-      select_result *result;
-
-      /*
-        CREATE TABLE...IGNORE/REPLACE SELECT... can be unsafe, unless
-        ORDER BY PRIMARY KEY clause is used in SELECT statement. We therefore
-        use row based logging if mixed or row based logging is available.
-        TODO: Check if the order of the output of the select statement is
-        deterministic. Waiting for BUG#42415
-      */
-      if(lex->ignore)
-        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_IGNORE_SELECT);
-
-      if(lex->duplicates == DUP_REPLACE)
-        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_REPLACE_SELECT);
-
-      /*
-        If:
-        a) we inside an SP and there was NAME_CONST substitution,
-        b) binlogging is on (STMT mode),
-        c) we log the SP as separate statements
-        raise a warning, as it may cause problems
-        (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
-       */
-      if (thd->query_name_consts && mysql_bin_log.is_open() &&
-          thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
-          !mysql_bin_log.is_query_in_union(thd, thd->query_id))
-      {
-        List_iterator_fast<Item> it(select_lex->item_list);
-        Item *item;
-        uint splocal_refs= 0;
-        /* Count SP local vars in the top-level SELECT list */
-        while ((item= it++))
-        {
-          if (item->get_item_splocal())
-            splocal_refs++;
-        }
-        /*
-          If it differs from number of NAME_CONST substitution applied,
-          we may have a SOME_FUNC(NAME_CONST()) in the SELECT list,
-          that may cause a problem with binary log (see BUG#35383),
-          raise a warning. 
-        */
-        if (splocal_refs != thd->query_name_consts)
-          push_warning(thd, 
-                       Sql_condition::WARN_LEVEL_WARN,
-                       ER_UNKNOWN_ERROR,
-"Invoked routine ran a statement that may cause problems with "
-"binary log, see 'NAME_CONST issues' in 'Binary Logging of Stored Programs' "
-"section of the manual.");
-      }
-      
-      select_lex->options|= SELECT_NO_UNLOCK;
-      unit->set_limit(select_lex);
-
-      /*
-        Disable non-empty MERGE tables with CREATE...SELECT. Too
-        complicated. See Bug #26379. Empty MERGE tables are read-only
-        and don't allow CREATE...SELECT anyway.
-      */
-      if (create_info.used_fields & HA_CREATE_USED_UNION)
-      {
-        my_error(ER_WRONG_OBJECT, MYF(0), create_table->db.str,
-                 create_table->table_name.str, "BASE TABLE");
-        res= 1;
-        goto end_with_restore_list;
-      }
-
-      res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
-      if (unlikely(res))
-      {
-        /* Got error or warning. Set res to 1 if error */
-        if (!(res= thd->is_error()))
-          my_ok(thd);                           // CREATE ... IF NOT EXISTS
-        goto end_with_restore_list;
-      }
-
-      /* Ensure we don't try to create something from which we select from */
-      if (create_info.or_replace() && !create_info.tmp_table())
-      {
-        TABLE_LIST *duplicate;
-        if (unlikely((duplicate= unique_table(thd, lex->query_tables,
-                                              lex->query_tables->next_global,
-                                              CHECK_DUP_FOR_CREATE |
-                                              CHECK_DUP_SKIP_TEMP_TABLE))))
-        {
-          update_non_unique_table_error(lex->query_tables, "CREATE",
-                                        duplicate);
-          res= TRUE;
-          goto end_with_restore_list;
-        }
-      }
-      {
-        /*
-          Remove target table from main select and name resolution
-          context. This can't be done earlier as it will break view merging in
-          statements like "CREATE TABLE IF NOT EXISTS existing_view SELECT".
-        */
-        lex->unlink_first_table(&link_to_local);
-
-        /* Store reference to table in case of LOCK TABLES */
-        create_info.table= create_table->table;
-
-        /*
-          select_create is currently not re-execution friendly and
-          needs to be created for every execution of a PS/SP.
-          Note: In wsrep-patch, CTAS is handled like a regular transaction.
-        */
-        if (unlikely((result= new (thd->mem_root)
-                      select_create(thd, create_table,
-                                    &create_info,
-                                    &alter_info,
-                                    select_lex->item_list,
-                                    lex->duplicates,
-                                    lex->ignore,
-                                    select_tables))))
-        {
-          /*
-            CREATE from SELECT give its SELECT_LEX for SELECT,
-            and item_list belong to SELECT
-          */
-          if (!(res= handle_select(thd, lex, result, 0)))
-          {
-            if (create_info.tmp_table())
-              thd->variables.option_bits|= OPTION_KEEP_LOG;
-          }
-          delete result;
-        }
-        lex->link_first_table_back(create_table, link_to_local);
-      }
-    }
-    else
-    {
-      /* regular create */
-      if (create_info.like())
-      {
-        /* CREATE TABLE ... LIKE ... */
-        res= mysql_create_like_table(thd, create_table, select_tables,
-                                     &create_info);
-      }
-      else
-      {
-        if (create_info.fix_create_fields(thd, &alter_info, *create_table) ||
-            create_info.check_fields(thd, &alter_info, *create_table))
-          goto end_with_restore_list;
-
-        /*
-          In STATEMENT format, we probably have to replicate also temporary
-          tables, like mysql replication does. Also check if the requested
-          engine is allowed/supported.
-        */
-        if (WSREP(thd) &&
-            !check_engine(thd, create_table->db.str, create_table->table_name.str,
-                          &create_info) &&
-            (!thd->is_current_stmt_binlog_format_row() ||
-             !create_info.tmp_table()))
-        {
-	  WSREP_TO_ISOLATION_BEGIN(create_table->db.str, create_table->table_name.str, NULL);
-        }
-        /* Regular CREATE TABLE */
-        res= mysql_create_table(thd, create_table, &create_info, &alter_info);
-      }
-
-      if (!res)
-      {
-        /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
-        if (create_info.tmp_table())
-          thd->variables.option_bits|= OPTION_KEEP_LOG;
-        /* in case of create temp tables if @@session_track_state_change is
-           ON then send session state notification in OK packet */
-        if(create_info.options & HA_LEX_CREATE_TMP_TABLE)
-        {
-          SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
-        }
-        my_ok(thd);
-      }
-    }
-
-end_with_restore_list:
-    break;
-  }
   case SQLCOM_CREATE_INDEX:
   case SQLCOM_DROP_INDEX:
   /*
@@ -4878,6 +4573,13 @@ end_with_restore_list:
       */
       /* Skip first table, which is the table we are inserting in */
       TABLE_LIST *second_table= first_table->next_local;
+      /*
+        This is a hack: this leaves select_lex->table_list in an inconsistent
+        state as 'elements' does not contain number of elements in the list.
+        Moreover, if second_table == NULL then 'next' becomes invalid.
+        TODO: fix it by removing the front element (restoring of it should
+        be done properly as well)
+      */
       select_lex->table_list.first= second_table;
       select_lex->context.table_list= 
         select_lex->context.first_name_resolution_table= second_table;
@@ -5071,7 +4773,14 @@ end_with_restore_list:
   case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_DROP_TABLE:
   {
+    int result;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
+
+    thd->open_options|= HA_OPEN_FOR_REPAIR;
+    result= thd->open_temporary_tables(all_tables);
+    thd->open_options&= ~HA_OPEN_FOR_REPAIR;
+    if (result)
+      goto error;
     if (!lex->tmp_table())
     {
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
@@ -6335,10 +6044,13 @@ end_with_restore_list:
   case SQLCOM_OPTIMIZE:
   case SQLCOM_REPAIR:
   case SQLCOM_TRUNCATE:
+  case SQLCOM_CREATE_TABLE:
+  case SQLCOM_CREATE_SEQUENCE:
   case SQLCOM_ALTER_TABLE:
       DBUG_ASSERT(first_table == all_tables && first_table != 0);
     /* fall through */
   case SQLCOM_ALTER_SEQUENCE:
+  case SQLCOM_SHOW_SLAVE_STAT:
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
   case SQLCOM_GET_DIAGNOSTICS:
@@ -7753,10 +7465,7 @@ void THD::reset_for_next_command(bool do_clear_error)
 void
 mysql_init_select(LEX *lex)
 {
-  SELECT_LEX *select_lex= lex->current_select;
-  select_lex->init_select();
-  lex->wild= 0;
-  lex->exchange= 0;
+  lex->init_select();
 }
 
 

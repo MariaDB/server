@@ -289,6 +289,17 @@ public:
   */
   Key_part_spec *clone(MEM_ROOT *mem_root) const
   { return new (mem_root) Key_part_spec(*this); }
+  bool check_key_for_blob(const class handler *file) const;
+  bool check_key_length_for_blob() const;
+  bool check_primary_key_for_blob(const class handler *file) const
+  {
+    return check_key_for_blob(file) || check_key_length_for_blob();
+  }
+  bool check_foreign_key_for_blob(const class handler *file) const
+  {
+    return check_key_for_blob(file) || check_key_length_for_blob();
+  }
+  bool init_multiple_key_for_blob(const class handler *file);
 };
 
 
@@ -6677,6 +6688,45 @@ class Sql_mode_save
 };
 
 
+class Sql_mode_instant_set: public Sql_mode_save
+{
+public:
+  Sql_mode_instant_set(THD *thd, sql_mode_t temporary_value)
+   :Sql_mode_save(thd)
+  {
+    thd->variables.sql_mode= temporary_value;
+  }
+};
+
+
+class Sql_mode_instant_remove: public Sql_mode_save
+{
+public:
+  Sql_mode_instant_remove(THD *thd, sql_mode_t temporary_remove_flags)
+   :Sql_mode_save(thd)
+  {
+    thd->variables.sql_mode&= ~temporary_remove_flags;
+  }
+};
+
+
+class Abort_on_warning_instant_set
+{
+  THD *m_thd;
+  bool m_save_abort_on_warning;
+public:
+  Abort_on_warning_instant_set(THD *thd, bool temporary_value)
+   :m_thd(thd), m_save_abort_on_warning(thd->abort_on_warning)
+  {
+    thd->abort_on_warning= temporary_value;
+  }
+  ~Abort_on_warning_instant_set()
+  {
+    m_thd->abort_on_warning= m_save_abort_on_warning;
+  }
+};
+
+
 /**
   This class resembles the SQL Standard schema qualified object name:
   <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>
@@ -6704,8 +6754,8 @@ public:
   bool eq(const Database_qualified_name *other) const
   {
     CHARSET_INFO *cs= lower_case_table_names ?
-                      &my_charset_utf8_general_ci :
-                      &my_charset_utf8_bin;
+                      &my_charset_utf8mb3_general_ci :
+                      &my_charset_utf8mb3_bin;
     return
       m_db.length == other->m_db.length &&
       m_name.length == other->m_name.length &&
@@ -6790,10 +6840,9 @@ public:
 class Type_holder: public Sql_alloc,
                    public Item_args,
                    public Type_handler_hybrid_field_type,
-                   public Type_all_attributes,
-                   public Type_geometry_attributes
+                   public Type_all_attributes
 {
-  TYPELIB *m_typelib;
+  const TYPELIB *m_typelib;
   bool m_maybe_null;
 public:
   Type_holder()
@@ -6816,19 +6865,11 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
-  void set_geometry_type(uint type)
-  {
-    Type_geometry_attributes::set_geometry_type(type);
-  }
-  uint uint_geometry_type() const
-  {
-    return Type_geometry_attributes::get_geometry_type();
-  }
-  void set_typelib(TYPELIB *typelib)
+  void set_typelib(const TYPELIB *typelib)
   {
     m_typelib= typelib;
   }
-  TYPELIB *get_typelib() const
+  const TYPELIB *get_typelib() const
   {
     return m_typelib;
   }

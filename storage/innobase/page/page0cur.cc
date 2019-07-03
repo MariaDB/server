@@ -1638,8 +1638,8 @@ page_cur_insert_rec_zip(
 
 			if (!log_compressed) {
 				if (page_zip_compress(
-					    page_zip, page, index,
-					    level, NULL)) {
+					    page_cur_get_block(cursor),
+					    index, level, NULL)) {
 					page_cur_insert_rec_write_log(
 						insert_rec, rec_size,
 						cursor->rec, index, mtr);

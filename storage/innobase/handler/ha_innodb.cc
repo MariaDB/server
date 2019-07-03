@@ -54,6 +54,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_bitmap.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
+#include "field.h"
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
@@ -858,7 +859,7 @@ innodb_tmpdir_validate(
 Maps a MySQL trx isolation level code to the InnoDB isolation level code
 @return	InnoDB isolation level */
 static inline
-ulint
+uint
 innobase_map_isolation_level(
 /*=========================*/
 	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code */
@@ -941,14 +942,12 @@ static MYSQL_THDVAR_STR(tmpdir,
 
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
-  {"adaptive_hash_hash_searches", (char*) &btr_cur_n_sea,	      SHOW_SIZE_T},
-  {"adaptive_hash_non_hash_searches", (char*) &btr_cur_n_non_sea, SHOW_SIZE_T},
+  {"adaptive_hash_hash_searches", &btr_cur_n_sea, SHOW_SIZE_T},
+  {"adaptive_hash_non_hash_searches", &btr_cur_n_non_sea, SHOW_SIZE_T},
 #endif
-  {"background_log_sync", 
-  (char*) &srv_log_writes_and_flush,	  SHOW_SIZE_T},
+  {"background_log_sync", &srv_log_writes_and_flush, SHOW_SIZE_T},
 #if defined(LINUX_NATIVE_AIO)
-  {"buffered_aio_submitted",
-  (char*) &srv_stats.buffered_aio_submitted,     SHOW_SIZE_T},
+  {"buffered_aio_submitted", &srv_stats.buffered_aio_submitted, SHOW_SIZE_T},
 #endif
   {"buffer_pool_dump_status",
   (char*) &export_vars.innodb_buffer_pool_dump_status,	  SHOW_CHAR},
@@ -959,283 +958,208 @@ static SHOW_VAR innodb_status_variables[]= {
   {"buffer_pool_load_incomplete",
   &export_vars.innodb_buffer_pool_load_incomplete,        SHOW_BOOL},
   {"buffer_pool_pages_data",
-  (char*) &export_vars.innodb_buffer_pool_pages_data,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_pages_data, SHOW_SIZE_T},
   {"buffer_pool_bytes_data",
-  (char*) &export_vars.innodb_buffer_pool_bytes_data,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_bytes_data, SHOW_SIZE_T},
   {"buffer_pool_pages_dirty",
-  (char*) &export_vars.innodb_buffer_pool_pages_dirty,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_pages_dirty, SHOW_SIZE_T},
   {"buffer_pool_bytes_dirty",
-  (char*) &export_vars.innodb_buffer_pool_bytes_dirty,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_bytes_dirty, SHOW_SIZE_T},
   {"buffer_pool_pages_flushed",
-  (char*) &export_vars.innodb_buffer_pool_pages_flushed,  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_pages_flushed, SHOW_SIZE_T},
   {"buffer_pool_pages_free",
-  (char*) &export_vars.innodb_buffer_pool_pages_free,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_pages_free, SHOW_SIZE_T},
 #ifdef UNIV_DEBUG
   {"buffer_pool_pages_latched",
-  (char*) &export_vars.innodb_buffer_pool_pages_latched,  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_pages_latched, SHOW_SIZE_T},
 #endif /* UNIV_DEBUG */
   {"buffer_pool_pages_made_not_young",
-  (char*) &export_vars.innodb_buffer_pool_pages_made_not_young, SHOW_SIZE_T},
+   &export_vars.innodb_buffer_pool_pages_made_not_young, SHOW_SIZE_T},
   {"buffer_pool_pages_made_young",
-  (char*) &export_vars.innodb_buffer_pool_pages_made_young, SHOW_SIZE_T},
+   &export_vars.innodb_buffer_pool_pages_made_young, SHOW_SIZE_T},
   {"buffer_pool_pages_misc",
-  (char*) &export_vars.innodb_buffer_pool_pages_misc,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_pages_misc, SHOW_SIZE_T},
   {"buffer_pool_pages_old",
-  (char*) &export_vars.innodb_buffer_pool_pages_old,	  SHOW_SIZE_T},
+   &export_vars.innodb_buffer_pool_pages_old, SHOW_SIZE_T},
   {"buffer_pool_pages_total",
-  (char*) &export_vars.innodb_buffer_pool_pages_total,	  SHOW_LONG},
-  {"buffer_pool_pages_LRU_flushed", 
-  (char*) &buf_lru_flush_page_count, 					  SHOW_SIZE_T},
+   &export_vars.innodb_buffer_pool_pages_total, SHOW_SIZE_T},
+  {"buffer_pool_pages_LRU_flushed", &buf_lru_flush_page_count, SHOW_SIZE_T},
   {"buffer_pool_read_ahead_rnd",
-  (char*) &export_vars.innodb_buffer_pool_read_ahead_rnd, SHOW_LONG},
+   &export_vars.innodb_buffer_pool_read_ahead_rnd, SHOW_SIZE_T},
   {"buffer_pool_read_ahead",
-  (char*) &export_vars.innodb_buffer_pool_read_ahead,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_read_ahead, SHOW_SIZE_T},
   {"buffer_pool_read_ahead_evicted",
-  (char*) &export_vars.innodb_buffer_pool_read_ahead_evicted, SHOW_LONG},
+   &export_vars.innodb_buffer_pool_read_ahead_evicted, SHOW_SIZE_T},
   {"buffer_pool_read_requests",
-  (char*) &export_vars.innodb_buffer_pool_read_requests,  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_read_requests, SHOW_SIZE_T},
   {"buffer_pool_reads",
-  (char*) &export_vars.innodb_buffer_pool_reads,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_reads, SHOW_SIZE_T},
   {"buffer_pool_wait_free",
-  (char*) &export_vars.innodb_buffer_pool_wait_free,	  SHOW_LONG},
+   &export_vars.innodb_buffer_pool_wait_free, SHOW_SIZE_T},
   {"buffer_pool_write_requests",
-  (char*) &export_vars.innodb_buffer_pool_write_requests, SHOW_LONG},
-  {"checkpoint_age",
-  (char*) &export_vars.innodb_checkpoint_age,		  SHOW_SIZE_T},
-  {"checkpoint_max_age",
-  (char*) &export_vars.innodb_checkpoint_max_age,	  SHOW_SIZE_T},
-  {"data_fsyncs",
-  (char*) &export_vars.innodb_data_fsyncs,		  SHOW_LONG},
-  {"data_pending_fsyncs",
-  (char*) &export_vars.innodb_data_pending_fsyncs,	  SHOW_SIZE_T},
-  {"data_pending_reads",
-  (char*) &export_vars.innodb_data_pending_reads,	  SHOW_SIZE_T},
-  {"data_pending_writes",
-  (char*) &export_vars.innodb_data_pending_writes,	  SHOW_SIZE_T},
-  {"data_read",
-  (char*) &export_vars.innodb_data_read,		  SHOW_SIZE_T},
-  {"data_reads",
-  (char*) &export_vars.innodb_data_reads,		  SHOW_SIZE_T},
-  {"data_writes",
-  (char*) &export_vars.innodb_data_writes,		  SHOW_SIZE_T},
-  {"data_written",
-  (char*) &export_vars.innodb_data_written,		  SHOW_SIZE_T},
-  {"dblwr_pages_written",
-  (char*) &export_vars.innodb_dblwr_pages_written,	  SHOW_LONG},
-  {"dblwr_writes",
-  (char*) &export_vars.innodb_dblwr_writes,		  SHOW_LONG},
-  {"deadlocks",
-  (char*) &srv_stats.lock_deadlock_count,		  SHOW_SIZE_T},
-  {"history_list_length",
-  (char*) &export_vars.innodb_history_list_length,	  SHOW_SIZE_T},
-  {"ibuf_discarded_delete_marks",
-  (char*) &export_vars.innodb_ibuf_discarded_delete_marks, SHOW_SIZE_T},
-  {"ibuf_discarded_deletes",
-  (char*) &export_vars.innodb_ibuf_discarded_deletes,	  SHOW_SIZE_T},
-  {"ibuf_discarded_inserts",
-  (char*) &export_vars.innodb_ibuf_discarded_inserts,	  SHOW_SIZE_T},
-  {"ibuf_free_list",
-  (char*) &export_vars.innodb_ibuf_free_list,		  SHOW_SIZE_T},
-  {"ibuf_merged_delete_marks",
-  (char*) &export_vars.innodb_ibuf_merged_delete_marks,	  SHOW_SIZE_T},
-  {"ibuf_merged_deletes",
-  (char*) &export_vars.innodb_ibuf_merged_deletes,	  SHOW_SIZE_T},
-  {"ibuf_merged_inserts",
-  (char*) &export_vars.innodb_ibuf_merged_inserts,	  SHOW_SIZE_T},
-  {"ibuf_merges",
-  (char*) &export_vars.innodb_ibuf_merges,		      SHOW_SIZE_T},
-  {"ibuf_segment_size",
-  (char*) &export_vars.innodb_ibuf_segment_size,	  SHOW_SIZE_T},
-  {"ibuf_size",
-  (char*) &export_vars.innodb_ibuf_size,              SHOW_SIZE_T},
-  {"log_waits",
-  (char*) &export_vars.innodb_log_waits,		  SHOW_LONG},
-  {"log_write_requests",
-  (char*) &export_vars.innodb_log_write_requests,	  SHOW_LONG},
-  {"log_writes",
-  (char*) &export_vars.innodb_log_writes,		  SHOW_LONG},
-  {"lsn_current",
-  (char*) &export_vars.innodb_lsn_current,		  SHOW_LONGLONG},
-  {"lsn_flushed",
-  (char*) &export_vars.innodb_lsn_flushed,		  SHOW_LONGLONG},
-  {"lsn_last_checkpoint",
-  (char*) &export_vars.innodb_lsn_last_checkpoint,	  SHOW_LONGLONG},
-  {"master_thread_active_loops", 
-  (char*) &srv_main_active_loops,                 SHOW_SIZE_T},
-  {"master_thread_idle_loops", 
-  (char*) &srv_main_idle_loops,                   SHOW_SIZE_T},
-  {"max_trx_id",
-  (char*) &export_vars.innodb_max_trx_id,		  SHOW_LONGLONG},
+   &export_vars.innodb_buffer_pool_write_requests, SHOW_SIZE_T},
+  {"checkpoint_age", &export_vars.innodb_checkpoint_age, SHOW_SIZE_T},
+  {"checkpoint_max_age", &export_vars.innodb_checkpoint_max_age, SHOW_SIZE_T},
+  {"data_fsyncs", &export_vars.innodb_data_fsyncs, SHOW_SIZE_T},
+  {"data_pending_fsyncs", &export_vars.innodb_data_pending_fsyncs,SHOW_SIZE_T},
+  {"data_pending_reads", &export_vars.innodb_data_pending_reads, SHOW_SIZE_T},
+  {"data_pending_writes", &export_vars.innodb_data_pending_writes,SHOW_SIZE_T},
+  {"data_read", &export_vars.innodb_data_read, SHOW_SIZE_T},
+  {"data_reads", &export_vars.innodb_data_reads, SHOW_SIZE_T},
+  {"data_writes", &export_vars.innodb_data_writes, SHOW_SIZE_T},
+  {"data_written", &export_vars.innodb_data_written, SHOW_SIZE_T},
+  {"dblwr_pages_written", &export_vars.innodb_dblwr_pages_written,SHOW_SIZE_T},
+  {"dblwr_writes", &export_vars.innodb_dblwr_writes, SHOW_SIZE_T},
+  {"deadlocks", &srv_stats.lock_deadlock_count, SHOW_SIZE_T},
+  {"history_list_length", &export_vars.innodb_history_list_length,SHOW_SIZE_T},
+  {"ibuf_discarded_delete_marks", &ibuf.n_discarded_ops[IBUF_OP_DELETE_MARK],
+   SHOW_SIZE_T},
+  {"ibuf_discarded_deletes", &ibuf.n_discarded_ops[IBUF_OP_DELETE],
+   SHOW_SIZE_T},
+  {"ibuf_discarded_inserts", &ibuf.n_discarded_ops[IBUF_OP_INSERT],
+   SHOW_SIZE_T},
+  {"ibuf_free_list", &ibuf.free_list_len, SHOW_SIZE_T},
+  {"ibuf_merged_delete_marks", &ibuf.n_merged_ops[IBUF_OP_DELETE_MARK],
+   SHOW_SIZE_T},
+  {"ibuf_merged_deletes", &ibuf.n_merged_ops[IBUF_OP_DELETE], SHOW_SIZE_T},
+  {"ibuf_merged_inserts", &ibuf.n_merged_ops[IBUF_OP_INSERT], SHOW_SIZE_T},
+  {"ibuf_merges", &ibuf.n_merges, SHOW_SIZE_T},
+  {"ibuf_segment_size", &ibuf.seg_size, SHOW_SIZE_T},
+  {"ibuf_size", &ibuf.size, SHOW_SIZE_T},
+  {"log_waits", &export_vars.innodb_log_waits, SHOW_SIZE_T},
+  {"log_write_requests", &export_vars.innodb_log_write_requests, SHOW_SIZE_T},
+  {"log_writes", &export_vars.innodb_log_writes, SHOW_SIZE_T},
+  {"lsn_current", &export_vars.innodb_lsn_current, SHOW_ULONGLONG},
+  {"lsn_flushed", &export_vars.innodb_lsn_flushed, SHOW_ULONGLONG},
+  {"lsn_last_checkpoint", &export_vars.innodb_lsn_last_checkpoint,
+   SHOW_ULONGLONG},
+  {"master_thread_active_loops", &srv_main_active_loops, SHOW_SIZE_T},
+  {"master_thread_idle_loops", &srv_main_idle_loops, SHOW_SIZE_T},
+  {"max_trx_id", &export_vars.innodb_max_trx_id, SHOW_ULONGLONG},
 #ifdef BTR_CUR_HASH_ADAPT
-  {"mem_adaptive_hash",
-  (char*) &export_vars.innodb_mem_adaptive_hash,	  SHOW_SIZE_T},
+  {"mem_adaptive_hash", &export_vars.innodb_mem_adaptive_hash, SHOW_SIZE_T},
 #endif
-  {"mem_dictionary",
-  (char*) &export_vars.innodb_mem_dictionary,		  SHOW_SIZE_T},
-  {"os_log_fsyncs",
-  (char*) &export_vars.innodb_os_log_fsyncs,		  SHOW_LONG},
-  {"os_log_pending_fsyncs",
-  (char*) &export_vars.innodb_os_log_pending_fsyncs,	  SHOW_LONG},
-  {"os_log_pending_writes",
-  (char*) &export_vars.innodb_os_log_pending_writes,	  SHOW_LONG},
-  {"os_log_written",
-  (char*) &export_vars.innodb_os_log_written,		  SHOW_LONGLONG},
-  {"page_size",
-  (char*) &export_vars.innodb_page_size,		  SHOW_LONG},
-  {"pages_created",
-  (char*) &export_vars.innodb_pages_created,		  SHOW_LONG},
-  {"pages_read",
-  (char*) &export_vars.innodb_pages_read,		  SHOW_LONG},
-  {"pages_written",
-  (char*) &export_vars.innodb_pages_written,		  SHOW_LONG},
-  {"row_lock_current_waits",
-  (char*) &export_vars.innodb_row_lock_current_waits,	  SHOW_LONG},
-  {"row_lock_time",
-  (char*) &export_vars.innodb_row_lock_time,		  SHOW_LONGLONG},
-  {"row_lock_time_avg",
-  (char*) &export_vars.innodb_row_lock_time_avg,	  SHOW_LONG},
-  {"row_lock_time_max",
-  (char*) &export_vars.innodb_row_lock_time_max,	  SHOW_LONG},
-  {"row_lock_waits",
-  (char*) &export_vars.innodb_row_lock_waits,		  SHOW_LONG},
-  {"rows_deleted",
-  (char*) &export_vars.innodb_rows_deleted,		  SHOW_LONG},
-  {"rows_inserted",
-  (char*) &export_vars.innodb_rows_inserted,		  SHOW_LONG},
-  {"rows_read",
-  (char*) &export_vars.innodb_rows_read,		  SHOW_LONG},
-  {"rows_updated",
-  (char*) &export_vars.innodb_rows_updated,		  SHOW_LONG},
-  {"system_rows_deleted",
-  (char*) &export_vars.innodb_system_rows_deleted, SHOW_LONG},
-  {"system_rows_inserted",
-  (char*) &export_vars.innodb_system_rows_inserted, SHOW_LONG},
-  {"system_rows_read",
-  (char*) &export_vars.innodb_system_rows_read, SHOW_LONG},
-  {"system_rows_updated",
-  (char*) &export_vars.innodb_system_rows_updated, SHOW_LONG},
-  {"num_open_files",
-  (char*) &export_vars.innodb_num_open_files,		  SHOW_LONG},
-  {"truncated_status_writes",
-  (char*) &export_vars.innodb_truncated_status_writes,	  SHOW_LONG},
+  {"mem_dictionary", &export_vars.innodb_mem_dictionary, SHOW_SIZE_T},
+  {"os_log_fsyncs", &export_vars.innodb_os_log_fsyncs, SHOW_SIZE_T},
+  {"os_log_pending_fsyncs", &export_vars.innodb_os_log_pending_fsyncs,
+   SHOW_SIZE_T},
+  {"os_log_pending_writes", &export_vars.innodb_os_log_pending_writes,
+   SHOW_SIZE_T},
+  {"os_log_written", &export_vars.innodb_os_log_written, SHOW_SIZE_T},
+  {"page_size", &srv_page_size, SHOW_ULONG},
+  {"pages_created", &export_vars.innodb_pages_created, SHOW_SIZE_T},
+  {"pages_read", &export_vars.innodb_pages_read, SHOW_SIZE_T},
+  {"pages_written", &export_vars.innodb_pages_written, SHOW_SIZE_T},
+  {"row_lock_current_waits", &export_vars.innodb_row_lock_current_waits,
+   SHOW_SIZE_T},
+  {"row_lock_time", &export_vars.innodb_row_lock_time, SHOW_LONGLONG},
+  {"row_lock_time_avg", &export_vars.innodb_row_lock_time_avg, SHOW_SIZE_T},
+  {"row_lock_time_max", &export_vars.innodb_row_lock_time_max, SHOW_SIZE_T},
+  {"row_lock_waits", &export_vars.innodb_row_lock_waits, SHOW_SIZE_T},
+  {"rows_deleted", &export_vars.innodb_rows_deleted, SHOW_SIZE_T},
+  {"rows_inserted", &export_vars.innodb_rows_inserted, SHOW_SIZE_T},
+  {"rows_read", &export_vars.innodb_rows_read, SHOW_SIZE_T},
+  {"rows_updated", &export_vars.innodb_rows_updated, SHOW_SIZE_T},
+  {"system_rows_deleted", &export_vars.innodb_system_rows_deleted,SHOW_SIZE_T},
+  {"system_rows_inserted", &export_vars.innodb_system_rows_inserted,
+   SHOW_SIZE_T},
+  {"system_rows_read", &export_vars.innodb_system_rows_read, SHOW_SIZE_T},
+  {"system_rows_updated", &export_vars.innodb_system_rows_updated,
+   SHOW_SIZE_T},
+  {"num_open_files", &export_vars.innodb_num_open_files, SHOW_SIZE_T},
+  {"truncated_status_writes", &export_vars.innodb_truncated_status_writes,
+   SHOW_SIZE_T},
   {"available_undo_logs", &srv_available_undo_logs, SHOW_ULONG},
-  {"undo_truncations",
-  (char*) &export_vars.innodb_undo_truncations,           SHOW_LONG},
+  {"undo_truncations", &export_vars.innodb_undo_truncations, SHOW_ULONG},
 
   /* Status variables for page compression */
   {"page_compression_saved",
-   (char*) &export_vars.innodb_page_compression_saved,    SHOW_LONGLONG},
+   &export_vars.innodb_page_compression_saved, SHOW_LONGLONG},
   {"num_index_pages_written",
-   (char*) &export_vars.innodb_index_pages_written,       SHOW_LONGLONG},
+   &export_vars.innodb_index_pages_written, SHOW_LONGLONG},
   {"num_non_index_pages_written",
-   (char*) &export_vars.innodb_non_index_pages_written,       SHOW_LONGLONG},
+   &export_vars.innodb_non_index_pages_written, SHOW_LONGLONG},
   {"num_pages_page_compressed",
-   (char*) &export_vars.innodb_pages_page_compressed,     SHOW_LONGLONG},
+   &export_vars.innodb_pages_page_compressed, SHOW_LONGLONG},
   {"num_page_compressed_trim_op",
-   (char*) &export_vars.innodb_page_compressed_trim_op,     SHOW_LONGLONG},
+   &export_vars.innodb_page_compressed_trim_op, SHOW_LONGLONG},
   {"num_pages_page_decompressed",
-   (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
+   &export_vars.innodb_pages_page_decompressed, SHOW_LONGLONG},
   {"num_pages_page_compression_error",
-   (char*) &export_vars.innodb_pages_page_compression_error,   SHOW_LONGLONG},
+   &export_vars.innodb_pages_page_compression_error, SHOW_LONGLONG},
   {"num_pages_encrypted",
-   (char*) &export_vars.innodb_pages_encrypted,   SHOW_LONGLONG},
+   &export_vars.innodb_pages_encrypted, SHOW_LONGLONG},
   {"num_pages_decrypted",
-   (char*) &export_vars.innodb_pages_decrypted,   SHOW_LONGLONG},
-  {"have_lz4",
-  (char*) &innodb_have_lz4,		  SHOW_BOOL},
-  {"have_lzo",
-  (char*) &innodb_have_lzo,		  SHOW_BOOL},
-  {"have_lzma",
-  (char*) &innodb_have_lzma,		  SHOW_BOOL},
-  {"have_bzip2",
-  (char*) &innodb_have_bzip2,		  SHOW_BOOL},
-  {"have_snappy",
-  (char*) &innodb_have_snappy,		  SHOW_BOOL},
-  {"have_punch_hole",
-  (char*) &innodb_have_punch_hole,	  SHOW_BOOL},
+   &export_vars.innodb_pages_decrypted, SHOW_LONGLONG},
+  {"have_lz4", &innodb_have_lz4, SHOW_BOOL},
+  {"have_lzo", &innodb_have_lzo, SHOW_BOOL},
+  {"have_lzma", &innodb_have_lzma, SHOW_BOOL},
+  {"have_bzip2", &innodb_have_bzip2, SHOW_BOOL},
+  {"have_snappy", &innodb_have_snappy, SHOW_BOOL},
+  {"have_punch_hole", &innodb_have_punch_hole, SHOW_BOOL},
 
   /* Defragmentation */
   {"defragment_compression_failures",
-  (char*) &export_vars.innodb_defragment_compression_failures, SHOW_LONG},
-  {"defragment_failures",
-  (char*) &export_vars.innodb_defragment_failures, SHOW_LONG},
-  {"defragment_count",
-  (char*) &export_vars.innodb_defragment_count, SHOW_LONG},
+   &export_vars.innodb_defragment_compression_failures, SHOW_SIZE_T},
+  {"defragment_failures", &export_vars.innodb_defragment_failures,SHOW_SIZE_T},
+  {"defragment_count", &export_vars.innodb_defragment_count, SHOW_SIZE_T},
 
   {"instant_alter_column",
-  (char*) &export_vars.innodb_instant_alter_column, SHOW_LONG},
+   &export_vars.innodb_instant_alter_column, SHOW_ULONG},
 
   /* Online alter table status variables */
   {"onlineddl_rowlog_rows",
-  (char*) &export_vars.innodb_onlineddl_rowlog_rows, SHOW_LONG},
+   &export_vars.innodb_onlineddl_rowlog_rows, SHOW_SIZE_T},
   {"onlineddl_rowlog_pct_used",
-  (char*) &export_vars.innodb_onlineddl_rowlog_pct_used, SHOW_LONG},
+   &export_vars.innodb_onlineddl_rowlog_pct_used, SHOW_SIZE_T},
   {"onlineddl_pct_progress",
-  (char*) &export_vars.innodb_onlineddl_pct_progress, SHOW_LONG},
+   &export_vars.innodb_onlineddl_pct_progress, SHOW_SIZE_T},
 
   /* Times secondary index lookup triggered cluster lookup and
   times prefix optimization avoided triggering cluster lookup */
   {"secondary_index_triggered_cluster_reads",
-  (char*) &export_vars.innodb_sec_rec_cluster_reads,	  SHOW_LONG},
+   &export_vars.innodb_sec_rec_cluster_reads, SHOW_SIZE_T},
   {"secondary_index_triggered_cluster_reads_avoided",
-  (char*) &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_LONG},
+   &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_SIZE_T},
 
   /* Encryption */
   {"encryption_rotation_pages_read_from_cache",
-   (char*) &export_vars.innodb_encryption_rotation_pages_read_from_cache,
-   SHOW_LONG},
+   &export_vars.innodb_encryption_rotation_pages_read_from_cache, SHOW_SIZE_T},
   {"encryption_rotation_pages_read_from_disk",
-  (char*) &export_vars.innodb_encryption_rotation_pages_read_from_disk,
-   SHOW_LONG},
+   &export_vars.innodb_encryption_rotation_pages_read_from_disk, SHOW_SIZE_T},
   {"encryption_rotation_pages_modified",
-  (char*) &export_vars.innodb_encryption_rotation_pages_modified,
-   SHOW_LONG},
+   &export_vars.innodb_encryption_rotation_pages_modified, SHOW_SIZE_T},
   {"encryption_rotation_pages_flushed",
-  (char*) &export_vars.innodb_encryption_rotation_pages_flushed,
-   SHOW_LONG},
+   &export_vars.innodb_encryption_rotation_pages_flushed, SHOW_SIZE_T},
   {"encryption_rotation_estimated_iops",
-  (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
-   SHOW_LONG},
+   &export_vars.innodb_encryption_rotation_estimated_iops, SHOW_SIZE_T},
   {"encryption_key_rotation_list_length",
-  (char*)&export_vars.innodb_key_rotation_list_length,
-   SHOW_LONGLONG},
+   &export_vars.innodb_key_rotation_list_length, SHOW_LONGLONG},
   {"encryption_n_merge_blocks_encrypted",
-  (char*)&export_vars.innodb_n_merge_blocks_encrypted,
-   SHOW_LONGLONG},
+   &export_vars.innodb_n_merge_blocks_encrypted, SHOW_LONGLONG},
   {"encryption_n_merge_blocks_decrypted",
-  (char*)&export_vars.innodb_n_merge_blocks_decrypted,
-   SHOW_LONGLONG},
+   &export_vars.innodb_n_merge_blocks_decrypted, SHOW_LONGLONG},
   {"encryption_n_rowlog_blocks_encrypted",
-  (char*)&export_vars.innodb_n_rowlog_blocks_encrypted,
-   SHOW_LONGLONG},
+   &export_vars.innodb_n_rowlog_blocks_encrypted, SHOW_LONGLONG},
   {"encryption_n_rowlog_blocks_decrypted",
-  (char*)&export_vars.innodb_n_rowlog_blocks_decrypted,
-   SHOW_LONGLONG},
+   &export_vars.innodb_n_rowlog_blocks_decrypted, SHOW_LONGLONG},
 
   /* scrubing */
   {"scrub_background_page_reorganizations",
-   (char*) &export_vars.innodb_scrub_page_reorganizations,
-   SHOW_LONG},
-  {"scrub_background_page_splits",
-   (char*) &export_vars.innodb_scrub_page_splits,
-   SHOW_LONG},
+   &export_vars.innodb_scrub_page_reorganizations, SHOW_SIZE_T},
+  {"scrub_background_page_splits", &export_vars.innodb_scrub_page_splits,
+   SHOW_SIZE_T},
   {"scrub_background_page_split_failures_underflow",
-   (char*) &export_vars.innodb_scrub_page_split_failures_underflow,
-   SHOW_LONG},
+   &export_vars.innodb_scrub_page_split_failures_underflow, SHOW_SIZE_T},
   {"scrub_background_page_split_failures_out_of_filespace",
-   (char*) &export_vars.innodb_scrub_page_split_failures_out_of_filespace,
-   SHOW_LONG},
+   &export_vars.innodb_scrub_page_split_failures_out_of_filespace,SHOW_SIZE_T},
   {"scrub_background_page_split_failures_missing_index",
-   (char*) &export_vars.innodb_scrub_page_split_failures_missing_index,
-   SHOW_LONG},
+   &export_vars.innodb_scrub_page_split_failures_missing_index, SHOW_SIZE_T},
   {"scrub_background_page_split_failures_unknown",
-   (char*) &export_vars.innodb_scrub_page_split_failures_unknown,
-   SHOW_LONG},
-  {"scrub_log",
-   (char*) &export_vars.innodb_scrub_log,
+   &export_vars.innodb_scrub_page_split_failures_unknown, SHOW_SIZE_T},
+  {"scrub_log", &export_vars.innodb_scrub_log, SHOW_LONGLONG},
+  {"encryption_num_key_requests", &export_vars.innodb_encryption_key_requests,
    SHOW_LONGLONG},
-  {"encryption_num_key_requests",
-   (char*) &export_vars.innodb_encryption_key_requests, SHOW_LONGLONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -2596,8 +2520,7 @@ ha_innobase::innobase_reset_autoinc(
 	if (error == DB_SUCCESS) {
 
 		dict_table_autoinc_initialize(m_prebuilt->table, autoinc);
-
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 	}
 
 	return(error);
@@ -4079,7 +4002,6 @@ static int innodb_init(void* p)
 	handlerton* innobase_hton= static_cast<handlerton*>(p);
 	innodb_hton_ptr = innobase_hton;
 
-	innobase_hton->state = SHOW_OPTION_YES;
 	innobase_hton->db_type = DB_TYPE_INNODB;
 	innobase_hton->savepoint_offset = sizeof(trx_named_savept_t);
 	innobase_hton->close_connection = innobase_close_connection;
@@ -5768,9 +5690,8 @@ innobase_build_v_templ(
 		const dict_v_col_t*	vcol = dict_table_get_nth_v_col(
 							ib_table, i);
 
-		for (ulint j = 0; j < vcol->num_base; j++) {
-			ulint	col_no = vcol->base_col[j]->ind;
-			marker[col_no] = true;
+		for (ulint j = vcol->num_base; j--; ) {
+			marker[vcol->base_col[j]->ind] = true;
 		}
 	}
 
@@ -5778,9 +5699,8 @@ innobase_build_v_templ(
 		for (ulint i = 0; i < add_v->n_v_col; i++) {
 			const dict_v_col_t*	vcol = &add_v->v_col[i];
 
-			for (ulint j = 0; j < vcol->num_base; j++) {
-				ulint	col_no = vcol->base_col[j]->ind;
-				marker[col_no] = true;
+			for (ulint j = vcol->num_base; j--; ) {
+				marker[vcol->base_col[j]->ind] = true;
 			}
 		}
 	}
@@ -5991,7 +5911,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 
 	const unsigned	col_no = innodb_col_no(field);
 
-	dict_table_autoinc_lock(table);
+	mutex_enter(&table->autoinc_mutex);
 
 	table->persistent_autoinc = 1
 		+ dict_table_get_nth_col_pos(table, col_no, NULL);
@@ -5999,7 +5919,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 	if (table->autoinc) {
 		/* Already initialized. Our caller checked
 		table->persistent_autoinc without
-		dict_table_autoinc_lock(), and there might be multiple
+		autoinc_mutex protection, and there might be multiple
 		ha_innobase::open() executing concurrently. */
 	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If the recovery level is set so high that writes
@@ -6021,7 +5941,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 			innobase_get_int_col_max_value(field));
 	}
 
-	dict_table_autoinc_unlock(table);
+	mutex_exit(&table->autoinc_mutex);
 }
 
 /** Open an InnoDB table
@@ -6075,11 +5995,6 @@ no_such_table:
 		set_my_errno(ENOENT);
 
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-	}
-
-	if (!ib_table->not_redundant()) {
-		m_int_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
-		cached_table_flags |= HA_EXTENDED_TYPES_CONVERSION;
 	}
 
 	size_t n_fields = omits_virtual_cols(*table_share)
@@ -7862,7 +7777,7 @@ ha_innobase::innobase_lock_autoinc(void)
 	switch (innobase_autoinc_lock_mode) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
-		dict_table_autoinc_lock(m_prebuilt->table);
+		mutex_enter(&m_prebuilt->table->autoinc_mutex);
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
@@ -7877,14 +7792,14 @@ ha_innobase::innobase_lock_autoinc(void)
 		) {
 
 			/* Acquire the AUTOINC mutex. */
-			dict_table_autoinc_lock(m_prebuilt->table);
+			mutex_enter(&m_prebuilt->table->autoinc_mutex);
 
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (m_prebuilt->table->n_waiting_or_granted_auto_inc_locks) {
 				/* Release the mutex to avoid deadlocks and
 				fall back to old style locking. */
-				dict_table_autoinc_unlock(m_prebuilt->table);
+				mutex_exit(&m_prebuilt->table->autoinc_mutex);
 			} else {
 				/* Do not fall back to old style locking. */
 				break;
@@ -7900,7 +7815,7 @@ ha_innobase::innobase_lock_autoinc(void)
 		if (error == DB_SUCCESS) {
 
 			/* Acquire the AUTOINC mutex. */
-			dict_table_autoinc_lock(m_prebuilt->table);
+			mutex_enter(&m_prebuilt->table->autoinc_mutex);
 		}
 		break;
 
@@ -7928,8 +7843,7 @@ ha_innobase::innobase_set_max_autoinc(
 	if (error == DB_SUCCESS) {
 
 		dict_table_autoinc_update_if_greater(m_prebuilt->table, auto_inc);
-
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 	}
 
 	return(error);
@@ -9843,7 +9757,7 @@ ha_innobase::ft_init_ext(
 
 		buf_tmp_used = innobase_convert_string(
 			buf_tmp, sizeof(buf_tmp) - 1,
-			&my_charset_utf8_general_ci,
+			&my_charset_utf8mb3_general_ci,
 			query, query_len, (CHARSET_INFO*) char_set,
 			&num_errors);
 
@@ -10812,7 +10726,6 @@ create_table_info_t::create_table_def()
 	ulint		binary_type;
 	ulint		long_true_varchar;
 	ulint		charset_no;
-	ulint		j = 0;
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
@@ -10894,7 +10807,7 @@ create_table_info_t::create_table_def()
 
 	heap = mem_heap_create(1000);
 
-	for (ulint i = 0; i < n_cols; i++) {
+	for (ulint i = 0, j = 0; j < n_cols; i++) {
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
 
@@ -11015,10 +10928,16 @@ err_col:
 			dict_mem_table_add_s_col(
 				table, 0);
 		}
+
+		if (is_virtual && omit_virtual) {
+			continue;
+		}
+
+		j++;
 	}
 
 	if (num_v) {
-		for (ulint i = 0; i < n_cols; i++) {
+		for (ulint i = 0, j = 0; i < n_cols; i++) {
 			dict_v_col_t*	v_col;
 
 			const Field* field = m_form->field[i];
@@ -11036,7 +10955,7 @@ err_col:
 	}
 
 	/** Fill base columns for the stored column present in the list. */
-	if (table->s_cols && table->s_cols->size()) {
+	if (table->s_cols && !table->s_cols->empty()) {
 		for (ulint i = 0; i < n_cols; i++) {
 			Field*  field = m_form->field[i];
 
@@ -12508,7 +12427,7 @@ create_table_info_t::create_table_update_dict()
 			autoinc = 1;
 		}
 
-		dict_table_autoinc_lock(innobase_table);
+		mutex_enter(&innobase_table->autoinc_mutex);
 		dict_table_autoinc_initialize(innobase_table, autoinc);
 
 		if (innobase_table->is_temporary()) {
@@ -12533,7 +12452,7 @@ create_table_info_t::create_table_update_dict()
 			}
 		}
 
-		dict_table_autoinc_unlock(innobase_table);
+		mutex_exit(&innobase_table->autoinc_mutex);
 	}
 
 	innobase_parse_hint_from_comment(m_thd, innobase_table, m_form->s);
@@ -13021,7 +12940,7 @@ innobase_drop_database(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	if (srv_read_only_mode) {
+	if (high_level_read_only) {
 		return;
 	}
 
@@ -13922,7 +13841,7 @@ ha_innobase::info_low(
 		ulint	stat_sum_of_other_index_sizes;
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
+			rw_lock_s_lock(&ib_table->stats_latch);
 		}
 
 		ut_a(ib_table->stat_initialized);
@@ -13936,7 +13855,7 @@ ha_innobase::info_low(
 			= ib_table->stat_sum_of_other_index_sizes;
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+			rw_lock_s_unlock(&ib_table->stats_latch);
 		}
 
 		/*
@@ -14040,7 +13959,7 @@ ha_innobase::info_low(
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
+			rw_lock_s_lock(&ib_table->stats_latch);
 		}
 
 		ut_a(ib_table->stat_initialized);
@@ -14122,7 +14041,7 @@ ha_innobase::info_low(
 		}
 
 		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
+			rw_lock_s_unlock(&ib_table->stats_latch);
 		}
 
 		snprintf(path, sizeof(path), "%s/%s%s",
@@ -14390,7 +14309,6 @@ ha_innobase::check(
 	ulint		n_rows;
 	ulint		n_rows_in_table	= ULINT_UNDEFINED;
 	bool		is_ok		= true;
-	ulint		old_isolation_level;
 	dberr_t		ret;
 
 	DBUG_ENTER("ha_innobase::check");
@@ -14453,7 +14371,7 @@ ha_innobase::check(
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
 
-	old_isolation_level = m_prebuilt->trx->isolation_level;
+	uint old_isolation_level = m_prebuilt->trx->isolation_level;
 
 	/* We must run the index record counts at an isolation level
 	>= READ COMMITTED, because a dirty read can see a wrong number
@@ -15022,7 +14940,8 @@ ha_innobase::get_cascade_foreign_key_table_list(
 {
 	m_prebuilt->trx->op_info = "getting cascading foreign keys";
 
-	std::list<table_list_item, ut_allocator<table_list_item> > table_list;
+	std::forward_list<table_list_item, ut_allocator<table_list_item> >
+		table_list;
 
 	typedef std::set<st_handler_tablename, tablename_compare,
 			 ut_allocator<st_handler_tablename> >	cascade_fk_set;
@@ -15035,7 +14954,7 @@ ha_innobase::get_cascade_foreign_key_table_list(
 	struct table_list_item	item = {m_prebuilt->table,
 					m_prebuilt->table->name.m_name};
 
-	table_list.push_back(item);
+	table_list.push_front(item);
 
 	/* Get the parent table, grand parent table info from the
 	table list by depth-first traversal. */
@@ -15044,8 +14963,8 @@ ha_innobase::get_cascade_foreign_key_table_list(
 		dict_table_t*				parent = NULL;
 		std::pair<cascade_fk_set::iterator,bool>	ret;
 
-		item = table_list.back();
-		table_list.pop_back();
+		item = table_list.front();
+		table_list.pop_front();
 		parent_table = item.table;
 
 		if (parent_table == NULL) {
@@ -15092,13 +15011,13 @@ ha_innobase::get_cascade_foreign_key_table_list(
 					foreign->referenced_table,
 					foreign->referenced_table_name_lookup};
 
-				table_list.push_back(item1);
+				table_list.push_front(item1);
 
 				st_handler_tablename*	fk_table =
 					(st_handler_tablename*) thd_memdup(
 						thd, &f1, sizeof(*fk_table));
 
-				fk_table_list->push_back(fk_table);
+				fk_table_list->push_front(fk_table);
 			}
 		}
 
@@ -15398,7 +15317,7 @@ ha_innobase::start_stmt(
 Maps a MySQL trx isolation level code to the InnoDB isolation level code
 @return InnoDB isolation level */
 static inline
-ulint
+uint
 innobase_map_isolation_level(
 /*=========================*/
 	enum_tx_isolation	iso)	/*!< in: MySQL isolation level code */
@@ -16375,7 +16294,7 @@ ha_innobase::innobase_get_autoinc(
 		/* It should have been initialized during open. */
 		if (*value == 0) {
 			m_prebuilt->autoinc_error = DB_UNSUPPORTED;
-			dict_table_autoinc_unlock(m_prebuilt->table);
+			mutex_exit(&m_prebuilt->table->autoinc_mutex);
 		}
 	}
 
@@ -16399,7 +16318,7 @@ ha_innobase::innobase_peek_autoinc(void)
 
 	innodb_table = m_prebuilt->table;
 
-	dict_table_autoinc_lock(innodb_table);
+	mutex_enter(&innodb_table->autoinc_mutex);
 
 	auto_inc = dict_table_autoinc_read(innodb_table);
 
@@ -16408,7 +16327,7 @@ ha_innobase::innobase_peek_autoinc(void)
 			" '" << innodb_table->name << "'";
 	}
 
-	dict_table_autoinc_unlock(innodb_table);
+	mutex_exit(&innodb_table->autoinc_mutex);
 
 	return(auto_inc);
 }
@@ -16515,7 +16434,7 @@ ha_innobase::get_auto_increment(
 		/* Out of range number. Let handler::update_auto_increment()
 		take care of this */
 		m_prebuilt->autoinc_last_value = 0;
-		dict_table_autoinc_unlock(m_prebuilt->table);
+		mutex_exit(&m_prebuilt->table->autoinc_mutex);
 		*nb_reserved_values= 0;
 		return;
 	}
@@ -16579,7 +16498,7 @@ ha_innobase::get_auto_increment(
 	m_prebuilt->autoinc_offset = offset;
 	m_prebuilt->autoinc_increment = increment;
 
-	dict_table_autoinc_unlock(m_prebuilt->table);
+	mutex_exit(&m_prebuilt->table->autoinc_mutex);
 }
 
 /*******************************************************************//**
@@ -17298,11 +17217,13 @@ void
 innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
 				  const void* save)
 {
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	if (*(my_bool*) save) {
 		btr_search_enable();
 	} else {
 		btr_search_disable(true);
 	}
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -17316,7 +17237,9 @@ innodb_cmp_per_index_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	/* Reset the stats whenever we enable the table
 	INFORMATION_SCHEMA.innodb_cmp_per_index. */
 	if (!srv_cmp_per_index_enabled && *(my_bool*) save) {
+		mysql_mutex_unlock(&LOCK_global_system_variables);
 		page_zip_reset_stat_per_index();
+		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
 
 	srv_cmp_per_index_enabled = !!(*(my_bool*) save);
@@ -17329,9 +17252,11 @@ static
 void
 innodb_old_blocks_pct_update(THD*, st_mysql_sys_var*, void*, const void* save)
 {
-	innobase_old_blocks_pct = static_cast<uint>(
-		buf_LRU_old_ratio_update(
-			*static_cast<const uint*>(save), TRUE));
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	uint ratio = buf_LRU_old_ratio_update(*static_cast<const uint*>(save),
+					      true);
+	mysql_mutex_lock(&LOCK_global_system_variables);
+	innobase_old_blocks_pct = ratio;
 }
 
 /****************************************************************//**
@@ -17342,9 +17267,10 @@ void
 innodb_change_buffer_max_size_update(THD*, st_mysql_sys_var*, void*,
 				     const void* save)
 {
-	srv_change_buffer_max_size =
-			(*static_cast<const uint*>(save));
+	srv_change_buffer_max_size = *static_cast<const uint*>(save);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	ibuf_max_size_update(srv_change_buffer_max_size);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 #ifdef UNIV_DEBUG
@@ -17371,15 +17297,19 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	mtr_t		mtr;
 	ulong		space_id = *static_cast<const ulong*>(save);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_space_t*	space = fil_space_acquire_silent(space_id);
 
 	if (space == NULL) {
+func_exit_no_space:
+		mysql_mutex_lock(&LOCK_global_system_variables);
 		return;
 	}
 
 	if (srv_saved_page_number_debug >= space->size) {
+func_exit:
 		space->release();
-		return;
+		goto func_exit_no_space;
 	}
 
 	mtr.start();
@@ -17400,7 +17330,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 				 MLOG_2BYTES, &mtr);
 	}
 	mtr.commit();
-	space->release();
+	goto func_exit;
 }
 #endif // UNIV_DEBUG
 
@@ -17910,8 +17840,11 @@ innodb_buffer_pool_evict_update(THD*, st_mysql_sys_var*, void*,
 {
 	if (const char* op = *static_cast<const char*const*>(save)) {
 		if (!strcmp(op, "uncompressed")) {
+			mysql_mutex_unlock(&LOCK_global_system_variables);
 			for (uint tries = 0; tries < 10000; tries++) {
 				if (innodb_buffer_pool_evict_uncompressed()) {
+					mysql_mutex_lock(
+						&LOCK_global_system_variables);
 					return;
 				}
 
@@ -18185,6 +18118,8 @@ void
 checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	if (*(my_bool*) save) {
+		mysql_mutex_unlock(&LOCK_global_system_variables);
+
 		while (log_sys.last_checkpoint_lsn
 		       + SIZE_OF_MLOG_CHECKPOINT
 		       + (log_sys.append_on_checkpoint != NULL
@@ -18199,6 +18134,8 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 		if (err != DB_SUCCESS) {
 			ib::warn() << "Checkpoint set failed " << err;
 		}
+
+		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
 }
 
@@ -18209,7 +18146,9 @@ void
 buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	if (*(my_bool*) save) {
+		mysql_mutex_unlock(&LOCK_global_system_variables);
 		buf_flush_sync_all_buf_pools();
+		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
 }
 
@@ -18288,7 +18227,9 @@ buffer_pool_dump_now(
 						check function */
 {
 	if (*(my_bool*) save && !srv_read_only_mode) {
+		mysql_mutex_unlock(&LOCK_global_system_variables);
 		buf_dump_start();
+		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
 }
 
@@ -18311,7 +18252,9 @@ buffer_pool_load_now(
 						check function */
 {
 	if (*(my_bool*) save && !srv_read_only_mode) {
+		mysql_mutex_unlock(&LOCK_global_system_variables);
 		buf_load_start();
+		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
 }
 
@@ -18334,7 +18277,9 @@ buffer_pool_load_abort(
 						check function */
 {
 	if (*(my_bool*) save && !srv_read_only_mode) {
+		mysql_mutex_unlock(&LOCK_global_system_variables);
 		buf_load_abort();
+		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
 }
 
@@ -18385,55 +18330,63 @@ innodb_log_write_ahead_size_update(
 
 /** Update innodb_status_output or innodb_status_output_locks,
 which control InnoDB "status monitor" output to the error log.
-@param[out]	var_ptr	current value
+@param[out]	var	current value
 @param[in]	save	to-be-assigned value */
 static
 void
-innodb_status_output_update(THD*, st_mysql_sys_var*, void* var_ptr,
-			    const void* save)
+innodb_status_output_update(THD*,st_mysql_sys_var*,void*var,const void*save)
 {
-	*static_cast<my_bool*>(var_ptr) = *static_cast<const my_bool*>(save);
+	*static_cast<my_bool*>(var) = *static_cast<const my_bool*>(save);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	/* Wakeup server monitor thread. */
 	os_event_set(srv_monitor_event);
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-/******************************************************************
-Update the system variable innodb_encryption_threads */
+/** Update the system variable innodb_encryption_threads.
+@param[in]	save	to-be-assigned value */
 static
 void
-innodb_encryption_threads_update(THD*, st_mysql_sys_var*, void*,
-				 const void* save)
+innodb_encryption_threads_update(THD*,st_mysql_sys_var*,void*,const void*save)
 {
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_crypt_set_thread_cnt(*static_cast<const uint*>(save));
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-/******************************************************************
-Update the system variable innodb_encryption_rotate_key_age */
+/** Update the system variable innodb_encryption_rotate_key_age.
+@param[in]	save	to-be-assigned value */
 static
 void
 innodb_encryption_rotate_key_age_update(THD*, st_mysql_sys_var*, void*,
 					const void* save)
 {
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_crypt_set_rotate_key_age(*static_cast<const uint*>(save));
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-/******************************************************************
-Update the system variable innodb_encryption_rotation_iops */
+/** Update the system variable innodb_encryption_rotation_iops.
+@param[in]	save	to-be-assigned value */
 static
 void
 innodb_encryption_rotation_iops_update(THD*, st_mysql_sys_var*, void*,
 				       const void* save)
 {
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_crypt_set_rotation_iops(*static_cast<const uint*>(save));
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-/******************************************************************
-Update the system variable innodb_encrypt_tables*/
+/** Update the system variable innodb_encrypt_tables.
+@param[in]	save	to-be-assigned value */
 static
 void
 innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 {
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_crypt_set_encrypt_tables(*static_cast<const ulong*>(save));
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_log_checksums.
@@ -19479,13 +19432,16 @@ void
 innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
 				void* var_ptr, const void* save)
 {
-	*(my_bool*)var_ptr = *(my_bool*)save;
+	const my_bool val = *static_cast<const my_bool*>(save);
+	*static_cast<my_bool*>(var_ptr) = val;
 	ut_a(srv_allow_writes_event);
-	if (*(my_bool*)var_ptr) {
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	if (val) {
 		os_event_reset(srv_allow_writes_event);
 	} else {
 		os_event_set(srv_allow_writes_event);
 	}
+	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
@@ -20542,7 +20498,7 @@ innobase_get_computed_value(
 		buf = rec_buf2;
 	}
 
-	for (ulint i = 0; i < col->num_base; i++) {
+	for (ulint i = 0; i < unsigned{col->num_base}; i++) {
 		dict_col_t*			base_col = col->base_col[i];
 		const dfield_t*			row_field = NULL;
 		ulint				col_no = base_col->ind;
@@ -20697,6 +20653,146 @@ bool ha_innobase::rowid_filter_push(Rowid_filter* pk_filter)
 	DBUG_RETURN(false);
 }
 
+static bool
+is_part_of_a_primary_key(const Field* field)
+{
+	const TABLE_SHARE* s = field->table->s;
+
+	return s->primary_key != MAX_KEY
+	       && field->part_of_key.is_set(s->primary_key);
+}
+
+bool
+ha_innobase::can_convert_string(const Field_string* field,
+				const Column_definition& new_type) const
+{
+	DBUG_ASSERT(!field->compression_method());
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (new_type.char_length < field->char_length()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		if (new_type.length != field->max_display_length()
+		    && !m_prebuilt->table->not_redundant()) {
+			return IS_EQUAL_NO;
+		}
+
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			return !is_part_of_a_primary_key(field);
+		}
+
+		return true;
+	}
+
+	if (new_type.length != field->max_display_length()) {
+		return false;
+	}
+
+	return true;
+}
+
+static bool
+supports_enlarging(const dict_table_t* table, const Field_varstring* field,
+		   const Column_definition& new_type)
+{
+	return field->field_length <= 127 || new_type.length <= 255
+	       || field->field_length > 255 || !table->not_redundant();
+}
+
+bool
+ha_innobase::can_convert_varstring(const Field_varstring* field,
+				   const Column_definition& new_type) const
+{
+	if (new_type.length < field->field_length) {
+		return false;
+	}
+
+	if (new_type.char_length < field->char_length()) {
+		return false;
+	}
+
+	if (!new_type.compression_method() != !field->compression_method()) {
+		return false;
+	}
+
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
+			return false;
+		}
+
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			return !is_part_of_a_primary_key(field);
+		}
+
+		return true;
+	}
+
+	if (new_type.length != field->field_length) {
+		if (!supports_enlarging(m_prebuilt->table, field, new_type)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	return true;
+}
+
+bool
+ha_innobase::can_convert_blob(const Field_blob* field,
+			      const Column_definition& new_type) const
+{
+	if (new_type.type_handler() != field->type_handler()) {
+		return false;
+	}
+
+	if (!new_type.compression_method() != !field->compression_method()) {
+		return false;
+	}
+
+	if (new_type.pack_length != field->pack_length()) {
+		return false;
+	}
+
+	if (new_type.charset != field->charset()) {
+		Charset field_cs(field->charset());
+		if (!field_cs.encoding_allows_reinterpret_as(
+			new_type.charset)) {
+			return false;
+		}
+
+		if (!field_cs.eq_collation_specific_names(new_type.charset)) {
+			bool is_part_of_a_key
+			    = !field->part_of_key.is_clear_all();
+			return !is_part_of_a_key;
+		}
+
+		return true;
+	}
+
+	return true;
+}
+
 /******************************************************************//**
 Use this when the args are passed to the format string from
 errmsg-utf8.txt directly as is.
@@ -20716,7 +20812,6 @@ ib_senderrf(
 	...)				/*!< Args */
 {
 	va_list		args;
-	char*		str = NULL;
 	const char*	format = my_get_err_msg(code);
 
 	/* If the caller wants to push a message to the client then
@@ -20729,7 +20824,7 @@ ib_senderrf(
 
 	va_start(args, code);
 
-	myf	l = Sql_condition::WARN_LEVEL_NOTE;
+	myf l;
 
 	switch (level) {
 	case IB_LOG_LEVEL_INFO:
@@ -20737,14 +20832,6 @@ ib_senderrf(
 		break;
 	case IB_LOG_LEVEL_WARN:
 		l = ME_WARNING;
-		break;
-	case IB_LOG_LEVEL_ERROR:
-		sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);
-		l = 0;
-		break;
-	case IB_LOG_LEVEL_FATAL:
-		l = 0;
-		sd_notifyf(0, "STATUS=InnoDB: Fatal: %s", str);
 		break;
 	default:
 		l = 0;
@@ -20754,7 +20841,6 @@ ib_senderrf(
 	my_printv_error(code, format, MYF(l), args);
 
 	va_end(args);
-	free(str);
 
 	if (level == IB_LOG_LEVEL_FATAL) {
 		ut_error;

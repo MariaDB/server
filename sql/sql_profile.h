@@ -19,10 +19,13 @@
 class Item;
 struct TABLE_LIST;
 class THD;
-struct ST_FIELD_INFO;
+class ST_FIELD_INFO;
 typedef struct st_schema_table ST_SCHEMA_TABLE;
 
+namespace Show {
 extern ST_FIELD_INFO query_profile_statistics_info[];
+} // namespace Show
+
 int fill_query_profile_statistics_info(THD *thd, TABLE_LIST *tables, Item *cond);
 int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table);
 

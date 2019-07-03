@@ -288,13 +288,6 @@ dict_col_name_is_reserved(
 /*======================*/
 	const char*	name)	/*!< in: column name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-Acquire the autoinc lock. */
-void
-dict_table_autoinc_lock(
-/*====================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
 /** Unconditionally set the AUTO_INCREMENT counter.
 @param[in,out]	table	table or partition
 @param[in]	value	next available AUTO_INCREMENT value */
@@ -303,7 +296,7 @@ UNIV_INLINE
 void
 dict_table_autoinc_initialize(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	ut_ad(mutex_own(&table->autoinc_mutex));
 	table->autoinc = value;
 }
 
@@ -316,7 +309,7 @@ UNIV_INLINE
 ib_uint64_t
 dict_table_autoinc_read(const dict_table_t* table)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	ut_ad(mutex_own(&table->autoinc_mutex));
 	return(table->autoinc);
 }
 
@@ -330,7 +323,7 @@ UNIV_INLINE
 bool
 dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	ut_ad(mutex_own(&table->autoinc_mutex));
 
 	if (value > table->autoinc) {
 
@@ -341,13 +334,6 @@ dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
 	return(false);
 }
 
-/********************************************************************//**
-Release the autoinc lock. */
-void
-dict_table_autoinc_unlock(
-/*======================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Adds system columns to a table object. */
 void
@@ -992,10 +978,6 @@ dict_make_room_in_cache(
 	ulint		max_tables,	/*!< in: max tables allowed in cache */
 	ulint		pct_check);	/*!< in: max percent to check */
 
-/** Clears the virtual column's index list before index is being freed.
-@param[in]  index   Index being freed */
-void dict_index_remove_from_v_col_list(dict_index_t* index);
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
 @param[in]	index	index; NOTE! The index memory
@@ -1359,41 +1341,6 @@ dict_index_calc_min_rec_len(
 #define dict_mutex_enter_for_mysql() mutex_enter(&dict_sys.mutex)
 #define dict_mutex_exit_for_mysql() mutex_exit(&dict_sys.mutex)
 
-/** Create a dict_table_t's stats latch or delay for lazy creation.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to create
-@param[in]	enabled	if false then the latch is disabled
-and dict_table_stats_lock()/unlock() become noop on this table. */
-void
-dict_table_stats_latch_create(
-	dict_table_t*	table,
-	bool		enabled);
-
-/** Destroy a dict_table_t's stats latch.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-void
-dict_table_stats_latch_destroy(
-	dict_table_t*	table);
-
-/** Lock the appropriate latch to protect a given table's statistics.
-@param[in]	table		table whose stats to lock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_lock(
-	dict_table_t*	table,
-	ulint		latch_mode);
-
-/** Unlock the latch that has been locked by dict_table_stats_lock().
-@param[in]	table		table whose stats to unlock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_unlock(
-	dict_table_t*	table,
-	ulint		latch_mode);
-
 /********************************************************************//**
 Checks if the database name in two table names is the same.
 @return TRUE if same db name */
@@ -1634,10 +1581,21 @@ public:
     rw_lock_x_unlock(&latch);
   }
 
-  inline ulint get_cells_size() 
-  { 
-    return (table_hash->n_cells + table_id_hash->n_cells + 
-	  temp_id_hash->n_cells) * sizeof(hash_cell_t);
+  /** Estimate the used memory occupied by the data dictionary
+  table and index objects.
+  @return number of bytes occupied */
+  ulint rough_size() const
+  {
+    /* No mutex; this is a very crude approximation anyway */
+    ulint size = UT_LIST_GET_LEN(table_LRU) + UT_LIST_GET_LEN(table_non_LRU);
+    size *= sizeof(dict_table_t)
+      + sizeof(dict_index_t) * 2
+      + (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
+      + sizeof(dict_field_t) * 5 /* total number of key fields */
+      + 200; /* arbitrary, covering names and overhead */
+    size += (table_hash->n_cells + table_id_hash->n_cells
+	     + temp_id_hash->n_cells) * sizeof(hash_cell_t);
+    return size;
   }
 };
 
@@ -1859,13 +1817,6 @@ dict_table_decode_n_col(
 	ulint	encoded,
 	ulint*	n_col,
 	ulint*	n_v_col);
-
-/** Calculate the used memory occupied by the data dictionary
-table and index objects.
-@return number of bytes occupied. */
-UNIV_INTERN
-ulint
-dict_sys_get_size();
 
 /** Look for any dictionary objects that are found in the given tablespace.
 @param[in]	space_id	Tablespace ID to search for.

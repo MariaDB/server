@@ -409,6 +409,7 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     check_time datetime not null default '0000-00-00 00:00:00',
     create_time datetime not null default '0000-00-00 00:00:00',
     update_time datetime not null default '0000-00-00 00:00:00',
+    checksum bigint unsigned default null,
     primary key (db_name, table_name)
   ) ENGINE=$ENGINE_NAME DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
   DROP TABLE IF EXISTS mysql.spider_table_crd;

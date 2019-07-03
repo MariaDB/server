@@ -922,7 +922,7 @@ rtr_split_page_move_rec_list(
 	if (new_page_zip) {
 		mtr_set_log_mode(mtr, log_mode);
 
-		if (!page_zip_compress(new_page_zip, new_page, index,
+		if (!page_zip_compress(new_block, index,
 				       page_zip_level, mtr)) {
 			ulint	ret_pos;
 
@@ -1130,7 +1130,7 @@ func_start:
 		as appropriate.  Deleting will always succeed. */
 		ut_a(new_page_zip);
 
-		page_zip_copy_recs(new_page_zip, new_page,
+		page_zip_copy_recs(new_block,
 				   page_zip, page, cursor->index, mtr);
 
 		page_cursor = btr_cur_get_page_cur(cursor);

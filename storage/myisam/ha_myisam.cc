@@ -2493,7 +2493,6 @@ static int myisam_init(void *p)
   myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
 
   hton= (handlerton *)p;
-  hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_MYISAM;
   hton->create= myisam_create_handler;
   hton->panic= myisam_panic;

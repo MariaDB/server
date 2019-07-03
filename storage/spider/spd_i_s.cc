@@ -44,25 +44,21 @@ extern ulonglong  spider_free_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 static struct st_mysql_storage_engine spider_i_s_info =
 { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
+namespace Show {
+
 static ST_FIELD_INFO spider_i_s_alloc_mem_fields_info[] =
 {
-  {"ID", 10, MYSQL_TYPE_LONG, 0, MY_I_S_UNSIGNED, "id", SKIP_OPEN_TABLE},
-  {"FUNC_NAME", 64, MYSQL_TYPE_STRING, 0,
-    MY_I_S_MAYBE_NULL, "func_name", SKIP_OPEN_TABLE},
-  {"FILE_NAME", 64, MYSQL_TYPE_STRING, 0,
-    MY_I_S_MAYBE_NULL, "file_name", SKIP_OPEN_TABLE},
-  {"LINE_NO", 10, MYSQL_TYPE_LONG, 0,
-    MY_I_S_UNSIGNED | MY_I_S_MAYBE_NULL, "line_no", SKIP_OPEN_TABLE},
-  {"TOTAL_ALLOC_MEM", 20, MYSQL_TYPE_LONGLONG, 0,
-    MY_I_S_UNSIGNED | MY_I_S_MAYBE_NULL, "total_alloc_mem", SKIP_OPEN_TABLE},
-  {"CURRENT_ALLOC_MEM", 20, MYSQL_TYPE_LONGLONG, 0,
-    MY_I_S_MAYBE_NULL, "current_alloc_mem", SKIP_OPEN_TABLE},
-  {"ALLOC_MEM_COUNT", 20, MYSQL_TYPE_LONGLONG, 0,
-    MY_I_S_UNSIGNED | MY_I_S_MAYBE_NULL, "alloc_mem_count", SKIP_OPEN_TABLE},
-  {"FREE_MEM_COUNT", 20, MYSQL_TYPE_LONGLONG, 0,
-    MY_I_S_UNSIGNED | MY_I_S_MAYBE_NULL, "free_mem_count", SKIP_OPEN_TABLE},
-  {NULL, 0,  MYSQL_TYPE_STRING, 0, 0, NULL, 0}
+  Column("ID",                ULong(10),     NOT_NULL, "id"),
+  Column("FUNC_NAME",         Varchar(64),   NULLABLE, "func_name"),
+  Column("FILE_NAME",         Varchar(64),   NULLABLE, "file_name"),
+  Column("LINE_NO",           ULong(10),     NULLABLE, "line_no"),
+  Column("TOTAL_ALLOC_MEM",   ULonglong(20), NULLABLE, "total_alloc_mem"),
+  Column("CURRENT_ALLOC_MEM", SLonglong(20), NULLABLE, "current_alloc_mem"),
+  Column("ALLOC_MEM_COUNT",   ULonglong(20), NULLABLE, "alloc_mem_count"),
+  Column("FREE_MEM_COUNT",    ULonglong(20), NULLABLE, "free_mem_count"),
+  CEnd()
 };
+} // namespace Show
 
 static int spider_i_s_alloc_mem_fill_table(
   THD *thd,
@@ -117,7 +113,7 @@ static int spider_i_s_alloc_mem_init(
 ) {
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
   DBUG_ENTER("spider_i_s_alloc_mem_init");
-  schema->fields_info = spider_i_s_alloc_mem_fields_info;
+  schema->fields_info = Show::spider_i_s_alloc_mem_fields_info;
   schema->fill_table = spider_i_s_alloc_mem_fill_table;
   schema->idx_field1 = 0;
   DBUG_RETURN(0);

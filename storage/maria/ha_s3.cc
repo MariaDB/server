@@ -59,6 +59,7 @@
   at least s3_block_size * 32. The default cache is 512M.
 */
 
+#define MYSQL_SERVER 1
 #include "maria_def.h"
 #include "sql_class.h"
 #include <mysys_err.h>
@@ -68,15 +69,18 @@
 #include "s3_func.h"
 #include "aria_backup.h"
 
+#define DEFAULT_AWS_HOST_NAME "s3.amazonaws.com"
+
 static PAGECACHE s3_pagecache;
-static ulong s3_block_size;
+static ulong s3_block_size, s3_protocol_version;
 static ulong s3_pagecache_division_limit, s3_pagecache_age_threshold;
 static ulong s3_pagecache_file_hash_size;
 static ulonglong s3_pagecache_buffer_size;
 static char *s3_bucket, *s3_access_key=0, *s3_secret_key=0, *s3_region;
+static char *s3_host_name;
 static char *s3_tmp_access_key=0, *s3_tmp_secret_key=0;
+static my_bool s3_debug= 0;
 handlerton *s3_hton= 0;
-
 
 /* Don't show access or secret keys to users if they exists */
 
@@ -115,6 +119,17 @@ static MYSQL_SYSVAR_ULONG(block_size, s3_block_size,
        "Block size for S3", 0, 0,
        4*1024*1024, 65536, 16*1024*1024, 8192);
 
+static MYSQL_SYSVAR_BOOL(debug, s3_debug,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "Generates trace file from libmarias3 on stderr for debugging",
+       0, 0, 0);
+
+static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Protocol used to communication with S3. One of "
+                         "\"Auto\", \"Amazon\" or \"Original\".",
+                         NULL, NULL, 0, &s3_protocol_typelib);
+
 static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        s3_pagecache_age_threshold, PLUGIN_VAR_RQCMDARG,
        "This characterizes the number of hits a hot block has to be untouched "
@@ -148,6 +163,10 @@ static MYSQL_SYSVAR_STR(bucket, s3_bucket,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "AWS bucket",
        0, 0, "MariaDB");
+static MYSQL_SYSVAR_STR(host_name, s3_host_name,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "AWS bucket",
+       0, 0, DEFAULT_AWS_HOST_NAME);
 static MYSQL_SYSVAR_STR(access_key, s3_tmp_access_key,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC,
       "AWS access key",
@@ -160,7 +179,6 @@ static MYSQL_SYSVAR_STR(region, s3_region,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "AWS region",
        0, 0, "");
-
 
 ha_create_table_option s3_table_option_list[]=
 {
@@ -241,6 +259,8 @@ static my_bool s3_info_init(S3_INFO *info)
 {
   if (!s3_usable())
     return 1;
+  info->protocol_version= (uint8_t) s3_protocol_version;
+  lex_string_set(&info->host_name,  s3_host_name);
   lex_string_set(&info->access_key, s3_access_key);
   lex_string_set(&info->secret_key, s3_secret_key);
   lex_string_set(&info->region,     s3_region);
@@ -314,6 +334,8 @@ int ha_s3::rename_table(const char *from, const char *to)
   ms3_st *s3_client;
   MY_STAT stat_info;
   int error;
+  bool is_partition= (strstr(from, "#P#") != NULL) ||
+                     (strstr(to, "#P#") != NULL);
   DBUG_ENTER("ha_s3::rename_table");
 
   if (s3_info_init(&to_s3_info, to, to_name, NAME_LEN))
@@ -328,7 +350,7 @@ int ha_s3::rename_table(const char *from, const char *to)
   */
   fn_format(frm_name, from, "", reg_ext, MYF(0));
   if (!strncmp(from + dirname_length(from), "#sql-", 5) &&
-      my_stat(frm_name, &stat_info, MYF(0)))
+      (is_partition || my_stat(frm_name, &stat_info, MYF(0))))
   {
     /*
       The table is a temporary table as part of ALTER TABLE.
@@ -337,7 +359,7 @@ int ha_s3::rename_table(const char *from, const char *to)
     error= aria_copy_to_s3(s3_client, to_s3_info.bucket.str, from,
                            to_s3_info.database.str,
                            to_s3_info.table.str,
-                           0, 0, 0, 0);
+                           0, 0, 0, 0, !is_partition);
     if (!error)
     {
       /* Remove original files table files, keep .frm */
@@ -358,7 +380,9 @@ int ha_s3::rename_table(const char *from, const char *to)
                           from_s3_info.database.str,
                           from_s3_info.table.str,
                           to_s3_info.database.str,
-                          to_s3_info.table.str);
+                          to_s3_info.table.str,
+                          !is_partition &&
+                          !current_thd->lex->alter_info.partition_flags);
   }
   ms3_deinit(s3_client);
   DBUG_RETURN(error);
@@ -545,6 +569,10 @@ static int s3_discover_table_existance(handlerton *hton, const char *db,
   int res;
   DBUG_ENTER("s3_discover_table_existance");
 
+  /* Ignore names in "mysql" database to speed up boot */
+  if (!strcmp(db, MYSQL_SCHEMA_NAME.str))
+    DBUG_RETURN(0);
+
   if (s3_info_init(&s3_info))
     DBUG_RETURN(0);
   if (!(s3_client= s3_open_connection(&s3_info)))
@@ -576,6 +604,10 @@ static int s3_discover_table_names(handlerton *hton __attribute__((unused)),
   ms3_list_st *list, *org_list= 0;
   int error;
   DBUG_ENTER("s3_discover_table_names");
+
+  /* Ignore names in "mysql" database to speed up boot */
+  if (!strcmp(db->str, MYSQL_SCHEMA_NAME.str))
+    DBUG_RETURN(0);
 
   if (s3_info_init(&s3_info))
     DBUG_RETURN(0);
@@ -682,6 +714,8 @@ static int ha_s3_init(void *p)
   s3_pagecache.big_block_read= s3_block_read;
   s3_pagecache.big_block_free= s3_free;
   s3_init_library();
+  if (s3_debug)
+    ms3_debug();
   return res ? HA_ERR_INITIALIZATION : 0;
 }
 
@@ -702,10 +736,13 @@ static SHOW_VAR status_variables[]= {
 
 static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(block_size),
+  MYSQL_SYSVAR(debug),
+  MYSQL_SYSVAR(protocol_version),
   MYSQL_SYSVAR(pagecache_age_threshold),
   MYSQL_SYSVAR(pagecache_buffer_size),
   MYSQL_SYSVAR(pagecache_division_limit),
   MYSQL_SYSVAR(pagecache_file_hash_size),
+  MYSQL_SYSVAR(host_name),
   MYSQL_SYSVAR(bucket),
   MYSQL_SYSVAR(access_key),
   MYSQL_SYSVAR(secret_key),

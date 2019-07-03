@@ -432,7 +432,7 @@ MY_FUNCTION_NAME(strnncollsp_nopad_multilevel)(CHARSET_INFO *cs,
     This functions is used for one-level and for multi-level collations.
     We intentionally use only primary level in multi-level collations.
     This helps to have PARTITION BY KEY put primarily equal records
-    into the same partition. E.g. in utf8_thai_520_ci records that differ
+    into the same partition. E.g. in utf8mb3_thai_520_ci records that differ
     only in tone marks go into the same partition.
 
   RETURN

@@ -49,7 +49,7 @@ extern uint *spd_db_att_xid_cache_split_num;
 extern pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 extern HASH *spd_db_att_xid_cache;
 #endif
-extern struct charset_info_st *spd_charset_utf8_bin;
+extern struct charset_info_st *spd_charset_utf8mb3_bin;
 
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
@@ -1228,7 +1228,7 @@ SPIDER_TRX *spider_get_trx(
     }
 
     if (
-      my_hash_init(&trx->trx_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
+      my_hash_init(&trx->trx_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0)
     )
       goto error_init_hash;
@@ -1240,7 +1240,7 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_conn_hash.array.size_of_element);
 
     if (
-      my_hash_init(&trx->trx_another_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
+      my_hash_init(&trx->trx_another_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0)
     )
       goto error_init_another_hash;
@@ -1253,7 +1253,7 @@ SPIDER_TRX *spider_get_trx(
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     if (
-      my_hash_init(&trx->trx_hs_r_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
+      my_hash_init(&trx->trx_hs_r_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0)
     )
       goto error_hs_r_init_hash;
@@ -1265,7 +1265,7 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_hs_r_conn_hash.array.size_of_element);
 
     if (
-      my_hash_init(&trx->trx_hs_w_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
+      my_hash_init(&trx->trx_hs_w_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0)
     )
       goto error_hs_w_init_hash;
@@ -1279,7 +1279,7 @@ SPIDER_TRX *spider_get_trx(
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     if (
-      my_hash_init(&trx->trx_direct_hs_r_conn_hash, spd_charset_utf8_bin, 32,
+      my_hash_init(&trx->trx_direct_hs_r_conn_hash, spd_charset_utf8mb3_bin, 32,
         0, 0, (my_hash_get_key) spider_conn_get_key, 0, 0)
     )
       goto error_direct_hs_r_init_hash;
@@ -1291,7 +1291,7 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_direct_hs_r_conn_hash.array.size_of_element);
 
     if (
-      my_hash_init(&trx->trx_direct_hs_w_conn_hash, spd_charset_utf8_bin, 32,
+      my_hash_init(&trx->trx_direct_hs_w_conn_hash, spd_charset_utf8mb3_bin, 32,
         0, 0, (my_hash_get_key) spider_conn_get_key, 0, 0)
     )
       goto error_direct_hs_w_init_hash;
@@ -1304,7 +1304,7 @@ SPIDER_TRX *spider_get_trx(
 #endif
 
     if (
-      my_hash_init(&trx->trx_alter_table_hash, spd_charset_utf8_bin, 32, 0, 0,
+      my_hash_init(&trx->trx_alter_table_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_alter_tbl_get_key, 0, 0)
     )
       goto error_init_alter_hash;
@@ -1316,7 +1316,7 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_alter_table_hash.array.size_of_element);
 
     if (
-      my_hash_init(&trx->trx_ha_hash, spd_charset_utf8_bin, 32, 0, 0,
+      my_hash_init(&trx->trx_ha_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
                    (my_hash_get_key) spider_trx_ha_get_key, 0, 0)
     )
       goto error_init_trx_ha_hash;

@@ -758,7 +758,6 @@ static int connect_init_func(void *p)
   init_connect_psi_keys();
 
   connect_hton= (handlerton *)p;
-  connect_hton->state= SHOW_OPTION_YES;
   connect_hton->create= connect_create_handler;
   connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
   connect_hton->table_options= connect_table_option_list;
@@ -5295,7 +5294,7 @@ static char *encode(PGLOBAL g, const char *cnm)
   char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) * 3);
   uint   dummy_errors;
   uint32 len= copy_and_convert(buf, strlen(cnm) * 3,
-                               &my_charset_utf8_general_ci,
+                               &my_charset_utf8mb3_general_ci,
                                cnm, strlen(cnm),
                                &my_charset_latin1,
                                &dummy_errors);
@@ -6332,7 +6331,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endif charset
 
-    if (type == TAB_XML && data_charset != &my_charset_utf8_general_ci) {
+    if (type == TAB_XML && data_charset != &my_charset_utf8mb3_general_ci) {
       my_printf_error(ER_UNKNOWN_ERROR,
                       "DATA_CHARSET='%s' is not supported for TABLE_TYPE=XML",
                         MYF(0), options->data_charset);
@@ -7018,7 +7017,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     ALTER_DROP_PK_INDEX;
 
   alter_table_operations inplace_offline_operations=
-    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+    ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |
     ALTER_COLUMN_NAME |
     ALTER_COLUMN_DEFAULT |
     ALTER_CHANGE_CREATE_OPTION |
@@ -7117,7 +7116,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 
 #if 0
   uint table_changes= (ha_alter_info->handler_flags &
-                       ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
+                       ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) ?
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
 
   if (table->file->check_if_incompatible_data(create_info, table_changes)

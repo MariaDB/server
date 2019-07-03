@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,9 +69,9 @@ my_bool	net_flush(NET *net);
 #include "errmsg.h"
 #include <violite.h>
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include <my_pthread.h>				/* because of signal()	*/
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
 
 #include <sys/stat.h>
 #include <signal.h>
@@ -81,29 +81,20 @@ my_bool	net_flush(NET *net);
 #include <pwd.h>
 #endif
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #ifdef HAVE_SELECT_H
 #  include <select.h>
 #endif
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
 #ifdef HAVE_SYS_UN_H
 #  include <sys/un.h>
 #endif
 
-#ifndef _WIN32
-#include <errno.h>
-#define SOCKET_ERROR -1
-#define INVALID_SOCKET -1
-#endif
 
-#ifdef __WIN__
-#define CONNECT_TIMEOUT 20
-#else
 #define CONNECT_TIMEOUT 0
-#endif
 
 #include "client_settings.h"
 #include <ssl_compat.h>
@@ -252,7 +243,7 @@ void set_mysql_extended_error(MYSQL *mysql, int errcode,
   Create a named pipe connection
 */
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 HANDLE create_named_pipe(MYSQL *mysql, uint connect_timeout, char **arg_host,
 			 char **arg_unix_socket)
@@ -1669,250 +1660,13 @@ static MYSQL_METHODS client_methods=
 };
 
 
-
-typedef enum my_cs_match_type_enum
-{
-  /* MySQL and OS charsets are fully compatible */
-  my_cs_exact,
-  /* MySQL charset is very close to OS charset  */
-  my_cs_approx,
-  /*
-    MySQL knows this charset, but it is not supported as client character set.
-  */
-  my_cs_unsupp
-} my_cs_match_type;
-
-
-typedef struct str2str_st
-{
-  const char *os_name;
-  const char *my_name;
-  my_cs_match_type param;
-} MY_CSET_OS_NAME;
-
-const MY_CSET_OS_NAME charsets[]=
-{
-#ifdef __WIN__
-  {"cp437",          "cp850",    my_cs_approx},
-  {"cp850",          "cp850",    my_cs_exact},
-  {"cp852",          "cp852",    my_cs_exact},
-  {"cp858",          "cp850",    my_cs_approx},
-  {"cp866",          "cp866",    my_cs_exact},
-  {"cp874",          "tis620",   my_cs_approx},
-  {"cp932",          "cp932",    my_cs_exact},
-  {"cp936",          "gbk",      my_cs_approx},
-  {"cp949",          "euckr",    my_cs_approx},
-  {"cp950",          "big5",     my_cs_exact},
-  {"cp1200",         "utf16le",  my_cs_unsupp},
-  {"cp1201",         "utf16",    my_cs_unsupp},
-  {"cp1250",         "cp1250",   my_cs_exact},
-  {"cp1251",         "cp1251",   my_cs_exact},
-  {"cp1252",         "latin1",   my_cs_exact},
-  {"cp1253",         "greek",    my_cs_exact},
-  {"cp1254",         "latin5",   my_cs_exact},
-  {"cp1255",         "hebrew",   my_cs_approx},
-  {"cp1256",         "cp1256",   my_cs_exact},
-  {"cp1257",         "cp1257",   my_cs_exact},
-  {"cp10000",        "macroman", my_cs_exact},
-  {"cp10001",        "sjis",     my_cs_approx},
-  {"cp10002",        "big5",     my_cs_approx},
-  {"cp10008",        "gb2312",   my_cs_approx},
-  {"cp10021",        "tis620",   my_cs_approx},
-  {"cp10029",        "macce",    my_cs_exact},
-  {"cp12001",        "utf32",    my_cs_unsupp},
-  {"cp20107",        "swe7",     my_cs_exact},
-  {"cp20127",        "latin1",   my_cs_approx},
-  {"cp20866",        "koi8r",    my_cs_exact},
-  {"cp20932",        "ujis",     my_cs_exact},
-  {"cp20936",        "gb2312",   my_cs_approx},
-  {"cp20949",        "euckr",    my_cs_approx},
-  {"cp21866",        "koi8u",    my_cs_exact},
-  {"cp28591",        "latin1",   my_cs_approx},
-  {"cp28592",        "latin2",   my_cs_exact},
-  {"cp28597",        "greek",    my_cs_exact},
-  {"cp28598",        "hebrew",   my_cs_exact},
-  {"cp28599",        "latin5",   my_cs_exact},
-  {"cp28603",        "latin7",   my_cs_exact},
-#ifdef UNCOMMENT_THIS_WHEN_WL_4579_IS_DONE
-  {"cp28605",        "latin9",   my_cs_exact},
-#endif
-  {"cp38598",        "hebrew",   my_cs_exact},
-  {"cp51932",        "ujis",     my_cs_exact},
-  {"cp51936",        "gb2312",   my_cs_exact},
-  {"cp51949",        "euckr",    my_cs_exact},
-  {"cp51950",        "big5",     my_cs_exact},
-#ifdef UNCOMMENT_THIS_WHEN_WL_WL_4024_IS_DONE
-  {"cp54936",        "gb18030",  my_cs_exact},
-#endif
-  {"cp65001",        "utf8",     my_cs_exact},
-
-#else /* not Windows */
-
-  {"646",            "latin1",   my_cs_approx}, /* Default on Solaris */
-  {"ANSI_X3.4-1968", "latin1",   my_cs_approx},
-  {"ansi1251",       "cp1251",   my_cs_exact},
-  {"armscii8",       "armscii8", my_cs_exact},
-  {"armscii-8",      "armscii8", my_cs_exact},
-  {"ASCII",          "latin1",   my_cs_approx},
-  {"Big5",           "big5",     my_cs_exact},
-  {"cp1251",         "cp1251",   my_cs_exact},
-  {"cp1255",         "hebrew",   my_cs_approx},
-  {"CP866",          "cp866",    my_cs_exact},
-  {"eucCN",          "gb2312",   my_cs_exact},
-  {"euc-CN",         "gb2312",   my_cs_exact},
-  {"eucJP",          "ujis",     my_cs_exact},
-  {"euc-JP",         "ujis",     my_cs_exact},
-  {"eucKR",          "euckr",    my_cs_exact},
-  {"euc-KR",         "euckr",    my_cs_exact},
-#ifdef UNCOMMENT_THIS_WHEN_WL_WL_4024_IS_DONE
-  {"gb18030",        "gb18030",  my_cs_exact},
-#endif
-  {"gb2312",         "gb2312",   my_cs_exact},
-  {"gbk",            "gbk",      my_cs_exact},
-  {"georgianps",     "geostd8",  my_cs_exact},
-  {"georgian-ps",    "geostd8",  my_cs_exact},
-  {"IBM-1252",       "cp1252",   my_cs_exact},
-
-  {"iso88591",       "latin1",   my_cs_approx},
-  {"ISO_8859-1",     "latin1",   my_cs_approx},
-  {"ISO8859-1",      "latin1",   my_cs_approx},
-  {"ISO-8859-1",     "latin1",   my_cs_approx},
-
-  {"iso885913",      "latin7",   my_cs_exact},
-  {"ISO_8859-13",    "latin7",   my_cs_exact},
-  {"ISO8859-13",     "latin7",   my_cs_exact},
-  {"ISO-8859-13",    "latin7",   my_cs_exact},
-
-#ifdef UNCOMMENT_THIS_WHEN_WL_4579_IS_DONE
-  {"iso885915",      "latin9",   my_cs_exact},
-  {"ISO_8859-15",    "latin9",   my_cs_exact},
-  {"ISO8859-15",     "latin9",   my_cs_exact},
-  {"ISO-8859-15",    "latin9",   my_cs_exact},
-#endif
-
-  {"iso88592",       "latin2",   my_cs_exact},
-  {"ISO_8859-2",     "latin2",   my_cs_exact},
-  {"ISO8859-2",      "latin2",   my_cs_exact},
-  {"ISO-8859-2",     "latin2",   my_cs_exact},
-
-  {"iso88597",       "greek",    my_cs_exact},
-  {"ISO_8859-7",     "greek",    my_cs_exact},
-  {"ISO8859-7",      "greek",    my_cs_exact},
-  {"ISO-8859-7",     "greek",    my_cs_exact},
-
-  {"iso88598",       "hebrew",   my_cs_exact},
-  {"ISO_8859-8",     "hebrew",   my_cs_exact},
-  {"ISO8859-8",      "hebrew",   my_cs_exact},
-  {"ISO-8859-8",     "hebrew",   my_cs_exact},
-
-  {"iso88599",       "latin5",   my_cs_exact},
-  {"ISO_8859-9",     "latin5",   my_cs_exact},
-  {"ISO8859-9",      "latin5",   my_cs_exact},
-  {"ISO-8859-9",     "latin5",   my_cs_exact},
-
-  {"koi8r",          "koi8r",    my_cs_exact},
-  {"KOI8-R",         "koi8r",    my_cs_exact},
-  {"koi8u",          "koi8u",    my_cs_exact},
-  {"KOI8-U",         "koi8u",    my_cs_exact},
-
-  {"roman8",         "hp8",      my_cs_exact}, /* Default on HP UX */
-
-  {"Shift_JIS",      "sjis",     my_cs_exact},
-  {"SJIS",           "sjis",     my_cs_exact},
-  {"shiftjisx0213",  "sjis",     my_cs_exact},
-  
-  {"tis620",         "tis620",   my_cs_exact},
-  {"tis-620",        "tis620",   my_cs_exact},
-
-  {"ujis",           "ujis",     my_cs_exact},
-
-  {"US-ASCII",       "latin1",   my_cs_approx},
-
-  {"utf8",           "utf8",     my_cs_exact},
-  {"utf-8",          "utf8",     my_cs_exact},
-#endif
-  {NULL,             NULL,       0}
-};
-
-
-static const char *
-my_os_charset_to_mysql_charset(const char *csname)
-{
-  const MY_CSET_OS_NAME *csp;
-  for (csp= charsets; csp->os_name; csp++)
-  {
-    if (!my_strcasecmp(&my_charset_latin1, csp->os_name, csname))
-    {
-      switch (csp->param)
-      {
-      case my_cs_exact:
-        return csp->my_name;
-
-      case my_cs_approx:
-        /*
-          Maybe we should print a warning eventually:
-          character set correspondence is not exact.
-        */
-        return csp->my_name;
-
-      default:
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "OS character set '%s'"
-                        " is not supported by MySQL client",
-                         MYF(0), csp->my_name);
-        goto def;
-      }
-    }
-  }
-
-  my_printf_error(ER_UNKNOWN_ERROR,
-                  "Unknown OS character set '%s'.",
-                  MYF(0), csname);
-
-def:
-  csname= MYSQL_DEFAULT_CHARSET_NAME;
-  my_printf_error(ER_UNKNOWN_ERROR,
-                  "Switching to the default character set '%s'.",
-                  MYF(0), csname);
-  return csname;
-}
-
-
-#ifndef __WIN__
-#include <stdlib.h> /* for getenv() */
-#ifdef HAVE_LANGINFO_H
-#include <langinfo.h>
-#endif
-#ifdef HAVE_LOCALE_H
-#include <locale.h>
-#endif
-#endif /* __WIN__ */
-
-
+#include <my_sys.h>
 static int
 mysql_autodetect_character_set(MYSQL *mysql)
 {
-  const char *csname= MYSQL_DEFAULT_CHARSET_NAME;
-
-#ifdef __WIN__
-  char cpbuf[64];
-  {
-    UINT cp= GetConsoleCP();
-    if (cp == 0)
-      cp= GetACP();
-    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
-    csname= my_os_charset_to_mysql_charset(cpbuf);
-  }
-#elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
-  {
-    if (setlocale(LC_CTYPE, "") && (csname= nl_langinfo(CODESET)))
-      csname= my_os_charset_to_mysql_charset(csname);
-  }
-#endif
-
   if (mysql->options.charset_name)
     my_free(mysql->options.charset_name);
-  if (!(mysql->options.charset_name= my_strdup(csname, MYF(MY_WME))))
+  if (!(mysql->options.charset_name= my_strdup(my_default_csname(),MYF(MY_WME))))
     return 1;
   return 0;
 }
@@ -1953,16 +1707,13 @@ C_MODE_START
 int mysql_init_character_set(MYSQL *mysql)
 {
   /* Set character set */
-  if (!mysql->options.charset_name)
+  if (!mysql->options.charset_name ||
+      !strcmp(mysql->options.charset_name,
+              MYSQL_AUTODETECT_CHARSET_NAME))
   {
-    if (!(mysql->options.charset_name= 
-       my_strdup(MYSQL_DEFAULT_CHARSET_NAME,MYF(MY_WME))))
+    if (mysql_autodetect_character_set(mysql))
       return 1;
   }
-  else if (!strcmp(mysql->options.charset_name,
-                   MYSQL_AUTODETECT_CHARSET_NAME) &&
-            mysql_autodetect_character_set(mysql))
-    return 1;
 
   mysql_set_character_set_with_default_collation(mysql);
 
@@ -2836,14 +2587,10 @@ set_connect_attributes(MYSQL *mysql, char *buff, size_t buf_len)
                       "_platform", MACHINE_TYPE);
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                       "_server_host", mysql->host);                      
-#ifdef __WIN__
-  snprintf(buff, buf_len, "%lu", (ulong) GetCurrentProcessId());
-#else
   snprintf(buff, buf_len, "%lu", (ulong) getpid());
-#endif
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD, "_pid", buff);
 
-#ifdef __WIN__
+#ifdef _WIN32
   snprintf(buff, buf_len, "%lu", (ulong) GetCurrentThreadId());
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD, "_thread", buff);
 #endif
@@ -2864,7 +2611,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   const char    *scramble_plugin;
   ulong		pkt_length;
   NET		*net= &mysql->net;
-#ifdef __WIN__
+#ifdef _WIN32
   HANDLE	hPipe=INVALID_HANDLE_VALUE;
 #endif
 #ifdef HAVE_SYS_UN_H
@@ -2986,21 +2733,19 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     }
     mysql->options.protocol=MYSQL_PROTOCOL_SOCKET;
   }
-#elif defined(__WIN__)
+#elif defined(_WIN32)
   if (!net->vio &&
       (mysql->options.protocol == MYSQL_PROTOCOL_PIPE ||
-       (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE)) ||
-       (! have_tcpip && (unix_socket || !host ))))
+       (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE))))
   {
     if ((hPipe= create_named_pipe(mysql, mysql->options.connect_timeout,
                                   (char**) &host, (char**) &unix_socket)) ==
 	INVALID_HANDLE_VALUE)
     {
       DBUG_PRINT("error",
-		 ("host: '%s'  socket: '%s'  have_tcpip: %d",
+		 ("host: '%s'  socket: '%s'",
 		  host ? host : "<null>",
-		  unix_socket ? unix_socket : "<null>",
-		  (int) have_tcpip));
+		  unix_socket ? unix_socket : "<null>"));
       if (mysql->options.protocol == MYSQL_PROTOCOL_PIPE ||
 	  (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE)) ||
 	  (unix_socket && !strcmp(unix_socket,MYSQL_NAMEDPIPE)))

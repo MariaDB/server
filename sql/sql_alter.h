@@ -287,8 +287,9 @@ public:
     fk_error_table= fk->foreign_table->str;
   }
 
+  void report_implicit_default_value_error(THD *thd, const TABLE_SHARE *) const;
 public:
-  Create_field *datetime_field;
+  Create_field *implicit_default_value_error_field;
   bool         error_if_not_empty;
   uint         tables_opened;
   LEX_CSTRING  db;
@@ -355,7 +356,8 @@ protected:
   Sql_cmd_alter_table represents the generic ALTER TABLE statement.
   @todo move Alter_info and other ALTER specific structures from Lex here.
 */
-class Sql_cmd_alter_table : public Sql_cmd_common_alter_table
+class Sql_cmd_alter_table : public Sql_cmd_common_alter_table,
+                            public Storage_engine_name
 {
 public:
   /**
@@ -366,6 +368,8 @@ public:
 
   ~Sql_cmd_alter_table()
   {}
+
+  Storage_engine_name *option_storage_engine_name() { return this; }
 
   bool execute(THD *thd);
 };

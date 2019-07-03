@@ -136,16 +136,6 @@ HPUX aCC: HP ANSI C++ B3910B A.03.65) can't handle it. */
 #define SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT 19
 
 /*******************************************************************//**
-Auxiliary function to store ulint value in MYSQL_TYPE_LONGLONG field.
-If the value is ULINT_UNDEFINED then the field it set to NULL.
-@return	0 on success */
-int
-field_store_ulint(
-/*==============*/
-	Field*	field,	/*!< in/out: target field for storage */
-	ulint	n);	/*!< in: value to store */
-
-/*******************************************************************//**
 Auxiliary function to store char* value in MYSQL_TYPE_STRING field.
 @return	0 on success */
 int

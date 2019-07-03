@@ -1196,3 +1196,19 @@ uint convert_to_printable(char *to, size_t to_len,
     *t= '\0';
   return (uint) (t - to);
 }
+
+size_t convert_to_printable_required_length(uint len)
+{
+  return static_cast<size_t>(len) * 4 +  3/*dots*/  + 1/*trailing \0 */;
+}
+
+bool String::append_semi_hex(const char *s, uint len, CHARSET_INFO *cs)
+{
+  size_t dst_len= convert_to_printable_required_length(len);
+  if (reserve(dst_len))
+    return true;
+  uint nbytes= convert_to_printable(Ptr + str_length, dst_len, s, len, cs);
+  DBUG_ASSERT((ulonglong) str_length + nbytes < UINT_MAX32);
+  str_length+= nbytes;
+  return false;
+}

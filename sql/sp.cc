@@ -683,7 +683,7 @@ Sp_handler::db_find_routine(THD *thd,
   longlong modified;
   Sp_chistics chistics;
   bool saved_time_zone_used= thd->time_zone_used;
-  sql_mode_t sql_mode, saved_mode= thd->variables.sql_mode;
+  sql_mode_t sql_mode;
   Open_tables_backup open_tables_state_backup;
   Stored_program_creation_ctx *creation_ctx;
   AUTHID definer;
@@ -698,7 +698,7 @@ Sp_handler::db_find_routine(THD *thd,
     DBUG_RETURN(SP_OPEN_TABLE_FAILED);
 
   /* Reset sql_mode during data dictionary operations. */
-  thd->variables.sql_mode= 0;
+  Sql_mode_instant_set sms(thd, 0);
 
   if ((ret= db_find_routine_aux(thd, name, table)) != SP_OK)
     goto done;
@@ -755,7 +755,6 @@ Sp_handler::db_find_routine(THD *thd,
   thd->time_zone_used= saved_time_zone_used;
   if (table)
     close_system_tables(thd, &open_tables_state_backup);
-  thd->variables.sql_mode= saved_mode;
   DBUG_RETURN(ret);
 }
 
@@ -1524,8 +1523,7 @@ Sp_handler_package::show_create_sp(THD *thd, String *buf,
                                    const DDL_options_st ddl_options,
                                    sql_mode_t sql_mode) const
 {
-  sql_mode_t old_sql_mode= thd->variables.sql_mode;
-  thd->variables.sql_mode= sql_mode;
+  Sql_mode_instant_set sms(thd, sql_mode);
   bool rc=
     buf->append(STRING_WITH_LEN("CREATE ")) ||
     (ddl_options.or_replace() &&
@@ -1542,7 +1540,6 @@ Sp_handler_package::show_create_sp(THD *thd, String *buf,
     append_package_chistics(buf, chistics) ||
     buf->append(" ", 1) ||
     buf->append(body.str, body.length);
-  thd->variables.sql_mode= old_sql_mode;
   return rc;
 }
 
@@ -2914,7 +2911,6 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
                            const DDL_options_st ddl_options,
                            sql_mode_t sql_mode) const
 {
-  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   size_t agglen= (chistics.agg_type == GROUP_AGGREGATE)? 10 : 0;
   LEX_CSTRING tmp;
 
@@ -2925,7 +2921,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
                  agglen + USER_HOST_BUFF_SIZE))
     return true;
 
-  thd->variables.sql_mode= sql_mode;
+  Sql_mode_instant_set sms(thd, sql_mode);
   buf->append(STRING_WITH_LEN("CREATE "));
   if (ddl_options.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
@@ -2976,7 +2972,6 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
   append_suid(buf, chistics.suid);
   append_comment(buf, chistics.comment);
   buf->append(body.str, body.length);           // Not \0 terminated
-  thd->variables.sql_mode= old_sql_mode;
   return false;
 }
 

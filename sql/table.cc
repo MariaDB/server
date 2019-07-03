@@ -1077,7 +1077,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Field **vfield_ptr= table->vfield;
   Field **dfield_ptr= table->default_field;
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
-  sql_mode_t saved_mode= thd->variables.sql_mode;
   Query_arena backup_arena;
   Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
@@ -1103,7 +1102,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   thd->stmt_arena= table->expr_arena;
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
-  thd->variables.sql_mode &= ~MODE_NO_BACKSLASH_ESCAPES;
+  Sql_mode_instant_remove sms(thd, MODE_NO_BACKSLASH_ESCAPES);
 
   while (pos < end)
   {
@@ -1271,7 +1270,6 @@ end:
   thd->stmt_arena= backup_stmt_arena_ptr;
   if (save_character_set_client)
     thd->update_charset(save_character_set_client, save_collation);
-  thd->variables.sql_mode= saved_mode;
   DBUG_RETURN(res);
 }
 
@@ -1690,8 +1688,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   if (!share->table_charset)
   {
+    const CHARSET_INFO *cs= thd->variables.collation_database;
     /* unknown charset in frm_image[38] or pre-3.23 frm */
-    if (use_mb(default_charset_info))
+    if (use_mb(cs))
     {
       /* Warn that we may be changing the size of character columns */
       sql_print_warning("'%s' had no or invalid character set, "
@@ -1699,7 +1698,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                         "so character column sizes may have changed",
                         share->path.str);
     }
-    share->table_charset= default_charset_info;
+    share->table_charset= cs;
   }
 
   share->db_record_offset= 1;
@@ -2191,6 +2190,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         enum_field_types field_type= (enum_field_types) strpos[13];
         if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
           goto err; // Not supported field type
+        handler= handler->type_handler_frm_unpack(strpos);
         if (handler->Column_definition_attributes_frm_unpack(&attr, share,
                                                              strpos,
                                                              &extra2.gis))
@@ -2554,7 +2554,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
         uint add_keyparts_for_this_key= add_first_key_parts;
-        uint length_bytes= 0, len_null_byte= 0, ext_key_length= 0;
+        uint len_null_byte= 0, ext_key_length= 0;
         Field *field;
 
         if ((keyinfo-1)->algorithm == HA_KEY_ALG_LONG_HASH)
@@ -2566,19 +2566,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	*/ 
         for (i= 0; i < keyinfo->user_defined_key_parts; i++)
         {
+          uint length_bytes= 0;
           uint fieldnr= keyinfo->key_part[i].fieldnr;
           field= share->field[fieldnr-1];
 
           if (field->null_ptr)
             len_null_byte= HA_KEY_NULL_LENGTH;
 
-          if ((field->type() == MYSQL_TYPE_BLOB ||
-             field->real_type() == MYSQL_TYPE_VARCHAR ||
-             field->type() == MYSQL_TYPE_GEOMETRY) &&
-             keyinfo->algorithm != HA_KEY_ALG_LONG_HASH )
-          {
-            length_bytes= HA_KEY_BLOB_LENGTH;
-          }
+          if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
+            length_bytes= field->key_part_length_bytes();
 
           ext_key_length+= keyinfo->key_part[i].length + len_null_byte
                             + length_bytes;
@@ -2667,20 +2663,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           keyinfo->flags|=HA_NULL_PART_KEY;
           keyinfo->key_length+= HA_KEY_NULL_LENGTH;
         }
-        if (field->type() == MYSQL_TYPE_BLOB ||
-            field->real_type() == MYSQL_TYPE_VARCHAR ||
-            field->type() == MYSQL_TYPE_GEOMETRY)
-        {
-          if (field->type() == MYSQL_TYPE_BLOB ||
-              field->type() == MYSQL_TYPE_GEOMETRY)
-            key_part->key_part_flag|= HA_BLOB_PART;
-          else
-            key_part->key_part_flag|= HA_VAR_LENGTH_PART;
-          key_part->store_length+=HA_KEY_BLOB_LENGTH;
-          keyinfo->key_length+= HA_KEY_BLOB_LENGTH;
-        }
-        if (field->type() == MYSQL_TYPE_BIT)
-          key_part->key_part_flag|= HA_BIT_PART;
+
+        key_part->key_part_flag|= field->key_part_flag();
+        uint16 key_part_length_bytes= field->key_part_length_bytes();
+        key_part->store_length+= key_part_length_bytes;
+        keyinfo->key_length+= key_part_length_bytes;
 
         if (i == 0 && key != primary_key)
           field->flags |= (((keyinfo->flags & HA_NOSAME ||
@@ -3051,8 +3038,20 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (create_info->data_file_name || create_info->index_file_name)
     return 1;
   // ... engine
-  if (create_info->db_type && create_info->db_type != engine)
-    return 1;
+  DBUG_ASSERT(lex->m_sql_cmd);
+  if (lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
+  {
+    /*
+      TODO: we could just compare engine names here, without resolving.
+      But this optimization is too late for 10.1.
+    */
+    Storage_engine_name *opt= lex->m_sql_cmd->option_storage_engine_name();
+    DBUG_ASSERT(opt); // lex->m_sql_cmd must be an Sql_cmd_create_table instance
+    if (opt->resolve_storage_engine_with_error(thd, &create_info->db_type,
+                                               false) ||
+        (create_info->db_type && create_info->db_type != engine))
+      return 1;
+  }
   // ... WITH SYSTEM VERSIONING
   if (create_info->versioned())
     return 1;
@@ -3063,7 +3062,6 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
 int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
                                         const char *sql, size_t sql_length)
 {
-  sql_mode_t saved_mode= thd->variables.sql_mode;
   CHARSET_INFO *old_cs= thd->variables.character_set_client;
   Parser_state parser_state;
   bool error;
@@ -3091,7 +3089,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (parser_state.init(thd, sql_copy, sql_length))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  thd->variables.sql_mode= MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE;
+  Sql_mode_instant_set sms(thd, MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE);
   thd->variables.character_set_client= system_charset_info;
   tmp_disable_binlog(thd);
   old_lex= thd->lex;
@@ -3140,7 +3138,6 @@ ret:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
-  thd->variables.sql_mode= saved_mode;
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
   {
@@ -4390,21 +4387,17 @@ bool get_field(MEM_ROOT *mem, Field *field, String *res)
   StringBuffer<MAX_FIELD_WIDTH> str;
   bool rc;
   THD *thd= field->get_thd();
-  sql_mode_t sql_mode_backup= thd->variables.sql_mode;
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   field->val_str(&str);
   if ((rc= !str.length() ||
            !(to= strmake_root(mem, str.ptr(), str.length()))))
   {
     res->length(0);
-    goto ex;
+    return rc;
   }
   res->set(to, str.length(), field->charset());
-
-ex:
-  thd->variables.sql_mode= sql_mode_backup;
-  return rc;
+  return false;
 }
 
 
@@ -7489,14 +7482,9 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
   {
     key_part_info->store_length+= HA_KEY_NULL_LENGTH;
   }
-  if (field->type() == MYSQL_TYPE_BLOB || 
-      field->type() == MYSQL_TYPE_GEOMETRY ||
-      field->real_type() == MYSQL_TYPE_VARCHAR)
-  {
-    key_part_info->store_length+= HA_KEY_BLOB_LENGTH;
-    key_part_info->key_part_flag|=
-      field->type() == MYSQL_TYPE_BLOB ? HA_BLOB_PART: HA_VAR_LENGTH_PART;
-  }
+
+  key_part_info->key_part_flag|= field->key_part_flag();
+  key_part_info->store_length+= field->key_part_length_bytes();
 
   key_part_info->type=     (uint8) field->key_type();
   key_part_info->key_type =
@@ -9385,7 +9373,7 @@ bool TR_table::check(bool error)
   }
 
   Field_enum *iso_level= static_cast<Field_enum *>(table->field[FLD_ISO_LEVEL]);
-  st_typelib *typelib= iso_level->typelib;
+  const st_typelib *typelib= iso_level->typelib;
 
   if (typelib->count != 4)
     goto wrong_enum;

@@ -215,7 +215,6 @@ int archive_db_init(void *p)
 #endif
 
   archive_hton= (handlerton *)p;
-  archive_hton->state= SHOW_OPTION_YES;
   archive_hton->db_type= DB_TYPE_ARCHIVE_DB;
   archive_hton->create= archive_create_handler;
   archive_hton->flags= HTON_NO_FLAGS;

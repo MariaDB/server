@@ -1,0 +1,22 @@
+#
+# MDEV-19575 Assertion `page_st == 1' failed upon SELECT from S3
+# table which is being converted into Aria
+#
+CREATE TABLE t1 (f INT);
+insert into t1 values (1),(2);
+ALTER TABLE t1 ENGINE=S3;
+select * from t1;
+f
+1
+2
+connect  con1,localhost,root,,$database;
+ALTER TABLE t1 ENGINE=Aria;
+connection default;
+SELECT * FROM t1;
+f
+1
+2
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1;

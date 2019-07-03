@@ -625,7 +625,17 @@ inline void fsp_init_file_page(
 	ut_d(space->modify_check(*mtr));
 	ut_ad(space->id == block->page.id.space());
 	fsp_apply_init_file_page(block);
-	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
+
+	if (byte* log_ptr = mlog_open(mtr, 11)) {
+		log_ptr = mlog_write_initial_log_record_low(
+			MLOG_INIT_FILE_PAGE2,
+			block->page.id.space(), block->page.id.page_no(),
+			log_ptr, mtr);
+		mlog_close(mtr, log_ptr);
+		if (!innodb_log_optimize_ddl) {
+			block->page.init_on_flush = true;
+		}
+	}
 }
 
 #ifndef UNIV_DEBUG

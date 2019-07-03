@@ -581,36 +581,13 @@ extern int rw_pr_destroy(rw_pr_lock_t *);
 /**
   Implementation of Windows rwlock.
 
-  We use native (slim) rwlocks on Win7 and later, and fallback to  portable
-  implementation on earlier Windows.
-
-  slim rwlock are also available on Vista/WS2008, but we do not use it
-  ("trylock" APIs are missing on Vista)
+  We use native (slim) rwlocks on Windows, which requires Win7
+  or later.
 */
-typedef union
+typedef struct _my_rwlock_t
 {
-  /* Native rwlock (is_srwlock == TRUE) */
-  struct 
-  {
-    SRWLOCK srwlock;             /* native reader writer lock */
-    BOOL have_exclusive_srwlock; /* used for unlock */
-  };
-
-  /*
-    Portable implementation (is_srwlock == FALSE)
-    Fields are identical with Unix my_rw_lock_t fields.
-  */
-  struct 
-  {
-    pthread_mutex_t lock;       /* lock for structure		*/
-    pthread_cond_t  readers;    /* waiting readers		*/
-    pthread_cond_t  writers;    /* waiting writers		*/
-    int state;                  /* -1:writer,0:free,>0:readers	*/
-    int waiters;                /* number of waiting writers	*/
-#ifdef SAFE_MUTEX
-    pthread_t  write_thread;
-#endif
-  };
+  SRWLOCK srwlock;             /* native reader writer lock */
+  BOOL have_exclusive_srwlock; /* used for unlock */
 } my_rw_lock_t;
 
 

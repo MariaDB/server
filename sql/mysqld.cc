@@ -1442,8 +1442,8 @@ Query_cache query_cache;
 my_bool opt_use_ssl  = 0;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
   *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
-  *opt_ssl_crlpath= NULL;
-
+  *opt_ssl_crlpath= NULL, *opt_tls_version= NULL;
+ulonglong tls_version= 0;
 
 static scheduler_functions thread_scheduler_struct, extra_thread_scheduler_struct;
 scheduler_functions *thread_scheduler= &thread_scheduler_struct,
@@ -4626,7 +4626,8 @@ static void init_ssl()
     ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
 					  opt_ssl_ca, opt_ssl_capath,
 					  opt_ssl_cipher, &error,
-                                          opt_ssl_crl, opt_ssl_crlpath);
+					  opt_ssl_crl, opt_ssl_crlpath,
+					  tls_version);
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
@@ -4665,7 +4666,8 @@ int reinit_ssl()
 
   enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
   st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
-    opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl, opt_ssl_crlpath);
+    opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl,
+    opt_ssl_crlpath, tls_version);
 
   if (!new_fd)
   {
@@ -5367,13 +5369,13 @@ static void test_lc_time_sz()
     for (const char **month= (*loc)->month_names->type_names; *month; month++)
     {
       set_if_bigger(max_month_len,
-                    my_numchars_mb(&my_charset_utf8_general_ci,
+                    my_numchars_mb(&my_charset_utf8mb3_general_ci,
                                    *month, *month + strlen(*month)));
     }
     for (const char **day= (*loc)->day_names->type_names; *day; day++)
     {
       set_if_bigger(max_day_len,
-                    my_numchars_mb(&my_charset_utf8_general_ci,
+                    my_numchars_mb(&my_charset_utf8mb3_general_ci,
                                    *day, *day + strlen(*day)));
     }
     if ((*loc)->max_month_name_length != max_month_len ||
@@ -5434,7 +5436,7 @@ int mysqld_main(int argc, char **argv)
   remaining_argv= argv;
 
   /* Must be initialized early for comparison of options name */
-  system_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
 
   sys_var_init();
 
@@ -5630,16 +5632,10 @@ int mysqld_main(int argc, char **argv)
   init_ssl();
   network_init();
 
-#ifdef __WIN__
+#ifdef _WIN32
   if (!opt_console)
   {
     FreeConsole();				// Remove window
-  }
-
-  if (fileno(stdin) >= 0)
-  {
-    /* Disable CRLF translation (MDEV-9409). */
-    _setmode(fileno(stdin), O_BINARY);
   }
 #endif
 
@@ -5970,7 +5966,7 @@ int mysqld_main(int argc, char **argv)
                                                   "MySQLShutdown"), 10);
 
   /* Must be initialized early for comparison of service name */
-  system_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
 
   if (my_init())
   {
@@ -7895,9 +7891,9 @@ static int mysql_init_variables(void)
   key_map_full.set_all();
 
   /* Character sets */
-  system_charset_info= &my_charset_utf8_general_ci;
-  files_charset_info= &my_charset_utf8_general_ci;
-  national_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
+  files_charset_info= &my_charset_utf8mb3_general_ci;
+  national_charset_info= &my_charset_utf8mb3_general_ci;
   table_alias_charset= &my_charset_bin;
   character_set_filesystem= &my_charset_bin;
 
@@ -8322,8 +8318,10 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     opt_specialflag|= SPECIAL_NO_HOST_CACHE;
     break;
   case (int) OPT_SKIP_RESOLVE:
-    opt_skip_name_resolve= 1;
-    opt_specialflag|=SPECIAL_NO_RESOLVE;
+    if ((opt_skip_name_resolve= (argument != disabled_my_option)))
+      opt_specialflag|= SPECIAL_NO_RESOLVE;
+    else
+      opt_specialflag&= ~SPECIAL_NO_RESOLVE;
     break;
   case (int) OPT_WANT_CORE:
     test_flags |= TEST_CORE_ON_SIGNAL;
@@ -8382,6 +8380,8 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     break;
   case OPT_PLUGIN_LOAD:
     free_list(opt_plugin_load_list_ptr);
+    if (argument == disabled_my_option)
+      break;                                    // Resets plugin list
     /* fall through */
   case OPT_PLUGIN_LOAD_ADD:
     opt_plugin_load_list_ptr->push_back(new i_string(argument));

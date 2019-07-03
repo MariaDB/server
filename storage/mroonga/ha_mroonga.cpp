@@ -1271,37 +1271,15 @@ static struct st_mysql_information_schema i_s_info =
   MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION
 };
 
+namespace Show {
 static ST_FIELD_INFO i_s_mrn_stats_fields_info[] =
 {
-  {
-    "VERSION",
-    40,
-    MYSQL_TYPE_STRING,
-    0,
-    0,
-    "",
-    SKIP_OPEN_TABLE
-  },
-  {
-    "rows_written",
-    MY_INT32_NUM_DECIMAL_DIGITS,
-    MYSQL_TYPE_LONG,
-    0,
-    0,
-    "Rows written to Groonga",
-    SKIP_OPEN_TABLE
-  },
-  {
-    "rows_read",
-    MY_INT32_NUM_DECIMAL_DIGITS,
-    MYSQL_TYPE_LONG,
-    0,
-    0,
-    "Rows read from Groonga",
-    SKIP_OPEN_TABLE
-  },
-  { 0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0}
+  Column("VERSION",      Varchar(40), NOT_NULL),
+  Column("rows_written", SLong(),     NOT_NULL, "Rows written to Groonga"),
+  Column("rows_read",    SLong(),     NOT_NULL, "Rows read from Groonga"),
+  CEnd()
 };
+} // namespace Show
 
 static int i_s_mrn_stats_deinit(void* p)
 {
@@ -1330,7 +1308,7 @@ static int i_s_mrn_stats_init(void* p)
 {
   MRN_DBUG_ENTER_FUNCTION();
   ST_SCHEMA_TABLE* schema = (ST_SCHEMA_TABLE*) p;
-  schema->fields_info = i_s_mrn_stats_fields_info;
+  schema->fields_info = Show::i_s_mrn_stats_fields_info;
   schema->fill_table = i_s_mrn_stats_fill;
   DBUG_RETURN(0);
 }
@@ -1806,7 +1784,6 @@ static int mrn_init(void *p)
   // init handlerton
   grn_ctx *ctx = NULL;
   handlerton *hton = static_cast<handlerton *>(p);
-  hton->state = SHOW_OPTION_YES;
   hton->create = mrn_handler_create;
   hton->flags = HTON_NO_FLAGS;
 #ifndef MRN_SUPPORT_PARTITION

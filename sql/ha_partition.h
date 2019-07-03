@@ -1441,6 +1441,9 @@ public:
     void append_row_to_str(String &str);
     public:
 
+    virtual int pre_calculate_checksum();
+    virtual int calculate_checksum();
+
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);

@@ -1411,7 +1411,7 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   THD *thd= table->in_use;
   enum_check_fields tmp= thd->count_cuted_fields;
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
-  sql_mode_t sql_mode= thd->variables.sql_mode;
+  Sql_mode_save sms(thd);
   thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
   thd->variables.sql_mode|= MODE_INVALID_DATES;
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
@@ -1420,7 +1420,6 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
 
   thd->count_cuted_fields= tmp;
   dbug_tmp_restore_column_map(table->write_set, old_map);
-  thd->variables.sql_mode= sql_mode;
   return res;
 }
 
@@ -3878,7 +3877,6 @@ void Item_param::sync_clones()
     c->null_value= null_value;
     c->Type_std_attributes::operator=(*this);
     c->Type_handler_hybrid_field_type::operator=(*this);
-    c->Type_geometry_attributes::operator=(*this);
 
     c->state= state;
     c->m_empty_string_is_null= m_empty_string_is_null;

@@ -6007,71 +6007,6 @@ lock_get_trx_id(
 }
 
 /*******************************************************************//**
-Gets the mode of a lock in a human readable string.
-The string should not be free()'d or modified.
-@return lock mode */
-const char*
-lock_get_mode_str(
-/*==============*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	ibool	is_gap_lock;
-
-	is_gap_lock = lock_get_type_low(lock) == LOCK_REC
-		&& lock_rec_get_gap(lock);
-
-	switch (lock_get_mode(lock)) {
-	case LOCK_S:
-		if (is_gap_lock) {
-			return("S,GAP");
-		} else {
-			return("S");
-		}
-	case LOCK_X:
-		if (is_gap_lock) {
-			return("X,GAP");
-		} else {
-			return("X");
-		}
-	case LOCK_IS:
-		if (is_gap_lock) {
-			return("IS,GAP");
-		} else {
-			return("IS");
-		}
-	case LOCK_IX:
-		if (is_gap_lock) {
-			return("IX,GAP");
-		} else {
-			return("IX");
-		}
-	case LOCK_AUTO_INC:
-		return("AUTO_INC");
-	default:
-		return("UNKNOWN");
-	}
-}
-
-/*******************************************************************//**
-Gets the type of a lock in a human readable string.
-The string should not be free()'d or modified.
-@return lock type */
-const char*
-lock_get_type_str(
-/*==============*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	switch (lock_get_type_low(lock)) {
-	case LOCK_REC:
-		return("RECORD");
-	case LOCK_TABLE:
-		return("TABLE");
-	default:
-		return("UNKNOWN");
-	}
-}
-
-/*******************************************************************//**
 Gets the table on which the lock is.
 @return table */
 UNIV_INLINE
@@ -6145,32 +6080,6 @@ lock_rec_get_index_name(
 	      || !dict_index_is_online_ddl(lock->index));
 
 	return(lock->index->name);
-}
-
-/*******************************************************************//**
-For a record lock, gets the tablespace number on which the lock is.
-@return tablespace number */
-ulint
-lock_rec_get_space_id(
-/*==================*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	ut_a(lock_get_type_low(lock) == LOCK_REC);
-
-	return(lock->un_member.rec_lock.space);
-}
-
-/*******************************************************************//**
-For a record lock, gets the page number on which the lock is.
-@return page number */
-ulint
-lock_rec_get_page_no(
-/*=================*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	ut_a(lock_get_type_low(lock) == LOCK_REC);
-
-	return(lock->un_member.rec_lock.page_no);
 }
 
 /*********************************************************************//**

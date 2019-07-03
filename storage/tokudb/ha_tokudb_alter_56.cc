@@ -465,10 +465,10 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
             result = HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
         }
     } else if ((ctx->handler_flags &
-                ALTER_COLUMN_EQUAL_PACK_LENGTH) &&
+                ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) &&
                 only_flags(
                     ctx->handler_flags,
-                    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+                    ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |
                     ALTER_COLUMN_DEFAULT) &&
                 table->s->fields == altered_table->s->fields &&
                 find_changed_fields(
@@ -1177,6 +1177,18 @@ static bool change_varchar_length_is_supported(Field* old_field,
         ctx->altered_table_kc_info->num_offset_bytes)
         // sum of varchar lengths changed from 1 to 2
         ctx->expand_varchar_update_needed = true;
+    return true;
+}
+
+bool ha_tokudb::can_convert_varstring(const Field_varstring* field,
+                                      const Column_definition& new_type) const {
+    if (new_type.length < field->field_length ||
+        new_type.char_length < field->char_length() ||
+        !new_type.compression_method() != !field->compression_method() ||
+        new_type.type_handler() != field->type_handler()) {
+        return false;
+    }
+
     return true;
 }
 

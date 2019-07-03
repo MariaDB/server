@@ -179,7 +179,6 @@ static int oqgraph_init(void *p)
   handlerton *hton= (handlerton *)p;
   DBUG_PRINT( "oq-debug", ("oqgraph_init"));
 
-  hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_AUTOASSIGN;
   hton->create= oqgraph_create_handler;
   hton->flags= HTON_ALTER_NOT_SUPPORTED;

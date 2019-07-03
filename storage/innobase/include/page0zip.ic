@@ -380,38 +380,6 @@ page_zip_compress_write_log_no_data(
 }
 
 /**********************************************************************//**
-Parses a log record of compressing an index page without the data.
-@return end of log record or NULL */
-UNIV_INLINE
-byte*
-page_zip_parse_compress_no_data(
-/*============================*/
-	byte*		ptr,		/*!< in: buffer */
-	byte*		end_ptr,	/*!< in: buffer end */
-	page_t*		page,		/*!< in: uncompressed page */
-	page_zip_des_t*	page_zip,	/*!< out: compressed page */
-	dict_index_t*	index)		/*!< in: index */
-{
-	ulint	level;
-	if (end_ptr == ptr) {
-		return(NULL);
-	}
-
-	level = mach_read_from_1(ptr);
-
-	/* If page compression fails then there must be something wrong
-	because a compress log record is logged only if the compression
-	was successful. Crash in this case. */
-
-	if (page
-	    && !page_zip_compress(page_zip, page, index, level, NULL)) {
-		ut_error;
-	}
-
-	return(ptr + 1);
-}
-
-/**********************************************************************//**
 Reset the counters used for filling
 INFORMATION_SCHEMA.innodb_cmp_per_index. */
 UNIV_INLINE

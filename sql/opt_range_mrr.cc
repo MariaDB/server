@@ -53,6 +53,11 @@ typedef struct st_sel_arg_range_seq
   int i; /* Index of last used element in the above array */
   
   bool at_start; /* TRUE <=> The traversal has just started */
+  /*
+    Iteration functions will set this to FALSE
+    if ranges being traversed do not allow to construct a ROR-scan"
+  */
+  bool is_ror_scan;
 } SEL_ARG_RANGE_SEQ;
 
 
@@ -165,7 +170,7 @@ bool sel_arg_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range)
     seq->i--;
     step_down_to(seq, key_tree->next);
     key_tree= key_tree->next;
-    seq->param->is_ror_scan= FALSE;
+    seq->is_ror_scan= FALSE;
     goto walk_right_n_up;
   }
 
@@ -207,7 +212,7 @@ walk_right_n_up:
             !memcmp(cur[-1].min_key, cur[-1].max_key, len) &&
             !key_tree->min_flag && !key_tree->max_flag))
       {
-        seq->param->is_ror_scan= FALSE;
+        seq->is_ror_scan= FALSE;
         if (!key_tree->min_flag)
           cur->min_key_parts += 
             key_tree->next_key_part->store_min_key(seq->param->key[seq->keyno],
@@ -312,7 +317,7 @@ walk_up_n_right:
         range->range_flag |= UNIQUE_RANGE | (cur->min_key_flag & NULL_RANGE);
     }
       
-    if (seq->param->is_ror_scan)
+    if (seq->is_ror_scan)
     {
       /*
         If we get here, the condition on the key was converted to form
@@ -327,7 +332,7 @@ walk_up_n_right:
             (range->start_key.length == range->end_key.length) &&
             !memcmp(range->start_key.key, range->end_key.key, range->start_key.length) &&
             is_key_scan_ror(seq->param, seq->real_keyno, key_tree->part + 1)))
-        seq->param->is_ror_scan= FALSE;
+        seq->is_ror_scan= FALSE;
     }
   }
   seq->param->range_count++;

@@ -1,0 +1,2 @@
+--source include/windows.inc
+--exec chcp 1257 > NUL && $MYSQL --default-character-set=auto -e "select @@character_set_client"

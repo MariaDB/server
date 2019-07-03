@@ -9,6 +9,8 @@
 --source include/not_embedded.inc
 # DBUG_SUICIDE() hangs under valgrind
 --source include/not_valgrind.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 CREATE TABLE t1(
 	a INT AUTO_INCREMENT PRIMARY KEY,

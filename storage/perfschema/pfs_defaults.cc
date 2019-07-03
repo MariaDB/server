@@ -42,17 +42,17 @@ void install_default_setup(PSI_bootstrap *boot)
   /* LF_HASH needs a thread, for PINS */
   psi->set_thread(psi_thread);
 
-  String percent("%", 1, &my_charset_utf8_bin);
+  String percent("%", 1, &my_charset_utf8mb3_bin);
   /* Enable all users on all hosts by default */
   insert_setup_actor(&percent, &percent, &percent);
 
   /* Disable system tables by default */
-  String mysql_db("mysql", 5, &my_charset_utf8_bin);
+  String mysql_db("mysql", 5, &my_charset_utf8mb3_bin);
   insert_setup_object(OBJECT_TYPE_TABLE, &mysql_db, &percent, false, false);
 
   /* Disable performance/information schema tables. */
-  String PS_db("performance_schema", 18, &my_charset_utf8_bin);
-  String IS_db("information_schema", 18, &my_charset_utf8_bin);
+  String PS_db("performance_schema", 18, &my_charset_utf8mb3_bin);
+  String IS_db("information_schema", 18, &my_charset_utf8mb3_bin);
   insert_setup_object(OBJECT_TYPE_TABLE, &PS_db, &percent, false, false);
   insert_setup_object(OBJECT_TYPE_TABLE, &IS_db, &percent, false, false);
 

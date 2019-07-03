@@ -1061,7 +1061,6 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
                                       Event_basic *etn)
 {
   bool ret;
-  ulonglong saved_mode= thd->variables.sql_mode;
   Open_tables_backup open_tables_backup;
   TABLE_LIST event_table;
 
@@ -1072,7 +1071,7 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
   event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   /* Reset sql_mode during data dictionary operations. */
-  thd->variables.sql_mode= 0;
+  Sql_mode_instant_set sms(thd, 0);
 
   /*
     We don't use open_event_table() here to make sure that SHOW
@@ -1097,7 +1096,6 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
     close_system_tables(thd, &open_tables_backup);
   }
 
-  thd->variables.sql_mode= saved_mode;
   DBUG_RETURN(ret);
 }
 

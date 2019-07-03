@@ -1790,12 +1790,15 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
       }
       if (table->vfield)
       {
+        my_bool abort_on_warning= thd->abort_on_warning;
         /*
           We have not yet called update_virtual_fields(VOL_UPDATE_FOR_READ)
           in handler methods for the just read row in record[1].
         */
         table->move_fields(table->field, table->record[1], table->record[0]);
+        thd->abort_on_warning= 0;
         table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
+        thd->abort_on_warning= abort_on_warning;
         table->move_fields(table->field, table->record[0], table->record[1]);
       }
       if (info->handle_duplicates == DUP_UPDATE)
@@ -3655,10 +3658,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
   if (!res && fields->elements)
   {
-    bool saved_abort_on_warning= thd->abort_on_warning;
-    thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
+    Abort_on_warning_instant_set aws(thd, !info.ignore && thd->is_strict_mode());
     res= check_that_all_fields_are_given_values(thd, table_list->table, table_list);
-    thd->abort_on_warning= saved_abort_on_warning;
   }
 
   if (info.handle_duplicates == DUP_UPDATE && !res)

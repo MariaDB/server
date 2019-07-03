@@ -31,31 +31,6 @@
 #include <threadpool.h>
 #include <windows.h>
 
-
-
-/*
- WEAK_SYMBOL(return_type, function_name, argument_type1,..,argument_typeN)
-
- Declare and load function pointer from kernel32. The name of the static 
- variable that holds the function pointer is my_<original function name>
- This should be combined with 
- #define <original function name> my_<original function name>
- so that one could use Widows APIs transparently, without worrying whether
- they are present in a particular version or not.
-
- Of course, prior to use of any function there should be a check for correct
- Windows version, or check whether function pointer is not NULL.
-*/
-#define WEAK_SYMBOL(return_type, function, ...) \
-  typedef return_type (WINAPI *pFN_##function)(__VA_ARGS__); \
-  static pFN_##function my_##function = (pFN_##function) \
-    (GetProcAddress(GetModuleHandle("kernel32"),#function))
-
-
-WEAK_SYMBOL(BOOL, SetThreadpoolStackInformation, PTP_POOL, 
-  PTP_POOL_STACK_INFORMATION);
-#define SetThreadpoolStackInformation my_SetThreadpoolStackInformation
-
 /* Log a warning */
 static void tp_log_warning(const char *msg, const char *fct)
 {
@@ -450,19 +425,13 @@ int TP_pool_win::init()
     }
   }
 
-  /*
-    Control stack size (OS must be Win7 or later)
-  */
-  if (SetThreadpoolStackInformation)
+  TP_POOL_STACK_INFORMATION stackinfo;
+  stackinfo.StackCommit = 0;
+  stackinfo.StackReserve = (SIZE_T)my_thread_stack_size;
+  if (!SetThreadpoolStackInformation(pool, &stackinfo))
   {
-    TP_POOL_STACK_INFORMATION stackinfo;
-    stackinfo.StackCommit = 0;
-    stackinfo.StackReserve = (SIZE_T)my_thread_stack_size;
-    if (!SetThreadpoolStackInformation(pool, &stackinfo))
-    {
-      tp_log_warning("Can't set threadpool stack size",
-        "SetThreadpoolStackInformation");
-    }
+    tp_log_warning("Can't set threadpool stack size",
+      "SetThreadpoolStackInformation");
   }
   return 0;
 }

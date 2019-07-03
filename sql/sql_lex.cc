@@ -349,7 +349,7 @@ size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
     "2" should be a reasonable multiplier that safely covers escaping needs.
   */
   return (m_buf_length / thd->variables.character_set_client->mbminlen) *
-          my_charset_utf8_bin.mbmaxlen * 2/*for escaping*/;
+          my_charset_utf8mb3_bin.mbmaxlen * 2/*for escaping*/;
 }
 
 
@@ -454,14 +454,14 @@ extern "C" {
   @param end    - the end of the destination string
   @returns      - a code according to the wc_mb() convension.
 */
-int my_wc_mb_utf8_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
-                              uchar *str, uchar *end)
+int my_wc_mb_utf8mb3_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
+                                 uchar *str, uchar *end)
 {
   DBUG_ASSERT(escape > 0);
   if (str + 1 >= end)
     return MY_CS_TOOSMALL2;  // Not enough space, need at least two bytes.
   *str= (uchar)escape;
-  int cnvres= my_charset_utf8_handler.wc_mb(cs, wc, str + 1, end);
+  int cnvres= my_charset_utf8mb3_handler.wc_mb(cs, wc, str + 1, end);
   if (cnvres > 0)
     return cnvres + 1;       // The character was normally put
   if (cnvres == MY_CS_ILUNI)
@@ -483,12 +483,12 @@ int my_wc_mb_utf8_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
   @param end    - the end of the destination string
   @returns      - a code according to the wc_mb() conversion.
 */
-int my_wc_mb_utf8_opt_escape(CHARSET_INFO *cs,
-                             my_wc_t wc, my_wc_t escape, my_wc_t ewc,
-                             uchar *str, uchar *end)
+int my_wc_mb_utf8mb3_opt_escape(CHARSET_INFO *cs,
+                                my_wc_t wc, my_wc_t escape, my_wc_t ewc,
+                                uchar *str, uchar *end)
 {
-  return escape ? my_wc_mb_utf8_with_escape(cs, escape, ewc, str, end) :
-                  my_charset_utf8_handler.wc_mb(cs, wc, str, end);
+  return escape ? my_wc_mb_utf8mb3_with_escape(cs, escape, ewc, str, end) :
+                  my_charset_utf8mb3_handler.wc_mb(cs, wc, str, end);
 }
 
 /**
@@ -507,54 +507,55 @@ int my_wc_mb_utf8_opt_escape(CHARSET_INFO *cs,
   @param escape    - the escape character (backslash, or 0)
   @returns         - a code according to the wc_mb() convension.
 */
-int my_wc_mb_utf8_escape(CHARSET_INFO *cs, my_wc_t wc, uchar *str, uchar *end,
-                         my_wc_t sep, my_wc_t escape)
+int my_wc_mb_utf8mb3_escape(CHARSET_INFO *cs, my_wc_t wc,
+                            uchar *str, uchar *end,
+                            my_wc_t sep, my_wc_t escape)
 {
   DBUG_ASSERT(escape == 0 || escape == '\\');
   DBUG_ASSERT(sep == '"' || sep == '\'');
   switch (wc) {
-  case 0:      return my_wc_mb_utf8_opt_escape(cs, wc, escape, '0', str, end);
-  case '\t':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 't', str, end);
-  case '\r':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'r', str, end);
-  case '\n':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'n', str, end);
-  case '\032': return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'Z', str, end);
+  case 0:      return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, '0', str, end);
+  case '\t':   return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 't', str, end);
+  case '\r':   return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 'r', str, end);
+  case '\n':   return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 'n', str, end);
+  case '\032': return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 'Z', str, end);
   case '\'':
   case '\"':
     if (wc == sep)
-      return my_wc_mb_utf8_with_escape(cs, wc, wc, str, end);
+      return my_wc_mb_utf8mb3_with_escape(cs, wc, wc, str, end);
   }
-  return my_charset_utf8_handler.wc_mb(cs, wc, str, end); // No escaping needed
+  return my_charset_utf8mb3_handler.wc_mb(cs, wc, str, end); // No escaping needed
 }
 
 
 /** wc_mb() compatible routines for all sql_mode and delimiter combinations */
-int my_wc_mb_utf8_escape_single_quote_and_backslash(CHARSET_INFO *cs,
+int my_wc_mb_utf8mb3_escape_single_quote_and_backslash(CHARSET_INFO *cs,
                                                     my_wc_t wc,
                                                     uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8_escape(cs, wc, str, end, '\'', '\\');
+  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '\'', '\\');
 }
 
 
-int my_wc_mb_utf8_escape_double_quote_and_backslash(CHARSET_INFO *cs,
+int my_wc_mb_utf8mb3_escape_double_quote_and_backslash(CHARSET_INFO *cs,
                                                     my_wc_t wc,
                                                     uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8_escape(cs, wc, str, end, '"', '\\');
+  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '"', '\\');
 }
 
 
-int my_wc_mb_utf8_escape_single_quote(CHARSET_INFO *cs, my_wc_t wc,
+int my_wc_mb_utf8mb3_escape_single_quote(CHARSET_INFO *cs, my_wc_t wc,
                                       uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8_escape(cs, wc, str, end, '\'', 0);
+  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '\'', 0);
 }
 
 
-int my_wc_mb_utf8_escape_double_quote(CHARSET_INFO *cs, my_wc_t wc,
+int my_wc_mb_utf8mb3_escape_double_quote(CHARSET_INFO *cs, my_wc_t wc,
                                       uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8_escape(cs, wc, str, end, '"', 0);
+  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '"', 0);
 }
 
 }; // End of extern "C"
@@ -568,10 +569,10 @@ my_charset_conv_wc_mb
 Lex_input_stream::get_escape_func(THD *thd, my_wc_t sep) const
 {
   return thd->backslash_escapes() ?
-         (sep == '"' ? my_wc_mb_utf8_escape_double_quote_and_backslash:
-                       my_wc_mb_utf8_escape_single_quote_and_backslash) :
-         (sep == '"' ? my_wc_mb_utf8_escape_double_quote:
-                       my_wc_mb_utf8_escape_single_quote);
+         (sep == '"' ? my_wc_mb_utf8mb3_escape_double_quote_and_backslash:
+                       my_wc_mb_utf8mb3_escape_single_quote_and_backslash) :
+         (sep == '"' ? my_wc_mb_utf8mb3_escape_double_quote:
+                       my_wc_mb_utf8mb3_escape_single_quote);
 }
 
 
@@ -611,7 +612,7 @@ void Lex_input_stream::body_utf8_append_escape(THD *thd,
   DBUG_ASSERT(m_body_utf8 + get_body_utf8_maximum_length(thd) >=
               m_body_utf8_ptr + txt->length * 2);
   uint32 cnv_length= my_convert_using_func(m_body_utf8_ptr, txt->length * 2,
-                                           &my_charset_utf8_general_ci,
+                                           &my_charset_utf8mb3_general_ci,
                                            get_escape_func(thd, sep),
                                            txt->str, txt->length,
                                            cs, cs->cset->mb_wc,
@@ -2023,7 +2024,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         next_state= MY_LEX_HOSTNAME;
         break;
       }
-      yylval->lex_str.str= (char*) get_ptr();
+      yylval->lex_str.str= (char*) get_ptr() - 1;
       yylval->lex_str.length= 1;
       return((int) '@');
     case MY_LEX_HOSTNAME:               // end '@' of user@hostname
@@ -4862,7 +4863,10 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
     break;
   default:
     // usual UNION
-    result->est_records+= records;
+    if (HA_ROWS_MAX - records > result->est_records)
+      result->est_records+= records;
+    else
+      result->est_records= HA_ROWS_MAX;
     break;
   }
 }
@@ -5579,6 +5583,7 @@ void LEX::set_stmt_init()
   mysql_init_select(this);
   option_type= OPT_SESSION;
   autocommit= 0;
+  var_list.empty();
 };
 
 
@@ -7574,7 +7579,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
 
 
-bool LEX::set_variable(const LEX_CSTRING *name, Item *item)
+bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item)
 {
   sp_pcontext *ctx;
   const Sp_rcontext_handler *rh;
@@ -7588,8 +7593,8 @@ bool LEX::set_variable(const LEX_CSTRING *name, Item *item)
   Generate instructions for:
     SET x.y= expr;
 */
-bool LEX::set_variable(const LEX_CSTRING *name1,
-                       const LEX_CSTRING *name2,
+bool LEX::set_variable(const Lex_ident_sys_st *name1,
+                       const Lex_ident_sys_st *name2,
                        Item *item)
 {
   const Sp_rcontext_handler *rh;
@@ -7619,10 +7624,10 @@ bool LEX::set_variable(const LEX_CSTRING *name1,
 
 
 bool LEX::set_default_system_variable(enum_var_type var_type,
-                                      const LEX_CSTRING *name,
+                                      const Lex_ident_sys_st *name,
                                       Item *val)
 {
-  static LEX_CSTRING default_base_name= {STRING_WITH_LEN("default")};
+  static Lex_ident_sys default_base_name= {STRING_WITH_LEN("default")};
   sys_var *var= find_sys_var(thd, name->str, name->length);
   if (!var)
     return true;
@@ -7636,18 +7641,19 @@ bool LEX::set_default_system_variable(enum_var_type var_type,
 
 
 bool LEX::set_system_variable(enum_var_type var_type,
-                              const LEX_CSTRING *name,
+                              const Lex_ident_sys_st *name,
                               Item *val)
 {
   sys_var *var= find_sys_var(thd, name->str, name->length);
   DBUG_ASSERT(thd->is_error() || var != NULL);
-  return likely(var) ? set_system_variable(var_type, var, &null_clex_str, val) : true;
+  static Lex_ident_sys null_str;
+  return likely(var) ? set_system_variable(var_type, var, &null_str, val) : true;
 }
 
 
 bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
-                              const LEX_CSTRING *name1,
-                              const LEX_CSTRING *name2,
+                              const Lex_ident_sys_st *name1,
+                              const Lex_ident_sys_st *name2,
                               Item *val)
 {
   sys_var *tmp;
@@ -8328,15 +8334,15 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 }
 
 
-bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name)
+bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 {
   sp_name *spname= make_sp_name(thd, name);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
-bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
-                                         const LEX_CSTRING *name2)
+bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
+                                         const Lex_ident_sys_st *name2)
 {
   sp_name *spname= make_sp_name(thd, name1, name2);
   return unlikely(!spname) || call_statement_start(thd, spname);

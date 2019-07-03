@@ -1,12 +1,16 @@
+namespace Show {
+
 static ST_FIELD_INFO table_stats_fields[]=
 {
-  {"TABLE_SCHEMA", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_schema",SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_name",SKIP_OPEN_TABLE},
-  {"ROWS_READ", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_read",SKIP_OPEN_TABLE},
-  {"ROWS_CHANGED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_changed",SKIP_OPEN_TABLE},
-  {"ROWS_CHANGED_X_INDEXES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_changed_x_#indexes",SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("TABLE_SCHEMA",      Varchar(NAME_LEN), NOT_NULL, "Table_schema"),
+  Column("TABLE_NAME",        Varchar(NAME_LEN), NOT_NULL, "Table_name"),
+  Column("ROWS_READ",             SLonglong(),   NOT_NULL, "Rows_read"),
+  Column("ROWS_CHANGED",          SLonglong(),   NOT_NULL, "Rows_changed"),
+  Column("ROWS_CHANGED_X_INDEXES",SLonglong(),   NOT_NULL, "Rows_changed_x_#indexes"),
+  CEnd()
 };
+
+} // namespace Show
 
 static int table_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -67,7 +71,7 @@ static int table_stats_reset()
 static int table_stats_init(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
-  schema->fields_info= table_stats_fields;
+  schema->fields_info= Show::table_stats_fields;
   schema->fill_table= table_stats_fill;
   schema->reset_table= table_stats_reset;
   return 0;

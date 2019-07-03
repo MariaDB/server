@@ -67,9 +67,9 @@ ST_SCHEMA_TABLE *i_s_feedback; ///< table descriptor for our I_S table
 */
 static ST_FIELD_INFO feedback_fields[] =
 {
-  {"VARIABLE_NAME",   255, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"VARIABLE_VALUE", 1024, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0}
+  Show::Column("VARIABLE_NAME",  Show::Varchar(255),  NOT_NULL),
+  Show::Column("VARIABLE_VALUE", Show::Varchar(1024), NOT_NULL),
+  Show::CEnd()
 };
 
 static COND * const OOM= (COND*)1;

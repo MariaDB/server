@@ -56,9 +56,9 @@ int table_setup_actors::write_row(TABLE *table, unsigned char *buf,
                                   Field **fields)
 {
   Field *f;
-  String user_data("%", 1, &my_charset_utf8_bin);
-  String host_data("%", 1, &my_charset_utf8_bin);
-  String role_data("%", 1, &my_charset_utf8_bin);
+  String user_data("%", 1, &my_charset_utf8mb3_bin);
+  String host_data("%", 1, &my_charset_utf8mb3_bin);
+  String role_data("%", 1, &my_charset_utf8mb3_bin);
   String *user= &user_data;
   String *host= &host_data;
   String *role= &role_data;
@@ -248,7 +248,7 @@ int table_setup_actors::delete_row_values(TABLE *table,
 {
   DBUG_ASSERT(m_row_exists);
 
-  CHARSET_INFO *cs= &my_charset_utf8_bin;
+  CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
   String user(m_row.m_username, m_row.m_username_length, cs);
   String role(m_row.m_rolename, m_row.m_rolename_length, cs);
   String host(m_row.m_hostname, m_row.m_hostname_length, cs);

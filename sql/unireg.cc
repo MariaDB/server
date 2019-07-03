@@ -722,6 +722,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
       if (field->charset->mbminlen > 1)
       {
+        TYPELIB *tmpint;
         /* 
           Escape UCS2 intervals using HEX notation to avoid
           problems with delimiters between enum elements.
@@ -731,15 +732,16 @@ static bool pack_header(THD *thd, uchar *forminfo,
           The HEX representation is created from this copy.
         */
         field->save_interval= field->interval;
-        field->interval= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
-        *field->interval= *field->save_interval; 
-        field->interval->type_names= 
+        field->interval= tmpint= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
+        *tmpint= *field->save_interval;
+        tmpint->type_names=
           (const char **) thd->alloc(sizeof(char*) * 
                                      (field->interval->count+1));
-        field->interval->type_names[field->interval->count]= 0;
-        field->interval->type_lengths=
-          (uint *) thd->alloc(sizeof(uint) * field->interval->count);
- 
+        tmpint->type_lengths=
+          (uint *) thd->alloc(sizeof(uint) * field->interval->count+1);
+        tmpint->type_names[field->interval->count]= 0;
+        tmpint->type_lengths[field->interval->count]= 0;
+
         for (uint pos= 0; pos < field->interval->count; pos++)
         {
           char *dst;
@@ -747,9 +749,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
           size_t hex_length;
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
-          field->interval->type_lengths[pos]= (uint)hex_length;
-          field->interval->type_names[pos]= dst=
-            (char*) thd->alloc(hex_length + 1);
+          tmpint->type_lengths[pos]= (uint) hex_length;
+          tmpint->type_names[pos]= dst= (char*) thd->alloc(hex_length + 1);
           octet2hex(dst, src, length);
         }
       }
@@ -813,7 +814,7 @@ static uint get_interval_id(uint *int_count,List<Create_field> &create_fields,
 {
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
-  TYPELIB *interval=last_field->interval;
+  const TYPELIB *interval= last_field->interval;
 
   while ((field=it++) != last_field)
   {

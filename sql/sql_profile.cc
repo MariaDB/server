@@ -32,7 +32,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_profile.h"
-#include "sql_show.h"                     // schema_table_store_record
+#include "sql_i_s.h"                      // schema_table_store_record
 #include "sql_class.h"                    // THD
 
 #ifdef _WIN32
@@ -60,30 +60,32 @@ int fill_query_profile_statistics_info(THD *thd, TABLE_LIST *tables,
 #endif
 }
 
+namespace Show {
+
 ST_FIELD_INFO query_profile_statistics_info[]=
 {
-  /* name, length, type, value, maybe_null, old_name, open_method */
-  {"QUERY_ID", 20, MYSQL_TYPE_LONG, 0, false, "Query_id", SKIP_OPEN_TABLE},
-  {"SEQ", 20, MYSQL_TYPE_LONG, 0, false, "Seq", SKIP_OPEN_TABLE},
-  {"STATE", 30, MYSQL_TYPE_STRING, 0, false, "Status", SKIP_OPEN_TABLE},
-  {"DURATION", TIME_I_S_DECIMAL_SIZE, MYSQL_TYPE_DECIMAL, 0, false, "Duration", SKIP_OPEN_TABLE},
-  {"CPU_USER", TIME_I_S_DECIMAL_SIZE, MYSQL_TYPE_DECIMAL, 0, true, "CPU_user", SKIP_OPEN_TABLE},
-  {"CPU_SYSTEM", TIME_I_S_DECIMAL_SIZE, MYSQL_TYPE_DECIMAL, 0, true, "CPU_system", SKIP_OPEN_TABLE},
-  {"CONTEXT_VOLUNTARY", 20, MYSQL_TYPE_LONG, 0, true, "Context_voluntary", SKIP_OPEN_TABLE},
-  {"CONTEXT_INVOLUNTARY", 20, MYSQL_TYPE_LONG, 0, true, "Context_involuntary", SKIP_OPEN_TABLE},
-  {"BLOCK_OPS_IN", 20, MYSQL_TYPE_LONG, 0, true, "Block_ops_in", SKIP_OPEN_TABLE},
-  {"BLOCK_OPS_OUT", 20, MYSQL_TYPE_LONG, 0, true, "Block_ops_out", SKIP_OPEN_TABLE},
-  {"MESSAGES_SENT", 20, MYSQL_TYPE_LONG, 0, true, "Messages_sent", SKIP_OPEN_TABLE},
-  {"MESSAGES_RECEIVED", 20, MYSQL_TYPE_LONG, 0, true, "Messages_received", SKIP_OPEN_TABLE},
-  {"PAGE_FAULTS_MAJOR", 20, MYSQL_TYPE_LONG, 0, true, "Page_faults_major", SKIP_OPEN_TABLE},
-  {"PAGE_FAULTS_MINOR", 20, MYSQL_TYPE_LONG, 0, true, "Page_faults_minor", SKIP_OPEN_TABLE},
-  {"SWAPS", 20, MYSQL_TYPE_LONG, 0, true, "Swaps", SKIP_OPEN_TABLE},
-  {"SOURCE_FUNCTION", 30, MYSQL_TYPE_STRING, 0, true, "Source_function", SKIP_OPEN_TABLE},
-  {"SOURCE_FILE", 20, MYSQL_TYPE_STRING, 0, true, "Source_file", SKIP_OPEN_TABLE},
-  {"SOURCE_LINE", 20, MYSQL_TYPE_LONG, 0, true, "Source_line", SKIP_OPEN_TABLE},
-  {NULL, 0,  MYSQL_TYPE_STRING, 0, true, NULL, 0}
+  Column("QUERY_ID",            SLong(20),   NOT_NULL, "Query_id"),
+  Column("SEQ",                 SLong(20),   NOT_NULL, "Seq"),
+  Column("STATE",               Varchar(30), NOT_NULL, "Status"),
+  Column("DURATION", Decimal(TIME_I_S_DECIMAL_SIZE), NOT_NULL, "Duration"),
+  Column("CPU_USER", Decimal(TIME_I_S_DECIMAL_SIZE), NULLABLE, "CPU_user"),
+  Column("CPU_SYSTEM", Decimal(TIME_I_S_DECIMAL_SIZE), NULLABLE, "CPU_system"),
+  Column("CONTEXT_VOLUNTARY",   SLong(20),   NULLABLE, "Context_voluntary"),
+  Column("CONTEXT_INVOLUNTARY", SLong(20),   NULLABLE, "Context_involuntary"),
+  Column("BLOCK_OPS_IN",        SLong(20),   NULLABLE, "Block_ops_in"),
+  Column("BLOCK_OPS_OUT",       SLong(20),   NULLABLE, "Block_ops_out"),
+  Column("MESSAGES_SENT",       SLong(20),   NULLABLE, "Messages_sent"),
+  Column("MESSAGES_RECEIVED",   SLong(20),   NULLABLE, "Messages_received"),
+  Column("PAGE_FAULTS_MAJOR",   SLong(20),   NULLABLE, "Page_faults_major"),
+  Column("PAGE_FAULTS_MINOR",   SLong(20),   NULLABLE, "Page_faults_minor"),
+  Column("SWAPS",               SLong(20),   NULLABLE, "Swaps"),
+  Column("SOURCE_FUNCTION",     Varchar(30), NULLABLE, "Source_function"),
+  Column("SOURCE_FILE",         Varchar(20), NULLABLE, "Source_file"),
+  Column("SOURCE_LINE",         SLong(20),   NULLABLE, "Source_line"),
+  CEnd()
 };
 
+} // namespace Show
 
 int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
@@ -113,17 +115,17 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table)
   Name_resolution_context *context= &thd->lex->first_select_lex()->context;
   int i;
 
-  for (i= 0; schema_table->fields_info[i].field_name != NULL; i++)
+  for (i= 0; !schema_table->fields_info[i].end_marker(); i++)
   {
     if (! fields_include_condition_truth_values[i])
       continue;
 
     field_info= &schema_table->fields_info[i];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }

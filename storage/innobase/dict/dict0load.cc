@@ -675,17 +675,12 @@ dict_process_sys_tablespaces(
 /*=========================*/
 	mem_heap_t*	heap,		/*!< in/out: heap memory */
 	const rec_t*	rec,		/*!< in: current SYS_TABLESPACES rec */
-	ulint*		space,		/*!< out: space id */
+	uint32_t*	space,		/*!< out: tablespace identifier */
 	const char**	name,		/*!< out: tablespace name */
 	ulint*		flags)		/*!< out: tablespace flags */
 {
 	ulint		len;
 	const byte*	field;
-
-	/* Initialize the output values */
-	*space = ULINT_UNDEFINED;
-	*name = NULL;
-	*flags = ULINT_UNDEFINED;
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return("delete-marked record in SYS_TABLESPACES");
@@ -741,7 +736,7 @@ dict_process_sys_datafiles(
 /*=======================*/
 	mem_heap_t*	heap,		/*!< in/out: heap memory */
 	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
-	ulint*		space,		/*!< out: space id */
+	uint32_t*	space,		/*!< out: space id */
 	const char**	path)		/*!< out: datafile paths */
 {
 	ulint		len;
@@ -1940,7 +1935,7 @@ dict_load_virtual_one_col(
 	btr_pcur_open_on_user_rec(sys_virtual_index, tuple, PAGE_CUR_GE,
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
 
-	for (i = 0; i < v_col->num_base + skipped; i++) {
+	for (i = 0; i < unsigned{v_col->num_base} + skipped; i++) {
 		const char*	err_msg;
 		ulint		pos;
 

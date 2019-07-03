@@ -6,7 +6,6 @@
 --replace_regex  /#P#/#p#/  /#SP#/#sp#/
 --replace_result ./ MYSQLD_DATADIR/  $MYSQLD_DATADIR/ MYSQLD_DATADIR/  $MYSQLD_DATADIR MYSQLD_DATADIR/  $MYSQL_TMP_DIR MYSQL_TMP_DIR  $INNODB_PAGE_SIZE DEFAULT
 SELECT s.name 'Space_Name',
-	s.space_type 'Space_Type',
 	s.page_size 'Page_Size',
 	s.zip_page_size 'Zip_Size',
 	s.row_format 'Formats_Permitted',

@@ -35,7 +35,7 @@
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
 #include "sql_acl.h"    // SUPER_ACL
 #include "sql_select.h" // free_underlaid_joins
-#include "sql_show.h"
+#include "sql_i_s.h"
 #include "sql_view.h"   // updatable_views_with_limit_typelib
 #include "lock.h"                               // lock_global_read_lock,
                                                 // make_global_read_lock_block_commit,
@@ -808,7 +808,7 @@ int set_var::light_check(THD *thd)
   if (var->check_type(type))
   {
     int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;
-    my_error(err, MYF(0), var->name);
+    my_error(err, MYF(0), var->name.str);
     return -1;
   }
   if (type == OPT_GLOBAL && check_global_access(thd, SUPER_ACL))

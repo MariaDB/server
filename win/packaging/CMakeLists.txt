@@ -178,39 +178,6 @@ IF(CMAKE_GENERATOR MATCHES "Visual Studio")
  SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_CFG_INTDIR}")
 ENDIF()
 
-IF(MSVC_CRT_TYPE MATCHES "/MD")
-  # Find out CRT merge module path, we're going to use it in installer
-  # The path  and name depends on VS version
-  IF(MSVC_VERSION LESS 1900)
-    # VS2015
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC140_CRT_${WIX_ARCH_SUFFIX}.msm)
-    SET(ProgramFilesX86 "ProgramFiles(x86)")
-    FIND_FILE(${VCREDIST_MSM_FILENAME}
-      NO_DEFAULT_PATH
-      PATHS
-        "$ENV{${ProgramFilesX86}}/Common Files/Merge Modules"
-        "$ENV{ProgramFiles}/Common Files/Merge Modules"
-    )
-  ELSEIF(MSVC_VERSION LESS 2000)
-    # VS2017
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC141_CRT_${WIX_ARCH_SUFFIX}.msm)
-    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2017/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
-    LIST(LENGTH MSM_LIST LEN)
-    IF(LEN GREATER 0)
-      LIST(GET MSM_LIST 0 VCRedist_MSM)
-    ENDIF()
-  ELSE()
-    # Post-VS2017. Needs to be ported when new VS is out
-    MESSAGE(WARNING
-     "Name of redistributable merge module not known for this version of MSVC")
-  ENDIF()
-  IF (NOT VCRedist_MSM)
-    MESSAGE(WARNING "Can't find merge module ${VCREDIST_MSM_FILENAME}")
-  ELSE()
-    FILE(TO_NATIVE_PATH  ${VCRedist_MSM} VCRedist_MSM)
-    # MESSAGE("VCRedist_MSM=${VCRedist_MSM}")
-  ENDIF()
-ENDIF()
 
 ADD_CUSTOM_TARGET(
   MSI
@@ -243,7 +210,7 @@ ADD_CUSTOM_TARGET(
     -DWITH_THIRD_PARTY="${WITH_THIRD_PARTY}"
     -DWIXCA_LOCATION="$<TARGET_FILE:wixca>"
     -DMSVC_CRT_TYPE="${MSVC_CRT_TYPE}"
-    -DVCRedist_MSM="${VCRedist_MSM}"
+    -DDYNAMIC_UCRT_LINK="${DYNAMIC_UCRT_LINK}"
     -P  ${CMAKE_CURRENT_SOURCE_DIR}/create_msi.cmake
 )
 ADD_DEPENDENCIES(MSI wixca)

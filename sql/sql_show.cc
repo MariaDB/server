@@ -93,7 +93,6 @@ enum enum_i_s_events_fields
   ISE_DB_CL
 };
 
-#define USERNAME_WITH_HOST_CHAR_LENGTH (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 2)
 
 static const LEX_CSTRING trg_action_time_type_names[]=
 {
@@ -449,10 +448,12 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
   show_table->use_all_columns();               // Required for default
   restore_record(show_table, s->default_values);
 
+#ifdef HAVE_SPATIAL
   for (; (field= *ptr) ; ptr++)
     if (field->type() == MYSQL_TYPE_GEOMETRY)
     {
       Field_geom *fg= (Field_geom *) field;
+      const Type_handler_geometry *gth= fg->type_handler_geom();
 
       DEBUG_SYNC(thd, "get_schema_column");
 
@@ -477,7 +478,7 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
       /*STORAGE_TYPE*/
       table->field[8]->store(1LL, TRUE); /*Always 1 (binary implementation)*/
       /*GEOMETRY_TYPE*/
-      table->field[9]->store((longlong) (fg->get_geometry_type()), TRUE);
+      table->field[9]->store((longlong) (gth->geometry_type()), TRUE);
       /*COORD_DIMENSION*/
       table->field[10]->store(2LL, TRUE);
       /*MAX_PPR*/
@@ -488,6 +489,7 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
     }
+#endif
 
 exit:
   DBUG_RETURN(0);
@@ -3967,9 +3969,9 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
   ST_SCHEMA_TABLE *schema_table= table->schema_table;
   ST_FIELD_INFO *field_info= schema_table->fields_info;
   const char *field_name1= schema_table->idx_field1 >= 0 ?
-    field_info[schema_table->idx_field1].field_name : "";
+    field_info[schema_table->idx_field1].name().str : "";
   const char *field_name2= schema_table->idx_field2 >= 0 ?
-    field_info[schema_table->idx_field2].field_name : "";
+    field_info[schema_table->idx_field2].name().str : "";
 
   if (item_func->functype() == Item_func::EQ_FUNC ||
       item_func->functype() == Item_func::EQUAL_FUNC)
@@ -4105,9 +4107,9 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
     ST_SCHEMA_TABLE *schema_table= table->schema_table;
     ST_FIELD_INFO *field_info= schema_table->fields_info;
     const char *field_name1= schema_table->idx_field1 >= 0 ?
-      field_info[schema_table->idx_field1].field_name : "";
+      field_info[schema_table->idx_field1].name().str : "";
     const char *field_name2= schema_table->idx_field2 >= 0 ?
-      field_info[schema_table->idx_field2].field_name : "";
+      field_info[schema_table->idx_field2].name().str : "";
     if (table->table != item_field->field->table ||
         (cs->coll->strnncollsp(cs, (uchar *) field_name1, strlen(field_name1),
                                (uchar *) item_field->field_name.str,
@@ -4813,18 +4815,18 @@ uint get_table_open_method(TABLE_LIST *tables,
   if (schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
   {
     Field **ptr, *field;
-    int table_open_method= 0, field_indx= 0;
+    uint table_open_method= 0, field_indx= 0;
     uint star_table_open_method= OPEN_FULL_TABLE;
     bool used_star= true;                  // true if '*' is used in select
     for (ptr=tables->table->field; (field= *ptr) ; ptr++)
     {
+      const ST_FIELD_INFO &def= schema_table->fields_info[field_indx];
       star_table_open_method=
-        MY_MIN(star_table_open_method,
-            schema_table->fields_info[field_indx].open_method);
+        MY_MIN(star_table_open_method, (uint) def.open_method());
       if (bitmap_is_set(tables->table->read_set, field->field_index))
       {
         used_star= false;
-        table_open_method|= schema_table->fields_info[field_indx].open_method;
+        table_open_method|= (uint) def.open_method();
       }
       field_indx++;
     }
@@ -5686,7 +5688,9 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
         table->field[16]->store_time(&time);
         table->field[16]->set_notnull();
       }
-      if (file->ha_table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
+      if ((file->ha_table_flags() &
+            (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)) &&
+           !file->stats.checksum_null)
       {
         table->field[18]->store((longlong) file->stats.checksum, TRUE);
         table->field[18]->set_notnull();
@@ -6053,9 +6057,15 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     else if (field->flags & VERS_SYSTEM_FIELD)
     {
       if (field->flags & VERS_SYS_START_FLAG)
+      {
         table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
+        buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
+      }
       else
+      {
         table->field[21]->store(STRING_WITH_LEN("ROW END"), cs);
+        buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
+      }
       table->field[21]->set_notnull();
       table->field[20]->store(STRING_WITH_LEN("ALWAYS"), cs);
     }
@@ -6154,12 +6164,11 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       LEX_CSTRING yesno[2]= {{ STRING_WITH_LEN("NO") },
                              { STRING_WITH_LEN("YES") }};
       LEX_CSTRING *tmp;
-      const char *option_name= show_comp_option_name[(int) hton->state];
+      const char *option_name= default_type != hton ? yesno[1].str
+                                                    : "DEFAULT";
       restore_record(table, s->default_values);
 
       table->field[0]->store(name->str, name->length, scs);
-      if (hton->state == SHOW_OPTION_YES && default_type == hton)
-        option_name= "DEFAULT";
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
@@ -8132,9 +8141,9 @@ mark_all_fields_used_in_query(THD *thd,
         bitmap_set_all(bitmap);
         break;
       }
-      for (count=0; fields->field_name; fields++, count++)
+      for (count=0; !fields->end_marker(); fields++, count++)
       {
-        if (!my_strcasecmp(system_charset_info, fields->field_name,
+        if (!my_strcasecmp(system_charset_info, fields->name().str,
                            item_field->field_name.str))
         {
           bitmap_set_bit(bitmap, count);
@@ -8179,7 +8188,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   my_bitmap_map *buf;
   DBUG_ENTER("create_schema_table");
 
-  for (field_count= 0, fields= fields_info; fields->field_name; fields++)
+  for (field_count= 0, fields= fields_info; !fields->end_marker(); fields++)
     field_count++;
   if (!(buf= (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count))))
     DBUG_RETURN(NULL);
@@ -8239,16 +8248,16 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
   ST_FIELD_INFO *field_info= schema_table->fields_info;
   Name_resolution_context *context= &thd->lex->first_select_lex()->context;
-  for (; field_info->field_name; field_info++)
+  for (; !field_info->end_marker(); field_info++)
   {
-    if (field_info->old_name)
+    if (field_info->old_name().str)
     {
-      LEX_CSTRING field_name= field_info->get_name();
+      LEX_CSTRING field_name= field_info->name();
       Item_field *field= new (thd->mem_root)
         Item_field(thd, context, field_name);
       if (field)
       {
-        field->set_name(thd, field_info->get_old_name());
+        field->set_name(thd, field_info->old_name());
         if (add_item_to_list(thd, field))
           return 1;
       }
@@ -8270,11 +8279,11 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     ST_FIELD_INFO *field_info= &schema_table->fields_info[1];
     String buffer(tmp,sizeof(tmp), system_charset_info);
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                                      field_info->get_name());
+                                                      field_info->name());
     if (!field || add_item_to_list(thd, field))
       return 1;
     buffer.length(0);
-    buffer.append(field_info->get_old_name());
+    buffer.append(field_info->old_name());
     if (lex->wild && lex->wild->ptr())
     {
       buffer.append(STRING_WITH_LEN(" ("));
@@ -8294,10 +8303,10 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   LEX *lex= thd->lex;
   Name_resolution_context *context= &lex->first_select_lex()->context;
   ST_FIELD_INFO *field_info= &schema_table->fields_info[2];
-  LEX_CSTRING field_name= Lex_cstring_strlen(field_info->field_name);
+  LEX_CSTRING field_name= field_info->name();
 
   buffer.length(0);
-  buffer.append(field_info->get_old_name());
+  buffer.append(field_info->old_name());
   buffer.append(&lex->first_select_lex()->db);
   if (lex->wild && lex->wild->ptr())
   {
@@ -8312,11 +8321,10 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   if (thd->lex->verbose)
   {
     field_info= &schema_table->fields_info[3];
-    field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+    field= new (thd->mem_root) Item_field(thd, context, field_info->name());
     if (add_item_to_list(thd, field))
       return 1;
-    field->set_name(thd, field_info->get_old_name());
+    field->set_name(thd, field_info->old_name());
   }
   return 0;
 }
@@ -8337,10 +8345,10 @@ int make_columns_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
                                *field_num == 19))
       continue;
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }
@@ -8360,10 +8368,10 @@ int make_character_sets_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     field_info= &schema_table->fields_info[*field_num];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }
@@ -8383,10 +8391,10 @@ int make_proc_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   {
     field_info= &schema_table->fields_info[*field_num];
     Item_field *field= new (thd->mem_root) Item_field(thd, context,
-                                    Lex_cstring_strlen(field_info->field_name));
+                                                      field_info->name());
     if (field)
     {
-      field->set_name(thd, field_info->get_old_name());
+      field->set_name(thd, field_info->old_name());
       if (add_item_to_list(thd, field))
         return 1;
     }
@@ -8802,7 +8810,7 @@ static my_bool run_hton_fill_schema_table(THD *thd, plugin_ref plugin,
   struct run_hton_fill_schema_table_args *args=
     (run_hton_fill_schema_table_args *) arg;
   handlerton *hton= plugin_hton(plugin);
-  if (hton->fill_is_table && hton->state == SHOW_OPTION_YES)
+  if (hton->fill_is_table)
       hton->fill_is_table(hton, thd, args->tables, args->cond,
             get_schema_table_idx(args->tables->schema_table));
   return false;
@@ -8908,810 +8916,683 @@ int fill_key_cache_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
+namespace Show {
+
 ST_FIELD_INFO schema_fields_info[]=
 {
-  {"CATALOG_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"SCHEMA_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Database",
-   SKIP_OPEN_TABLE},
-  {"DEFAULT_CHARACTER_SET_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
-   SKIP_OPEN_TABLE},
-  {"DEFAULT_COLLATION_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
-   SKIP_OPEN_TABLE},
-  {"SQL_PATH", FN_REFLEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"SCHEMA_COMMENT", DATABASE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("CATALOG_NAME",               Catalog(),        NOT_NULL),
+  Column("SCHEMA_NAME",                Name(),           NOT_NULL, "Database"),
+  Column("DEFAULT_CHARACTER_SET_NAME", CSName(),         NOT_NULL),
+  Column("DEFAULT_COLLATION_NAME",     CSName(),         NOT_NULL),
+  Column("SQL_PATH",                   Varchar(FN_REFLEN),   NULLABLE),
+  Column("SCHEMA_COMMENT", Varchar(DATABASE_COMMENT_MAXLEN), NOT_NULL),
+  CEnd()
 };
 
 
 ST_FIELD_INFO tables_fields_info[]=
 {
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Name",
-   SKIP_OPEN_TABLE},
-  {"TABLE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"ENGINE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, "Engine", OPEN_FRM_ONLY},
-  {"VERSION", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Version", OPEN_FRM_ONLY},
-  {"ROW_FORMAT", 10, MYSQL_TYPE_STRING, 0, 1, "Row_format", OPEN_FULL_TABLE},
-  {"TABLE_ROWS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Rows", OPEN_FULL_TABLE},
-  {"AVG_ROW_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Avg_row_length", OPEN_FULL_TABLE},
-  {"DATA_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Data_length", OPEN_FULL_TABLE},
-  {"MAX_DATA_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Max_data_length", OPEN_FULL_TABLE},
-  {"INDEX_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Index_length", OPEN_FULL_TABLE},
-  {"DATA_FREE", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Data_free", OPEN_FULL_TABLE},
-  {"AUTO_INCREMENT", MY_INT64_NUM_DECIMAL_DIGITS , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Auto_increment", OPEN_FULL_TABLE},
-  {"CREATE_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, "Create_time", OPEN_FULL_TABLE},
-  {"UPDATE_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, "Update_time", OPEN_FULL_TABLE},
-  {"CHECK_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, "Check_time", OPEN_FULL_TABLE},
-  {"TABLE_COLLATION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 1, "Collation",
-   OPEN_FRM_ONLY},
-  {"CHECKSUM", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Checksum", OPEN_FULL_TABLE},
-  {"CREATE_OPTIONS", 2048, MYSQL_TYPE_STRING, 0, 1, "Create_options",
-   OPEN_FULL_TABLE},
-  {"TABLE_COMMENT", TABLE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
-   "Comment", OPEN_FRM_ONLY},
-  {"MAX_INDEX_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Max_index_length", OPEN_FULL_TABLE},
-  {"TEMPORARY", 1, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "Temporary", OPEN_FRM_ONLY},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("TABLE_CATALOG",   Catalog(),   NOT_NULL),
+  Column("TABLE_SCHEMA",    Name(),      NOT_NULL),
+  Column("TABLE_NAME",      Name(),      NOT_NULL, "Name"),
+  Column("TABLE_TYPE",      Name(),      NOT_NULL,               OPEN_FRM_ONLY),
+  Column("ENGINE",          Name(),      NULLABLE, "Engine",     OPEN_FRM_ONLY),
+  Column("VERSION",         ULonglong(), NULLABLE, "Version",    OPEN_FRM_ONLY),
+  Column("ROW_FORMAT",      Varchar(10), NULLABLE, "Row_format", OPEN_FULL_TABLE),
+  Column("TABLE_ROWS",      ULonglong(), NULLABLE, "Rows",       OPEN_FULL_TABLE),
+  Column("AVG_ROW_LENGTH",  ULonglong(), NULLABLE, "Avg_row_length",
+                                                                 OPEN_FULL_TABLE),
+  Column("DATA_LENGTH",     ULonglong(), NULLABLE, "Data_length",OPEN_FULL_TABLE),
+  Column("MAX_DATA_LENGTH", ULonglong(), NULLABLE, "Max_data_length",
+                                                                 OPEN_FULL_TABLE),
+  Column("INDEX_LENGTH",    ULonglong(), NULLABLE, "Index_length",OPEN_FULL_TABLE),
+  Column("DATA_FREE",       ULonglong(), NULLABLE, "Data_free",  OPEN_FULL_TABLE),
+  Column("AUTO_INCREMENT",  ULonglong(), NULLABLE, "Auto_increment",
+                                                                 OPEN_FULL_TABLE),
+  Column("CREATE_TIME",     Datetime(0), NULLABLE, "Create_time",OPEN_FULL_TABLE),
+  Column("UPDATE_TIME",     Datetime(0), NULLABLE, "Update_time",OPEN_FULL_TABLE),
+  Column("CHECK_TIME",      Datetime(0), NULLABLE, "Check_time", OPEN_FULL_TABLE),
+  Column("TABLE_COLLATION", CSName(),    NULLABLE, "Collation",  OPEN_FRM_ONLY),
+  Column("CHECKSUM",        ULonglong(), NULLABLE, "Checksum",   OPEN_FULL_TABLE),
+  Column("CREATE_OPTIONS",  Varchar(2048),NULLABLE, "Create_options",
+                                                                 OPEN_FULL_TABLE),
+  Column("TABLE_COMMENT",   Varchar(TABLE_COMMENT_MAXLEN),
+                                         NOT_NULL, "Comment",    OPEN_FRM_ONLY),
+  Column("MAX_INDEX_LENGTH",ULonglong(), NULLABLE, "Max_index_length",
+                                                                 OPEN_FULL_TABLE),
+  Column("TEMPORARY",       Varchar(1),  NULLABLE, "Temporary",  OPEN_FRM_ONLY),
+  CEnd()
 };
 
 
 ST_FIELD_INFO columns_fields_info[]=
 {
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"COLUMN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Field",
-   OPEN_FRM_ONLY},
-  {"ORDINAL_POSITION", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   MY_I_S_UNSIGNED, 0, OPEN_FRM_ONLY},
-  {"COLUMN_DEFAULT", MAX_FIELD_VARCHARLENGTH, MYSQL_TYPE_STRING, 0,
-   1, "Default", OPEN_FRM_ONLY},
-  {"IS_NULLABLE", 3, MYSQL_TYPE_STRING, 0, 0, "Null", OPEN_FRM_ONLY},
-  {"DATA_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"CHARACTER_MAXIMUM_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
-   0, (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FRM_ONLY},
-  {"CHARACTER_OCTET_LENGTH", MY_INT64_NUM_DECIMAL_DIGITS , MYSQL_TYPE_LONGLONG,
-   0, (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FRM_ONLY},
-  {"NUMERIC_PRECISION", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
-   0, (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FRM_ONLY},
-  {"NUMERIC_SCALE", MY_INT64_NUM_DECIMAL_DIGITS , MYSQL_TYPE_LONGLONG,
-   0, (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FRM_ONLY},
-  {"DATETIME_PRECISION", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
-   0, (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FRM_ONLY},
-  {"CHARACTER_SET_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FRM_ONLY},
-  {"COLLATION_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 1, "Collation",
-   OPEN_FRM_ONLY},
-  {"COLUMN_TYPE", 65535, MYSQL_TYPE_STRING, 0, 0, "Type", OPEN_FRM_ONLY},
-  {"COLUMN_KEY", 3, MYSQL_TYPE_STRING, 0, 0, "Key", OPEN_FRM_ONLY},
-  {"EXTRA", 30, MYSQL_TYPE_STRING, 0, 0, "Extra", OPEN_FRM_ONLY},
-  {"PRIVILEGES", 80, MYSQL_TYPE_STRING, 0, 0, "Privileges", OPEN_FRM_ONLY},
-  {"COLUMN_COMMENT", COLUMN_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
-   "Comment", OPEN_FRM_ONLY},
-  {"IS_GENERATED", 6, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"GENERATION_EXPRESSION", MAX_FIELD_VARCHARLENGTH, MYSQL_TYPE_STRING, 0, 1,
-    0, OPEN_FRM_ONLY},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("TABLE_CATALOG",           Catalog(),   NOT_NULL,          OPEN_FRM_ONLY),
+  Column("TABLE_SCHEMA",            Name(),      NOT_NULL,          OPEN_FRM_ONLY),
+  Column("TABLE_NAME",              Name(),      NOT_NULL,          OPEN_FRM_ONLY),
+  Column("COLUMN_NAME",             Name(),      NOT_NULL, "Field", OPEN_FRM_ONLY),
+  Column("ORDINAL_POSITION",        ULonglong(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("COLUMN_DEFAULT", Longtext(MAX_FIELD_VARCHARLENGTH),
+                                                 NULLABLE, "Default",OPEN_FRM_ONLY),
+  Column("IS_NULLABLE",             Yesno(),     NOT_NULL, "Null",  OPEN_FRM_ONLY),
+  Column("DATA_TYPE",               Name(),      NOT_NULL,          OPEN_FRM_ONLY),
+  Column("CHARACTER_MAXIMUM_LENGTH",ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
+  Column("CHARACTER_OCTET_LENGTH",  ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
+  Column("NUMERIC_PRECISION",       ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
+  Column("NUMERIC_SCALE",           ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
+  Column("DATETIME_PRECISION",      ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
+  Column("CHARACTER_SET_NAME",      CSName(),    NULLABLE,          OPEN_FRM_ONLY),
+  Column("COLLATION_NAME",          CSName(),    NULLABLE, "Collation", OPEN_FRM_ONLY),
+  Column("COLUMN_TYPE",         Longtext(65535), NOT_NULL, "Type",  OPEN_FRM_ONLY),
+  Column("COLUMN_KEY",              Varchar(3),  NOT_NULL, "Key",   OPEN_FRM_ONLY),
+  Column("EXTRA",                   Varchar(30), NOT_NULL, "Extra", OPEN_FRM_ONLY),
+  Column("PRIVILEGES",              Varchar(80), NOT_NULL, "Privileges", OPEN_FRM_ONLY),
+  Column("COLUMN_COMMENT", Varchar(COLUMN_COMMENT_MAXLEN), NOT_NULL, "Comment",
+                                                                 OPEN_FRM_ONLY),
+  Column("IS_GENERATED",            Varchar(6),  NOT_NULL,       OPEN_FRM_ONLY),
+  Column("GENERATION_EXPRESSION",   Longtext(MAX_FIELD_VARCHARLENGTH),
+                                                 NULLABLE,       OPEN_FRM_ONLY),
+  CEnd()
 };
 
 
 ST_FIELD_INFO charsets_fields_info[]=
 {
-  {"CHARACTER_SET_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, "Charset",
-   SKIP_OPEN_TABLE},
-  {"DEFAULT_COLLATE_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "Default collation", SKIP_OPEN_TABLE},
-  {"DESCRIPTION", 60, MYSQL_TYPE_STRING, 0, 0, "Description",
-   SKIP_OPEN_TABLE},
-  {"MAXLEN", 3, MYSQL_TYPE_LONGLONG, 0, 0, "Maxlen", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("CHARACTER_SET_NAME",   CSName(),     NOT_NULL, "Charset"),
+  Column("DEFAULT_COLLATE_NAME", CSName(),     NOT_NULL, "Default collation"),
+  Column("DESCRIPTION",          Varchar(60),  NOT_NULL, "Description"),
+  Column("MAXLEN",               SLonglong(3), NOT_NULL, "Maxlen"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO collation_fields_info[]=
 {
-  {"COLLATION_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, "Collation",
-   SKIP_OPEN_TABLE},
-  {"CHARACTER_SET_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, "Charset",
-   SKIP_OPEN_TABLE},
-  {"ID", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Id",
-   SKIP_OPEN_TABLE},
-  {"IS_DEFAULT", 3, MYSQL_TYPE_STRING, 0, 0, "Default", SKIP_OPEN_TABLE},
-  {"IS_COMPILED", 3, MYSQL_TYPE_STRING, 0, 0, "Compiled", SKIP_OPEN_TABLE},
-  {"SORTLEN", 3, MYSQL_TYPE_LONGLONG, 0, 0, "Sortlen", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("COLLATION_NAME",               CSName(),     NOT_NULL, "Collation"),
+  Column("CHARACTER_SET_NAME",           CSName(),     NOT_NULL, "Charset"),
+  Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL, "Id"),
+  Column("IS_DEFAULT",                   Yesno(),      NOT_NULL, "Default"),
+  Column("IS_COMPILED",                  Yesno(),      NOT_NULL, "Compiled"),
+  Column("SORTLEN",                      SLonglong(3), NOT_NULL, "Sortlen"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO applicable_roles_fields_info[]=
 {
-  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"ROLE_NAME", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"IS_DEFAULT", 3, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("GRANTEE",                  Userhost(), NOT_NULL),
+  Column("ROLE_NAME", Varchar(USERNAME_CHAR_LENGTH), NOT_NULL),
+  Column("IS_GRANTABLE",             Yesno(),    NOT_NULL),
+  Column("IS_DEFAULT",               Yesno(),    NULLABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO enabled_roles_fields_info[]=
 {
-  {"ROLE_NAME", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("ROLE_NAME", Varchar(USERNAME_CHAR_LENGTH), NULLABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO engines_fields_info[]=
 {
-  {"ENGINE", 64, MYSQL_TYPE_STRING, 0, 0, "Engine", SKIP_OPEN_TABLE},
-  {"SUPPORT", 8, MYSQL_TYPE_STRING, 0, 0, "Support", SKIP_OPEN_TABLE},
-  {"COMMENT", 160, MYSQL_TYPE_STRING, 0, 0, "Comment", SKIP_OPEN_TABLE},
-  {"TRANSACTIONS", 3, MYSQL_TYPE_STRING, 0, 1, "Transactions", SKIP_OPEN_TABLE},
-  {"XA", 3, MYSQL_TYPE_STRING, 0, 1, "XA", SKIP_OPEN_TABLE},
-  {"SAVEPOINTS", 3 ,MYSQL_TYPE_STRING, 0, 1, "Savepoints", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("ENGINE",       Varchar(64),  NOT_NULL, "Engine"),
+  Column("SUPPORT",      Varchar(8),   NOT_NULL, "Support"),
+  Column("COMMENT",      Varchar(160), NOT_NULL, "Comment"),
+  Column("TRANSACTIONS", Varchar(3),   NULLABLE, "Transactions"),
+  Column("XA",           Varchar(3),   NULLABLE, "XA"),
+  Column("SAVEPOINTS",   Varchar(3),   NULLABLE, "Savepoints"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO events_fields_info[]=
 {
-  {"EVENT_CATALOG", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"EVENT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Db",
-   SKIP_OPEN_TABLE},
-  {"EVENT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Name",
-   SKIP_OPEN_TABLE},
-  {"DEFINER", DEFINER_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "Definer", SKIP_OPEN_TABLE},
-  {"TIME_ZONE", 64, MYSQL_TYPE_STRING, 0, 0, "Time zone", SKIP_OPEN_TABLE},
-  {"EVENT_BODY", 8, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"EVENT_DEFINITION", 65535, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"EVENT_TYPE", 9, MYSQL_TYPE_STRING, 0, 0, "Type", SKIP_OPEN_TABLE},
-  {"EXECUTE_AT", 0, MYSQL_TYPE_DATETIME, 0, 1, "Execute at", SKIP_OPEN_TABLE},
-  {"INTERVAL_VALUE", 256, MYSQL_TYPE_STRING, 0, 1, "Interval value",
-   SKIP_OPEN_TABLE},
-  {"INTERVAL_FIELD", 18, MYSQL_TYPE_STRING, 0, 1, "Interval field",
-   SKIP_OPEN_TABLE},
-  {"SQL_MODE", 32*256, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"STARTS", 0, MYSQL_TYPE_DATETIME, 0, 1, "Starts", SKIP_OPEN_TABLE},
-  {"ENDS", 0, MYSQL_TYPE_DATETIME, 0, 1, "Ends", SKIP_OPEN_TABLE},
-  {"STATUS", 18, MYSQL_TYPE_STRING, 0, 0, "Status", SKIP_OPEN_TABLE},
-  {"ON_COMPLETION", 12, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"CREATED", 0, MYSQL_TYPE_DATETIME, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"LAST_ALTERED", 0, MYSQL_TYPE_DATETIME, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"LAST_EXECUTED", 0, MYSQL_TYPE_DATETIME, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"EVENT_COMMENT", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"ORIGINATOR", 10, MYSQL_TYPE_LONGLONG, 0, 0, "Originator", SKIP_OPEN_TABLE},
-  {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "character_set_client", SKIP_OPEN_TABLE},
-  {"COLLATION_CONNECTION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "collation_connection", SKIP_OPEN_TABLE},
-  {"DATABASE_COLLATION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "Database Collation", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  // QQ: shouldn't EVENT_CATALOG be Catalog() like in all other places?
+  Column("EVENT_CATALOG",        Name(),      NOT_NULL),
+  Column("EVENT_SCHEMA",         Name(),      NOT_NULL, "Db"),
+  Column("EVENT_NAME",           Name(),      NOT_NULL, "Name"),
+  Column("DEFINER",              Definer(),   NOT_NULL, "Definer"),
+  Column("TIME_ZONE",            Varchar(64), NOT_NULL, "Time zone"),
+  Column("EVENT_BODY",           Varchar(8),  NOT_NULL),
+  Column("EVENT_DEFINITION", Longtext(65535), NOT_NULL),
+  Column("EVENT_TYPE",           Varchar(9),  NOT_NULL, "Type"),
+  Column("EXECUTE_AT",           Datetime(0), NULLABLE, "Execute at"),
+  Column("INTERVAL_VALUE",       Varchar(256),NULLABLE, "Interval value"),
+  Column("INTERVAL_FIELD",       Varchar(18), NULLABLE, "Interval field"),
+  Column("SQL_MODE",             SQLMode(),   NOT_NULL),
+  Column("STARTS",               Datetime(0), NULLABLE, "Starts"),
+  Column("ENDS",                 Datetime(0), NULLABLE, "Ends"),
+  Column("STATUS",               Varchar(18), NOT_NULL, "Status"),
+  Column("ON_COMPLETION",        Varchar(12), NOT_NULL),
+  Column("CREATED",              Datetime(0), NOT_NULL),
+  Column("LAST_ALTERED",         Datetime(0), NOT_NULL),
+  Column("LAST_EXECUTED",        Datetime(0), NULLABLE),
+  Column("EVENT_COMMENT",        Name(),      NOT_NULL),
+  Column("ORIGINATOR",          SLonglong(10),NOT_NULL,"Originator"),
+  Column("CHARACTER_SET_CLIENT", CSName(),    NOT_NULL, "character_set_client"),
+  Column("COLLATION_CONNECTION", CSName(),    NOT_NULL, "collation_connection"),
+  Column("DATABASE_COLLATION",   CSName(),    NOT_NULL, "Database Collation"),
+  CEnd()
 };
 
 
 
 ST_FIELD_INFO coll_charset_app_fields_info[]=
 {
-  {"COLLATION_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
-   SKIP_OPEN_TABLE},
-  {"CHARACTER_SET_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
-   SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("COLLATION_NAME",     CSName(), NOT_NULL),
+  Column("CHARACTER_SET_NAME", CSName(), NOT_NULL),
+  CEnd()
 };
 
 
 ST_FIELD_INFO proc_fields_info[]=
 {
-  {"SPECIFIC_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"ROUTINE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"ROUTINE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Db",
-   SKIP_OPEN_TABLE},
-  {"ROUTINE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Name",
-   SKIP_OPEN_TABLE},
-  {"ROUTINE_TYPE", 13, MYSQL_TYPE_STRING, 0, 0, "Type", SKIP_OPEN_TABLE},
-  {"DATA_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"CHARACTER_MAXIMUM_LENGTH", 21 , MYSQL_TYPE_LONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"CHARACTER_OCTET_LENGTH", 21 , MYSQL_TYPE_LONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"NUMERIC_PRECISION", 21 , MYSQL_TYPE_LONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"NUMERIC_SCALE", 21 , MYSQL_TYPE_LONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"DATETIME_PRECISION", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
-   0, (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FRM_ONLY},
-  {"CHARACTER_SET_NAME", 64, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"COLLATION_NAME", 64, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"DTD_IDENTIFIER", 65535, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"ROUTINE_BODY", 8, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"ROUTINE_DEFINITION", 65535, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"EXTERNAL_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"EXTERNAL_LANGUAGE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   SKIP_OPEN_TABLE},
-  {"PARAMETER_STYLE", 8, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"IS_DETERMINISTIC", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"SQL_DATA_ACCESS", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   SKIP_OPEN_TABLE},
-  {"SQL_PATH", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"SECURITY_TYPE", 7, MYSQL_TYPE_STRING, 0, 0, "Security_type",
-   SKIP_OPEN_TABLE},
-  {"CREATED", 0, MYSQL_TYPE_DATETIME, 0, 0, "Created", SKIP_OPEN_TABLE},
-  {"LAST_ALTERED", 0, MYSQL_TYPE_DATETIME, 0, 0, "Modified", SKIP_OPEN_TABLE},
-  {"SQL_MODE", 32*256, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"ROUTINE_COMMENT", 65535, MYSQL_TYPE_STRING, 0, 0, "Comment",
-   SKIP_OPEN_TABLE},
-  {"DEFINER", DEFINER_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "Definer", SKIP_OPEN_TABLE},
-  {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "character_set_client", SKIP_OPEN_TABLE},
-  {"COLLATION_CONNECTION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "collation_connection", SKIP_OPEN_TABLE},
-  {"DATABASE_COLLATION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "Database Collation", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("SPECIFIC_NAME",           Name(),     NOT_NULL),
+  Column("ROUTINE_CATALOG",         Catalog(),  NOT_NULL),
+  Column("ROUTINE_SCHEMA",          Name(),     NOT_NULL, "Db"),
+  Column("ROUTINE_NAME",            Name(),     NOT_NULL, "Name"),
+  Column("ROUTINE_TYPE",            Varchar(13),NOT_NULL, "Type"),
+  Column("DATA_TYPE",               Name(),     NOT_NULL),
+  Column("CHARACTER_MAXIMUM_LENGTH",SLong(21),  NULLABLE),
+  Column("CHARACTER_OCTET_LENGTH",  SLong(21),  NULLABLE),
+  Column("NUMERIC_PRECISION",       SLong(21),  NULLABLE),
+  Column("NUMERIC_SCALE",           SLong(21),  NULLABLE),
+  Column("DATETIME_PRECISION",     ULonglong(), NULLABLE, OPEN_FRM_ONLY),
+  Column("CHARACTER_SET_NAME",      Varchar(64),NULLABLE),
+  Column("COLLATION_NAME",          Varchar(64),NULLABLE),
+  Column("DTD_IDENTIFIER",     Longtext(65535), NULLABLE),
+  Column("ROUTINE_BODY",            Varchar(8), NOT_NULL),
+  Column("ROUTINE_DEFINITION", Longtext(65535), NULLABLE),
+  Column("EXTERNAL_NAME",           Name(),     NULLABLE),
+  Column("EXTERNAL_LANGUAGE",       Name(),     NULLABLE),
+  Column("PARAMETER_STYLE",         Varchar(8), NOT_NULL),
+  Column("IS_DETERMINISTIC",        Varchar(3), NOT_NULL),
+  Column("SQL_DATA_ACCESS",         Name(),     NOT_NULL),
+  Column("SQL_PATH",                Name(),     NULLABLE),
+  Column("SECURITY_TYPE",           Varchar(7), NOT_NULL, "Security_type"),
+  Column("CREATED",                Datetime(0), NOT_NULL, "Created"),
+  Column("LAST_ALTERED",           Datetime(0), NOT_NULL, "Modified"),
+  Column("SQL_MODE",                SQLMode(),  NOT_NULL),
+  Column("ROUTINE_COMMENT",    Longtext(65535), NOT_NULL, "Comment"),
+  Column("DEFINER",                 Definer(),  NOT_NULL, "Definer"),
+  Column("CHARACTER_SET_CLIENT",    CSName(),   NOT_NULL, "character_set_client"),
+  Column("COLLATION_CONNECTION",    CSName(),   NOT_NULL, "collation_connection"),
+  Column("DATABASE_COLLATION",      CSName(),   NOT_NULL, "Database Collation"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO stat_fields_info[]=
 {
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Table", OPEN_FRM_ONLY},
-  {"NON_UNIQUE", 1, MYSQL_TYPE_LONGLONG, 0, 0, "Non_unique", OPEN_FRM_ONLY},
-  {"INDEX_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"INDEX_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Key_name",
-   OPEN_FRM_ONLY},
-  {"SEQ_IN_INDEX", 2, MYSQL_TYPE_LONGLONG, 0, 0, "Seq_in_index", OPEN_FRM_ONLY},
-  {"COLUMN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Column_name",
-   OPEN_FRM_ONLY},
-  {"COLLATION", 1, MYSQL_TYPE_STRING, 0, 1, "Collation", OPEN_FRM_ONLY},
-  {"CARDINALITY", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 1,
-   "Cardinality", OPEN_FULL_TABLE},
-  {"SUB_PART", 3, MYSQL_TYPE_LONGLONG, 0, 1, "Sub_part", OPEN_FRM_ONLY},
-  {"PACKED", 10, MYSQL_TYPE_STRING, 0, 1, "Packed", OPEN_FRM_ONLY},
-  {"NULLABLE", 3, MYSQL_TYPE_STRING, 0, 0, "Null", OPEN_FRM_ONLY},
-  {"INDEX_TYPE", 16, MYSQL_TYPE_STRING, 0, 0, "Index_type", OPEN_FULL_TABLE},
-  {"COMMENT", 16, MYSQL_TYPE_STRING, 0, 1, "Comment", OPEN_FRM_ONLY},
-  {"INDEX_COMMENT", INDEX_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
-   "Index_comment", OPEN_FRM_ONLY},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("TABLE_CATALOG", Catalog(),   NOT_NULL,                OPEN_FRM_ONLY),
+  Column("TABLE_SCHEMA",  Name(),      NOT_NULL,                OPEN_FRM_ONLY),
+  Column("TABLE_NAME",    Name(),      NOT_NULL, "Table",       OPEN_FRM_ONLY),
+  Column("NON_UNIQUE",    SLonglong(1),NOT_NULL, "Non_unique",  OPEN_FRM_ONLY),
+  Column("INDEX_SCHEMA",  Name(),      NOT_NULL,                OPEN_FRM_ONLY),
+  Column("INDEX_NAME",    Name(),      NOT_NULL, "Key_name",    OPEN_FRM_ONLY),
+  Column("SEQ_IN_INDEX",  SLonglong(2),NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
+  Column("COLUMN_NAME",   Name(),      NOT_NULL, "Column_name", OPEN_FRM_ONLY),
+  Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FRM_ONLY),
+  Column("CARDINALITY",   SLonglong(), NULLABLE, "Cardinality", OPEN_FULL_TABLE),
+  Column("SUB_PART",      SLonglong(3),NULLABLE, "Sub_part",    OPEN_FRM_ONLY),
+  Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),
+  Column("NULLABLE",      Varchar(3),  NOT_NULL, "Null",        OPEN_FRM_ONLY),
+  Column("INDEX_TYPE",    Varchar(16), NOT_NULL, "Index_type",  OPEN_FULL_TABLE),
+  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FRM_ONLY),
+  Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
+                                       NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
+  CEnd()
 };
 
 
 ST_FIELD_INFO view_fields_info[]=
 {
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"VIEW_DEFINITION", 65535, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"CHECK_OPTION", 8, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"IS_UPDATABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"DEFINER", DEFINER_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"SECURITY_TYPE", 7, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FRM_ONLY},
-  {"COLLATION_CONNECTION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FRM_ONLY},
-  {"ALGORITHM", 10, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("TABLE_CATALOG",        Catalog(),  NOT_NULL, OPEN_FRM_ONLY),
+  Column("TABLE_SCHEMA",         Name(),     NOT_NULL, OPEN_FRM_ONLY),
+  Column("TABLE_NAME",           Name(),     NOT_NULL, OPEN_FRM_ONLY),
+  Column("VIEW_DEFINITION", Longtext(65535), NOT_NULL, OPEN_FRM_ONLY),
+  Column("CHECK_OPTION",         Varchar(8), NOT_NULL, OPEN_FRM_ONLY),
+  Column("IS_UPDATABLE",         Yesno(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("DEFINER",              Definer(),  NOT_NULL, OPEN_FRM_ONLY),
+  Column("SECURITY_TYPE",        Varchar(7), NOT_NULL, OPEN_FRM_ONLY),
+  Column("CHARACTER_SET_CLIENT", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
+  Column("COLLATION_CONNECTION", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
+  Column("ALGORITHM",            Varchar(10),NOT_NULL, OPEN_FRM_ONLY),
+  CEnd()
 };
 
 
 ST_FIELD_INFO user_privileges_fields_info[]=
 {
-  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PRIVILEGE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("GRANTEE",        Userhost(), NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
+  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  CEnd()
 };
 
 
 ST_FIELD_INFO schema_privileges_fields_info[]=
 {
-  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PRIVILEGE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("GRANTEE",        Userhost(), NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
+  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  CEnd()
 };
 
 
 ST_FIELD_INFO table_privileges_fields_info[]=
 {
-  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PRIVILEGE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("GRANTEE",        Userhost(), NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
+  Column("TABLE_NAME",     Name(),     NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
+  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  CEnd()
 };
 
 
 ST_FIELD_INFO column_privileges_fields_info[]=
 {
-  {"GRANTEE", USERNAME_WITH_HOST_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"COLUMN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PRIVILEGE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"IS_GRANTABLE", 3, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("GRANTEE",        Userhost(), NOT_NULL),
+  Column("TABLE_CATALOG",  Catalog(),  NOT_NULL),
+  Column("TABLE_SCHEMA",   Name(),     NOT_NULL),
+  Column("TABLE_NAME",     Name(),     NOT_NULL),
+  Column("COLUMN_NAME",    Name(),     NOT_NULL),
+  Column("PRIVILEGE_TYPE", Name(),     NOT_NULL),
+  Column("IS_GRANTABLE",   Yesno(),    NOT_NULL),
+  CEnd()
 };
 
 
 ST_FIELD_INFO table_constraints_fields_info[]=
 {
-  {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CONSTRAINT_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("CONSTRAINT_CATALOG",  Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_SCHEMA",   Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_NAME",     Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_SCHEMA",        Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_NAME",          Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_TYPE",     Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO key_column_usage_fields_info[]=
 {
-  {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"COLUMN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"ORDINAL_POSITION", 10 ,MYSQL_TYPE_LONGLONG, 0, 0, 0, OPEN_FULL_TABLE},
-  {"POSITION_IN_UNIQUE_CONSTRAINT", 10 ,MYSQL_TYPE_LONGLONG, 0, 1, 0,
-   OPEN_FULL_TABLE},
-  {"REFERENCED_TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FULL_TABLE},
-  {"REFERENCED_TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FULL_TABLE},
-  {"REFERENCED_COLUMN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FULL_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("CONSTRAINT_CATALOG",            Catalog(),     NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_SCHEMA",             Name(),        NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_NAME",               Name(),        NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_CATALOG",                 Catalog(),     NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_SCHEMA",                  Name(),        NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_NAME",                    Name(),        NOT_NULL, OPEN_FULL_TABLE),
+  Column("COLUMN_NAME",                   Name(),        NOT_NULL, OPEN_FULL_TABLE),
+  Column("ORDINAL_POSITION",              SLonglong(10), NOT_NULL, OPEN_FULL_TABLE),
+  Column("POSITION_IN_UNIQUE_CONSTRAINT", SLonglong(10), NULLABLE, OPEN_FULL_TABLE),
+  Column("REFERENCED_TABLE_SCHEMA",       Name(),        NULLABLE, OPEN_FULL_TABLE),
+  Column("REFERENCED_TABLE_NAME",         Name(),        NULLABLE, OPEN_FULL_TABLE),
+  Column("REFERENCED_COLUMN_NAME",        Name(),        NULLABLE, OPEN_FULL_TABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO table_names_fields_info[]=
 {
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_SCHEMA",NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN + MYSQL50_TABLE_NAME_PREFIX_LENGTH,
-   MYSQL_TYPE_STRING, 0, 0, "Tables_in_", SKIP_OPEN_TABLE},
-  {"TABLE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_type",
-   OPEN_FRM_ONLY},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("TABLE_CATALOG", Catalog(), NOT_NULL),
+  Column("TABLE_SCHEMA",  Name(),    NOT_NULL),
+  Column("TABLE_NAME",    Varchar(NAME_CHAR_LEN + MYSQL50_TABLE_NAME_PREFIX_LENGTH),
+                                     NOT_NULL, "Tables_in_"),
+  Column("TABLE_TYPE",    Name(),    NOT_NULL, "Table_type", OPEN_FRM_ONLY),
+  CEnd()
 };
 
 
 ST_FIELD_INFO open_tables_fields_info[]=
 {
-  {"Database", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Database",
-   SKIP_OPEN_TABLE},
-  {"Table",NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Table", SKIP_OPEN_TABLE},
-  {"In_use", 1, MYSQL_TYPE_LONGLONG, 0, 0, "In_use", SKIP_OPEN_TABLE},
-  {"Name_locked", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Name_locked", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("Database",    Name(),       NOT_NULL, "Database"),
+  Column("Table",       Name(),       NOT_NULL, "Table"),
+  Column("In_use",      SLonglong(1), NOT_NULL, "In_use"),
+  Column("Name_locked", SLonglong(4), NOT_NULL, "Name_locked"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO triggers_fields_info[]=
 {
-  {"TRIGGER_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TRIGGER_SCHEMA",NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"TRIGGER_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Trigger",
-   OPEN_FRM_ONLY},
-  {"EVENT_MANIPULATION", 6, MYSQL_TYPE_STRING, 0, 0, "Event", OPEN_FRM_ONLY},
-  {"EVENT_OBJECT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FRM_ONLY},
-  {"EVENT_OBJECT_SCHEMA",NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FRM_ONLY},
-  {"EVENT_OBJECT_TABLE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Table",
-   OPEN_FRM_ONLY},
-  {"ACTION_ORDER", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, OPEN_FRM_ONLY},
-  {"ACTION_CONDITION", 65535, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FRM_ONLY},
-  {"ACTION_STATEMENT", 65535, MYSQL_TYPE_STRING, 0, 0, "Statement",
-   OPEN_FRM_ONLY},
-  {"ACTION_ORIENTATION", 9, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"ACTION_TIMING", 6, MYSQL_TYPE_STRING, 0, 0, "Timing", OPEN_FRM_ONLY},
-  {"ACTION_REFERENCE_OLD_TABLE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FRM_ONLY},
-  {"ACTION_REFERENCE_NEW_TABLE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FRM_ONLY},
-  {"ACTION_REFERENCE_OLD_ROW", 3, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"ACTION_REFERENCE_NEW_ROW", 3, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  Column("TRIGGER_CATALOG",        Catalog(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("TRIGGER_SCHEMA",            Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("TRIGGER_NAME",              Name(), NOT_NULL, "Trigger",  OPEN_FRM_ONLY),
+  Column("EVENT_MANIPULATION",    Varchar(6), NOT_NULL, "Event",    OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_CATALOG",   Catalog(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_SCHEMA",       Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_TABLE",        Name(), NOT_NULL, "Table",    OPEN_FRM_ONLY),
+  Column("ACTION_ORDER",        SLonglong(4), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("ACTION_CONDITION", Longtext(65535), NULLABLE,             OPEN_FRM_ONLY),
+  Column("ACTION_STATEMENT", Longtext(65535), NOT_NULL, "Statement",OPEN_FRM_ONLY),
+  Column("ACTION_ORIENTATION",    Varchar(9), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("ACTION_TIMING",         Varchar(6), NOT_NULL, "Timing",   OPEN_FRM_ONLY),
+  Column("ACTION_REFERENCE_OLD_TABLE",Name(), NULLABLE,             OPEN_FRM_ONLY),
+  Column("ACTION_REFERENCE_NEW_TABLE",Name(), NULLABLE,             OPEN_FRM_ONLY),
+  Column("ACTION_REFERENCE_OLD_ROW",Varchar(3),NOT_NULL,            OPEN_FRM_ONLY),
+  Column("ACTION_REFERENCE_NEW_ROW",Varchar(3),NOT_NULL,            OPEN_FRM_ONLY),
   /* 2 here indicates 2 decimals */
-  {"CREATED", 2, MYSQL_TYPE_DATETIME, 0, 1, "Created", OPEN_FRM_ONLY},
-  {"SQL_MODE", 32*256, MYSQL_TYPE_STRING, 0, 0, "sql_mode", OPEN_FRM_ONLY},
-  {"DEFINER", DEFINER_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "Definer", OPEN_FRM_ONLY},
-  {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "character_set_client", OPEN_FRM_ONLY},
-  {"COLLATION_CONNECTION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "collation_connection", OPEN_FRM_ONLY},
-  {"DATABASE_COLLATION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
-   "Database Collation", OPEN_FRM_ONLY},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("CREATED",              Datetime(2), NULLABLE, "Created",  OPEN_FRM_ONLY),
+  Column("SQL_MODE",               SQLMode(), NOT_NULL, "sql_mode", OPEN_FRM_ONLY),
+  Column("DEFINER",                Definer(), NOT_NULL, "Definer",  OPEN_FRM_ONLY),
+  Column("CHARACTER_SET_CLIENT",    CSName(), NOT_NULL, "character_set_client",
+                                                                 OPEN_FRM_ONLY),
+  Column("COLLATION_CONNECTION",    CSName(), NOT_NULL, "collation_connection",
+                                                                 OPEN_FRM_ONLY),
+  Column("DATABASE_COLLATION",      CSName(), NOT_NULL, "Database Collation",
+                                                                 OPEN_FRM_ONLY),
+  CEnd()
 };
 
 
 ST_FIELD_INFO partitions_fields_info[]=
 {
-  {"TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"TABLE_SCHEMA",NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"PARTITION_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"SUBPARTITION_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FULL_TABLE},
-  {"PARTITION_ORDINAL_POSITION", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FULL_TABLE},
-  {"SUBPARTITION_ORDINAL_POSITION", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FULL_TABLE},
-  {"PARTITION_METHOD", 18, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"SUBPARTITION_METHOD", 12, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"PARTITION_EXPRESSION", 65535, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"SUBPARTITION_EXPRESSION", 65535, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FULL_TABLE},
-  {"PARTITION_DESCRIPTION", 65535, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"TABLE_ROWS", 21 , MYSQL_TYPE_LONGLONG, 0, MY_I_S_UNSIGNED, 0,
-   OPEN_FULL_TABLE},
-  {"AVG_ROW_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0, MY_I_S_UNSIGNED, 0,
-   OPEN_FULL_TABLE},
-  {"DATA_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0, MY_I_S_UNSIGNED, 0,
-   OPEN_FULL_TABLE},
-  {"MAX_DATA_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FULL_TABLE},
-  {"INDEX_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0, MY_I_S_UNSIGNED, 0,
-   OPEN_FULL_TABLE},
-  {"DATA_FREE", 21 , MYSQL_TYPE_LONGLONG, 0, MY_I_S_UNSIGNED, 0,
-   OPEN_FULL_TABLE},
-  {"CREATE_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, 0, OPEN_FULL_TABLE},
-  {"UPDATE_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, 0, OPEN_FULL_TABLE},
-  {"CHECK_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, 0, OPEN_FULL_TABLE},
-  {"CHECKSUM", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FULL_TABLE},
-  {"PARTITION_COMMENT", 80, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"NODEGROUP", 12 , MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"TABLESPACE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   OPEN_FULL_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("TABLE_CATALOG",               Catalog(),   NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_SCHEMA",                Name(),      NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_NAME",                  Name(),      NOT_NULL, OPEN_FULL_TABLE),
+  Column("PARTITION_NAME",              Name(),      NULLABLE, OPEN_FULL_TABLE),
+  Column("SUBPARTITION_NAME",           Name(),      NULLABLE, OPEN_FULL_TABLE),
+  Column("PARTITION_ORDINAL_POSITION",  ULonglong(), NULLABLE, OPEN_FULL_TABLE),
+  Column("SUBPARTITION_ORDINAL_POSITION",ULonglong(),NULLABLE, OPEN_FULL_TABLE),
+  Column("PARTITION_METHOD",            Varchar(18), NULLABLE, OPEN_FULL_TABLE),
+  Column("SUBPARTITION_METHOD",         Varchar(12), NULLABLE, OPEN_FULL_TABLE),
+  Column("PARTITION_EXPRESSION",    Longtext(65535), NULLABLE, OPEN_FULL_TABLE),
+  Column("SUBPARTITION_EXPRESSION", Longtext(65535), NULLABLE, OPEN_FULL_TABLE),
+  Column("PARTITION_DESCRIPTION",   Longtext(65535), NULLABLE, OPEN_FULL_TABLE),
+  Column("TABLE_ROWS",                  ULonglong(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("AVG_ROW_LENGTH",              ULonglong(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("DATA_LENGTH",                 ULonglong(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("MAX_DATA_LENGTH",             ULonglong(), NULLABLE, OPEN_FULL_TABLE),
+  Column("INDEX_LENGTH",                ULonglong(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("DATA_FREE",                   ULonglong(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CREATE_TIME",                 Datetime(0), NULLABLE, OPEN_FULL_TABLE),
+  Column("UPDATE_TIME",                 Datetime(0), NULLABLE, OPEN_FULL_TABLE),
+  Column("CHECK_TIME",                  Datetime(0), NULLABLE, OPEN_FULL_TABLE),
+  Column("CHECKSUM",                    ULonglong(), NULLABLE, OPEN_FULL_TABLE),
+  Column("PARTITION_COMMENT",           Varchar(80), NOT_NULL, OPEN_FULL_TABLE),
+  Column("NODEGROUP",                   Varchar(12), NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLESPACE_NAME",             Name(),      NULLABLE, OPEN_FULL_TABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO variables_fields_info[]=
 {
-  {"VARIABLE_NAME", 64, MYSQL_TYPE_STRING, 0, 0, "Variable_name",
-   SKIP_OPEN_TABLE},
-  {"VARIABLE_VALUE", 2048, MYSQL_TYPE_STRING, 0, 0, "Value", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("VARIABLE_NAME",  Varchar(64),   NOT_NULL, "Variable_name"),
+  Column("VARIABLE_VALUE", Varchar(2048), NOT_NULL, "Value"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO sysvars_fields_info[]=
 {
-  {"VARIABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"SESSION_VALUE", 2048, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {"GLOBAL_VALUE", 2048, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {"GLOBAL_VALUE_ORIGIN", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"DEFAULT_VALUE", 2048, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {"VARIABLE_SCOPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"VARIABLE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"VARIABLE_COMMENT", TABLE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"NUMERIC_MIN_VALUE", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {"NUMERIC_MAX_VALUE",  MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {"NUMERIC_BLOCK_SIZE",  MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {"ENUM_VALUE_LIST", 65535, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {"READ_ONLY", 3, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"COMMAND_LINE_ARGUMENT", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("VARIABLE_NAME",        Name(),                           NOT_NULL),
+  Column("SESSION_VALUE",        Varchar(2048),                    NULLABLE),
+  Column("GLOBAL_VALUE",         Varchar(2048),                    NULLABLE),
+  Column("GLOBAL_VALUE_ORIGIN",  Name(),                           NOT_NULL),
+  Column("DEFAULT_VALUE",        Varchar(2048),                    NULLABLE),
+  Column("VARIABLE_SCOPE",       Name(),                           NOT_NULL),
+  Column("VARIABLE_TYPE",        Name(),                           NOT_NULL),
+  Column("VARIABLE_COMMENT",     Varchar(TABLE_COMMENT_MAXLEN),    NOT_NULL),
+  Column("NUMERIC_MIN_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
+  Column("NUMERIC_MAX_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
+  Column("NUMERIC_BLOCK_SIZE",   Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
+  Column("ENUM_VALUE_LIST",      Longtext(65535),                  NULLABLE),
+  Column("READ_ONLY",            Yesno(),                          NOT_NULL),
+  Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO processlist_fields_info[]=
 {
-  {"ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Id", SKIP_OPEN_TABLE},
-  {"USER", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "User",
-   SKIP_OPEN_TABLE},
-  {"HOST", LIST_PROCESS_HOST_LEN,  MYSQL_TYPE_STRING, 0, 0, "Host",
-   SKIP_OPEN_TABLE},
-  {"DB", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, "Db", SKIP_OPEN_TABLE},
-  {"COMMAND", 16, MYSQL_TYPE_STRING, 0, 0, "Command", SKIP_OPEN_TABLE},
-  {"TIME", 7, MYSQL_TYPE_LONG, 0, 0, "Time", SKIP_OPEN_TABLE},
-  {"STATE", 64, MYSQL_TYPE_STRING, 0, 1, "State", SKIP_OPEN_TABLE},
-  {"INFO", PROCESS_LIST_INFO_WIDTH, MYSQL_TYPE_STRING, 0, 1, "Info",
-   SKIP_OPEN_TABLE},
-  {"TIME_MS", 100 * (MY_INT64_NUM_DECIMAL_DIGITS + 1) + 3, MYSQL_TYPE_DECIMAL,
-   0, 0, "Time_ms", SKIP_OPEN_TABLE},
-  {"STAGE", 2, MYSQL_TYPE_TINY,  0, 0, "Stage", SKIP_OPEN_TABLE},
-  {"MAX_STAGE", 2, MYSQL_TYPE_TINY,  0, 0, "Max_stage", SKIP_OPEN_TABLE},
-  {"PROGRESS", 703, MYSQL_TYPE_DECIMAL,  0, 0, "Progress",
-   SKIP_OPEN_TABLE},
-  {"MEMORY_USED", 7, MYSQL_TYPE_LONGLONG, 0, 0, "Memory_used", SKIP_OPEN_TABLE},
-  {"MAX_MEMORY_USED", 7, MYSQL_TYPE_LONGLONG, 0, 0, "Max_memory_used", SKIP_OPEN_TABLE},
-  {"EXAMINED_ROWS", 7, MYSQL_TYPE_LONG, 0, 0, "Examined_rows", SKIP_OPEN_TABLE},
-  {"QUERY_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"INFO_BINARY", PROCESS_LIST_INFO_WIDTH, MYSQL_TYPE_BLOB, 0, 1,
-   "Info_binary", SKIP_OPEN_TABLE},
-  {"TID", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Tid", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("ID",             SLonglong(4),              NOT_NULL, "Id"),
+  Column("USER",           Varchar(USERNAME_CHAR_LENGTH), NOT_NULL, "User"),
+  Column("HOST",           Varchar(LIST_PROCESS_HOST_LEN),NOT_NULL, "Host"),
+  Column("DB",             Name(),                    NULLABLE, "Db"),
+  Column("COMMAND",        Varchar(16),               NOT_NULL, "Command"),
+  Column("TIME",           SLong(7),                  NOT_NULL, "Time"),
+  Column("STATE",          Varchar(64),               NULLABLE, "State"),
+  Column("INFO",  Longtext(PROCESS_LIST_INFO_WIDTH),
+                                                      NULLABLE, "Info"),
+  Column("TIME_MS", Decimal(100 * (MY_INT64_NUM_DECIMAL_DIGITS + 1) + 3),
+                                                      NOT_NULL, "Time_ms"),
+  Column("STAGE",          STiny(2),                  NOT_NULL, "Stage"),
+  Column("MAX_STAGE",      STiny(2),                  NOT_NULL, "Max_stage"),
+  Column("PROGRESS",       Decimal(703),              NOT_NULL, "Progress"),
+  Column("MEMORY_USED",    SLonglong(7),              NOT_NULL, "Memory_used"),
+  Column("MAX_MEMORY_USED",SLonglong(7),              NOT_NULL, "Max_memory_used"),
+  Column("EXAMINED_ROWS",  SLong(7),                  NOT_NULL, "Examined_rows"),
+  Column("QUERY_ID",       SLonglong(4),              NOT_NULL),
+  Column("INFO_BINARY",Blob(PROCESS_LIST_INFO_WIDTH),NULLABLE, "Info_binary"),
+  Column("TID",            SLonglong(4),              NOT_NULL, "Tid"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO plugin_fields_info[]=
 {
-  {"PLUGIN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Name",
-   SKIP_OPEN_TABLE},
-  {"PLUGIN_VERSION", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_STATUS", 16, MYSQL_TYPE_STRING, 0, 0, "Status", SKIP_OPEN_TABLE},
-  {"PLUGIN_TYPE", 80, MYSQL_TYPE_STRING, 0, 0, "Type", SKIP_OPEN_TABLE},
-  {"PLUGIN_TYPE_VERSION", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_LIBRARY", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, "Library",
-   SKIP_OPEN_TABLE},
-  {"PLUGIN_LIBRARY_VERSION", 20, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_AUTHOR", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_DESCRIPTION", 65535, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_LICENSE", 80, MYSQL_TYPE_STRING, 0, 0, "License", SKIP_OPEN_TABLE},
-  {"LOAD_OPTION", 64, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_MATURITY", 12, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_AUTH_VERSION", 80, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("PLUGIN_NAME",             Name(),          NOT_NULL, "Name"),
+  Column("PLUGIN_VERSION",          Varchar(20),     NOT_NULL),
+  Column("PLUGIN_STATUS",           Varchar(16),     NOT_NULL, "Status"),
+  Column("PLUGIN_TYPE",             Varchar(80),     NOT_NULL, "Type"),
+  Column("PLUGIN_TYPE_VERSION",     Varchar(20),     NOT_NULL),
+  Column("PLUGIN_LIBRARY",          Name(),          NULLABLE, "Library"),
+  Column("PLUGIN_LIBRARY_VERSION",  Varchar(20),     NULLABLE),
+  Column("PLUGIN_AUTHOR",           Name(),          NULLABLE),
+  Column("PLUGIN_DESCRIPTION",      Longtext(65535), NULLABLE),
+  Column("PLUGIN_LICENSE",          Varchar(80),     NOT_NULL, "License"),
+  Column("LOAD_OPTION",             Varchar(64),     NOT_NULL),
+  Column("PLUGIN_MATURITY",         Varchar(12),     NOT_NULL),
+  Column("PLUGIN_AUTH_VERSION",     Varchar(80),     NULLABLE),
+  CEnd()
 };
 
 ST_FIELD_INFO files_fields_info[]=
 {
-  {"FILE_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"FILE_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"FILE_TYPE", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLESPACE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   SKIP_OPEN_TABLE},
-  {"TABLE_CATALOG", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"LOGFILE_GROUP_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
-   SKIP_OPEN_TABLE},
-  {"LOGFILE_GROUP_NUMBER", 4, MYSQL_TYPE_LONGLONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"ENGINE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"FULLTEXT_KEYS", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"DELETED_ROWS", 4, MYSQL_TYPE_LONGLONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"UPDATE_COUNT", 4, MYSQL_TYPE_LONGLONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"FREE_EXTENTS", 4, MYSQL_TYPE_LONGLONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"TOTAL_EXTENTS", 4, MYSQL_TYPE_LONGLONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"EXTENT_SIZE", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"INITIAL_SIZE", 21, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, SKIP_OPEN_TABLE},
-  {"MAXIMUM_SIZE", 21, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, SKIP_OPEN_TABLE},
-  {"AUTOEXTEND_SIZE", 21, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, SKIP_OPEN_TABLE},
-  {"CREATION_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"LAST_UPDATE_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"LAST_ACCESS_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"RECOVER_TIME", 4, MYSQL_TYPE_LONGLONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"TRANSACTION_COUNTER", 4, MYSQL_TYPE_LONGLONG, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"VERSION", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Version", SKIP_OPEN_TABLE},
-  {"ROW_FORMAT", 10, MYSQL_TYPE_STRING, 0, 1, "Row_format", SKIP_OPEN_TABLE},
-  {"TABLE_ROWS", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Rows", SKIP_OPEN_TABLE},
-  {"AVG_ROW_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Avg_row_length", SKIP_OPEN_TABLE},
-  {"DATA_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Data_length", SKIP_OPEN_TABLE},
-  {"MAX_DATA_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Max_data_length", SKIP_OPEN_TABLE},
-  {"INDEX_LENGTH", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Index_length", SKIP_OPEN_TABLE},
-  {"DATA_FREE", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Data_free", SKIP_OPEN_TABLE},
-  {"CREATE_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, "Create_time", SKIP_OPEN_TABLE},
-  {"UPDATE_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, "Update_time", SKIP_OPEN_TABLE},
-  {"CHECK_TIME", 0, MYSQL_TYPE_DATETIME, 0, 1, "Check_time", SKIP_OPEN_TABLE},
-  {"CHECKSUM", 21 , MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), "Checksum", SKIP_OPEN_TABLE},
-  {"STATUS", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"EXTRA", 255, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("FILE_ID",             SLonglong(4),   NOT_NULL),
+  Column("FILE_NAME",        Varchar(FN_REFLEN),NULLABLE),
+  Column("FILE_TYPE",           Varchar(20),    NOT_NULL),
+  Column("TABLESPACE_NAME",     Name(),         NULLABLE),
+  Column("TABLE_CATALOG",       Name(),         NOT_NULL),
+  Column("TABLE_SCHEMA",        Name(),         NULLABLE),
+  Column("TABLE_NAME",          Name(),         NULLABLE),
+  Column("LOGFILE_GROUP_NAME",  Name(),         NULLABLE),
+  Column("LOGFILE_GROUP_NUMBER",SLonglong(4),   NULLABLE),
+  Column("ENGINE",              Name(),         NOT_NULL),
+  Column("FULLTEXT_KEYS",       Name(),         NULLABLE),
+  Column("DELETED_ROWS",        SLonglong(4),   NULLABLE),
+  Column("UPDATE_COUNT",        SLonglong(4),   NULLABLE),
+  Column("FREE_EXTENTS",        SLonglong(4),   NULLABLE),
+  Column("TOTAL_EXTENTS",       SLonglong(4),   NULLABLE),
+  Column("EXTENT_SIZE",         SLonglong(4),   NOT_NULL),
+  Column("INITIAL_SIZE",        ULonglong(),    NULLABLE),
+  Column("MAXIMUM_SIZE",        ULonglong(),    NULLABLE),
+  Column("AUTOEXTEND_SIZE",     ULonglong(),    NULLABLE),
+  Column("CREATION_TIME",       Datetime(0),    NULLABLE),
+  Column("LAST_UPDATE_TIME",    Datetime(0),    NULLABLE),
+  Column("LAST_ACCESS_TIME",    Datetime(0),    NULLABLE),
+  Column("RECOVER_TIME",        SLonglong(4),   NULLABLE),
+  Column("TRANSACTION_COUNTER", SLonglong(4),   NULLABLE),
+  Column("VERSION",             ULonglong(),    NULLABLE, "Version"),
+  Column("ROW_FORMAT",          Varchar(10),    NULLABLE, "Row_format"),
+  Column("TABLE_ROWS",          ULonglong(),    NULLABLE, "Rows"),
+  Column("AVG_ROW_LENGTH",      ULonglong(),    NULLABLE, "Avg_row_length"),
+  Column("DATA_LENGTH",         ULonglong(),    NULLABLE, "Data_length"),
+  Column("MAX_DATA_LENGTH",     ULonglong(),    NULLABLE, "Max_data_length"),
+  Column("INDEX_LENGTH",        ULonglong(),    NULLABLE, "Index_length"),
+  Column("DATA_FREE",           ULonglong(),    NULLABLE, "Data_free"),
+  Column("CREATE_TIME",         Datetime(0),    NULLABLE, "Create_time"),
+  Column("UPDATE_TIME",         Datetime(0),    NULLABLE, "Update_time"),
+  Column("CHECK_TIME",          Datetime(0),    NULLABLE, "Check_time"),
+  Column("CHECKSUM",            ULonglong(),    NULLABLE, "Checksum"),
+  Column("STATUS",              Varchar(20),    NOT_NULL),
+  Column("EXTRA",               Varchar(255),   NULLABLE),
+  CEnd()
 };
+
+}; // namespace Show
+
 
 void init_fill_schema_files_row(TABLE* table)
 {
   int i;
-  for(i=0; files_fields_info[i].field_name!=NULL; i++)
+  for(i=0; !Show::files_fields_info[i].end_marker(); i++)
     table->field[i]->set_null();
 
   table->field[IS_FILES_STATUS]->set_notnull();
   table->field[IS_FILES_STATUS]->store("NORMAL", 6, system_charset_info);
 }
 
+
+namespace Show {
+
 ST_FIELD_INFO referential_constraints_fields_info[]=
 {
-  {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"UNIQUE_CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"UNIQUE_CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"UNIQUE_CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0,
-   MY_I_S_MAYBE_NULL, 0, OPEN_FULL_TABLE},
-  {"MATCH_OPTION", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"UPDATE_RULE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"DELETE_RULE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"REFERENCED_TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("CONSTRAINT_CATALOG",        Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_SCHEMA",         Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_NAME",           Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("UNIQUE_CONSTRAINT_CATALOG", Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("UNIQUE_CONSTRAINT_SCHEMA",  Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("UNIQUE_CONSTRAINT_NAME",    Name(),    NULLABLE, OPEN_FULL_TABLE),
+  Column("MATCH_OPTION",              Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("UPDATE_RULE",               Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("DELETE_RULE",               Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_NAME",                Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("REFERENCED_TABLE_NAME",     Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO parameters_fields_info[]=
 {
-  {"SPECIFIC_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"SPECIFIC_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"SPECIFIC_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"ORDINAL_POSITION", 21 , MYSQL_TYPE_LONG, 0, 0, 0, OPEN_FULL_TABLE},
-  {"PARAMETER_MODE", 5, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"PARAMETER_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"DATA_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CHARACTER_MAXIMUM_LENGTH", 21 , MYSQL_TYPE_LONG, 0, 1, 0, OPEN_FULL_TABLE},
-  {"CHARACTER_OCTET_LENGTH", 21 , MYSQL_TYPE_LONG, 0, 1, 0, OPEN_FULL_TABLE},
-  {"NUMERIC_PRECISION", 21 , MYSQL_TYPE_LONG, 0, 1, 0, OPEN_FULL_TABLE},
-  {"NUMERIC_SCALE", 21 , MYSQL_TYPE_LONG, 0, 1, 0, OPEN_FULL_TABLE},
-  {"DATETIME_PRECISION", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
-   0, (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, OPEN_FRM_ONLY},
-  {"CHARACTER_SET_NAME", 64, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"COLLATION_NAME", 64, MYSQL_TYPE_STRING, 0, 1, 0, OPEN_FULL_TABLE},
-  {"DTD_IDENTIFIER", 65535, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"ROUTINE_TYPE", 9, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE}
+  Column("SPECIFIC_CATALOG",        Catalog(),       NOT_NULL, OPEN_FULL_TABLE),
+  Column("SPECIFIC_SCHEMA",         Name(),          NOT_NULL, OPEN_FULL_TABLE),
+  Column("SPECIFIC_NAME",           Name(),          NOT_NULL, OPEN_FULL_TABLE),
+  Column("ORDINAL_POSITION",        SLong(21),       NOT_NULL, OPEN_FULL_TABLE),
+  Column("PARAMETER_MODE",          Varchar(5),      NULLABLE, OPEN_FULL_TABLE),
+  Column("PARAMETER_NAME",          Name(),          NULLABLE, OPEN_FULL_TABLE),
+  Column("DATA_TYPE",               Name(),          NOT_NULL, OPEN_FULL_TABLE),
+  Column("CHARACTER_MAXIMUM_LENGTH",SLong(21),       NULLABLE, OPEN_FULL_TABLE),
+  Column("CHARACTER_OCTET_LENGTH",  SLong(21),       NULLABLE, OPEN_FULL_TABLE),
+  Column("NUMERIC_PRECISION",       SLong(21),       NULLABLE, OPEN_FULL_TABLE),
+  Column("NUMERIC_SCALE",           SLong(21),       NULLABLE, OPEN_FULL_TABLE),
+  Column("DATETIME_PRECISION",      ULonglong(),     NULLABLE, OPEN_FRM_ONLY),
+  Column("CHARACTER_SET_NAME",      Varchar(64),     NULLABLE, OPEN_FULL_TABLE),
+  Column("COLLATION_NAME",          Varchar(64),     NULLABLE, OPEN_FULL_TABLE),
+  Column("DTD_IDENTIFIER",          Longtext(65535), NOT_NULL, OPEN_FULL_TABLE),
+  Column("ROUTINE_TYPE",            Varchar(9),      NOT_NULL, OPEN_FULL_TABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO tablespaces_fields_info[]=
 {
-  {"TABLESPACE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   SKIP_OPEN_TABLE},
-  {"ENGINE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"TABLESPACE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL,
-   0, SKIP_OPEN_TABLE},
-  {"LOGFILE_GROUP_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL,
-   0, SKIP_OPEN_TABLE},
-  {"EXTENT_SIZE", 21, MYSQL_TYPE_LONGLONG, 0,
-   MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED, 0, SKIP_OPEN_TABLE},
-  {"AUTOEXTEND_SIZE", 21, MYSQL_TYPE_LONGLONG, 0,
-   MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED, 0, SKIP_OPEN_TABLE},
-  {"MAXIMUM_SIZE", 21, MYSQL_TYPE_LONGLONG, 0,
-   MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED, 0, SKIP_OPEN_TABLE},
-  {"NODEGROUP_ID", 21, MYSQL_TYPE_LONGLONG, 0,
-   MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED, 0, SKIP_OPEN_TABLE},
-  {"TABLESPACE_COMMENT", 2048, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0,
-   SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("TABLESPACE_NAME",    Name(),        NOT_NULL),
+  Column("ENGINE",             Name(),        NOT_NULL),
+  Column("TABLESPACE_TYPE",    Name(),        NULLABLE),
+  Column("LOGFILE_GROUP_NAME", Name(),        NULLABLE),
+  Column("EXTENT_SIZE",        ULonglong(),   NULLABLE),
+  Column("AUTOEXTEND_SIZE",    ULonglong(),   NULLABLE),
+  Column("MAXIMUM_SIZE",       ULonglong(),   NULLABLE),
+  Column("NODEGROUP_ID",       ULonglong(),   NULLABLE),
+  Column("TABLESPACE_COMMENT", Varchar(2048), NULLABLE),
+  CEnd()
 };
 
 
 ST_FIELD_INFO keycache_fields_info[]=
 {
-  {"KEY_CACHE_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"SEGMENTS", 3, MYSQL_TYPE_LONG, 0, 
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED) , 0, SKIP_OPEN_TABLE},
-  {"SEGMENT_NUMBER", 3, MYSQL_TYPE_LONG, 0,
-   (MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED), 0, SKIP_OPEN_TABLE},
-  {"FULL_SIZE", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), 0, SKIP_OPEN_TABLE},
-  {"BLOCK_SIZE", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), 0, SKIP_OPEN_TABLE },
-  {"USED_BLOCKS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-    (MY_I_S_UNSIGNED), "Key_blocks_used", SKIP_OPEN_TABLE},
-  {"UNUSED_BLOCKS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), "Key_blocks_unused", SKIP_OPEN_TABLE},
-  {"DIRTY_BLOCKS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), "Key_blocks_not_flushed", SKIP_OPEN_TABLE},
-  {"READ_REQUESTS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), "Key_read_requests", SKIP_OPEN_TABLE},
-  {"READS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), "Key_reads", SKIP_OPEN_TABLE},
-  {"WRITE_REQUESTS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), "Key_write_requests", SKIP_OPEN_TABLE},
-  {"WRITES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0,
-   (MY_I_S_UNSIGNED), "Key_writes", SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("KEY_CACHE_NAME",Varchar(NAME_LEN),NOT_NULL),
+  Column("SEGMENTS",        ULong(3),       NULLABLE),
+  Column("SEGMENT_NUMBER",  ULong(3),       NULLABLE),
+  Column("FULL_SIZE",       ULonglong(),    NOT_NULL),
+  Column("BLOCK_SIZE",      ULonglong(),    NOT_NULL),
+  Column("USED_BLOCKS",     ULonglong(),    NOT_NULL, "Key_blocks_used"),
+  Column("UNUSED_BLOCKS",   ULonglong(),    NOT_NULL, "Key_blocks_unused"),
+  Column("DIRTY_BLOCKS",    ULonglong(),    NOT_NULL, "Key_blocks_not_flushed"),
+  Column("READ_REQUESTS",   ULonglong(),    NOT_NULL, "Key_read_requests"),
+  Column("READS",           ULonglong(),    NOT_NULL, "Key_reads"),
+  Column("WRITE_REQUESTS",  ULonglong(),    NOT_NULL, "Key_write_requests"),
+  Column("WRITES",          ULonglong(),    NOT_NULL, "Key_writes"),
+  CEnd()
 };
 
 
 ST_FIELD_INFO show_explain_fields_info[]=
 {
-  /* field_name, length, type, value, field_flags, old_name*/
-  {"id", 3, MYSQL_TYPE_LONGLONG, 0 /*value*/, MY_I_S_MAYBE_NULL, "id", 
-    SKIP_OPEN_TABLE},
-  {"select_type", 19, MYSQL_TYPE_STRING, 0 /*value*/, 0, "select_type", 
-    SKIP_OPEN_TABLE},
-  {"table", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0 /*value*/, MY_I_S_MAYBE_NULL,
-   "table", SKIP_OPEN_TABLE},
-  {"type", 15, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "type", SKIP_OPEN_TABLE},
-  {"possible_keys", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/,
-    MY_I_S_MAYBE_NULL, "possible_keys", SKIP_OPEN_TABLE},
-  {"key", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/, 
-    MY_I_S_MAYBE_NULL, "key", SKIP_OPEN_TABLE},
-  {"key_len", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/, 
-    MY_I_S_MAYBE_NULL, "key_len", SKIP_OPEN_TABLE},
-  {"ref", NAME_CHAR_LEN*MAX_REF_PARTS, MYSQL_TYPE_STRING, 0/*value*/,
-    MY_I_S_MAYBE_NULL, "ref", SKIP_OPEN_TABLE},
-  {"rows", 10, MYSQL_TYPE_LONGLONG, 0/*value*/, MY_I_S_MAYBE_NULL, "rows", 
-    SKIP_OPEN_TABLE},
-  {"Extra", 255, MYSQL_TYPE_STRING, 0/*value*/, 0 /*flags*/, "Extra", 
-    SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("id",            SLonglong(3),                  NULLABLE, "id"),
+  Column("select_type",   Varchar(19),                   NOT_NULL, "select_type"),
+  Column("table",         Name(),                        NULLABLE, "table"),
+  Column("type",          Varchar(15),                   NULLABLE, "type"),
+  Column("possible_keys",Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "possible_keys"),
+  Column("key",          Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "key"),
+  Column("key_len",      Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "key_len"),
+  Column("ref",     Varchar(NAME_CHAR_LEN*MAX_REF_PARTS),NULLABLE, "ref"),
+  Column("rows",          SLonglong(10),                 NULLABLE, "rows"),
+  Column("Extra",         Varchar(255),                  NOT_NULL, "Extra"),
+  CEnd()
 };
 
 
 #ifdef HAVE_SPATIAL
 ST_FIELD_INFO geometry_columns_fields_info[]=
 {
-  {"F_TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"F_TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"F_TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"F_GEOMETRY_COLUMN", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Field",
-   OPEN_FRM_ONLY},
-  {"G_TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"G_TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"G_TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"G_GEOMETRY_COLUMN", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Field",
-   OPEN_FRM_ONLY},
-  {"STORAGE_TYPE", 2, MYSQL_TYPE_TINY, 0, 0, 0, OPEN_FRM_ONLY},
-  {"GEOMETRY_TYPE", 7, MYSQL_TYPE_LONG, 0, 0, 0, OPEN_FRM_ONLY},
-  {"COORD_DIMENSION", 2, MYSQL_TYPE_TINY, 0, 0, 0, OPEN_FRM_ONLY},
-  {"MAX_PPR", 2, MYSQL_TYPE_TINY, 0, 0, 0, OPEN_FRM_ONLY},
-  {"SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, OPEN_FRM_ONLY},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("F_TABLE_CATALOG",    Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("F_TABLE_SCHEMA",     Name(),    NOT_NULL,          OPEN_FRM_ONLY),
+  Column("F_TABLE_NAME",       Name(),    NOT_NULL,          OPEN_FRM_ONLY),
+  Column("F_GEOMETRY_COLUMN",  Name(),    NOT_NULL, "Field", OPEN_FRM_ONLY),
+  Column("G_TABLE_CATALOG",    Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("G_TABLE_SCHEMA",     Name(),    NOT_NULL,          OPEN_FRM_ONLY),
+  Column("G_TABLE_NAME",       Name(),    NOT_NULL,          OPEN_FRM_ONLY),
+  Column("G_GEOMETRY_COLUMN",  Name(),    NOT_NULL, "Field", OPEN_FRM_ONLY),
+  Column("STORAGE_TYPE",       STiny(2),  NOT_NULL,          OPEN_FRM_ONLY),
+  Column("GEOMETRY_TYPE",      SLong(7),  NOT_NULL,          OPEN_FRM_ONLY),
+  Column("COORD_DIMENSION",    STiny(2),  NOT_NULL,          OPEN_FRM_ONLY),
+  Column("MAX_PPR",            STiny(2),  NOT_NULL,          OPEN_FRM_ONLY),
+  Column("SRID",               SShort(5), NOT_NULL,          OPEN_FRM_ONLY),
+  CEnd()
 };
 
 
 ST_FIELD_INFO spatial_ref_sys_fields_info[]=
 {
-  {"SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"AUTH_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"AUTH_SRID", 5, MYSQL_TYPE_LONG, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"SRTEXT", 2048, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("SRID",      SShort(5),          NOT_NULL),
+  Column("AUTH_NAME", Varchar(FN_REFLEN), NOT_NULL),
+  Column("AUTH_SRID", SLong(5),           NOT_NULL),
+  Column("SRTEXT",    Varchar(2048),      NOT_NULL),
+  CEnd()
 };
 #endif /*HAVE_SPATIAL*/
 
 
 ST_FIELD_INFO check_constraints_fields_info[]=
 {
-  {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
-   OPEN_FULL_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+  Column("CONSTRAINT_CATALOG", Catalog(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_SCHEMA",  Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_NAME",    Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("TABLE_NAME",         Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CHECK_CLAUSE",       Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  CEnd()
 };
+
+}; // namespace Show
+
+
+namespace Show {
 
 /** For creating fields of information_schema.OPTIMIZER_TRACE */
 extern ST_FIELD_INFO optimizer_trace_info[];
+
+} //namespace Show
 
 /*
   Description of ST_FIELD_INFO in table.h
@@ -9722,106 +9603,106 @@ extern ST_FIELD_INFO optimizer_trace_info[];
 
 ST_SCHEMA_TABLE schema_tables[]=
 {
-  {"ALL_PLUGINS", plugin_fields_info, 0,
+  {"ALL_PLUGINS", Show::plugin_fields_info, 0,
    fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
-  {"APPLICABLE_ROLES", applicable_roles_fields_info, 0,
+  {"APPLICABLE_ROLES", Show::applicable_roles_fields_info, 0,
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
-  {"CHARACTER_SETS", charsets_fields_info, 0,
+  {"CHARACTER_SETS", Show::charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
-  {"CHECK_CONSTRAINTS", check_constraints_fields_info, 0,
+  {"CHECK_CONSTRAINTS", Show::check_constraints_fields_info, 0,
    get_all_tables, 0, get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"COLLATIONS", collation_fields_info, 0,
+  {"COLLATIONS", Show::collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
-  {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,
+  {"COLLATION_CHARACTER_SET_APPLICABILITY", Show::coll_charset_app_fields_info,
    0, fill_schema_coll_charset_app, 0, 0, -1, -1, 0, 0},
-  {"COLUMNS", columns_fields_info, 0,
+  {"COLUMNS", Show::columns_fields_info, 0,
    get_all_tables, make_columns_old_format, get_schema_column_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL},
-  {"COLUMN_PRIVILEGES", column_privileges_fields_info, 0,
+  {"COLUMN_PRIVILEGES", Show::column_privileges_fields_info, 0,
    fill_schema_column_privileges, 0, 0, -1, -1, 0, 0},
-  {"ENABLED_ROLES", enabled_roles_fields_info, 0,
+  {"ENABLED_ROLES", Show::enabled_roles_fields_info, 0,
    fill_schema_enabled_roles, 0, 0, -1, -1, 0, 0},
-  {"ENGINES", engines_fields_info, 0,
+  {"ENGINES", Show::engines_fields_info, 0,
    fill_schema_engines, make_old_format, 0, -1, -1, 0, 0},
 #ifdef HAVE_EVENT_SCHEDULER
-  {"EVENTS", events_fields_info, 0,
+  {"EVENTS", Show::events_fields_info, 0,
    Events::fill_schema_events, make_old_format, 0, -1, -1, 0, 0},
 #else
-  {"EVENTS", events_fields_info, 0,
+  {"EVENTS", Show::events_fields_info, 0,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
-  {"EXPLAIN", show_explain_fields_info, 0, fill_show_explain,
+  {"EXPLAIN", Show::show_explain_fields_info, 0, fill_show_explain,
   make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
-  {"FILES", files_fields_info, 0,
+  {"FILES", Show::files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
-  {"GLOBAL_STATUS", variables_fields_info, 0,
+  {"GLOBAL_STATUS", Show::variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
-  {"GLOBAL_VARIABLES", variables_fields_info, 0,
+  {"GLOBAL_VARIABLES", Show::variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
-  {"KEY_CACHES", keycache_fields_info, 0,
+  {"KEY_CACHES", Show::keycache_fields_info, 0,
    fill_key_cache_tables, 0, 0, -1,-1, 0, 0},
-  {"KEY_COLUMN_USAGE", key_column_usage_fields_info, 0,
+  {"KEY_COLUMN_USAGE", Show::key_column_usage_fields_info, 0,
    get_all_tables, 0, get_schema_key_column_usage_record, 4, 5, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"OPEN_TABLES", open_tables_fields_info, 0,
+  {"OPEN_TABLES", Show::open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},
-  {"OPTIMIZER_TRACE", optimizer_trace_info, 0,
+  {"OPTIMIZER_TRACE", Show::optimizer_trace_info, 0,
      fill_optimizer_trace_info, NULL, NULL, -1, -1, false, 0},
-  {"PARAMETERS", parameters_fields_info, 0,
+  {"PARAMETERS", Show::parameters_fields_info, 0,
    fill_schema_proc, 0, 0, -1, -1, 0, 0},
-  {"PARTITIONS", partitions_fields_info, 0,
+  {"PARTITIONS", Show::partitions_fields_info, 0,
    get_all_tables, 0, get_schema_partitions_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"PLUGINS", plugin_fields_info, 0,
+  {"PLUGINS", Show::plugin_fields_info, 0,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
-  {"PROCESSLIST", processlist_fields_info, 0,
+  {"PROCESSLIST", Show::processlist_fields_info, 0,
    fill_schema_processlist, make_old_format, 0, -1, -1, 0, 0},
-  {"PROFILING", query_profile_statistics_info, 0,
+  {"PROFILING", Show::query_profile_statistics_info, 0,
     fill_query_profile_statistics_info, make_profile_table_for_show,
     NULL, -1, -1, false, 0},
-  {"REFERENTIAL_CONSTRAINTS", referential_constraints_fields_info,
+  {"REFERENTIAL_CONSTRAINTS", Show::referential_constraints_fields_info,
    0, get_all_tables, 0, get_referential_constraints_record,
    1, 9, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"ROUTINES", proc_fields_info, 0,
+  {"ROUTINES", Show::proc_fields_info, 0,
    fill_schema_proc, make_proc_old_format, 0, -1, -1, 0, 0},
-  {"SCHEMATA", schema_fields_info, 0,
+  {"SCHEMATA", Show::schema_fields_info, 0,
    fill_schema_schemata, make_schemata_old_format, 0, 1, -1, 0, 0},
-  {"SCHEMA_PRIVILEGES", schema_privileges_fields_info, 0,
+  {"SCHEMA_PRIVILEGES", Show::schema_privileges_fields_info, 0,
    fill_schema_schema_privileges, 0, 0, -1, -1, 0, 0},
-  {"SESSION_STATUS", variables_fields_info, 0,
+  {"SESSION_STATUS", Show::variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
-  {"SESSION_VARIABLES", variables_fields_info, 0,
+  {"SESSION_VARIABLES", Show::variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
-  {"STATISTICS", stat_fields_info, 0,
+  {"STATISTICS", Show::stat_fields_info, 0,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
-  {"SYSTEM_VARIABLES", sysvars_fields_info, 0,
+  {"SYSTEM_VARIABLES", Show::sysvars_fields_info, 0,
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
-  {"TABLES", tables_fields_info, 0,
+  {"TABLES", Show::tables_fields_info, 0,
    get_all_tables, make_old_format, get_schema_tables_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE},
-  {"TABLESPACES", tablespaces_fields_info, 0,
+  {"TABLESPACES", Show::tablespaces_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
-  {"TABLE_CONSTRAINTS", table_constraints_fields_info, 0,
+  {"TABLE_CONSTRAINTS", Show::table_constraints_fields_info, 0,
    get_all_tables, 0, get_schema_constraints_record, 3, 4, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"TABLE_NAMES", table_names_fields_info, 0,
+  {"TABLE_NAMES", Show::table_names_fields_info, 0,
    get_all_tables, make_table_names_old_format, 0, 1, 2, 1, OPTIMIZE_I_S_TABLE},
-  {"TABLE_PRIVILEGES", table_privileges_fields_info, 0,
+  {"TABLE_PRIVILEGES", Show::table_privileges_fields_info, 0,
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
-  {"TRIGGERS", triggers_fields_info, 0,
+  {"TRIGGERS", Show::triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
-  {"USER_PRIVILEGES", user_privileges_fields_info, 0,
+  {"USER_PRIVILEGES", Show::user_privileges_fields_info, 0,
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
-  {"VIEWS", view_fields_info, 0,
+  {"VIEWS", Show::view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
 #ifdef HAVE_SPATIAL
-  {"GEOMETRY_COLUMNS", geometry_columns_fields_info, 0,
+  {"GEOMETRY_COLUMNS", Show::geometry_columns_fields_info, 0,
    get_all_tables, make_columns_old_format, get_geometry_column_record,
    1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL},
-  {"SPATIAL_REF_SYS", spatial_ref_sys_fields_info, 0,
+  {"SPATIAL_REF_SYS", Show::spatial_ref_sys_fields_info, 0,
    fill_spatial_ref_sys, make_old_format, 0, -1, -1, 0, 0},
 #endif /*HAVE_SPATIAL*/
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -9856,8 +9737,8 @@ int initialize_schema_table(st_plugin_int *plugin)
     }
 
     if (!schema_table->old_format)
-      for (ST_FIELD_INFO *f= schema_table->fields_info; f->field_name; f++)
-        if (f->old_name && f->old_name[0])
+      for (ST_FIELD_INFO *f= schema_table->fields_info; !f->end_marker(); f++)
+        if (f->old_name().str && f->old_name().str[0])
         {
           schema_table->old_format= make_old_format;
           break;

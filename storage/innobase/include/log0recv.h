@@ -29,12 +29,10 @@ Created 9/20/1997 Heikki Tuuri
 
 #include "ut0byte.h"
 #include "buf0types.h"
-#include "hash0hash.h"
 #include "log0log.h"
 #include "mtr0types.h"
 
-#include <list>
-#include <vector>
+#include <forward_list>
 
 /** Is recv_writer_thread active? */
 extern bool	recv_writer_thread_active;
@@ -48,6 +46,11 @@ extern bool	recv_writer_thread_active;
 dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Remove records for a corrupted page.
+This function should called when srv_force_recovery > 0.
+@param[in]	page_id page id of the corrupted page */
+ATTRIBUTE_COLD void recv_recover_corrupt_page(page_id_t page_id);
 
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	bpage	buffer pool page */
@@ -76,13 +79,13 @@ void
 recv_sys_var_init(void);
 /*===================*/
 
-/** Apply the hash table of stored log records to persistent data pages.
+/** Apply recv_sys.pages to persistent data pages.
 @param[in]	last_batch	whether the change buffer merge will be
 				performed as part of the operation */
 void
 recv_apply_hashed_log_recs(bool last_batch);
 
-/** Whether to store redo log records to the hash table */
+/** Whether to store redo log records in recv_sys.pages */
 enum store_t {
 	/** Do not store redo log records. */
 	STORE_NO,
@@ -101,8 +104,8 @@ recv_sys.parse_start_lsn is non-zero.
 @return true if more data added */
 bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
 
-/** Parse log records from a buffer and optionally store them to a
-hash table to wait merging to file pages.
+/** Parse log records from a buffer and optionally store them in recv_sys.pages
+to wait merging to file pages.
 @param[in]	checkpoint_lsn	the LSN of the latest checkpoint
 @param[in]	store		whether to store page operations
 @param[in]	apply		whether to apply the records
@@ -140,8 +143,12 @@ struct recv_data_t{
 
 /** Stored log record struct */
 struct recv_t{
-	mlog_id_t	type;	/*!< log record type */
-	ulint		len;	/*!< log record body length in bytes */
+	/** next record */
+	recv_t*		next;
+	/** log record body length in bytes */
+	uint32_t	len;
+	/** log record type */
+	mlog_id_t	type;
 	recv_data_t*	data;	/*!< chain of blocks containing the log record
 				body */
 	lsn_t		start_lsn;/*!< start lsn of the log segment written by
@@ -152,14 +159,12 @@ struct recv_t{
 				the mtr which generated this log record: NOTE
 				that this is not necessarily the end lsn of
 				this log record */
-	UT_LIST_NODE_T(recv_t)
-			rec_list;/*!< list of log records for this page */
 };
 
 struct recv_dblwr_t {
 	/** Add a page frame to the doublewrite recovery buffer. */
 	void add(byte* page) {
-		pages.push_back(page);
+		pages.push_front(page);
 	}
 
 	/** Find a doublewrite copy of a page.
@@ -169,7 +174,7 @@ struct recv_dblwr_t {
 	@retval NULL if no page was found */
 	const byte* find_page(ulint space_id, ulint page_no);
 
-	typedef std::list<byte*, ut_allocator<byte*> >	list;
+	typedef std::forward_list<byte*, ut_allocator<byte*> > list;
 
 	/** Recovered doublewrite buffer page frames */
 	list	pages;
@@ -201,7 +206,7 @@ struct recv_sys_t{
 	lsn_t		parse_start_lsn;
 				/*!< this is the lsn from which we were able to
 				start parsing log records and adding them to
-				the hash table; zero if a suitable
+				pages; zero if a suitable
 				start point not found yet */
 	lsn_t		scanned_lsn;
 				/*!< the log data has been scanned up to this
@@ -230,9 +235,38 @@ struct recv_sys_t{
 	ib_time_t	progress_time;
 	mem_heap_t*	heap;	/*!< memory heap of log records and file
 				addresses*/
-	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
-	ulint		n_addrs;/*!< number of not processed hashed file
-				addresses in the hash table */
+
+	/** buffered records waiting to be applied to a page */
+	struct recs_t
+	{
+		/** Recovery state */
+		enum {
+			/** not yet processed */
+			RECV_NOT_PROCESSED,
+			/** not processed; the page will be reinitialized */
+			RECV_WILL_NOT_READ,
+			/** page is being read */
+			RECV_BEING_READ,
+			/** log records are being applied on the page */
+			RECV_BEING_PROCESSED
+		} state;
+		/** First log record */
+		recv_t* log;
+		/** Last log record */
+		recv_t* last;
+	};
+
+	using map = std::map<const page_id_t, recs_t,
+			     std::less<const page_id_t>,
+			     ut_allocator<std::pair<const page_id_t,recs_t>>>;
+	/** buffered records waiting to be applied to pages */
+	map pages;
+
+	/** Process a record that indicates that a tablespace is
+	being shrunk in size.
+	@param page_id	first page identifier that is not in the file
+	@param lsn	log sequence number of the shrink operation */
+	inline void trim(const page_id_t page_id, lsn_t lsn);
 
 	/** Undo tablespaces for which truncate has been logged
 	(indexed by id - srv_undo_space_id_start) */
@@ -245,7 +279,7 @@ struct recv_sys_t{
 
 	recv_dblwr_t	dblwr;
 
-	/** Lastly added LSN to the hash table of log records. */
+	/** Last added LSN to pages. */
 	lsn_t		last_stored_lsn;
 
 	/** Initialize the redo log recovery subsystem. */
@@ -261,13 +295,12 @@ struct recv_sys_t{
 
 	/** Store a redo log record for applying.
 	@param type	record type
-	@param space	tablespace identifier
-	@param page_no	page number
+	@param page_id	page identifier
 	@param body	record body
 	@param rec_end	end of record
 	@param lsn	start LSN of the mini-transaction
 	@param end_lsn	end LSN of the mini-transaction */
-	inline void add(mlog_id_t type, ulint space, ulint page_no,
+	inline void add(mlog_id_t type, const page_id_t page_id,
 			byte* body, byte* rec_end, lsn_t lsn,
 			lsn_t end_lsn);
 
@@ -297,8 +330,8 @@ otherwise.  Note that this is FALSE while a background thread is
 rolling back incomplete transactions. */
 extern volatile bool	recv_recovery_on;
 /** If the following is TRUE, the buffer pool file pages must be invalidated
-after recovery and no ibuf operations are allowed; this becomes TRUE if
-the log record hash table becomes too full, and log records must be merged
+after recovery and no ibuf operations are allowed; this will be set if
+recv_sys.pages becomes too full, and log records must be merged
 to file pages already before the recovery is finished: in this case no
 ibuf operations are allowed, as they could modify the pages read in the
 buffer pool before the pages have been recovered to the up-to-date state.

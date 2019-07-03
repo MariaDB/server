@@ -1,6 +1,6 @@
 [submodule "libmariadb"]
 	path = libmariadb
-	url = https://github.com/MariaDB/mariadb-connector-c
+	url = https://github.com/MariaDB/mariadb-connector-c.git
 [submodule "storage/rocksdb/rocksdb"]
 	path = storage/rocksdb/rocksdb
 	url = https://github.com/facebook/rocksdb.git
@@ -10,7 +10,7 @@
 	branch = master
 [submodule "extra/wolfssl/wolfssl"]
 	path = extra/wolfssl/wolfssl
-	url = https://github.com/WolfSSL/wolfssl
+	url = https://github.com/wolfSSL/wolfssl.git
 [submodule "storage/maria/libmarias3"]
 	path = storage/maria/libmarias3
-	url = https://github.com/mariadb-corporation/libmarias3
+	url = https://github.com/mariadb-corporation/libmarias3.git

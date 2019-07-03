@@ -67,7 +67,7 @@ Rpl_filter *binlog_filter= 0;
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
 
 /* Needed for Rpl_filter */
-CHARSET_INFO* system_charset_info= &my_charset_utf8_general_ci;
+CHARSET_INFO* system_charset_info= &my_charset_utf8mb3_general_ci;
 
 /* Needed for Flashback */
 DYNAMIC_ARRAY binlog_events; // Storing the events output string
@@ -2126,6 +2126,7 @@ static Exit_status safe_connect()
                   opt_ssl_capath, opt_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);

@@ -387,4 +387,125 @@ SELECT COUNT(*) FROM v1 WHERE MATCH (f) AGAINST ('fooba');
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-18741: Optimizer trace: multi-part key ranges are printed incorrectly.
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int);
+insert into one_k select A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+create table t1 ( a int, b int, key a_b(a,b));
+insert into t1 select a,a from one_k;
+set optimizer_trace='enabled=on';
+
+explain select * from t1 force index (a_b) where a=2 and b=4;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+explain select * from t1 where a >= 900 and b between 10 and 20;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t0,t1;
+
+create table t1 (start_date date, end_date date, filler char(100), key(start_date, end_date)) ;
+--disable_warnings
+insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
+--enable_warnings
+explain select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1,one_k;
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+  a int not null,
+  b int not null,
+  c int not null,
+  d int not null,
+  key a_b_c(a,b,c)
+);
+
+insert into t1 select a,a, a,a from ten;
+explain select * from t1 force index(a_b_c) where a between 1 and 4 and b < 50;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table ten,t1;
+
+--echo # Ported test from MYSQL for ranges involving Binary column
+
+CREATE TABLE t1(i INT PRIMARY KEY, b BINARY(16), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, x'D95B94336A9946A39CF5B58CFE772D8C');
+INSERT INTO t1 VALUES (2, NULL);
+
+EXPLAIN SELECT * FROM t1 WHERE b IN (0xD95B94336A9946A39CF5B58CFE772D8C);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * FROM t1 WHERE b IS NULL;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-18880: Optimizer trace prints date in hexadecimal
+--echo #
+
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10) CHARSET BINARY , INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ALTER TABLE t1 modify column b BINARY(10) AFTER i;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ALTER TABLE t1 modify column b VARBINARY(10) AFTER i;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b blob , INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b= 'ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, 'ab\n');
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int);
+insert into one_k select A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+create table t1 (start_date date, end_date date, filler char(100), key(start_date, end_date)) ;
+--disable_warnings
+insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
+--enable_warnings
+explain format=json select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1, t0, one_k;
+
+--echo #
+--echo # MDEV-19776: Assertion `to_len >= 8' failed in convert_to_printable with optimizer trace enabled
+--echo #
+
+CREATE TABLE t1 (f VARBINARY(16) NOT NULL, KEY(f));
+INSERT INTO t1 VALUES ('a'),('b');
+SET optimizer_trace = 'enabled=on';
+DELETE FROM t1 WHERE f = 'x';
+DROP TABLE t1;
+
 set optimizer_trace='enabled=off';

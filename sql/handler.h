@@ -49,6 +49,11 @@ class Alter_info;
 class Virtual_column_info;
 class sequence_definition;
 class Rowid_filter;
+class Field_string;
+class Field_varstring;
+class Field_blob;
+class Field_geom;
+class Column_definition;
 
 // the following is for checking tables
 
@@ -323,10 +328,6 @@ enum enum_alter_inplace_result {
 
 /* Safe for online backup */
 #define HA_CAN_ONLINE_BACKUPS (1ULL << 56)
-
-/** whether every data field explicitly stores length
-(holds for InnoDB ROW_FORMAT=REDUNDANT) */
-#define HA_EXTENDED_TYPES_CONVERSION (1ULL << 57)
 
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 58)
@@ -710,13 +711,9 @@ typedef ulonglong alter_table_operations;
 #define ALTER_VIRTUAL_COLUMN_TYPE            (1ULL << 47)
 #define ALTER_STORED_COLUMN_TYPE             (1ULL << 48)
 
-/**
-  Change column datatype in such way that new type has compatible
-  packed representation with old type, so it is theoretically
-  possible to perform change by only updating data dictionary
-  without changing table rows.
-*/
-#define ALTER_COLUMN_EQUAL_PACK_LENGTH       (1ULL << 49)
+
+// Engine can handle type change by itself in ALGORITHM=INPLACE
+#define ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE       (1ULL << 49)
 
 // Reorder column
 #define ALTER_STORED_COLUMN_ORDER            (1ULL << 50)
@@ -1040,7 +1037,7 @@ typedef bool (stat_print_fn)(THD *thd, const char *type, size_t type_len,
                              const char *file, size_t file_len,
                              const char *status, size_t status_len);
 enum ha_stat_type { HA_ENGINE_STATUS, HA_ENGINE_LOGS, HA_ENGINE_MUTEX };
-extern st_plugin_int *hton2plugin[MAX_HA];
+extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
 /* Transaction log maintains type definitions */
 enum log_status
@@ -1242,11 +1239,6 @@ typedef struct st_order ORDER;
 */
 struct handlerton
 {
-  /*
-    Historical marker for if the engine is available of not
-  */
-  SHOW_COMP_OPTION state;
-
   /*
     Historical number used for frm file to determine the correct
     storage engine.  This is going away and new engines will just use
@@ -1934,6 +1926,7 @@ typedef struct {
   time_t check_time;
   time_t update_time;
   ulonglong check_sum;
+  bool check_sum_null;
 } PARTITION_STATS;
 
 #define UNDEF_NODEGROUP 65535
@@ -2895,6 +2888,7 @@ public:
   time_t update_time;
   uint block_size;			/* index block size */
   ha_checksum checksum;
+  bool checksum_null;
 
   /*
     number of buffer bytes that native mrr implementation needs,
@@ -2906,7 +2900,7 @@ public:
     index_file_length(0), max_index_file_length(0), delete_length(0),
     auto_increment_value(0), records(0), deleted(0), mean_rec_length(0),
     create_time(0), check_time(0), update_time(0), block_size(0),
-    mrr_length_per_rec(0)
+    checksum(0), checksum_null(FALSE), mrr_length_per_rec(0)
   {}
 };
 
@@ -3939,6 +3933,7 @@ public:
   virtual uint max_supported_key_part_length() const { return 255; }
   virtual uint min_record_length(uint options) const { return 1; }
 
+  virtual int pre_calculate_checksum() { return 0; }
   virtual int calculate_checksum();
   virtual bool is_crashed() const  { return 0; }
   virtual bool auto_repair(int error) const { return 0; }
@@ -4807,6 +4802,32 @@ public:
 
   virtual bool is_clustering_key(uint index) { return false; }
 
+  /**
+    Some engines can perform column type conversion with ALGORITHM=INPLACE.
+    These functions check for such possibility.
+    Implementation could be based on Field_xxx::is_equal()
+   */
+  virtual bool can_convert_string(const Field_string *field,
+                                  const Column_definition &new_type) const
+  {
+    return false;
+  }
+  virtual bool can_convert_varstring(const Field_varstring *field,
+                                     const Column_definition &new_type) const
+  {
+    return false;
+  }
+  virtual bool can_convert_blob(const Field_blob *field,
+                                const Column_definition &new_type) const
+  {
+    return false;
+  }
+  virtual bool can_convert_geom(const Field_geom *field,
+                                const Column_definition &new_type) const
+  {
+    return false;
+  }
+
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);
@@ -4859,8 +4880,7 @@ static inline bool ha_check_storage_engine_flag(const handlerton *db_type, uint3
 
 static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
 {
-  return (db_type && db_type->create) ?
-         (db_type->state == SHOW_OPTION_YES) : FALSE;
+  return db_type && db_type->create;
 }
 
 #define view_pseudo_hton ((handlerton *)1)
@@ -4876,7 +4896,7 @@ TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);
 void ha_close_connection(THD* thd);
 void ha_kill_query(THD* thd, enum thd_kill_levels level);
-bool ha_flush_logs(handlerton *db_type);
+bool ha_flush_logs();
 void ha_drop_database(char* path);
 void ha_checkpoint_state(bool disable);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));

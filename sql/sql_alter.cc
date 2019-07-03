@@ -239,7 +239,8 @@ bool Alter_info::vers_prohibited(THD *thd) const
 
 
 Alter_table_ctx::Alter_table_ctx()
-  : datetime_field(NULL), error_if_not_empty(false),
+  : implicit_default_value_error_field(NULL),
+    error_if_not_empty(false),
     tables_opened(0),
     db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
@@ -260,7 +261,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  uint tables_opened_arg,
                                  const LEX_CSTRING *new_db_arg,
                                  const LEX_CSTRING *new_name_arg)
-  : datetime_field(NULL), error_if_not_empty(false),
+  : implicit_default_value_error_field(NULL), error_if_not_empty(false),
     tables_opened(tables_opened_arg),
     new_db(*new_db_arg), new_name(*new_name_arg),
     fk_error_if_delete_row(false), fk_error_id(NULL),
@@ -352,6 +353,19 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 }
 
 
+void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
+                                                          const TABLE_SHARE *s)
+                                                          const
+{
+  Create_field *error_field= implicit_default_value_error_field;
+  const Type_handler *h= error_field->type_handler();
+  thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
+                                              h->name().ptr(),
+                                              h->default_value().ptr(),
+                                              s, error_field->field_name.str);
+}
+
+
 bool Sql_cmd_alter_table::execute(THD *thd)
 {
   LEX *lex= thd->lex;
@@ -359,6 +373,18 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   SELECT_LEX *select_lex= lex->first_select_lex();
   /* first table of first SELECT_LEX */
   TABLE_LIST *first_table= (TABLE_LIST*) select_lex->table_list.first;
+
+  const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+  DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
+  if (used_engine)
+  {
+    if (resolve_storage_engine_with_error(thd, &lex->create_info.db_type,
+                                          lex->create_info.tmp_table()))
+      return true; // Engine not found, substitution is not allowed
+    if (!lex->create_info.db_type) // Not found, but substitution is allowed
+      lex->create_info.used_fields&= ~HA_CREATE_USED_ENGINE;
+  }
+
   /*
     Code in mysql_alter_table() may modify its HA_CREATE_INFO argument,
     so we have to use a copy of this structure to make execution

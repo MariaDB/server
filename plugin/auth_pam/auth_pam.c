@@ -218,6 +218,6 @@ maria_declare_plugin(pam)
   NULL,
   vars,
   "2.0",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;

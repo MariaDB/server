@@ -129,6 +129,39 @@ bool Key_part_spec::operator==(const Key_part_spec& other) const
                          &other.field_name);
 }
 
+
+bool Key_part_spec::check_key_for_blob(const handler *file) const
+{
+  if (!(file->ha_table_flags() & HA_CAN_INDEX_BLOBS))
+  {
+    my_error(ER_BLOB_USED_AS_KEY, MYF(0), field_name.str, file->table_type());
+    return true;
+  }
+  return false;
+}
+
+
+bool Key_part_spec::check_key_length_for_blob() const
+{
+  if (!length)
+  {
+    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), field_name.str);
+    return true;
+  }
+  return false;
+}
+
+
+bool Key_part_spec::init_multiple_key_for_blob(const handler *file)
+{
+  if (check_key_for_blob(file))
+    return true;
+  if (!length)
+    length= file->max_key_length() + 1;
+  return false;
+}
+
+
 /**
   Construct an (almost) deep copy of this key. Only those
   elements that are known to never change are not copied.

@@ -2143,6 +2143,38 @@ public:
   }
 
   /**
+    Checks either a trans/non trans temporary table is being accessed while
+    executing a statement.
+
+    @return
+      @retval TRUE  if a temporary table is being accessed
+      @retval FALSE otherwise
+  */
+  inline bool stmt_accessed_temp_table()
+  {
+    DBUG_ENTER("THD::stmt_accessed_temp_table");
+    DBUG_RETURN(stmt_accessed_non_trans_temp_table() ||
+                stmt_accessed_trans_temp_table());
+  }
+
+  /**
+    Checks if a temporary transactional table is being accessed while executing
+    a statement.
+
+    @return
+      @retval TRUE  if a temporary transactional table is being accessed
+      @retval FALSE otherwise
+  */
+  inline bool stmt_accessed_trans_temp_table()
+  {
+    DBUG_ENTER("THD::stmt_accessed_trans_temp_table");
+
+    DBUG_RETURN((stmt_accessed_table_flag &
+                ((1U << STMT_READS_TEMP_TRANS_TABLE) |
+                 (1U << STMT_WRITES_TEMP_TRANS_TABLE))) != 0);
+  }
+
+  /**
     Checks if a temporary non-transactional table is about to be accessed
     while executing a statement.
 
@@ -3709,15 +3741,15 @@ public:
   bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                          Item *val);
   bool set_system_variable(enum_var_type var_type, sys_var *var,
-                           const LEX_CSTRING *base_name, Item *val);
-  bool set_system_variable(enum_var_type var_type, const LEX_CSTRING *name,
-                           Item *val);
+                           const Lex_ident_sys_st *base_name, Item *val);
+  bool set_system_variable(enum_var_type var_type,
+                           const Lex_ident_sys_st *name, Item *val);
   bool set_system_variable(THD *thd, enum_var_type var_type,
-                           const LEX_CSTRING *name1,
-                           const LEX_CSTRING *name2,
+                           const Lex_ident_sys_st *name1,
+                           const Lex_ident_sys_st *name2,
                            Item *val);
   bool set_default_system_variable(enum_var_type var_type,
-                                   const LEX_CSTRING *name,
+                                   const Lex_ident_sys_st *name,
                                    Item *val);
   bool set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val);
   void set_stmt_init();
@@ -3747,9 +3779,9 @@ public:
                                const char *body_start,
                                const char *body_end);
   bool call_statement_start(THD *thd, sp_name *name);
-  bool call_statement_start(THD *thd, const LEX_CSTRING *name);
-  bool call_statement_start(THD *thd, const LEX_CSTRING *name1,
-                                      const LEX_CSTRING *name2);
+  bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
+  bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
+                                      const Lex_ident_sys_st *name2);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -3759,9 +3791,9 @@ public:
     sp_pcontext *not_used_ctx;
     return find_variable(name, &not_used_ctx, rh);
   }
-  bool set_variable(const LEX_CSTRING *name, Item *item);
-  bool set_variable(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
-                    Item *item);
+  bool set_variable(const Lex_ident_sys_st *name, Item *item);
+  bool set_variable(const Lex_ident_sys_st *name1,
+                    const Lex_ident_sys_st *name2, Item *item);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
@@ -4407,6 +4439,12 @@ public:
   SELECT_LEX_UNIT *create_unit(SELECT_LEX*);
   SELECT_LEX *wrap_unit_into_derived(SELECT_LEX_UNIT *unit);
   SELECT_LEX *wrap_select_chain_into_derived(SELECT_LEX *sel);
+  void init_select()
+  {
+    current_select->init_select();
+    wild= 0;
+    exchange= 0;
+  }
   bool main_select_push();
   bool insert_select_hack(SELECT_LEX *sel);
   SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest);
@@ -4715,6 +4753,22 @@ public:
 };
 
 
+class sp_lex_set_var: public sp_lex_local
+{
+public:
+  sp_lex_set_var(THD *thd, const LEX *oldlex)
+   :sp_lex_local(thd, oldlex)
+  {
+    // Set new LEX as if we at start of set rule
+    init_select();
+    sql_command= SQLCOM_SET_OPTION;
+    var_list.empty();
+    autocommit= 0;
+    option_type= oldlex->option_type; // Inherit from the outer lex
+  }
+};
+
+
 /**
   An assignment specific LEX, which additionally has an Item (an expression)
   and an associated with the Item free_list, which is usually freed
@@ -4794,8 +4848,9 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr);
 Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
                                        Item *expr);
 
-void sp_create_assignment_lex(THD *thd, bool no_lookahead);
-bool sp_create_assignment_instr(THD *thd, bool no_lookahead);
+bool sp_create_assignment_lex(THD *thd, const char *pos);
+bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
+                                bool need_set_keyword= true);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
 

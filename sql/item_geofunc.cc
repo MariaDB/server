@@ -324,12 +324,6 @@ String *Item_func_geometry_type::val_str_ascii(String *str)
 }
 
 
-Field::geometry_type Item_func_envelope::get_geometry_type() const
-{
-  return Field::GEOM_POLYGON;
-}
-
-
 String *Item_func_envelope::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -475,12 +469,6 @@ String *Item_func_boundary::val_str(String *str_value)
 mem_error:
   null_value= 1;
   DBUG_RETURN(0);
-}
-
-
-Field::geometry_type Item_func_centroid::get_geometry_type() const
-{
-  return Field::GEOM_POINT;
 }
 
 
@@ -899,12 +887,6 @@ err:
 /*
 *  Concatenate doubles into Point
 */
-
-
-Field::geometry_type Item_func_point::get_geometry_type() const
-{
-  return Field::GEOM_POINT;
-}
 
 
 String *Item_func_point::val_str(String *str)
@@ -2628,12 +2610,6 @@ mem_error:
   scan_it.reset();
   null_value= 1;
   DBUG_RETURN(0);
-}
-
-
-Field::geometry_type Item_func_pointonsurface::get_geometry_type() const
-{
-  return Field::GEOM_POINT;
 }
 
 

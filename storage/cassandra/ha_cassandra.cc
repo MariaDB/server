@@ -245,7 +245,6 @@ static int cassandra_init_func(void *p)
   (void) my_hash_init(&cassandra_open_tables,system_charset_info,32,0,0,
                       (my_hash_get_key) cassandra_get_key,0,0);
 
-  cassandra_hton->state=   SHOW_OPTION_YES;
   cassandra_hton->create=  cassandra_create_handler;
   /*
     Don't specify HTON_CAN_RECREATE in flags. re-create is used by TRUNCATE
@@ -1105,7 +1104,7 @@ bool cassandra_to_dyncol_strUTF8(const char *cass_data,
                                  MEM_ROOT *mem_root __attribute__((unused)))
 {
   return cassandra_to_dyncol_strStr(cass_data, cass_data_len, value,
-                                    &my_charset_utf8_unicode_ci);
+                                    &my_charset_utf8mb3_unicode_ci);
 }
 
 bool dyncol_to_cassandraUTF8(DYNAMIC_COLUMN_VALUE *value,
@@ -1113,7 +1112,7 @@ bool dyncol_to_cassandraUTF8(DYNAMIC_COLUMN_VALUE *value,
                              void* buff, void **freemem)
 {
   return dyncol_to_cassandraStr(value, cass_data, cass_data_len,
-                                buff, freemem, &my_charset_utf8_unicode_ci);
+                                buff, freemem, &my_charset_utf8mb3_unicode_ci);
 }
 
 bool cassandra_to_dyncol_strUUID(const char *cass_data,

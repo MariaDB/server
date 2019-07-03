@@ -118,7 +118,7 @@ void my_error(uint nr, myf MyFlags, ...)
   else
   {
     va_start(args,MyFlags);
-    (void) my_vsnprintf_ex(&my_charset_utf8_general_ci, ebuff,
+    (void) my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, ebuff,
                            sizeof(ebuff), format, args);
     va_end(args);
   }
@@ -148,7 +148,7 @@ void my_printf_error(uint error, const char *format, myf MyFlags, ...)
 		    error, MyFlags, errno, format));
 
   va_start(args,MyFlags);
-  (void) my_vsnprintf_ex(&my_charset_utf8_general_ci, ebuff,
+  (void) my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, ebuff,
                          sizeof(ebuff), format, args);
   va_end(args);
   (*error_handler_hook)(error, ebuff, MyFlags);

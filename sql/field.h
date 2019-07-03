@@ -60,6 +60,45 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL,
 };
 
+
+enum enum_conv_type
+{
+  CONV_TYPE_PRECISE,
+  CONV_TYPE_VARIANT,
+  CONV_TYPE_SUBSET_TO_SUPERSET,
+  CONV_TYPE_SUPERSET_TO_SUBSET,
+  CONV_TYPE_IMPOSSIBLE
+};
+
+
+class Conv_param
+{
+  uint16 m_table_def_flags;
+public:
+  Conv_param(uint16 table_def_flags)
+   :m_table_def_flags(table_def_flags)
+  { }
+  uint16 table_def_flags() const { return m_table_def_flags; }
+};
+
+
+class Conv_source: public Type_handler_hybrid_field_type
+{
+  uint16 m_metadata;
+  CHARSET_INFO *m_cs;
+public:
+  Conv_source(const Type_handler *h, uint16 metadata, CHARSET_INFO *cs)
+   :Type_handler_hybrid_field_type(h),
+    m_metadata(metadata),
+    m_cs(cs)
+  {
+    DBUG_ASSERT(cs);
+  }
+  uint16 metadata() const { return m_metadata; }
+  uint mbmaxlen() const { return m_cs->mbmaxlen; }
+};
+
+
 /*
   Common declarations for Field and Item
 */
@@ -682,12 +721,6 @@ public:
     TIMESTAMP_DNUN_FIELD=23,    // TIMESTAMP DEFAULT NOW() ON UPDATE NOW()
     TMYSQL_COMPRESSED= 24,      // Compatibility with TMySQL
     };
-  enum geometry_type
-  {
-    GEOM_GEOMETRY = 0, GEOM_POINT = 1, GEOM_LINESTRING = 2, GEOM_POLYGON = 3,
-    GEOM_MULTIPOINT = 4, GEOM_MULTILINESTRING = 5, GEOM_MULTIPOLYGON = 6,
-    GEOM_GEOMETRYCOLLECTION = 7
-  };
   enum imagetype { itRAW, itMBR};
 
   utype		unireg_check;
@@ -910,9 +943,9 @@ public:
     table, which is located on disk).
   */
   virtual uint32 pack_length_in_rec() const { return pack_length(); }
-  virtual bool compatible_field_size(uint metadata, Relay_log_info *rli,
-                                     uint16 mflags, int *order);
-  virtual uint pack_length_from_metadata(uint field_metadata)
+  virtual bool compatible_field_size(uint metadata, const Relay_log_info *rli,
+                                     uint16 mflags, int *order) const;
+  virtual uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field::pack_length_from_metadata");
     DBUG_RETURN(field_metadata);
@@ -1025,6 +1058,8 @@ public:
   virtual bool binary() const { return 1; }
   virtual bool zero_pack() const { return 1; }
   virtual enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
+  virtual uint16 key_part_flag() const { return 0; }
+  virtual uint16 key_part_length_bytes() const { return 0; }
   virtual uint32 key_length() const { return pack_length(); }
   virtual const Type_handler *type_handler() const= 0;
   virtual enum_field_types type() const
@@ -1083,6 +1118,21 @@ public:
     */
     return type();
   }
+  virtual en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    return FIELD_NORMAL;
+  }
+  /*
+    Conversion type for from the source to the current field.
+  */
+  virtual enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                            const Relay_log_info *rli,
+                                            const Conv_param &param)
+                                            const= 0;
+  enum_conv_type rpl_conv_type_from_same_data_type(uint16 metadata,
+                                                   const Relay_log_info *rli,
+                                                   const Conv_param &param)
+                                                   const;
   inline  int cmp(const uchar *str) { return cmp(ptr,str); }
   virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
     { return cmp(a, b); }
@@ -1373,7 +1423,7 @@ public:
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  virtual TYPELIB *get_typelib() const { return NULL; }
+  virtual const TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
   virtual CHARSET_INFO *charset_for_protocol(void) const
   { return binary() ? &my_charset_bin : charset(); }
@@ -1385,6 +1435,8 @@ public:
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment, ulong current_row=0) const;
+  virtual void print_key_value(String *out, uint32 length);
+  void print_key_value_binary(String *out, const uchar* key, uint32 length);
 protected:
   bool set_warning(unsigned int code, int cuted_increment) const
   {
@@ -1503,13 +1555,16 @@ public:
   /* maximum possible display length */
   virtual uint32 max_display_length() const= 0;
   /**
-    Whether a field being created is compatible with a existing one.
-
-    Used by the ALTER TABLE code to evaluate whether the new definition
-    of a table is compatible with the old definition so that it can
-    determine if data needs to be copied over (table data change).
+    Whether a field being created has the samle type.
+    Used by the ALTER TABLE
   */
-  virtual uint is_equal(Create_field *new_field)= 0;
+  virtual bool is_equal(const Column_definition &new_field) const= 0;
+  // Used as double dispatch pattern: calls virtual method of handler
+  virtual bool
+  can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return false;
+  }
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
@@ -1527,12 +1582,6 @@ public:
   virtual uint32 char_length() const
   {
     return field_length / charset()->mbmaxlen;
-  }
-  virtual geometry_type get_geometry_type()
-  {
-    /* shouldn't get here. */
-    DBUG_ASSERT(0);
-    return GEOM_GEOMETRY;
   }
 
   ha_storage_media field_storage_type() const
@@ -1809,9 +1858,10 @@ public:
            !((flags & UNSIGNED_FLAG) && !(from->flags & UNSIGNED_FLAG)) &&
            decimals() == from->decimals();
   }
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   uint row_pack_length() const { return pack_length(); }
-  uint32 pack_length_from_metadata(uint field_metadata) {
+  uint32 pack_length_from_metadata(uint field_metadata) const
+  {
     uint32 length= pack_length();
     DBUG_PRINT("result", ("pack_length_from_metadata(%d): %u",
                           field_metadata, length));
@@ -1874,7 +1924,7 @@ public:
   bool val_bool() { return val_real() != 0e0; }
   virtual bool str_needs_quotes() { return TRUE; }
   bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
-  virtual uint length_size() { return 0; }
+  virtual uint length_size() const { return 0; }
   double pos_in_interval(Field *min, Field *max)
   {
     return pos_in_interval_val_str(min, max, length_size());
@@ -1928,7 +1978,6 @@ protected:
                CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length);
-  bool csinfo_change_allows_instant_alter(const Create_field *to) const;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -1937,7 +1986,9 @@ public:
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg, collation)
     {}
-
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
 
@@ -1978,6 +2029,9 @@ public:
   {
     return do_field_real;
   }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
@@ -2087,6 +2141,9 @@ public:
     return Field_num::memcpy_field_possible(from) &&
            field_length == from->field_length;
   }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int  reset(void);
   bool store_value(const my_decimal *decimal_value);
   bool store_value(const my_decimal *decimal_value, int *native_error);
@@ -2137,11 +2194,11 @@ public:
   }
   uint size_of() const { return sizeof(*this); } 
   uint32 pack_length() const { return (uint32) bin_size; }
-  uint pack_length_from_metadata(uint field_metadata);
+  uint pack_length_from_metadata(uint field_metadata) const;
   uint row_pack_length() const { return pack_length(); }
-  bool compatible_field_size(uint field_metadata, Relay_log_info *rli,
-                             uint16 mflags, int *order_var);
-  uint is_equal(Create_field *new_field);
+  bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
+                             uint16 mflags, int *order_var) const;
+  bool is_equal(const Column_definition &new_field) const;
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
@@ -2159,6 +2216,9 @@ public:
     :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                unireg_check_arg, field_name_arg, 0, zero_arg, unsigned_arg)
     {}
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
@@ -2624,6 +2684,9 @@ public:
 	       unireg_check_arg, field_name_arg, collation)
     {}
   const Type_handler *type_handler() const { return &type_handler_null; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {
@@ -2645,7 +2708,7 @@ public:
   my_decimal *val_decimal(my_decimal *) { return 0; }
   String *val_str(String *value,String *value2)
   { value2->length(0); return value2;}
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   int cmp(const uchar *a, const uchar *b) { return 0;}
   void sort_string(uchar *buff, uint length)  {}
   uint32 pack_length() const { return 0; }
@@ -2728,7 +2791,7 @@ public:
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   bool binary() const { return true; }
   bool val_bool() { return val_real() != 0e0; }
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   bool eq_def(const Field *field) const
   {
     return (Field::eq_def(field) && decimals() == field->decimals());
@@ -2812,6 +2875,9 @@ public:
 		  TABLE_SHARE *share);
   const Type_handler *type_handler() const { return &type_handler_timestamp; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const;
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr);
@@ -2964,12 +3030,15 @@ public:
     {}
   const Type_handler *type_handler() const { return &type_handler_timestamp2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   uint32 pack_length() const
   {
     return my_timestamp_binary_length(dec);
   }
   uint row_pack_length() const { return pack_length(); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field_timestampf::pack_length_from_metadata");
     uint tmp= my_timestamp_binary_length(field_metadata);
@@ -3003,6 +3072,9 @@ public:
   {
     return field_length == 2 ? &type_handler_year2 : &type_handler_year;
   }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))
@@ -3085,6 +3157,9 @@ public:
                        unireg_check_arg, field_name_arg) {}
   const Type_handler *type_handler() const { return &type_handler_date; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_date::get_TIME(ltime, ptr, fuzzydate); }
@@ -3122,6 +3197,9 @@ public:
     {}
   const Type_handler *type_handler() const { return &type_handler_newdate; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_UINT24; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=0; return 0; }
   double val_real(void);
   longlong val_int(void);
@@ -3165,6 +3243,9 @@ public:
                                         const Item_equal *item_equal);
   const Type_handler *type_handler() const { return &type_handler_time; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const
   {
     return from->cmp_type() == REAL_RESULT ? do_field_string : // MDEV-9344
@@ -3277,12 +3358,15 @@ public:
   }
   const Type_handler *type_handler() const { return &type_handler_time2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIME2; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   uint32 pack_length() const
   {
     return my_time_binary_length(dec);
   }
   uint row_pack_length() const { return pack_length(); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field_timef::pack_length_from_metadata");
     uint tmp= my_time_binary_length(field_metadata);
@@ -3322,6 +3406,9 @@ public:
     }
   const Type_handler *type_handler() const { return &type_handler_datetime; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3444,12 +3531,15 @@ public:
   {}
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_DATETIME2; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   uint32 pack_length() const
   {
     return my_datetime_binary_length(dec);
   }
   uint row_pack_length() const { return pack_length(); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_ENTER("Field_datetimef::pack_length_from_metadata");
     uint tmp= my_datetime_binary_length(field_metadata);
@@ -3552,6 +3642,7 @@ public:
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const;
   bool zero_pack() const { return 0; }
   Copy_func *get_copy_func(const Field *from) const;
   int reset(void)
@@ -3574,20 +3665,24 @@ public:
     st->m_fixed_string_total_length+= pack_length();
   }
   void sql_type(String &str) const;
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_string(this, new_type);
+  }
   virtual uchar *pack(uchar *to, const uchar *from,
                       uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end,uint param_data);
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   {
     DBUG_PRINT("debug", ("field_metadata: 0x%04x", field_metadata));
     if (field_metadata == 0)
       return row_pack_length();
     return (((field_metadata >> 4) & 0x300) ^ 0x300) + (field_metadata & 0x00ff);
   }
-  bool compatible_field_size(uint field_metadata, Relay_log_info *rli,
-                             uint16 mflags, int *order_var);
+  bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
+                             uint16 mflags, int *order_var) const;
   uint row_pack_length() const { return field_length; }
   int pack_cmp(const uchar *a,const uchar *b,uint key_length,
                bool insert_or_update);
@@ -3599,6 +3694,7 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
+  void print_key_value(String *out, uint32 length);
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -3652,7 +3748,13 @@ public:
   }
 
   const Type_handler *type_handler() const { return &type_handler_varchar; }
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    return FIELD_VARCHAR;
+  }
   enum ha_base_keytype key_type() const;
+  uint16 key_part_flag() const { return HA_VAR_LENGTH_PART; }
+  uint16 key_part_length_bytes() const { return HA_KEY_BLOB_LENGTH; }
   uint row_pack_length() const { return field_length; }
   bool zero_pack() const { return 0; }
   int  reset(void) { bzero(ptr,field_length+length_bytes); return 0; }
@@ -3706,9 +3808,14 @@ public:
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_varstring(this, new_type);
+  }
   void hash(ulong *nr, ulong *nr2);
-  uint length_size() { return length_bytes; }
+  uint length_size() const { return length_bytes; }
+  void print_key_value(String *out, uint32 length);
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -3868,6 +3975,12 @@ public:
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
+  uint16 key_part_flag() const { return HA_BLOB_PART; }
+  uint16 key_part_length_bytes() const { return HA_KEY_BLOB_LENGTH; }
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    return FIELD_BLOB;
+  }
   Type_std_attributes type_std_attributes() const
   {
     return Type_std_attributes(Field_blob::max_display_length(), decimals(),
@@ -4050,7 +4163,12 @@ public:
   uint32 max_display_length() const;
   uint32 char_length() const;
   uint32 character_octet_length() const;
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_blob(this, new_type);
+  }
+  void print_key_value(String *out, uint32 length);
 
   friend void TABLE::remember_blob_values(String *blob_storage);
   friend void TABLE::restore_blob_values(String *blob_storage);
@@ -4108,9 +4226,10 @@ private:
 
 
 #ifdef HAVE_SPATIAL
-class Field_geom :public Field_blob {
+class Field_geom :public Field_blob
+{
+  const Type_handler_geometry *m_type_handler;
 public:
-  enum geometry_type geom_type;
   uint srid;
   uint precision;
   enum storage_type { GEOM_STORAGE_WKB= 0, GEOM_STORAGE_BINARY= 1};
@@ -4119,14 +4238,27 @@ public:
   Field_geom(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	     TABLE_SHARE *share, uint blob_pack_length,
-	     enum geometry_type geom_type_arg, uint field_srid)
+	     const Type_handler_geometry *gth,
+	     uint field_srid)
      :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
-                 field_name_arg, share, blob_pack_length, &my_charset_bin)
-  { geom_type= geom_type_arg; srid= field_srid; }
+                 field_name_arg, share, blob_pack_length, &my_charset_bin),
+      m_type_handler(gth)
+  { srid= field_srid; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   const Type_handler *type_handler() const
   {
-    return &type_handler_geometry;
+    return m_type_handler;
+  }
+  const Type_handler_geometry *type_handler_geom() const
+  {
+    return m_type_handler;
+  }
+  void set_type_handler(const Type_handler_geometry *th)
+  {
+    m_type_handler= th;
   }
   enum_field_types type() const
   {
@@ -4149,7 +4281,28 @@ public:
                                   const Item *item,
                                   bool is_eq_func) const;
   void sql_type(String &str) const;
-  uint is_equal(Create_field *new_field);
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    const Type_handler_geometry *fth=
+      dynamic_cast<const Type_handler_geometry*>(from->type_handler());
+    if (fth && m_type_handler->is_binary_compatible_geom_super_type_for(fth))
+      return get_identical_copy_func();
+    return do_conv_blob;
+  }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    const Type_handler_geometry *fth=
+      dynamic_cast<const Type_handler_geometry*>(from->type_handler());
+    return fth &&
+           m_type_handler->is_binary_compatible_geom_super_type_for(fth) &&
+           !table->copy_blobs;
+  }
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return table->file->can_convert_geom(this, new_type);
+  }
+
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -4172,9 +4325,11 @@ public:
   bool load_data_set_null(THD *thd);
   bool load_data_set_no_data(THD *thd, bool fixed_format);
 
-  geometry_type get_geometry_type() { return geom_type; };
-  static geometry_type geometry_type_merge(geometry_type, geometry_type);
   uint get_srid() { return srid; }
+  void print_key_value(String *out, uint32 length)
+  {
+    out->append(STRING_WITH_LEN("unprintable_geometry_value"));
+  }
 };
 
 uint gis_field_options_image(uchar *buff, List<Create_field> &create_fields);
@@ -4189,12 +4344,12 @@ class Field_enum :public Field_str {
 protected:
   uint packlength;
 public:
-  TYPELIB *typelib;
+  const TYPELIB *typelib;
   Field_enum(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
              uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
              uint packlength_arg,
-             TYPELIB *typelib_arg,
+             const TYPELIB *typelib_arg,
              const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 	       unireg_check_arg, field_name_arg, collation),
@@ -4205,6 +4360,9 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   const Type_handler *type_handler() const { return &type_handler_enum; }
   enum ha_base_keytype key_type() const;
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))
@@ -4254,7 +4412,7 @@ public:
   void store_type(ulonglong value);
   void sql_type(String &str) const;
   uint size_of() const { return sizeof(*this); }
-  uint pack_length_from_metadata(uint field_metadata)
+  uint pack_length_from_metadata(uint field_metadata) const
   { return (field_metadata & 0x00ff); }
   uint row_pack_length() const { return pack_length(); }
   virtual bool zero_pack() const { return 0; }
@@ -4264,7 +4422,7 @@ public:
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   uint decimals() const { return 0; }
-  TYPELIB *get_typelib() const { return typelib; }
+  const TYPELIB *get_typelib() const { return typelib; }
 
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
@@ -4289,7 +4447,7 @@ public:
                           bool is_eq_func) const;
 private:
   int save_field_metadata(uchar *first_byte);
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
 };
 
 
@@ -4299,7 +4457,7 @@ public:
 	    uchar null_bit_arg,
 	    enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	    uint32 packlength_arg,
-	    TYPELIB *typelib_arg, const DTCollation &collation)
+	    const TYPELIB *typelib_arg, const DTCollation &collation)
     :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		    unireg_check_arg, field_name_arg,
                 packlength_arg,
@@ -4354,9 +4512,13 @@ public:
             enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg);
   const Type_handler *type_handler() const { return &type_handler_bit; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BIT; }
+  uint16 key_part_flag() const { return HA_BIT_PART; }
   uint32 key_length() const { return (uint32) (field_length + 7) / 8; }
   uint32 max_data_length() const { return (field_length + 7) / 8; }
   uint32 max_display_length() const { return field_length; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
@@ -4447,11 +4609,11 @@ public:
   { get_key_image(buff, length, itRAW); }
   uint32 pack_length() const { return (uint32) (field_length + 7) / 8; }
   uint32 pack_length_in_rec() const { return bytes_in_rec; }
-  uint pack_length_from_metadata(uint field_metadata);
+  uint pack_length_from_metadata(uint field_metadata) const;
   uint row_pack_length() const
   { return (bytes_in_rec + ((bit_len > 0) ? 1 : 0)); }
-  bool compatible_field_size(uint metadata, Relay_log_info *rli,
-                             uint16 mflags, int *order_var);
+  bool compatible_field_size(uint metadata, const Relay_log_info *rli,
+                             uint16 mflags, int *order_var) const;
   void sql_type(String &str) const;
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
@@ -4472,7 +4634,7 @@ public:
             bit_ptr == ((Field_bit *)field)->bit_ptr &&
             bit_ofs == ((Field_bit *)field)->bit_ofs);
   }
-  uint is_equal(Create_field *new_field);
+  bool is_equal(const Column_definition &new_field) const;
   void move_field_offset(my_ptrdiff_t ptr_diff)
   {
     Field::move_field_offset(ptr_diff);
@@ -4486,6 +4648,11 @@ public:
   {
     return get_mm_leaf_int(param, key_part, cond, op, value, true);
   }
+  void print_key_value(String *out, uint32 length)
+  {
+    val_int_as_str(out, 1);
+  }
+
 private:
   virtual size_t do_last_null_byte() const;
   int save_field_metadata(uchar *first_byte);
@@ -4523,6 +4690,18 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  {
+    DBUG_ASSERT(0);
+    return Field::tmp_engine_column_type(use_packed_rows);
+  }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const
+  {
+    DBUG_ASSERT(0);
+    return CONV_TYPE_IMPOSSIBLE;
+  }
   Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
   bool sp_prepare_and_store_item(THD *thd, Item **value);
 };
@@ -4539,10 +4718,9 @@ public:
   */
   ulonglong length;
   Field::utype unireg_check;
-  TYPELIB *interval;			// Which interval to use
+  const TYPELIB *interval;            // Which interval to use
   CHARSET_INFO *charset;
   uint32 srid;
-  Field::geometry_type geom_type;
   uint pack_flag;
   Column_definition_attributes()
    :length(0),
@@ -4550,7 +4728,6 @@ public:
     interval(NULL),
     charset(&my_charset_bin),
     srid(0),
-    geom_type(Field::GEOM_GEOMETRY),
     pack_flag(0)
   { }
   Column_definition_attributes(const Field *field);
@@ -4828,7 +5005,6 @@ public:
     interval= other.interval;
     charset= other.charset;
     srid= other.srid;
-    geom_type= other.geom_type;
     pack_flag= other.pack_flag;
   }
 
@@ -4838,10 +5014,16 @@ public:
     *this= *def;
   }
   bool set_compressed(const char *method);
+  bool set_compressed_deprecated(THD *thd, const char *method);
+  bool set_compressed_deprecated_column_attribute(THD *thd,
+                                                  const char *pos,
+                                                  const char *method);
   void set_compression_method(Compression_method *compression_method_arg)
   { compression_method_ptr= compression_method_arg; }
   Compression_method *compression_method() const
   { return compression_method_ptr; }
+
+  bool check_vcol_for_key(THD *thd) const;
 };
 
 
@@ -5018,7 +5200,7 @@ public:
   LEX_CSTRING change;			// If done with alter table
   LEX_CSTRING after;			// Put column after this one
   Field *field;				// For alter table
-  TYPELIB *save_interval;               // Temporary copy for the above
+  const TYPELIB *save_interval;         // Temporary copy for the above
                                         // Used only for UCS2 intervals
 
   /** structure with parsed options (for comparing fields in ALTER TABLE) */
@@ -5178,7 +5360,7 @@ enum_field_types get_blob_type_from_length(ulong length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
-bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
+bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
                       enum_vcol_info_type type);
 
 /*

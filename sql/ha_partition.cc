@@ -126,7 +126,6 @@ static int partition_initialize(void *p)
   handlerton *partition_hton;
   partition_hton= (handlerton *)p;
 
-  partition_hton->state= SHOW_OPTION_YES;
   partition_hton->db_type= DB_TYPE_PARTITION_DB;
   partition_hton->create= partition_create_handler;
   partition_hton->partition_flags= partition_flags;
@@ -4256,7 +4255,7 @@ int ha_partition::write_row(uchar * buf)
   bool have_auto_increment= table->next_number_field && buf == table->record[0];
   my_bitmap_map *old_map;
   THD *thd= ha_thd();
-  sql_mode_t saved_sql_mode= thd->variables.sql_mode;
+  Sql_mode_save sms(thd);
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
   DBUG_ENTER("ha_partition::write_row");
   DBUG_PRINT("enter", ("partition this: %p", this));
@@ -4322,7 +4321,6 @@ int ha_partition::write_row(uchar * buf)
   reenable_binlog(thd);
 
 exit:
-  thd->variables.sql_mode= saved_sql_mode;
   table->auto_increment_field_not_null= saved_auto_inc_field_not_null;
   DBUG_RETURN(error);
 }
@@ -8201,6 +8199,7 @@ int ha_partition::info(uint flag)
     stats.delete_length= 0;
     stats.check_time= 0;
     stats.checksum= 0;
+    stats.checksum_null= TRUE;
     for (i= bitmap_get_first_set(&m_part_info->read_partitions);
          i < m_tot_parts;
          i= bitmap_get_next_set(&m_part_info->read_partitions, i))
@@ -8214,7 +8213,11 @@ int ha_partition::info(uint flag)
       stats.delete_length+= file->stats.delete_length;
       if (file->stats.check_time > stats.check_time)
         stats.check_time= file->stats.check_time;
-      stats.checksum+= file->stats.checksum;
+      if (!file->stats.checksum_null)
+      {
+        stats.checksum+= file->stats.checksum;
+        stats.checksum_null= FALSE;
+      }
     }
     if (stats.records && stats.records < 2 &&
         !(m_file[0]->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT))
@@ -8371,6 +8374,7 @@ void ha_partition::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->update_time=          file->stats.update_time;
   stat_info->check_time=           file->stats.check_time;
   stat_info->check_sum=            file->stats.checksum;
+  stat_info->check_sum_null=       file->stats.checksum_null;
 }
 
 
@@ -10584,6 +10588,64 @@ void ha_partition::release_auto_increment()
 void ha_partition::init_table_handle_for_HANDLER()
 {
   return;
+}
+
+
+/**
+  Calculate the checksum of the table (all partitions)
+*/
+
+int ha_partition::pre_calculate_checksum()
+{
+  int error;
+  DBUG_ENTER("ha_partition::pre_calculate_checksum");
+  m_pre_calling= TRUE;
+  if ((table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM)))
+  {
+    handler **file= m_file;
+    do
+    {
+      if ((error= (*file)->pre_calculate_checksum()))
+      {
+        DBUG_RETURN(error);
+      }
+    } while (*(++file));
+  }
+  DBUG_RETURN(0);
+}
+
+
+int ha_partition::calculate_checksum()
+{
+  int error;
+  stats.checksum= 0;
+  stats.checksum_null= TRUE;
+
+  DBUG_ENTER("ha_partition::calculate_checksum");
+  if (!m_pre_calling)
+  {
+    if ((error= pre_calculate_checksum()))
+    {
+      m_pre_calling= FALSE;
+      DBUG_RETURN(error);
+    }
+  }
+  m_pre_calling= FALSE;
+
+  handler **file= m_file;
+  do
+  {
+    if ((error= (*file)->calculate_checksum()))
+    {
+      DBUG_RETURN(error);
+    }
+    if (!(*file)->stats.checksum_null)
+    {
+      stats.checksum+= (*file)->stats.checksum;
+      stats.checksum_null= FALSE;
+    }
+  } while (*(++file));
+  DBUG_RETURN(0);
 }
 
 

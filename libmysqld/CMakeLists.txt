@@ -101,7 +101,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/multi_range_read.cc
            ../sql/opt_index_cond_pushdown.cc
            ../sql/opt_subselect.cc
-           ../sql/create_options.cc ../sql/rpl_utility.cc
+           ../sql/create_options.cc
+           ../sql/rpl_utility.cc
+           ../sql/rpl_utility_server.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
            ../sql/my_apc.cc ../sql/my_apc.h
@@ -295,7 +297,7 @@ mysql_stmt_next_result
 # Charsets
 my_charset_bin
 my_charset_latin1
-my_charset_utf8_general_ci
+my_charset_utf8mb3_general_ci
 # Client plugins
 mysql_client_find_plugin
 mysql_client_register_plugin

@@ -559,7 +559,7 @@ int init_embedded_server(int argc, char **argv, char **groups)
   remaining_argv= *argvp;
 
   /* Must be initialized early for comparison of options name */
-  system_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
   sys_var_init();
 
   int ho_error= handle_early_options();

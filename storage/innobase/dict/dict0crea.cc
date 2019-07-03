@@ -1215,7 +1215,8 @@ dict_create_table_step(
 				ut_ad(node->col_no == v_col->v_pos);
 				dict_build_v_col_def_step(node);
 
-				if (node->base_col_no < v_col->num_base - 1) {
+				if (node->base_col_no
+				    < unsigned{v_col->num_base} - 1) {
 					/* move on to next base column */
 					node->base_col_no++;
 				} else {

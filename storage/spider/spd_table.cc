@@ -119,9 +119,11 @@ uint *spd_db_att_xid_cache_split_num;
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
 #endif
-struct charset_info_st *spd_charset_utf8_bin;
+struct charset_info_st *spd_charset_utf8mb3_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
+const char **spd_mysqld_unix_port;
+uint *spd_mysqld_port;
 bool volatile *spd_abort_loop;
 Time_zone *spd_tz_system;
 extern long spider_conn_mutex_id;
@@ -4378,6 +4380,9 @@ SPIDER_SHARE *spider_create_share(
   uchar *tmp_cardinality_upd, *tmp_table_mon_mutex_bitmap;
   char buf[MAX_FIELD_WIDTH], *buf_pos;
   char link_idx_str[SPIDER_SQL_INT_LEN];
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  bool checksum_support = TRUE;
+#endif
   DBUG_ENTER("spider_create_share");
   length = (uint) strlen(table_name);
   bitmap_size = spider_bitmap_size(table_share->fields);
@@ -4536,8 +4541,24 @@ SPIDER_SHARE *spider_create_share(
       {
         goto error_init_dbton;
       }
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+      if (
+        spider_dbton[roop_count].db_access_type == SPIDER_DB_ACCESS_TYPE_SQL &&
+        !share->dbton_share[roop_count]->checksum_support()
+      ) {
+        checksum_support = FALSE;
+      }
+#endif
     }
   }
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  if (checksum_support)
+  {
+    share->additional_table_flags |=
+      HA_HAS_OLD_CHECKSUM |
+      HA_HAS_NEW_CHECKSUM;
+  }
+#endif
   DBUG_RETURN(share);
 
 /*
@@ -5780,14 +5801,7 @@ int spider_free_share(
         thd,
         share->lgtm_tblhnd_share->table_name,
         share->lgtm_tblhnd_share->table_name_length,
-        &share->data_file_length,
-        &share->max_data_file_length,
-        &share->index_file_length,
-        &share->records,
-        &share->mean_rec_length,
-        &share->check_time,
-        &share->create_time,
-        &share->update_time,
+        &share->stat,
         FALSE
       );
     }
@@ -6074,7 +6088,7 @@ SPIDER_PARTITION_SHARE *spider_get_pt_share(
     }
 
     if(
-      my_hash_init(&partition_share->pt_handler_hash, spd_charset_utf8_bin,
+      my_hash_init(&partition_share->pt_handler_hash, spd_charset_utf8mb3_bin,
         32, 0, 0, (my_hash_get_key) spider_pt_handler_share_get_key, 0, 0)
     ) {
       *error_num = HA_ERR_OUT_OF_MEM;
@@ -6163,21 +6177,7 @@ void spider_copy_sts_to_pt_share(
   SPIDER_SHARE *share
 ) {
   DBUG_ENTER("spider_copy_sts_to_pt_share");
-  memcpy(&partition_share->data_file_length, &share->data_file_length,
-    sizeof(ulonglong) * 4 + sizeof(ha_rows) +
-    sizeof(ulong) + sizeof(time_t) * 3);
-/*
-  partition_share->data_file_length = share->data_file_length;
-  partition_share->max_data_file_length = share->max_data_file_length;
-  partition_share->index_file_length = share->index_file_length;
-  partition_share->auto_increment_value =
-    share->lgtm_tblhnd_share->auto_increment_value;
-  partition_share->records = share->records;
-  partition_share->mean_rec_length = share->mean_rec_length;
-  partition_share->check_time = share->check_time;
-  partition_share->create_time = share->create_time;
-  partition_share->update_time = share->update_time;
-*/
+  partition_share->stat = share->stat;
   DBUG_VOID_RETURN;
 }
 
@@ -6186,23 +6186,7 @@ void spider_copy_sts_to_share(
   SPIDER_PARTITION_SHARE *partition_share
 ) {
   DBUG_ENTER("spider_copy_sts_to_share");
-  memcpy(&share->data_file_length, &partition_share->data_file_length,
-    sizeof(ulonglong) * 4 + sizeof(ha_rows) +
-    sizeof(ulong) + sizeof(time_t) * 3);
-/*
-  share->data_file_length = partition_share->data_file_length;
-  share->max_data_file_length = partition_share->max_data_file_length;
-  share->index_file_length = partition_share->index_file_length;
-  share->lgtm_tblhnd_share->auto_increment_value =
-    partition_share->auto_increment_value;
-  DBUG_PRINT("info",("spider auto_increment_value=%llu",
-    share->lgtm_tblhnd_share->auto_increment_value));
-  share->records = partition_share->records;
-  share->mean_rec_length = partition_share->mean_rec_length;
-  share->check_time = partition_share->check_time;
-  share->create_time = partition_share->create_time;
-  share->update_time = partition_share->update_time;
-*/
+  share->stat = partition_share->stat;
   DBUG_VOID_RETURN;
 }
 
@@ -6864,13 +6848,12 @@ int spider_panic(
 int spider_db_init(
   void *p
 ) {
-  int error_num, roop_count;
+  int error_num = HA_ERR_OUT_OF_MEM, roop_count;
   uint dbton_id = 0;
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
   spider_hton_ptr = spider_hton;
 
-  spider_hton->state = SHOW_OPTION_YES;
   spider_hton->flags = HTON_NO_FLAGS;
 #ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
   spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
@@ -6946,12 +6929,16 @@ int spider_db_init(
     GetProcAddress(current_module, "?xid_cache@@3Ust_hash@@A");
 #endif
 #endif
-  spd_charset_utf8_bin = (struct charset_info_st *)
-    GetProcAddress(current_module, "my_charset_utf8_bin");
+  spd_charset_utf8mb3_bin = (struct charset_info_st *)
+    GetProcAddress(current_module, "my_charset_utf8mb3_bin");
   spd_defaults_extra_file = (const char **)
     GetProcAddress(current_module, "my_defaults_extra_file");
   spd_defaults_file = (const char **)
     GetProcAddress(current_module, "my_defaults_file");
+  spd_mysqld_unix_port = (const char **)
+    GetProcAddress(current_module, "?mysqld_unix_port@@3PADA");
+  spd_mysqld_port = (uint *)
+    GetProcAddress(current_module, "?mysqld_port@@3IA");
   spd_abort_loop = (bool volatile *)
     GetProcAddress(current_module, "?abort_loop@@3_NC");
   spd_tz_system = *(Time_zone **)
@@ -6975,9 +6962,11 @@ int spider_db_init(
   spd_db_att_xid_cache = &xid_cache;
 #endif
 #endif
-  spd_charset_utf8_bin = &my_charset_utf8_bin;
+  spd_charset_utf8mb3_bin = &my_charset_utf8mb3_bin;
   spd_defaults_extra_file = &my_defaults_extra_file;
   spd_defaults_file = &my_defaults_file;
+  spd_mysqld_unix_port = (const char **) &mysqld_unix_port;
+  spd_mysqld_port = &mysqld_port;
   spd_abort_loop = &abort_loop;
   spd_tz_system = my_tz_SYSTEM;
 #endif
@@ -6988,16 +6977,10 @@ int spider_db_init(
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (pthread_attr_init(&spider_pt_attr))
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_pt_attr_init;
-  }
 /*
   if (pthread_attr_setdetachstate(&spider_pt_attr, PTHREAD_CREATE_DETACHED))
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_pt_attr_setstate;
-  }
 */
 #endif
 
@@ -7007,40 +6990,28 @@ int spider_db_init(
   if (mysql_mutex_init(spd_key_mutex_tbl,
     &spider_tbl_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_tbl_mutex_init;
-  }
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_thread_id_mutex, MY_MUTEX_INIT_FAST))
 #else
   if (mysql_mutex_init(spd_key_thread_id,
     &spider_thread_id_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_thread_id_mutex_init;
-  }
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_conn_id_mutex, MY_MUTEX_INIT_FAST))
 #else
   if (mysql_mutex_init(spd_key_conn_id,
     &spider_conn_id_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_conn_id_mutex_init;
-  }
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_ipport_conn_mutex, MY_MUTEX_INIT_FAST))
 #else
   if (mysql_mutex_init(spd_key_mutex_ipport_count,
     &spider_ipport_conn_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_ipport_count_mutex_init;
-  }
 
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_init_error_tbl_mutex, MY_MUTEX_INIT_FAST))
@@ -7048,10 +7019,8 @@ int spider_db_init(
   if (mysql_mutex_init(spd_key_mutex_init_error_tbl,
     &spider_init_error_tbl_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_init_error_tbl_mutex_init;
-  }
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_pt_share_mutex, MY_MUTEX_INIT_FAST))
@@ -7059,10 +7028,8 @@ int spider_db_init(
   if (mysql_mutex_init(spd_key_mutex_pt_share,
     &spider_pt_share_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_pt_share_mutex_init;
-  }
+
 #endif
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_lgtm_tblhnd_share_mutex, MY_MUTEX_INIT_FAST))
@@ -7070,30 +7037,24 @@ int spider_db_init(
   if (mysql_mutex_init(spd_key_mutex_lgtm_tblhnd_share,
     &spider_lgtm_tblhnd_share_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_lgtm_tblhnd_share_mutex_init;
-  }
+
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_conn_mutex, MY_MUTEX_INIT_FAST))
 #else
   if (mysql_mutex_init(spd_key_mutex_conn,
     &spider_conn_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_conn_mutex_init;
-  }
+
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_open_conn_mutex, MY_MUTEX_INIT_FAST))
 #else
   if (mysql_mutex_init(spd_key_mutex_open_conn,
     &spider_open_conn_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_open_conn_mutex_init;
-  }
+
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_hs_r_conn_mutex, MY_MUTEX_INIT_FAST))
@@ -7101,20 +7062,16 @@ int spider_db_init(
   if (mysql_mutex_init(spd_key_mutex_hs_r_conn,
     &spider_hs_r_conn_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_hs_r_conn_mutex_init;
-  }
+
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_hs_w_conn_mutex, MY_MUTEX_INIT_FAST))
 #else
   if (mysql_mutex_init(spd_key_mutex_hs_w_conn,
     &spider_hs_w_conn_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_hs_w_conn_mutex_init;
-  }
+
 #endif
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_allocated_thds_mutex, MY_MUTEX_INIT_FAST))
@@ -7122,20 +7079,15 @@ int spider_db_init(
   if (mysql_mutex_init(spd_key_mutex_allocated_thds,
     &spider_allocated_thds_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_allocated_thds_mutex_init;
-  }
+
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_mon_table_cache_mutex, MY_MUTEX_INIT_FAST))
 #else
   if (mysql_mutex_init(spd_key_mutex_mon_table_cache,
     &spider_mon_table_cache_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_mon_table_cache_mutex_init;
-  }
 
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_mem_calc_mutex, MY_MUTEX_INIT_FAST))
@@ -7143,127 +7095,96 @@ int spider_db_init(
   if (mysql_mutex_init(spd_key_mutex_mem_calc,
     &spider_mem_calc_mutex, MY_MUTEX_INIT_FAST))
 #endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
     goto error_mem_calc_mutex_init;
-  }
 
-  if(
-    my_hash_init(&spider_open_tables, spd_charset_utf8_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_tbl_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_open_tables, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_open_tables_hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_open_tables, 143);
   spider_alloc_calc_mem(NULL,
     spider_open_tables,
     spider_open_tables.array.max_element *
     spider_open_tables.array.size_of_element);
-  if(
-    my_hash_init(&spider_init_error_tables, spd_charset_utf8_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_tbl_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_init_error_tables, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_tbl_get_key, 0, 0))
     goto error_init_error_tables_hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_init_error_tables, 144);
   spider_alloc_calc_mem(NULL,
     spider_init_error_tables,
     spider_init_error_tables.array.max_element *
     spider_init_error_tables.array.size_of_element);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if(
-    my_hash_init(&spider_open_pt_share, spd_charset_utf8_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_pt_share_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_open_pt_share, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_pt_share_get_key, 0, 0))
     goto error_open_pt_share_hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_open_pt_share, 145);
   spider_alloc_calc_mem(NULL,
     spider_open_pt_share,
     spider_open_pt_share.array.max_element *
     spider_open_pt_share.array.size_of_element);
 #endif
-  if(
-    my_hash_init(&spider_lgtm_tblhnd_share_hash, spd_charset_utf8_bin,
-                 32, 0, 0,
-                 (my_hash_get_key) spider_lgtm_tblhnd_share_hash_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_lgtm_tblhnd_share_hash, spd_charset_utf8mb3_bin,
+                   32, 0, 0,
+                   (my_hash_get_key) spider_lgtm_tblhnd_share_hash_get_key,
+                   0, 0))
     goto error_lgtm_tblhnd_share_hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_lgtm_tblhnd_share_hash, 245);
   spider_alloc_calc_mem(NULL,
     spider_lgtm_tblhnd_share_hash,
     spider_lgtm_tblhnd_share_hash.array.max_element *
     spider_lgtm_tblhnd_share_hash.array.size_of_element);
-  if(
-    my_hash_init(&spider_open_connections, spd_charset_utf8_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_open_connections, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_open_connections_hash_init;
-  }
-  if(
-    my_hash_init(&spider_ipport_conns, spd_charset_utf8_bin, 32, 0, 0,
-    (my_hash_get_key) spider_ipport_conn_get_key, spider_free_ipport_conn, 0)
-    ) {
-      error_num = HA_ERR_OUT_OF_MEM;
+
+  if (my_hash_init(&spider_ipport_conns, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_ipport_conn_get_key,
+                   spider_free_ipport_conn, 0))
       goto error_ipport_conn__hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_open_connections, 146);
   spider_alloc_calc_mem(NULL,
     spider_open_connections,
     spider_open_connections.array.max_element *
     spider_open_connections.array.size_of_element);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if(
-    my_hash_init(&spider_hs_r_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_hs_r_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_hs_r_conn_hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_hs_r_conn_hash, 147);
   spider_alloc_calc_mem(NULL,
     spider_hs_r_conn_hash,
     spider_hs_r_conn_hash.array.max_element *
     spider_hs_r_conn_hash.array.size_of_element);
-  if(
-    my_hash_init(&spider_hs_w_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_hs_w_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_conn_get_key, 0, 0))
     goto error_hs_w_conn_hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_hs_w_conn_hash, 148);
   spider_alloc_calc_mem(NULL,
     spider_hs_w_conn_hash,
     spider_hs_w_conn_hash.array.max_element *
     spider_hs_w_conn_hash.array.size_of_element);
 #endif
-  if(
-    my_hash_init(&spider_allocated_thds, spd_charset_utf8_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_allocated_thds_get_key, 0, 0)
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (my_hash_init(&spider_allocated_thds, spd_charset_utf8mb3_bin, 32, 0, 0,
+                   (my_hash_get_key) spider_allocated_thds_get_key, 0, 0))
     goto error_allocated_thds_hash_init;
-  }
+
   spider_alloc_calc_mem_init(spider_allocated_thds, 149);
   spider_alloc_calc_mem(NULL,
     spider_allocated_thds,
     spider_allocated_thds.array.max_element *
     spider_allocated_thds.array.size_of_element);
 
-  if(
-    SPD_INIT_DYNAMIC_ARRAY2(&spider_mon_table_cache, sizeof(SPIDER_MON_KEY),
-      NULL, 64, 64, MYF(MY_WME))
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
+  if (SPD_INIT_DYNAMIC_ARRAY2(&spider_mon_table_cache, sizeof(SPIDER_MON_KEY),
+      NULL, 64, 64, MYF(MY_WME)))
     goto error_mon_table_cache_array_init;
-  }
+
   spider_alloc_calc_mem_init(spider_mon_table_cache, 165);
   spider_alloc_calc_mem(NULL,
     spider_mon_table_cache,
@@ -7293,10 +7214,7 @@ int spider_db_init(
     if (mysql_mutex_init(spd_key_mutex_udf_table_mon,
       &spider_udf_table_mon_mutexes[roop_count], MY_MUTEX_INIT_FAST))
 #endif
-    {
-      error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_udf_table_mon_mutex;
-    }
   }
   for (roop_count = 0;
     roop_count < (int) spider_param_udf_table_mon_mutex_count();
@@ -7308,22 +7226,17 @@ int spider_db_init(
     if (mysql_cond_init(spd_key_cond_udf_table_mon,
       &spider_udf_table_mon_conds[roop_count], NULL))
 #endif
-    {
-      error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_udf_table_mon_cond;
-    }
   }
   for (roop_count = 0;
     roop_count < (int) spider_param_udf_table_mon_mutex_count();
     roop_count++)
   {
     if (my_hash_init(&spider_udf_table_mon_list_hash[roop_count],
-      spd_charset_utf8_bin, 32, 0, 0,
+      spd_charset_utf8mb3_bin, 32, 0, 0,
       (my_hash_get_key) spider_udf_tbl_mon_list_key, 0, 0))
-    {
-      error_num = HA_ERR_OUT_OF_MEM;
       goto error_init_udf_table_mon_list_hash;
-    }
+
     spider_alloc_calc_mem_init(spider_udf_table_mon_list_hash, 150);
     spider_alloc_calc_mem(NULL,
       spider_udf_table_mon_list_hash,
@@ -7693,10 +7606,8 @@ int spider_get_sts(
   if (
     sts_sync == 0
   ) {
-#endif
     /* get */
     get_type = 1;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   } else if (
     !share->partition_share->sts_init
   ) {
@@ -7735,14 +7646,7 @@ int spider_get_sts(
       current_thd,
       share->lgtm_tblhnd_share->table_name,
       share->lgtm_tblhnd_share->table_name_length,
-      &share->data_file_length,
-      &share->max_data_file_length,
-      &share->index_file_length,
-      &share->records,
-      &share->mean_rec_length,
-      &share->check_time,
-      &share->create_time,
-      &share->update_time,
+      &share->stat,
       FALSE
     );
     if (
@@ -7850,10 +7754,8 @@ int spider_get_crd(
   if (
     crd_sync == 0
   ) {
-#endif
     /* get */
     get_type = 1;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   } else if (
     !share->partition_share->crd_init
   ) {
@@ -9367,7 +9269,9 @@ int spider_discover_table_structure(
   str.q_append(share->table_name.str, share->table_name.length);
   str.q_append(SPIDER_SQL_LCL_NAME_QUOTE_STR, SPIDER_SQL_LCL_NAME_QUOTE_LEN);
   str.q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   str_len = str.length();
+#endif
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_name, table_name_length);

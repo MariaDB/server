@@ -856,9 +856,7 @@ error2:
 
 bool mysqld_help(THD *thd, const char *mask)
 {
-  sql_mode_t sql_mode_backup= thd->variables.sql_mode;
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
   bool rc= mysqld_help_internal(thd, mask);
-  thd->variables.sql_mode= sql_mode_backup;
   return rc;
 }

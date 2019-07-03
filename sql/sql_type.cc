@@ -60,72 +60,193 @@ Type_handler_string      type_handler_string;
 Type_handler_var_string  type_handler_var_string;
 Type_handler_varchar     type_handler_varchar;
 Type_handler_hex_hybrid  type_handler_hex_hybrid;
-static Type_handler_varchar_compressed type_handler_varchar_compressed;
+Type_handler_varchar_compressed type_handler_varchar_compressed;
 
 Type_handler_tiny_blob   type_handler_tiny_blob;
 Type_handler_medium_blob type_handler_medium_blob;
 Type_handler_long_blob   type_handler_long_blob;
 Type_handler_blob        type_handler_blob;
-static Type_handler_blob_compressed type_handler_blob_compressed;
+Type_handler_blob_compressed type_handler_blob_compressed;
 
 Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 
+
+class Type_collection_std: public Type_collection
+{
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return Type_handler::aggregate_for_result_traditional(a, b);
+  }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override;
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override;
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override;
+};
+
+
+static Type_collection_std type_collection_std;
+
+const Type_collection *Type_handler::type_collection() const
+{
+  return &type_collection_std;
+}
+
+
 #ifdef HAVE_SPATIAL
-Type_handler_geometry    type_handler_geometry;
+Type_handler_geometry           type_handler_geometry;
+Type_handler_point              type_handler_point;
+Type_handler_linestring         type_handler_linestring;
+Type_handler_polygon            type_handler_polygon;
+Type_handler_multipoint         type_handler_multipoint;
+Type_handler_multilinestring    type_handler_multilinestring;
+Type_handler_multipolygon       type_handler_multipolygon;
+Type_handler_geometrycollection type_handler_geometrycollection;
+
+
+const Type_handler_geometry *
+Type_handler_geometry::type_handler_geom_by_type(uint type)
+{
+  switch (type) {
+  case Type_handler_geometry::GEOM_POINT:
+    return &type_handler_point;
+  case Type_handler_geometry::GEOM_LINESTRING:
+    return &type_handler_linestring;
+  case Type_handler_geometry::GEOM_POLYGON:
+    return &type_handler_polygon;
+  case Type_handler_geometry::GEOM_MULTIPOINT:
+    return &type_handler_multipoint;
+  case Type_handler_geometry::GEOM_MULTILINESTRING:
+    return &type_handler_multilinestring;
+  case Type_handler_geometry::GEOM_MULTIPOLYGON:
+    return &type_handler_multipolygon;
+  case Type_handler_geometry::GEOM_GEOMETRYCOLLECTION:
+    return &type_handler_geometrycollection;
+  case Type_handler_geometry::GEOM_GEOMETRY:
+    break;
+  }
+  return &type_handler_geometry;
+}
+
+
+const Type_handler *
+Type_handler_geometry::type_handler_frm_unpack(const uchar *buffer) const
+{
+  // charset and geometry_type share the same byte in frm
+  return type_handler_geom_by_type((uint) buffer[14]);
+}
+
+
+class Type_collection_geometry: public Type_collection
+{
+  const Type_handler *aggregate_common(const Type_handler *a,
+                                       const Type_handler *b) const
+  {
+    if (a == b)
+      return a;
+    DBUG_ASSERT(dynamic_cast<const Type_handler_geometry*>(a));
+    DBUG_ASSERT(dynamic_cast<const Type_handler_geometry*>(b));
+    return &type_handler_geometry;
+  }
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return aggregate_common(a, b);
+  }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  {
+    return aggregate_common(a, b);
+  }
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  {
+    return aggregate_common(a, b);
+  }
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+  bool init_aggregators(Type_handler_data *data, const Type_handler *geom) const
+  {
+    Type_aggregator *r= &data->m_type_aggregator_for_result;
+    Type_aggregator *c= &data->m_type_aggregator_for_comparison;
+    return
+      r->add(geom, &type_handler_null,        geom) ||
+      r->add(geom, &type_handler_hex_hybrid,  &type_handler_long_blob) ||
+      r->add(geom, &type_handler_tiny_blob,   &type_handler_long_blob) ||
+      r->add(geom, &type_handler_blob,        &type_handler_long_blob) ||
+      r->add(geom, &type_handler_medium_blob, &type_handler_long_blob) ||
+      r->add(geom, &type_handler_long_blob,   &type_handler_long_blob) ||
+      r->add(geom, &type_handler_varchar,     &type_handler_long_blob) ||
+      r->add(geom, &type_handler_string,      &type_handler_long_blob) ||
+      c->add(geom, &type_handler_null,        geom) ||
+      c->add(geom, &type_handler_long_blob,   &type_handler_long_blob);
+  }
+  bool init(Type_handler_data *data) const
+  {
+#ifndef DBUG_OFF
+    /*
+      The rules (geometry,geometry)->geometry and (pont,point)->geometry
+      are needed here to make sure
+      (in gis-debug.test) that they do not affect anything, and these pairs
+      returns an error in an expression like (POINT(0,0)+POINT(0,0)).
+      Both sides are from the same type collection here,
+      so aggregation goes only through Type_collection_xxx::aggregate_yyy()
+      and never reaches Type_aggregator::find_handler().
+    */
+    Type_aggregator *nct= &data->m_type_aggregator_non_commutative_test;
+    if (nct->add(&type_handler_geometry,
+                 &type_handler_geometry,
+                 &type_handler_geometry) ||
+        nct->add(&type_handler_point,
+                 &type_handler_point,
+                 &type_handler_geometry) ||
+        nct->add(&type_handler_point,
+                 &type_handler_varchar,
+                 &type_handler_long_blob))
+    return true;
+#endif
+    return
+      init_aggregators(data, &type_handler_geometry) ||
+      init_aggregators(data, &type_handler_geometrycollection) ||
+      init_aggregators(data, &type_handler_point) ||
+      init_aggregators(data, &type_handler_linestring) ||
+      init_aggregators(data, &type_handler_polygon) ||
+      init_aggregators(data, &type_handler_multipoint) ||
+      init_aggregators(data, &type_handler_multilinestring) ||
+      init_aggregators(data, &type_handler_multipolygon);
+  }
+};
+
+
+static Type_collection_geometry type_collection_geometry;
+
+const Type_collection *Type_handler_geometry::type_collection() const
+{
+  return &type_collection_geometry;
+}
+
 #endif
 
 
 bool Type_handler_data::init()
 {
 #ifdef HAVE_SPATIAL
-
-#ifndef DBUG_OFF
-  if (m_type_aggregator_non_commutative_test.add(&type_handler_geometry,
-                                                 &type_handler_geometry,
-                                                 &type_handler_geometry) ||
-      m_type_aggregator_non_commutative_test.add(&type_handler_geometry,
-                                                 &type_handler_varchar,
-                                                 &type_handler_long_blob))
-    return true;
-#endif
-
-  return
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_null,
-                                     &type_handler_geometry) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_geometry,
-                                     &type_handler_geometry) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_hex_hybrid,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_tiny_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_medium_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_long_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_varchar,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_string,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_comparison.add(&type_handler_geometry,
-                                         &type_handler_geometry,
-                                         &type_handler_geometry) ||
-    m_type_aggregator_for_comparison.add(&type_handler_geometry,
-                                         &type_handler_null,
-                                         &type_handler_geometry) ||
-    m_type_aggregator_for_comparison.add(&type_handler_geometry,
-                                         &type_handler_long_blob,
-                                         &type_handler_long_blob);
+  return type_collection_geometry.init(this);
 #endif
   return false;
 }
@@ -1446,14 +1567,12 @@ const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 bool
 Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 {
-  if (m_type_handler->is_traditional_type() && other->is_traditional_type())
-  {
-    m_type_handler=
-      Type_handler::aggregate_for_result_traditional(m_type_handler, other);
-    return false;
-  }
-  other= type_handler_data->
-         m_type_aggregator_for_result.find_handler(m_type_handler, other);
+  const Type_collection *collection0= m_type_handler->type_collection();
+  if (collection0 == other->type_collection())
+    other= collection0->aggregate_for_result(m_type_handler, other);
+  else
+    other= type_handler_data->
+             m_type_aggregator_for_result.find_handler(m_type_handler, other);
   if (!other)
     return true;
   m_type_handler= other;
@@ -1572,37 +1691,42 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 {
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
   DBUG_ASSERT(h == h->type_handler_for_comparison());
-
-  if (!m_type_handler->is_traditional_type() ||
-      !h->is_traditional_type())
-  {
+  const Type_collection *collection0= m_type_handler->type_collection();
+  if (collection0 == h->type_collection())
+    h= collection0->aggregate_for_comparison(m_type_handler, h);
+  else
     h= type_handler_data->
-       m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
-    if (!h)
-      return true;
-    m_type_handler= h;
-    DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
-    return false;
-  }
+         m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
+  if (!h)
+    return true;
+  m_type_handler= h;
+  DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+  return false;
+}
 
-  Item_result a= cmp_type();
-  Item_result b= h->cmp_type();
+
+const Type_handler *
+Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
+                                              const Type_handler *hb) const
+{
+  Item_result a= ha->cmp_type();
+  Item_result b= hb->cmp_type();
   if (a == STRING_RESULT && b == STRING_RESULT)
-    m_type_handler= &type_handler_long_blob;
-  else if (a == INT_RESULT && b == INT_RESULT)
-    m_type_handler= &type_handler_longlong;
-  else if (a == ROW_RESULT || b == ROW_RESULT)
-    m_type_handler= &type_handler_row;
-  else if (a == TIME_RESULT || b == TIME_RESULT)
+    return &type_handler_long_blob;
+  if (a == INT_RESULT && b == INT_RESULT)
+    return &type_handler_longlong;
+  if (a == ROW_RESULT || b == ROW_RESULT)
+    return &type_handler_row;
+  if (a == TIME_RESULT || b == TIME_RESULT)
   {
     if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
     {
       /*
         We're here if there's only one temporal data type:
         either m_type_handler or h.
+        Temporal types bit non-temporal types.
       */
-      if (b == TIME_RESULT)
-        m_type_handler= h; // Temporal types bit non-temporal types
+      const Type_handler *res= b == TIME_RESULT ? hb : ha;
       /*
         Compare TIMESTAMP to a non-temporal type as DATETIME.
         This is needed to make queries with fuzzy dates work:
@@ -1610,9 +1734,9 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
         WHERE
           ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00';
       */
-      if (m_type_handler->type_handler_for_native_format() ==
-          &type_handler_timestamp2)
-        m_type_handler= &type_handler_datetime;
+      if (res->type_handler_for_native_format() == &type_handler_timestamp2)
+        return &type_handler_datetime;
+      return res;
     }
     else
     {
@@ -1624,19 +1748,15 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
           to print DATE constants using proper format:
           'YYYY-MM-DD' rather than 'YYYY-MM-DD 00:00:00'.
       */
-      if (m_type_handler->field_type() != h->field_type())
-        m_type_handler= &type_handler_datetime;
+      if (ha->field_type() != hb->field_type())
+        return &type_handler_datetime;
+      return ha;
     }
   }
-  else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
-           (b == INT_RESULT || b == DECIMAL_RESULT))
-  {
-    m_type_handler= &type_handler_newdecimal;
-  }
-  else
-    m_type_handler= &type_handler_double;
-  DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
-  return false;
+  if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
+      (b == INT_RESULT || b == DECIMAL_RESULT))
+    return &type_handler_newdecimal;
+  return &type_handler_double;
 }
 
 
@@ -1652,12 +1772,12 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 bool
 Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
 {
-  if (!m_type_handler->is_traditional_type() ||
-      !h->is_traditional_type())
+  const Type_collection *collection0= m_type_handler->type_collection();
+  if (collection0 == h->type_collection())
+    h= collection0->aggregate_for_min_max(m_type_handler, h);
+  else
   {
     /*
-      If at least one data type is non-traditional,
-      do aggregation for result immediately.
       For now we suppose that these two expressions:
         - LEAST(type1, type2)
         - COALESCE(type1, type2)
@@ -1666,78 +1786,73 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
       This may change in the future.
     */
     h= type_handler_data->
-       m_type_aggregator_for_result.find_handler(m_type_handler, h);
-    if (!h)
-      return true;
-    m_type_handler= h;
-    return false;
+         m_type_aggregator_for_result.find_handler(m_type_handler, h);
   }
+  if (!h)
+    return true;
+  m_type_handler= h;
+  return false;
+}
 
-  Item_result a= cmp_type();
-  Item_result b= h->cmp_type();
+
+const Type_handler *
+Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
+                                           const Type_handler *hb) const
+{
+  Item_result a= ha->cmp_type();
+  Item_result b= hb->cmp_type();
   DBUG_ASSERT(a != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
   DBUG_ASSERT(b != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
 
   if (a == STRING_RESULT && b == STRING_RESULT)
-    m_type_handler=
-      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
-  else if (a == INT_RESULT && b == INT_RESULT)
+    return Type_collection_std::aggregate_for_result(ha, hb);
+  if (a == INT_RESULT && b == INT_RESULT)
   {
     // BIT aggregates with non-BIT as BIGINT
-    if (m_type_handler != h)
+    if (ha != hb)
     {
-      if (m_type_handler == &type_handler_bit)
-        m_type_handler= &type_handler_longlong;
-      else if (h == &type_handler_bit)
-        h= &type_handler_longlong;
+      if (ha == &type_handler_bit)
+        ha= &type_handler_longlong;
+      else if (hb == &type_handler_bit)
+        hb= &type_handler_longlong;
     }
-    m_type_handler=
-      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+    return Type_collection_std::aggregate_for_result(ha, hb);
   }
-  else if (a == TIME_RESULT || b == TIME_RESULT)
+  if (a == TIME_RESULT || b == TIME_RESULT)
   {
-    if ((m_type_handler->type_handler_for_native_format() ==
-         &type_handler_timestamp2) +
-        (h->type_handler_for_native_format() ==
-         &type_handler_timestamp2) == 1)
+    if ((ha->type_handler_for_native_format() == &type_handler_timestamp2) +
+        (hb->type_handler_for_native_format() == &type_handler_timestamp2) == 1)
     {
       /*
         Handle LEAST(TIMESTAMP, non-TIMESTAMP) as DATETIME,
         to make sure fuzzy dates work in this context:
           LEAST('2001-00-00', timestamp_field)
       */
-      m_type_handler= &type_handler_datetime2;
+      return &type_handler_datetime2;
     }
-    else if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
+    if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
     {
       /*
         We're here if there's only one temporal data type:
         either m_type_handler or h.
+        Temporal types bit non-temporal types.
       */
-      if (b == TIME_RESULT)
-        m_type_handler= h; // Temporal types bit non-temporal types
+      return (b == TIME_RESULT) ? hb : ha;
     }
-    else
-    {
-      /*
-        We're here if both m_type_handler and h are temporal data types.
-      */
-      m_type_handler=
-        Type_handler::aggregate_for_result_traditional(m_type_handler, h);
-    }
+    /*
+      We're here if both m_type_handler and h are temporal data types.
+    */
+    return Type_collection_std::aggregate_for_result(ha, hb);
   }
-  else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
-           (b == INT_RESULT || b == DECIMAL_RESULT))
+  if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
+      (b == INT_RESULT || b == DECIMAL_RESULT))
   {
-    m_type_handler= &type_handler_newdecimal;
+    return &type_handler_newdecimal;
   }
-  else
-  {
-    // Preserve FLOAT if two FLOATs, set to DOUBLE otherwise.
-    if (m_type_handler != &type_handler_float || h != &type_handler_float)
-      m_type_handler= &type_handler_double;
-  }
-  return false;
+  // Preserve FLOAT if two FLOATs, set to DOUBLE otherwise.
+  if (ha == &type_handler_float && hb == &type_handler_float)
+    return &type_handler_float;
+  return &type_handler_double;
 }
 
 
@@ -1772,8 +1887,8 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
 
 
 const Type_handler *
-Type_handler::aggregate_for_num_op_traditional(const Type_handler *h0,
-                                               const Type_handler *h1)
+Type_collection_std::aggregate_for_num_op(const Type_handler *h0,
+                                          const Type_handler *h1) const
 {
   Item_result r0= h0->cmp_type();
   Item_result r1= h1->cmp_type();
@@ -1814,17 +1929,15 @@ Type_handler_hybrid_field_type::aggregate_for_num_op(const Type_aggregator *agg,
                                                      const Type_handler *h1)
 {
   const Type_handler *hres;
-  if (h0->is_traditional_type() && h1->is_traditional_type())
-  {
-    set_handler(Type_handler::aggregate_for_num_op_traditional(h0, h1));
-    return false;
-  }
-  if ((hres= agg->find_handler(h0, h1)))
-  {
-    set_handler(hres);
-    return false;
-  }
-  return true;
+  const Type_collection *collection0= h0->type_collection();
+  if (collection0 == h1->type_collection())
+    hres= collection0->aggregate_for_num_op(h0, h1);
+  else
+    hres= agg->find_handler(h0, h1);
+  if (!hres)
+    return true;
+  m_type_handler= hres;
+  return false;
 }
 
 
@@ -1908,13 +2021,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_LONG_BLOB:   return &type_handler_long_blob;
   case MYSQL_TYPE_BLOB:        return &type_handler_blob;
   case MYSQL_TYPE_BLOB_COMPRESSED: return &type_handler_blob_compressed;
-  case MYSQL_TYPE_VAR_STRING:
-    /*
-      VAR_STRING is actually a field_type(), not a real_type(),
-      but it's used around the code in real_type() context.
-      We should clean up the code and add DBUG_ASSERT(0) here.
-    */
-    return &type_handler_string;
+  case MYSQL_TYPE_VAR_STRING:  return &type_handler_var_string;
   case MYSQL_TYPE_STRING:      return &type_handler_string;
   case MYSQL_TYPE_ENUM:        return &type_handler_enum;
   case MYSQL_TYPE_SET:         return &type_handler_set;
@@ -1933,8 +2040,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
   };
-  DBUG_ASSERT(0);
-  return &type_handler_string;
+  return NULL;
 }
 
 
@@ -2296,8 +2402,51 @@ Field *Type_handler_blob_compressed::make_conversion_table_field(TABLE *table,
 
 
 #ifdef HAVE_SPATIAL
-const Name Type_handler_geometry::m_name_geometry(STRING_WITH_LEN("geometry"));
 
+bool Type_handler_geometry::check_type_geom_or_binary(const char *opname,
+                                                      const Item *item)
+{
+  const Type_handler *handler= item->type_handler();
+  if (handler->type_handler_for_comparison() == &type_handler_geometry ||
+      (handler->is_general_purpose_string_type() &&
+       item->collation.collation == &my_charset_bin))
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Type_handler_geometry::check_types_geom_or_binary(const char *opname,
+                                                       Item* const *args,
+                                                       uint start, uint end)
+{
+  for (uint i= start; i < end ; i++)
+  {
+    if (check_type_geom_or_binary(opname, args[i]))
+      return true;
+  }
+  return false;
+}
+
+
+const Name
+  Type_handler_geometry::
+    m_name_geometry(STRING_WITH_LEN("geometry")),
+  Type_handler_point::
+    m_name_point(STRING_WITH_LEN("point")),
+  Type_handler_linestring::
+    m_name_linestring(STRING_WITH_LEN("linestring")),
+  Type_handler_polygon::
+    m_name_polygon(STRING_WITH_LEN("polygon")),
+  Type_handler_multipoint::
+    m_name_multipoint(STRING_WITH_LEN("multipoint")),
+  Type_handler_multilinestring::
+    m_name_multilinestring(STRING_WITH_LEN("multilinestring")),
+  Type_handler_multipolygon::
+    m_name_multipolygon(STRING_WITH_LEN("multipolygon")),
+  Type_handler_geometrycollection::
+    m_name_geometrycollection(STRING_WITH_LEN("geometrycollection"));
 
 const Type_handler *Type_handler_geometry::type_handler_for_comparison() const
 {
@@ -2317,10 +2466,10 @@ Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
     as this is only a temporary field.
     The statistics was already incremented when "target" was created.
   */
+  const Field_geom *fg= static_cast<const Field_geom*>(target);
   return new(table->in_use->mem_root)
-         Field_geom(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str, table->s, 4,
-                    ((const Field_geom*) target)->geom_type,
-                    ((const Field_geom*) target)->srid);
+         Field_geom(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
+                    table->s, 4, fg->type_handler_geom(), fg->srid);
 }
 #endif
 
@@ -2351,6 +2500,28 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
                    (uchar *) "", 1, Field::NONE, &empty_clex_str,
                    metadata & 0x00ff/*pack_length()*/,
                    ((const Field_enum*) target)->typelib, target->charset());
+}
+
+
+Field *Type_handler_enum::make_schema_field(TABLE *table,
+                                            const Record_addr &addr,
+                                            const ST_FIELD_INFO &def,
+                                            bool show_field) const
+{
+  LEX_CSTRING name= def.name();
+  const Typelib *typelib= def.typelib();
+  DBUG_ASSERT(typelib);
+  /*
+    Assume I_S columns don't have non-ASCII characters in names.
+    If we eventually want to, Typelib::max_char_length() must be implemented.
+  */
+  return new (table->in_use->mem_root)
+         Field_enum(addr.ptr(), (uint32) typelib->max_octet_length(),
+                    addr.null_ptr(), addr.null_bit(),
+                    Field::NONE, &name,
+                    get_enum_pack_length(typelib->count),
+                    typelib, system_charset_info);
+
 }
 
 
@@ -2550,7 +2721,6 @@ void Type_handler_geometry::
                                               Column_definition *def,
                                               const Field *field) const
 {
-  def->geom_type= ((Field_geom*) field)->geom_type;
   def->srid= ((Field_geom*) field)->srid;
 }
 #endif
@@ -2888,6 +3058,193 @@ bool Type_handler_bit::
   */
   return false;
 }
+
+
+/*************************************************************************/
+bool Type_handler::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_unique(Key_part_spec *part,
+                                             const Column_definition &def,
+                                             const handler *file,
+                                             bool *has_field_needed) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_multiple(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_foreign(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_spatial(Key_part_spec *part,
+                                              const Column_definition &def)
+                                              const
+{
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), "SPATIAL INDEX");
+  return true;
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return part->check_primary_key_for_blob(file);
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_unique(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file,
+                                              bool *hash_field_needed) const
+{
+  if (!(part->length*= def.charset->mbmaxlen))
+    *hash_field_needed= true;
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_multiple(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return part->init_multiple_key_for_blob(file);
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_foreign(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return part->check_foreign_key_for_blob(file);
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  return part->check_primary_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_unique(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file,
+                                              bool *hash_field_needed) const
+{
+  if (!part->length)
+    *hash_field_needed= true;
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_multiple(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  return part->init_multiple_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_foreign(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  return part->check_foreign_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_spatial(Key_part_spec *part,
+                                                  const Column_definition &def)
+                                                  const
+{
+  if (part->length)
+  {
+    my_error(ER_WRONG_SUB_KEY, MYF(0));
+    return true;
+  }
+  /*
+    4 is: (Xmin,Xmax,Ymin,Ymax), this is for 2D case
+    Lately we'll extend this code to support more dimensions
+  */
+  part->length= 4 * sizeof(double);
+  return false;
+}
+
+
+bool Type_handler_point::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  /*
+    QQ:
+    The below assignment (here and in all other Key_part_spec_init_xxx methods)
+    overrides the explicitly given key part length, so in this query:
+      CREATE OR REPLACE TABLE t1 (a POINT, KEY(a(10)));
+    the key becomes KEY(a(25)).
+    This might be a bug.
+  */
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_point::Key_part_spec_init_unique(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file,
+                                              bool *hash_field_needed) const
+{
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_point::Key_part_spec_init_multiple(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_point::Key_part_spec_init_foreign(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+#endif // HAVE_SPATIAL
 
 /*************************************************************************/
 
@@ -3397,9 +3754,7 @@ Field *Type_handler_geometry::make_table_field(const LEX_CSTRING *name,
 {
   return new (table->in_use->mem_root)
          Field_geom(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, table->s, 4,
-                    (Field::geometry_type) attr.uint_geometry_type(),
-                    0);
+                    Field::NONE, name, table->s, 4, this, 0);
 }
 #endif
 
@@ -3409,7 +3764,7 @@ Field *Type_handler_enum::make_table_field(const LEX_CSTRING *name,
                                            const Type_all_attributes &attr,
                                            TABLE *table) const
 {
-  TYPELIB *typelib= attr.get_typelib();
+  const TYPELIB *typelib= attr.get_typelib();
   DBUG_ASSERT(typelib);
   return new (table->in_use->mem_root)
          Field_enum(addr.ptr(), attr.max_length,
@@ -3426,7 +3781,7 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
                                           TABLE *table) const
 
 {
-  TYPELIB *typelib= attr.get_typelib();
+  const TYPELIB *typelib= attr.get_typelib();
   DBUG_ASSERT(typelib);
   return new (table->in_use->mem_root)
          Field_set(addr.ptr(), attr.max_length,
@@ -3444,9 +3799,9 @@ Field *Type_handler_float::make_schema_field(TABLE *table,
                                               const ST_FIELD_INFO &def,
                                               bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new (table->in_use->mem_root)
-     Field_float(addr.ptr(), def.field_length,
+     Field_float(addr.ptr(), def.char_length(),
                   addr.null_ptr(), addr.null_bit(),
                   Field::NONE, &name,
                   (uint8) NOT_FIXED_DEC,
@@ -3459,9 +3814,9 @@ Field *Type_handler_double::make_schema_field(TABLE *table,
                                               const ST_FIELD_INFO &def,
                                               bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new (table->in_use->mem_root)
-     Field_double(addr.ptr(), def.field_length,
+     Field_double(addr.ptr(), def.char_length(),
                   addr.null_ptr(), addr.null_bit(),
                   Field::NONE, &name,
                   (uint8) NOT_FIXED_DEC,
@@ -3474,9 +3829,9 @@ Field *Type_handler_decimal_result::make_schema_field(TABLE *table,
                                                       const ST_FIELD_INFO &def,
                                                       bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
-  uint dec= def.field_length % 10;
-  uint prec= (def.field_length / 100) % 100;
+  LEX_CSTRING name= def.name();
+  uint dec= def.decimal_scale();
+  uint prec= def.decimal_precision();
   DBUG_ASSERT(dec <= DECIMAL_MAX_SCALE);
   uint32 len= my_decimal_precision_to_length(prec, dec, def.unsigned_flag());
   return new (table->in_use->mem_root)
@@ -3491,7 +3846,7 @@ Field *Type_handler_blob_common::make_schema_field(TABLE *table,
                                                    const ST_FIELD_INFO &def,
                                                    bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   if (show_field)
   {
     return new (table->in_use->mem_root)
@@ -3506,15 +3861,15 @@ Field *Type_handler_blob_common::make_schema_field(TABLE *table,
 }
 
 
-Field *Type_handler_string::make_schema_field(TABLE *table,
-                                              const Record_addr &addr,
-                                              const ST_FIELD_INFO &def,
-                                              bool show_field) const
+Field *Type_handler_varchar::make_schema_field(TABLE *table,
+                                               const Record_addr &addr,
+                                               const ST_FIELD_INFO &def,
+                                               bool show_field) const
 {
-  DBUG_ASSERT(def.field_length);
-  Lex_cstring_strlen name(def.field_name);
-  uint32 octet_length= (uint32) def.field_length * 3;
-  if (def.field_length * 3 > MAX_FIELD_VARCHARLENGTH)
+  DBUG_ASSERT(def.char_length());
+  LEX_CSTRING name= def.name();
+  uint32 octet_length= (uint32) def.char_length() * 3;
+  if (octet_length > MAX_FIELD_VARCHARLENGTH)
   {
     Field *field= new (table->in_use->mem_root)
       Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(), Field::NONE,
@@ -3543,9 +3898,9 @@ Field *Type_handler_tiny::make_schema_field(TABLE *table,
                                             const ST_FIELD_INFO &def,
                                             bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new (table->in_use->mem_root)
-           Field_tiny(addr.ptr(), def.field_length,
+           Field_tiny(addr.ptr(), def.char_length(),
                       addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
                       0/*zerofill*/, def.unsigned_flag());
 }
@@ -3556,9 +3911,9 @@ Field *Type_handler_short::make_schema_field(TABLE *table,
                                              const ST_FIELD_INFO &def,
                                              bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new (table->in_use->mem_root)
-           Field_short(addr.ptr(), def.field_length,
+           Field_short(addr.ptr(), def.char_length(),
                        addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
                        0/*zerofill*/, def.unsigned_flag());
 }
@@ -3569,9 +3924,9 @@ Field *Type_handler_long::make_schema_field(TABLE *table,
                                             const ST_FIELD_INFO &def,
                                             bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new (table->in_use->mem_root)
-           Field_long(addr.ptr(), def.field_length,
+           Field_long(addr.ptr(), def.char_length(),
                       addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
                       0/*zerofill*/, def.unsigned_flag());
 }
@@ -3582,9 +3937,9 @@ Field *Type_handler_longlong::make_schema_field(TABLE *table,
                                                 const ST_FIELD_INFO &def,
                                                 bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new (table->in_use->mem_root)
-           Field_longlong(addr.ptr(), def.field_length,
+           Field_longlong(addr.ptr(), def.char_length(),
                           addr.null_ptr(), addr.null_bit(), Field::NONE, &name,
                           0/*zerofill*/, def.unsigned_flag());
 }
@@ -3595,7 +3950,7 @@ Field *Type_handler_date_common::make_schema_field(TABLE *table,
                                                    const ST_FIELD_INFO &def,
                                                    bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new (table->in_use->mem_root)
            Field_newdate(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                          Field::NONE, &name);
@@ -3607,7 +3962,7 @@ Field *Type_handler_time_common::make_schema_field(TABLE *table,
                                                    const ST_FIELD_INFO &def,
                                                    bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new_Field_time(table->in_use->mem_root,
                         addr.ptr(), addr.null_ptr(), addr.null_bit(),
                         Field::NONE, &name, def.fsp());
@@ -3619,7 +3974,7 @@ Field *Type_handler_datetime_common::make_schema_field(TABLE *table,
                                                        const ST_FIELD_INFO &def,
                                                        bool show_field) const
 {
-  Lex_cstring_strlen name(def.field_name);
+  LEX_CSTRING name= def.name();
   return new_Field_datetime(table->in_use->mem_root,
                              addr.ptr(), addr.null_ptr(), addr.null_bit(),
                              Field::NONE, &name, def.fsp());
@@ -3901,7 +4256,7 @@ bool Type_handler_string_result::
     the query should return only the row with 'oe'.
     It should not return 'o-umlaut', because 'o-umlaut' does not match
     the right part of the condition: a='oe'
-    ('o-umlaut' is not equal to 'oe' in utf8_general_ci,
+    ('o-umlaut' is not equal to 'oe' in utf8mb3_general_ci,
      which is the collation of the field "a").
 
     If we change the right part from:
@@ -4098,10 +4453,10 @@ bool Type_handler_typelib::
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  TYPELIB *typelib= NULL;
+  const TYPELIB *typelib= NULL;
   for (uint i= 0; i < nitems; i++)
   {
-    TYPELIB *typelib2;
+    const TYPELIB *typelib2;
     if ((typelib2= items[i]->get_typelib()))
     {
       if (typelib)
@@ -4193,10 +4548,6 @@ bool Type_handler_geometry::
                                        Item **items, uint nitems) const
 {
   DBUG_ASSERT(nitems > 0);
-  Type_geometry_attributes gattr(items[0]->type_handler(), items[0]);
-  for (uint i= 1; i < nitems; i++)
-    gattr.join(items[i]);
-  func->set_geometry_type(gattr.get_geometry_type());
   func->collation.set(&my_charset_bin);
   func->unsigned_flag= false;
   func->decimals= 0;
@@ -6905,7 +7256,6 @@ bool Type_handler_geometry::
 {
   param->unsigned_flag= false;
   param->setup_conversion_blob(thd);
-  param->set_geometry_type(attr->uint_geometry_type());
   return param->set_str(val->m_string.ptr(), val->m_string.length(),
                         &my_charset_bin, &my_charset_bin);
 }
@@ -7813,7 +8163,7 @@ Field *Type_handler_geometry::
   return new (mem_root)
     Field_geom(rec.ptr(), rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name, share,
-               attr->pack_flag_to_pack_length(), attr->geom_type, attr->srid);
+               attr->pack_flag_to_pack_length(), this, attr->srid);
 }
 #endif
 
@@ -7920,7 +8270,7 @@ void Type_handler_geometry::
 {
   def->frm_pack_basic(buff);
   buff[11]= 0;
-  buff[14]= (uchar) def->geom_type;
+  buff[14]= (uchar) geometry_type();
 }
 #endif
 
@@ -7950,8 +8300,6 @@ bool Type_handler_geometry::
   uint gis_opt_read, gis_length, gis_decimals;
   Field_geom::storage_type st_type;
   attr->frm_unpack_basic(buffer);
-  // charset and geometry_type share the same byte in frm
-  attr->geom_type= (Field::geometry_type) buffer[14];
   gis_opt_read= gis_field_options_read(gis_options->str,
                                        gis_options->length,
                                        &st_type, &gis_length,
@@ -8514,6 +8862,77 @@ Type_handler_timestamp_common::Item_param_val_native(THD *thd,
 }
 
 
+/***************************************************************************/
+
+bool Type_handler::validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const
+{
+  DBUG_EXECUTE_IF("validate_implicit_default_value_error", return true;);
+  return false;
+}
+
+
+bool Type_handler_date_common::validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const
+{
+  return thd->variables.sql_mode & MODE_NO_ZERO_DATE;
+}
+
+
+bool Type_handler_datetime_common::validate_implicit_default_value(THD *thd,
+                                       const Column_definition &def) const
+{
+  return thd->variables.sql_mode & MODE_NO_ZERO_DATE;
+}
+
+
+/***************************************************************************/
+
+const Name & Type_handler_row::default_value() const
+{
+  DBUG_ASSERT(0);
+  static Name def(STRING_WITH_LEN(""));
+  return def;
+}
+
+const Name & Type_handler_numeric::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0"));
+  return def;
+}
+
+const Name & Type_handler_string_result::default_value() const
+{
+  static Name def(STRING_WITH_LEN(""));
+  return def;
+}
+
+const Name & Type_handler_time_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("00:00:00"));
+  return def;
+}
+
+const Name & Type_handler_date_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0000-00-00"));
+  return def;
+}
+
+const Name & Type_handler_datetime_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0000-00-00 00:00:00"));
+  return def;
+}
+
+const Name & Type_handler_timestamp_common::default_value() const
+{
+  static Name def(STRING_WITH_LEN("0000-00-00 00:00:00"));
+  return def;
+}
+
+/***************************************************************************/
+
 LEX_CSTRING Charset::collation_specific_name() const
 {
   /*
@@ -8553,19 +8972,8 @@ Charset::encoding_allows_reinterpret_as(const CHARSET_INFO *cs) const
 
 
 bool
-Charset::encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const
+Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
 {
-  /*
-    Test quickly if we have two exactly equal CHARSET_INFO pointers.
-    This also handles a special case with my_charset_bin:
-    it does not have a collation name specific part in CHARSET_INFO::name,
-    which is just "binary" (without a character set name prefix),
-    so the code with collation_specific_name() below won't work for it.
-  */
-  if (m_charset == cs)
-    return true;
-  if (!encoding_allows_reinterpret_as(cs))
-    return false;
   LEX_CSTRING name0= collation_specific_name();
   LEX_CSTRING name1= Charset(cs).collation_specific_name();
   return name0.length && !cmp(&name0, &name1);

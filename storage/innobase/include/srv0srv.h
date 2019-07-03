@@ -951,18 +951,7 @@ struct export_var_t{
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
 	ulint innodb_deadlocks;
-	ibool innodb_have_atomic_builtins;	/*!< HAVE_ATOMIC_BUILTINS */
 	ulint innodb_history_list_length;
-	ulint innodb_ibuf_discarded_delete_marks;
-	ulint innodb_ibuf_discarded_deletes;
-	ulint innodb_ibuf_discarded_inserts;
-	ulint innodb_ibuf_free_list;
-	ulint innodb_ibuf_merged_delete_marks;
-	ulint innodb_ibuf_merged_deletes;
-	ulint innodb_ibuf_merged_inserts;
-	ulint innodb_ibuf_merges;
-	ulint innodb_ibuf_segment_size;
-	ulint innodb_ibuf_size;
 	ulint innodb_log_waits;			/*!< srv_log_waits */
 	ulint innodb_log_write_requests;	/*!< srv_log_write_requests */
 	ulint innodb_log_writes;		/*!< srv_log_writes */
@@ -978,7 +967,6 @@ struct export_var_t{
 	ulint innodb_os_log_fsyncs;		/*!< fil_n_log_flushes */
 	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
 	ulint innodb_os_log_pending_fsyncs;	/*!< fil_n_pending_log_flushes */
-	ulint innodb_page_size;			/*!< srv_page_size */
 	ulint innodb_pages_created;		/*!< buf_pool->stat.n_pages_created */
 	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read*/
 	ulint innodb_pages_written;		/*!< buf_pool->stat.n_pages_written */

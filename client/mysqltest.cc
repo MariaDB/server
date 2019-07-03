@@ -873,17 +873,10 @@ static char *my_fgets(char * s, int n, FILE * stream, int *len)
 
 /*
   Wrapper for popen().
-  On Windows, uses binary mode to workaround
-  C runtime bug mentioned in MDEV-9409
 */
 static FILE* my_popen(const char *cmd, const char *mode)
 {
-  FILE *f= popen(cmd, mode);
-#ifdef _WIN32
-  if (f)
-    _setmode(fileno(f), O_BINARY);
-#endif
-  return f;
+  return popen(cmd, mode);
 }
 
 #ifdef EMBEDDED_LIBRARY
@@ -6068,6 +6061,7 @@ void do_connect(struct st_command *command)
 		  opt_ssl_capath, ssl_cipher ? ssl_cipher : opt_ssl_cipher);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(con_slot->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
 #if MYSQL_VERSION_ID >= 50000
     /* Turn on ssl_verify_server_cert only if host is "localhost" */
     opt_ssl_verify_server_cert= !strcmp(ds_host.str, "localhost");
@@ -11288,7 +11282,10 @@ static int setenv(const char *name, const char *value, int overwrite)
   that always reads from stdin with explicit echo.
 
 */
-MYSQL_PLUGIN_EXPORT
+extern "C"
+#ifdef _MSC_VER
+__declspec(dllexport)
+#endif
 char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
                                       const char *prompt,
                                       char *buf, int buf_len)

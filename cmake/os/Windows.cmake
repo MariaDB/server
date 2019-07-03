@@ -65,7 +65,9 @@ FUNCTION(ENABLE_ASAN)
   ENDIF()
   # currently, asan is broken with static CRT.
   IF(NOT(MSVC_CRT_TYPE STREQUAL "/MD"))
-    MESSAGE(FATAL_ERROR "-DWITH_ASAN cmake parameter also requires -DMSVC_CRT_TYPE=/MD")
+    IF(NOT DYNAMIC_UCRT_LINK)
+      MESSAGE(FATAL_ERROR "-DWITH_ASAN cmake parameter also requires -DMSVC_CRT_TYPE=/MD OR DYNAMIC_UCRT_LINK=ON")
+    ENDIF()
   ENDIF()
   IF(CMAKE_SIZEOF_VOID_P EQUAL 4)
     MESSAGE(FATAL_ERROR "-DWITH_ASAN on Windows requires 64bit build")
@@ -90,29 +92,23 @@ ENDFUNCTION()
 
 
 IF(MSVC)
-  IF(WITH_ASAN)
-    ENABLE_ASAN()
-  ENDIF()
-
   # Disable mingw based pkg-config found in Strawberry perl
   SET(PKG_CONFIG_EXECUTABLE 0 CACHE INTERNAL "")
 
-  SET(MSVC_CRT_TYPE /MD CACHE STRING
+  SET(MSVC_CRT_TYPE /MT CACHE STRING
     "Runtime library - specify runtime library for linking (/MT,/MTd,/MD,/MDd)"
   )
-  SET(VALID_CRT_TYPES /MTd /MDd /MD  /MT)
+  SET(VALID_CRT_TYPES /MTd /MDd /MD /MT)
   IF (NOT ";${VALID_CRT_TYPES};" MATCHES ";${MSVC_CRT_TYPE};")
     MESSAGE(FATAL_ERROR "Invalid value ${MSVC_CRT_TYPE} for MSVC_CRT_TYPE, choose one of /MT,/MTd,/MD,/MDd ")
   ENDIF()
 
-  IF(MSVC_CRT_TYPE MATCHES "/MD")
-   # Dynamic runtime (DLLs), need to install CRT libraries.
-   SET(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT VCCRT)
-   SET(CMAKE_INSTALL_UCRT_LIBRARIES TRUE)
-   IF(MSVC_CRT_TYPE STREQUAL "/MDd")
-     SET (CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY TRUE)
-   ENDIF()
-   INCLUDE(InstallRequiredSystemLibraries)
+  OPTION(DYNAMIC_UCRT_LINK "Link Universal CRT dynamically, if MSVC_CRT_TYPE=/MT" ON)
+  SET(DYNAMIC_UCRT_LINKER_OPTION " /NODEFAULTLIB:libucrt.lib /DEFAULTLIB:ucrt.lib")
+
+  IF(WITH_ASAN)
+    SET(MSVC_CRT_TYPE /MD CACHE STRING FORCE)
+    ENABLE_ASAN()
   ENDIF()
 
   # Enable debug info also in Release build,
@@ -124,19 +120,11 @@ IF(MSVC)
      "${CMAKE_${type}_LINKER_FLAGS_MINSIZEREL} /debug")
   ENDFOREACH()
   
-  # Force static runtime libraries
-  # - Choose debugging information:
-  #     /Z7
-  #     Produces an .obj file containing full symbolic debugging
-  #     information for use with the debugger. The symbolic debugging
-  #     information includes the names and types of variables, as well as
-  #     functions and line numbers. No .pdb file is produced by the compiler.
-  #
-  # - Remove preprocessor flag _DEBUG that older cmakes use with Config=Debug,
-  #   it is as defined by Debug runtimes itself (/MTd /MDd)
+  # Force runtime libraries
+  # Compile with /Zi to get debugging information
 
   FOREACH(lang C CXX)
-    SET(CMAKE_${lang}_FLAGS_RELEASE "${CMAKE_${lang}_FLAGS_RELEASE} /Z7")
+    SET(CMAKE_${lang}_FLAGS_RELEASE "${CMAKE_${lang}_FLAGS_RELEASE} /Zi")
   ENDFOREACH()
   FOREACH(flag 
    CMAKE_C_FLAGS_RELEASE    CMAKE_C_FLAGS_RELWITHDEBINFO 
@@ -146,10 +134,8 @@ IF(MSVC)
    CMAKE_C_FLAGS_MINSIZEREL  CMAKE_CXX_FLAGS_MINSIZEREL
    )
    STRING(REGEX REPLACE "/M[TD][d]?"  "${MSVC_CRT_TYPE}" "${flag}"  "${${flag}}" )
-   STRING(REGEX REPLACE "/D[ ]?_DEBUG"  "" "${flag}" "${${flag}}")
-   STRING(REPLACE "/Zi"  "/Z7" "${flag}" "${${flag}}")
-   IF(NOT "${${flag}}" MATCHES "/Z7")
-    STRING(APPEND ${flag} " /Z7")
+   IF(NOT "${${flag}}" MATCHES "/Zi")
+    STRING(APPEND ${flag} " /Zi")
    ENDIF()
   ENDFOREACH()
 
@@ -162,7 +148,6 @@ IF(MSVC)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CLANG_CL_FLAGS}")
   ENDIF()
 
-  # Fix CMake's predefined huge stack size
   FOREACH(type EXE SHARED MODULE)
    STRING(REGEX REPLACE "/STACK:([^ ]+)" "" CMAKE_${type}_LINKER_FLAGS "${CMAKE_${type}_LINKER_FLAGS}")
    STRING(REGEX REPLACE "/INCREMENTAL:([^ ]+)" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO}")
@@ -170,6 +155,11 @@ IF(MSVC)
    STRING(REGEX REPLACE "/INCREMENTAL:([^ ]+)" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_DEBUG "${CMAKE_${type}_LINKER_FLAGS_DEBUG}")
    STRING(REGEX REPLACE "/INCREMENTAL$" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_DEBUG "${CMAKE_${type}_LINKER_FLAGS_DEBUG}")
    SET(CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO} /OPT:REF /release")
+   IF(DYNAMIC_UCRT_LINK AND (MSVC_CRT_TYPE STREQUAL "/MT"))
+     FOREACH(config RELEASE RELWITHDEBINFO DEBUG MINSIZEREL)
+       STRING(APPEND CMAKE_${type}_LINKER_FLAGS_${config} ${DYNAMIC_UCRT_LINKER_OPTION})
+     ENDFOREACH()
+   ENDIF()
   ENDFOREACH()
 
   
@@ -180,7 +170,7 @@ IF(MSVC)
   ENDIF()
   
   # Speed up multiprocessor build
-  IF (MSVC_VERSION GREATER 1400 AND (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang))
+  IF (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang)
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   ENDIF()
@@ -288,5 +278,6 @@ MACRO(FORCE_STATIC_CRT)
     CMAKE_C_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_MINSIZEREL
   )
     STRING(REGEX REPLACE "/MD[d]?"  "/MT" "${flag}"  "${${flag}}" )
+    STRING(REPLACE ${DYNAMIC_UCRT_LINKER_OPTION} "" "${flag}" "${${flag}}")
   ENDFOREACH()
 ENDMACRO()

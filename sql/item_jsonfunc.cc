@@ -439,7 +439,17 @@ bool Item_func_json_value::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
-  path.set_constant_flag(args[1]->const_item());
+  set_constant_flag(args[1]->const_item());
+  maybe_null= 1;
+  return FALSE;
+}
+
+
+bool Item_func_json_query::fix_length_and_dec()
+{
+  collation.set(args[0]->collation);
+  max_length= args[0]->max_length;
+  set_constant_flag(args[1]->const_item());
   maybe_null= 1;
   return FALSE;
 }
@@ -449,115 +459,100 @@ bool Item_func_json_value::fix_length_and_dec()
   Returns NULL, not an error if the found value
   is not a scalar.
 */
-String *Item_func_json_value::val_str(String *str)
+bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
+                                  CHARSET_INFO *cs)
 {
-  json_engine_t je;
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= item_js->val_json(&tmp_js);
   int error= 0;
   uint array_counters[JSON_DEPTH_LIMIT];
 
-  if (!path.parsed)
+  if (!parsed)
   {
-    String *s_p= args[1]->val_str(&tmp_path);
+    String *s_p= item_jp->val_str(&tmp_path);
     if (s_p &&
-        json_path_setup(&path.p, s_p->charset(), (const uchar *) s_p->ptr(),
+        json_path_setup(&p, s_p->charset(), (const uchar *) s_p->ptr(),
                         (const uchar *) s_p->ptr() + s_p->length()))
-      goto err_return;
-    path.parsed= path.constant;
+      return true;
+    parsed= constant;
   }
 
-  if ((null_value= args[0]->null_value || args[1]->null_value))
-    return NULL;
+  if (item_js->null_value || item_jp->null_value)
+    return true;
 
-  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
-                  (const uchar *) js->ptr() + js->length());
-
+  Json_engine_scan je(*js);
   str->length(0);
-  str->set_charset(collation.collation);
+  str->set_charset(cs);
 
-  path.cur_step= path.p.steps;
+  cur_step= p.steps;
 continue_search:
-  if (json_find_path(&je, &path.p, &path.cur_step, array_counters))
-  {
-    if (je.s.error)
-      goto err_return;
-
-    null_value= 1;
-    return 0;
-  }
+  if (json_find_path(&je, &p, &cur_step, array_counters))
+    return true;
 
   if (json_read_value(&je))
-    goto err_return;
+    return true;
 
   if (unlikely(check_and_get_value(&je, str, &error)))
   {
     if (error)
-      goto err_return;
+      return true;
     goto continue_search;
   }
 
-  return str;
-
-err_return:
-  null_value= 1;
-  return 0;
+  return false;
 }
 
 
-bool Item_func_json_value::check_and_get_value(json_engine_t *je, String *res,
-                                               int *error)
+bool Json_engine_scan::check_and_get_value_scalar(String *res, int *error)
 {
   CHARSET_INFO *json_cs;
   const uchar *js;
   uint js_len;
 
-  if (!json_value_scalar(je))
+  if (!json_value_scalar(this))
   {
     /* We only look for scalar values! */
-    if (json_skip_level(je) || json_scan_next(je))
+    if (json_skip_level(this) || json_scan_next(this))
       *error= 1;
     return true;
   }
 
-  if (je->value_type == JSON_VALUE_TRUE ||
-      je->value_type == JSON_VALUE_FALSE)
+  if (value_type == JSON_VALUE_TRUE ||
+      value_type == JSON_VALUE_FALSE)
   {
     json_cs= &my_charset_utf8mb4_bin;
-    js= (const uchar *) ((je->value_type == JSON_VALUE_TRUE) ? "1" : "0");
+    js= (const uchar *) ((value_type == JSON_VALUE_TRUE) ? "1" : "0");
     js_len= 1;
   }
   else
   {
-    json_cs= je->s.cs;
-    js= je->value;
-    js_len= je->value_len;
+    json_cs= s.cs;
+    js= value;
+    js_len= value_len;
   }
 
 
-  return st_append_json(res, json_cs, js, js_len); 
+  return st_append_json(res, json_cs, js, js_len);
 }
 
 
-bool Item_func_json_query::check_and_get_value(json_engine_t *je, String *res,
-                                               int *error)
+bool Json_engine_scan::check_and_get_value_complex(String *res, int *error)
 {
-  const uchar *value;
-  if (json_value_scalar(je))
+  if (json_value_scalar(this))
   {
     /* We skip scalar values. */
-    if (json_scan_next(je))
+    if (json_scan_next(this))
       *error= 1;
     return true;
   }
 
-  value= je->value;
-  if (json_skip_level(je))
+  const uchar *tmp_value= value;
+  if (json_skip_level(this))
   {
     *error= 1;
     return true;
   }
 
-  res->set((const char *) je->value, (uint32)(je->s.c_str - value), je->s.cs);
+  res->set((const char *) value, (uint32)(s.c_str - tmp_value), s.cs);
   return false;
 }
 
@@ -600,7 +595,7 @@ String *Item_func_json_quote::val_str(String *str)
 
 bool Item_func_json_unquote::fix_length_and_dec()
 {
-  collation.set(&my_charset_utf8_general_ci,
+  collation.set(&my_charset_utf8mb3_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
   maybe_null= 1;
@@ -645,12 +640,12 @@ String *Item_func_json_unquote::val_str(String *str)
     return js;
 
   str->length(0);
-  str->set_charset(&my_charset_utf8_general_ci);
+  str->set_charset(&my_charset_utf8mb3_general_ci);
 
   if (str->realloc_with_extra_if_needed(je.value_len) ||
       (c_len= json_unescape(js->charset(),
         je.value, je.value + je.value_len,
-        &my_charset_utf8_general_ci,
+        &my_charset_utf8mb3_general_ci,
         (uchar *) str->ptr(), (uchar *) (str->ptr() + je.value_len))) < 0)
     goto error;
 
@@ -680,7 +675,7 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
         return 1;
 
       for (uint c_path=0; c_path < n_paths; c_path++)
-        (*tmp_paths)[c_path].set_charset(&my_charset_utf8_general_ci);
+        (*tmp_paths)[c_path].set_charset(&my_charset_utf8mb3_general_ci);
     }
 
     return 0;
@@ -2619,7 +2614,7 @@ longlong Item_func_json_depth::val_int()
 
 bool Item_func_json_type::fix_length_and_dec()
 {
-  collation.set(&my_charset_utf8_general_ci);
+  collation.set(&my_charset_utf8mb3_general_ci);
   max_length= 12;
   maybe_null= 1;
   return FALSE;
@@ -2665,7 +2660,7 @@ String *Item_func_json_type::val_str(String *str)
     break;
   }
 
-  str->set(type, strlen(type), &my_charset_utf8_general_ci);
+  str->set(type, strlen(type), &my_charset_utf8mb3_general_ci);
   return str;
 
 error:
@@ -3567,7 +3562,7 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
        if (value2.realloc_with_extra_if_needed(je.value_len) ||
          (c_len= json_unescape(js->charset(), je.value,
                                je.value + je.value_len,
-                               &my_charset_utf8_general_ci,
+                               &my_charset_utf8mb3_general_ci,
                                (uchar *) value2.ptr(),
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
          goto error;
@@ -3616,7 +3611,7 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
     if (value1.realloc_with_extra_if_needed(value_len) ||
         (c_len= json_unescape(value1.charset(), (uchar *) value,
                               (uchar *) value+value_len,
-                              &my_charset_utf8_general_ci,
+                              &my_charset_utf8mb3_general_ci,
                               (uchar *) value1.ptr(),
                               (uchar *) (value1.ptr() + value_len))) < 0)
       return 1;

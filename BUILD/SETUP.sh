@@ -170,7 +170,7 @@ debug_cflags="-DEXTRA_DEBUG -DSAFE_MUTEX -DSAFEMALLOC"
 error_inject="--with-error-inject "
 #
 # Base C++ flags for all builds
-base_cxxflags="-felide-constructors -fexceptions -fno-rtti"
+base_cxxflags="-felide-constructors -fexceptions"
 #
 # Flags for optimizing builds.
 # Be as fast as we can be without losing our ability to backtrace.
@@ -208,7 +208,7 @@ fi
 
 max_no_embedded_configs="$SSL_LIBRARY --with-plugins=max"
 max_no_qc_configs="$SSL_LIBRARY --with-plugins=max --without-query-cache"
-max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --without-plugin=plugin_file_key_management --with-plugin-rocksdb=dynamic"
+max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --without-plugin=plugin_file_key_management --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC"
 all_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-innodb_plugin --with-libevent"
 
 #

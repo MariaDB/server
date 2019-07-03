@@ -130,6 +130,47 @@ static inline uchar last_byte_mask(uint bits)
   /* Return bitmask for the significant bits */
   return ((2U << used) - 1);
 }
+
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
+#define MY_FIND_FIRST_BIT_END sizeof(ulonglong)*8
+/*
+  Find the position of the first(least significant) bit set in
+  the argument. Returns 64 if the argument was 0.
+*/
+static inline uint my_find_first_bit(ulonglong n)
+{
+  if(!n)
+    return MY_FIND_FIRST_BIT_END;
+#if defined(__GNUC__)
+  return __builtin_ctzll(n);
+#elif defined(_MSC_VER)
+#if defined(_M_IX86)
+  unsigned long bit;
+  if( _BitScanForward(&bit, (uint)n))
+    return bit;
+  _BitScanForward(&bit, (uint)(n>>32));
+  return bit + 32;
+#else
+  unsigned long bit;
+  _BitScanForward64(&bit, n);
+  return bit;
+#endif
+#else
+  /* Generic case */
+  uint  shift= 0;
+  static const uchar last_bit[16] = { 32, 0, 1, 0,
+                                      2, 0, 1, 0,
+                                      3, 0, 1, 0,
+                                      2, 0, 1, 0};
+  uint bit;
+  while ((bit = last_bit[(n >> shift) & 0xF]) == 32)
+    shift+= 4;
+  return shift+bit;
+#endif
+}
 C_MODE_END
 
 #endif /* MY_BIT_INCLUDED */

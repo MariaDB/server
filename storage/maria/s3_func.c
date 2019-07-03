@@ -37,6 +37,11 @@ static void convert_frm_to_disk_format(uchar *header);
 static int s3_read_frm_from_disk(const char *filename, uchar **to,
                                  size_t *to_size);
 
+/* Used by ha_s3.cc and tools to define different protocol options */
+
+static const char *protocol_types[]= {"Auto", "Original", "Amazon", NullS};
+TYPELIB s3_protocol_typelib= {array_elements(protocol_types)-1,"",
+                              protocol_types, NULL};
 
 /******************************************************************************
  Allocations handler for libmarias3
@@ -137,13 +142,16 @@ ms3_st *s3_open_connection(S3_INFO *s3)
   if (!(s3_client= ms3_init(s3->access_key.str,
                             s3->secret_key.str,
                             s3->region.str,
-                            NULL)))
+                            s3->host_name.str)))
   {
     my_printf_error(HA_ERR_NO_SUCH_TABLE,
                     "Can't open connection to S3, error: %d %s", MYF(0),
                     errno, ms3_error(errno));
     my_errno= HA_ERR_NO_SUCH_TABLE;
   }
+  if (s3->protocol_version)
+    ms3_set_option(s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
+                   &s3->protocol_version);
   return s3_client;
 }
 
@@ -275,18 +283,19 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
                     const char *path,
                     const char *database, const char *table_name,
                     ulong block_size, my_bool compression,
-                    my_bool force, my_bool display)
+                    my_bool force, my_bool display, my_bool copy_frm)
 {
   ARIA_TABLE_CAPABILITIES cap;
   char aws_path[FN_REFLEN+100];
   char filename[FN_REFLEN];
   char *aws_path_end, *end;
   uchar *alloc_block= 0, *block;
+  ms3_status_st status;
   File file= -1;
   my_off_t file_size;
   size_t frm_length;
   int error;
-  ms3_status_st status;
+  my_bool frm_created= 0;
   DBUG_ENTER("aria_copy_to_s3");
 
   aws_path_end= strxmov(aws_path, database, "/", table_name, NullS);
@@ -305,27 +314,31 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
       DBUG_RETURN(error);
   }
 
-  /*
-    Copy frm file if it exists
-    We do this first to ensure that .frm always exists. This is needed to
-    ensure that discovery of the table will work.
-  */
-  fn_format(filename, path, "", ".frm", MY_REPLACE_EXT);
-  if (!s3_read_frm_from_disk(filename, &alloc_block, &frm_length))
+  if (copy_frm)
   {
-    if (display)
-      printf("Copying frm file %s\n", filename);
+    /*
+      Copy frm file if it exists
+      We do this first to ensure that .frm always exists. This is needed to
+      ensure that discovery of the table will work.
+    */
+    fn_format(filename, path, "", ".frm", MY_REPLACE_EXT);
+    if (!s3_read_frm_from_disk(filename, &alloc_block, &frm_length))
+    {
+      if (display)
+        printf("Copying frm file %s\n", filename);
 
-    end= strmov(aws_path_end,"/frm");
-    convert_frm_to_s3_format(alloc_block);
+      end= strmov(aws_path_end,"/frm");
+      convert_frm_to_s3_format(alloc_block);
 
-    /* Note that frm is not compressed! */
-    if (s3_put_object(s3_client, aws_bucket, aws_path, alloc_block, frm_length,
-                      0))
-      goto err;
+      /* Note that frm is not compressed! */
+      if (s3_put_object(s3_client, aws_bucket, aws_path, alloc_block, frm_length,
+                        0))
+        goto err;
 
-    my_free(alloc_block);
-    alloc_block= 0;
+      frm_created= 1;
+      my_free(alloc_block);
+      alloc_block= 0;
+    }
   }
 
   if (display)
@@ -347,7 +360,7 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
   {
     fprintf(stderr,
             "Aria table %s doesn't match criteria to be copied to S3.\n"
-            "It should be non-transactional and should have row_format page",
+            "It should be non-transactional and should have row_format page\n",
             path);
     goto err;
   }
@@ -432,6 +445,11 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
   DBUG_RETURN(0);
 
 err:
+  if (frm_created)
+  {
+    end= strmov(aws_path_end,"/frm");
+    (void) s3_delete_object(s3_client, aws_bucket, aws_path, 0);
+  }
   if (file >= 0)
     my_close(file, MYF(0));
   my_free(alloc_block);
@@ -707,7 +725,8 @@ int aria_delete_from_s3(ms3_st *s3_client, const char *aws_bucket,
 
 int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
                    const char *from_database, const char *from_table,
-                   const char *to_database, const char *to_table)
+                   const char *to_database, const char *to_table,
+                   my_bool rename_frm)
 {
   ms3_status_st status;
   char to_aws_path[FN_REFLEN+100], from_aws_path[FN_REFLEN+100];
@@ -741,10 +760,12 @@ int aria_rename_s3(ms3_st *s3_client, const char *aws_bucket,
   error|= s3_rename_directory(s3_client, aws_bucket, from_aws_path,
                               to_aws_path, 1);
 
-  strmov(from_aws_path_end, "/frm");
-  strmov(to_aws_path_end, "/frm");
+  if (rename_frm) {
+    strmov(from_aws_path_end, "/frm");
+    strmov(to_aws_path_end, "/frm");
 
-  s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path, 1);
+    s3_rename_object(s3_client, aws_bucket, from_aws_path, to_aws_path, 1);
+  }
 
   strmov(from_aws_path_end,"/aria");
   strmov(to_aws_path_end,"/aria");

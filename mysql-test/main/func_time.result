@@ -3686,15 +3686,15 @@ SET TIMESTAMP=DEFAULT;
 # MDEV-15702 Remove the use of STRING_ITEM from Item_func_date_format::fix_length_and_dec()
 #
 SELECT DATE_FORMAT('2001-01-01',POINT(1,1));
-ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+ERROR HY000: Illegal parameter data type point for operation 'date_format'
 SELECT DATE_FORMAT(POINT(1,1),'10');
-ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+ERROR HY000: Illegal parameter data type point for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01',ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT(ROW(1,1),'10');
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',POINT(1,1));
-ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+ERROR HY000: Illegal parameter data type point for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',@unknown_user_variable);
@@ -6344,4 +6344,10 @@ MAKETIME('01', '01', LEAST( -100, NULL ))
 NULL
 SELECT CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )));
 CONCAT(MAKETIME('01', '01', LEAST( -100, NULL )))
+NULL
+#
+# MDEV-19774 Assertion `sec.se c() <= 0x7FFFFFFFL' failed in Item_func_from_unixtime::get_date
+#
+SELECT FROM_UNIXTIME(LEAST(3696610869, NULL));
+FROM_UNIXTIME(LEAST(3696610869, NULL))
 NULL

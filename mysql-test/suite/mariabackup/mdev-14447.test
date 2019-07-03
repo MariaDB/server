@@ -1,4 +1,6 @@
 --source include/have_debug.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 call mtr.add_suppression("InnoDB: New log files created");
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;

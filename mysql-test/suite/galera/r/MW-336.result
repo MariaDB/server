@@ -7,11 +7,13 @@ SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
 # Wait 10 slave threads to start 1
 connection node_2;
-# Generate 12 replication events
+SET SESSION wsrep_sync_wait=15;
+# Generate 100 replication events
 connection node_1;
+SET SESSION wsrep_sync_wait=15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-13
+101
 # Wait 9 slave threads to exit 1
 SET GLOBAL wsrep_slave_threads = 10;
 # Wait 10 slave threads to start 2
@@ -19,23 +21,21 @@ SET GLOBAL wsrep_slave_threads = 20;
 # Wait 20 slave threads to start 3
 SET GLOBAL wsrep_slave_threads = 1;
 connection node_2;
-# Generate 40 replication events
+# Generate 100 replication events
 connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-53
+201
 # Wait 10 slave threads to exit 3
 SET GLOBAL wsrep_slave_threads = 10;
-SET GLOBAL wsrep_slave_threads = 0;
-Warnings:
-Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+SET GLOBAL wsrep_slave_threads = 1;
 # Wait 10 slave threads to start 3
 connection node_2;
-# Generate 12 replication events
+# Generate 100 replication events
 connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-65
+301
 # Wait 10 slave threads to exit 4
 connection node_1;
 DROP TABLE t1;

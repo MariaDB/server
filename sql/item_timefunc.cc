@@ -986,7 +986,7 @@ String* Item_func_monthname::val_str(String* str)
     return (String *) 0;
 
   month_name= locale->month_names->type_names[d.get_mysql_time()->month - 1];
-  str->copy(month_name, (uint) strlen(month_name), &my_charset_utf8_bin,
+  str->copy(month_name, (uint) strlen(month_name), &my_charset_utf8mb3_bin,
 	    collation.collation, &err);
   return str;
 }
@@ -1130,7 +1130,7 @@ String* Item_func_dayname::val_str(String* str)
     return (String*) 0;
   
   day_name= locale->day_names->type_names[weekday];
-  str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8_bin,
+  str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8mb3_bin,
 	    collation.collation, &err);
   return str;
 }
@@ -1933,7 +1933,7 @@ bool Item_func_from_unixtime::get_date(THD *thd, MYSQL_TIME *ltime,
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 
   VSec9 sec(thd, args[0], "unixtime", TIMESTAMP_MAX_VALUE);
-  DBUG_ASSERT(sec.sec() <= TIMESTAMP_MAX_VALUE);
+  DBUG_ASSERT(sec.is_null() || sec.sec() <= TIMESTAMP_MAX_VALUE);
 
   if (sec.is_null() || sec.truncated() || sec.neg())
     return (null_value= 1);
@@ -2601,8 +2601,8 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
     return (null_value= 1);
 
   int warn;
-  new(ltime) Time(&warn, hour.neg(), hour.abs(), (uint) minute, sec,
-                  thd->temporal_round_mode(), decimals);
+  new(ltime) Time(&warn, hour.neg(), hour.abs(), (uint) minute,
+                  sec.to_const_sec9(), thd->temporal_round_mode(), decimals);
   if (warn)
   {
     // use check_time_range() to set ltime to the max value depending on dec

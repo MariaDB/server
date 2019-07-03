@@ -531,7 +531,7 @@ struct my_charset_handler_st
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
 extern MY_CHARSET_HANDLER my_charset_ucs2_handler;
-extern MY_CHARSET_HANDLER my_charset_utf8_handler;
+extern MY_CHARSET_HANDLER my_charset_utf8mb3_handler;
 
 
 /*
@@ -582,7 +582,7 @@ extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_bin;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1_nopad;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_filename;
-extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_utf8_general_ci;
+extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_utf8mb3_general_ci;
 
 extern struct charset_info_st my_charset_big5_bin;
 extern struct charset_info_st my_charset_big5_chinese_ci;
@@ -649,12 +649,12 @@ extern struct charset_info_st my_charset_utf32_unicode_ci;
 extern struct charset_info_st my_charset_utf32_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf32_nopad_bin;
 extern struct charset_info_st my_charset_utf32_general_nopad_ci;
-extern struct charset_info_st my_charset_utf8_bin;
-extern struct charset_info_st my_charset_utf8_nopad_bin;
-extern struct charset_info_st my_charset_utf8_general_nopad_ci;
-extern struct charset_info_st my_charset_utf8_general_mysql500_ci;
-extern struct charset_info_st my_charset_utf8_unicode_ci;
-extern struct charset_info_st my_charset_utf8_unicode_nopad_ci;
+extern struct charset_info_st my_charset_utf8mb3_bin;
+extern struct charset_info_st my_charset_utf8mb3_nopad_bin;
+extern struct charset_info_st my_charset_utf8mb3_general_nopad_ci;
+extern struct charset_info_st my_charset_utf8mb3_general_mysql500_ci;
+extern struct charset_info_st my_charset_utf8mb3_unicode_ci;
+extern struct charset_info_st my_charset_utf8mb3_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_ci;
 extern struct charset_info_st my_charset_utf8mb4_nopad_bin;

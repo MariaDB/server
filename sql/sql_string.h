@@ -126,6 +126,7 @@ size_t my_copy_with_hex_escaping(CHARSET_INFO *cs,
 uint convert_to_printable(char *to, size_t to_len,
                           const char *from, size_t from_len,
                           CHARSET_INFO *from_cs, size_t nbytes= 0);
+size_t convert_to_printable_required_length(uint len);
 
 
 class Charset
@@ -138,6 +139,11 @@ public:
   CHARSET_INFO *charset() const { return m_charset; }
   uint mbminlen() const { return m_charset->mbminlen; }
   uint mbmaxlen() const { return m_charset->mbmaxlen; }
+  bool is_good_for_ft() const
+  {
+    // Binary and UCS2/UTF16/UTF32 are not supported
+    return m_charset != &my_charset_bin && m_charset->mbminlen == 1;
+  }
 
   size_t numchars(const char *str, const char *end) const
   {
@@ -166,7 +172,7 @@ public:
   */
   LEX_CSTRING collation_specific_name() const;
   bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
-  bool encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const;
+  bool eq_collation_specific_names(CHARSET_INFO *cs) const;
 };
 
 
@@ -674,6 +680,7 @@ public:
 
   int reserve(size_t space_needed)
   {
+    DBUG_ASSERT((ulonglong) str_length + space_needed < UINT_MAX32);
     return realloc(str_length + space_needed);
   }
   int reserve(size_t space_needed, size_t grow_by);
@@ -898,6 +905,10 @@ public:
 
   // Append with optional character set conversion from cs to charset()
   bool append(const char *s, size_t arg_length, CHARSET_INFO *cs);
+  bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
+  {
+    return append(s.str, s.length, cs);
+  }
 
   void strip_sp();
   friend int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
@@ -959,6 +970,8 @@ public:
   {
     return !sortcmp(this, other, cs);
   }
+private:
+  bool append_semi_hex(const char *s, uint len, CHARSET_INFO *cs);
 };
 
 

@@ -23,18 +23,20 @@
   unlike other compilers, uses C++ mangling for variables not only
   for functions.
 */
-#if defined(_MSC_VER)
-  #ifdef __cplusplus
-    #define MYSQL_PLUGIN_EXPORT extern "C" __declspec(dllexport)
+#ifdef MYSQL_DYNAMIC_PLUGIN
+  #ifdef _MSC_VER
+    #define MYSQL_DLLEXPORT _declspec(dllexport)
   #else
-    #define MYSQL_PLUGIN_EXPORT __declspec(dllexport)
+    #define MYSQL_DLLEXPORT
   #endif
-#else /*_MSC_VER */
-  #ifdef __cplusplus
-    #define MYSQL_PLUGIN_EXPORT extern "C"
-  #else
-    #define MYSQL_PLUGIN_EXPORT
-  #endif
+#else
+  #define MYSQL_DLLEXPORT
+#endif
+
+#ifdef __cplusplus
+  #define MYSQL_PLUGIN_EXPORT extern "C" MYSQL_DLLEXPORT
+#else
+  #define MYSQL_PLUGIN_EXPORT MYSQL_DLLEXPORT
 #endif
 
 #ifdef __cplusplus

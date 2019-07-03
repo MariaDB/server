@@ -271,6 +271,7 @@ TIME,HOSTNAME,root,localhost,ID,0,CONNECT,mysql,,0
 TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,mysql,,0
 TIME,HOSTNAME,no_such_user,localhost,ID,0,FAILED_CONNECT,,,ID
 TIME,HOSTNAME,no_such_user,localhost,ID,0,DISCONNECT,,,0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, root, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,test,t2,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create table t2 (id int)',0
@@ -292,10 +293,10 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'insert into t2 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,READ,test,t2,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select * from t2',0
 TIME,HOSTNAME,root,localhost,ID,ID,ALTER,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,RENAME,test,t1|test.renamed_t1,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,table_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,column_stats,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,index_stats,
-TIME,HOSTNAME,root,localhost,ID,ID,RENAME,test,t1|test.renamed_t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'alter table t1 rename renamed_t1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_events=\'connect,query\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 1,\n2,\n# comment\n3',0
@@ -393,6 +394,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY ***
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_logging= off',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_logging= on',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_events=\'\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global serv',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select (1), (2)',0

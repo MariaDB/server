@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -612,10 +612,10 @@ extern mysql_mutex_t
        LOCK_item_func_sleep, LOCK_status,
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
-       LOCK_active_mi, LOCK_manager,
-       LOCK_global_system_variables, LOCK_user_conn,
+       LOCK_active_mi, LOCK_manager, LOCK_user_conn,
        LOCK_prepared_stmt_count, LOCK_error_messages,
        LOCK_slave_background;
+extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
 #ifdef HAVE_OPENSSL
@@ -634,6 +634,7 @@ extern Atomic_counter<uint32_t> thread_count;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
+extern ulonglong tls_version;
 
 extern MYSQL_PLUGIN_IMPORT pthread_key(THD*, THR_THD);
 
@@ -696,6 +697,7 @@ enum options_mysqld
   OPT_WSREP_SYNC_WAIT,
 #endif /* WITH_WSREP */
   OPT_MYSQL_COMPATIBILITY,
+  OPT_TLS_VERSION,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_which_is_always_the_last
 };

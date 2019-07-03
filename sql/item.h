@@ -1114,9 +1114,9 @@ public:
   {
     return type_handler()->max_display_length(this);
   }
-  TYPELIB *get_typelib() const { return NULL; }
+  const TYPELIB *get_typelib() const { return NULL; }
   void set_maybe_null(bool maybe_null_arg) { maybe_null= maybe_null_arg; }
-  void set_typelib(TYPELIB *typelib)
+  void set_typelib(const TYPELIB *typelib)
   {
     // Non-field Items (e.g. hybrid functions) never have ENUM/SET types yet.
     DBUG_ASSERT(0);
@@ -2208,14 +2208,6 @@ public:
       is_expensive_cache= walk(&Item::is_expensive_processor, 0, NULL);
     return MY_TEST(is_expensive_cache);
   }
-  virtual Field::geometry_type get_geometry_type() const
-    { return Field::GEOM_GEOMETRY; };
-  uint uint_geometry_type() const
-  { return get_geometry_type(); }
-  void set_geometry_type(uint type)
-  {
-    DBUG_ASSERT(0);
-  }
   String *check_well_formed_result(String *str, bool send_error= 0);
   bool eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs); 
   bool too_big_for_varchar() const
@@ -2421,56 +2413,6 @@ public:
   With_subquery_cache(): m_with_subquery(false) { }
   void join(const Item *item) { m_with_subquery|= item->with_subquery(); }
 };
-
-
-class Type_geometry_attributes
-{
-  uint m_geometry_type;
-  static const uint m_geometry_type_unknown= Field::GEOM_GEOMETRYCOLLECTION + 1;
-  void copy(const Type_handler *handler, const Type_all_attributes *gattr)
-  {
-    // Ignore implicit NULLs
-    m_geometry_type= handler == &type_handler_geometry ?
-                     gattr->uint_geometry_type() :
-                     m_geometry_type_unknown;
-  }
-public:
-  Type_geometry_attributes()
-   :m_geometry_type(m_geometry_type_unknown)
-  { }
-  Type_geometry_attributes(const Type_handler *handler,
-                           const Type_all_attributes *gattr)
-   :m_geometry_type(m_geometry_type_unknown)
-  {
-    copy(handler, gattr);
-  }
-  void join(const Item *item)
-  {
-    // Ignore implicit NULLs
-    if (m_geometry_type == m_geometry_type_unknown)
-      copy(item->type_handler(), item);
-    else if (item->type_handler() == &type_handler_geometry)
-    {
-      m_geometry_type=
-        Field_geom::geometry_type_merge((Field_geom::geometry_type)
-                                         m_geometry_type,
-                                        (Field_geom::geometry_type)
-                                         item->uint_geometry_type());
-    }
-  }
-  Field::geometry_type get_geometry_type() const
-  {
-    return m_geometry_type == m_geometry_type_unknown ?
-           Field::GEOM_GEOMETRY :
-           (Field::geometry_type) m_geometry_type;
-  }
-  void set_geometry_type(uint type)
-  {
-    DBUG_ASSERT(type <= m_geometry_type_unknown);
-    m_geometry_type= type;
-  }
-};
-
 
 
 /**
@@ -3352,7 +3294,7 @@ public:
                                           const Tmp_field_param *param);
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
-  TYPELIB *get_typelib() const { return field->get_typelib(); }
+  const TYPELIB *get_typelib() const { return field->get_typelib(); }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -3464,11 +3406,6 @@ public:
   {
     DBUG_ASSERT(fixed);
     return field->table->pos_in_table_list->outer_join;
-  }
-  Field::geometry_type get_geometry_type() const
-  {
-    DBUG_ASSERT(field_type() == MYSQL_TYPE_GEOMETRY);
-    return field->get_geometry_type();
   }
   bool check_index_dependence(void *arg);
   friend class Item_default_value;
@@ -3645,8 +3582,7 @@ public:
 class Item_param :public Item_basic_value,
                   private Settable_routine_parameter,
                   public Rewritable_query_parameter,
-                  private Type_handler_hybrid_field_type,
-                  public Type_geometry_attributes
+                  private Type_handler_hybrid_field_type
 {
   /*
     NO_VALUE is a special value meaning that the parameter has not been
@@ -3804,12 +3740,6 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-
-  Field::geometry_type get_geometry_type() const
-  { return Type_geometry_attributes::get_geometry_type(); };
-
-  void set_geometry_type(uint type)
-  { Type_geometry_attributes::set_geometry_type(type); }
 
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
@@ -4508,11 +4438,11 @@ class Item_empty_string :public Item_partition_func_safe_string
 {
 public:
   Item_empty_string(THD *thd, const LEX_CSTRING &header, uint length,
-                    CHARSET_INFO *cs= &my_charset_utf8_general_ci)
+                    CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci)
    :Item_partition_func_safe_string(thd, header, length * cs->mbmaxlen, cs)
   { }
   Item_empty_string(THD *thd, const char *header, uint length,
-                    CHARSET_INFO *cs= &my_charset_utf8_general_ci)
+                    CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci)
    :Item_partition_func_safe_string(thd, LEX_CSTRING({header, strlen(header)}),
                                     length * cs->mbmaxlen, cs)
   { }
@@ -5213,7 +5143,7 @@ public:
   {
     return ref ? (*ref)->real_item() : this;
   }
-  TYPELIB *get_typelib() const
+  const TYPELIB *get_typelib() const
   {
     return ref ? (*ref)->get_typelib() : NULL;
   }
@@ -6958,11 +6888,10 @@ public:
   single SP/PS execution.
 */
 class Item_type_holder: public Item,
-                        public Type_handler_hybrid_field_type,
-                        public Type_geometry_attributes
+                        public Type_handler_hybrid_field_type
 {
 protected:
-  TYPELIB *enum_set_typelib;
+  const TYPELIB *enum_set_typelib;
 public:
   Item_type_holder(THD *thd, Item *item)
    :Item(thd, item),
@@ -6979,7 +6908,6 @@ public:
                    bool maybe_null_arg)
    :Item(thd),
     Type_handler_hybrid_field_type(handler),
-    Type_geometry_attributes(handler, attr),
     enum_set_typelib(attr->get_typelib())
   {
     name= item->name;
@@ -6998,7 +6926,7 @@ public:
   }
 
   enum Type type() const { return TYPE_HOLDER; }
-  TYPELIB *get_typelib() const { return enum_set_typelib; }
+  const TYPELIB *get_typelib() const { return enum_set_typelib; }
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
@@ -7010,14 +6938,6 @@ public:
     return Item_type_holder::real_type_handler()->
            make_and_init_table_field(&name, Record_addr(maybe_null),
                                      *this, table);
-  }
-  Field::geometry_type get_geometry_type() const
-  {
-    return Type_geometry_attributes::get_geometry_type();
-  }
-  void set_geometry_type(uint type)
-  {
-    Type_geometry_attributes::set_geometry_type(type);
   }
   Item* get_copy(THD *thd) { return 0; }
 

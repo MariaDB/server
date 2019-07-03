@@ -226,7 +226,7 @@ my_ulonglong find_typeset(char *x, TYPELIB *lib, int *err)
     NULL otherwise
 */
 
-TYPELIB *copy_typelib(MEM_ROOT *root, TYPELIB *from)
+TYPELIB *copy_typelib(MEM_ROOT *root, const TYPELIB *from)
 {
   TYPELIB *to;
   uint i;

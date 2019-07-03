@@ -85,12 +85,12 @@ static CHARSET_INFO *charset_list[]=
   &my_charset_ujis_japanese_ci,
   &my_charset_ujis_bin,
 #endif
-#ifdef HAVE_CHARSET_utf8
-  &my_charset_utf8_general_ci,
+#ifdef HAVE_CHARSET_utf8mb3
+  &my_charset_utf8mb3_general_ci,
 #ifdef HAVE_UCA_COLLATIONS
-  &my_charset_utf8_unicode_ci,
+  &my_charset_utf8mb3_unicode_ci,
 #endif
-  &my_charset_utf8_bin,
+  &my_charset_utf8mb3_bin,
 #endif
 };
 
@@ -743,9 +743,9 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf32_bin,         strcoll_utf32_common);
 #endif
 #ifdef HAVE_CHARSET_utf8
-  failed+= strcollsp(&my_charset_utf8_general_ci,          strcoll_utf8mb3_common);
-  failed+= strcollsp(&my_charset_utf8_general_mysql500_ci, strcoll_utf8mb3_common);
-  failed+= strcollsp(&my_charset_utf8_bin,                 strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8mb3_general_ci,          strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8mb3_general_mysql500_ci, strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8mb3_bin,                 strcoll_utf8mb3_common);
 #endif
 #ifdef HAVE_CHARSET_utf8mb4
   failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb3_common);

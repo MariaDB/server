@@ -690,12 +690,12 @@ int my_set_user(const char *user, struct passwd *user_info, myf MyFlags);
 extern int check_if_legal_filename(const char *path);
 extern int check_if_legal_tablename(const char *path);
 
-#ifdef __WIN__
+#ifdef _WIN32
 extern my_bool is_filename_allowed(const char *name, size_t length,
                    my_bool allow_current_dir);
-#else /* __WIN__ */
+#else /* _WIN32 */
 # define is_filename_allowed(name, length, allow_cwd) (TRUE)
-#endif /* __WIN__ */ 
+#endif /* _WIN32 */ 
 
 #ifdef _WIN32
 /* Windows-only functions (CRT equivalents)*/
@@ -1045,11 +1045,12 @@ extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
 extern char *get_tty_password(const char *opt_message);
-#ifdef __WIN__
+#ifdef _WIN32
 #define BACKSLASH_MBTAIL
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
 #endif
+extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
@@ -1058,8 +1059,7 @@ extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
 
-#ifdef __WIN__
-extern my_bool have_tcpip;		/* Is set if tcpip is used */
+#ifdef _WIN32
 
 /* implemented in my_windac.c */
 

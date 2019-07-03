@@ -31,6 +31,7 @@
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "filesort_utils.h"
 #include "parse_file.h"
+#include "sql_i_s.h"
 
 /* Structs that defines the TABLE */
 
@@ -1093,9 +1094,6 @@ struct st_cond_statistic;
 #define      CHECK_ROW_FOR_NULLS_TO_REJECT   (1 << 0)
 #define      REJECT_ROW_DUE_TO_NULL_FIELDS   (1 << 1)
 
-/* Bitmap of table's fields */
-typedef Bitmap<MAX_FIELDS> Field_map;
-
 class SplM_opt_info;
 
 struct vers_select_conds_t;
@@ -1661,86 +1659,6 @@ typedef struct st_foreign_key_info
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 bool fk_modifies_child(enum_fk_option opt);
-
-#define MY_I_S_MAYBE_NULL 1U
-#define MY_I_S_UNSIGNED   2U
-
-
-#define SKIP_OPEN_TABLE 0U               // do not open table
-#define OPEN_FRM_ONLY   1U               // open FRM file only
-#define OPEN_FULL_TABLE 2U               // open FRM,MYD, MYI files
-
-struct ST_FIELD_INFO
-{
-  /** 
-      This is used as column name. 
-  */
-  const char* field_name;
-  /**
-     For string-type columns, this is the maximum number of
-     characters. Otherwise, it is the 'display-length' for the column.
-  */
-  uint field_length;
-  /**
-     This denotes data type for the column. For the most part, there seems to
-     be one entry in the enum for each SQL data type, although there seem to
-     be a number of additional entries in the enum.
-  */
-  enum enum_field_types field_type;
-  int value;
-  /**
-     This is used to set column attributes. By default, columns are @c NOT
-     @c NULL and @c SIGNED, and you can deviate from the default
-     by setting the appopriate flags. You can use either one of the flags
-     @c MY_I_S_MAYBE_NULL and @cMY_I_S_UNSIGNED or
-     combine them using the bitwise or operator @c |. Both flags are
-     defined in table.h.
-   */
-  uint field_flags;        // Field atributes(maybe_null, signed, unsigned etc.)
-  const char* old_name;
-  /**
-     This should be one of @c SKIP_OPEN_TABLE,
-     @c OPEN_FRM_ONLY or @c OPEN_FULL_TABLE.
-  */
-  uint open_method;
-
-  LEX_CSTRING get_name() const
-  {
-    return LEX_CSTRING({field_name, strlen(field_name)});
-  }
-  LEX_CSTRING get_old_name() const
-  {
-    return LEX_CSTRING({old_name, strlen(old_name)});
-  }
-  bool unsigned_flag() const { return field_flags & MY_I_S_UNSIGNED; }
-  uint fsp() const
-  {
-    DBUG_ASSERT(field_length <= TIME_SECOND_PART_DIGITS);
-    return field_length;
-  }
-};
-
-
-struct TABLE_LIST;
-typedef class Item COND;
-
-typedef struct st_schema_table
-{
-  const char *table_name;
-  ST_FIELD_INFO *fields_info;
-  /* for FLUSH table_name */
-  int (*reset_table) ();
-  /* Fill table with data */
-  int (*fill_table) (THD *thd, TABLE_LIST *tables, COND *cond);
-  /* Handle fileds for old SHOW */
-  int (*old_format) (THD *thd, struct st_schema_table *schema_table);
-  int (*process_table) (THD *thd, TABLE_LIST *tables, TABLE *table,
-                        bool res, const LEX_CSTRING *db_name,
-                        const LEX_CSTRING *table_name);
-  int idx_field1, idx_field2; 
-  bool hidden;
-  uint i_s_requested_object;  /* the object we need to open(TABLE | VIEW) */
-} ST_SCHEMA_TABLE;
 
 class IS_table_read_plan;
 

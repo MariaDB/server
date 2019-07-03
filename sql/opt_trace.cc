@@ -17,7 +17,7 @@
 #include "sql_class.h"
 #include "sql_show.h"
 #include "field.h"
-#include "table.h"
+#include "sql_i_s.h"
 #include "opt_trace.h"
 #include "sql_parse.h"
 #include "set_var.h"
@@ -66,17 +66,20 @@ bool sets_var_optimizer_trace(enum enum_sql_command sql_command,
 }
 
 
+namespace Show {
+
+
 ST_FIELD_INFO optimizer_trace_info[]=
 {
-    /* name, length, type, value, maybe_null, old_name, open_method */
-    {"QUERY", 65535, MYSQL_TYPE_STRING, 0, false, NULL, SKIP_OPEN_TABLE},
-    {"TRACE", 65535, MYSQL_TYPE_STRING, 0, false, NULL, SKIP_OPEN_TABLE},
-    {"MISSING_BYTES_BEYOND_MAX_MEM_SIZE", 20, MYSQL_TYPE_LONG, 0, false, NULL,
-     SKIP_OPEN_TABLE},
-    {"INSUFFICIENT_PRIVILEGES", 1, MYSQL_TYPE_TINY, 0, false, NULL,
-     SKIP_OPEN_TABLE},
-    {NULL, 0, MYSQL_TYPE_STRING, 0, true, NULL, 0}
+  Column("QUERY",                             Longtext(65535), NOT_NULL),
+  Column("TRACE",                             Longtext(65535), NOT_NULL),
+  Column("MISSING_BYTES_BEYOND_MAX_MEM_SIZE", SLong(20),       NOT_NULL),
+  Column("INSUFFICIENT_PRIVILEGES",           STiny(1),        NOT_NULL),
+  CEnd()
 };
+
+} // namespace Show
+
 
 /*
   TODO: one-line needs to be implemented seperately

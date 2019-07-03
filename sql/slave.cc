@@ -1646,6 +1646,40 @@ const char *print_slave_db_safe(const char* db)
 
 #endif /* HAVE_REPLICATION */
 
+bool Sql_cmd_show_slave_status::execute(THD *thd)
+{
+#ifndef HAVE_REPLICATION
+  my_ok(thd);
+  return false;
+#else
+  DBUG_ENTER("Sql_cmd_show_slave_status::execute");
+  bool res= true;
+
+  /* Accept one of two privileges */
+  if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
+    goto error;
+  if (is_show_all_slaves_stat())
+  {
+    mysql_mutex_lock(&LOCK_active_mi);
+    res= show_all_master_info(thd);
+    mysql_mutex_unlock(&LOCK_active_mi);
+  }
+  else
+  {
+    LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+    Master_info *mi;
+    if ((mi= get_master_info(&lex_mi->connection_name,
+                             Sql_condition::WARN_LEVEL_ERROR)))
+    {
+      res= show_master_info(thd, mi, 0);
+      mi->release();
+    }
+  }
+error:
+  DBUG_RETURN(res);
+#endif
+}
+
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
                                  const char *default_val)
 {

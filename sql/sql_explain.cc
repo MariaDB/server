@@ -941,6 +941,11 @@ void Explain_select::print_explain_json(Explain_query *query,
       writer->add_member("outer_ref_condition");
       write_item(writer, outer_ref_cond);
     }
+    if (pseudo_bits_cond)
+    {
+      writer->add_member("pseudo_bits_condition");
+      write_item(writer, pseudo_bits_cond);
+    }
 
     /* we do not print HAVING which always evaluates to TRUE */
     if (having || (having_value == Item::COND_FALSE))
@@ -1777,7 +1782,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   
   /* `rows` */
   if (rows_set)
-    writer->add_member("rows").add_ll(rows);
+    writer->add_member("rows").add_ull(rows);
 
   /* `r_rows` */
   if (is_analyze)
@@ -2417,7 +2422,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   }
   
   /* `rows` */
-  writer->add_member("rows").add_ll(rows);
+  writer->add_member("rows").add_ull(rows);
 
 
   if (mrr_type.length() != 0)
@@ -2446,7 +2451,7 @@ void Explain_update::print_explain_json(Explain_query *query,
           r_rows= 0;
         r_filtered= buf_tracker.get_filtered_after_where() * 100.0;
       }
-      writer->add_member("r_rows").add_ll(r_rows);
+      writer->add_member("r_rows").add_ull(r_rows);
       writer->add_member("r_filtered").add_double(r_filtered);
     }
     else /* Not doing buffering */

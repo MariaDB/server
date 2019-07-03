@@ -137,7 +137,7 @@ enum buf_page_state {
 will be used to print table IO stats */
 struct buf_pool_info_t{
 	/* General buffer pool info */
-	ulint	pool_unique_id;		/*!< Buffer Pool ID */
+	uint	pool_unique_id;		/*!< Buffer Pool ID */
 	ulint	pool_size;		/*!< Buffer Pool size in pages */
 	ulint	lru_len;		/*!< Length of buf_pool->LRU */
 	ulint	old_lru_len;		/*!< buf_pool->LRU_old_len */
@@ -213,77 +213,6 @@ struct buf_pools_list_size_t {
 	ulint	flush_list_bytes;	/*!< flush_list size in bytes */
 };
 #endif /* !UNIV_INNOCHECKSUM */
-
-/** Page identifier. */
-class page_id_t {
-public:
-
-	/** Constructor from (space, page_no).
-	@param[in]	space	tablespace id
-	@param[in]	page_no	page number */
-	page_id_t(ulint space, ulint page_no)
-		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
-	{
-		ut_ad(space <= 0xFFFFFFFFU);
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
-
-	bool operator==(const page_id_t& rhs) const
-	{
-		return m_space == rhs.m_space && m_page_no == rhs.m_page_no;
-	}
-	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
-
-	bool operator<(const page_id_t& rhs) const
-	{
-		if (m_space == rhs.m_space) {
-			return m_page_no < rhs.m_page_no;
-		}
-
-		return m_space < rhs.m_space;
-	}
-
-	/** Retrieve the tablespace id.
-	@return tablespace id */
-	uint32_t space() const { return m_space; }
-
-	/** Retrieve the page number.
-	@return page number */
-	uint32_t page_no() const { return m_page_no; }
-
-	/** Retrieve the fold value.
-	@return fold value */
-	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
-
-	/** Reset the page number only.
-	@param[in]	page_no	page number */
-	inline void set_page_no(ulint page_no)
-	{
-		m_page_no = uint32_t(page_no);
-
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
-
-private:
-
-	/** Tablespace id. */
-	uint32_t	m_space;
-
-	/** Page number. */
-	uint32_t	m_page_no;
-
-	/** Declare the overloaded global operator<< as a friend of this
-	class. Refer to the global declaration for further details.  Print
-	the given page_id_t object.
-	@param[in,out]	out	the output stream
-	@param[in]	page_id	the page_id_t object to be printed
-	@return the output stream */
-        friend
-        std::ostream&
-        operator<<(
-                std::ostream&           out,
-                const page_id_t        page_id);
-};
 
 /** Print the given page_id_t object.
 @param[in,out]	out	the output stream
@@ -899,7 +828,7 @@ void
 buf_stats_get_pool_info(
 /*====================*/
 	buf_pool_t*		buf_pool,	/*!< in: buffer pool */
-	ulint			pool_id,	/*!< in: buffer pool ID */
+	uint			pool_id,	/*!< in: buffer pool ID */
 	buf_pool_info_t*	all_pool_info);	/*!< in/out: buffer pool info
 						to fill */
 /** Return the ratio in percents of modified pages in the buffer pool /
@@ -1563,6 +1492,13 @@ public:
 					operation needed. */
 
 	bool            encrypted;	/*!< page is still encrypted */
+
+	/** whether the page will be (re)initialized at the time it will
+	be written to the file, that is, whether the doublewrite buffer
+	can be safely skipped. Protected under similar conditions as
+	buf_block_t::frame. Can be set while holding buf_block_t::lock
+	X-latch and reset during page flush, while io_fix is in effect. */
+	bool		init_on_flush;
 
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == srv_page_size

@@ -413,7 +413,6 @@ static int sequence_initialize(void *p)
   handlerton *local_sequence_hton= (handlerton *)p;
   DBUG_ENTER("sequence_initialize");
 
-  local_sequence_hton->state= SHOW_OPTION_YES;
   local_sequence_hton->db_type= DB_TYPE_SEQUENCE;
   local_sequence_hton->create= sequence_create_handler;
   local_sequence_hton->panic= sequence_end;

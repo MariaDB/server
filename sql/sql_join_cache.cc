@@ -2147,7 +2147,8 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
   }
 
 finish:
-  if (outer_join_first_inner)
+  if (outer_join_first_inner &&
+      join_tab->first_inner == join_tab->first_unmatched)
   {
     /* 
       All null complemented rows have been already generated for all

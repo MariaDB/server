@@ -124,6 +124,9 @@
 #define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_STR "Table %s.%s open timeout"
+#define ER_SPIDER_SAME_SERVER_LINK_NUM 12720
+#define ER_SPIDER_SAME_SERVER_LINK_STR1 "Host:%s and Socket:%s aim self server. Please change spider_same_server_link parameter if this link is required."
+#define ER_SPIDER_SAME_SERVER_LINK_STR2 "Host:%s and Port:%ld aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

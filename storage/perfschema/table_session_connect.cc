@@ -73,7 +73,7 @@ bool parse_length_encoded_string(const char **ptr,
   if (*ptr - start_ptr + data_length > input_length)
     return true;
 
-  copy_length= copier.well_formed_copy(&my_charset_utf8_bin, dest, dest_size,
+  copy_length= copier.well_formed_copy(&my_charset_utf8mb3_bin, dest, dest_size,
                                        from_cs, *ptr, data_length, nchars_max);
   *copied_len= copy_length;
   (*ptr)+= data_length;

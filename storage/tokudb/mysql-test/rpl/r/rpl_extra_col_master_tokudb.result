@@ -510,7 +510,7 @@ INSERT INTO t11 () VALUES(1,@b1,'Testing is fun','Kyle',DEFAULT),
 
 connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
-Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'tinyblob' to type 'varchar(254)''
+Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'blob' to type 'varchar(254)''
 
 *** Drop t11  ***
 connection master;

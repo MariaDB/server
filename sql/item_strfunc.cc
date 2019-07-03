@@ -4354,24 +4354,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
       uint valpos= i * 2 + 1;
       DYNAMIC_COLUMN_TYPE type= defs[i].type;
       if (type == DYN_COL_NULL)
-        switch (args[valpos]->field_type())
-        {
-        case MYSQL_TYPE_VARCHAR:
-        case MYSQL_TYPE_ENUM:
-        case MYSQL_TYPE_SET:
-        case MYSQL_TYPE_TINY_BLOB:
-        case MYSQL_TYPE_MEDIUM_BLOB:
-        case MYSQL_TYPE_LONG_BLOB:
-        case MYSQL_TYPE_BLOB:
-        case MYSQL_TYPE_VAR_STRING:
-        case MYSQL_TYPE_STRING:
-        case MYSQL_TYPE_GEOMETRY:
-          type= DYN_COL_STRING;
-          break;
-        default:
-          break;
-        }
-
+        type= args[valpos]->type_handler()->dyncol_type(args[valpos]);
       if (type == DYN_COL_STRING &&
           args[valpos]->type() == Item::FUNC_ITEM &&
           ((Item_func *)args[valpos])->functype() == DYNCOL_FUNC)
@@ -4388,63 +4371,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
     uint valpos= i * 2 + 1;
     DYNAMIC_COLUMN_TYPE type= defs[i].type;
     if (type == DYN_COL_NULL) // auto detect
-    {
-      /*
-        We don't have a default here to ensure we get a warning if
-        one adds a new not handled MYSQL_TYPE_...
-      */
-      switch (args[valpos]->field_type()) {
-      case MYSQL_TYPE_DECIMAL:
-      case MYSQL_TYPE_NEWDECIMAL:
-        type= DYN_COL_DECIMAL;
-        break;
-      case MYSQL_TYPE_TINY:
-      case MYSQL_TYPE_SHORT:
-      case MYSQL_TYPE_LONG:
-      case MYSQL_TYPE_LONGLONG:
-      case MYSQL_TYPE_INT24:
-      case MYSQL_TYPE_YEAR:
-      case MYSQL_TYPE_BIT:
-        type= args[valpos]->unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
-        break;
-      case MYSQL_TYPE_FLOAT:
-      case MYSQL_TYPE_DOUBLE:
-        type= DYN_COL_DOUBLE;
-        break;
-      case MYSQL_TYPE_NULL:
-        type= DYN_COL_NULL;
-        break;
-      case MYSQL_TYPE_TIMESTAMP:
-      case MYSQL_TYPE_TIMESTAMP2:
-      case MYSQL_TYPE_DATETIME:
-      case MYSQL_TYPE_DATETIME2:
-        type= DYN_COL_DATETIME;
-	break;
-      case MYSQL_TYPE_DATE:
-      case MYSQL_TYPE_NEWDATE:
-        type= DYN_COL_DATE;
-        break;
-      case MYSQL_TYPE_TIME:
-      case MYSQL_TYPE_TIME2:
-        type= DYN_COL_TIME;
-        break;
-      case MYSQL_TYPE_VARCHAR:
-      case MYSQL_TYPE_ENUM:
-      case MYSQL_TYPE_SET:
-      case MYSQL_TYPE_TINY_BLOB:
-      case MYSQL_TYPE_MEDIUM_BLOB:
-      case MYSQL_TYPE_LONG_BLOB:
-      case MYSQL_TYPE_BLOB:
-      case MYSQL_TYPE_VAR_STRING:
-      case MYSQL_TYPE_STRING:
-      case MYSQL_TYPE_GEOMETRY:
-        type= DYN_COL_STRING;
-        break;
-      case MYSQL_TYPE_VARCHAR_COMPRESSED:
-      case MYSQL_TYPE_BLOB_COMPRESSED:
-        DBUG_ASSERT(0);
-      }
-    }
+      type= args[valpos]->type_handler()->dyncol_type(args[valpos]);
     if (type == DYN_COL_STRING &&
         args[valpos]->type() == Item::FUNC_ITEM &&
         ((Item_func *)args[valpos])->functype() == DYNCOL_FUNC)

@@ -116,7 +116,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                     "range_scan_alternatives": [
                       {
                         "index": "PRIMARY",
-                        "ranges": ["pk1 < 0", "0 < pk1"],
+                        "ranges": ["(pk1) < (0)", "(0) < (pk1)"],
                         "rowid_ordered": true,
                         "using_mrr": false,
                         "index_only": false,
@@ -127,7 +127,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       },
                       {
                         "index": "key1",
-                        "ranges": ["1 <= key1 <= 1"],
+                        "ranges": ["(1) <= (key1) <= (1)"],
                         "rowid_ordered": true,
                         "using_mrr": false,
                         "index_only": false,
@@ -164,7 +164,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "type": "range_scan",
                       "index": "key1",
                       "rows": 1,
-                      "ranges": ["1 <= key1 <= 1"]
+                      "ranges": ["(1) <= (key1) <= (1)"]
                     },
                     "rows_for_plan": 1,
                     "cost_for_plan": 2.3751,

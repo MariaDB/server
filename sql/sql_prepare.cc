@@ -1933,14 +1933,15 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
     TRUE              error, error message is set in THD
 */
 
-static int mysql_test_show_slave_status(Prepared_statement *stmt)
+static int mysql_test_show_slave_status(Prepared_statement *stmt,
+                                        bool show_all_slaves_stat)
 {
   DBUG_ENTER("mysql_test_show_slave_status");
   THD *thd= stmt->thd;
   List<Item> fields;
 
-  show_master_info_get_fields(thd, &fields, thd->lex->verbose, 0);
-    
+  show_master_info_get_fields(thd, &fields, show_all_slaves_stat, 0);
+
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 
@@ -2393,12 +2394,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
 #ifndef EMBEDDED_LIBRARY
   case SQLCOM_SHOW_SLAVE_STAT:
-    if ((res= mysql_test_show_slave_status(stmt)) == 2)
     {
-      /* Statement and field info has already been sent */
-      DBUG_RETURN(FALSE);
+      DBUG_ASSERT(thd->lex->m_sql_cmd);
+      Sql_cmd_show_slave_status *cmd;
+      cmd= dynamic_cast<Sql_cmd_show_slave_status*>(thd->lex->m_sql_cmd);
+      DBUG_ASSERT(cmd);
+      if ((res= mysql_test_show_slave_status(stmt,
+                                             cmd->is_show_all_slaves_stat()))
+                                             == 2)
+      {
+        /* Statement and field info has already been sent */
+        DBUG_RETURN(FALSE);
+      }
+      break;
     }
-    break;
   case SQLCOM_SHOW_MASTER_STAT:
     if ((res= mysql_test_show_master_status(stmt)) == 2)
     {
@@ -4499,12 +4508,11 @@ Prepared_statement::reprepare()
                                    TRUE, &cur_db_changed)))
     return TRUE;
 
-  sql_mode_t save_sql_mode= thd->variables.sql_mode;
-  thd->variables.sql_mode= m_sql_mode;
+  Sql_mode_instant_set sms(thd, m_sql_mode);
+
   error= ((name.str && copy.set_name(&name)) ||
           copy.prepare(query(), query_length()) ||
           validate_metadata(&copy));
-  thd->variables.sql_mode= save_sql_mode;
 
   if (cur_db_changed)
     mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
