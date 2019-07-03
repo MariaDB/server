@@ -101,15 +101,58 @@ const Type_collection *Type_handler::type_collection() const
 
 
 #ifdef HAVE_SPATIAL
-Type_handler_geometry    type_handler_geometry;
+Type_handler_geometry           type_handler_geometry;
+Type_handler_point              type_handler_point;
+Type_handler_linestring         type_handler_linestring;
+Type_handler_polygon            type_handler_polygon;
+Type_handler_multipoint         type_handler_multipoint;
+Type_handler_multilinestring    type_handler_multilinestring;
+Type_handler_multipolygon       type_handler_multipolygon;
+Type_handler_geometrycollection type_handler_geometrycollection;
+
+
+const Type_handler_geometry *
+Type_handler_geometry::type_handler_geom_by_type(uint type)
+{
+  switch (type) {
+  case Type_handler_geometry::GEOM_POINT:
+    return &type_handler_point;
+  case Type_handler_geometry::GEOM_LINESTRING:
+    return &type_handler_linestring;
+  case Type_handler_geometry::GEOM_POLYGON:
+    return &type_handler_polygon;
+  case Type_handler_geometry::GEOM_MULTIPOINT:
+    return &type_handler_multipoint;
+  case Type_handler_geometry::GEOM_MULTILINESTRING:
+    return &type_handler_multilinestring;
+  case Type_handler_geometry::GEOM_MULTIPOLYGON:
+    return &type_handler_multipolygon;
+  case Type_handler_geometry::GEOM_GEOMETRYCOLLECTION:
+    return &type_handler_geometrycollection;
+  case Type_handler_geometry::GEOM_GEOMETRY:
+    break;
+  }
+  return &type_handler_geometry;
+}
+
+
+const Type_handler *
+Type_handler_geometry::type_handler_frm_unpack(const uchar *buffer) const
+{
+  // charset and geometry_type share the same byte in frm
+  return type_handler_geom_by_type((uint) buffer[14]);
+}
+
 
 class Type_collection_geometry: public Type_collection
 {
   const Type_handler *aggregate_common(const Type_handler *a,
                                        const Type_handler *b) const
   {
-    DBUG_ASSERT(a == &type_handler_geometry);
-    DBUG_ASSERT(b == &type_handler_geometry);
+    if (a == b)
+      return a;
+    DBUG_ASSERT(dynamic_cast<const Type_handler_geometry*>(a));
+    DBUG_ASSERT(dynamic_cast<const Type_handler_geometry*>(b));
     return &type_handler_geometry;
   }
 public:
@@ -137,6 +180,56 @@ public:
   {
     return NULL;
   }
+  bool init_aggregators(Type_handler_data *data, const Type_handler *geom) const
+  {
+    Type_aggregator *r= &data->m_type_aggregator_for_result;
+    Type_aggregator *c= &data->m_type_aggregator_for_comparison;
+    return
+      r->add(geom, &type_handler_null,        geom) ||
+      r->add(geom, &type_handler_hex_hybrid,  &type_handler_long_blob) ||
+      r->add(geom, &type_handler_tiny_blob,   &type_handler_long_blob) ||
+      r->add(geom, &type_handler_blob,        &type_handler_long_blob) ||
+      r->add(geom, &type_handler_medium_blob, &type_handler_long_blob) ||
+      r->add(geom, &type_handler_long_blob,   &type_handler_long_blob) ||
+      r->add(geom, &type_handler_varchar,     &type_handler_long_blob) ||
+      r->add(geom, &type_handler_string,      &type_handler_long_blob) ||
+      c->add(geom, &type_handler_null,        geom) ||
+      c->add(geom, &type_handler_long_blob,   &type_handler_long_blob);
+  }
+  bool init(Type_handler_data *data) const
+  {
+#ifndef DBUG_OFF
+    /*
+      The rules (geometry,geometry)->geometry and (pont,point)->geometry
+      are needed here to make sure
+      (in gis-debug.test) that they do not affect anything, and these pairs
+      returns an error in an expression like (POINT(0,0)+POINT(0,0)).
+      Both sides are from the same type collection here,
+      so aggregation goes only through Type_collection_xxx::aggregate_yyy()
+      and never reaches Type_aggregator::find_handler().
+    */
+    Type_aggregator *nct= &data->m_type_aggregator_non_commutative_test;
+    if (nct->add(&type_handler_geometry,
+                 &type_handler_geometry,
+                 &type_handler_geometry) ||
+        nct->add(&type_handler_point,
+                 &type_handler_point,
+                 &type_handler_geometry) ||
+        nct->add(&type_handler_point,
+                 &type_handler_varchar,
+                 &type_handler_long_blob))
+    return true;
+#endif
+    return
+      init_aggregators(data, &type_handler_geometry) ||
+      init_aggregators(data, &type_handler_geometrycollection) ||
+      init_aggregators(data, &type_handler_point) ||
+      init_aggregators(data, &type_handler_linestring) ||
+      init_aggregators(data, &type_handler_polygon) ||
+      init_aggregators(data, &type_handler_multipoint) ||
+      init_aggregators(data, &type_handler_multilinestring) ||
+      init_aggregators(data, &type_handler_multipolygon);
+  }
 };
 
 
@@ -153,56 +246,7 @@ const Type_collection *Type_handler_geometry::type_collection() const
 bool Type_handler_data::init()
 {
 #ifdef HAVE_SPATIAL
-
-#ifndef DBUG_OFF
-  /*
-    The rule (geometry,geometry)->geometry is needed here to make sure
-    (in gis-debug.test) that is does not affect anything, and this pair
-    returns an error in an expression like (POINT(0,0)+POINT(0,0)).
-    Both sides are from the same type collection here,
-    so aggregation goes only through Type_collection_xxx::aggregate_yyy()
-    and never reaches Type_aggregator::find_handler().
-  */
-  if (m_type_aggregator_non_commutative_test.add(&type_handler_geometry,
-                                                 &type_handler_geometry,
-                                                 &type_handler_geometry) ||
-      m_type_aggregator_non_commutative_test.add(&type_handler_geometry,
-                                                 &type_handler_varchar,
-                                                 &type_handler_long_blob))
-    return true;
-#endif
-
-  return
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_null,
-                                     &type_handler_geometry) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_hex_hybrid,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_tiny_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_medium_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_long_blob,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_varchar,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_result.add(&type_handler_geometry,
-                                     &type_handler_string,
-                                     &type_handler_long_blob) ||
-    m_type_aggregator_for_comparison.add(&type_handler_geometry,
-                                         &type_handler_null,
-                                         &type_handler_geometry) ||
-    m_type_aggregator_for_comparison.add(&type_handler_geometry,
-                                         &type_handler_long_blob,
-                                         &type_handler_long_blob);
+  return type_collection_geometry.init(this);
 #endif
   return false;
 }
@@ -2358,8 +2402,51 @@ Field *Type_handler_blob_compressed::make_conversion_table_field(TABLE *table,
 
 
 #ifdef HAVE_SPATIAL
-const Name Type_handler_geometry::m_name_geometry(STRING_WITH_LEN("geometry"));
 
+bool Type_handler_geometry::check_type_geom_or_binary(const char *opname,
+                                                      const Item *item)
+{
+  const Type_handler *handler= item->type_handler();
+  if (handler->type_handler_for_comparison() == &type_handler_geometry ||
+      (handler->is_general_purpose_string_type() &&
+       item->collation.collation == &my_charset_bin))
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname);
+  return true;
+}
+
+
+bool Type_handler_geometry::check_types_geom_or_binary(const char *opname,
+                                                       Item* const *args,
+                                                       uint start, uint end)
+{
+  for (uint i= start; i < end ; i++)
+  {
+    if (check_type_geom_or_binary(opname, args[i]))
+      return true;
+  }
+  return false;
+}
+
+
+const Name
+  Type_handler_geometry::
+    m_name_geometry(STRING_WITH_LEN("geometry")),
+  Type_handler_point::
+    m_name_point(STRING_WITH_LEN("point")),
+  Type_handler_linestring::
+    m_name_linestring(STRING_WITH_LEN("linestring")),
+  Type_handler_polygon::
+    m_name_polygon(STRING_WITH_LEN("polygon")),
+  Type_handler_multipoint::
+    m_name_multipoint(STRING_WITH_LEN("multipoint")),
+  Type_handler_multilinestring::
+    m_name_multilinestring(STRING_WITH_LEN("multilinestring")),
+  Type_handler_multipolygon::
+    m_name_multipolygon(STRING_WITH_LEN("multipolygon")),
+  Type_handler_geometrycollection::
+    m_name_geometrycollection(STRING_WITH_LEN("geometrycollection"));
 
 const Type_handler *Type_handler_geometry::type_handler_for_comparison() const
 {
@@ -2379,10 +2466,10 @@ Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
     as this is only a temporary field.
     The statistics was already incremented when "target" was created.
   */
+  const Field_geom *fg= static_cast<const Field_geom*>(target);
   return new(table->in_use->mem_root)
-         Field_geom(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str, table->s, 4,
-                    ((const Field_geom*) target)->geom_type,
-                    ((const Field_geom*) target)->srid);
+         Field_geom(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
+                    table->s, 4, fg->type_handler_geom(), fg->srid);
 }
 #endif
 
@@ -2634,7 +2721,6 @@ void Type_handler_geometry::
                                               Column_definition *def,
                                               const Field *field) const
 {
-  def->geom_type= ((Field_geom*) field)->geom_type;
   def->srid= ((Field_geom*) field)->srid;
 }
 #endif
@@ -2972,6 +3058,193 @@ bool Type_handler_bit::
   */
   return false;
 }
+
+
+/*************************************************************************/
+bool Type_handler::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_unique(Key_part_spec *part,
+                                             const Column_definition &def,
+                                             const handler *file,
+                                             bool *has_field_needed) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_multiple(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_foreign(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return false;
+}
+
+
+bool Type_handler::Key_part_spec_init_spatial(Key_part_spec *part,
+                                              const Column_definition &def)
+                                              const
+{
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), "SPATIAL INDEX");
+  return true;
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return part->check_primary_key_for_blob(file);
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_unique(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file,
+                                              bool *hash_field_needed) const
+{
+  if (!(part->length*= def.charset->mbmaxlen))
+    *hash_field_needed= true;
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_multiple(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return part->init_multiple_key_for_blob(file);
+}
+
+
+bool Type_handler_blob_common::Key_part_spec_init_foreign(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  part->length*= def.charset->mbmaxlen;
+  return part->check_foreign_key_for_blob(file);
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  return part->check_primary_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_unique(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file,
+                                              bool *hash_field_needed) const
+{
+  if (!part->length)
+    *hash_field_needed= true;
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_multiple(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  return part->init_multiple_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_foreign(Key_part_spec *part,
+                                               const Column_definition &def,
+                                               const handler *file) const
+{
+  return part->check_foreign_key_for_blob(file);
+}
+
+
+bool Type_handler_geometry::Key_part_spec_init_spatial(Key_part_spec *part,
+                                                  const Column_definition &def)
+                                                  const
+{
+  if (part->length)
+  {
+    my_error(ER_WRONG_SUB_KEY, MYF(0));
+    return true;
+  }
+  /*
+    4 is: (Xmin,Xmax,Ymin,Ymax), this is for 2D case
+    Lately we'll extend this code to support more dimensions
+  */
+  part->length= 4 * sizeof(double);
+  return false;
+}
+
+
+bool Type_handler_point::Key_part_spec_init_primary(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  /*
+    QQ:
+    The below assignment (here and in all other Key_part_spec_init_xxx methods)
+    overrides the explicitly given key part length, so in this query:
+      CREATE OR REPLACE TABLE t1 (a POINT, KEY(a(10)));
+    the key becomes KEY(a(25)).
+    This might be a bug.
+  */
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_point::Key_part_spec_init_unique(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file,
+                                              bool *hash_field_needed) const
+{
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_point::Key_part_spec_init_multiple(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+bool Type_handler_point::Key_part_spec_init_foreign(Key_part_spec *part,
+                                              const Column_definition &def,
+                                              const handler *file) const
+{
+  part->length= octet_length();
+  return part->check_key_for_blob(file);
+}
+
+
+#endif // HAVE_SPATIAL
 
 /*************************************************************************/
 
@@ -3481,9 +3754,7 @@ Field *Type_handler_geometry::make_table_field(const LEX_CSTRING *name,
 {
   return new (table->in_use->mem_root)
          Field_geom(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, table->s, 4,
-                    (Field::geometry_type) attr.uint_geometry_type(),
-                    0);
+                    Field::NONE, name, table->s, 4, this, 0);
 }
 #endif
 
@@ -4277,10 +4548,6 @@ bool Type_handler_geometry::
                                        Item **items, uint nitems) const
 {
   DBUG_ASSERT(nitems > 0);
-  Type_geometry_attributes gattr(items[0]->type_handler(), items[0]);
-  for (uint i= 1; i < nitems; i++)
-    gattr.join(items[i]);
-  func->set_geometry_type(gattr.get_geometry_type());
   func->collation.set(&my_charset_bin);
   func->unsigned_flag= false;
   func->decimals= 0;
@@ -6989,7 +7256,6 @@ bool Type_handler_geometry::
 {
   param->unsigned_flag= false;
   param->setup_conversion_blob(thd);
-  param->set_geometry_type(attr->uint_geometry_type());
   return param->set_str(val->m_string.ptr(), val->m_string.length(),
                         &my_charset_bin, &my_charset_bin);
 }
@@ -7897,7 +8163,7 @@ Field *Type_handler_geometry::
   return new (mem_root)
     Field_geom(rec.ptr(), rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name, share,
-               attr->pack_flag_to_pack_length(), attr->geom_type, attr->srid);
+               attr->pack_flag_to_pack_length(), this, attr->srid);
 }
 #endif
 
@@ -8004,7 +8270,7 @@ void Type_handler_geometry::
 {
   def->frm_pack_basic(buff);
   buff[11]= 0;
-  buff[14]= (uchar) def->geom_type;
+  buff[14]= (uchar) geometry_type();
 }
 #endif
 
@@ -8034,8 +8300,6 @@ bool Type_handler_geometry::
   uint gis_opt_read, gis_length, gis_decimals;
   Field_geom::storage_type st_type;
   attr->frm_unpack_basic(buffer);
-  // charset and geometry_type share the same byte in frm
-  attr->geom_type= (Field::geometry_type) buffer[14];
   gis_opt_read= gis_field_options_read(gis_options->str,
                                        gis_options->length,
                                        &st_type, &gis_length,

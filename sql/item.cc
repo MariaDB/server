@@ -3877,7 +3877,6 @@ void Item_param::sync_clones()
     c->null_value= null_value;
     c->Type_std_attributes::operator=(*this);
     c->Type_handler_hybrid_field_type::operator=(*this);
-    c->Type_geometry_attributes::operator=(*this);
 
     c->state= state;
     c->m_empty_string_is_null= m_empty_string_is_null;

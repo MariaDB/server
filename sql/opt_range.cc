@@ -8122,13 +8122,13 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   table_map param_comp= ~(param->prev_tables | param->read_tables |
 		          param->current_table);
 #ifdef HAVE_SPATIAL
-  Field::geometry_type sav_geom_type;
-  const bool geometry= field_item->field->type() == MYSQL_TYPE_GEOMETRY;
-  if (geometry)
+  const Type_handler_geometry *sav_geom_type= NULL;
+  Field_geom *field_geom= dynamic_cast<Field_geom*>(field_item->field);
+  if (field_geom)
   {
-    sav_geom_type= ((Field_geom*) field_item->field)->geom_type;
+    sav_geom_type= field_geom->type_handler_geom();
     /* We have to be able to store all sorts of spatial features here */
-    ((Field_geom*) field_item->field)->geom_type= Field::GEOM_GEOMETRY;
+    field_geom->set_type_handler(&type_handler_geometry);
   }
 #endif /*HAVE_SPATIAL*/
 
@@ -8159,9 +8159,10 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   }
 
 #ifdef HAVE_SPATIAL
-  if (geometry)
+  if (field_geom)
   {
-    ((Field_geom*) field_item->field)->geom_type= sav_geom_type;
+    DBUG_ASSERT(sav_geom_type);
+    field_geom->set_type_handler(sav_geom_type);
   }
 #endif /*HAVE_SPATIAL*/
   DBUG_RETURN(ftree);

@@ -721,12 +721,6 @@ public:
     TIMESTAMP_DNUN_FIELD=23,    // TIMESTAMP DEFAULT NOW() ON UPDATE NOW()
     TMYSQL_COMPRESSED= 24,      // Compatibility with TMySQL
     };
-  enum geometry_type
-  {
-    GEOM_GEOMETRY = 0, GEOM_POINT = 1, GEOM_LINESTRING = 2, GEOM_POLYGON = 3,
-    GEOM_MULTIPOINT = 4, GEOM_MULTILINESTRING = 5, GEOM_MULTIPOLYGON = 6,
-    GEOM_GEOMETRYCOLLECTION = 7
-  };
   enum imagetype { itRAW, itMBR};
 
   utype		unireg_check;
@@ -1588,12 +1582,6 @@ public:
   virtual uint32 char_length() const
   {
     return field_length / charset()->mbmaxlen;
-  }
-  virtual geometry_type get_geometry_type() const
-  {
-    /* shouldn't get here. */
-    DBUG_ASSERT(0);
-    return GEOM_GEOMETRY;
   }
 
   ha_storage_media field_storage_type() const
@@ -4238,9 +4226,10 @@ private:
 
 
 #ifdef HAVE_SPATIAL
-class Field_geom :public Field_blob {
+class Field_geom :public Field_blob
+{
+  const Type_handler_geometry *m_type_handler;
 public:
-  enum geometry_type geom_type;
   uint srid;
   uint precision;
   enum storage_type { GEOM_STORAGE_WKB= 0, GEOM_STORAGE_BINARY= 1};
@@ -4249,17 +4238,27 @@ public:
   Field_geom(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	     TABLE_SHARE *share, uint blob_pack_length,
-	     enum geometry_type geom_type_arg, uint field_srid)
+	     const Type_handler_geometry *gth,
+	     uint field_srid)
      :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
-                 field_name_arg, share, blob_pack_length, &my_charset_bin)
-  { geom_type= geom_type_arg; srid= field_srid; }
+                 field_name_arg, share, blob_pack_length, &my_charset_bin),
+      m_type_handler(gth)
+  { srid= field_srid; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const;
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   const Type_handler *type_handler() const
   {
-    return &type_handler_geometry;
+    return m_type_handler;
+  }
+  const Type_handler_geometry *type_handler_geom() const
+  {
+    return m_type_handler;
+  }
+  void set_type_handler(const Type_handler_geometry *th)
+  {
+    m_type_handler= th;
   }
   enum_field_types type() const
   {
@@ -4284,17 +4283,18 @@ public:
   void sql_type(String &str) const;
   Copy_func *get_copy_func(const Field *from) const
   {
-    if (type_handler() == from->type_handler() &&
-        (geom_type == GEOM_GEOMETRY ||
-         geom_type == static_cast<const Field_geom*>(from)->geom_type))
+    const Type_handler_geometry *fth=
+      dynamic_cast<const Type_handler_geometry*>(from->type_handler());
+    if (fth && m_type_handler->is_binary_compatible_geom_super_type_for(fth))
       return get_identical_copy_func();
     return do_conv_blob;
   }
   bool memcpy_field_possible(const Field *from) const
   {
-    return type_handler() == from->type_handler() &&
-           (geom_type == GEOM_GEOMETRY ||
-            geom_type == static_cast<const Field_geom*>(from)->geom_type) &&
+    const Type_handler_geometry *fth=
+      dynamic_cast<const Type_handler_geometry*>(from->type_handler());
+    return fth &&
+           m_type_handler->is_binary_compatible_geom_super_type_for(fth) &&
            !table->copy_blobs;
   }
   bool is_equal(const Column_definition &new_field) const;
@@ -4325,8 +4325,6 @@ public:
   bool load_data_set_null(THD *thd);
   bool load_data_set_no_data(THD *thd, bool fixed_format);
 
-  geometry_type get_geometry_type() const { return geom_type; };
-  static geometry_type geometry_type_merge(geometry_type, geometry_type);
   uint get_srid() { return srid; }
   void print_key_value(String *out, uint32 length)
   {
@@ -4723,7 +4721,6 @@ public:
   const TYPELIB *interval;            // Which interval to use
   CHARSET_INFO *charset;
   uint32 srid;
-  Field::geometry_type geom_type;
   uint pack_flag;
   Column_definition_attributes()
    :length(0),
@@ -4731,7 +4728,6 @@ public:
     interval(NULL),
     charset(&my_charset_bin),
     srid(0),
-    geom_type(Field::GEOM_GEOMETRY),
     pack_flag(0)
   { }
   Column_definition_attributes(const Field *field);
@@ -5009,7 +5005,6 @@ public:
     interval= other.interval;
     charset= other.charset;
     srid= other.srid;
-    geom_type= other.geom_type;
     pack_flag= other.pack_flag;
   }
 
@@ -5027,6 +5022,8 @@ public:
   { compression_method_ptr= compression_method_arg; }
   Compression_method *compression_method() const
   { return compression_method_ptr; }
+
+  bool check_vcol_for_key(THD *thd) const;
 };
 
 
@@ -5363,7 +5360,7 @@ enum_field_types get_blob_type_from_length(ulong length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
-bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
+bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
                       enum_vcol_info_type type);
 
 /*

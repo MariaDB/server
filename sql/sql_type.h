@@ -3012,14 +3012,6 @@ public:
   virtual void set_maybe_null(bool maybe_null_arg)= 0;
   // Returns total number of decimal digits
   virtual uint decimal_precision() const= 0;
-  /*
-    Field::geometry_type is not visible here.
-    Let's use an "uint" wrapper for now. Later when we move Field_geom
-    into a plugin, this method will be replaced to some generic
-    datatype indepented method.
-  */
-  virtual uint uint_geometry_type() const= 0;
-  virtual void set_geometry_type(uint type)= 0;
   virtual const TYPELIB *get_typelib() const= 0;
   virtual void set_typelib(const TYPELIB *typelib)= 0;
 };
@@ -3534,6 +3526,21 @@ public:
   virtual bool Column_definition_prepare_stage2(Column_definition *c,
                                                 handler *file,
                                                 ulonglong table_flags) const= 0;
+  virtual bool Key_part_spec_init_primary(Key_part_spec *part,
+                                          const Column_definition &def,
+                                          const handler *file) const;
+  virtual bool Key_part_spec_init_unique(Key_part_spec *part,
+                                         const Column_definition &def,
+                                         const handler *file,
+                                         bool *has_key_needed) const;
+  virtual bool Key_part_spec_init_multiple(Key_part_spec *part,
+                                           const Column_definition &def,
+                                           const handler *file) const;
+  virtual bool Key_part_spec_init_foreign(Key_part_spec *part,
+                                          const Column_definition &def,
+                                          const handler *file) const;
+  virtual bool Key_part_spec_init_spatial(Key_part_spec *part,
+                                          const Column_definition &def) const;
   virtual bool Key_part_spec_init_ft(Key_part_spec *part,
                                      const Column_definition &def) const
   {
@@ -3566,6 +3573,10 @@ public:
   virtual void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const;
+  virtual const Type_handler *type_handler_frm_unpack(const uchar *buffer) const
+  {
+    return this;
+  }
   virtual bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -6246,6 +6257,19 @@ public:
                                         ulonglong table_flags) const;
   bool Key_part_spec_init_ft(Key_part_spec *part,
                              const Column_definition &def) const;
+  bool Key_part_spec_init_primary(Key_part_spec *part,
+                                  const Column_definition &def,
+                                  const handler *file) const override;
+  bool Key_part_spec_init_unique(Key_part_spec *part,
+                                 const Column_definition &def,
+                                 const handler *file,
+                                 bool *has_key_needed) const override;
+  bool Key_part_spec_init_multiple(Key_part_spec *part,
+                                   const Column_definition &def,
+                                   const handler *file) const override;
+  bool Key_part_spec_init_foreign(Key_part_spec *part,
+                                  const Column_definition &def,
+                                  const handler *file) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -6365,6 +6389,18 @@ class Type_handler_geometry: public Type_handler_string_result
 {
   static const Name m_name_geometry;
 public:
+  enum geometry_types
+  {
+    GEOM_GEOMETRY = 0, GEOM_POINT = 1, GEOM_LINESTRING = 2, GEOM_POLYGON = 3,
+    GEOM_MULTIPOINT = 4, GEOM_MULTILINESTRING = 5, GEOM_MULTIPOLYGON = 6,
+    GEOM_GEOMETRYCOLLECTION = 7
+  };
+  static bool check_type_geom_or_binary(const char *opname, const Item *item);
+  static bool check_types_geom_or_binary(const char *opname,
+                                         Item * const *args,
+                                         uint start, uint end);
+  static const Type_handler_geometry *type_handler_geom_by_type(uint type);
+public:
   virtual ~Type_handler_geometry() {}
   const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
@@ -6373,6 +6409,15 @@ public:
   uint32 calc_pack_length(uint32 length) const;
   const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const;
+  virtual geometry_types geometry_type() const { return GEOM_GEOMETRY; }
+  const Type_handler *type_handler_frm_unpack(const uchar *buffer)
+                                              const override;
+  bool is_binary_compatible_geom_super_type_for(const Type_handler_geometry *th)
+                                                const
+  {
+    return geometry_type() == GEOM_GEOMETRY ||
+           geometry_type() == th->geometry_type();
+  }
   bool type_can_have_key_part() const
   {
     return true;
@@ -6410,6 +6455,21 @@ public:
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
+  bool Key_part_spec_init_primary(Key_part_spec *part,
+                                  const Column_definition &def,
+                                  const handler *file) const override;
+  bool Key_part_spec_init_unique(Key_part_spec *part,
+                                 const Column_definition &def,
+                                 const handler *file,
+                                 bool *has_key_needed) const override;
+  bool Key_part_spec_init_multiple(Key_part_spec *part,
+                                   const Column_definition &def,
+                                   const handler *file) const override;
+  bool Key_part_spec_init_foreign(Key_part_spec *part,
+                                  const Column_definition &def,
+                                  const handler *file) const override;
+  bool Key_part_spec_init_spatial(Key_part_spec *part,
+                                  const Column_definition &def) const override;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -6457,7 +6517,86 @@ public:
   bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const;
 };
 
-extern MYSQL_PLUGIN_IMPORT Type_handler_geometry type_handler_geometry;
+
+class Type_handler_point: public Type_handler_geometry
+{
+  static const Name m_name_point;
+  // Binary length of a POINT value: 4 byte SRID + 21 byte WKB POINT
+  static uint octet_length() { return 25; }
+public:
+  geometry_types geometry_type() const { return GEOM_POINT; }
+  const Name name() const { return m_name_point; }
+  bool Key_part_spec_init_primary(Key_part_spec *part,
+                                  const Column_definition &def,
+                                  const handler *file) const override;
+  bool Key_part_spec_init_unique(Key_part_spec *part,
+                                 const Column_definition &def,
+                                 const handler *file,
+                                 bool *has_key_needed) const override;
+  bool Key_part_spec_init_multiple(Key_part_spec *part,
+                                   const Column_definition &def,
+                                   const handler *file) const override;
+  bool Key_part_spec_init_foreign(Key_part_spec *part,
+                                  const Column_definition &def,
+                                  const handler *file) const override;
+};
+
+class Type_handler_linestring: public Type_handler_geometry
+{
+  static const Name m_name_linestring;
+public:
+  geometry_types geometry_type() const { return GEOM_LINESTRING; }
+  const Name name() const { return m_name_linestring; }
+};
+
+class Type_handler_polygon: public Type_handler_geometry
+{
+  static const Name m_name_polygon;
+public:
+  geometry_types geometry_type() const { return GEOM_POLYGON; }
+  const Name name() const { return m_name_polygon; }
+};
+
+class Type_handler_multipoint: public Type_handler_geometry
+{
+  static const Name m_name_multipoint;
+public:
+  geometry_types geometry_type() const { return GEOM_MULTIPOINT; }
+  const Name name() const { return m_name_multipoint; }
+};
+
+class Type_handler_multilinestring: public Type_handler_geometry
+{
+  static const Name m_name_multilinestring;
+public:
+  geometry_types geometry_type() const { return GEOM_MULTILINESTRING; }
+  const Name name() const { return m_name_multilinestring; }
+};
+
+class Type_handler_multipolygon: public Type_handler_geometry
+{
+  static const Name m_name_multipolygon;
+public:
+  geometry_types geometry_type() const { return GEOM_MULTIPOLYGON; }
+  const Name name() const { return m_name_multipolygon; }
+};
+
+class Type_handler_geometrycollection: public Type_handler_geometry
+{
+  static const Name m_name_geometrycollection;
+public:
+  geometry_types geometry_type() const { return GEOM_GEOMETRYCOLLECTION; }
+  const Name name() const { return m_name_geometrycollection; }
+};
+
+extern MYSQL_PLUGIN_IMPORT Type_handler_geometry   type_handler_geometry;
+extern MYSQL_PLUGIN_IMPORT Type_handler_point      type_handler_point;
+extern MYSQL_PLUGIN_IMPORT Type_handler_linestring type_handler_linestring;
+extern MYSQL_PLUGIN_IMPORT Type_handler_polygon    type_handler_polygon;
+extern MYSQL_PLUGIN_IMPORT Type_handler_multipoint      type_handler_multipoint;
+extern MYSQL_PLUGIN_IMPORT Type_handler_multilinestring type_handler_multilinestring;
+extern MYSQL_PLUGIN_IMPORT Type_handler_multipolygon    type_handler_multipolygon;
+extern MYSQL_PLUGIN_IMPORT Type_handler_geometrycollection type_handler_geometrycollection;
 #endif
 
 

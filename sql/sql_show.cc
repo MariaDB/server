@@ -448,10 +448,12 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
   show_table->use_all_columns();               // Required for default
   restore_record(show_table, s->default_values);
 
+#ifdef HAVE_SPATIAL
   for (; (field= *ptr) ; ptr++)
     if (field->type() == MYSQL_TYPE_GEOMETRY)
     {
       Field_geom *fg= (Field_geom *) field;
+      const Type_handler_geometry *gth= fg->type_handler_geom();
 
       DEBUG_SYNC(thd, "get_schema_column");
 
@@ -476,7 +478,7 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
       /*STORAGE_TYPE*/
       table->field[8]->store(1LL, TRUE); /*Always 1 (binary implementation)*/
       /*GEOMETRY_TYPE*/
-      table->field[9]->store((longlong) (fg->get_geometry_type()), TRUE);
+      table->field[9]->store((longlong) (gth->geometry_type()), TRUE);
       /*COORD_DIMENSION*/
       table->field[10]->store(2LL, TRUE);
       /*MAX_PPR*/
@@ -487,6 +489,7 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
     }
+#endif
 
 exit:
   DBUG_RETURN(0);

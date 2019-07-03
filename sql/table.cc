@@ -2190,6 +2190,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         enum_field_types field_type= (enum_field_types) strpos[13];
         if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
           goto err; // Not supported field type
+        handler= handler->type_handler_frm_unpack(strpos);
         if (handler->Column_definition_attributes_frm_unpack(&attr, share,
                                                              strpos,
                                                              &extra2.gis))

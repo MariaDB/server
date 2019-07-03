@@ -8884,32 +8884,8 @@ end_of_record:
 void Field_geom::sql_type(String &res) const
 {
   CHARSET_INFO *cs= &my_charset_latin1;
-  switch (geom_type)
-  {
-    case GEOM_POINT:
-     res.set(STRING_WITH_LEN("point"), cs);
-     break;
-    case GEOM_LINESTRING:
-     res.set(STRING_WITH_LEN("linestring"), cs);
-     break;
-    case GEOM_POLYGON:
-     res.set(STRING_WITH_LEN("polygon"), cs);
-     break;
-    case GEOM_MULTIPOINT:
-     res.set(STRING_WITH_LEN("multipoint"), cs);
-     break;
-    case GEOM_MULTILINESTRING:
-     res.set(STRING_WITH_LEN("multilinestring"), cs);
-     break;
-    case GEOM_MULTIPOLYGON:
-     res.set(STRING_WITH_LEN("multipolygon"), cs);
-     break;
-    case GEOM_GEOMETRYCOLLECTION:
-     res.set(STRING_WITH_LEN("geometrycollection"), cs);
-     break;
-    default:
-     res.set(STRING_WITH_LEN("geometry"), cs);
-  }
+  const Name tmp= m_type_handler->name();
+  res.set(tmp.ptr(), tmp.length(), cs);
 }
 
 
@@ -8954,9 +8930,9 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
 	wkb_type > (uint32) Geometry::wkb_last)
       goto err;
 
-    if (geom_type != Field::GEOM_GEOMETRY &&
-        geom_type != Field::GEOM_GEOMETRYCOLLECTION &&
-        (uint32) geom_type != wkb_type)
+    if (m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRY &&
+        m_type_handler->geometry_type() != Type_handler_geometry::GEOM_GEOMETRYCOLLECTION &&
+        (uint32) m_type_handler->geometry_type() != wkb_type)
     {
       const char *db= table->s->db.str;
       const char *tab_name= table->s->table_name.str;
@@ -8967,7 +8943,7 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
         tab_name= "";
 
       my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
-               Geometry::ci_collection[geom_type]->m_name.str,
+               Geometry::ci_collection[m_type_handler->geometry_type()]->m_name.str,
                Geometry::ci_collection[wkb_type]->m_name.str,
                db, tab_name, field_name.str,
                (ulong) table->in_use->get_stmt_da()->
@@ -8994,25 +8970,19 @@ err_exit:
   return -1;
 }
 
-Field::geometry_type Field_geom::geometry_type_merge(geometry_type a,
-                                                            geometry_type b)
-{
-  if (a == b)
-    return a;
-  return Field::GEOM_GEOMETRY;
-}
-
 
 bool Field_geom::is_equal(const Column_definition &new_field) const
 {
-  return new_field.type_handler() == type_handler() &&
-         /*
-           - Allow ALTER..INPLACE to supertype (GEOMETRY),
-             e.g. POINT to GEOMETRY or POLYGON to GEOMETRY.
-           - Allow ALTER..INPLACE to the same geometry type: POINT -> POINT
-         */
-         (new_field.geom_type == geom_type ||
-          new_field.geom_type == GEOM_GEOMETRY);
+  /*
+    - Allow ALTER..INPLACE to supertype (GEOMETRY),
+      e.g. POINT to GEOMETRY or POLYGON to GEOMETRY.
+    - Allow ALTER..INPLACE to the same geometry type: POINT -> POINT
+  */
+  if (new_field.type_handler() == m_type_handler)
+    return true;
+  const Type_handler_geometry *gth=
+    dynamic_cast<const Type_handler_geometry*>(new_field.type_handler());
+  return gth && gth->is_binary_compatible_geom_super_type_for(m_type_handler);
 }
 
 
@@ -10360,7 +10330,7 @@ void Column_definition::create_length_to_internal_length_newdecimal()
 }
 
 
-bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
+bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
                       enum_vcol_info_type type)
 
 {
@@ -10694,7 +10664,6 @@ Column_definition_attributes::Column_definition_attributes(const Field *field)
   interval(NULL),
   charset(field->charset()), // May be NULL ptr
   srid(0),
-  geom_type(Field::GEOM_GEOMETRY),
   pack_flag(0)
 {}
 
@@ -10923,6 +10892,19 @@ Column_definition::set_compressed_deprecated_column_attribute(THD *thd,
   else
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name.str);
   return true;
+}
+
+
+bool Column_definition::check_vcol_for_key(THD *thd) const
+{
+  if (vcol_info && (vcol_info->flags & VCOL_NOT_STRICTLY_DETERMINISTIC))
+  {
+    /* use check_expression() to report an error */
+    check_expression(vcol_info, &field_name, VCOL_GENERATED_STORED);
+    DBUG_ASSERT(thd->is_error());
+    return true;
+  }
+  return false;
 }
 
 

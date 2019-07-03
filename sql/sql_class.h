@@ -289,6 +289,25 @@ public:
   */
   Key_part_spec *clone(MEM_ROOT *mem_root) const
   { return new (mem_root) Key_part_spec(*this); }
+  bool check_key_for_blob(const class handler *file) const;
+  bool check_key_length_for_blob() const
+  {
+    if (!length)
+    {
+      my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), field_name.str);
+      return true;
+    }
+    return false;
+  }
+  bool check_primary_key_for_blob(const class handler *file) const
+  {
+    return check_key_for_blob(file) || check_key_length_for_blob();
+  }
+  bool check_foreign_key_for_blob(const class handler *file) const
+  {
+    return check_key_for_blob(file) || check_key_length_for_blob();
+  }
+  bool init_multiple_key_for_blob(const class handler *file);
 };
 
 
@@ -6829,8 +6848,7 @@ public:
 class Type_holder: public Sql_alloc,
                    public Item_args,
                    public Type_handler_hybrid_field_type,
-                   public Type_all_attributes,
-                   public Type_geometry_attributes
+                   public Type_all_attributes
 {
   const TYPELIB *m_typelib;
   bool m_maybe_null;
@@ -6854,14 +6872,6 @@ public:
     */
     DBUG_ASSERT(0);
     return 0;
-  }
-  void set_geometry_type(uint type)
-  {
-    Type_geometry_attributes::set_geometry_type(type);
-  }
-  uint uint_geometry_type() const
-  {
-    return Type_geometry_attributes::get_geometry_type();
   }
   void set_typelib(const TYPELIB *typelib)
   {

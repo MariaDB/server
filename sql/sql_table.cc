@@ -3409,6 +3409,24 @@ Type_handler_blob_common::Key_part_spec_init_ft(Key_part_spec *part,
 }
 
 
+static bool
+key_add_part_check_null(const handler *file, KEY *key_info,
+                        const Column_definition *sql_field,
+                        const Key_part_spec *column)
+{
+  if (!(sql_field->flags & NOT_NULL_FLAG))
+  {
+    key_info->flags|= HA_NULL_PART_KEY;
+    if (!(file->ha_table_flags() & HA_NULL_IN_KEY))
+    {
+      my_error(ER_NULL_COLUMN_IN_INDEX, MYF(0), column->field_name.str);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 /*
   Preparation for table creation
 
@@ -3940,8 +3958,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       }
 
       cols2.rewind();
-      if (key->type == Key::FULLTEXT)
-      {
+      switch(key->type) {
+
+      case Key::FULLTEXT:
         if (sql_field->type_handler()->Key_part_spec_init_ft(column,
 	                                                     *sql_field) ||
             (ft_key_charset && sql_field->charset != ft_key_charset))
@@ -3949,111 +3968,75 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
           DBUG_RETURN(-1);
         }
-        ft_key_charset=sql_field->charset;
-      }
-      else
-      {
+        ft_key_charset= sql_field->charset;
+        break;
 
-	column->length*= sql_field->charset->mbmaxlen;
-
-        if (key->type == Key::SPATIAL)
+      case Key::SPATIAL:
+        if (sql_field->type_handler()->Key_part_spec_init_spatial(column,
+                                                                  *sql_field) ||
+            sql_field->check_vcol_for_key(thd))
+          DBUG_RETURN(TRUE);
+        if (!(sql_field->flags & NOT_NULL_FLAG))
         {
-          if (column->length)
-          {
-            my_error(ER_WRONG_SUB_KEY, MYF(0));
-            DBUG_RETURN(TRUE);
-          }
-          if (!f_is_geom(sql_field->pack_flag))
-          {
-            my_error(ER_WRONG_ARGUMENTS, MYF(0), "SPATIAL INDEX");
-            DBUG_RETURN(TRUE);
-          }
+          my_message(ER_SPATIAL_CANT_HAVE_NULL,
+                     ER_THD(thd, ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
+          DBUG_RETURN(TRUE);
         }
+        break;
 
-	if (f_is_blob(sql_field->pack_flag) ||
-            (f_is_geom(sql_field->pack_flag) && key->type != Key::SPATIAL))
-        {
-          if (!(file->ha_table_flags() & HA_CAN_INDEX_BLOBS))
-          {
-            my_error(ER_BLOB_USED_AS_KEY, MYF(0), column->field_name.str,
-                     file->table_type());
-            DBUG_RETURN(TRUE);
-          }
-          if (f_is_geom(sql_field->pack_flag) && sql_field->geom_type ==
-              Field::GEOM_POINT)
-            column->length= MAX_LEN_GEOM_POINT_FIELD;
-          if (!column->length)
-          {
-            if (key->type == Key::UNIQUE)
-              is_hash_field_needed= true;
-            else if (key->type == Key::MULTIPLE)
-              column->length= file->max_key_length() + 1;
-            else
-            {
-              my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
-              DBUG_RETURN(TRUE);
-            }
-          }
-        }
-#ifdef HAVE_SPATIAL
-	if (key->type == Key::SPATIAL)
-	{
-	  if (!column->length)
-	  {
-	    /*
-              4 is: (Xmin,Xmax,Ymin,Ymax), this is for 2D case
-              Lately we'll extend this code to support more dimensions
-	    */
-	    column->length= 4*sizeof(double);
-	  }
-	}
-#endif
+      case Key::PRIMARY:
         if (sql_field->vcol_info)
         {
-          if (key->type == Key::PRIMARY)
-          {
-            my_error(ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN, MYF(0));
-            DBUG_RETURN(TRUE);
-          }
-          if (sql_field->vcol_info->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
-          {
-            /* use check_expression() to report an error */
-            check_expression(sql_field->vcol_info, &sql_field->field_name,
-                             VCOL_GENERATED_STORED);
-            DBUG_ASSERT(thd->is_error());
-            DBUG_RETURN(TRUE);
-          }
+          my_error(ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN, MYF(0));
+          DBUG_RETURN(TRUE);
         }
-	if (!(sql_field->flags & NOT_NULL_FLAG))
-	{
-	  if (key->type == Key::PRIMARY)
-	  {
-	    /* Implicitly set primary key fields to NOT NULL for ISO conf. */
-	    sql_field->flags|= NOT_NULL_FLAG;
-	    sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
-            null_fields--;
-	  }
-	  else
-          {
-            key_info->flags|= HA_NULL_PART_KEY;
-            if (!(file->ha_table_flags() & HA_NULL_IN_KEY))
-            {
-              my_error(ER_NULL_COLUMN_IN_INDEX, MYF(0), column->field_name.str);
-              DBUG_RETURN(TRUE);
-            }
-            if (key->type == Key::SPATIAL)
-            {
-              my_message(ER_SPATIAL_CANT_HAVE_NULL,
-                         ER_THD(thd, ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
-              DBUG_RETURN(TRUE);
-            }
-          }
-	}
-	if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
-	{
-	  if (column_nr == 0 || (file->ha_table_flags() & HA_AUTO_PART_KEY))
-	    auto_increment--;			// Field is used
-	}
+        if (sql_field->type_handler()->Key_part_spec_init_primary(column,
+	                                                          *sql_field,
+	                                                          file))
+          DBUG_RETURN(TRUE);
+        if (!(sql_field->flags & NOT_NULL_FLAG))
+        {
+          /* Implicitly set primary key fields to NOT NULL for ISO conf. */
+          sql_field->flags|= NOT_NULL_FLAG;
+          sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
+          null_fields--;
+        }
+        break;
+
+      case Key::MULTIPLE:
+        if (sql_field->type_handler()->Key_part_spec_init_multiple(column,
+                                                                   *sql_field,
+                                                                   file) ||
+            sql_field->check_vcol_for_key(thd) ||
+            key_add_part_check_null(file, key_info, sql_field, column))
+          DBUG_RETURN(TRUE);
+        break;
+
+      case Key::FOREIGN_KEY:
+        if (sql_field->type_handler()->Key_part_spec_init_foreign(column,
+                                                                  *sql_field,
+                                                                  file) ||
+            sql_field->check_vcol_for_key(thd) ||
+            key_add_part_check_null(file, key_info, sql_field, column))
+          DBUG_RETURN(TRUE);
+        break;
+
+      case Key::UNIQUE:
+        if (sql_field->type_handler()->Key_part_spec_init_unique(column,
+                                                      *sql_field, file,
+                                                      &is_hash_field_needed) ||
+            sql_field->check_vcol_for_key(thd) ||
+            key_add_part_check_null(file, key_info, sql_field, column))
+          DBUG_RETURN(TRUE);
+        break;
+      }
+
+      if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
+      {
+        DBUG_ASSERT(key->type != Key::FULLTEXT);
+        DBUG_ASSERT(key->type != Key::SPATIAL);
+        if (column_nr == 0 || (file->ha_table_flags() & HA_AUTO_PART_KEY))
+         auto_increment--;                        // Field is used
       }
 
       key_part_info->fieldnr= field;

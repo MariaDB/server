@@ -259,7 +259,6 @@ void ORAerror(THD *thd, const char *s)
   enum Condition_information_item::Name cond_info_item_name;
   enum enum_diag_condition_item_name diag_condition_item_name;
   enum Diagnostics_information::Which_area diag_area;
-  enum Field::geometry_type geom_type;
   enum enum_fk_option m_fk_option;
   enum Item_udftype udf_type;
   enum Key::Keytype key_type;
@@ -1305,7 +1304,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <create_field> field_spec column_def
 
-%type <geom_type> spatial_type
+%type <type_handler> spatial_type
 
 %type <num>
         order_dir lock_option
@@ -7064,8 +7063,7 @@ field_type_lob:
           {
 #ifdef HAVE_SPATIAL
             Lex->charset=&my_charset_bin;
-            Lex->last_field->geom_type= $1;
-            $$.set(&type_handler_geometry, $2);
+            $$.set($1, $2);
 #else
             my_yyabort_error((ER_FEATURE_DISABLED, MYF(0), sym_group_geom.name,
                               sym_group_geom.needed_define));
@@ -7115,14 +7113,14 @@ field_type_misc:
         ;
 
 spatial_type:
-          GEOMETRY_SYM        { $$= Field::GEOM_GEOMETRY; }
-        | GEOMETRYCOLLECTION  { $$= Field::GEOM_GEOMETRYCOLLECTION; }
-        | POINT_SYM           { $$= Field::GEOM_POINT; }
-        | MULTIPOINT          { $$= Field::GEOM_MULTIPOINT; }
-        | LINESTRING          { $$= Field::GEOM_LINESTRING; }
-        | MULTILINESTRING     { $$= Field::GEOM_MULTILINESTRING; }
-        | POLYGON             { $$= Field::GEOM_POLYGON; }
-        | MULTIPOLYGON        { $$= Field::GEOM_MULTIPOLYGON; }
+          GEOMETRY_SYM       { $$= GEOM_TYPE(&type_handler_geometry); }
+        | GEOMETRYCOLLECTION { $$= GEOM_TYPE(&type_handler_geometrycollection); }
+        | POINT_SYM          { $$= GEOM_TYPE(&type_handler_point); }
+        | MULTIPOINT         { $$= GEOM_TYPE(&type_handler_multipoint); }
+        | LINESTRING         { $$= GEOM_TYPE(&type_handler_linestring); }
+        | MULTILINESTRING    { $$= GEOM_TYPE(&type_handler_multilinestring); }
+        | POLYGON            { $$= GEOM_TYPE(&type_handler_polygon); }
+        | MULTIPOLYGON       { $$= GEOM_TYPE(&type_handler_multipolygon); }
         ;
 
 char:
@@ -11149,38 +11147,23 @@ geometry_function:
           }
         | GEOMETRYCOLLECTION '(' expr_list ')'
           {
-            $$= GEOM_NEW(thd,
-                         Item_func_spatial_collection(thd, *$3,
-                           Geometry::wkb_geometrycollection,
-                           Geometry::wkb_point));
+            $$= GEOM_NEW(thd, Item_func_geometrycollection(thd, *$3));
           }
         | LINESTRING '(' expr_list ')'
           {
-            $$= GEOM_NEW(thd,
-                         Item_func_spatial_collection(thd, *$3,
-                           Geometry::wkb_linestring,
-                           Geometry::wkb_point));
+            $$= GEOM_NEW(thd, Item_func_linestring(thd, *$3));
           }
         | MULTILINESTRING '(' expr_list ')'
           {
-            $$= GEOM_NEW(thd,
-                         Item_func_spatial_collection(thd, *$3,
-                           Geometry::wkb_multilinestring,
-                           Geometry::wkb_linestring));
+            $$= GEOM_NEW(thd, Item_func_multilinestring(thd, *$3));
           }
         | MULTIPOINT '(' expr_list ')'
           {
-            $$= GEOM_NEW(thd,
-                         Item_func_spatial_collection(thd, *$3,
-                           Geometry::wkb_multipoint,
-                           Geometry::wkb_point));
+            $$= GEOM_NEW(thd, Item_func_multipoint(thd, *$3));
           }
         | MULTIPOLYGON '(' expr_list ')'
           {
-            $$= GEOM_NEW(thd,
-                         Item_func_spatial_collection(thd, *$3,
-                           Geometry::wkb_multipolygon,
-                           Geometry::wkb_polygon));
+            $$= GEOM_NEW(thd, Item_func_multipolygon(thd, *$3));
           }
         | POINT_SYM '(' expr ',' expr ')'
           {
@@ -11188,10 +11171,7 @@ geometry_function:
           }
         | POLYGON '(' expr_list ')'
           {
-            $$= GEOM_NEW(thd,
-                         Item_func_spatial_collection(thd, *$3,
-                           Geometry::wkb_polygon,
-                           Geometry::wkb_linestring));
+            $$= GEOM_NEW(thd, Item_func_polygon(thd, *$3));
           }
         | WITHIN '(' expr ',' expr ')'
           {
