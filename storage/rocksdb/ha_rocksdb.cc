@@ -325,7 +325,6 @@ static int rocksdb_delete_column_family(
 namespace  // anonymous namespace = not visible outside this source file
 {
 
-const ulong TABLE_HASH_SIZE = 32;
 typedef Hash_set<Rdb_table_handler> Rdb_table_set;
 
 class Rdb_open_tables_map {
