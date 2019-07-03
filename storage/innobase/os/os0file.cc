@@ -1668,6 +1668,7 @@ LinuxAIOHandler::resubmit(Slot* slot)
 
 	/* Resubmit an I/O request */
 	int	ret = io_submit(m_array->io_ctx(m_segment), 1, &iocb);
+	srv_stats.buffered_aio_submitted.inc();
 
 	if (ret < -1)  {
 		errno = -ret;
@@ -2032,6 +2033,7 @@ AIO::linux_dispatch(Slot* slot)
 	io_ctx_index = (slot->pos * m_n_segments) / m_slots.size();
 
 	int	ret = io_submit(m_aio_ctx[io_ctx_index], 1, &iocb);
+	srv_stats.buffered_aio_submitted.inc();
 
 	/* io_submit() returns number of successfully queued requests
 	or -errno. */
@@ -2214,6 +2216,7 @@ AIO::is_linux_native_aio_supported()
 	}
 
 	int	err = io_submit(io_ctx, 1, &p_iocb);
+	srv_stats.buffered_aio_submitted.inc();
 
 	if (err >= 1) {
 		/* Now collect the submitted IO request. */

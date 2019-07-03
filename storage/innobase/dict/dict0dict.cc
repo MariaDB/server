@@ -6504,25 +6504,6 @@ dict_tf_to_row_format_string(
 	return(0);
 }
 
-/** Calculate the used memory occupied by the data dictionary
-table and index objects.
-@return number of bytes occupied. */
-UNIV_INTERN
-ulint
-dict_sys_get_size()
-{
-	/* No mutex; this is a very crude approximation anyway */
-	ulint size = UT_LIST_GET_LEN(dict_sys.table_LRU)
-		+ UT_LIST_GET_LEN(dict_sys.table_non_LRU);
-	size *= sizeof(dict_table_t)
-		+ sizeof(dict_index_t) * 2
-		+ (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
-		+ sizeof(dict_field_t) * 5 /* total number of key fields */
-		+ 200; /* arbitrary, covering names and overhead */
-
-	return size;
-}
-
 /** Look for any dictionary objects that are found in the given tablespace.
 @param[in]	space_id	Tablespace ID to search for.
 @return true if tablespace is empty. */

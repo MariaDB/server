@@ -90,6 +90,10 @@ struct srv_stats_t
 	doublewrite buffer */
 	ulint_ctr_1_t		dblwr_pages_written;
 
+#if defined(LINUX_NATIVE_AIO)
+	ulint_ctr_1_t buffered_aio_submitted;
+#endif
+
 	/** Store the number of write requests issued */
 	ulint_ctr_1_t		buf_pool_write_requests;
 
@@ -184,6 +188,9 @@ struct srv_stats_t
 
 	/** Number of spaces in keyrotation list */
 	ulint_ctr_64_t		key_rotation_list_length;
+
+	/** Number of lock deadlocks */
+	ulint_ctr_1_t		lock_deadlock_count;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -511,6 +518,12 @@ extern uint	srv_spin_wait_delay;
 extern ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 extern ulong	srv_available_undo_logs;
+/** Iterations of the loop bounded by 'srv_active' label. */
+extern ulint	srv_main_active_loops;
+/** Iterations of the loop bounded by the 'srv_idle' label. */
+extern ulint	srv_main_idle_loops;
+/** Log writes involving flush. */
+extern ulint	srv_log_writes_and_flush;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 extern my_bool	srv_ibuf_disable_background_merge;
@@ -900,14 +913,6 @@ srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
-	ulint innodb_data_pending_reads;	/*!< Pending reads */
-	ulint innodb_data_pending_writes;	/*!< Pending writes */
-	ulint innodb_data_pending_fsyncs;	/*!< Pending fsyncs */
-	ulint innodb_data_fsyncs;		/*!< Number of fsyncs so far */
-	ulint innodb_data_read;			/*!< Data bytes read */
-	ulint innodb_data_writes;		/*!< I/O write requests */
-	ulint innodb_data_written;		/*!< Data bytes written */
-	ulint innodb_data_reads;		/*!< I/O read requests */
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
@@ -922,6 +927,9 @@ struct export_var_t{
 #ifdef UNIV_DEBUG
 	ulint innodb_buffer_pool_pages_latched;	/*!< Latched pages */
 #endif /* UNIV_DEBUG */
+	ulint innodb_buffer_pool_pages_made_not_young;
+	ulint innodb_buffer_pool_pages_made_young;
+	ulint innodb_buffer_pool_pages_old;
 	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool->stat.n_page_gets */
 	ulint innodb_buffer_pool_reads;		/*!< srv_buf_pool_reads */
 	ulint innodb_buffer_pool_wait_free;	/*!< srv_buf_pool_wait_free */
@@ -930,17 +938,35 @@ struct export_var_t{
 	ulint innodb_buffer_pool_read_ahead_rnd;/*!< srv_read_ahead_rnd */
 	ulint innodb_buffer_pool_read_ahead;	/*!< srv_read_ahead */
 	ulint innodb_buffer_pool_read_ahead_evicted;/*!< srv_read_ahead evicted*/
+	ulint innodb_checkpoint_age;
+	ulint innodb_checkpoint_max_age;
+	ulint innodb_data_pending_reads;	/*!< Pending reads */
+	ulint innodb_data_pending_writes;	/*!< Pending writes */
+	ulint innodb_data_pending_fsyncs;	/*!< Pending fsyncs */
+	ulint innodb_data_fsyncs;		/*!< Number of fsyncs so far */
+	ulint innodb_data_read;			/*!< Data bytes read */
+	ulint innodb_data_writes;		/*!< I/O write requests */
+	ulint innodb_data_written;		/*!< Data bytes written */
+	ulint innodb_data_reads;		/*!< I/O read requests */
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
-	ibool innodb_have_atomic_builtins;	/*!< HAVE_ATOMIC_BUILTINS */
+	ulint innodb_deadlocks;
+	ulint innodb_history_list_length;
 	ulint innodb_log_waits;			/*!< srv_log_waits */
 	ulint innodb_log_write_requests;	/*!< srv_log_write_requests */
 	ulint innodb_log_writes;		/*!< srv_log_writes */
+	lsn_t innodb_lsn_current;
+	lsn_t innodb_lsn_flushed;
+	lsn_t innodb_lsn_last_checkpoint;
+	trx_id_t innodb_max_trx_id;
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint innodb_mem_adaptive_hash;
+#endif
+	ulint innodb_mem_dictionary;
 	lsn_t innodb_os_log_written;		/*!< srv_os_log_written */
 	ulint innodb_os_log_fsyncs;		/*!< fil_n_log_flushes */
 	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
 	ulint innodb_os_log_pending_fsyncs;	/*!< fil_n_pending_log_flushes */
-	ulint innodb_page_size;			/*!< srv_page_size */
 	ulint innodb_pages_created;		/*!< buf_pool->stat.n_pages_created */
 	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read*/
 	ulint innodb_pages_written;		/*!< buf_pool->stat.n_pages_written */
@@ -963,6 +989,7 @@ struct export_var_t{
 	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
 	ulint innodb_num_open_files;		/*!< fil_system_t::n_open */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
+
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;
 	ulint innodb_defragment_compression_failures; /*!< Number of
