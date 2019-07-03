@@ -1085,7 +1085,6 @@ int clustrixdb_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 static int clustrixdb_init(void *p)
 {
   clustrixdb_hton = (handlerton *) p;
-  clustrixdb_hton->state = SHOW_OPTION_YES;
   clustrixdb_hton->flags = HTON_NO_FLAGS;
   clustrixdb_hton->panic = clustrixdb_panic;
   clustrixdb_hton->close_connection = clustrixdb_close_connection;
