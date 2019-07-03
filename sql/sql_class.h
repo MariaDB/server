@@ -5508,7 +5508,7 @@ public:
 
 class select_insert :public select_result_interceptor {
  public:
-  select_result* sel_result_list;
+  select_result* sel_result;
   bool with_returning_list;
   TABLE_LIST *table_list;
   TABLE *table;

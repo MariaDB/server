@@ -119,6 +119,14 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view);
   @returns false if success.
 */
 
+template <typename T>
+void swap_context(T& cxt1, T& cxt2)
+{
+	T temp = cxt1;
+	cxt1 = cxt2;
+	cxt2 = temp;
+
+}
 static bool check_view_single_update(List<Item> &fields, List<Item> *values,
                                      TABLE_LIST *view, table_map *map,
                                      bool insert)
@@ -720,8 +728,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
   SELECT_LEX* select_lex = thd->lex->first_select_lex();
-  bool with_select = !select_lex->returning_list.is_empty();
-  List<Item>& temp_list = thd->lex->current_select->returning_list;
+  bool with_returning_list = !select_lex->returning_list.is_empty();
+  List<Item>& returning_list = thd->lex->current_select->returning_list;
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
   /*
@@ -778,11 +786,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   if (mysql_prepare_insert(thd, table_list, table, fields, values,
 			   update_fields, update_values, duplic, &unused_conds,
-                           FALSE,select_lex))
+                           FALSE,with_returning_list?select_lex:NULL))
 	  goto abort;
  
-  if (with_select)
-	  (void)result->prepare(temp_list, NULL);
+  if (with_returning_list)
+	  (void)result->prepare(returning_list, NULL);
 	  
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
@@ -953,11 +961,12 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       goto values_loop_end;
     }
   }
-  if (with_select)
+  if (with_returning_list)
   {
-	  result->send_result_set_metadata(temp_list,
+	  if (unlikely(result->send_result_set_metadata(returning_list,
 		  Protocol::SEND_NUM_ROWS |
-		  Protocol::SEND_EOF);
+		  Protocol::SEND_EOF)))
+		  goto values_loop_end;
 		 
   }
   THD_STAGE_INFO(thd, stage_update);
@@ -1074,6 +1083,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       }
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 
       thd->decide_logging_format_low(table);
 =======
@@ -1081,6 +1091,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 =======
 	  if (with_select && result->send_data(temp_list) < 0)
 >>>>>>> INSERT...RETURNING working successfully
+=======
+	  if (with_returning_list && result->send_data(returning_list) < 0)
+>>>>>>> INSERT...SELECT...RETURNING returning listed fields for INSERT table
 	  {
 		  error = 1;
 		  break;
@@ -1261,9 +1274,10 @@ values_loop_end:
   if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {
-	  if (with_select)
+	  if (with_returning_list)
 		  result->send_eof();
-	  else {
+	  else 
+	  {
 		  my_ok(thd, info.copied + info.deleted +
 			  ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
 				  info.touched : info.updated),
@@ -1280,15 +1294,18 @@ values_loop_end:
 		(lock_type == TL_WRITE_DELAYED) ? (ulong)0 :
 			(ulong)(info.records - info.copied),
 			(long)thd->get_stmt_da()->current_statement_warn_count());
-	else
-		if (with_select)
+	else 
+	{
+		if (with_returning_list)
 			result->send_eof();
-		else {
+		else 
+		{
 			sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong)info.records,
 				(ulong)(info.deleted + updated),
 				(long)thd->get_stmt_da()->current_statement_warn_count());
 			::my_ok(thd, info.copied + info.deleted + updated, id, buff);
 		}
+	}
   }
   thd->abort_on_warning= 0;
   if (thd->lex->current_select->first_cond_optimization)
@@ -1526,6 +1543,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                           bool select_insert,SELECT_LEX * sel_lex)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
+  bool with_returning_list = !select_lex->returning_list.is_empty();
   Name_resolution_context *context= &select_lex->context;
   Name_resolution_context_state ctx_state;
   bool insert_into_view= (table_list->view != 0);
@@ -1590,10 +1608,10 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     table_list->next_local= 0;
     context->resolve_in_table_list_only(table_list);
 
-    res= (((sel_lex->with_wild && setup_wild(thd, table_list, sel_lex->returning_list, NULL, sel_lex->with_wild,
+    res= ((with_returning_list?((sel_lex->with_wild && setup_wild(thd, table_list, sel_lex->returning_list, NULL, sel_lex->with_wild,
 		&select_lex->hidden_bit_fields)) ||
 		setup_fields(thd, Ref_ptr_array(),
-			sel_lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0))||setup_fields(thd, Ref_ptr_array(),
+			sel_lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0)):false)||setup_fields(thd, Ref_ptr_array(),
                        *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
           check_insert_fields(thd, context->table_list, fields, *values,
                               !insert_into_view, 0, &map));
@@ -3599,7 +3617,7 @@ bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
   SELECT_LEX *select_lex= lex->first_select_lex();
   DBUG_ENTER("mysql_insert_select_prepare");
   bool with_ret = lex->current_select->returning_list.is_empty()?false:true;
-  List<Item>& ret_list = thd->lex->current_select->returning_list;
+  List<Item>& returning_list = thd->lex->current_select->returning_list;
 
   /*
     SELECT_LEX do not belong to INSERT statement, so we can't add WHERE
@@ -3613,7 +3631,7 @@ bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
     DBUG_RETURN(TRUE);
 
   if (with_ret)
-	  (void)sel_res->prepare(ret_list, NULL);
+	  (void)sel_res->prepare(returning_list, NULL);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
@@ -3653,7 +3671,7 @@ bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
 }
 
 
-select_insert::select_insert(bool with_ret_list, select_result *sel_ret_list,THD *thd_arg, TABLE_LIST *table_list_par,
+select_insert::select_insert(bool with_ret_list, select_result *result,THD *thd_arg, TABLE_LIST *table_list_par,
                              TABLE *table_par,
                              List<Item> *fields_par,
                              List<Item> *update_fields,
@@ -3672,7 +3690,7 @@ select_insert::select_insert(bool with_ret_list, select_result *sel_ret_list,THD
   info.update_values= update_values;
   info.view= (table_list_par->view ? table_list_par : 0);
   info.table_list= table_list_par;
-  sel_result_list= sel_ret_list;
+  sel_result= result;
   with_returning_list= with_ret_list;
 }
 
@@ -3681,7 +3699,7 @@ int
 select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 {
   LEX *lex= thd->lex;
-  int res;
+  int res=0;
   table_map map= 0;
   SELECT_LEX *lex_current_select_save= lex->current_select;
   DBUG_ENTER("select_insert::prepare");
@@ -3696,10 +3714,28 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   */
   lex->current_select= lex->first_select_lex();
 
-  res= (((select_lex->with_wild && setup_wild(thd, table_list, select_lex->returning_list, NULL, select_lex->with_wild,
+  /*
+    We want the returning_list to point to insert table. But the context is masked. 
+	So we swap it with the context saved during parsing stage. 
+  */
+  if(with_returning_list) 
+  {     swap_context(select_lex->table_list.saved_first,select_lex->table_list.first);
+        swap_context(select_lex->context.saved_table_list,select_lex->context.table_list);
+		swap_context(select_lex->context.saved_name_resolution_table,select_lex->context.first_name_resolution_table);
+
+        res=((select_lex->with_wild && setup_wild(thd, table_list, select_lex->returning_list, NULL, select_lex->with_wild,
 		&select_lex->hidden_bit_fields)) ||
 		setup_fields(thd, Ref_ptr_array(),
-			select_lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0))||setup_fields(thd, Ref_ptr_array(),
+  			select_lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0));
+
+		/*Swap it back to retore the previous state for the rest of the function*/
+
+		swap_context(select_lex->table_list.saved_first,select_lex->table_list.first);
+        swap_context(select_lex->context.saved_table_list,select_lex->context.table_list);
+		swap_context(select_lex->context.saved_name_resolution_table, select_lex->context.first_name_resolution_table);
+  }
+
+  res= res || (setup_fields(thd, Ref_ptr_array(),
                      values, MARK_COLUMNS_READ, 0, NULL, 0) ||
         check_insert_fields(thd, table_list, *fields, values,
                             !insert_into_view, 1, &map));
@@ -3870,7 +3906,7 @@ int select_insert::prepare2(JOIN *)
 {
   
   DBUG_ENTER("select_insert::prepare2");
-  List<Item>& ret_list = thd->lex->current_select->returning_list;
+  List<Item>& returning_list = thd->lex->current_select->returning_list;
   LEX* lex = thd->lex;
   if (thd->lex->current_select->options & OPTION_BUFFER_RESULT &&
       thd->locked_tables_mode <= LTM_LOCK_TABLES &&
@@ -3878,12 +3914,13 @@ int select_insert::prepare2(JOIN *)
     table->file->ha_start_bulk_insert((ha_rows) 0);
   if (table->validate_default_values_of_unset_fields(thd))
     DBUG_RETURN(1);
-  if (select_insert::with_returning_list)
+  if (with_returning_list)
   {
-	  sel_result_list->send_result_set_metadata(ret_list,
+	  if(unlikely(sel_result->send_result_set_metadata(returning_list,
 		  Protocol::SEND_NUM_ROWS |
-		  Protocol::SEND_EOF);
+		  Protocol::SEND_EOF)))
 
+		  DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
 }
@@ -3898,7 +3935,7 @@ void select_insert::cleanup()
 select_insert::~select_insert()
 {
   DBUG_ENTER("~select_insert");
-  sel_result_list=NULL;
+  sel_result=NULL;
   with_returning_list=false;
   if (table && table->is_created())
   {
@@ -3916,7 +3953,7 @@ int select_insert::send_data(List<Item> &values)
 {
   DBUG_ENTER("select_insert::send_data");
   LEX* lex = thd->lex;
-  List<Item>& ret_list = thd->lex->current_select->returning_list;
+  List<Item>& returning_list = thd->lex->current_select->returning_list;
   bool error=0;
 
   if (unit->offset_limit_cnt)
@@ -3949,9 +3986,10 @@ int select_insert::send_data(List<Item> &values)
       DBUG_RETURN(1);
     }
   }
-  if (with_returning_list && sel_result_list->send_data(ret_list) < 0)
+  if (with_returning_list && sel_result->send_data(returning_list) < 0)
   {
 	  error = 1;
+	  DBUG_RETURN(1);
   }
   error= write_record(thd, table, &info);
   table->vers_write= table->versioned();
@@ -4109,8 +4147,8 @@ bool select_insert::send_ok_packet() {
      thd->first_successful_insert_id_in_prev_stmt :
      (info.copied ? autoinc_value_of_last_inserted_row : 0));
 
-  if (select_insert::with_returning_list)
-	  sel_result_list->send_eof();
+  if (with_returning_list)
+	  sel_result->send_eof();
   else
      ::my_ok(thd, row_count, id, message);
 

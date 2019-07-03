@@ -193,6 +193,7 @@ struct Name_resolution_context: Sql_alloc
     name resolution of different parts of the statement.
   */
   TABLE_LIST *table_list;
+  TABLE_LIST *saved_table_list;
   /*
     In most cases the two table references below replace 'table_list' above
     for the purpose of name resolution. The first and last name resolution
@@ -201,6 +202,7 @@ struct Name_resolution_context: Sql_alloc
     and JOIN ... ON. 
   */
   TABLE_LIST *first_name_resolution_table;
+  TABLE_LIST *saved_name_resolution_table;
   /*
     Last table to search in the list of leaf table references that begins
     with first_name_resolution_table.

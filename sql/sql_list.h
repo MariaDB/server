@@ -37,6 +37,7 @@ public:
   uint elements;
   /** The first element in the list. */
   T *first;
+  T *saved_first;
   /** A reference to the next element in the list. */
   T **next;
 

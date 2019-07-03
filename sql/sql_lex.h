@@ -1081,6 +1081,10 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
+                      /*
+					  List of fields and expression for returning
+					  part of insert
+					  */
   List<Item>          returning_list;
   List<Item>          pre_fix; /* above list before fix_fields */
   bool                is_item_list_lookup;

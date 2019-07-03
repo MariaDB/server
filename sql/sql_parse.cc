@@ -4504,7 +4504,11 @@ mysql_execute_command(THD *thd)
     res= mysql_insert(thd, all_tables, lex->field_list, lex->many_values,
 		      lex->update_list, lex->value_list,
                       lex->duplicates, lex->ignore, lex->result ? lex->result : sel_result);
-
+	if (replaced_protocol)
+    {
+      delete thd->protocol;
+      thd->protocol= save_protocol;
+    }
 	delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
@@ -4541,8 +4545,8 @@ mysql_execute_command(THD *thd)
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     select_insert *sel_result;
-	select_result* select_res_list = NULL;
-	bool with_ret_list = false;
+	select_result* result = NULL;
+	bool with_returning_list = false;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
@@ -4597,7 +4601,7 @@ mysql_execute_command(THD *thd)
 
 	  if (!select_lex->returning_list.is_empty())
 	  {
-		  with_ret_list = true;
+		  with_returning_list = true;
 		  /* This is INSERT ... RETURNING.  It will return output to the client */
 		  if (thd->lex->analyze_stmt)
 		  {
@@ -4605,14 +4609,14 @@ mysql_execute_command(THD *thd)
 				Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
 				output and then discard it.
 			  */
-			  select_res_list = new (thd->mem_root) select_send_analyze(thd);
+			  result = new (thd->mem_root) select_send_analyze(thd);
 			  replaced_protocol = true;
 			  save_protocol = thd->protocol;
 			  thd->protocol = new Protocol_discard(thd);
 		  }
 		  else
 		  {
-			  if (!lex->result && !(select_res_list = new (thd->mem_root) select_send(thd)))
+			  if (!lex->result && !(result = new (thd->mem_root) select_send(thd)))
 				  goto error;
 		  }
 	  }
@@ -4626,11 +4630,21 @@ mysql_execute_command(THD *thd)
         TODO: fix it by removing the front element (restoring of it should
         be done properly as well)
       */
+	  /*
+	    If items are present in returning_list, then we need those items to point to 
+		INSERT table during setup_fields() and setup_wild(). But it gets masked before that. 
+		So we save the values in saved_first, saved_table_list and saved_first_name_resolution_context.
+		before they are masked.
+	  */
+	  select_lex->table_list.saved_first=select_lex->table_list.first;
       select_lex->table_list.first= second_table;
+	  select_lex->context.saved_table_list=select_lex->context.table_list;
+	  select_lex->context.saved_name_resolution_table=
+		          select_lex->context.first_name_resolution_table;
       select_lex->context.table_list= 
         select_lex->context.first_name_resolution_table= second_table;
-      res= mysql_insert_select_prepare(thd, lex->result ? lex->result : select_res_list);
-      if (!res && (sel_result= new (thd->mem_root) select_insert(with_ret_list, lex->result ? lex->result : select_res_list, thd,
+      res= mysql_insert_select_prepare(thd, lex->result ? lex->result : result);
+      if (!res && (sel_result= new (thd->mem_root) select_insert(with_returning_list, lex->result ? lex->result : result, thd,
                                                              first_table,
                                                              first_table->table,
                                                              &lex->field_list,
@@ -4673,10 +4687,13 @@ mysql_execute_command(THD *thd)
           sel_result->abort_result_set();
         }
         delete sel_result;
-		delete select_res_list;
-
+		delete result;
       }
-
+      if (replaced_protocol)
+      {
+        delete thd->protocol;
+        thd->protocol= save_protocol;
+      }
       if (!res && (explain || lex->analyze_stmt))
         res= thd->lex->explain->send_explain(thd);
 
