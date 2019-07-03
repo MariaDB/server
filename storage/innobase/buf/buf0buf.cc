@@ -7177,7 +7177,6 @@ buf_print_io(
 /*=========*/
 	FILE*	file)	/*!< in/out: buffer where to print */
 {
-	ulint			i;
 	buf_pool_info_t*	pool_info;
 	buf_pool_info_t*	pool_info_total;
 
@@ -7197,7 +7196,7 @@ buf_print_io(
 				ut_zalloc_nokey(sizeof *pool_info));
 	}
 
-	for (i = 0; i < srv_buf_pool_instances; i++) {
+	for (uint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t*	buf_pool;
 
 		buf_pool = buf_pool_from_array(i);
@@ -7224,8 +7223,8 @@ buf_print_io(
 		"INDIVIDUAL BUFFER POOL INFO\n"
 		"----------------------\n", file);
 
-		for (i = 0; i < srv_buf_pool_instances; i++) {
-			fprintf(file, "---BUFFER POOL " ULINTPF "\n", i);
+		for (uint i = 0; i < srv_buf_pool_instances; i++) {
+			fprintf(file, "---BUFFER POOL %u\n", i);
 			buf_print_io_instance(&pool_info[i], file);
 		}
 	}
