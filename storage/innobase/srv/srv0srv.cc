@@ -1659,9 +1659,10 @@ srv_export_innodb_status(void)
 	export_vars.innodb_lsn_current = log_sys.lsn;
 	export_vars.innodb_lsn_flushed = log_sys.flushed_to_disk_lsn;
 	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
-	export_vars.innodb_checkpoint_age = log_sys.lsn
-		- log_sys.last_checkpoint_lsn;
-	export_vars.innodb_checkpoint_max_age = log_sys.max_checkpoint_age;
+	export_vars.innodb_checkpoint_age = static_cast<ulint>(
+		log_sys.lsn - log_sys.last_checkpoint_lsn);
+	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
+		log_sys.max_checkpoint_age);
 
 	log_mutex_exit();
 }
