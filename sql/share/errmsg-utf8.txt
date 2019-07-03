@@ -7933,3 +7933,5 @@ ER_TOO_LONG_KEYPART 42000 S1009
         eng "Specified key part was too long; max key part length is %u bytes"
 ER_TOO_LONG_DATABASE_COMMENT
   eng "Comment for database '%-.64s' is too long (max = %u)"
+ER_UNKNOWN_DATA_TYPE
+        eng "Unknown data type: '%-.64s'"

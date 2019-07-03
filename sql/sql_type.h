@@ -3074,6 +3074,12 @@ public:
   }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return (uint) LEX_CSTRING::length; }
+  bool eq(const LEX_CSTRING &other) const
+  {
+    return !my_strnncoll(system_charset_info,
+                         (const uchar *) LEX_CSTRING::str, LEX_CSTRING::length,
+                         (const uchar *) other.str, other.length);
+  }
 };
 
 
@@ -3248,6 +3254,8 @@ protected:
                                                     enum_field_types type)
                                                     const;
 public:
+  static const Type_handler *handler_by_name(const LEX_CSTRING &name);
+  static const Type_handler *handler_by_name_or_error(const LEX_CSTRING &name);
   static const Type_handler *odbc_literal_type_handler(const LEX_CSTRING *str);
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -3674,6 +3682,10 @@ public:
                                                Item *src,
                                                const Item *cmp) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
+  virtual Item *make_constructor_item(THD *thd, List<Item> *args) const
+  {
+    return NULL;
+  }
   /**
     A builder for literals with data type name prefix, e.g.:
       TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
@@ -6549,6 +6561,7 @@ class Type_handler_point: public Type_handler_geometry
 public:
   geometry_types geometry_type() const override { return GEOM_POINT; }
   const Name name() const override { return m_name_point; }
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
   bool Key_part_spec_init_primary(Key_part_spec *part,
                                   const Column_definition &def,
                                   const handler *file) const override;
@@ -6570,6 +6583,7 @@ class Type_handler_linestring: public Type_handler_geometry
 public:
   geometry_types geometry_type() const { return GEOM_LINESTRING; }
   const Name name() const { return m_name_linestring; }
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 class Type_handler_polygon: public Type_handler_geometry
@@ -6578,6 +6592,7 @@ class Type_handler_polygon: public Type_handler_geometry
 public:
   geometry_types geometry_type() const { return GEOM_POLYGON; }
   const Name name() const { return m_name_polygon; }
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 class Type_handler_multipoint: public Type_handler_geometry
@@ -6586,6 +6601,7 @@ class Type_handler_multipoint: public Type_handler_geometry
 public:
   geometry_types geometry_type() const { return GEOM_MULTIPOINT; }
   const Name name() const { return m_name_multipoint; }
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 class Type_handler_multilinestring: public Type_handler_geometry
@@ -6594,6 +6610,7 @@ class Type_handler_multilinestring: public Type_handler_geometry
 public:
   geometry_types geometry_type() const { return GEOM_MULTILINESTRING; }
   const Name name() const { return m_name_multilinestring; }
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 class Type_handler_multipolygon: public Type_handler_geometry
@@ -6602,6 +6619,7 @@ class Type_handler_multipolygon: public Type_handler_geometry
 public:
   geometry_types geometry_type() const { return GEOM_MULTIPOLYGON; }
   const Name name() const { return m_name_multipolygon; }
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 class Type_handler_geometrycollection: public Type_handler_geometry
@@ -6610,6 +6628,7 @@ class Type_handler_geometrycollection: public Type_handler_geometry
 public:
   geometry_types geometry_type() const { return GEOM_GEOMETRYCOLLECTION; }
   const Name name() const { return m_name_geometrycollection; }
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_geometry   type_handler_geometry;
@@ -6736,6 +6755,7 @@ class Type_collection
 {
 public:
   virtual ~Type_collection() {}
+  virtual const Type_handler *handler_by_name(const LEX_CSTRING &name) const= 0;
   virtual const Type_handler *aggregate_for_result(const Type_handler *h1,
                                                    const Type_handler *h2)
                                                    const= 0;

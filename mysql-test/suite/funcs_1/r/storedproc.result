@@ -9347,8 +9347,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare x char1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'char1;
-END' at line 3
+ERROR HY000: Unknown data type: 'char1'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist

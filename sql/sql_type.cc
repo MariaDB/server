@@ -74,6 +74,10 @@ Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 class Type_collection_std: public Type_collection
 {
 public:
+  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
+  {
+    return NULL;
+  }
   const Type_handler *aggregate_for_result(const Type_handler *a,
                                            const Type_handler *b)
                                            const override
@@ -230,6 +234,26 @@ public:
       init_aggregators(data, &type_handler_multilinestring) ||
       init_aggregators(data, &type_handler_multipolygon);
   }
+  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
+  {
+    if (type_handler_point.name().eq(name))
+      return &type_handler_point;
+    if (type_handler_linestring.name().eq(name))
+      return &type_handler_linestring;
+    if (type_handler_polygon.name().eq(name))
+      return &type_handler_polygon;
+    if (type_handler_multipoint.name().eq(name))
+      return &type_handler_multipoint;
+    if (type_handler_multilinestring.name().eq(name))
+      return &type_handler_multilinestring;
+    if (type_handler_multipolygon.name().eq(name))
+      return &type_handler_multipolygon;
+    if (type_handler_geometry.name().eq(name))
+      return &type_handler_geometry;
+    if (type_handler_geometrycollection.name().eq(name))
+      return &type_handler_geometrycollection;
+    return NULL;
+  }
 };
 
 
@@ -249,6 +273,29 @@ bool Type_handler_data::init()
   return type_collection_geometry.init(this);
 #endif
   return false;
+}
+
+
+const Type_handler *
+Type_handler::handler_by_name(const LEX_CSTRING &name)
+{
+#ifdef HAVE_SPATIAL
+  const Type_handler *ha= type_collection_geometry.handler_by_name(name);
+  if (ha)
+    return ha;
+#endif
+  return NULL;
+}
+
+
+const Type_handler *
+Type_handler::handler_by_name_or_error(const LEX_CSTRING &name)
+{
+  const Type_handler *h= handler_by_name(name);
+  if (!h)
+    my_error(ER_UNKNOWN_DATA_TYPE, MYF(0),
+             ErrConvString(name.str, name.length, system_charset_info).ptr());
+  return h;
 }
 
 
@@ -3243,6 +3290,64 @@ bool Type_handler_point::Key_part_spec_init_foreign(Key_part_spec *part,
   return part->check_key_for_blob(file);
 }
 
+
+Item *
+Type_handler_point::make_constructor_item(THD *thd, List<Item> *args) const
+{
+  if (!args || args->elements != 2)
+    return NULL;
+  Item_args tmp(thd, *args);
+  return new (thd->mem_root) Item_func_point(thd,
+                                             tmp.arguments()[0],
+                                             tmp.arguments()[1]);
+}
+
+
+Item *
+Type_handler_linestring::make_constructor_item(THD *thd, List<Item> *args) const
+{
+  return args ? new (thd->mem_root) Item_func_linestring(thd, *args) : NULL;
+}
+
+
+Item *
+Type_handler_polygon::make_constructor_item(THD *thd, List<Item> *args) const
+{
+  return args ? new (thd->mem_root) Item_func_polygon(thd, *args) : NULL;
+}
+
+
+Item *
+Type_handler_multipoint::make_constructor_item(THD *thd, List<Item> *args) const
+{
+  return args ? new (thd->mem_root) Item_func_multipoint(thd, *args) : NULL;
+}
+
+
+Item *
+Type_handler_multilinestring::make_constructor_item(THD *thd,
+                                                    List<Item> *args) const
+{
+  return args ? new (thd->mem_root) Item_func_multilinestring(thd, *args) :
+                NULL;
+}
+
+
+Item *
+Type_handler_multipolygon::make_constructor_item(THD *thd,
+                                                 List<Item> *args) const
+{
+  return args ? new (thd->mem_root) Item_func_multipolygon(thd, *args) : NULL;
+}
+
+
+Item *
+Type_handler_geometrycollection::make_constructor_item(THD *thd,
+                                                       List<Item> *args) const
+{
+  return args ? new (thd->mem_root) Item_func_geometrycollection(thd, *args) :
+                NULL;
+}
 
 #endif // HAVE_SPATIAL
 

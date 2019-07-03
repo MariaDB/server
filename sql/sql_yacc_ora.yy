@@ -787,8 +787,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  FUNCTION_SYM                  /* SQL-2003-R, Oracle-R */
 %token  <kwd>  GENERAL
 %token  <kwd>  GENERATED_SYM
-%token  <kwd>  GEOMETRYCOLLECTION
-%token  <kwd>  GEOMETRY_SYM
 %token  <kwd>  GET_FORMAT                    /* MYSQL-FUNC */
 %token  <kwd>  GET_SYM                       /* SQL-2003-R */
 %token  <kwd>  GLOBAL_SYM                    /* SQL-2003-R */
@@ -828,7 +826,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  LEAVES
 %token  <kwd>  LESS_SYM
 %token  <kwd>  LEVEL_SYM
-%token  <kwd>  LINESTRING
 %token  <kwd>  LIST_SYM
 %token  <kwd>  LOCAL_SYM                     /* SQL-2003-R */
 %token  <kwd>  LOCKS_SYM
@@ -874,9 +871,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MODE_SYM
 %token  <kwd>  MODIFY_SYM
 %token  <kwd>  MONTH_SYM                     /* SQL-2003-R */
-%token  <kwd>  MULTILINESTRING
-%token  <kwd>  MULTIPOINT
-%token  <kwd>  MULTIPOLYGON
 %token  <kwd>  MUTEX_SYM
 %token  <kwd>  MYSQL_SYM
 %token  <kwd>  MYSQL_ERRNO_SYM
@@ -923,8 +917,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  PHASE_SYM
 %token  <kwd>  PLUGINS_SYM
 %token  <kwd>  PLUGIN_SYM
-%token  <kwd>  POINT_SYM
-%token  <kwd>  POLYGON
 %token  <kwd>  PORT_SYM
 %token  <kwd>  PRECEDES_SYM                  /* MYSQL */
 %token  <kwd>  PRECEDING_SYM                 /* SQL-2011-N */
@@ -1303,8 +1295,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         numeric_dyncol_type temporal_dyncol_type string_dyncol_type
 
 %type <create_field> field_spec column_def
-
-%type <type_handler> spatial_type
 
 %type <num>
         order_dir lock_option
@@ -6837,6 +6827,14 @@ field_type:
         | field_type_string
         | field_type_lob
         | field_type_misc
+        | IDENT_sys float_options srid_option
+          {
+            const Type_handler *h;
+            if (!(h= Type_handler::handler_by_name_or_error($1)))
+              MYSQL_YYABORT;
+            $$.set(h, $2);
+            Lex->charset= &my_charset_bin;
+          }
         ;
 
 
@@ -7059,16 +7057,6 @@ field_type_lob:
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_long_blob);
           }
-        | spatial_type float_options srid_option
-          {
-#ifdef HAVE_SPATIAL
-            Lex->charset=&my_charset_bin;
-            $$.set($1, $2);
-#else
-            my_yyabort_error((ER_FEATURE_DISABLED, MYF(0), sym_group_geom.name,
-                              sym_group_geom.needed_define));
-#endif
-          }
         | MEDIUMBLOB opt_compressed
           {
             Lex->charset=&my_charset_bin;
@@ -7110,17 +7098,6 @@ field_type_misc:
           { $$.set(&type_handler_enum); }
         | SET '(' string_list ')' opt_binary
           { $$.set(&type_handler_set); }
-        ;
-
-spatial_type:
-          GEOMETRY_SYM       { $$= GEOM_TYPE(&type_handler_geometry); }
-        | GEOMETRYCOLLECTION { $$= GEOM_TYPE(&type_handler_geometrycollection); }
-        | POINT_SYM          { $$= GEOM_TYPE(&type_handler_point); }
-        | MULTIPOINT         { $$= GEOM_TYPE(&type_handler_multipoint); }
-        | LINESTRING         { $$= GEOM_TYPE(&type_handler_linestring); }
-        | MULTILINESTRING    { $$= GEOM_TYPE(&type_handler_multilinestring); }
-        | POLYGON            { $$= GEOM_TYPE(&type_handler_polygon); }
-        | MULTIPOLYGON       { $$= GEOM_TYPE(&type_handler_multipolygon); }
         ;
 
 char:
@@ -11145,34 +11122,6 @@ geometry_function:
                          Item_func_spatial_precise_rel(thd, $3, $5,
                                                  Item_func::SP_CONTAINS_FUNC));
           }
-        | GEOMETRYCOLLECTION '(' expr_list ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_geometrycollection(thd, *$3));
-          }
-        | LINESTRING '(' expr_list ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_linestring(thd, *$3));
-          }
-        | MULTILINESTRING '(' expr_list ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_multilinestring(thd, *$3));
-          }
-        | MULTIPOINT '(' expr_list ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_multipoint(thd, *$3));
-          }
-        | MULTIPOLYGON '(' expr_list ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_multipolygon(thd, *$3));
-          }
-        | POINT_SYM '(' expr ',' expr ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_point(thd, $3, $5));
-          }
-        | POLYGON '(' expr_list ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_polygon(thd, *$3));
-          }
         | WITHIN '(' expr ',' expr ')'
           {
             $$= GEOM_NEW(thd, Item_func_spatial_precise_rel(thd, $3, $5,
@@ -11211,6 +11160,7 @@ function_call_generic:
           }
           opt_udf_expr_list ')'
           {
+            const Type_handler *h;
             Create_func *builder;
             Item *item= NULL;
 
@@ -11226,8 +11176,12 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            builder= find_native_function_builder(thd, &$1);
-            if (builder)
+            if ((h= Type_handler::handler_by_name($1)) &&
+                (item= h->make_constructor_item(thd, $4)))
+            {
+              // Found a constructor with a proper argument count
+            }
+            else if ((builder= find_native_function_builder(thd, &$1)))
             {
               item= builder->create_func(thd, &$1, $4);
             }
@@ -16067,21 +16021,13 @@ keyword_data_type:
         | DATETIME
         | ENUM
         | FIXED_SYM
-        | GEOMETRYCOLLECTION
-        | GEOMETRY_SYM
         | JSON_SYM
-        | LINESTRING
         | MEDIUM_SYM
-        | MULTILINESTRING
-        | MULTIPOINT
-        | MULTIPOLYGON
         | NATIONAL_SYM
         | NCHAR_SYM
         | NUMBER_MARIADB_SYM
         | NUMBER_ORACLE_SYM
         | NVARCHAR_SYM
-        | POINT_SYM
-        | POLYGON
         | RAW_MARIADB_SYM
         | RAW_ORACLE_SYM
         | ROW_SYM

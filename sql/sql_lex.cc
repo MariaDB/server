@@ -945,6 +945,9 @@ bool is_native_function(THD *thd, const LEX_CSTRING *name)
   if (is_lex_native_function(name))
     return true;
 
+  if (Type_handler::handler_by_name(*name))
+    return true;
+
   return false;
 }
 
