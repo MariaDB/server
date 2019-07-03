@@ -3099,7 +3099,7 @@ calc_buf_pool_size:
 			" dictionary.";
 	}
 
-	/* normalize ibuf->max_size */
+	/* normalize ibuf.max_size */
 	ibuf_max_size_update(srv_change_buffer_max_size);
 
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
