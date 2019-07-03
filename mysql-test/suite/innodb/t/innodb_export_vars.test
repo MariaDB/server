@@ -1,0 +1,11 @@
+--source include/have_innodb.inc
+--replace_regex /\d:\d{2}:\d{2}/TIMESTAMP/ /^\d+/NUMBER/ /\s\d+/ NUMBER/ /^(ON|OFF)/ON_OR_OFF/
+select * from information_schema.global_status
+  where variable_name like 'innodb_%' and
+  variable_name not in (
+    'innodb_adaptive_hash_hash_searches', # only available WITH_INNODB_AHI
+    'innodb_adaptive_hash_non_hash_searches', # only available WITH_INNODB_AHI
+    'innodb_buffered_aio_submitted', # Linux only
+    'innodb_buffer_pool_pages_latched', # only available if UNIV_DEBUG
+    'innodb_mem_adaptive_hash' # only available WITH_INNODB_AHI
+  ) order by variable_name;
