@@ -10,15 +10,11 @@
 #
 ##############################################################################
 
-GAL-419 : MDEV-13549 Galera test failures
 MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
-MW-329 : MDEV-13549 Galera test failures
 MW-336 : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 MW-388: MDEV-19803 Long semaphore wait error on galera.MW-388	
-MW-416 : MDEV-13549 Galera test failures
-MW-44 : MDEV-15809 Test failure on galera.MW-44
 galera_account_management : MariaDB 10.0 does not support ALTER USER
 galera_as_master_gtid : Requires MySQL GTID
 galera_as_master_gtid_change_master : Requires MySQL GTID
@@ -26,27 +22,17 @@ galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_autoinc_sst_mariabackup : MDEV-19926 Galera SST tests fail
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
-galera_binlog_stmt_autoinc : MDEV-13549 auto_increment mismatch
 galera_flush :  MariaDB does not have global.thread_statistics
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_ist_mariabackup : MDEV-18829 test leaves port open
-galera_ist_progress: MDEV-15236 fails when trying to read transfer status
-galera_kill_applier : MDEV-13549 Galera test failures
-galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
+galera_ist_progress : MDEV-15236 fails when trying to read transfer status
+galera_kill_applier : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_migrate : MariaDB does not support START SLAVE USER
-galera_parallel_autoinc_largetrx : : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
+galera_parallel_autoinc_largetrx : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_parallel_autoinc_manytrx : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
-galera_pc_ignore_sb : MDEV-15811/MDEV-17357 Test failure
-galera_ssl_upgrade : MDEV-13549 Galera test failures
+galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
-galera_sst_mysqldump_with_key : MDEV-19926 Galera SST tests fail
-galera_sst_xtrabackup-v2 : MDEV-19926 Galera SST tests fail
-galera_sst_xtrabackup-v2_data_dir : MDEV-19926 Galera SST tests fail
 galera_toi_ddl_fk_insert : MDEV-19939: Galera test failure on galera_toi_ddl_fk_insert
-galera_var_node_address : MDEV-17151 Galera test failure
-galera_var_notify_cmd : MDEV-13549 Galera test failures
 galera_var_slave_threads : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
-partition : MDEV-13549 regularly showing auto_increment mismatch
-pxc-421: MDEV-13549 Galera test failures
-query_cache : MDEV-18137: Galera test failure on query_cache
+

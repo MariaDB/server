@@ -6,8 +6,6 @@
 CREATE USER 'userMW416'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON test.* TO 'userMW416'@'localhost';
 
-SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
-
 --connect userMW416, localhost, userMW416,, test, $NODE_MYPORT_1
 --connection userMW416
 
@@ -131,4 +129,4 @@ UNINSTALL PLUGIN plg;
 --connection node_1
 DROP USER 'userMW416'@'localhost';
 SHOW DATABASES;
-SHOW GLOBAL STATUS LIKE 'wsrep_replicated';
+
