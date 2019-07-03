@@ -1951,35 +1951,35 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_INSERT:
-		value = ibuf->n_merged_ops[IBUF_OP_INSERT];
+		value = ibuf.n_merged_ops[IBUF_OP_INSERT];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DELETE:
-		value = ibuf->n_merged_ops[IBUF_OP_DELETE_MARK];
+		value = ibuf.n_merged_ops[IBUF_OP_DELETE_MARK];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_PURGE:
-		value = ibuf->n_merged_ops[IBUF_OP_DELETE];
+		value = ibuf.n_merged_ops[IBUF_OP_DELETE];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DISCARD_INSERT:
-		value = ibuf->n_discarded_ops[IBUF_OP_INSERT];
+		value = ibuf.n_discarded_ops[IBUF_OP_INSERT];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DISCARD_DELETE:
-		value = ibuf->n_discarded_ops[IBUF_OP_DELETE_MARK];
+		value = ibuf.n_discarded_ops[IBUF_OP_DELETE_MARK];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DISCARD_PURGE:
-		value = ibuf->n_discarded_ops[IBUF_OP_DELETE];
+		value = ibuf.n_discarded_ops[IBUF_OP_DELETE];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGES:
-		value = ibuf->n_merges;
+		value = ibuf.n_merges;
 		break;
 
 	case MONITOR_OVLD_IBUF_SIZE:
-		value = ibuf->size;
+		value = ibuf.size;
 		break;
 
 	case MONITOR_OVLD_SERVER_ACTIVITY:

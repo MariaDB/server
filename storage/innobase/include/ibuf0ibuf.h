@@ -62,7 +62,7 @@ enum ibuf_use_t {
 extern ulong		innodb_change_buffering;
 
 /** The insert buffer control structure */
-extern ibuf_t*		ibuf;
+extern ibuf_t		ibuf;
 
 /* The purpose of the insert buffer is to reduce random disk access.
 When we wish to insert a record into a non-unique secondary index and

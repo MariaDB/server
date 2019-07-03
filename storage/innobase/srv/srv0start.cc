@@ -2483,7 +2483,7 @@ void innodb_shutdown()
 #ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(btr_search_sys || !srv_was_started);
 #endif /* BTR_CUR_HASH_ADAPT */
-	ut_ad(ibuf || !srv_was_started);
+	ut_ad(ibuf.index || !srv_was_started);
 
 	if (dict_stats_event) {
 		dict_stats_thread_deinit();
@@ -2507,9 +2507,7 @@ void innodb_shutdown()
 		btr_search_disable(true);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
-	if (ibuf) {
-		ibuf_close();
-	}
+	ibuf_close();
 	log_sys.close();
 	purge_sys.close();
 	trx_sys.close();
