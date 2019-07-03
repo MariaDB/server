@@ -171,7 +171,10 @@ set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 #add_subdirectory(${ROCKSDB_SOURCE_DIR}/tools)
 
 # Main library source code
-
+#  Note : table/mock_table.cc must not be in the below list as it causes
+#   compile warnings-treated-as-errors on Windows, and it is only used in
+#   RocksDB's tests.
+#
 set(ROCKSDB_SOURCES
         cache/clock_cache.cc
         cache/lru_cache.cc
@@ -298,7 +301,6 @@ set(ROCKSDB_SOURCES
         table/iterator.cc
         table/merging_iterator.cc
         table/meta_blocks.cc
-        table/mock_table.cc
         table/persistent_cache_helper.cc
         table/plain/plain_table_builder.cc
         table/plain/plain_table_factory.cc
