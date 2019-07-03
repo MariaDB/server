@@ -141,6 +141,17 @@ bool Key_part_spec::check_key_for_blob(const handler *file) const
 }
 
 
+bool Key_part_spec::check_key_length_for_blob() const
+{
+  if (!length)
+  {
+    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), field_name.str);
+    return true;
+  }
+  return false;
+}
+
+
 bool Key_part_spec::init_multiple_key_for_blob(const handler *file)
 {
   if (check_key_for_blob(file))

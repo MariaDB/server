@@ -290,15 +290,7 @@ public:
   Key_part_spec *clone(MEM_ROOT *mem_root) const
   { return new (mem_root) Key_part_spec(*this); }
   bool check_key_for_blob(const class handler *file) const;
-  bool check_key_length_for_blob() const
-  {
-    if (!length)
-    {
-      my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), field_name.str);
-      return true;
-    }
-    return false;
-  }
+  bool check_key_length_for_blob() const;
   bool check_primary_key_for_blob(const class handler *file) const
   {
     return check_key_for_blob(file) || check_key_length_for_blob();
