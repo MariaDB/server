@@ -6973,6 +6973,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 			rollback_print(victim_trx, lock);
 
 			MONITOR_INC(MONITOR_DEADLOCK);
+			srv_stats.lock_deadlock_count.inc();
 
 			break;
 
@@ -6985,6 +6986,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 			lock_deadlock_found = true;
 
 			MONITOR_INC(MONITOR_DEADLOCK);
+			srv_stats.lock_deadlock_count.inc();
 		}
 
 	} while (victim_trx != NULL && victim_trx != trx);

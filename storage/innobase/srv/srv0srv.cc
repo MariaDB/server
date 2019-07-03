@@ -448,13 +448,13 @@ static ulint	srv_main_thread_id;
 /* The following counts are used by the srv_master_thread. */
 
 /** Iterations of the loop bounded by 'srv_active' label. */
-static ulint		srv_main_active_loops;
+ulint		srv_main_active_loops;
 /** Iterations of the loop bounded by the 'srv_idle' label. */
-static ulint		srv_main_idle_loops;
+ulint		srv_main_idle_loops;
 /** Iterations of the loop bounded by the 'srv_shutdown' label. */
 static ulint		srv_main_shutdown_loops;
 /** Log writes involving flush. */
-static ulint		srv_log_writes_and_flush;
+ulint		srv_log_writes_and_flush;
 
 /* This is only ever touched by the master thread. It records the
 time when the last flush of log file has happened. The master
@@ -1312,7 +1312,7 @@ srv_printf_innodb_monitor(
 		"Total large memory allocated " ULINTPF "\n"
 		"Dictionary memory allocated " ULINTPF "\n",
 		ulint{os_total_large_mem_allocated},
-		dict_sys_get_size());
+		dict_sys.rough_size());
 
 	buf_print_io(file);
 
@@ -1421,6 +1421,27 @@ srv_export_innodb_status(void)
 		btr_scrub_total_stat(&scrub_stat);
 	}
 
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint mem_adaptive_hash = 0;
+	ut_ad(btr_search_sys->hash_tables);
+	for (ulong i = 0; i < btr_ahi_parts; i++) {
+		hash_table_t*	ht = btr_search_sys->hash_tables[i];
+
+		ut_ad(ht);
+		ut_ad(ht->heap);
+		/* Multiple mutexes/heaps are currently never used for adaptive
+		hash index tables. */
+		ut_ad(!ht->n_sync_obj);
+		ut_ad(!ht->heaps);
+
+		mem_adaptive_hash += mem_heap_get_size(ht->heap)
+			+ ht->n_cells * sizeof(hash_cell_t);
+	}
+	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
+#endif
+
+	export_vars.innodb_mem_dictionary = dict_sys.rough_size();
+
 	mutex_enter(&srv_innodb_monitor_mutex);
 
 	export_vars.innodb_data_pending_reads =
@@ -1473,6 +1494,18 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_buffer_pool_pages_dirty = flush_list_len;
 
+	export_vars.innodb_buffer_pool_pages_made_young
+		= stat.n_pages_made_young;
+	export_vars.innodb_buffer_pool_pages_made_not_young
+		= stat.n_pages_not_made_young;
+
+	export_vars.innodb_buffer_pool_pages_old = 0;
+
+	for (ulong i = 0; i < srv_buf_pool_instances; i++) {
+		export_vars.innodb_buffer_pool_pages_old +=
+			buf_pool_from_array(i)->LRU_old_len;
+	}
+
 	export_vars.innodb_buffer_pool_bytes_dirty =
 		buf_pools_list_size.flush_list_bytes;
 
@@ -1487,13 +1520,8 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_misc =
 		buf_pool_get_n_pages() - LRU_len - free_len;
 
-#ifdef HAVE_ATOMIC_BUILTINS
-	export_vars.innodb_have_atomic_builtins = 1;
-#else
-	export_vars.innodb_have_atomic_builtins = 0;
-#endif
-
-	export_vars.innodb_page_size = srv_page_size;
+	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
+	export_vars.innodb_history_list_length = trx_sys.rseg_history_len;
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
 
@@ -1594,37 +1622,48 @@ srv_export_innodb_status(void)
 		srv_stats.n_sec_rec_cluster_reads_avoided;
 
 	if (!srv_read_only_mode) {
-	export_vars.innodb_encryption_rotation_pages_read_from_cache =
-		crypt_stat.pages_read_from_cache;
-	export_vars.innodb_encryption_rotation_pages_read_from_disk =
-		crypt_stat.pages_read_from_disk;
-	export_vars.innodb_encryption_rotation_pages_modified =
-		crypt_stat.pages_modified;
-	export_vars.innodb_encryption_rotation_pages_flushed =
-		crypt_stat.pages_flushed;
-	export_vars.innodb_encryption_rotation_estimated_iops =
-		crypt_stat.estimated_iops;
-	export_vars.innodb_encryption_key_requests =
-		srv_stats.n_key_requests;
-	export_vars.innodb_key_rotation_list_length =
-		srv_stats.key_rotation_list_length;
+		export_vars.innodb_encryption_rotation_pages_read_from_cache =
+			crypt_stat.pages_read_from_cache;
+		export_vars.innodb_encryption_rotation_pages_read_from_disk =
+			crypt_stat.pages_read_from_disk;
+		export_vars.innodb_encryption_rotation_pages_modified =
+			crypt_stat.pages_modified;
+		export_vars.innodb_encryption_rotation_pages_flushed =
+			crypt_stat.pages_flushed;
+		export_vars.innodb_encryption_rotation_estimated_iops =
+			crypt_stat.estimated_iops;
+		export_vars.innodb_encryption_key_requests =
+			srv_stats.n_key_requests;
+		export_vars.innodb_key_rotation_list_length =
+			srv_stats.key_rotation_list_length;
 
-	export_vars.innodb_scrub_page_reorganizations =
-		scrub_stat.page_reorganizations;
-	export_vars.innodb_scrub_page_splits =
-		scrub_stat.page_splits;
-	export_vars.innodb_scrub_page_split_failures_underflow =
-		scrub_stat.page_split_failures_underflow;
-	export_vars.innodb_scrub_page_split_failures_out_of_filespace =
-		scrub_stat.page_split_failures_out_of_filespace;
-	export_vars.innodb_scrub_page_split_failures_missing_index =
-		scrub_stat.page_split_failures_missing_index;
-	export_vars.innodb_scrub_page_split_failures_unknown =
-		scrub_stat.page_split_failures_unknown;
-	export_vars.innodb_scrub_log = srv_stats.n_log_scrubs;
+		export_vars.innodb_scrub_page_reorganizations =
+			scrub_stat.page_reorganizations;
+		export_vars.innodb_scrub_page_splits =
+			scrub_stat.page_splits;
+		export_vars.innodb_scrub_page_split_failures_underflow =
+			scrub_stat.page_split_failures_underflow;
+		export_vars.innodb_scrub_page_split_failures_out_of_filespace =
+			scrub_stat.page_split_failures_out_of_filespace;
+		export_vars.innodb_scrub_page_split_failures_missing_index =
+			scrub_stat.page_split_failures_missing_index;
+		export_vars.innodb_scrub_page_split_failures_unknown =
+			scrub_stat.page_split_failures_unknown;
+		export_vars.innodb_scrub_log = srv_stats.n_log_scrubs;
 	}
 
 	mutex_exit(&srv_innodb_monitor_mutex);
+
+	log_mutex_enter();
+
+	export_vars.innodb_lsn_current = log_sys.lsn;
+	export_vars.innodb_lsn_flushed = log_sys.flushed_to_disk_lsn;
+	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
+	export_vars.innodb_checkpoint_age = log_sys.lsn
+		- log_sys.last_checkpoint_lsn;
+	export_vars.innodb_checkpoint_max_age = log_sys.max_checkpoint_age;
+
+	log_mutex_exit();
 }
 
 /*********************************************************************//**

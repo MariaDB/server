@@ -3626,12 +3626,18 @@ const char* get_one_variable(THD *thd,
     /* fall through */
   case SHOW_ULONG:
   case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
+#ifndef _WIN64
+  case SHOW_SIZE_T:
+#endif
     end= int10_to_str(*(long*) value, buff, 10);
     break;
   case SHOW_LONGLONG_STATUS:
     value= ((char *) status_var + (intptr) value);
     /* fall through */
   case SHOW_ULONGLONG:
+#ifdef _WIN64
+  case SHOW_SIZE_T:
+#endif
     end= longlong10_to_str(*(longlong*) value, buff, 10);
     break;
   case SHOW_HA_ROWS:

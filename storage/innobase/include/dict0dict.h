@@ -1580,6 +1580,23 @@ public:
     mutex_exit(&mutex);
     rw_lock_x_unlock(&latch);
   }
+
+  /** Estimate the used memory occupied by the data dictionary
+  table and index objects.
+  @return number of bytes occupied */
+  ulint rough_size() const
+  {
+    /* No mutex; this is a very crude approximation anyway */
+    ulint size = UT_LIST_GET_LEN(table_LRU) + UT_LIST_GET_LEN(table_non_LRU);
+    size *= sizeof(dict_table_t)
+      + sizeof(dict_index_t) * 2
+      + (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
+      + sizeof(dict_field_t) * 5 /* total number of key fields */
+      + 200; /* arbitrary, covering names and overhead */
+    size += (table_hash->n_cells + table_id_hash->n_cells
+	     + temp_id_hash->n_cells) * sizeof(hash_cell_t);
+    return size;
+  }
 };
 
 /** the data dictionary cache */
@@ -1800,13 +1817,6 @@ dict_table_decode_n_col(
 	ulint	encoded,
 	ulint*	n_col,
 	ulint*	n_v_col);
-
-/** Calculate the used memory occupied by the data dictionary
-table and index objects.
-@return number of bytes occupied. */
-UNIV_INTERN
-ulint
-dict_sys_get_size();
 
 /** Look for any dictionary objects that are found in the given tablespace.
 @param[in]	space_id	Tablespace ID to search for.
