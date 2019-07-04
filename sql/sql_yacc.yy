@@ -13323,10 +13323,15 @@ replace:
           }
           insert_field_spec
           {
-            Lex->pop_select(); //main select
-            if (Lex->check_main_unit_semantics())
-              MYSQL_YYABORT;
+            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
           }
+		  opt_select_expressions
+          {
+            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
+             Lex->pop_select(); //main select
+             if (Lex->check_main_unit_semantics())
+               MYSQL_YYABORT;
+		  }
         ;
 
 insert_lock_option:
