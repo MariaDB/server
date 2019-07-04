@@ -3535,6 +3535,14 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   if (item->limit_clause && !(*row_limit))
     return 1;
 
+  if (item->sum_func() == Item_sum::JSON_ARRAYAGG_FUNC &&
+      item->arg_count_field > 1)
+  {
+      /* JSON_ARRAYAGG supports only one parameter */
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), "JSON_ARRAYAGG");
+    return 1;
+  }
+
   if (item->no_appended)
     item->no_appended= FALSE;
   else
@@ -3576,7 +3584,19 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         res= (*arg)->val_str(&tmp);
     }
     if (res)
+    {
+      if (item->sum_func() == Item_sum::JSON_ARRAYAGG_FUNC)
+      {
+        /*
+          JSON_ARRAYAGG needs to convert the type into valid JSON before
+          appending it to the result
+        */
+        Item_func_json_arrayagg *arrayagg= (Item_func_json_arrayagg *) item_arg;
+        res= arrayagg->convert_to_json(*arg, res);
+      }
+
       result->append(*res);
+    }
   }
 
   if (item->limit_clause)
@@ -3882,9 +3902,9 @@ bool Item_func_group_concat::repack_tree(THD *thd)
 */
 #define GCONCAT_REPACK_FACTOR (1 << 10)
 
-bool Item_func_group_concat::add()
+bool Item_func_group_concat::add(bool exclude_nulls)
 {
-  if (always_null)
+  if (always_null && exclude_nulls)
     return 0;
   copy_fields(tmp_table_param);
   if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
@@ -3902,7 +3922,8 @@ bool Item_func_group_concat::add()
     Field *field= show_item->get_tmp_table_field();
     if (field)
     {
-      if (field->is_null_in_record((const uchar*) table->record[0]))
+      if (field->is_null_in_record((const uchar*) table->record[0]) &&
+          exclude_nulls)
         return 0;                    // Skip row if it contains null
       if (tree && (res= field->val_str(&buf)))
         row_str_len+= res->length();

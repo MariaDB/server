@@ -3621,3 +3621,25 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
+
+
+String* Item_func_json_arrayagg::convert_to_json(Item *item, String *res)
+{
+  String tmp;
+  res->length(0);
+  append_json_value(res, item, &tmp);
+  return res;
+}
+
+
+String* Item_func_json_arrayagg::val_str(String *str)
+{
+  str= Item_func_group_concat::val_str(str);
+  String s;
+  s.append('[');
+  s.swap(*str);
+  str->append(s);
+  str->append(']');
+
+  return str;
+}
