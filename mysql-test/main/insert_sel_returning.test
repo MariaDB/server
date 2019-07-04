@@ -1,0 +1,33 @@
+#
+# Check for INSERT...RETURNING
+#
+
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+CREATE TABLE t1(id1t1 INT, val1t1 VARCHAR(1));
+CREATE TABLE t2(id1t2 INT, val1t2 VARCHAR(1));
+
+--echo #Table t1 and t2 successfully created
+
+INSERT INTO t2 VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'f');
+#
+#INSERT...SELECT
+#
+--echo #Simple insert statement
+INSERT INTO t1 SELECT * FROM t2 WHERE id1t2=1;
+INSERT INTO t1 SELECT * FROM t2 WHERE id1t2=2 RETURNING *;
+INSERT INTO t1 SELECT * FROM t2 WHERE id1t2=3 RETURNING id1t1, val1t1;
+INSERT INTO t1 SELECT * FROM t2 WHERE id1t2=4 RETURNING val1t1;
+INSERT INTO t1 SELECT * FROM t2 WHERE id1t2=5 RETURNING id1t1 AS id;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1; 
+DROP TABLE t2;
+
+#
+--echo #End of test case 
+#  
