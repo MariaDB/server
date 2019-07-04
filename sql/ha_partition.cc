@@ -4247,7 +4247,7 @@ void ha_partition::try_semi_consistent_read(bool yes)
     determining which partition the row should be written to.
 */
 
-int ha_partition::write_row(uchar * buf)
+int ha_partition::write_row(const uchar * buf)
 {
   uint32 part_id;
   int error;

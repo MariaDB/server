@@ -451,7 +451,7 @@ public:
   int extra_opt(enum ha_extra_function operation, ulong cache_size);
 
   int delete_table(const char *name);
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
   int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
 
@@ -908,20 +908,20 @@ private:
   int storage_end_bulk_insert();
   bool wrapper_is_target_index(KEY *key_info);
   bool wrapper_have_target_index();
-  int wrapper_write_row(uchar *buf);
-  int wrapper_write_row_index(uchar *buf);
-  int storage_write_row(uchar *buf);
-  int storage_write_row_multiple_column_index(uchar *buf,
+  int wrapper_write_row(const uchar *buf);
+  int wrapper_write_row_index(const uchar *buf);
+  int storage_write_row(const uchar *buf);
+  int storage_write_row_multiple_column_index(const uchar *buf,
                                               grn_id record_id,
                                               KEY *key_info,
                                               grn_obj *index_column);
-  int storage_write_row_multiple_column_indexes(uchar *buf, grn_id record_id);
+  int storage_write_row_multiple_column_indexes(const uchar *buf, grn_id record_id);
   int storage_write_row_unique_index(const uchar *buf,
                                      KEY *key_info,
                                      grn_obj *index_table,
                                      grn_obj *index_column,
                                      grn_id *key_id);
-  int storage_write_row_unique_indexes(uchar *buf);
+  int storage_write_row_unique_indexes(const uchar *buf);
   int wrapper_get_record_id(uchar *data, grn_id *record_id,
                             const char *context);
   int wrapper_update_row(const uchar *old_data, const uchar *new_data);

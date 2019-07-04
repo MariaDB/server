@@ -194,7 +194,7 @@ int ha_sequence::create(const char *name, TABLE *form,
     the sequence with 'buf' as the sequence object is already up to date.
 */
 
-int ha_sequence::write_row(uchar *buf)
+int ha_sequence::write_row(const uchar *buf)
 {
   int error;
   sequence_definition tmp_seq;

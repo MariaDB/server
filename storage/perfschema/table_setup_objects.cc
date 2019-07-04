@@ -66,7 +66,7 @@ PFS_engine_table* table_setup_objects::create(void)
   return new table_setup_objects();
 }
 
-int table_setup_objects::write_row(TABLE *table, unsigned char *buf,
+int table_setup_objects::write_row(TABLE *table, const unsigned char *buf,
                                    Field **fields)
 {
   int result;

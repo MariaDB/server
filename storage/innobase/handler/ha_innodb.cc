@@ -7997,7 +7997,7 @@ handle.
 int
 ha_innobase::write_row(
 /*===================*/
-	uchar*	record)	/*!< in: a row in MySQL format */
+	const uchar*	record)	/*!< in: a row in MySQL format */
 {
 	dberr_t		error;
 #ifdef WITH_WSREP

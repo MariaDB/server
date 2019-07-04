@@ -112,7 +112,7 @@ public:
 
 	int delete_all_rows() override;
 
-	int write_row(uchar * buf) override;
+	int write_row(const uchar * buf) override;
 
 	int update_row(const uchar * old_data, const uchar * new_data) override;
 

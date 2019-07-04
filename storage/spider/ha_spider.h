@@ -568,7 +568,7 @@ public:
 #endif
   int end_bulk_insert();
   int write_row(
-    uchar *buf
+    const uchar *buf
   );
 #ifdef HA_CAN_BULK_ACCESS
   int pre_write_row(

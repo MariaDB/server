@@ -9485,7 +9485,7 @@ const std::string ha_rocksdb::get_table_comment(const TABLE *const table_arg) {
     HA_EXIT_SUCCESS  OK
     other            HA_ERR error code (can be SE-specific)
 */
-int ha_rocksdb::write_row(uchar *const buf) {
+int ha_rocksdb::write_row(const uchar *const buf) {
   DBUG_ENTER_FUNC();
 
   DBUG_ASSERT(buf != nullptr);

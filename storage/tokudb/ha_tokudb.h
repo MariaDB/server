@@ -703,11 +703,11 @@ private:
     void trace_create_table_info(TABLE* form);
     int is_index_unique(bool* is_unique, DB_TXN* txn, DB* db, KEY* key_info, int lock_flags);
     int is_val_unique(bool* is_unique, const uchar* record, KEY* key_info, uint dict_index, DB_TXN* txn);
-    int do_uniqueness_checks(uchar* record, DB_TXN* txn, THD* thd);
+    int do_uniqueness_checks(const uchar* record, DB_TXN* txn, THD* thd);
     void set_main_dict_put_flags(THD* thd, bool opt_eligible, uint32_t* put_flags);
     int insert_row_to_main_dictionary(DBT* pk_key, DBT* pk_val, DB_TXN* txn);
     int insert_rows_to_dictionaries_mult(DBT* pk_key, DBT* pk_val, DB_TXN* txn, THD* thd);
-    void test_row_packing(uchar* record, DBT* pk_key, DBT* pk_val);
+    void test_row_packing(const uchar* record, DBT* pk_key, DBT* pk_val);
     uint32_t fill_row_mutator(
         uchar* buf, 
         uint32_t* dropped_columns, 
@@ -785,7 +785,7 @@ public:
     int rename_table(const char *from, const char *to);
     int optimize(THD * thd, HA_CHECK_OPT * check_opt);
     int analyze(THD * thd, HA_CHECK_OPT * check_opt);
-    int write_row(uchar * buf);
+    int write_row(const uchar * buf);
     int update_row(const uchar * old_data, const uchar * new_data);
     int delete_row(const uchar * buf);
 #if MYSQL_VERSION_ID >= 100000

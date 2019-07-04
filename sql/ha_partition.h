@@ -628,7 +628,7 @@ public:
     start_bulk_insert and end_bulk_insert is called before and after a
     number of calls to write_row.
   */
-  virtual int write_row(uchar * buf);
+  virtual int write_row(const uchar * buf);
   virtual bool start_bulk_update();
   virtual int exec_bulk_update(ha_rows *dup_key_found);
   virtual int end_bulk_update();

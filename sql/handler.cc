@@ -6499,7 +6499,7 @@ static int wsrep_after_row(THD *thd)
 #endif /* WITH_WSREP */
 
 static int check_duplicate_long_entry_key(TABLE *table, handler *h,
-                                          uchar *new_rec, uint key_no)
+                                          const uchar *new_rec, uint key_no)
 {
   Field *hash_field;
   int result, error= 0;
@@ -6588,7 +6588,8 @@ exit:
     unique constraint on long columns.
     @returns 0 if no duplicate else returns error
   */
-static int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
+static int check_duplicate_long_entries(TABLE *table, handler *h,
+                                        const uchar *new_rec)
 {
   table->file->errkey= -1;
   int result;
@@ -6657,7 +6658,7 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
   return error;
 }
 
-int handler::ha_write_row(uchar *buf)
+int handler::ha_write_row(const uchar *buf)
 {
   int error;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
@@ -6746,7 +6747,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   Update first row. Only used by sequence tables
 */
 
-int handler::update_first_row(uchar *new_data)
+int handler::update_first_row(const uchar *new_data)
 {
   int error;
   if (likely(!(error= ha_rnd_init(1))))

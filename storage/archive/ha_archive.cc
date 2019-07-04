@@ -371,7 +371,7 @@ int Archive_share::write_v1_metafile()
   @return Length of packed row
 */
 
-unsigned int ha_archive::pack_row_v1(uchar *record)
+unsigned int ha_archive::pack_row_v1(const uchar *record)
 {
   uint *blob, *end;
   uchar *pos;
@@ -868,7 +868,7 @@ error:
 /*
   This is where the actual row is written out.
 */
-int ha_archive::real_write_row(uchar *buf, azio_stream *writer)
+int ha_archive::real_write_row(const uchar *buf, azio_stream *writer)
 {
   my_off_t written;
   unsigned int r_pack_length;
@@ -917,7 +917,7 @@ uint32 ha_archive::max_row_length(const uchar *record)
 }
 
 
-unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
+unsigned int ha_archive::pack_row(const uchar *record, azio_stream *writer)
 {
   uchar *ptr;
   my_ptrdiff_t const rec_offset= record - table->record[0];
@@ -959,7 +959,7 @@ unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
   for implementing start_bulk_insert() is that we could skip 
   setting dirty to true each time.
 */
-int ha_archive::write_row(uchar *buf)
+int ha_archive::write_row(const uchar *buf)
 {
   int rc;
   uchar *read_buf= NULL;

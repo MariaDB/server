@@ -1227,7 +1227,7 @@ int ha_maria::close(void)
 }
 
 
-int ha_maria::write_row(uchar * buf)
+int ha_maria::write_row(const uchar * buf)
 {
   /*
      If we have an auto_increment column and we are writing a changed row

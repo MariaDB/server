@@ -3576,7 +3576,7 @@ int ha_connect::close(void)
   item_sum.cc, item_sum.cc, sql_acl.cc, sql_insert.cc,
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc and sql_update.cc
 */
-int ha_connect::write_row(uchar *buf)
+int ha_connect::write_row(const uchar *buf)
 {
   int      rc= 0;
   PGLOBAL& g= xp->g;
