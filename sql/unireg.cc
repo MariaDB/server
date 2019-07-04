@@ -731,16 +731,16 @@ static bool pack_header(THD *thd, uchar *forminfo,
           filled with default values it is saved in save_interval
           The HEX representation is created from this copy.
         */
+        uint count= field->interval->count;
         field->save_interval= field->interval;
         field->interval= tmpint= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
         *tmpint= *field->save_interval;
         tmpint->type_names=
-          (const char **) thd->alloc(sizeof(char*) * 
-                                     (field->interval->count+1));
-        tmpint->type_lengths=
-          (uint *) thd->alloc(sizeof(uint) * field->interval->count+1);
-        tmpint->type_names[field->interval->count]= 0;
-        tmpint->type_lengths[field->interval->count]= 0;
+          (const char **) thd->alloc(sizeof(char*) *
+                                     (count + 1));
+        tmpint->type_lengths= (uint *) thd->alloc(sizeof(uint) * (count + 1));
+        tmpint->type_names[count]= 0;
+        tmpint->type_lengths[count]= 0;
 
         for (uint pos= 0; pos < field->interval->count; pos++)
         {
