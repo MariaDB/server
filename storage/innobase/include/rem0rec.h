@@ -1293,7 +1293,7 @@ public:
 	}
 
 	/** Destructor */
-	virtual ~rec_printer() {}
+	~rec_printer() override {}
 
 private:
 	/** Copy constructor */

@@ -1038,7 +1038,7 @@ struct sync_checker : public sync_check_functor_t
 	/** Check the latching constraints
 	@param[in]	level		The level held by the thread
 	@return whether a latch violation was detected */
-	bool operator()(const latch_level_t level) const
+	bool operator()(const latch_level_t level) const override
 	{
 		if (some_allowed) {
 			switch (level) {
@@ -1082,7 +1082,7 @@ struct sync_allowed_latches : public sync_check_functor_t {
 
 	@param[in]	latch	The latch level to check
 	@return true if there is a latch violation */
-	bool operator()(const latch_level_t level) const
+	bool operator()(const latch_level_t level) const override
 	{
 		return(std::find(begin, end, level) == end);
 	}
