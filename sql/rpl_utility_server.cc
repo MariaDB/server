@@ -736,27 +736,6 @@ Field_null::rpl_conv_type_from(const Conv_source &source,
 }
 
 
-#ifdef HAVE_SPATIAL
-uint32
-Type_handler_geometry::max_display_length_for_field(const Conv_source &src)
-                                                    const
-{
-  return (uint32) my_set_bits(4 * 8);
-}
-
-
-enum_conv_type
-Field_geom::rpl_conv_type_from(const Conv_source &source,
-                               const Relay_log_info *rli,
-                               const Conv_param &param) const
-{
-  return binlog_type() == source.real_field_type() ?
-         rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :
-         CONV_TYPE_IMPOSSIBLE;
-}
-#endif // HAVE_SPATIAL
-
-
 /**********************************************************************/
 
 

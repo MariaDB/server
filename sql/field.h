@@ -32,6 +32,7 @@
 #include "sql_error.h"                          /* Sql_condition */
 #include "compat56.h"
 #include "sql_type.h"                           /* Type_std_attributes */
+#include "sql_type_geom.h"
 #include "field_comp.h"
 
 class Send_field;
