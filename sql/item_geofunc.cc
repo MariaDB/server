@@ -1062,9 +1062,17 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
   if (param->using_real_indexes &&
       !field->optimize_range(param->real_keynr[key_part->key],
                              key_part->part))
-   DBUG_RETURN(0);
+    DBUG_RETURN(0);
 
-  if (value->save_in_field_no_warnings(field, 1))
+  Field_geom *field_geom= dynamic_cast<Field_geom*>(field);
+  DBUG_ASSERT(field_geom);
+  const Type_handler_geometry *sav_geom_type= field_geom->type_handler_geom();
+  // We have to be able to store all sorts of spatial features here
+  field_geom->set_type_handler(&type_handler_geometry);
+  bool rc= value->save_in_field_no_warnings(field, 1);
+  field_geom->set_type_handler(sav_geom_type);
+
+  if (rc)
     DBUG_RETURN(&sel_arg_impossible);            // Bad GEOMETRY value
 
   DBUG_ASSERT(!field->real_maybe_null()); // SPATIAL keys do not support NULL

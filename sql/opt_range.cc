@@ -8121,16 +8121,6 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   table_map ref_tables= 0;
   table_map param_comp= ~(param->prev_tables | param->read_tables |
 		          param->current_table);
-#ifdef HAVE_SPATIAL
-  const Type_handler_geometry *sav_geom_type= NULL;
-  Field_geom *field_geom= dynamic_cast<Field_geom*>(field_item->field);
-  if (field_geom)
-  {
-    sav_geom_type= field_geom->type_handler_geom();
-    /* We have to be able to store all sorts of spatial features here */
-    field_geom->set_type_handler(&type_handler_geometry);
-  }
-#endif /*HAVE_SPATIAL*/
 
   for (uint i= 0; i < arg_count; i++)
   {
@@ -8158,13 +8148,6 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
     }
   }
 
-#ifdef HAVE_SPATIAL
-  if (field_geom)
-  {
-    DBUG_ASSERT(sav_geom_type);
-    field_geom->set_type_handler(sav_geom_type);
-  }
-#endif /*HAVE_SPATIAL*/
   DBUG_RETURN(ftree);
 }
 
