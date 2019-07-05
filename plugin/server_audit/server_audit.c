@@ -407,10 +407,12 @@ static TYPELIB output_typelib=
 static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
 #ifdef DO_SYSLOG
        "Desired output type. Possible values - 'syslog', 'file'"
+       " or 'null' as no output.",
 #else
        "Desired output type. Possible values - 'file'"
+       " or 'null' as no output.",
 #endif
-       " or 'null' as no output.", 0, update_output_type, OUTPUT_FILE,
+       0, update_output_type, OUTPUT_FILE,
        &output_typelib);
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
        "Path to the log file.", NULL, update_file_path, default_file_name);
