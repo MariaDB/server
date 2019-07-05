@@ -66,6 +66,8 @@ show variables like 'binlog_format';
 
 SET GLOBAL wsrep_auto_increment_control='OFF';
 
+let $increment_node1 = `SELECT @@session.auto_increment_increment`;
+let $offset_node1 = `SELECT @@session.auto_increment_offset`;
 SET SESSION auto_increment_increment = 3;
 SET SESSION auto_increment_offset = 1;
 

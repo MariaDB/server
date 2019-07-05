@@ -22,6 +22,7 @@ galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_autoinc_sst_mariabackup : MDEV-19926 Galera SST tests fail
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
+galera_binlog_stmt_autoinc: MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc
 galera_flush :  MariaDB does not have global.thread_statistics
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_ist_mariabackup : MDEV-18829 test leaves port open
@@ -34,4 +35,4 @@ galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
 galera_var_slave_threads : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
-
+partition: MDEV-19958 Galera test failure on galera.partition
