@@ -2258,3 +2258,40 @@ DROP USER dummy@localhost;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-19948 'show grants' return privileges individually
+--echo #
+
+# Let's cheat server that we are using `10.2` user table
+# which doesn't have `Delete_history_priv` column
+
+SET @had_user_delete_history_priv := 0;
+SELECT @had_user_delete_history_priv :=1 FROM mysql.user WHERE Delete_history_priv LIKE '%';
+
+ALTER TABLE mysql.user DROP COLUMN Delete_history_priv;
+FLUSH PRIVILEGES;
+CREATE USER ten2;
+GRANT ALL ON *.* TO ten2;
+
+# Without any patching, this should show a lot of privileges,
+# but without delete history. With patch it is showing `all privileges`
+SHOW GRANTS FOR ten2;
+FLUSH PRIVILEGES;
+
+# Now should show `all privileges` with/without patch
+SHOW GRANTS FOR ten2;
+DROP USER ten2;
+
+# Restore original table (similar to `mysql_upgrade`)
+ALTER TABLE mysql.user ADD Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
+UPDATE mysql.user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 1;
+FLUSH PRIVILEGES;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

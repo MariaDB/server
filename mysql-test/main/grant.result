@@ -2760,3 +2760,34 @@ DROP USER dummy@localhost;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-19948 'show grants' return privileges individually
+#
+SET @had_user_delete_history_priv := 0;
+SELECT @had_user_delete_history_priv :=1 FROM mysql.user WHERE Delete_history_priv LIKE '%';
+@had_user_delete_history_priv :=1
+1
+1
+1
+1
+ALTER TABLE mysql.user DROP COLUMN Delete_history_priv;
+FLUSH PRIVILEGES;
+CREATE USER ten2;
+GRANT ALL ON *.* TO ten2;
+SHOW GRANTS FOR ten2;
+Grants for ten2@%
+GRANT ALL PRIVILEGES ON *.* TO 'ten2'@'%'
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR ten2;
+Grants for ten2@%
+GRANT ALL PRIVILEGES ON *.* TO 'ten2'@'%'
+DROP USER ten2;
+ALTER TABLE mysql.user ADD Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
+UPDATE mysql.user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 1;
+FLUSH PRIVILEGES;
+#
+# End of 10.3 tests
+#
