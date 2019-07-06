@@ -209,7 +209,7 @@ public:
 
   void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
   int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
   int index_init(uint keynr, bool sorted);

@@ -1206,9 +1206,12 @@ row_search_on_row_ref(
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->is_metadata());
 		ut_ad(ref->n_fields <= index->n_uniq);
-		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
-					    mtr);
-		btr_pcur_move_to_next_user_rec(pcur, mtr);
+		if (btr_pcur_open_at_index_side(
+			    true, index, mode, pcur, true, 0, mtr)
+		    != DB_SUCCESS
+		    || !btr_pcur_move_to_next_user_rec(pcur, mtr)) {
+			return FALSE;
+		}
 		/* We do not necessarily have index->is_instant() here,
 		because we could be executing a rollback of an
 		instant ADD COLUMN operation. The function
@@ -1219,7 +1222,10 @@ row_search_on_row_ref(
 			& REC_INFO_MIN_REC_FLAG;
 	} else {
 		ut_a(ref->n_fields == index->n_uniq);
-		btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr);
+		if (btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr)
+		    != DB_SUCCESS) {
+			return FALSE;
+		}
 	}
 
 	low_match = btr_pcur_get_low_match(pcur);

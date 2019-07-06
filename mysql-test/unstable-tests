@@ -102,7 +102,6 @@ encryption.innodb_encryption_discard_import                        : MDEV-16116 
 encryption.innodb_encryption_filekeys                              : MDEV-15673 - Timeout
 encryption.innodb_encryption_row_compressed                        : MDEV-16113 - Crash
 encryption.innodb_first_page                                       : MDEV-10689 - Crash
-encryption.innodb_lotoftables                                      : MDEV-16111 - Wrong result
 encryption.innodb_onlinealter_encryption                           : MDEV-17287 - SIGABRT on server restart
 encryption.innodb_scrub                                            : MDEV-8139 - scrubbing tests need fixing
 encryption.innodb_scrub_background                                 : MDEV-8139 - scrubbing tests need fixing

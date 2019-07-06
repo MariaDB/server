@@ -1,0 +1,88 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+
+# Enable blind replace
+SET GLOBAL enable_blind_replace=ON;
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+create table t1(c1 int,c2 int, primary key (c1)) engine=rocksdb;
+insert into t1 values(1,1),(2,2),(3,3);
+select * from t1;
+
+#
+# case 1: update is blocked by replace into 
+#
+connection con1;
+SELECT @@global.enable_blind_replace;
+begin;
+replace into t1 values(1,11);
+
+
+connection con2;
+SELECT @@global.enable_blind_replace;
+begin;
+send update t1 set c2=22 where c1=1;
+
+
+connection default;
+# Check that the above update is blocked
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+    where state = 'Waiting for row lock' and
+          info = 'update t1 set c2=22 where c1=1';
+--source include/wait_condition.inc
+
+
+connection con1;
+commit;
+
+connection con2;
+--echo # Reap update.
+--reap
+commit;
+select * from t1;
+
+
+#
+# cast 2: replace into is blocked by update
+#
+
+connection con1;
+SELECT @@global.enable_blind_replace;
+begin;
+update t1 set c2=55 where c1=1;
+
+connection con2;
+SELECT @@global.enable_blind_replace;
+begin;
+send replace into t1 values(1,66);
+
+
+connection default;
+# Check that the above replace into is blocked
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+    where state = 'Waiting for row lock' and
+          info = 'replace into t1 values(1,66)';
+--source include/wait_condition.inc
+
+
+connection con1;
+commit;
+
+connection con2;
+--echo # Reap replace into.
+--reap
+commit;
+select * from t1;
+
+connection default;
+drop table t1;
+
+disconnect con1;
+disconnect con2;
+
+# Disable blind replace
+SET GLOBAL enable_blind_replace=DEFAULT;

@@ -70,7 +70,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   void set_keys_for_scanning(void);
-  int write_row(uchar * buf);
+  int write_row(const uchar * buf);
   int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const uchar * buf);
   virtual void get_auto_increment(ulonglong offset, ulonglong increment,

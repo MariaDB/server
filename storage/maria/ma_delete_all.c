@@ -38,6 +38,9 @@ int maria_delete_all_rows(MARIA_HA *info)
   MARIA_SHARE *share= info->s;
   my_bool log_record;
   LSN lsn;
+#ifdef HAVE_MMAP
+  my_bool mmap_file= share->file_map != 0;
+#endif
   DBUG_ENTER("maria_delete_all_rows");
 
   if (share->options & HA_OPTION_READ_ONLY_DATA)
@@ -95,7 +98,7 @@ int maria_delete_all_rows(MARIA_HA *info)
   */
 
 #ifdef HAVE_MMAP
-  if (share->file_map)
+  if (mmap_file)
     _ma_unmap_file(info);
 #endif
 
@@ -141,7 +144,7 @@ int maria_delete_all_rows(MARIA_HA *info)
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
 #ifdef HAVE_MMAP
   /* Map again */
-  if (share->file_map)
+  if (mmap_file)
     _ma_dynmap_file(info, (my_off_t) 0);
 #endif
   DBUG_RETURN(0);

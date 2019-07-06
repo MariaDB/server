@@ -777,7 +777,7 @@ Datafile::restore_from_doublewrite()
 	}
 
 	/* Find if double write buffer contains page_no of given space id. */
-	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
+	const byte*	page = recv_sys.dblwr.find_page(m_space_id, 0);
 	const page_id_t	page_id(m_space_id, 0);
 
 	if (page == NULL) {

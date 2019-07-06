@@ -9,5 +9,3 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-
-archive_gis : MDEV-17297 wait for the fix and then enable it

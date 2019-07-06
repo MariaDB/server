@@ -161,6 +161,8 @@ IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
+ADD_DEFINITIONS(${SSL_DEFINES})
+
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
 IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"

@@ -29,6 +29,17 @@ public:
     uint name_length,
     CHARSET_INFO *name_charset
   );
+  int append_escaped_name(
+    spider_string *str,
+    const char *name,
+    uint name_length
+  );
+  int append_escaped_name_with_charset(
+    spider_string *str,
+    const char *name,
+    uint name_length,
+    CHARSET_INFO *name_charset
+  );
   bool is_name_quote(
     const char head_code
   );
@@ -67,6 +78,14 @@ public:
   int append_wait_timeout(
     spider_string *str,
     int wait_timeout
+  );
+  virtual int append_sql_mode_internal(
+    spider_string *str,
+    sql_mode_t sql_mode
+  );
+  int append_sql_mode(
+    spider_string *str,
+    sql_mode_t sql_mode
   );
   int append_time_zone(
     spider_string *str,
@@ -197,6 +216,10 @@ class spider_db_mariadb_util: public spider_db_mbase_util
 public:
   spider_db_mariadb_util();
   ~spider_db_mariadb_util();
+  int append_sql_mode_internal(
+    spider_string *str,
+    sql_mode_t sql_mode
+  );
   int append_column_value(
     ha_spider *spider,
     spider_string *str,
@@ -285,20 +308,22 @@ public:
   );
   int fetch_table_status(
     int mode,
-    ha_rows &records,
-    ulong &mean_rec_length,
-    ulonglong &data_file_length,
-    ulonglong &max_data_file_length,
-    ulonglong &index_file_length,
-    ulonglong &auto_increment_value,
-    time_t &create_time,
-    time_t &update_time,
-    time_t &check_time
+    ha_statistics &stat
+  );
+  int fetch_simple_action(
+    uint simple_action,
+    uint position,
+    void *param
   );
   int fetch_table_records(
     int mode,
     ha_rows &records
   );
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  int fetch_table_checksum(
+    ha_spider *spider
+  );
+#endif
   int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -487,6 +512,11 @@ public:
   bool set_wait_timeout_in_bulk_sql();
   int set_wait_timeout(
     int wait_timeout,
+    int *need_mon
+  );
+  bool set_sql_mode_in_bulk_sql();
+  int set_sql_mode(
+    sql_mode_t sql_mode,
     int *need_mon
   );
   bool set_time_zone_in_bulk_sql();
@@ -682,6 +712,9 @@ public:
     SPIDER_SHARE *spider_share,
     spider_string *str
   );
+#endif
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  bool checksum_support();
 #endif
 protected:
   int create_table_names_str();
@@ -1462,9 +1495,18 @@ public:
     int link_idx,
     int crd_mode
   );
+  int simple_action(
+    uint simple_action,
+    int link_idx
+  );
   int show_records(
     int link_idx
   );
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  int checksum_table(
+    int link_idx
+  );
+#endif
   int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id

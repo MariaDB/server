@@ -1,5 +1,8 @@
 --source "include/have_rocksdb.inc"
 --source "include/have_log_bin.inc"
+# Don't run this with --rpc_protocol because it is doing its own work with
+# the RPC protocol
+--source "include/not_rpc_protocol.inc"
 
 #
 # This test was created because 2pc transactions were failing in MyRocks

@@ -1064,7 +1064,7 @@ page_cur_parse_insert_rec(
 
 		if (offset >= srv_page_size) {
 
-			recv_sys->found_corrupt_log = TRUE;
+			recv_sys.found_corrupt_log = TRUE;
 
 			return(NULL);
 		}
@@ -1078,7 +1078,7 @@ page_cur_parse_insert_rec(
 	}
 
 	if (end_seg_len >= srv_page_size << 1) {
-		recv_sys->found_corrupt_log = TRUE;
+		recv_sys.found_corrupt_log = TRUE;
 
 		return(NULL);
 	}
@@ -2255,7 +2255,7 @@ page_cur_parse_delete_rec(
 	ptr += 2;
 
 	if (UNIV_UNLIKELY(offset >= srv_page_size)) {
-		recv_sys->found_corrupt_log = true;
+		recv_sys.found_corrupt_log = true;
 		return NULL;
 	}
 

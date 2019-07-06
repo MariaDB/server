@@ -6263,7 +6263,7 @@ i_s_dict_fill_sys_tablestats(
 	OK(field_store_string(fields[SYS_TABLESTATS_NAME],
 			      table->name.m_name));
 
-	dict_table_stats_lock(table, RW_S_LATCH);
+	rw_lock_s_lock(&table->stats_latch);
 
 	if (table->stat_initialized) {
 		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
@@ -6293,7 +6293,7 @@ i_s_dict_fill_sys_tablestats(
 		OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
 	}
 
-	dict_table_stats_unlock(table, RW_S_LATCH);
+	rw_lock_s_unlock(&table->stats_latch);
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 
@@ -7185,7 +7185,7 @@ struct st_maria_plugin	i_s_innodb_sys_virtual =
 
 	/* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
+	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 /**  SYS_FIELDS  ***************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FIELDS */

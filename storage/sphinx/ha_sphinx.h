@@ -85,7 +85,7 @@ public:
 	int				open ( const char * name, int mode, uint test_if_locked );
 	int				close ();
 
-	int				write_row ( byte * buf );
+	int				write_row ( const byte * buf );
 	int				update_row ( const byte * old_data, const byte * new_data );
 	int				delete_row ( const byte * buf );
 	int				extra ( enum ha_extra_function op );

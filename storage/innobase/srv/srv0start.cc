@@ -484,7 +484,7 @@ create_log_files(
 	/* Create a log checkpoint. */
 	log_mutex_enter();
 	if (log_sys.is_encrypted() && !log_crypt_init()) {
-		return(DB_ERROR);
+		return DB_ERROR;
 	}
 	ut_d(recv_no_log_write = false);
 	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
@@ -1107,11 +1107,11 @@ srv_shutdown_all_bg_threads()
 			ut_ad(!srv_read_only_mode);
 
 			/* e. Exit the i/o threads */
-			if (recv_sys->flush_start != NULL) {
-				os_event_set(recv_sys->flush_start);
+			if (recv_sys.flush_start != NULL) {
+				os_event_set(recv_sys.flush_start);
 			}
-			if (recv_sys->flush_end != NULL) {
-				os_event_set(recv_sys->flush_end);
+			if (recv_sys.flush_end != NULL) {
+				os_event_set(recv_sys.flush_end);
 			}
 
 			os_event_set(buf_flush_event);
@@ -1532,7 +1532,7 @@ dberr_t srv_start(bool create_new_db)
 #endif /* UNIV_DEBUG */
 
 	log_sys.create();
-	recv_sys_init();
+	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
 	/* Create i/o-handler threads: */
@@ -1560,7 +1560,7 @@ dberr_t srv_start(bool create_new_db)
 
 #ifdef UNIV_LINUX
 		/* Wait for the setpriority() call to finish. */
-		os_event_wait(recv_sys->flush_end);
+		os_event_wait(recv_sys.flush_end);
 #endif /* UNIV_LINUX */
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
@@ -1574,7 +1574,7 @@ dberr_t srv_start(bool create_new_db)
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(DB_ERROR));
 		}
-		recv_sys_debug_free();
+		recv_sys.debug_free();
 	}
 
 	/* Open or create the data files. */
@@ -1613,6 +1613,10 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	srv_log_file_size_requested = srv_log_file_size;
+
+	if (innodb_encrypt_temporary_tables && !log_crypt_init()) {
+		return srv_init_abort(DB_ERROR);
+	}
 
 	if (create_new_db) {
 
@@ -1867,7 +1871,7 @@ files_checked:
 
 		err = recv_recovery_from_checkpoint_start(flushed_lsn);
 
-		recv_sys->dblwr.pages.clear();
+		recv_sys.dblwr.pages.clear();
 
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
@@ -1899,8 +1903,8 @@ files_checked:
 
 			recv_apply_hashed_log_recs(true);
 
-			if (recv_sys->found_corrupt_log
-			    || recv_sys->found_corrupt_fs) {
+			if (recv_sys.found_corrupt_log
+			    || recv_sys.found_corrupt_fs) {
 				return(srv_init_abort(DB_CORRUPTION));
 			}
 
@@ -2520,7 +2524,7 @@ void innodb_shutdown()
 	/* 4. Free all allocated memory */
 
 	pars_lexer_close();
-	recv_sys_close();
+	recv_sys.close();
 
 	ut_ad(buf_pool_ptr || !srv_was_started);
 	if (buf_pool_ptr) {

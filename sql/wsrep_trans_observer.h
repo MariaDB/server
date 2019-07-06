@@ -193,6 +193,8 @@ static inline bool wsrep_run_commit_hook(THD* thd, bool all)
                        wsrep_is_ordered(thd)));
   /* Is MST commit or autocommit? */
   bool ret= wsrep_is_active(thd) && wsrep_is_real(thd, all);
+  /* Do not commit if we are aborting */
+  ret= ret && (thd->wsrep_trx().state() != wsrep::transaction::s_aborting);
   if (ret && !(wsrep_has_changes(thd) ||  /* Has generated write set */
                /* Is high priority (replay, applier, storage) and the
                   transaction is scheduled for commit ordering */

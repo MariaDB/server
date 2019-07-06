@@ -112,8 +112,6 @@
 #include "atomic/solaris.h"
 #elif defined(HAVE_GCC_C11_ATOMICS)
 #include "atomic/gcc_builtins.h"
-#elif defined(HAVE_GCC_ATOMIC_BUILTINS)
-#include "atomic/gcc_sync.h"
 #endif
 
 #if SIZEOF_LONG == 4

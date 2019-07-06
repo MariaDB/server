@@ -3576,7 +3576,7 @@ int ha_connect::close(void)
   item_sum.cc, item_sum.cc, sql_acl.cc, sql_insert.cc,
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc and sql_update.cc
 */
-int ha_connect::write_row(uchar *buf)
+int ha_connect::write_row(const uchar *buf)
 {
   int      rc= 0;
   PGLOBAL& g= xp->g;
@@ -7018,7 +7018,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     ALTER_DROP_PK_INDEX;
 
   alter_table_operations inplace_offline_operations=
-    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+    ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |
     ALTER_COLUMN_NAME |
     ALTER_COLUMN_DEFAULT |
     ALTER_CHANGE_CREATE_OPTION |
@@ -7117,7 +7117,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 
 #if 0
   uint table_changes= (ha_alter_info->handler_flags &
-                       ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
+                       ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) ?
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
 
   if (table->file->check_if_incompatible_data(create_info, table_changes)

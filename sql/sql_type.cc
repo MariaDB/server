@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015  MariaDB Foundation.
+   Copyright (c) 2015,2019 MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -1173,6 +1173,8 @@ Type_handler::string_type_handler(uint max_octet_length)
     return &type_handler_long_blob;
   else if (max_octet_length >= 65536)
     return &type_handler_medium_blob;
+  else if (max_octet_length >= MAX_FIELD_VARCHARLENGTH)
+    return &type_handler_blob;
   return &type_handler_varchar;
 }
 
@@ -2256,6 +2258,7 @@ Field *Type_handler_varchar::make_conversion_table_field(TABLE *table,
                                                          const Field *target)
                                                          const
 {
+  DBUG_ASSERT(HA_VARCHAR_PACKLENGTH(metadata) <= MAX_FIELD_VARCHARLENGTH);
   return new(table->in_use->mem_root)
          Field_varstring(NULL, metadata, HA_VARCHAR_PACKLENGTH(metadata),
                          (uchar *) "", 1, Field::NONE, &empty_clex_str,
@@ -3326,6 +3329,8 @@ Field *Type_handler_varchar::make_table_field(const LEX_CSTRING *name,
                                               TABLE *table) const
 
 {
+  DBUG_ASSERT(HA_VARCHAR_PACKLENGTH(attr.max_length) <=
+              MAX_FIELD_VARCHARLENGTH);
   return new (table->in_use->mem_root)
          Field_varstring(addr.ptr(), attr.max_length,
                          HA_VARCHAR_PACKLENGTH(attr.max_length),
@@ -8363,19 +8368,8 @@ Charset::encoding_allows_reinterpret_as(const CHARSET_INFO *cs) const
 
 
 bool
-Charset::encoding_and_order_allow_reinterpret_as(CHARSET_INFO *cs) const
+Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
 {
-  /*
-    Test quickly if we have two exactly equal CHARSET_INFO pointers.
-    This also handles a special case with my_charset_bin:
-    it does not have a collation name specific part in CHARSET_INFO::name,
-    which is just "binary" (without a character set name prefix),
-    so the code with collation_specific_name() below won't work for it.
-  */
-  if (m_charset == cs)
-    return true;
-  if (!encoding_allows_reinterpret_as(cs))
-    return false;
   LEX_CSTRING name0= collation_specific_name();
   LEX_CSTRING name1= Charset(cs).collation_specific_name();
   return name0.length && !cmp(&name0, &name1);

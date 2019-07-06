@@ -200,7 +200,7 @@ protected:
 typedef PFS_engine_table* (*pfs_open_table_t)(void);
 /** Callback to write a row. */
 typedef int (*pfs_write_row_t)(TABLE *table,
-                               unsigned char *buf, Field **fields);
+                               const unsigned char *buf, Field **fields);
 /** Callback to delete all rows. */
 typedef int (*pfs_delete_all_rows_t)(void);
 /** Callback to get a row count. */
@@ -217,7 +217,7 @@ struct PFS_engine_table_share
   /** Get the row count. */
   ha_rows get_row_count(void) const;
   /** Write a row. */
-  int write_row(TABLE *table, unsigned char *buf, Field **fields) const;
+  int write_row(TABLE *table, const unsigned char *buf, Field **fields) const;
 
   /** Table name. */
   LEX_STRING m_name;

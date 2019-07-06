@@ -628,7 +628,7 @@ public:
     start_bulk_insert and end_bulk_insert is called before and after a
     number of calls to write_row.
   */
-  virtual int write_row(uchar * buf);
+  virtual int write_row(const uchar * buf);
   virtual bool start_bulk_update();
   virtual int exec_bulk_update(ha_rows *dup_key_found);
   virtual int end_bulk_update();
@@ -1442,6 +1442,9 @@ public:
     int check_misplaced_rows(uint read_part_id, bool repair);
     void append_row_to_str(String &str);
     public:
+
+    virtual int pre_calculate_checksum();
+    virtual int calculate_checksum();
 
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);

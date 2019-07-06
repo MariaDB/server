@@ -821,6 +821,17 @@ public:
     uint name_length,
     CHARSET_INFO *name_charset
   ) = 0;
+  virtual int append_escaped_name(
+    spider_string *str,
+    const char *name,
+    uint name_length
+  ) = 0;
+  virtual int append_escaped_name_with_charset(
+    spider_string *str,
+    const char *name,
+    uint name_length,
+    CHARSET_INFO *name_charset
+  ) = 0;
   virtual bool is_name_quote(
     const char head_code
   ) = 0;
@@ -849,6 +860,10 @@ public:
   virtual int append_wait_timeout(
     spider_string *str,
     int wait_timeout
+  ) = 0;
+  virtual int append_sql_mode(
+    spider_string *str,
+    sql_mode_t sql_mode
   ) = 0;
   virtual int append_time_zone(
     spider_string *str,
@@ -992,20 +1007,17 @@ public:
   ) = 0;
   virtual int fetch_table_status(
     int mode,
-    ha_rows &records,
-    ulong &mean_rec_length,
-    ulonglong &data_file_length,
-    ulonglong &max_data_file_length,
-    ulonglong &index_file_length,
-    ulonglong &auto_increment_value,
-    time_t &create_time,
-    time_t &update_time,
-    time_t &check_time
+    ha_statistics &stat
   ) = 0;
   virtual int fetch_table_records(
     int mode,
     ha_rows &records
   ) = 0;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  virtual int fetch_table_checksum(
+    ha_spider *spider
+  );
+#endif
   virtual int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -1154,6 +1166,11 @@ public:
     int wait_timeout,
     int *need_mon
   ) = 0;
+  virtual bool set_sql_mode_in_bulk_sql() = 0;
+  virtual int set_sql_mode(
+    sql_mode_t sql_mode,
+    int *need_mon
+  ) = 0;
   virtual bool set_time_zone_in_bulk_sql() = 0;
   virtual int set_time_zone(
     Time_zone *time_zone,
@@ -1279,6 +1296,9 @@ public:
     SPIDER_SHARE *spider_share,
     spider_string *str
   ) = 0;
+#endif
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  virtual bool checksum_support();
 #endif
 };
 
@@ -1648,6 +1668,11 @@ public:
   virtual int show_records(
     int link_idx
   ) = 0;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+  virtual int checksum_table(
+    int link_idx
+  );
+#endif
   virtual int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id

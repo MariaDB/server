@@ -57,6 +57,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "dict0dict.h"
 #include "log0recv.h"
 #include "srv0mon.h"
+#include "log0crypt.h"
 #include "fil0pagecompress.h"
 #include "fsp0pagecompress.h"
 #endif /* !UNIV_INNOCHECKSUM */
@@ -472,6 +473,45 @@ buf_pool_register_chunk(
 		chunk->blocks->frame, chunk));
 }
 
+/** Decrypt a page for temporary tablespace.
+@param[in,out]	tmp_frame	Temporary buffer
+@param[in]	src_frame	Page to decrypt
+@return true if temporary tablespace decrypted, false if not */
+static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
+{
+	if (buf_page_is_zeroes(src_frame, srv_page_size)) {
+		return true;
+	}
+
+	/* read space & lsn */
+	uint header_len = FIL_PAGE_DATA;
+
+	/* Copy FIL page header, it is not encrypted */
+	memcpy(tmp_frame, src_frame, header_len);
+
+	/* Calculate the offset where decryption starts */
+	const byte* src = src_frame + header_len;
+	byte* dst = tmp_frame + header_len;
+	uint srclen = uint(srv_page_size)
+		- header_len - FIL_PAGE_DATA_END;
+	ulint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
+
+	if (!log_tmp_block_decrypt(src, srclen, dst,
+				   (offset * srv_page_size))) {
+		return false;
+	}
+
+	memcpy(tmp_frame + srv_page_size - FIL_PAGE_DATA_END,
+	       src_frame + srv_page_size - FIL_PAGE_DATA_END,
+	       FIL_PAGE_DATA_END);
+
+	memcpy(src_frame, tmp_frame, srv_page_size);
+	srv_stats.pages_decrypted.inc();
+	srv_stats.n_temp_blocks_decrypted.inc();
+
+	return true; /* page was decrypted */
+}
+
 /** Decrypt a page.
 @param[in,out]	bpage	Page control block
 @param[in,out]	space	tablespace
@@ -490,6 +530,22 @@ static bool buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 	if (bpage->id.page_no() == 0) {
 		/* File header pages are not encrypted/compressed */
 		return (true);
+	}
+
+	if (space->purpose == FIL_TYPE_TEMPORARY
+	    && innodb_encrypt_temporary_tables) {
+		buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool);
+		buf_tmp_reserve_crypt_buf(slot);
+
+		if (!buf_tmp_page_decrypt(slot->crypt_buf, dst_frame)) {
+			slot->release();
+			ib::error() << "Encrypted page " << bpage->id
+				    << " in file " << space->chain.start->name;
+			return false;
+		}
+
+		slot->release();
+		return true;
 	}
 
 	/* Page is encrypted if encryption information is found from
@@ -1253,10 +1309,10 @@ buf_madvise_do_dump()
 			      srv_log_buffer_size * 2,
 			      MADV_DODUMP);
 	}
-	/* mirrors recv_sys_init() */
-	if (recv_sys->buf)
+	/* mirrors recv_sys_t::create() */
+	if (recv_sys.buf)
 	{
-		ret+= madvise(recv_sys->buf, recv_sys->len, MADV_DODUMP);
+		ret+= madvise(recv_sys.buf, recv_sys.len, MADV_DODUMP);
 	}
 
 	buf_pool_mutex_enter_all();
@@ -1283,14 +1339,16 @@ buf_madvise_do_dump()
 @param[in]	zip_size	compressed page size, or 0 */
 void buf_page_print(const byte* read_buf, ulint zip_size)
 {
-	const ulint size = zip_size ? zip_size : srv_page_size;
 	dict_index_t*	index;
 
+#ifndef UNIV_DEBUG
+	const ulint size = zip_size ? zip_size : srv_page_size;
 	ib::info() << "Page dump in ascii and hex ("
 		<< size << " bytes):";
 
 	ut_print_buf(stderr, read_buf, size);
 	fputs("\nInnoDB: End of page dump\n", stderr);
+#endif
 
 	if (zip_size) {
 		/* Print compressed page. */
@@ -1770,7 +1828,7 @@ buf_chunk_not_freed(
 				      == block->page.newest_modification);
 				ut_ad(block->page.oldest_modification == 0
 				      || block->page.oldest_modification
-				      == recv_sys->recovered_lsn
+				      == recv_sys.recovered_lsn
 				      || srv_force_recovery
 				      == SRV_FORCE_NO_LOG_REDO);
 				ut_ad(block->page.buf_fix_count == 0);
@@ -4411,6 +4469,11 @@ loop:
 				return (NULL);
 			}
 
+			if (local_err == DB_PAGE_CORRUPTED
+			    && srv_force_recovery) {
+				return NULL;
+			}
+
 			/* Try to set table as corrupted instead of
 			asserting. */
 			if (page_id.space() == TRX_SYS_SPACE) {
@@ -4833,6 +4896,22 @@ evict_from_pool:
 	under the protection of the hash_lock and not the block->mutex
 	and block->lock. */
 	buf_wait_for_read(fix_block);
+
+	if (fix_block->page.id != page_id) {
+		fix_block->unfix();
+
+#ifdef UNIV_DEBUG
+		if (!fsp_is_system_temporary(page_id.space())) {
+			rw_lock_s_unlock(fix_block->debug_latch);
+		}
+#endif /* UNIV_DEBUG */
+
+		if (err) {
+			*err = DB_PAGE_CORRUPTED;
+		}
+
+		return NULL;
+	}
 
 	mtr_memo_type_t	fix_type;
 
@@ -5571,9 +5650,9 @@ buf_page_create(
 							  mtr);
 		}
 
-		mutex_exit(&recv_sys->mutex);
+		mutex_exit(&recv_sys.mutex);
 		block = buf_page_get_with_no_latch(page_id, zip_size, mtr);
-		mutex_enter(&recv_sys->mutex);
+		mutex_enter(&recv_sys.mutex);
 		return block;
 	}
 
@@ -5774,22 +5853,43 @@ buf_page_monitor(
 }
 
 /** Mark a table corrupted.
+Also remove the bpage from LRU list.
+@param[in]	bpage	Corrupted page. */
+static void buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
+{
+	/* If block is not encrypted find the table with specified
+	space id, and mark it corrupted. Encrypted tables
+	are marked unusable later e.g. in ::open(). */
+	if (!bpage->encrypted) {
+		dict_set_corrupted_by_space(space);
+	} else {
+		dict_set_encrypted_by_space(space);
+	}
+}
+
+/** Mark a table corrupted.
+@param[in]	bpage	Corrupted page
+@param[in]	space	Corrupted page belongs to tablespace
 Also remove the bpage from LRU list. */
 static
 void
-buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
+buf_corrupt_page_release(buf_page_t* bpage, const fil_space_t* space)
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const ibool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
+	page_id_t	old_page_id = bpage->id;
 
 	/* First unfix and release lock on the bpage */
 	buf_pool_mutex_enter(buf_pool);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
-	ut_ad(bpage->buf_fix_count == 0);
 	ut_ad(bpage->id.space() == space->id);
 
+	/* buf_fix_count can be greater than zero. Because other thread
+	can wait in buf_page_wait_read() for the page to be read. */
+
+	bpage->id.set_corrupt_id();
 	/* Set BUF_IO_NONE before we remove the block from LRU list */
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 
@@ -5801,17 +5901,12 @@ buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
 
 	mutex_exit(buf_page_get_mutex(bpage));
 
-	/* If block is not encrypted find the table with specified
-	space id, and mark it corrupted. Encrypted tables
-	are marked unusable later e.g. in ::open(). */
-	if (!bpage->encrypted) {
-		dict_set_corrupted_by_space(space);
-	} else {
-		dict_set_encrypted_by_space(space);
+	if (!srv_force_recovery) {
+		buf_mark_space_corrupt(bpage, space);
 	}
 
 	/* After this point bpage can't be referenced. */
-	buf_LRU_free_one_page(bpage);
+	buf_LRU_free_one_page(bpage, old_page_id);
 
 	ut_ad(buf_pool->n_pend_reads > 0);
 	buf_pool->n_pend_reads--;
@@ -5869,7 +5964,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	not decrypted and it could be either encrypted and corrupted
 	or corrupted or good page. If we decrypted, there page could
 	still be corrupted if used key does not match. */
-	const bool still_encrypted = key_version
+	const bool still_encrypted = (!space->full_crc32() && key_version)
 		&& space->crypt_data
 		&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
 		&& !bpage->encrypted
@@ -6039,7 +6134,7 @@ database_corrupted:
 				"buf_page_import_corrupt_failure",
 				if (!is_predefined_tablespace(
 					    bpage->id.space())) {
-					buf_mark_space_corrupt(bpage, space);
+					buf_corrupt_page_release(bpage, space);
 					ib::info() << "Simulated IMPORT "
 						"corruption";
 					space->release_for_io();
@@ -6073,7 +6168,7 @@ database_corrupted:
 					<< FORCE_RECOVERY_MSG;
 			}
 
-			if (srv_force_recovery < SRV_FORCE_IGNORE_CORRUPT) {
+			if (!srv_force_recovery) {
 
 				/* If page space id is larger than TRX_SYS_SPACE
 				(0), we will attempt to mark the corresponding
@@ -6083,7 +6178,7 @@ database_corrupted:
 						" a corrupt database page.";
 				}
 
-				buf_mark_space_corrupt(bpage, space);
+				buf_corrupt_page_release(bpage, space);
 				space->release_for_io();
 				return(err);
 			}
@@ -6091,6 +6186,20 @@ database_corrupted:
 
 		DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
 				page_not_corrupt: bpage = bpage; );
+
+		if (err == DB_PAGE_CORRUPTED
+		    || err == DB_DECRYPTION_FAILED) {
+			const page_id_t corrupt_page_id = bpage->id;
+
+			buf_corrupt_page_release(bpage, space);
+
+			if (recv_recovery_is_on()) {
+				recv_recover_corrupt_page(corrupt_page_id);
+			}
+
+			space->release_for_io();
+			return err;
+		}
 
 		if (recv_recovery_is_on()) {
 			recv_recover_page(bpage);
@@ -7302,6 +7411,44 @@ operator<<(
 	return(out);
 }
 
+/** Encrypt a buffer of temporary tablespace
+@param[in]	offset		Page offset
+@param[in]	src_frame	Page to encrypt
+@param[in,out]	dst_frame	Output buffer
+@return encrypted buffer or NULL */
+static byte* buf_tmp_page_encrypt(
+	ulint	offset,
+	byte*	src_frame,
+	byte*	dst_frame)
+{
+	uint header_len = FIL_PAGE_DATA;
+	/* FIL page header is not encrypted */
+	memcpy(dst_frame, src_frame, header_len);
+
+	/* Calculate the start offset in a page */
+	uint unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
+	uint srclen = srv_page_size - unencrypted_bytes;
+	const byte* src = src_frame + header_len;
+	byte* dst = dst_frame + header_len;
+
+	if (!log_tmp_block_encrypt(src, srclen, dst, (offset * srv_page_size),
+				   true)) {
+		return NULL;
+	}
+
+	memcpy(dst_frame + srv_page_size - FIL_PAGE_DATA_END,
+	       src_frame + srv_page_size - FIL_PAGE_DATA_END,
+	       FIL_PAGE_DATA_END);
+
+	/* Handle post encryption checksum */
+	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
+			buf_calc_page_crc32(dst_frame));
+
+	srv_stats.pages_encrypted.inc();
+	srv_stats.n_temp_blocks_encrypted.inc();
+	return dst_frame;
+}
+
 /** Encryption and page_compression hook that is called just before
 a page is written to disk.
 @param[in,out]	space		tablespace
@@ -7335,13 +7482,20 @@ buf_page_encrypt(
 
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 
-	const bool encrypted = crypt_data
-		&& !crypt_data->not_encrypted()
-		&& crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
-		&& (!crypt_data->is_default_encryption()
-		    || srv_encrypt_tables);
+	bool encrypted, page_compressed;
 
-	bool page_compressed = space->is_compressed();
+	if (space->purpose == FIL_TYPE_TEMPORARY) {
+		ut_ad(!crypt_data);
+		encrypted = innodb_encrypt_temporary_tables;
+		page_compressed = false;
+	} else {
+		encrypted = crypt_data
+			&& !crypt_data->not_encrypted()
+			&& crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+			&& (!crypt_data->is_default_encryption()
+			    || srv_encrypt_tables);
+		page_compressed = space->is_compressed();
+	}
 
 	if (!encrypted && !page_compressed) {
 		/* No need to encrypt or page compress the page.
@@ -7381,18 +7535,25 @@ buf_page_encrypt(
 
 	if (!page_compressed) {
 not_compressed:
-		/* Encrypt page content */
-		byte* tmp = fil_space_encrypt(space,
-					      bpage->id.page_no(),
-					      bpage->newest_modification,
-					      src_frame,
-					      dst_frame);
+		byte* tmp;
+		if (space->purpose == FIL_TYPE_TEMPORARY) {
+			/* Encrypt temporary tablespace page content */
+			tmp = buf_tmp_page_encrypt(bpage->id.page_no(),
+						   src_frame, dst_frame);
+		} else {
+			/* Encrypt page content */
+			tmp = fil_space_encrypt(
+					space, bpage->id.page_no(),
+					bpage->newest_modification,
+					src_frame, dst_frame);
+		}
 
 		bpage->real_size = srv_page_size;
 		slot->out_buf = dst_frame = tmp;
 
 		ut_d(fil_page_type_validate(space, tmp));
 	} else {
+		ut_ad(space->purpose != FIL_TYPE_TEMPORARY);
 		/* First we compress the page content */
 		buf_tmp_reserve_compression_buf(slot);
 		byte* tmp = slot->comp_buf;

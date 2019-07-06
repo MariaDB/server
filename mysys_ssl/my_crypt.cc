@@ -25,16 +25,28 @@
 
 #include <my_crypt.h>
 #include <ssl_compat.h>
+#include <cstdint>
+
+#ifdef HAVE_WOLFSSL
+#define CTX_ALIGN 16
+#else
+#define CTX_ALIGN 0
+#endif
 
 class MyCTX
 {
 public:
-  char ctx_buf[EVP_CIPHER_CTX_SIZE];
-  EVP_CIPHER_CTX *ctx;
-
+  char ctx_buf[EVP_CIPHER_CTX_SIZE + CTX_ALIGN];
+  EVP_CIPHER_CTX* ctx;
   MyCTX()
   {
-    ctx= (EVP_CIPHER_CTX *)ctx_buf;
+#if CTX_ALIGN > 0
+    uintptr_t p= ((uintptr_t)ctx_buf + (CTX_ALIGN - 1)) & ~(CTX_ALIGN - 1);
+    ctx = reinterpret_cast<EVP_CIPHER_CTX*>(p);
+#else
+    ctx = (EVP_CIPHER_CTX*)ctx_buf;
+#endif
+
     EVP_CIPHER_CTX_init(ctx);
   }
   virtual ~MyCTX()
@@ -60,6 +72,16 @@ public:
   }
   virtual int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
   {
+#ifdef HAVE_WOLFSSL
+    // WolfSSL checks parameters and does not like NULL pointers to be passed to function below.
+    if (!src)
+    {
+      static uchar dummy[MY_AES_BLOCK_SIZE];
+      DBUG_ASSERT(!slen);
+      src=dummy;
+    }
+#endif
+
     if (EVP_CipherUpdate(ctx, dst, (int*)dlen, src, slen) != 1)
       return MY_AES_OPENSSL_ERROR;
     return MY_AES_OK;
@@ -139,8 +161,11 @@ public:
       uchar mask[MY_AES_BLOCK_SIZE];
       uint mlen;
 
-      my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+      int rc= my_aes_crypt(MY_AES_ECB, ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
                    oiv, sizeof(mask), mask, &mlen, key, klen, 0, 0);
+      DBUG_ASSERT(rc == MY_AES_OK);
+      if (rc)
+        return rc;
       DBUG_ASSERT(mlen == sizeof(mask));
 
       for (uint i=0; i < buf_len; i++)

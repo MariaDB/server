@@ -971,6 +971,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       exit(1);
     }
     break;
+  case (int) OPT_DEFAULT_CHARSET:
+    if (default_charset == disabled_my_option)
+      default_charset= (char *)mysql_universal_client_charset;
+    break;
   }
   return 0;
 }
@@ -1705,6 +1709,7 @@ static int connect_to_db(char *host, char *user,char *passwd)
                   opt_ssl_capath, opt_ssl_cipher);
     mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(&mysql_connection, MARIADB_OPT_TLS_VERSION, opt_tls_version);
   }
   mysql_options(&mysql_connection,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
@@ -2508,7 +2513,9 @@ static uint dump_routines_for_db(char *db)
 
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        db_cl_altered= FALSE;
-
+  // before 10.3 packages are not supported
+  uint upper_bound= mysql_get_server_version(mysql) >= 100300 ?
+                    array_elements(routine_type) : 2;
   DBUG_ENTER("dump_routines_for_db");
   DBUG_PRINT("enter", ("db: '%s'", db));
 
@@ -2538,7 +2545,7 @@ static uint dump_routines_for_db(char *db)
     fputs("\t<routines>\n", sql_file);
 
   /* 0, retrieve and dump functions, 1, procedures, etc. */
-  for (i= 0; i < array_elements(routine_type); i++)
+  for (i= 0; i < upper_bound; i++)
   {
     my_snprintf(query_buff, sizeof(query_buff),
                 "SHOW %s STATUS WHERE Db = '%s'",

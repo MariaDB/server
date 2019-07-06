@@ -1,0 +1,11 @@
+create table t1 (a int);
+alter table mysql.column_stats rename to mysql.column_stats1;
+flush tables;
+alter table t1 change a b varchar(100);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` varchar(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table mysql.column_stats1 rename to mysql.column_stats;
+drop table t1;

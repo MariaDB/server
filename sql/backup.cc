@@ -253,6 +253,7 @@ static bool backup_block_ddl(THD *thd)
     backup stage even if we got an error.
   */
   (void) flush_tables(thd, FLUSH_NON_TRANS_TABLES);
+  thd->clear_error();
 
   /*
     block new DDL's, in addition to all previous blocks
@@ -286,7 +287,11 @@ static bool backup_block_commit(THD *thd)
                                            MDL_BACKUP_WAIT_COMMIT,
                                            thd->variables.lock_wait_timeout))
     DBUG_RETURN(1);
-  flush_tables(thd, FLUSH_SYS_TABLES);
+
+  /* We can ignore errors from flush_tables () */
+  (void) flush_tables(thd, FLUSH_SYS_TABLES);
+  thd->clear_error();
+
   DBUG_RETURN(0);
 }
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -215,6 +215,32 @@ redo:
   }
 
   return NULL;
+}
+
+
+bool
+Storage_engine_name::resolve_storage_engine_with_error(THD *thd,
+                                                       handlerton **ha,
+                                                       bool tmp_table)
+{
+  if (plugin_ref plugin= ha_resolve_by_name(thd, &m_storage_engine_name,
+                                            tmp_table))
+  {
+    *ha= plugin_hton(plugin);
+    return false;
+  }
+
+  *ha= NULL;
+  if (thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
+  {
+    my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), m_storage_engine_name.str);
+    return true;
+  }
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_UNKNOWN_STORAGE_ENGINE,
+                      ER_THD(thd, ER_UNKNOWN_STORAGE_ENGINE),
+                      m_storage_engine_name.str);
+  return false;
 }
 
 
@@ -4567,7 +4593,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   alter_table_operations inplace_offline_operations=
-    ALTER_COLUMN_EQUAL_PACK_LENGTH |
+    ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |
     ALTER_COLUMN_NAME |
     ALTER_RENAME_COLUMN |
     ALTER_CHANGE_COLUMN_DEFAULT |
@@ -4603,7 +4629,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   uint table_changes= (ha_alter_info->handler_flags &
-                       ALTER_COLUMN_EQUAL_PACK_LENGTH) ?
+                       ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) ?
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
   if (table->file->check_if_incompatible_data(create_info, table_changes)
       == COMPATIBLE_DATA_YES)
@@ -4899,6 +4925,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->update_time=          stats.update_time;
   stat_info->check_time=           stats.check_time;
   stat_info->check_sum=            stats.checksum;
+  stat_info->check_sum_null=       stats.checksum_null;
 }
 
 
@@ -5053,7 +5080,7 @@ int handler::calculate_checksum()
       return HA_ERR_ABORTED_BY_USER;
 
     ha_checksum row_crc= 0;
-    error= table->file->ha_rnd_next(table->record[0]);
+    error= ha_rnd_next(table->record[0]);
     if (error)
       break;
 
@@ -5107,7 +5134,7 @@ int handler::calculate_checksum()
 
     stats.checksum+= row_crc;
   }
-  table->file->ha_rnd_end();
+  ha_rnd_end();
   return error == HA_ERR_END_OF_FILE ? 0 : error;
 }
 
@@ -6472,7 +6499,7 @@ static int wsrep_after_row(THD *thd)
 #endif /* WITH_WSREP */
 
 static int check_duplicate_long_entry_key(TABLE *table, handler *h,
-                                          uchar *new_rec, uint key_no)
+                                          const uchar *new_rec, uint key_no)
 {
   Field *hash_field;
   int result, error= 0;
@@ -6561,7 +6588,8 @@ exit:
     unique constraint on long columns.
     @returns 0 if no duplicate else returns error
   */
-static int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
+static int check_duplicate_long_entries(TABLE *table, handler *h,
+                                        const uchar *new_rec)
 {
   table->file->errkey= -1;
   int result;
@@ -6630,7 +6658,7 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
   return error;
 }
 
-int handler::ha_write_row(uchar *buf)
+int handler::ha_write_row(const uchar *buf)
 {
   int error;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
@@ -6719,7 +6747,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   Update first row. Only used by sequence tables
 */
 
-int handler::update_first_row(uchar *new_data)
+int handler::update_first_row(const uchar *new_data)
 {
   int error;
   if (likely(!(error= ha_rnd_init(1))))

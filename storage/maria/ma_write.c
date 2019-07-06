@@ -83,7 +83,7 @@ my_bool _ma_write_abort_default(MARIA_HA *info __attribute__((unused)))
 
 /* Write new record to a table */
 
-int maria_write(MARIA_HA *info, uchar *record)
+int maria_write(MARIA_HA *info, const uchar *record)
 {
   MARIA_SHARE *share= info->s;
   uint i;

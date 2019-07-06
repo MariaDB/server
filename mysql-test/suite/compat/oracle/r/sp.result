@@ -2552,3 +2552,19 @@ idx
 idx
 1
 DROP PROCEDURE p1;
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-19637 Crash on an SP variable assignment to a wrong subselect
+#
+DECLARE
+a INT;
+BEGIN
+SET a=(SELECT 1 FROM DUAL UNION SELECT HIGH_PRIORITY 2 FROM DUAL);
+END;
+$$
+ERROR 42000: Incorrect usage/placement of 'HIGH_PRIORITY'
+#
+# End of 10.4 tests
+#

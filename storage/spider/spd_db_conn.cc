@@ -389,6 +389,13 @@ int spider_db_conn_queue_action(
           append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
       ) ||
       (
+        conn->queued_sql_mode &&
+        conn->queued_sql_mode_val != conn->sql_mode &&
+        conn->db_conn->set_sql_mode_in_bulk_sql() &&
+        (error_num = spider_dbton[conn->dbton_id].db_util->
+          append_sql_mode(&sql_str, conn->queued_sql_mode_val))
+      ) ||
+      (
         conn->queued_time_zone &&
         conn->queued_time_zone_val != conn->time_zone &&
         conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -470,6 +477,15 @@ int spider_db_conn_queue_action(
       DBUG_RETURN(error_num);
     }
     if (
+      conn->queued_sql_mode &&
+      conn->queued_sql_mode_val != conn->sql_mode &&
+      !conn->db_conn->set_sql_mode_in_bulk_sql() &&
+      (error_num = spider_dbton[conn->dbton_id].db_util->
+        append_sql_mode(&sql_str, conn->queued_sql_mode_val))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+    if (
       conn->queued_time_zone &&
       conn->queued_time_zone_val != conn->time_zone &&
       !conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -541,6 +557,13 @@ int spider_db_conn_queue_action(
       conn->queued_wait_timeout_val != conn->wait_timeout
     ) {
       conn->wait_timeout = conn->queued_wait_timeout_val;
+    }
+
+    if (
+      conn->queued_sql_mode &&
+      conn->queued_sql_mode_val != conn->sql_mode
+    ) {
+      conn->sql_mode = conn->queued_sql_mode_val;
     }
 
     if (conn->queued_autocommit)
@@ -1416,7 +1439,7 @@ int spider_db_append_name_with_quote_str(
 ) {
   DBUG_ENTER("spider_db_append_name_with_quote_str");
   DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
-    str, name, strlen(name), dbton_id));
+    str, name, strlen(name), system_charset_info, dbton_id));
 }
 
 int spider_db_append_name_with_quote_str(
@@ -1426,13 +1449,25 @@ int spider_db_append_name_with_quote_str(
 ) {
   DBUG_ENTER("spider_db_append_name_with_quote_str");
   DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
-    str, name.str, name.length, dbton_id));
+    str, name.str, name.length, system_charset_info, dbton_id));
 }
 
 int spider_db_append_name_with_quote_str_internal(
   spider_string *str,
   const char *name,
   int length,
+  uint dbton_id
+) {
+  DBUG_ENTER("spider_db_append_name_with_quote_str_internal");
+  DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
+    str, name, length, system_charset_info, dbton_id));
+}
+
+int spider_db_append_name_with_quote_str_internal(
+  spider_string *str,
+  const char *name,
+  int length,
+  CHARSET_INFO *cs,
   uint dbton_id
 ) {
   int error_num;
@@ -1443,9 +1478,9 @@ int spider_db_append_name_with_quote_str_internal(
   {
     head_code = *name;
 #ifdef SPIDER_HAS_MY_CHARLEN
-    if ((length = my_charlen(system_charset_info, name, name_end)) < 1)
+    if ((length = my_charlen(cs, name, name_end)) < 1)
 #else
-    if (!(length = my_mbcharlen(system_charset_info, (uchar) head_code)))
+    if (!(length = my_mbcharlen(cs, (uchar) head_code)))
 #endif
     {
       my_message(ER_SPIDER_WRONG_CHARACTER_IN_NAME_NUM,
@@ -1462,7 +1497,7 @@ int spider_db_append_name_with_quote_str_internal(
         DBUG_RETURN(error_num);
       }
     } else {
-      if (str->append(name, length, system_charset_info))
+      if (str->append(name, length, cs))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
   }
@@ -5684,7 +5719,38 @@ int spider_db_show_table_status(
   DBUG_RETURN(error_num);
 }
 
-int spider_db_show_records(
+int spider_db_simple_action(
+  uint simple_action,
+  spider_db_handler *db_handler,
+  int link_idx
+) {
+  int error_num;
+  DBUG_ENTER("spider_db_simple_action");
+  switch (simple_action)
+  {
+    case SPIDER_SIMPLE_RECORDS:
+      DBUG_PRINT("info",("spider simple records"));
+      error_num = db_handler->show_records(
+        link_idx
+      );
+      break;
+#ifdef HA_HAS_CHECKSUM_EXTENDED
+    case SPIDER_SIMPLE_CHECKSUM_TABLE:
+      DBUG_PRINT("info",("spider simple checksum_table"));
+      error_num = db_handler->checksum_table(
+        link_idx
+      );
+      break;
+#endif
+    default:
+      DBUG_ASSERT(0);
+      break;
+  }
+  DBUG_RETURN(error_num);
+}
+
+int spider_db_simple_action(
+  uint simple_action,
   ha_spider *spider,
   int link_idx,
   bool pre_call
@@ -5692,7 +5758,7 @@ int spider_db_show_records(
   int error_num;
   THD *thd = spider->trx->thd;
   SPIDER_CONN *conn;
-  DBUG_ENTER("spider_db_show_records");
+  DBUG_ENTER("spider_db_simple_action");
   if (pre_call)
   {
     if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
@@ -5705,18 +5771,20 @@ int spider_db_show_records(
       conn = spider->conns[link_idx];
       if (!(error_num = spider_create_conn_thread(conn)))
       {
-        spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_RECORDS, FALSE,
+        spider_bg_conn_simple_action(conn, simple_action, FALSE,
           spider, link_idx, (int *) &spider->result_list.bgs_error);
       }
     } else {
       conn = spider->conns[link_idx];
-      error_num = spider->dbton_handler[conn->dbton_id]->show_records(
+      error_num = spider_db_simple_action(
+        simple_action,
+        spider->dbton_handler[conn->dbton_id],
         link_idx
       );
     }
   } else {
     conn = spider->conns[link_idx];
-    if (spider->use_pre_records)
+    if (spider->use_pre_action)
     {
       if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
       {
@@ -5730,7 +5798,9 @@ int spider_db_show_records(
         error_num = 0;
       }
     } else {
-      error_num = spider->dbton_handler[conn->dbton_id]->show_records(
+      error_num = spider_db_simple_action(
+        simple_action,
+        spider->dbton_handler[conn->dbton_id],
         link_idx
       );
     }
@@ -5758,7 +5828,7 @@ void spider_db_set_cardinarity(
     {
       key_part = &key_info->key_part[roop_count2];
       field = key_part->field;
-      rec_per_key = (ha_rows) share->records /
+      rec_per_key = (ha_rows) share->stat.records /
         share->cardinality[field->field_index];
       if (rec_per_key > ~(ulong) 0)
         key_info->rec_per_key[roop_count2] = ~(ulong) 0;
@@ -9002,10 +9072,11 @@ int spider_db_open_item_ident(
       str->q_append(alias, alias_length);
 #ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name(str, item_ident->field_name.str, field_name_length)))
+        append_escaped_name(str, item_ident->field_name.str,
+          field_name_length)))
 #else
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name(str, item_ident->field_name, field_name_length)))
+        append_escaped_name(str, item_ident->field_name, field_name_length)))
 #endif
       {
         DBUG_RETURN(error_num);
@@ -9016,11 +9087,11 @@ int spider_db_open_item_ident(
       str->q_append(alias, alias_length);
 #ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name_with_charset(str, item_ident->field_name.str,
+        append_escaped_name_with_charset(str, item_ident->field_name.str,
           field_name_length, system_charset_info)))
 #else
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name_with_charset(str, item_ident->field_name,
+        append_escaped_name_with_charset(str, item_ident->field_name,
           field_name_length, system_charset_info)))
 #endif
       {

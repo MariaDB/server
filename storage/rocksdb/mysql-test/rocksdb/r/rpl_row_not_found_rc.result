@@ -1,0 +1,56 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+drop table if exists t1;
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int) engine=myisam;
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+pk int primary key,
+kp1 int,
+kp2 int,
+col1 int,
+key (kp1,kp2)
+) engine=rocksdb;
+insert into t2 select a,a,a,a from t1;
+create table t3 like t2;
+insert into t3 select * from t2;
+include/sync_slave_sql_with_master.inc
+set global debug= 'd,dbug.rocksdb.get_row_by_rowid';
+include/stop_slave.inc
+include/start_slave.inc
+update t2 set col1=100 where kp1 between 1 and 3 and mod(kp2,2)=0;
+set debug_sync= 'now WAIT_FOR Reached';
+set global debug = '';
+set sql_log_bin=0;
+delete from t2 where pk=2;
+delete from t2 where pk=3;
+set debug_sync= 'now SIGNAL signal.rocksdb.get_row_by_rowid_let_running';
+include/sync_slave_sql_with_master.inc
+select * from t2 where pk < 5;
+pk	kp1	kp2	col1
+0	0	0	0
+1	1	1	1
+4	4	4	4
+set global debug= 'd,dbug.rocksdb.get_row_by_rowid';
+include/stop_slave.inc
+include/start_slave.inc
+update t3 set col1=100 where kp1 between 1 and 4 and mod(kp2,2)=0;
+call mtr.add_suppression("Deadlock found when trying to get lock");
+set debug_sync= 'now WAIT_FOR Reached';
+set global debug = '';
+set sql_log_bin=0;
+delete from t3 where pk=2;
+delete from t3 where pk=3;
+set debug_sync= 'now SIGNAL signal.rocksdb.get_row_by_rowid_let_running';
+include/sync_slave_sql_with_master.inc
+select * from t3 where pk < 5;
+pk	kp1	kp2	col1
+0	0	0	0
+1	1	1	1
+4	4	4	100
+drop table t0, t1, t2, t3;
+include/rpl_end.inc

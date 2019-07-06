@@ -33,8 +33,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "log0log.h"
 #include "mtr0types.h"
 
-#include <list>
-#include <vector>
+#include <forward_list>
 
 /** Is recv_writer_thread active? */
 extern bool	recv_writer_thread_active;
@@ -48,6 +47,11 @@ extern bool	recv_writer_thread_active;
 dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Reduces recv_sys.n_addrs for the corrupted page.
+This function should called when srv_force_recovery > 0.
+@param[in]	page_id page id of the corrupted page */
+void recv_recover_corrupt_page(page_id_t page_id);
 
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	bpage	buffer pool page */
@@ -69,17 +73,6 @@ Initiates the rollback of active transactions. */
 void
 recv_recovery_rollback_active(void);
 /*===============================*/
-/** Clean up after recv_sys_init() */
-void
-recv_sys_close();
-/** Initialize the redo log recovery subsystem. */
-void
-recv_sys_init();
-/********************************************************//**
-Frees the recovery system. */
-void
-recv_sys_debug_free(void);
-/*=====================*/
 
 /********************************************************//**
 Reset the state of the recovery system variables. */
@@ -105,7 +98,7 @@ enum store_t {
 
 
 /** Adds data from a new log block to the parsing buffer of recv_sys if
-recv_sys->parse_start_lsn is non-zero.
+recv_sys.parse_start_lsn is non-zero.
 @param[in]	log_block	log block to add
 @param[in]	scanned_lsn	lsn of how far we were able to find
 				data in this log block
@@ -170,7 +163,7 @@ struct recv_t{
 struct recv_dblwr_t {
 	/** Add a page frame to the doublewrite recovery buffer. */
 	void add(byte* page) {
-		pages.push_back(page);
+		pages.push_front(page);
 	}
 
 	/** Find a doublewrite copy of a page.
@@ -180,7 +173,7 @@ struct recv_dblwr_t {
 	@retval NULL if no page was found */
 	const byte* find_page(ulint space_id, ulint page_no);
 
-	typedef std::list<byte*, ut_allocator<byte*> >	list;
+	typedef std::forward_list<byte*, ut_allocator<byte*> > list;
 
 	/** Recovered doublewrite buffer page frames */
 	list	pages;
@@ -201,14 +194,11 @@ struct recv_sys_t{
 	buf_flush_t		flush_type;/*!< type of the flush request.
 				BUF_FLUSH_LRU: flush end of LRU, keeping free blocks.
 				BUF_FLUSH_LIST: flush all of blocks. */
-	ibool		apply_log_recs;
-				/*!< this is TRUE when log rec application to
-				pages is allowed; this flag tells the
-				i/o-handler if it should do log record
-				application */
-	ibool		apply_batch_on;
-				/*!< this is TRUE when a log rec application
-				batch is running */
+	/** whether recv_recover_page(), invoked from buf_page_io_complete(),
+	should apply log records*/
+	bool		apply_log_recs;
+	/** whether recv_apply_hashed_log_recs() is running */
+	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
 	size_t		buf_size;	/*!< size of buf */
 	ulint		len;	/*!< amount of data in buf */
@@ -262,6 +252,32 @@ struct recv_sys_t{
 	/** Lastly added LSN to the hash table of log records. */
 	lsn_t		last_stored_lsn;
 
+	/** Initialize the redo log recovery subsystem. */
+	void create();
+
+	/** Free most recovery data structures. */
+	void debug_free();
+
+	/** Clean up after create() */
+	void close();
+
+	bool is_initialised() const { return buf_size != 0; }
+
+	/** Store a redo log record for applying.
+	@param type	record type
+	@param space	tablespace identifier
+	@param page_no	page number
+	@param body	record body
+	@param rec_end	end of record
+	@param lsn	start LSN of the mini-transaction
+	@param end_lsn	end LSN of the mini-transaction */
+	inline void add(mlog_id_t type, ulint space, ulint page_no,
+			byte* body, byte* rec_end, lsn_t lsn,
+			lsn_t end_lsn);
+
+	/** Empty a fully processed set of stored redo log records. */
+	inline void empty();
+
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time
 	@return	whether progress should be reported
@@ -278,7 +294,7 @@ struct recv_sys_t{
 };
 
 /** The recovery system */
-extern recv_sys_t*	recv_sys;
+extern recv_sys_t	recv_sys;
 
 /** TRUE when applying redo log records during crash recovery; FALSE
 otherwise.  Note that this is FALSE while a background thread is

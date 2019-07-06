@@ -21,6 +21,17 @@ use strict;
 use warnings;
 use Carp;
 
+# Define all MariaDB options that the user should be able to specify
+# many times in the config file. Note that options must be written
+# using '-' instead of '_' here!
+
+my %multipart_options=
+  (
+   "plugin-load-add" => 1,
+   "optimizer-switch" => 1,
+);
+
+
 sub new {
   my ($class, $option_name, $option_value)= @_;
   my $self= bless { name => $option_name,
@@ -327,7 +338,6 @@ sub new {
       # Skip comment
       next;
     }
-    
     else {
       croak "Unexpected line '$line' found in '$path'";
     }
@@ -355,6 +365,11 @@ sub insert {
 
   if ( defined $option ) {
     #print "option: $option, value: $value\n";
+    my $tmp_option= $option;
+    $tmp_option =~ s/_/-/g;
+
+    # If the option is an option that one can specify many times, always add
+    $if_not_exist= 1 if ($multipart_options{$tmp_option});
 
     # Add the option to the group
     $group->insert($option, $value, $if_not_exist);

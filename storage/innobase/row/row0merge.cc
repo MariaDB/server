@@ -27,7 +27,6 @@ Completed by Sunny Bains and Marko Makela
 #include <my_global.h>
 #include <log.h>
 #include <sql_class.h>
-
 #include <math.h>
 
 #include "row0merge.h"
@@ -50,16 +49,18 @@ Completed by Sunny Bains and Marko Makela
 #include "ut0stage.h"
 #include "fil0crypt.h"
 
-float my_log2f(float n)
-{
-	/* log(n) / log(2) is log2. */
-	return (float)(log((double)n) / log((double)2));
-}
-
 /* Ignore posix_fadvise() on those platforms where it does not exist */
 #if defined _WIN32
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
+
+#ifdef HAVE_WOLFSSL
+// Workaround for MDEV-19582
+// (WolfSSL accesses memory out of bounds)
+# define WOLFSSL_PAD_SIZE MY_AES_BLOCK_SIZE
+#else
+# define WOLFSSL_PAD_SIZE 0
+#endif
 
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
@@ -1100,7 +1101,7 @@ row_merge_read(
 	/* If encryption is enabled decrypt buffer */
 	if (success && log_tmp_is_encrypted()) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
-					   crypt_buf, ofs, space)) {
+					   crypt_buf, ofs)) {
 			return (FALSE);
 		}
 
@@ -1122,7 +1123,9 @@ row_merge_read(
 
 /********************************************************************//**
 Write a merge block to the file system.
-@return whether the request was completed successfully */
+@return whether the request was completed successfully
+@retval	false	on error
+@retval	true	on success */
 UNIV_INTERN
 bool
 row_merge_write(
@@ -1147,7 +1150,7 @@ row_merge_write(
 		if (!log_tmp_block_encrypt(static_cast<const byte*>(buf),
 					   buf_len,
 					   static_cast<byte*>(crypt_buf),
-					   ofs, space)) {
+					   ofs)) {
 			return false;
 		}
 
@@ -3336,17 +3339,12 @@ row_merge_sort(
 		stage->begin_phase_sort(log2(num_runs));
 	}
 
-	/* Find the number N which 2^N is greater or equal than num_runs */
-	/* N is merge sort running count */
-	total_merge_sort_count = (ulint) ceil(my_log2f((float)num_runs));
-	if(total_merge_sort_count <= 0) {
-		total_merge_sort_count=1;
-	}
-
 	/* If num_runs are less than 1, nothing to merge */
 	if (num_runs <= 1) {
 		DBUG_RETURN(error);
 	}
+
+	total_merge_sort_count = ulint(ceil(log2(double(num_runs))));
 
 	/* "run_offset" records each run's first offset number */
 	run_offset = (ulint*) ut_malloc_nokey(file->offset * sizeof(ulint));
@@ -4628,7 +4626,7 @@ row_merge_build_indexes(
 
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-			alloc.allocate_large(block_size,
+			alloc.allocate_large(block_size + WOLFSSL_PAD_SIZE,
 					     &crypt_pfx));
 
 		if (crypt_block == NULL) {
@@ -4998,7 +4996,8 @@ func_exit:
 	alloc.deallocate_large(block, &block_pfx, block_size);
 
 	if (crypt_block) {
-		alloc.deallocate_large(crypt_block, &crypt_pfx, block_size);
+		alloc.deallocate_large(crypt_block, &crypt_pfx,
+				       block_size + WOLFSSL_PAD_SIZE);
 	}
 
 	DICT_TF2_FLAG_UNSET(new_table, DICT_TF2_FTS_ADD_DOC_ID);

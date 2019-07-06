@@ -467,7 +467,8 @@ done
 
 if test -n "$user"
 then
-  chown $user "$pamtooldir/auth_pam_tool_dir"
+  chown $user "$pamtooldir/auth_pam_tool_dir" && \
+  chmod 0700 "$pamtooldir/auth_pam_tool_dir"
   if test $? -ne 0
   then
       echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
@@ -476,7 +477,8 @@ then
   fi
   if test -z "$srcdir"
   then
-    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
+    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool" && \
+    chmod 04755 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
     if test $? -ne 0
     then
         echo "Couldn't set an owner to '$pamtooldir/auth_pam_tool_dir/auth_pam_tool'."

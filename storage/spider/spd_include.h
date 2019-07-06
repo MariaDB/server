@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#define SPIDER_DETAIL_VERSION "3.3.14"
+#define SPIDER_DETAIL_VERSION "3.3.15"
 #define SPIDER_HEX_VERSION 0x0303
 
 #if MYSQL_VERSION_ID < 50500
@@ -450,6 +450,7 @@ typedef struct st_spider_conn
   int                autocommit;
   int                sql_log_off;
   int                wait_timeout;
+  sql_mode_t         sql_mode;
   THD                *thd;
   void               *another_ha_first;
   void               *another_ha_last;
@@ -559,6 +560,7 @@ typedef struct st_spider_conn
   bool               queued_wait_timeout;
   bool               queued_autocommit;
   bool               queued_sql_log_off;
+  bool               queued_sql_mode;
   bool               queued_time_zone;
   bool               queued_trx_start;
   bool               queued_xa_start;
@@ -572,6 +574,7 @@ typedef struct st_spider_conn
   int                queued_wait_timeout_val;
   bool               queued_autocommit_val;
   bool               queued_sql_log_off_val;
+  sql_mode_t         queued_sql_mode_val;
   Time_zone          *queued_time_zone_val;
   XID                *queued_xa_start_xid;
 
@@ -655,15 +658,7 @@ typedef struct st_spider_patition_share
   volatile bool      crd_init;
   volatile time_t    sts_get_time;
   volatile time_t    crd_get_time;
-  ulonglong          data_file_length;
-  ulonglong          max_data_file_length;
-  ulonglong          index_file_length;
-  ulonglong          auto_increment_value;
-  ha_rows            records;
-  ulong              mean_rec_length;
-  time_t             check_time;
-  time_t             create_time;
-  time_t             update_time;
+  ha_statistics      stat;
 
   longlong           *cardinality;
 /*
@@ -890,17 +885,7 @@ typedef struct st_spider_share
   volatile bool      auto_increment_init;
   volatile ulonglong auto_increment_lclval;
 */
-  ulonglong          data_file_length;
-  ulonglong          max_data_file_length;
-  ulonglong          index_file_length;
-/*
-  ulonglong          auto_increment_value;
-*/
-  ha_rows            records;
-  ulong              mean_rec_length;
-  time_t             check_time;
-  time_t             create_time;
-  time_t             update_time;
+  ha_statistics      stat;
 
   longlong           static_records_for_status;
   longlong           static_mean_rec_length;

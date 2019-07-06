@@ -2773,6 +2773,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   - UNIQUE keys where all column are NOT NULL
   - UNIQUE keys that don't contain partial segments
   - Other UNIQUE keys
+  - LONG UNIQUE keys
   - Normal keys
   - Fulltext keys
 
@@ -2795,6 +2796,14 @@ static int sort_keys(KEY *a, KEY *b)
   if (a_flags & HA_NOSAME)
   {
     if (!(b_flags & HA_NOSAME))
+      return -1;
+    /*
+      Long Unique keys should always be last unique key.
+      Before this patch they used to change order wrt to partial keys (MDEV-19049)
+    */
+    if (a->algorithm == HA_KEY_ALG_LONG_HASH)
+      return 1;
+    if (b->algorithm == HA_KEY_ALG_LONG_HASH)
       return -1;
     if ((a_flags ^ b_flags) & HA_NULL_PART_KEY)
     {
@@ -6560,23 +6569,28 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       if the user key part length is different.
     */
     const Field *old_field= table->field[key_part->fieldnr - 1];
-    auto old_field_len= old_field->pack_length();
 
-    if (old_field->type() == MYSQL_TYPE_VARCHAR)
+    bool is_equal= key_part->field->is_equal(*new_field);
+    /* TODO: below is an InnoDB specific code which should be moved to InnoDB */
+    if (!is_equal)
     {
-      old_field_len= (old_field->pack_length() -
-                      ((Field_varstring *) old_field)->length_bytes);
+      if (!key_part->field->can_be_converted_by_engine(*new_field))
+        return Compare_keys::NotEqual;
+
+      if (!Charset(old_field->charset())
+               .eq_collation_specific_names(new_field->charset))
+        return Compare_keys::NotEqual;
     }
 
-    if (key_part->length == old_field_len &&
-        key_part->length < new_part->length &&
-        (key_part->field->is_equal((Create_field *) new_field) ==
-         IS_EQUAL_PACK_LENGTH))
+    if (key_part->length != new_part->length)
     {
+      if (key_part->length != old_field->field_length ||
+          key_part->length >= new_part->length || is_equal)
+      {
+        return Compare_keys::NotEqual;
+      }
       result= Compare_keys::EqualButKeyPartLength;
     }
-    else if (key_part->length != new_part->length)
-      return Compare_keys::NotEqual;
   }
 
   /*
@@ -6732,61 +6746,50 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       /* Field is not dropped. Evaluate changes bitmap for it. */
 
       /*
-        Check if type of column has changed to some incompatible type.
+        Check if type of column has changed.
       */
-      uint is_equal= field->is_equal(new_field);
-      switch (is_equal)
+      bool is_equal= field->is_equal(*new_field);
+      if (!is_equal)
       {
-      case IS_EQUAL_NO:
-        /* New column type is incompatible with old one. */
-        if (field->stored_in_db())
-          ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
-        else
-          ha_alter_info->handler_flags|= ALTER_VIRTUAL_COLUMN_TYPE;
-        if (table->s->tmp_table == NO_TMP_TABLE)
+        if (field->can_be_converted_by_engine(*new_field))
         {
-          delete_statistics_for_column(thd, table, field);
-          KEY *key_info= table->key_info; 
-          for (uint i=0; i < table->s->keys; i++, key_info++)
+          /*
+            New column type differs from the old one, but storage engine can
+            change it by itself.
+            (for example, VARCHAR(300) is changed to VARCHAR(400)).
+          */
+          ha_alter_info->handler_flags|= ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE;
+        }
+        else
+        {
+          /* New column type is incompatible with old one. */
+          ha_alter_info->handler_flags|= field->stored_in_db()
+                                             ? ALTER_STORED_COLUMN_TYPE
+                                             : ALTER_VIRTUAL_COLUMN_TYPE;
+
+          if (table->s->tmp_table == NO_TMP_TABLE)
           {
-            if (field->part_of_key.is_set(i))
+            delete_statistics_for_column(thd, table, field);
+            KEY *key_info= table->key_info;
+            for (uint i= 0; i < table->s->keys; i++, key_info++)
             {
+              if (!field->part_of_key.is_set(i))
+                continue;
+
               uint key_parts= table->actual_n_key_parts(key_info);
               for (uint j= 0; j < key_parts; j++)
               {
-                if (key_info->key_part[j].fieldnr-1 == field->field_index)
+                if (key_info->key_part[j].fieldnr - 1 == field->field_index)
                 {
-                  delete_statistics_for_index(thd, table, key_info,
-                                       j >= key_info->user_defined_key_parts);
+                  delete_statistics_for_index(
+                      thd, table, key_info,
+                      j >= key_info->user_defined_key_parts);
                   break;
                 }
-              }           
+              }
             }
-          }      
+          }
         }
-        break;
-      case IS_EQUAL_YES:
-        /*
-          New column is the same as the old one or the fully compatible with
-          it (for example, ENUM('a','b') was changed to ENUM('a','b','c')).
-          Such a change if any can ALWAYS be carried out by simply updating
-          data-dictionary without even informing storage engine.
-          No flag is set in this case.
-        */
-        break;
-      case IS_EQUAL_PACK_LENGTH:
-        /*
-          New column type differs from the old one, but has compatible packed
-          data representation. Depending on storage engine, such a change can
-          be carried out by simply updating data dictionary without changing
-          actual data (for example, VARCHAR(300) is changed to VARCHAR(400)).
-        */
-        ha_alter_info->handler_flags|= ALTER_COLUMN_EQUAL_PACK_LENGTH;
-        break;
-      default:
-        DBUG_ASSERT(0);
-        /* Safety. */
-        ha_alter_info->handler_flags|= ALTER_STORED_COLUMN_TYPE;
       }
 
       if (field->vcol_info || new_field->vcol_info)
@@ -6797,7 +6800,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
                                            ALTER_VIRTUAL_COLUMN_TYPE);
         if (field->vcol_info && new_field->vcol_info)
         {
-          bool value_changes= is_equal == IS_EQUAL_NO;
+          bool value_changes= !is_equal;
           alter_table_operations alter_expr;
           if (field->stored_in_db())
             alter_expr= ALTER_STORED_GCOL_EXPR;
@@ -6891,7 +6894,6 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         ha_alter_info->create_info->fields_option_struct[f_ptr - table->field]=
           new_field->option_struct;
       }
-
     }
     else
     {
@@ -7256,7 +7258,7 @@ bool mysql_compare_tables(TABLE *table,
       DBUG_RETURN(false);
 
     /* Evaluate changes bitmap and send to check_if_incompatible_data() */
-    uint field_changes= field->is_equal(tmp_new_field);
+    uint field_changes= field->is_equal(*tmp_new_field);
     if (field_changes != IS_EQUAL_YES)
       DBUG_RETURN(false);
 
@@ -8759,7 +8761,7 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         return FK_COLUMN_RENAMED;
       }
 
-      if ((old_field->is_equal(new_field) == IS_EQUAL_NO) ||
+      if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
           ((new_field->flags & NOT_NULL_FLAG) &&
            !(old_field->flags & NOT_NULL_FLAG)))
       {
@@ -9157,11 +9159,6 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME,
                               NULL);
 
-    (void) rename_table_in_stat_tables(thd, &alter_ctx->db,
-                                       &alter_ctx->table_name,
-                                       &alter_ctx->new_db,
-                                       &alter_ctx->new_alias);
-
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias, 0))
       error= -1;
@@ -9178,6 +9175,12 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                 NO_FK_CHECKS);
       error= -1;
     }
+    /* Update stat tables last. This is to be able to handle rename of a stat table */
+    if (error == 0)
+      (void) rename_table_in_stat_tables(thd, &alter_ctx->db,
+                                         &alter_ctx->table_name,
+                                         &alter_ctx->new_db,
+                                         &alter_ctx->new_alias);
   }
 
   if (likely(!error))
@@ -10065,6 +10068,8 @@ do_continue:;
 
     DEBUG_SYNC(thd, "alter_table_copy_after_lock_upgrade");
   }
+  else
+    thd->close_unused_temporary_table_instances(table_list);
 
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx.tables_opened,
@@ -10936,7 +10941,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
           (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) && thd->variables.old_mode) ||
            ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) && !thd->variables.old_mode)))
       {
-        if (t->file->info(HA_STATUS_VARIABLE))
+        if (t->file->info(HA_STATUS_VARIABLE) || t->file->stats.checksum_null)
           protocol->store_null();
         else
           protocol->store((longlong)t->file->stats.checksum);
@@ -10956,7 +10961,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
           thd->protocol->remove_last_row();
           goto err;
         }
-        if (error)
+        if (error || t->file->stats.checksum_null)
           protocol->store_null();
         else
           protocol->store((longlong)t->file->stats.checksum);
@@ -11059,4 +11064,313 @@ bool check_engine(THD *thd, const char *db_name,
   }
 
   DBUG_RETURN(false);
+}
+
+
+bool Sql_cmd_create_table_like::execute(THD *thd)
+{
+  DBUG_ENTER("Sql_cmd_create_table::execute");
+  LEX *lex= thd->lex;
+  TABLE_LIST *all_tables= lex->query_tables;
+  SELECT_LEX *select_lex= lex->first_select_lex();
+  TABLE_LIST *first_table= select_lex->table_list.first;
+  DBUG_ASSERT(first_table == all_tables && first_table != 0);
+  bool link_to_local;
+  TABLE_LIST *create_table= first_table;
+  TABLE_LIST *select_tables= lex->create_last_non_select_table->next_global;
+  /* most outer SELECT_LEX_UNIT of query */
+  SELECT_LEX_UNIT *unit= &lex->unit;
+  int res= 0;
+
+  const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+  DBUG_ASSERT((m_storage_engine_name.str != NULL) == used_engine);
+  if (used_engine)
+  {
+    if (resolve_storage_engine_with_error(thd, &lex->create_info.db_type,
+                                          lex->create_info.tmp_table()))
+      DBUG_RETURN(true); // Engine not found, substitution is not allowed
+
+    if (!lex->create_info.db_type) // Not found, but substitution is allowed
+    {
+      lex->create_info.use_default_db_type(thd);
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARN_USING_OTHER_HANDLER,
+                          ER_THD(thd, ER_WARN_USING_OTHER_HANDLER),
+                          hton_name(lex->create_info.db_type)->str,
+                          create_table->table_name.str);
+    }
+  }
+
+  if (lex->tmp_table())
+  {
+    status_var_decrement(thd->status_var.com_stat[SQLCOM_CREATE_TABLE]);
+    status_var_increment(thd->status_var.com_create_tmp_table);
+  }
+
+  /*
+    Code below (especially in mysql_create_table() and select_create
+    methods) may modify HA_CREATE_INFO structure in LEX, so we have to
+    use a copy of this structure to make execution prepared statement-
+    safe. A shallow copy is enough as this code won't modify any memory
+    referenced from this structure.
+  */
+  Table_specification_st create_info(lex->create_info);
+  /*
+    We need to copy alter_info for the same reasons of re-execution
+    safety, only in case of Alter_info we have to do (almost) a deep
+    copy.
+  */
+  Alter_info alter_info(lex->alter_info, thd->mem_root);
+
+  if (unlikely(thd->is_fatal_error))
+  {
+    /* If out of memory when creating a copy of alter_info. */
+    res= 1;
+    goto end_with_restore_list;
+  }
+
+  /* Check privileges */
+  if ((res= create_table_precheck(thd, select_tables, create_table)))
+    goto end_with_restore_list;
+
+  /* Might have been updated in create_table_precheck */
+  create_info.alias= create_table->alias;
+
+  /* Fix names if symlinked or relocated tables */
+  if (append_file_to_dir(thd, &create_info.data_file_name,
+                         &create_table->table_name) ||
+      append_file_to_dir(thd, &create_info.index_file_name,
+                         &create_table->table_name))
+    goto end_with_restore_list;
+
+  /*
+    If no engine type was given, work out the default now
+    rather than at parse-time.
+  */
+  if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
+    create_info.use_default_db_type(thd);
+  /*
+    If we are using SET CHARSET without DEFAULT, add an implicit
+    DEFAULT to not confuse old users. (This may change).
+  */
+  if ((create_info.used_fields &
+       (HA_CREATE_USED_DEFAULT_CHARSET | HA_CREATE_USED_CHARSET)) ==
+      HA_CREATE_USED_CHARSET)
+  {
+    create_info.used_fields&= ~HA_CREATE_USED_CHARSET;
+    create_info.used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    create_info.default_table_charset= create_info.table_charset;
+    create_info.table_charset= 0;
+  }
+
+  /*
+    If we are a slave, we should add OR REPLACE if we don't have
+    IF EXISTS. This will help a slave to recover from
+    CREATE TABLE OR EXISTS failures by dropping the table and
+    retrying the create.
+  */
+  if (thd->slave_thread &&
+      slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
+      !lex->create_info.if_not_exists())
+  {
+    create_info.add(DDL_options_st::OPT_OR_REPLACE);
+    create_info.add(DDL_options_st::OPT_OR_REPLACE_SLAVE_GENERATED);
+  }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  thd->work_part_info= 0;
+  {
+    partition_info *part_info= thd->lex->part_info;
+    if (part_info && !(part_info= part_info->get_clone(thd)))
+    {
+      res= -1;
+      goto end_with_restore_list;
+    }
+    thd->work_part_info= part_info;
+  }
+#endif
+
+  if (select_lex->item_list.elements)		// With select
+  {
+    select_result *result;
+
+    /*
+      CREATE TABLE...IGNORE/REPLACE SELECT... can be unsafe, unless
+      ORDER BY PRIMARY KEY clause is used in SELECT statement. We therefore
+      use row based logging if mixed or row based logging is available.
+      TODO: Check if the order of the output of the select statement is
+      deterministic. Waiting for BUG#42415
+    */
+    if(lex->ignore)
+      lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_IGNORE_SELECT);
+
+    if(lex->duplicates == DUP_REPLACE)
+      lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_REPLACE_SELECT);
+
+    /*
+      If:
+      a) we inside an SP and there was NAME_CONST substitution,
+      b) binlogging is on (STMT mode),
+      c) we log the SP as separate statements
+      raise a warning, as it may cause problems
+      (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
+     */
+    if (thd->query_name_consts && mysql_bin_log.is_open() &&
+        thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+        !mysql_bin_log.is_query_in_union(thd, thd->query_id))
+    {
+      List_iterator_fast<Item> it(select_lex->item_list);
+      Item *item;
+      uint splocal_refs= 0;
+      /* Count SP local vars in the top-level SELECT list */
+      while ((item= it++))
+      {
+        if (item->get_item_splocal())
+          splocal_refs++;
+      }
+      /*
+        If it differs from number of NAME_CONST substitution applied,
+        we may have a SOME_FUNC(NAME_CONST()) in the SELECT list,
+        that may cause a problem with binary log (see BUG#35383),
+        raise a warning.
+      */
+      if (splocal_refs != thd->query_name_consts)
+        push_warning(thd,
+                     Sql_condition::WARN_LEVEL_WARN,
+                     ER_UNKNOWN_ERROR,
+"Invoked routine ran a statement that may cause problems with "
+"binary log, see 'NAME_CONST issues' in 'Binary Logging of Stored Programs' "
+"section of the manual.");
+    }
+
+    select_lex->options|= SELECT_NO_UNLOCK;
+    unit->set_limit(select_lex);
+
+    /*
+      Disable non-empty MERGE tables with CREATE...SELECT. Too
+      complicated. See Bug #26379. Empty MERGE tables are read-only
+      and don't allow CREATE...SELECT anyway.
+    */
+    if (create_info.used_fields & HA_CREATE_USED_UNION)
+    {
+      my_error(ER_WRONG_OBJECT, MYF(0), create_table->db.str,
+               create_table->table_name.str, "BASE TABLE");
+      res= 1;
+      goto end_with_restore_list;
+    }
+
+    res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
+    if (unlikely(res))
+    {
+      /* Got error or warning. Set res to 1 if error */
+      if (!(res= thd->is_error()))
+        my_ok(thd);                           // CREATE ... IF NOT EXISTS
+      goto end_with_restore_list;
+    }
+
+    /* Ensure we don't try to create something from which we select from */
+    if (create_info.or_replace() && !create_info.tmp_table())
+    {
+      if (TABLE_LIST *duplicate= unique_table(thd, lex->query_tables,
+                                              lex->query_tables->next_global,
+                                              CHECK_DUP_FOR_CREATE |
+                                              CHECK_DUP_SKIP_TEMP_TABLE))
+      {
+        update_non_unique_table_error(lex->query_tables, "CREATE",
+                                      duplicate);
+        res= TRUE;
+        goto end_with_restore_list;
+      }
+    }
+    {
+      /*
+        Remove target table from main select and name resolution
+        context. This can't be done earlier as it will break view merging in
+        statements like "CREATE TABLE IF NOT EXISTS existing_view SELECT".
+      */
+      lex->unlink_first_table(&link_to_local);
+
+      /* Store reference to table in case of LOCK TABLES */
+      create_info.table= create_table->table;
+
+      /*
+        select_create is currently not re-execution friendly and
+        needs to be created for every execution of a PS/SP.
+        Note: In wsrep-patch, CTAS is handled like a regular transaction.
+      */
+      if ((result= new (thd->mem_root) select_create(thd, create_table,
+                                                     &create_info,
+                                                     &alter_info,
+                                                     select_lex->item_list,
+                                                     lex->duplicates,
+                                                     lex->ignore,
+                                                     select_tables)))
+      {
+        /*
+          CREATE from SELECT give its SELECT_LEX for SELECT,
+          and item_list belong to SELECT
+        */
+        if (!(res= handle_select(thd, lex, result, 0)))
+        {
+          if (create_info.tmp_table())
+            thd->variables.option_bits|= OPTION_KEEP_LOG;
+        }
+        delete result;
+      }
+      lex->link_first_table_back(create_table, link_to_local);
+    }
+  }
+  else
+  {
+    /* regular create */
+    if (create_info.like())
+    {
+      /* CREATE TABLE ... LIKE ... */
+      res= mysql_create_like_table(thd, create_table, select_tables,
+                                   &create_info);
+    }
+    else
+    {
+      if (create_info.fix_create_fields(thd, &alter_info, *create_table) ||
+          create_info.check_fields(thd, &alter_info, *create_table))
+	goto end_with_restore_list;
+
+      /*
+        In STATEMENT format, we probably have to replicate also temporary
+        tables, like mysql replication does. Also check if the requested
+        engine is allowed/supported.
+      */
+      if (WSREP(thd) &&
+          !check_engine(thd, create_table->db.str, create_table->table_name.str,
+                        &create_info) &&
+          (!thd->is_current_stmt_binlog_format_row() ||
+           !create_info.tmp_table()))
+      {
+        WSREP_TO_ISOLATION_BEGIN(create_table->db.str, create_table->table_name.str, NULL);
+      }
+      /* Regular CREATE TABLE */
+      res= mysql_create_table(thd, create_table, &create_info, &alter_info);
+    }
+    if (!res)
+    {
+      /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
+      if (create_info.tmp_table())
+        thd->variables.option_bits|= OPTION_KEEP_LOG;
+      /* in case of create temp tables if @@session_track_state_change is
+         ON then send session state notification in OK packet */
+      if (create_info.options & HA_LEX_CREATE_TMP_TABLE)
+      {
+        SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+      }
+      my_ok(thd);
+    }
+  }
+
+end_with_restore_list:
+  DBUG_RETURN(res);
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  DBUG_RETURN(true);
+#endif
 }

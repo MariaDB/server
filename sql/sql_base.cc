@@ -504,6 +504,43 @@ static my_bool tc_collect_used_shares(TDC_element *element,
 }
 
 
+/*
+  Ignore errors from opening read only tables
+*/
+
+class flush_tables_error_handler : public Internal_error_handler
+{
+public:
+  int handled_errors;
+  int unhandled_errors;
+  flush_tables_error_handler() : handled_errors(0), unhandled_errors(0)
+  {}
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (sql_errno == ER_OPEN_AS_READONLY)
+    {
+      handled_errors++;
+      return TRUE;
+    }
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+      unhandled_errors++;
+    return FALSE;
+  }
+
+  bool got_fatal_error()
+  {
+    return unhandled_errors > 0;
+  }
+};
+
+
 /**
    Flush cached table as part of global read lock
 
@@ -520,9 +557,9 @@ static my_bool tc_collect_used_shares(TDC_element *element,
 bool flush_tables(THD *thd, flush_tables_type flag)
 {
   bool result= TRUE;
-  uint open_errors= 0;
   tc_collect_arg collect_arg;
   TABLE *tmp_table;
+  flush_tables_error_handler error_handler;
   DBUG_ENTER("flush_tables");
 
   purge_tables(false);  /* Flush unused tables and shares */
@@ -555,6 +592,8 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   }
 
   /* Call HA_EXTRA_FLUSH on all found shares */
+
+  thd->push_internal_handler(&error_handler);
   for (uint i= 0 ; i < collect_arg.shares.elements ; i++)
   {
     TABLE_SHARE *share= *dynamic_element(&collect_arg.shares, i,
@@ -584,14 +623,14 @@ bool flush_tables(THD *thd, flush_tables_type flag)
         */
         closefrm(tmp_table);
       }
-      else
-        open_errors++;
     }
     tdc_release_share(share);
   }
-
-  result= open_errors ? TRUE : FALSE;
-  DBUG_PRINT("note", ("open_errors: %u", open_errors));
+  thd->pop_internal_handler();
+  result= error_handler.got_fatal_error();
+  DBUG_PRINT("note", ("open_errors: %u %u",
+                      error_handler.handled_errors,
+                      error_handler.unhandled_errors));
 err:
   my_free(tmp_table);
   delete_dynamic(&collect_arg.shares);
@@ -4188,8 +4227,7 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
 */
 
 bool open_tables(THD *thd, const DDL_options_st &options,
-                 TABLE_LIST **start, uint *counter,
-                 Sroutine_hash_entry **sroutine_to_open_list, uint flags,
+                 TABLE_LIST **start, uint *counter, uint flags,
                  Prelocking_strategy *prelocking_strategy)
 {
   /*
@@ -4228,9 +4266,10 @@ restart:
 
   has_prelocking_list= thd->lex->requires_prelocking();
   table_to_open= start;
-  sroutine_to_open= sroutine_to_open_list;
+  sroutine_to_open= &thd->lex->sroutines_list.first;
   *counter= 0;
   THD_STAGE_INFO(thd, stage_opening_tables);
+  prelocking_strategy->reset(thd);
 
   /*
     If we are executing LOCK TABLES statement or a DDL statement
@@ -4288,8 +4327,7 @@ restart:
     elements in prelocking list/set.
   */
   while (*table_to_open  ||
-         (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-          *sroutine_to_open))
+         (thd->locked_tables_mode <= LTM_LOCK_TABLES && *sroutine_to_open))
   {
     /*
       For every table in the list of tables to open, try to find or open
@@ -4409,6 +4447,8 @@ restart:
         }
       }
     }
+    if ((error= prelocking_strategy->handle_end(thd)))
+      goto error;
   }
 
   /*

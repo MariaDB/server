@@ -68,6 +68,8 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
 
     if (readbytes != Count)
     {
+      /* We should never read with wrong file descriptor! */
+      DBUG_ASSERT(readbytes != (size_t)-1 || errno != EBADF);
       my_errno= errno;
       if (errno == 0 || (readbytes != (size_t) -1 &&
                          (MyFlags & (MY_NABP | MY_FNABP))))

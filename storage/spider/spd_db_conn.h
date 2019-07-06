@@ -429,6 +429,14 @@ int spider_db_append_name_with_quote_str_internal(
   uint dbton_id
 );
 
+int spider_db_append_name_with_quote_str_internal(
+  spider_string *str,
+  const char *name,
+  int length,
+  CHARSET_INFO *cs,
+  uint dbton_id
+);
+
 int spider_db_append_select(
   ha_spider *spider
 );
@@ -697,7 +705,14 @@ int spider_db_show_table_status(
   uint flag
 );
 
-int spider_db_show_records(
+int spider_db_simple_action(
+  uint simple_action,
+  spider_db_handler *db_handler,
+  int link_idx
+);
+
+int spider_db_simple_action(
+  uint simple_action,
   ha_spider *spider,
   int link_idx,
   bool pre_call

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,15 +37,42 @@ Created 11/26/1995 Heikki Tuuri
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
-struct Iterate {
+struct CIterate {
+	CIterate() : functor() {}
 
-	/** Release specific object */
-	explicit Iterate(Functor& functor)
-		:
-		m_functor(functor)
+	CIterate(const Functor& functor) : functor(functor) {}
+
+	/** @return false if the functor returns false. */
+	bool operator()(mtr_buf_t::block_t* block) const
 	{
-		/* Do nothing */
+		const mtr_memo_slot_t*	start =
+			reinterpret_cast<const mtr_memo_slot_t*>(
+				block->begin());
+
+		mtr_memo_slot_t*	slot =
+			reinterpret_cast<mtr_memo_slot_t*>(
+				block->end());
+
+		ut_ad(!(block->used() % sizeof(*slot)));
+
+		while (slot-- != start) {
+
+			if (!functor(slot)) {
+				return(false);
+			}
+		}
+
+		return(true);
 	}
+
+	Functor functor;
+};
+
+template <typename Functor>
+struct Iterate {
+	Iterate() : functor() {}
+
+	Iterate(const Functor& functor) : functor(functor) {}
 
 	/** @return false if the functor returns false. */
 	bool operator()(mtr_buf_t::block_t* block)
@@ -62,7 +89,7 @@ struct Iterate {
 
 		while (slot-- != start) {
 
-			if (!m_functor(slot)) {
+			if (!functor(slot)) {
 				return(false);
 			}
 		}
@@ -70,7 +97,7 @@ struct Iterate {
 		return(true);
 	}
 
-	Functor&	m_functor;
+	Functor functor;
 };
 
 /** Find specific object */
@@ -430,20 +457,6 @@ private:
 	lsn_t			m_end_lsn;
 };
 
-/** Check if a mini-transaction is dirtying a clean page.
-@return true if the mtr is dirtying a clean page. */
-bool
-mtr_t::is_block_dirtied(const buf_block_t* block)
-{
-	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
-	ut_ad(block->page.buf_fix_count > 0);
-
-	/* It is OK to read oldest_modification because no
-	other thread can be performing a write of it and it
-	is only during write that the value is reset to 0. */
-	return(block->page.oldest_modification == 0);
-}
-
 /** Write the block contents to the REDO log */
 struct mtr_write_log_t {
 	/** Append a block to the redo log buffer.
@@ -509,12 +522,7 @@ mtr_t::Command::release_resources()
 	/* Currently only used in commit */
 	ut_ad(m_impl->m_state == MTR_STATE_COMMITTING);
 
-#ifdef UNIV_DEBUG
-	DebugCheck		release;
-	Iterate<DebugCheck>	iterator(release);
-
-	m_impl->m_memo.for_each_block_in_reverse(iterator);
-#endif /* UNIV_DEBUG */
+	ut_d(m_impl->m_memo.for_each_block_in_reverse(CIterate<DebugCheck>()));
 
 	/* Reset the mtr buffers */
 	m_impl->m_log.erase();
@@ -701,11 +709,10 @@ mtr_t::memo_release(const void* object, ulint type)
 	middle of a mini-transaction. */
 	ut_ad(!m_impl.m_modifications || type != MTR_MEMO_PAGE_X_FIX);
 
-	Find		find(object, type);
-	Iterate<Find>	iterator(find);
+	Iterate<Find> iteration(Find(object, type));
 
-	if (!m_impl.m_memo.for_each_block_in_reverse(iterator)) {
-		memo_slot_release(find.m_slot);
+	if (!m_impl.m_memo.for_each_block_in_reverse(iteration)) {
+		memo_slot_release(iteration.functor.m_slot);
 		return(true);
 	}
 
@@ -725,11 +732,10 @@ mtr_t::release_page(const void* ptr, mtr_memo_type_t type)
 	middle of a mini-transaction. */
 	ut_ad(!m_impl.m_modifications || type != MTR_MEMO_PAGE_X_FIX);
 
-	FindPage		find(ptr, type);
-	Iterate<FindPage>	iterator(find);
+	Iterate<FindPage> iteration(FindPage(ptr, type));
 
-	if (!m_impl.m_memo.for_each_block_in_reverse(iterator)) {
-		memo_slot_release(find.get_slot());
+	if (!m_impl.m_memo.for_each_block_in_reverse(iteration)) {
+		memo_slot_release(iteration.functor.get_slot());
 		return;
 	}
 
@@ -853,10 +859,7 @@ mtr_t::Command::finish_write(
 void
 mtr_t::Command::release_all()
 {
-	ReleaseAll release;
-	Iterate<ReleaseAll> iterator(release);
-
-	m_impl->m_memo.for_each_block_in_reverse(iterator);
+	m_impl->m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
 
 	/* Note that we have released the latches. */
 	m_locks_released = 1;
@@ -866,10 +869,7 @@ mtr_t::Command::release_all()
 void
 mtr_t::Command::release_latches()
 {
-	ReleaseLatches release;
-	Iterate<ReleaseLatches> iterator(release);
-
-	m_impl->m_memo.for_each_block_in_reverse(iterator);
+	m_impl->m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
 
 	/* Note that we have released the latches. */
 	m_locks_released = 1;
@@ -879,10 +879,10 @@ mtr_t::Command::release_latches()
 void
 mtr_t::Command::release_blocks()
 {
-	ReleaseBlocks release(m_start_lsn, m_end_lsn, m_impl->m_flush_observer);
-	Iterate<ReleaseBlocks> iterator(release);
-
-	m_impl->m_memo.for_each_block_in_reverse(iterator);
+	m_impl->m_memo.for_each_block_in_reverse(
+		CIterate<const ReleaseBlocks>(
+			ReleaseBlocks(m_start_lsn, m_end_lsn,
+				      m_impl->m_flush_observer)));
 }
 
 /** Write the redo log record, add dirty pages to the flush list and release
@@ -927,10 +927,8 @@ mtr_t::memo_contains(
 	const void*		object,
 	ulint			type)
 {
-	Find		find(object, type);
-	Iterate<Find>	iterator(find);
-
-	if (memo->for_each_block_in_reverse(iterator)) {
+	Iterate<Find> iteration(Find(object, type));
+	if (memo->for_each_block_in_reverse(iteration)) {
 		return(false);
 	}
 
@@ -1019,10 +1017,8 @@ mtr_t::memo_contains_flagged(const void* ptr, ulint flags) const
 	ut_ad(m_impl.m_magic_n == MTR_MAGIC_N);
 	ut_ad(is_committing() || is_active());
 
-	FlaggedCheck		check(ptr, flags);
-	Iterate<FlaggedCheck>	iterator(check);
-
-	return(!m_impl.m_memo.for_each_block_in_reverse(iterator));
+	return !m_impl.m_memo.for_each_block_in_reverse(
+		CIterate<FlaggedCheck>(FlaggedCheck(ptr, flags)));
 }
 
 /** Check if memo contains the given page.
@@ -1036,11 +1032,9 @@ mtr_t::memo_contains_page_flagged(
 	const byte*	ptr,
 	ulint		flags) const
 {
-	FindPage		check(ptr, flags);
-	Iterate<FindPage>	iterator(check);
-
-	return(m_impl.m_memo.for_each_block_in_reverse(iterator)
-	       ? NULL : check.get_block());
+	Iterate<FindPage> iteration(FindPage(ptr, flags));
+	return m_impl.m_memo.for_each_block_in_reverse(iteration)
+		? NULL : iteration.functor.get_block();
 }
 
 /** Mark the given latched page as modified.

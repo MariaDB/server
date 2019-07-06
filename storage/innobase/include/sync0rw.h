@@ -625,7 +625,7 @@ struct rw_lock_t
 #endif /* UNIV_PFS_RWLOCK */
 
 #ifdef UNIV_DEBUG
-	virtual std::string to_string() const;
+	std::string to_string() const override;
 
 	/** In the debug version: pointer to the debug info list of the lock */
 	UT_LIST_BASE_NODE_T(rw_lock_debug_t) debug_list;

@@ -388,7 +388,7 @@ virtual int check(THD* thd, HA_CHECK_OPT* check_opt);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;

@@ -87,3 +87,22 @@ select * from t1 where a=10 and b=10;
 DROP TABLE t0,t1;
 set @@global.debug_dbug="-d";
 set @@optimizer_switch= @optimizer_switch_save;
+
+--echo #
+--echo # MDEV-19634: Assertion `0' failed in row_sel_convert_mysql_key_to_innobase,
+--echo # [Warning] InnoDB: Using a partial-field key prefix in search
+--echo #
+
+CREATE TABLE t1 (
+    pk INT,
+    a VARCHAR(1),
+    b INT,
+    PRIMARY KEY (pk),
+    KEY (a,b)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1,'a',1),(2,'b',2);
+
+explain SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
+SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
+drop table t1;

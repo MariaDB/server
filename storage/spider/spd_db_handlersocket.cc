@@ -740,15 +740,7 @@ SPIDER_DB_ROW *spider_db_handlersocket_result::fetch_row_from_tmp_table(
 
 int spider_db_handlersocket_result::fetch_table_status(
   int mode,
-  ha_rows &records,
-  ulong &mean_rec_length,
-  ulonglong &data_file_length,
-  ulonglong &max_data_file_length,
-  ulonglong &index_file_length,
-  ulonglong &auto_increment_value,
-  time_t &create_time,
-  time_t &update_time,
-  time_t &check_time
+  ha_statistics &stat
 ) {
   DBUG_ENTER("spider_db_handlersocket_result::fetch_table_status");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -1856,6 +1848,23 @@ int spider_db_handlersocket::set_wait_timeout(
   DBUG_RETURN(0);
 }
 
+bool spider_db_handlersocket::set_sql_mode_in_bulk_sql()
+{
+  DBUG_ENTER("spider_db_handlersocket::set_sql_mode_in_bulk_sql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
+int spider_db_handlersocket::set_sql_mode(
+  sql_mode_t sql_mode,
+  int *need_mon
+) {
+  DBUG_ENTER("spider_db_handlersocket::set_sql_mode");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
 bool spider_db_handlersocket::set_time_zone_in_bulk_sql()
 {
   DBUG_ENTER("spider_db_handlersocket::set_time_zone_in_bulk_sql");
@@ -2495,6 +2504,57 @@ int spider_db_handlersocket_util::append_name_with_charset(
   DBUG_RETURN(0);
 }
 
+int spider_db_handlersocket_util::append_escaped_name(
+  spider_string *str,
+  const char *name,
+  uint name_length
+) {
+  int error_num;
+  DBUG_ENTER("spider_db_handlersocket_util::append_name");
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN * 2 + name_length * 2))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  if ((error_num = spider_db_append_name_with_quote_str_internal(
+    str, name, name_length, dbton_id)))
+  {
+    DBUG_RETURN(error_num);
+  }
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  DBUG_RETURN(0);
+}
+
+int spider_db_handlersocket_util::append_escaped_name_with_charset(
+  spider_string *str,
+  const char *name,
+  uint name_length,
+  CHARSET_INFO *name_charset
+) {
+  int error_num;
+  DBUG_ENTER("spider_db_handlersocket_util::append_name_with_charset");
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN * 2 + name_length * 2))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  if ((error_num = spider_db_append_name_with_quote_str_internal(
+    str, name, name_length, name_charset, dbton_id)))
+  {
+    DBUG_RETURN(error_num);
+  }
+  if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN))
+  {
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
+  str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
+  DBUG_RETURN(0);
+}
+
 bool spider_db_handlersocket_util::is_name_quote(
   const char head_code
 ) {
@@ -2697,6 +2757,16 @@ int spider_db_handlersocket_util::append_wait_timeout(
   int wait_timeout
 ) {
   DBUG_ENTER("spider_db_handlersocket_util::append_wait_timeout");
+  DBUG_PRINT("info",("spider this=%p", this));
+  /* nothing to do */
+  DBUG_RETURN(0);
+}
+
+int spider_db_handlersocket_util::append_sql_mode(
+  spider_string *str,
+  sql_mode_t sql_mode
+) {
+  DBUG_ENTER("spider_db_handlersocket_util::append_sql_mode");
   DBUG_PRINT("info",("spider this=%p", this));
   /* nothing to do */
   DBUG_RETURN(0);
@@ -5813,15 +5883,7 @@ int spider_handlersocket_handler::show_table_status(
   DBUG_ENTER("spider_handlersocket_show_table_status");
   res.fetch_table_status(
     sts_mode,
-    share->records,
-    share->mean_rec_length,
-    share->data_file_length,
-    share->max_data_file_length,
-    share->index_file_length,
-    auto_increment_value,
-    share->create_time,
-    share->update_time,
-    share->check_time
+    share->stat
   );
   if (auto_increment_value > share->lgtm_tblhnd_share->auto_increment_value)
   {

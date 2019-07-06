@@ -2449,12 +2449,12 @@ void Field_null::sql_type(String &res) const
 }
 
 
-uint Field_null::is_equal(Create_field *new_field)
+bool Field_null::is_equal(const Column_definition &new_field) const
 {
   DBUG_ASSERT(!compression_method());
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->length == max_display_length();
+  return new_field.type_handler() == type_handler() &&
+         new_field.charset == field_charset &&
+         new_field.length == max_display_length();
 }
 
 
@@ -3492,15 +3492,15 @@ bool Field_new_decimal::compatible_field_size(uint field_metadata,
 }
 
 
-uint Field_new_decimal::is_equal(Create_field *new_field)
+bool Field_new_decimal::is_equal(const Column_definition &new_field) const
 {
-  return ((new_field->type_handler() == type_handler()) &&
-          ((new_field->flags & UNSIGNED_FLAG) == 
+  return ((new_field.type_handler() == type_handler()) &&
+          ((new_field.flags & UNSIGNED_FLAG) ==
            (uint) (flags & UNSIGNED_FLAG)) &&
-          ((new_field->flags & AUTO_INCREMENT_FLAG) <=
+          ((new_field.flags & AUTO_INCREMENT_FLAG) <=
            (uint) (flags & AUTO_INCREMENT_FLAG)) &&
-          (new_field->length == max_display_length()) &&
-          (new_field->decimals == dec));
+          (new_field.length == max_display_length()) &&
+          (new_field.decimals == dec));
 }
 
 
@@ -5585,10 +5585,10 @@ bool Field_timestampf::val_native(Native *to)
 
 
 /*************************************************************/
-uint Field_temporal::is_equal(Create_field *new_field)
+bool Field_temporal::is_equal(const Column_definition &new_field) const
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->length == max_display_length();
+  return new_field.type_handler() == type_handler() &&
+         new_field.length == max_display_length();
 }
 
 
@@ -6949,6 +6949,7 @@ Field_longstr::check_string_copy_error(const String_copier *copier,
 
   if (!is_stat_field)
   {
+    DBUG_ASSERT(sizeof(tmp) >= convert_to_printable_required_length(6));
     convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
     set_warning_truncated_wrong_value("string", tmp);
   }
@@ -7072,36 +7073,13 @@ int Field_str::store(double nr)
   return store(buff, (uint)length, &my_charset_numeric);
 }
 
-
-bool Field_longstr::
-  csinfo_change_allows_instant_alter(const Create_field *to) const
-{
-  Charset cs(field_charset);
-  const bool part_of_a_key= !to->field->part_of_key.is_clear_all();
-  return part_of_a_key ?
-    cs.encoding_and_order_allow_reinterpret_as(to->charset) :
-    cs.encoding_allows_reinterpret_as(to->charset);
-}
-
-
-uint Field_string::is_equal(Create_field *new_field)
+bool Field_string::is_equal(const Column_definition &new_field) const
 {
   DBUG_ASSERT(!compression_method());
-  if (new_field->type_handler() != type_handler())
-    return IS_EQUAL_NO;
-  if (new_field->length < max_display_length())
-    return IS_EQUAL_NO;
-  if (new_field->char_length < char_length())
-    return IS_EQUAL_NO;
-
-  if (!csinfo_change_allows_instant_alter(new_field))
-    return IS_EQUAL_NO;
-
-  if (new_field->length == max_display_length())
-    return new_field->charset == field_charset
-      ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
-
-  return IS_EQUAL_NO;
+  return new_field.type_handler() == type_handler() &&
+         new_field.char_length == char_length() &&
+         new_field.charset == field_charset &&
+         new_field.length == max_display_length();
 }
 
 
@@ -7935,32 +7913,13 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
   return res;
 }
 
-uint Field_varstring::is_equal(Create_field *new_field)
+bool Field_varstring::is_equal(const Column_definition &new_field) const
 {
-  if (new_field->length < field_length)
-    return IS_EQUAL_NO;
-  if (new_field->char_length < char_length())
-    return IS_EQUAL_NO;
-  if (!new_field->compression_method() != !compression_method())
-    return IS_EQUAL_NO;
-
-  if (!csinfo_change_allows_instant_alter(new_field))
-    return IS_EQUAL_NO;
-
-  const Type_handler *new_type_handler= new_field->type_handler();
-  if (new_type_handler == type_handler())
-  {
-    if (new_field->length == field_length)
-      return new_field->charset == field_charset
-        ? IS_EQUAL_YES : IS_EQUAL_PACK_LENGTH;
-    if (field_length <= 127 ||
-        new_field->length <= 255 ||
-        field_length > 255 ||
-        (table->file->ha_table_flags() & HA_EXTENDED_TYPES_CONVERSION))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer length
-  }
-
-  return IS_EQUAL_NO;
+  return new_field.type_handler() == type_handler() &&
+         new_field.length == field_length &&
+         new_field.char_length == char_length() &&
+         !new_field.compression_method() == !compression_method() &&
+         new_field.charset == field_charset;
 }
 
 
@@ -8724,30 +8683,12 @@ uint Field_blob::max_packed_col_length(uint max_length)
   again an already compressed field just because compression method changes.
 */
 
-uint Field_blob::is_equal(Create_field *new_field)
+bool Field_blob::is_equal(const Column_definition &new_field) const
 {
-  if (new_field->type_handler() != type_handler())
-  {
-    return IS_EQUAL_NO;
-  }
-  if (!new_field->compression_method() != !compression_method())
-  {
-    return IS_EQUAL_NO;
-  }
-  if (new_field->pack_length != pack_length())
-  {
-    return IS_EQUAL_NO;
-  }
-
-  if (!csinfo_change_allows_instant_alter(new_field))
-    return IS_EQUAL_NO;
-
-  if (field_charset != new_field->charset)
-  {
-    return IS_EQUAL_PACK_LENGTH;
-  }
-
-  return IS_EQUAL_YES;
+  return new_field.type_handler() == type_handler() &&
+         !new_field.compression_method() == !compression_method() &&
+         new_field.pack_length == pack_length() &&
+         new_field.charset == field_charset;
 }
 
 
@@ -9056,16 +8997,16 @@ Field::geometry_type Field_geom::geometry_type_merge(geometry_type a,
 }
 
 
-uint Field_geom::is_equal(Create_field *new_field)
+bool Field_geom::is_equal(const Column_definition &new_field) const
 {
-  return new_field->type_handler() == type_handler() &&
+  return new_field.type_handler() == type_handler() &&
          /*
            - Allow ALTER..INPLACE to supertype (GEOMETRY),
              e.g. POINT to GEOMETRY or POLYGON to GEOMETRY.
            - Allow ALTER..INPLACE to the same geometry type: POINT -> POINT
          */
-         (new_field->geom_type == geom_type ||
-          new_field->geom_type == GEOM_GEOMETRY);
+         (new_field.geom_type == geom_type ||
+          new_field.geom_type == GEOM_GEOMETRY);
 }
 
 
@@ -9495,22 +9436,22 @@ bool Field_enum::eq_def(const Field *field) const
   alteration purposes. Fields are equal if they retain the same
   pack length and if new members are added to the end of the list.
 
-  @return IS_EQUAL_YES if fields are compatible.
-          IS_EQUAL_NO otherwise.
+  @return true if fields are compatible.
+          false otherwise.
 */
 
-uint Field_enum::is_equal(Create_field *new_field)
+bool Field_enum::is_equal(const Column_definition &new_field) const
 {
-  TYPELIB *values= new_field->interval;
+  TYPELIB *values= new_field.interval;
 
   /*
     The fields are compatible if they have the same flags,
     type, charset and have the same underlying length.
   */
-  if (new_field->type_handler() != type_handler() ||
-      new_field->charset != field_charset ||
-      new_field->pack_length != pack_length())
-    return IS_EQUAL_NO;
+  if (new_field.type_handler() != type_handler() ||
+      new_field.charset != field_charset ||
+      new_field.pack_length != pack_length())
+    return false;
 
   /*
     Changing the definition of an ENUM or SET column by adding a new
@@ -9518,13 +9459,13 @@ uint Field_enum::is_equal(Create_field *new_field)
     values only alters table metadata and not table data.
   */
   if (typelib->count > values->count)
-    return IS_EQUAL_NO;
+    return false;
 
   /* Check whether there are modification before the end. */
-  if (! compare_type_names(field_charset, typelib, new_field->interval))
-    return IS_EQUAL_NO;
+  if (! compare_type_names(field_charset, typelib, new_field.interval))
+    return false;
 
-  return IS_EQUAL_YES;
+  return true;
 }
 
 
@@ -9570,17 +9511,17 @@ bool Field_num::eq_def(const Field *field) const
   and retain the same pack length.
 */
 
-uint Field_num::is_equal(Create_field *new_field)
+bool Field_num::is_equal(const Column_definition &new_field) const
 {
-  if (((new_field->flags & UNSIGNED_FLAG) != (flags & UNSIGNED_FLAG)) ||
-      ((new_field->flags & AUTO_INCREMENT_FLAG) > (flags & AUTO_INCREMENT_FLAG)))
-    return IS_EQUAL_NO;
+  if (((new_field.flags & UNSIGNED_FLAG) != (flags & UNSIGNED_FLAG)) ||
+      ((new_field.flags & AUTO_INCREMENT_FLAG) > (flags & AUTO_INCREMENT_FLAG)))
+    return false;
 
-  const Type_handler *th= type_handler(), *new_th = new_field->type_handler();
+  const Type_handler *th= type_handler(), *new_th = new_field.type_handler();
 
-  if (th == new_th && new_field->pack_length == pack_length())
-    return IS_EQUAL_YES;
-  /* FIXME: Test and consider returning IS_EQUAL_YES for the following:
+  if (th == new_th && new_field.pack_length == pack_length())
+    return true;
+  /* FIXME: Test and consider returning true for the following:
   TINYINT UNSIGNED to BIT(8)
   SMALLINT UNSIGNED to BIT(16)
   MEDIUMINT UNSIGNED to BIT(24)
@@ -9595,10 +9536,10 @@ uint Field_num::is_equal(Create_field *new_field)
 
   Note: InnoDB stores integers in big-endian format, and BIT appears
   to use big-endian format. For storage engines that use little-endian
-  format for integers, we can only return IS_EQUAL_YES for the TINYINT
+  format for integers, we can only return true for the TINYINT
   conversion. */
 
-  return IS_EQUAL_NO;
+  return false;
 }
 
 
@@ -9745,10 +9686,10 @@ Field *Field_bit::new_key_field(MEM_ROOT *root, TABLE *new_table,
 }
 
 
-uint Field_bit::is_equal(Create_field *new_field) 
+bool Field_bit::is_equal(const Column_definition &new_field) const
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->length == max_display_length();
+  return new_field.type_handler() == type_handler() &&
+         new_field.length == max_display_length();
 }
 
                        
@@ -10929,20 +10870,48 @@ bool Column_definition::has_default_expression()
 
 bool Column_definition::set_compressed(const char *method)
 {
+  if (!method || !strcmp(method, zlib_compression_method->name))
+  {
+    unireg_check= Field::TMYSQL_COMPRESSED;
+    compression_method_ptr= zlib_compression_method;
+    return false;
+  }
+  my_error(ER_UNKNOWN_COMPRESSION_METHOD, MYF(0), method);
+  return true;
+}
+
+
+bool Column_definition::set_compressed_deprecated(THD *thd, const char *method)
+{
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_WARN_DEPRECATED_SYNTAX,
+                      ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
+                      "<data type> <character set clause> ... COMPRESSED...",
+                      "'<data type> COMPRESSED... <character set clause> ...'");
+  return set_compressed(method);
+}
+
+
+bool
+Column_definition::set_compressed_deprecated_column_attribute(THD *thd,
+                                                              const char *pos,
+                                                              const char *method)
+{
+  if (compression_method_ptr)
+  {
+    /*
+      Compression method has already been set, e.g.:
+        a VARCHAR(10) COMPRESSED DEFAULT 10 COMPRESSED
+    */
+    thd->parse_error(ER_SYNTAX_ERROR, pos);
+    return true;
+  }
   enum enum_field_types sql_type= real_field_type();
   /* We can't use f_is_blob here as pack_flag is not yet set */
   if (sql_type == MYSQL_TYPE_VARCHAR || sql_type == MYSQL_TYPE_TINY_BLOB ||
       sql_type == MYSQL_TYPE_BLOB || sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
       sql_type == MYSQL_TYPE_LONG_BLOB)
-  {
-    if (!method || !strcmp(method, zlib_compression_method->name))
-    {
-      unireg_check= Field::TMYSQL_COMPRESSED;
-      compression_method_ptr= zlib_compression_method;
-      return false;
-    }
-    my_error(ER_UNKNOWN_COMPRESSION_METHOD, MYF(0), method);
-  }
+    return set_compressed_deprecated(thd, method);
   else
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name.str);
   return true;
@@ -11241,4 +11210,59 @@ bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
 
   thd->variables.sql_mode= sql_mode_backup;
   return rc;
+}
+
+
+void Field::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+    print_key_value_binary(out, ptr, length);
+  else
+    val_str(out);
+}
+
+
+void Field_string::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+  {
+    size_t len= field_charset->cset->lengthsp(field_charset, (const char*) ptr, length);
+    print_key_value_binary(out, ptr, static_cast<uint32>(len));
+  }
+  else
+  {
+    THD *thd= get_thd();
+    sql_mode_t sql_mode_backup= thd->variables.sql_mode;
+    thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+    val_str(out,out);
+    thd->variables.sql_mode= sql_mode_backup;
+  }
+}
+
+
+void Field_varstring::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+    print_key_value_binary(out, get_data(), get_length());
+  else
+    val_str(out,out);
+}
+
+
+void Field_blob::print_key_value(String *out, uint32 length)
+{
+  if (charset() == &my_charset_bin)
+  {
+    uchar *blob;
+    memcpy(&blob, ptr+packlength, sizeof(uchar*));
+    print_key_value_binary(out, blob, get_length());
+  }
+  else
+    val_str(out, out);
+}
+
+
+void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
+{
+  out->append_semi_hex((const char*)key, length, charset());
 }

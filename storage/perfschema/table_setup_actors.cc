@@ -52,7 +52,7 @@ PFS_engine_table* table_setup_actors::create()
   return new table_setup_actors();
 }
 
-int table_setup_actors::write_row(TABLE *table, unsigned char *buf,
+int table_setup_actors::write_row(TABLE *table, const unsigned char *buf,
                                   Field **fields)
 {
   Field *f;

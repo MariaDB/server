@@ -20,6 +20,7 @@ variable_name not in (
 'rand_seed1',
 'rand_seed2',
 'system_time_zone',
+'tls_version',
 'version_comment',
 'version_source_revision',
 'version_compile_machine', 'version_compile_os',
@@ -4661,6 +4662,7 @@ where variable_name in (
 'rand_seed1',
 'rand_seed2',
 'system_time_zone',
+'tls_version',
 'version_comment',
 'version_source_revision',
 'version_compile_machine', 'version_compile_os',
@@ -4767,6 +4769,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	TLS_VERSION
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	SET
+VARIABLE_COMMENT	TLS protocol version for secure connections.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	TLSv1.0,TLSv1.1,TLSv1.2,TLSv1.3
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	VERSION
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR

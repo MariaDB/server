@@ -634,12 +634,12 @@ struct FetchIndexRootPages : public AbstractCallback {
 		m_table(table) UNIV_NOTHROW { }
 
 	/** Destructor */
-	virtual ~FetchIndexRootPages() UNIV_NOTHROW { }
+	~FetchIndexRootPages() UNIV_NOTHROW override { }
 
 	/** Called for each block as it is read from the file.
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
-	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW;
+	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW override;
 
 	/** Update the import configuration that will be used to import
 	the tablespace. */
@@ -812,7 +812,7 @@ public:
 		rec_offs_init(m_offsets_);
 	}
 
-	virtual ~PageConverter() UNIV_NOTHROW
+	~PageConverter() UNIV_NOTHROW override
 	{
 		if (m_heap != 0) {
 			mem_heap_free(m_heap);
@@ -822,7 +822,7 @@ public:
 	/** Called for each block as it is read from the file.
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
-	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW;
+	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW override;
 
 private:
 	/** Update the page, set the space id, max trx id and index id.
@@ -3424,8 +3424,12 @@ page_corrupted:
 			if (!encrypted) {
 			} else if (!key_version) {
 not_encrypted:
-				if (!page_compressed
-				    && !block->page.zip.data) {
+				if (block->page.id.page_no() == 0
+				    && block->page.zip.data) {
+					block->page.zip.data = src;
+					frame_changed = true;
+				} else if (!page_compressed
+					   && !block->page.zip.data) {
 					block->frame = src;
 					frame_changed = true;
 				} else {
@@ -3529,7 +3533,11 @@ not_encrypted:
 			}
 
 			if (frame_changed) {
-				block->frame = dst;
+				if (block->page.zip.data) {
+					block->page.zip.data = dst;
+				} else {
+					block->frame = dst;
+				}
 			}
 
 			src =  io_buffer + (i * size);

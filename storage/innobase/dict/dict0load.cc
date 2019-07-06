@@ -1940,7 +1940,7 @@ dict_load_virtual_one_col(
 	btr_pcur_open_on_user_rec(sys_virtual_index, tuple, PAGE_CUR_GE,
 				  BTR_SEARCH_LEAF, &pcur, &mtr);
 
-	for (i = 0; i < v_col->num_base + skipped; i++) {
+	for (i = 0; i < unsigned{v_col->num_base} + skipped; i++) {
 		const char*	err_msg;
 		ulint		pos;
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -192,8 +192,8 @@ buf_LRU_old_ratio_update(
 /*=====================*/
 	uint	old_pct,/*!< in: Reserve this percentage of
 			the buffer pool for "old" blocks. */
-	ibool	adjust);/*!< in: TRUE=adjust the LRU list;
-			FALSE=just assign buf_pool->LRU_old_ratio
+	bool	adjust);/*!< in: true=adjust the LRU list;
+			false=just assign buf_pool->LRU_old_ratio
 			during the initialization of InnoDB */
 /********************************************************************//**
 Update the historical stats that we are collecting for LRU eviction
@@ -202,14 +202,12 @@ void
 buf_LRU_stat_update(void);
 /*=====================*/
 
-/******************************************************************//**
-Remove one page from LRU list and put it to free list */
-void
-buf_LRU_free_one_page(
-/*==================*/
-	buf_page_t*	bpage)	/*!< in/out: block, must contain a file page and
-				be in a state where it can be freed; there
-				may or may not be a hash index to the page */
+/** Remove one page from LRU list and put it to free list.
+@param[in,out]	bpage		block, must contain a file page and be in
+				a freeable state; there may or may not be a
+				hash index to the page
+@param[in]	old_page_id	page number before bpage->id was invalidated */
+void buf_LRU_free_one_page(buf_page_t* bpage, page_id_t old_page_id)
 	MY_ATTRIBUTE((nonnull));
 
 /******************************************************************//**

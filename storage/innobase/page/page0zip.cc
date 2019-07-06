@@ -1602,7 +1602,7 @@ page_zip_fields_free(
 {
 	if (index) {
 		dict_table_t*	table = index->table;
-		dict_index_zip_pad_mutex_destroy(index);
+		mutex_free(&index->zip_pad.mutex);
 		mem_heap_free(index->heap);
 
 		dict_mem_table_free(table);
@@ -3841,7 +3841,7 @@ page_zip_parse_write_blob_ptr(
 	    || offset >= srv_page_size
 	    || z_offset >= srv_page_size) {
 corrupt:
-		recv_sys->found_corrupt_log = TRUE;
+		recv_sys.found_corrupt_log = TRUE;
 
 		return(NULL);
 	}
@@ -3983,7 +3983,7 @@ page_zip_parse_write_node_ptr(
 	    || offset >= srv_page_size
 	    || z_offset >= srv_page_size) {
 corrupt:
-		recv_sys->found_corrupt_log = TRUE;
+		recv_sys.found_corrupt_log = TRUE;
 
 		return(NULL);
 	}
@@ -4198,7 +4198,7 @@ page_zip_parse_write_trx_id(
 	    || offset >= srv_page_size
 	    || z_offset >= srv_page_size) {
 corrupt:
-		recv_sys->found_corrupt_log = TRUE;
+		recv_sys.found_corrupt_log = TRUE;
 
 		return(NULL);
 	}
@@ -4619,7 +4619,7 @@ page_zip_parse_write_header(
 
 	if (len == 0 || offset + len >= PAGE_DATA) {
 corrupt:
-		recv_sys->found_corrupt_log = TRUE;
+		recv_sys.found_corrupt_log = TRUE;
 
 		return(NULL);
 	}
@@ -4897,7 +4897,7 @@ byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
 		if (!page_zip || page_zip_get_size(page_zip) < size
 		    || block->page.id.page_no() < 3) {
 corrupt:
-			recv_sys->found_corrupt_log = TRUE;
+			recv_sys.found_corrupt_log = TRUE;
 
 			return(NULL);
 		}
