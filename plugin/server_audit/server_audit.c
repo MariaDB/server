@@ -28,7 +28,11 @@
 #ifndef _WIN32
 #define DO_SYSLOG
 #include <syslog.h>
+static const char out_type_desc[]= "Desired output type. Possible values - 'syslog', 'file'"
+                                   " or 'null' as no output.";
 #else
+static const char out_type_desc[]= "Desired output type. Possible values - 'file'"
+                                   " or 'null' as no output.";
 #define syslog(PRIORITY, FORMAT, INFO, MESSAGE_LEN, MESSAGE) do {}while(0)
 static void closelog() {}
 #define openlog(IDENT, LOG_NOWAIT, LOG_USER)  do {}while(0)
@@ -88,6 +92,7 @@ static void closelog() {}
 #include <typelib.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
+#include "../../mysys/mysys_priv.h"
 #ifndef RTLD_DEFAULT
 #define RTLD_DEFAULT NULL
 #endif
@@ -405,13 +410,7 @@ static TYPELIB output_typelib=
     output_type_names, NULL
 };
 static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
-#ifdef DO_SYSLOG
-       "Desired output type. Possible values - 'syslog', 'file'"
-       " or 'null' as no output.",
-#else
-       "Desired output type. Possible values - 'file'"
-       " or 'null' as no output.",
-#endif
+       out_type_desc,
        0, update_output_type, OUTPUT_FILE,
        &output_typelib);
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
@@ -655,7 +654,7 @@ static void remove_blanks(char *user)
 
 struct user_name
 {
-  int name_len;
+  size_t name_len;
   char *name;
 };
 
@@ -690,7 +689,7 @@ static int cmp_users(const void *ia, const void *ib)
 {
   const struct user_name *a= (const struct user_name *) ia;
   const struct user_name *b= (const struct user_name *) ib;
-  int dl= a->name_len - b->name_len;
+  int dl= (int) a->name_len - (int) b->name_len;
   if (dl != 0)
     return dl;
 
@@ -698,7 +697,7 @@ static int cmp_users(const void *ia, const void *ib)
 }
 
 
-static char *coll_search(struct user_coll *c, const char *n, int len)
+static char *coll_search(struct user_coll *c, const char *n, size_t len)
 {
   struct user_name un;
   struct user_name *found;
@@ -710,7 +709,7 @@ static char *coll_search(struct user_coll *c, const char *n, int len)
 }
 
 
-static int coll_insert(struct user_coll *c, char *n, int len)
+static int coll_insert(struct user_coll *c, char *n, size_t len)
 {
   if (c->n_users >= c->n_alloced)
   {
@@ -965,7 +964,7 @@ static void get_str_n(char *dest, int *dest_len, size_t dest_size,
 
   memcpy(dest, src, src_len);
   dest[src_len]= 0;
-  *dest_len= src_len;
+  *dest_len= (int) src_len;
 }
 
 
@@ -1151,6 +1150,7 @@ static void setup_connection_connect(struct connection_info *cn,
 
 
 #define SAFE_STRLEN(s) (s ? strlen(s) : 0)
+#define SAFE_STRLEN_UI(s) ((unsigned int) (s ? strlen(s) : 0))
 static char empty_str[1]= { 0 };
 
 
@@ -1310,7 +1310,7 @@ exit:
 
 static size_t log_header(char *message, size_t message_len,
                       time_t *ts,
-                      const char *serverhost, unsigned int serverhost_len,
+                      const char *serverhost, size_t serverhost_len,
                       const char *username, unsigned int username_len,
                       const char *host, unsigned int host_len,
                       const char *userip, unsigned int userip_len,
@@ -1328,7 +1328,7 @@ static size_t log_header(char *message, size_t message_len,
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
         "%.*s,%.*s,%.*s,%d,%lld,%s",
-        serverhost_len, serverhost,
+        (unsigned int) serverhost_len, serverhost,
         username_len, username,
         host_len, host,
         connection_id, query_id, operation);
@@ -1486,7 +1486,7 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
         }
         next_s++;
       }
-      len-= next_s - str;
+      len-= (unsigned int) (next_s - str);
       str= next_s;
       continue;
     }
@@ -1807,9 +1807,9 @@ static int log_table(const struct connection_info *cn,
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
                     servhost, servhost_len,
-                    event->user, SAFE_STRLEN(event->user),
-                    event->host, SAFE_STRLEN(event->host),
-                    event->ip, SAFE_STRLEN(event->ip),
+                    event->user, SAFE_STRLEN_UI(event->user),
+                    event->host, SAFE_STRLEN_UI(event->host),
+                    event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, cn->query_id, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
             ",%.*s,%.*s,",event->database_length, event->database,
@@ -1829,9 +1829,9 @@ static int log_rename(const struct connection_info *cn,
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
                     servhost, servhost_len,
-                    event->user, SAFE_STRLEN(event->user),
-                    event->host, SAFE_STRLEN(event->host),
-                    event->ip, SAFE_STRLEN(event->ip),
+                    event->user, SAFE_STRLEN_UI(event->user),
+                    event->host, SAFE_STRLEN_UI(event->host),
+                    event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, cn->query_id, "RENAME");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
             ",%.*s,%.*s|%.*s.%.*s,",event->database_length, event->database,
