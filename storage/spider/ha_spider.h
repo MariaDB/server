@@ -213,7 +213,7 @@ public:
 #endif
   ha_rows            table_rows;
 #ifdef HA_HAS_CHECKSUM_EXTENDED
-  ulonglong          checksum_val;
+  ha_checksum        checksum_val;
   bool               checksum_null;
   uint               action_flags;
 #endif

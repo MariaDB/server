@@ -1320,9 +1320,10 @@ int spider_db_mbase_result::fetch_simple_action(
       if (mysql_row[position])
       {
         spider->checksum_val =
-          (ulonglong) my_strtoll10(mysql_row[position], (char**) NULL,
+          (ha_checksum) my_strtoll10(mysql_row[position], (char**) NULL,
           &error_num);
-        DBUG_PRINT("info", ("spider checksum=%llu", spider->checksum_val));
+        DBUG_PRINT("info", ("spider checksum=%llu",
+          (ulonglong) spider->checksum_val));
         spider->checksum_null = FALSE;
       } else {
         spider->checksum_null = TRUE;
@@ -2162,7 +2163,7 @@ int spider_db_mbase::connect(
       } else if (!strcmp(tgt_host, "127.0.0.1") ||
         !strcmp(tgt_host, glob_hostname))
       {
-        if (tgt_port == *spd_mysqld_port)
+        if (tgt_port == (long) *spd_mysqld_port)
         {
           my_printf_error(ER_SPIDER_SAME_SERVER_LINK_NUM,
             ER_SPIDER_SAME_SERVER_LINK_STR2, MYF(0),
