@@ -202,6 +202,13 @@ class spider_db_mysql_util: public spider_db_mbase_util
 public:
   spider_db_mysql_util();
   ~spider_db_mysql_util();
+  int append_column_value(
+    ha_spider *spider,
+    spider_string *str,
+    Field *field,
+    const uchar *new_ptr,
+    CHARSET_INFO *access_charset
+  );
 };
 
 class spider_db_mariadb_util: public spider_db_mbase_util
@@ -212,6 +219,13 @@ public:
   int append_sql_mode_internal(
     spider_string *str,
     sql_mode_t sql_mode
+  );
+  int append_column_value(
+    ha_spider *spider,
+    spider_string *str,
+    Field *field,
+    const uchar *new_ptr,
+    CHARSET_INFO *access_charset
   );
 };
 
