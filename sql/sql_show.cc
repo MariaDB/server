@@ -376,127 +376,6 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
-#ifdef HAVE_SPATIAL
-static int fill_spatial_ref_sys(THD *thd, TABLE_LIST *tables, COND *cond)
-{
-  DBUG_ENTER("fill_spatial_ref_sys");
-  TABLE *table= tables->table;
-  CHARSET_INFO *cs= system_charset_info;
-  int result= 1;
-
-  restore_record(table, s->default_values);
-
-  table->field[0]->store(-1, FALSE); /*SRID*/
-  table->field[1]->store(STRING_WITH_LEN("Not defined"), cs); /*AUTH_NAME*/
-  table->field[2]->store(-1, FALSE); /*AUTH_SRID*/
-  table->field[3]->store(STRING_WITH_LEN(
-        "LOCAL_CS[\"Spatial reference wasn't specified\","
-        "LOCAL_DATUM[\"Unknown\",0]," "UNIT[\"m\",1.0]," "AXIS[\"x\",EAST],"
-        "AXIS[\"y\",NORTH]]"), cs);/*SRTEXT*/
-  if (schema_table_store_record(thd, table))
-    goto exit;
-
-  table->field[0]->store(0, TRUE); /*SRID*/
-  table->field[1]->store(STRING_WITH_LEN("EPSG"), cs); /*AUTH_NAME*/
-  table->field[2]->store(404000, TRUE); /*AUTH_SRID*/
-  table->field[3]->store(STRING_WITH_LEN(
-        "LOCAL_CS[\"Wildcard 2D cartesian plane in metric unit\","
-        "LOCAL_DATUM[\"Unknown\",0]," "UNIT[\"m\",1.0],"
-        "AXIS[\"x\",EAST]," "AXIS[\"y\",NORTH],"
-        "AUTHORITY[\"EPSG\",\"404000\"]]"), cs);/*SRTEXT*/
-  if (schema_table_store_record(thd, table))
-    goto exit;
-
-  result= 0;
-
-exit:
-  DBUG_RETURN(result);
-}
-
-
-static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
-                                      TABLE *table, bool res,
-                                      const LEX_CSTRING *db_name,
-                                      const LEX_CSTRING *table_name)
-{
-  CHARSET_INFO *cs= system_charset_info;
-  TABLE *show_table;
-  Field **ptr, *field;
-  DBUG_ENTER("get_geometry_column_record");
-
-  if (res)
-  {
-    if (thd->lex->sql_command != SQLCOM_SHOW_FIELDS)
-    {
-      /*
-        I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
-        rather than in SHOW COLUMNS
-      */
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
-      res= 0;
-    }
-    DBUG_RETURN(res);
-  }
-
-  if (tables->schema_table)
-    goto exit;
-  show_table= tables->table;
-  ptr= show_table->field;
-  show_table->use_all_columns();               // Required for default
-  restore_record(show_table, s->default_values);
-
-#ifdef HAVE_SPATIAL
-  for (; (field= *ptr) ; ptr++)
-    if (field->type() == MYSQL_TYPE_GEOMETRY)
-    {
-      Field_geom *fg= (Field_geom *) field;
-      const Type_handler_geometry *gth= fg->type_handler_geom();
-
-      DEBUG_SYNC(thd, "get_schema_column");
-
-      /* Get default row, with all NULL fields set to NULL */
-      restore_record(table, s->default_values);
-
-      /*F_TABLE_CATALOG*/
-      table->field[0]->store(STRING_WITH_LEN("def"), cs);
-      /*F_TABLE_SCHEMA*/
-      table->field[1]->store(db_name->str, db_name->length, cs);
-      /*F_TABLE_NAME*/
-      table->field[2]->store(table_name->str, table_name->length, cs);
-      /*G_TABLE_CATALOG*/
-      table->field[4]->store(STRING_WITH_LEN("def"), cs);
-      /*G_TABLE_SCHEMA*/
-      table->field[5]->store(db_name->str, db_name->length, cs);
-      /*G_TABLE_NAME*/
-      table->field[6]->store(table_name->str, table_name->length, cs);
-      /*G_GEOMETRY_COLUMN*/
-      table->field[7]->store(field->field_name.str, field->field_name.length,
-                             cs);
-      /*STORAGE_TYPE*/
-      table->field[8]->store(1LL, TRUE); /*Always 1 (binary implementation)*/
-      /*GEOMETRY_TYPE*/
-      table->field[9]->store((longlong) (gth->geometry_type()), TRUE);
-      /*COORD_DIMENSION*/
-      table->field[10]->store(2LL, TRUE);
-      /*MAX_PPR*/
-      table->field[11]->set_null();
-      /*SRID*/
-      table->field[12]->store((longlong) (fg->get_srid()), TRUE);
-
-      if (schema_table_store_record(thd, table))
-        DBUG_RETURN(1);
-    }
-#endif
-
-exit:
-  DBUG_RETURN(0);
-}
-#endif /*HAVE_SPATIAL*/
-
-
 /***************************************************************************
 ** List all Authors.
 ** If you can update it, you get to be in it :)
@@ -5959,10 +5838,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
+      convert_error_to_warning(thd);
       res= 0;
     }
     DBUG_RETURN(res);
@@ -8541,7 +8417,7 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
     
 */
 
-static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
+bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
@@ -9543,37 +9419,6 @@ ST_FIELD_INFO show_explain_fields_info[]=
 };
 
 
-#ifdef HAVE_SPATIAL
-ST_FIELD_INFO geometry_columns_fields_info[]=
-{
-  Column("F_TABLE_CATALOG",    Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
-  Column("F_TABLE_SCHEMA",     Name(),    NOT_NULL,          OPEN_FRM_ONLY),
-  Column("F_TABLE_NAME",       Name(),    NOT_NULL,          OPEN_FRM_ONLY),
-  Column("F_GEOMETRY_COLUMN",  Name(),    NOT_NULL, "Field", OPEN_FRM_ONLY),
-  Column("G_TABLE_CATALOG",    Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
-  Column("G_TABLE_SCHEMA",     Name(),    NOT_NULL,          OPEN_FRM_ONLY),
-  Column("G_TABLE_NAME",       Name(),    NOT_NULL,          OPEN_FRM_ONLY),
-  Column("G_GEOMETRY_COLUMN",  Name(),    NOT_NULL, "Field", OPEN_FRM_ONLY),
-  Column("STORAGE_TYPE",       STiny(2),  NOT_NULL,          OPEN_FRM_ONLY),
-  Column("GEOMETRY_TYPE",      SLong(7),  NOT_NULL,          OPEN_FRM_ONLY),
-  Column("COORD_DIMENSION",    STiny(2),  NOT_NULL,          OPEN_FRM_ONLY),
-  Column("MAX_PPR",            STiny(2),  NOT_NULL,          OPEN_FRM_ONLY),
-  Column("SRID",               SShort(5), NOT_NULL,          OPEN_FRM_ONLY),
-  CEnd()
-};
-
-
-ST_FIELD_INFO spatial_ref_sys_fields_info[]=
-{
-  Column("SRID",      SShort(5),          NOT_NULL),
-  Column("AUTH_NAME", Varchar(FN_REFLEN), NOT_NULL),
-  Column("AUTH_SRID", SLong(5),           NOT_NULL),
-  Column("SRTEXT",    Varchar(2048),      NOT_NULL),
-  CEnd()
-};
-#endif /*HAVE_SPATIAL*/
-
-
 ST_FIELD_INFO check_constraints_fields_info[]=
 {
   Column("CONSTRAINT_CATALOG", Catalog(), NOT_NULL, OPEN_FULL_TABLE),
@@ -9698,13 +9543,6 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"VIEWS", Show::view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
-#ifdef HAVE_SPATIAL
-  {"GEOMETRY_COLUMNS", Show::geometry_columns_fields_info, 0,
-   get_all_tables, make_columns_old_format, get_geometry_column_record,
-   1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL},
-  {"SPATIAL_REF_SYS", Show::spatial_ref_sys_fields_info, 0,
-   fill_spatial_ref_sys, make_old_format, 0, -1, -1, 0, 0},
-#endif /*HAVE_SPATIAL*/
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 

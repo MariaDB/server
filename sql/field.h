@@ -4326,7 +4326,7 @@ public:
   bool load_data_set_null(THD *thd);
   bool load_data_set_no_data(THD *thd, bool fixed_format);
 
-  uint get_srid() { return srid; }
+  uint get_srid() const { return srid; }
   void print_key_value(String *out, uint32 length)
   {
     out->append(STRING_WITH_LEN("unprintable_geometry_value"));

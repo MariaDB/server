@@ -1260,6 +1260,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////
 
+void convert_error_to_warning(THD *thd);
 
 void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg);

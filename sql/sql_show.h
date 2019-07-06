@@ -76,6 +76,10 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_EXTRA               37
 
 typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
+
+int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
+bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
+
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name);

@@ -1009,3 +1009,13 @@ bool is_sqlstate_valid(const LEX_CSTRING *sqlstate)
 
   return true;
 }
+
+
+void convert_error_to_warning(THD *thd)
+{
+  DBUG_ASSERT(thd->is_error());
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+               thd->get_stmt_da()->sql_errno(),
+               thd->get_stmt_da()->message());
+  thd->clear_error();
+}
