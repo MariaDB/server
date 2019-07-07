@@ -45,17 +45,8 @@ SET(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
 SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
-SET(CPACK_RPM_PACKAGE_SUMMARY ${CPACK_PACKAGE_SUMMARY})
 SET(CPACK_RPM_PACKAGE_URL ${CPACK_PACKAGE_URL})
-SET(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_SUMMARY}
-
-It is GPL v2 licensed, which means you can use the it free of charge under the
-conditions of the GNU General Public License Version 2 (http://www.gnu.org/licenses/).
-
-MariaDB documentation can be found at https://mariadb.com/kb
-MariaDB bug reports should be submitted through https://jira.mariadb.org 
-
-")
+SET(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 
 SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
 SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
