@@ -12,10 +12,10 @@ engine innodb;
 insert ignore into t1 (b) values ('foo');
 select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
-set debug_sync= "now WAIT_FOR latch_released";
+set debug_sync= "now WAIT_FOR latch_released TIMEOUT 1";
 set global debug_dbug= "-d,ib_purge_virtual_mdev_16222_1";
 drop table t1;
-set debug_sync= "now SIGNAL drop_started WAIT_FOR got_no_such_table";
+set debug_sync= "now SIGNAL drop_started WAIT_FOR got_no_such_table TIMEOUT 1";
 create table t1 (
 pk serial, vb tinyblob as (b) virtual, b tinyblob,
 primary key(pk), index (vb(64)))
@@ -23,7 +23,7 @@ engine innodb;
 insert ignore into t1 (b) values ('foo');
 select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
-set debug_sync= "now WAIT_FOR got_no_such_table";
+set debug_sync= "now WAIT_FOR got_no_such_table TIMEOUT 1";
 set global debug_dbug= @saved_dbug;
 drop table t1;
 set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
