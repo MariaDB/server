@@ -220,24 +220,7 @@ int clustrix_connection::rollback_stmt_trans()
   return error_code;
 }
 
-int clustrix_connection::create_table(String &stmt)
-{
-  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
-  if (error_code)
-    return mysql_errno(&clustrix_net);
-
-  return error_code;
-}
-
-int clustrix_connection::delete_table(String &stmt)
-{
-  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
-  if (error_code)
-    return mysql_errno(&clustrix_net);
-  return error_code;
-}
-
-int clustrix_connection::rename_table(String &stmt)
+int clustrix_connection::run_query(String &stmt)
 {
   int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
   if (error_code)

@@ -82,10 +82,7 @@ public:
     return has_statement_trans;
   }
 
-  int create_table(String &stmt);
-  int delete_table(String &stmt);
-  int rename_table(String &stmt);
-
+  int run_query(String &stmt);
 
   int write_row(ulonglong clustrix_table_oid,
                 uchar *packed_row, size_t packed_size);
