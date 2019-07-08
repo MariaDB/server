@@ -233,10 +233,10 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
       createdb_stmt.append("CREATE DATABASE IF NOT EXISTS `");
       createdb_stmt.append(form->s->db.str, form->s->db.length);
       createdb_stmt.append("`");
-      trx->create_table(createdb_stmt);
+      trx->run_query(createdb_stmt);
   }
 
-  error_code = trx->create_table(create_table_stmt);
+  error_code = trx->run_query(create_table_stmt);
   return error_code;
 }
 
@@ -264,7 +264,7 @@ int ha_clustrixdb::delete_table(const char *path)
   delete_cmd.append("`");
 
 
-  return trx->delete_table(delete_cmd);
+  return trx->run_query(delete_cmd);
 }
 
 int ha_clustrixdb::rename_table(const char* from, const char* to)
@@ -301,7 +301,7 @@ int ha_clustrixdb::rename_table(const char* from, const char* to)
   rename_cmd.append(decoded_to_tbname);
   rename_cmd.append("`;");
 
-  return trx->rename_table(rename_cmd);
+  return trx->run_query(rename_cmd);
 }
 
 
