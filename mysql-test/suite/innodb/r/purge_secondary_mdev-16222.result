@@ -10,9 +10,7 @@ pk serial, vb tinyblob as (b) virtual, b tinyblob,
 primary key(pk), index (vb(64)))
 engine innodb;
 insert ignore into t1 (b) values ('foo');
-select * from t1 into outfile 'load.data';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
 set debug_sync= "now WAIT_FOR latch_released";
 set global debug_dbug= "-d,ib_purge_virtual_mdev_16222_1";
@@ -23,12 +21,10 @@ pk serial, vb tinyblob as (b) virtual, b tinyblob,
 primary key(pk), index (vb(64)))
 engine innodb;
 insert ignore into t1 (b) values ('foo');
-select * from t1 into outfile 'load.data';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
 set debug_sync= "now WAIT_FOR got_no_such_table";
-set debug_sync= "RESET";
+set global debug_dbug= @saved_dbug;
 drop table t1;
 set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
-set global debug_dbug= @saved_dbug;
+set debug_sync= "RESET";

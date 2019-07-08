@@ -18,7 +18,7 @@ engine innodb;
 
 insert ignore into t1 (b) values ('foo');
 
-select * from t1 into outfile 'load.data';
+select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
 
 set debug_sync= "now WAIT_FOR latch_released";
@@ -35,15 +35,19 @@ engine innodb;
 
 insert ignore into t1 (b) values ('foo');
 
-select * from t1 into outfile 'load.data';
+select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
 
 set debug_sync= "now WAIT_FOR got_no_such_table";
-set debug_sync= "RESET";
+# FIXME: Racing condition here:
+# 1. purge thread goes into sending got_no_such_table
+# 2. test thread finishes debug_sync= "RESET" below
+# 3. purge thread sends got_no_such_table
+set global debug_dbug= @saved_dbug;
 
 # cleanup
 drop table t1;
 --remove_file $datadir/test/load.data
 
 set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
-set global debug_dbug= @saved_dbug;
+set debug_sync= "RESET";
