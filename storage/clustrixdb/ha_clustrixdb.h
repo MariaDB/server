@@ -32,7 +32,6 @@ private:
   ulonglong clustrix_table_oid;
   rpl_group_info *rgi;
   Relay_log_info *rli;
-  RPL_TABLE_LIST *rpl_table_list;
 
   Field *auto_inc_field;
   ulonglong auto_inc_value;
@@ -108,4 +107,6 @@ private:
                             size_t *packed_key_len);
 };
 
+bool select_handler_setting(THD* thd);
+bool derived_handler_setting(THD* thd);
 #endif  // _ha_clustrixdb_h

@@ -29,7 +29,6 @@ class ha_clustrixdb_base_handler
     // Structures to unpack RBR rows from CLX BE
     rpl_group_info *rgi;
     Relay_log_info *rli;
-    RPL_TABLE_LIST *rpl_table_list;
     // CLX BE scan operation reference
     ulonglong scan_refid;
     // To unpack rows from CLX BE
@@ -84,5 +83,9 @@ class ha_clustrixdb_derived_handler:
 };
 
 
+select_handler *create_clustrixdb_select_handler(THD* thd,
+                                                 SELECT_LEX* select_lex);
+derived_handler *create_clustrixdb_derived_handler(THD* thd,
+                                                   TABLE_LIST *derived);
 
 #endif

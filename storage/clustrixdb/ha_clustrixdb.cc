@@ -5,6 +5,7 @@ Copyright (c) 2019, MariaDB Corporation.
 /** @file ha_clustrixdb.cc */
 
 #include "ha_clustrixdb.h"
+#include "ha_clustrixdb_pushdown.h"
 #include "key.h"
 
 handlerton *clustrixdb_hton = NULL;
@@ -1015,8 +1016,6 @@ int clustrixdb_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
   delete clustrix_net;
   return error_code;
 }
-
-#include "ha_clustrixdb_pushdown.cc"
 
 static int clustrixdb_init(void *p)
 {

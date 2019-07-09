@@ -11,7 +11,7 @@ ENDIF()
 
 SET(CLUSTRIXDB_PLUGIN_STATIC  "clustrixdb")
 SET(CLUSTRIXDB_PLUGIN_DYNAMIC "ha_clustrixdb")
-SET(CLUSTRIXDB_SOURCES ha_clustrixdb.cc clustrix_connection.cc)
+SET(CLUSTRIXDB_SOURCES ha_clustrixdb.cc clustrix_connection.cc ha_clustrixdb_pushdown.cc)
 MYSQL_ADD_PLUGIN(clustrixdb ${CLUSTRIXDB_SOURCES} STORAGE_ENGINE)
 
 IF(MSVC)

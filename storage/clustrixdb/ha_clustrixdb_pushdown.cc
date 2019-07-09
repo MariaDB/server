@@ -2,7 +2,10 @@
 Copyright (c) 2019, MariaDB Corporation.
 *****************************************************************************/
 
+#include "ha_clustrixdb.h"
 #include "ha_clustrixdb_pushdown.h"
+
+extern handlerton *clustrixdb_hton;
 
 /*@brief  Fills up array data types, metadata and nullability*/
 /************************************************************
@@ -85,7 +88,7 @@ err:
  *  select_handler if possible
  *  NULL otherwise
  ************************************************************/
-static select_handler*
+select_handler*
 create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
 {
   ha_clustrixdb_select_handler *sh = NULL;
@@ -266,7 +269,7 @@ int ha_clustrixdb_select_handler::end_scan()
  *  derived_handler if possible
  *  NULL otherwise
  ************************************************************/
-static derived_handler*
+derived_handler*
 create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
 {
   ha_clustrixdb_derived_handler *dh = NULL;
