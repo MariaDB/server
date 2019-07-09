@@ -137,6 +137,10 @@ my $opt_start_dirty;
 my $opt_start_exit;
 my $start_only;
 my $file_wsrep_provider;
+my $extra_path;
+my $mariabackup_path;
+my $mariabackup_exe;
+my $garbd_exe;
 
 our @global_suppressions;
 
@@ -369,6 +373,147 @@ $| = 1; # Automatically flush STDOUT
 
 main();
 
+sub have_wsrep() {
+  my $wsrep_on= $mysqld_variables{'wsrep-on'};
+  return defined $wsrep_on
+}
+
+sub have_wsrep_provider() {
+  return $file_wsrep_provider ne "";
+}
+
+sub have_mariabackup() {
+  return $mariabackup_path ne "";
+}
+
+sub have_garbd() {
+  return $garbd_exe ne "";
+}
+
+sub check_wsrep_version() {
+  if ($My::SafeProcess::wsrep_check_version ne "") {
+    system($My::SafeProcess::wsrep_check_version);
+    return ($? >> 8) == 0;
+  }
+  else {
+    return 0;
+  }
+}
+
+sub wsrep_version_message() {
+  my $output= `$My::SafeProcess::wsrep_check_version -p`;
+  $output =~ s/\s+\z//;
+  return "Wsrep provider version mismatch (".$output.")";
+}
+
+sub which($) { return `sh -c "command -v $_[0]"` }
+
+sub check_garbd_support() {
+  if (defined $ENV{'MTR_GARBD_EXE'}) {
+    if (mtr_file_exists($ENV{'MTR_GARBD_EXE'}) ne "") {
+      $garbd_exe= $ENV{'MTR_GARBD_EXE'};
+    } else {
+      mtr_error("MTR_GARBD_EXE env set to an invalid path");
+    }
+  }
+  else {
+    my $wsrep_path= dirname($file_wsrep_provider);
+    $garbd_exe=
+      mtr_file_exists($wsrep_path."/garb/garbd",
+                      $wsrep_path."/../../bin/garb/garbd");
+    if ($garbd_exe ne "") {
+      $ENV{MTR_GARBD_EXE}= $garbd_exe;
+    }
+  }
+}
+
+sub check_wsrep_support() {
+  if (have_wsrep()) {
+    mtr_report(" - binaries built with wsrep patch");
+
+    # ADD scripts to $PATH to that wsrep_sst_* can be found
+    my ($spath) = grep { -f "$_/wsrep_sst_rsync"; } "$bindir/scripts", $path_client_bindir;
+    mtr_error("No SST scripts") unless $spath;
+    $ENV{PATH}="$spath:$ENV{PATH}";
+
+    # ADD mysql client library path to path so that wsrep_notify_cmd can find mysql
+    # client for loading the tables. (Don't assume each machine has mysql install)
+    my ($cpath) = grep { -f "$_/mysql"; } "$bindir/scripts", $path_client_bindir;
+    mtr_error("No scritps") unless $cpath;
+    $ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
+
+    # ADD my_print_defaults script path to path so that SST scripts can find it
+    my ($epath) = grep { -f "$_/my_print_defaults"; } "$bindir/extra", $path_client_bindir;
+    mtr_error("No my_print_defaults") unless $epath;
+    $ENV{PATH}="$epath:$ENV{PATH}" unless ($epath eq $spath) or
+                                          ($epath eq $cpath);
+
+    $extra_path= $epath;
+
+    if (which("socat")) {
+      $ENV{MTR_GALERA_TFMT}="socat";
+    } elsif (which("nc")) {
+      $ENV{MTR_GALERA_TFMT}="nc";
+    }
+
+    # Check whether WSREP_PROVIDER environment variable is set.
+    if (defined $ENV{'WSREP_PROVIDER'}) {
+      $file_wsrep_provider= "";
+      if ($ENV{'WSREP_PROVIDER'} ne "none") {
+        if (mtr_file_exists($ENV{'WSREP_PROVIDER'}) ne "") {
+          $file_wsrep_provider= $ENV{'WSREP_PROVIDER'};
+        } else {
+          mtr_error("WSREP_PROVIDER env set to an invalid path");
+        }
+        check_garbd_support();
+      }
+      # WSREP_PROVIDER is valid; set to a valid path or "none").
+      mtr_verbose("WSREP_PROVIDER env set to $ENV{'WSREP_PROVIDER'}");
+    } else {
+      # WSREP_PROVIDER env not defined. Lets try to locate the wsrep provider
+      # library.
+      $file_wsrep_provider=
+        mtr_file_exists("/usr/lib64/galera-3/libgalera_smm.so",
+                        "/usr/lib64/galera/libgalera_smm.so",
+                        "/usr/lib/galera-3/libgalera_smm.so",
+                        "/usr/lib/galera/libgalera_smm.so");
+      if ($file_wsrep_provider ne "") {
+        # wsrep provider library found !
+        mtr_verbose("wsrep provider library found : $file_wsrep_provider");
+        $ENV{'WSREP_PROVIDER'}= $file_wsrep_provider;
+        check_garbd_support();
+      } else {
+        mtr_verbose("Could not find wsrep provider library, setting it to 'none'");
+        $ENV{'WSREP_PROVIDER'}= "none";
+      }
+    }
+  } else {
+    $file_wsrep_provider= "";
+    $extra_path= "";
+  }
+}
+
+sub check_mariabackup_support() {
+  $mariabackup_path= "";
+  $mariabackup_exe=
+    mtr_exe_maybe_exists(
+      "$bindir/extra/mariabackup$opt_vs_config/mariabackup",
+      "$path_client_bindir/mariabackup");
+  if ($mariabackup_exe ne "") {
+    my ($bpath) = grep { -f "$_/mariabackup"; } "$bindir/extra/mariabackup$opt_vs_config", $path_client_bindir;
+    $ENV{PATH}="$bpath:$ENV{PATH}" unless $bpath eq $extra_path;
+
+    $mariabackup_path= $bpath;
+
+    $ENV{XTRABACKUP}= $mariabackup_exe;
+
+    $ENV{XBSTREAM}= mtr_exe_maybe_exists(
+      "$bindir/extra/mariabackup/$opt_vs_config/mbstream",
+      "$path_client_bindir/mbstream");
+
+    $ENV{INNOBACKUPEX}= "$mariabackup_exe --innobackupex";
+  }
+}
 
 sub main {
   $ENV{MTR_PERL}=$^X;
@@ -414,6 +559,8 @@ sub main {
   }
   check_ssl_support();
   check_debug_support();
+  check_wsrep_support();
+  check_mariabackup_support();
 
   if (!$opt_suites) {
     $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
