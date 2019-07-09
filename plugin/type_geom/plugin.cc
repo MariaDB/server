@@ -74,18 +74,11 @@ exit:
 }
 
 
-static int fill_table_spatial_ref_sys(THD *thd, TABLE_LIST* tables, COND* cond)
-{
-  spatial_ref_sys_fill(thd, tables, cond);
-  return 0;
-}
-
-
 static int plugin_init_spatial_ref_sys(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
   schema->fields_info= spatial_ref_sys_fields_info;
-  schema->fill_table= fill_table_spatial_ref_sys;
+  schema->fill_table= spatial_ref_sys_fill;
   return 0;
 }
 
@@ -203,35 +196,15 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
 }
 
 
-static ST_SCHEMA_TABLE geometry_columns=
-{
-  "GEOMETRY_COLUMNS",                       // table_name
-  geometry_columns_fields_info,             // fields_info
-  0,                                        // reset_table
-  NULL,                                     // fill_table
-  NULL,                                     // old_format
-  get_geometry_column_record,               // process_table
-  1,                                        // idx_field1
-  2,                                        // idx_field2
-  0,                                        // hidden
-  OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL         // i_s_requested_object
-};
-
-
-static int fill_table_geometry_columns(THD *thd, TABLE_LIST* tables, COND* cond)
-{
-  tables->schema_table= &geometry_columns;
-  optimize_for_get_all_tables(thd, tables, cond);
-  get_all_tables(thd, tables, cond);
-  return 0;
-}
-
-
 static int plugin_init_geometry_columns(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
   schema->fields_info= geometry_columns_fields_info;
-  schema->fill_table= fill_table_geometry_columns;
+  schema->fill_table= get_all_tables;
+  schema->process_table= get_geometry_column_record;
+  schema->idx_field1= 1;
+  schema->idx_field2= 2;
+  schema->i_s_requested_object= OPTIMIZE_I_S_TABLE | OPEN_VIEW_FULL;
   return 0;
 }
 

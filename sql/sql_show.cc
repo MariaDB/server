@@ -8417,7 +8417,7 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
     
 */
 
-bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
+static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
