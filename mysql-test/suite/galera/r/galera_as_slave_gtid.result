@@ -23,6 +23,9 @@ connection node_2;
 STOP SLAVE;
 RESET SLAVE ALL;
 #cleanup
+connection node_1;
 reset master;
+connection node_2;
 reset master;
+connection node_3;
 reset master;
