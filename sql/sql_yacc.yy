@@ -13294,16 +13294,16 @@ insert:
           }
           insert_field_spec opt_insert_update
           {
-            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
+            Lex->returning_list.swap(Lex->current_select->item_list);
           }
           opt_select_expressions
           {
-            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
+            Lex->returning_list.swap(Lex->current_select->item_list);
              Lex->pop_select(); //main select
              if (Lex->check_main_unit_semantics())
                MYSQL_YYABORT;
-		  }
-        ;
+         }
+         ;	
 
 replace:
           REPLACE
@@ -13323,16 +13323,16 @@ replace:
           }
           insert_field_spec
           {
-            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
+            Lex->returning_list.swap(Lex->current_select->item_list);
           }
-		  opt_select_expressions
+		      opt_select_expressions
           {
-            Lex->current_select->returning_list.swap(Lex->current_select->item_list);
+            Lex->returning_list.swap(Lex->current_select->item_list);
              Lex->pop_select(); //main select
              if (Lex->check_main_unit_semantics())
                MYSQL_YYABORT;
-		  }
-        ;
+          }
+         ;
 
 insert_lock_option:
           /* empty */

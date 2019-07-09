@@ -4449,8 +4449,45 @@ mysql_execute_command(THD *thd)
     break;
   }
   case SQLCOM_REPLACE:
+<<<<<<< HEAD
     if ((res= generate_incident_event(thd)))
       break;
+=======
+#ifndef DBUG_OFF
+    if (mysql_bin_log.is_open())
+    {
+      /*
+        Generate an incident log event before writing the real event
+        to the binary log.  We put this event is before the statement
+        since that makes it simpler to check that the statement was
+        not executed on the slave (since incidents usually stop the
+        slave).
+
+        Observe that any row events that are generated will be
+        generated before.
+
+        This is only for testing purposes and will not be present in a
+        release build.
+      */
+
+      Incident incident= INCIDENT_NONE;
+      DBUG_PRINT("debug", ("Just before generate_incident()"));
+      DBUG_EXECUTE_IF("incident_database_resync_on_replace",
+                      incident= INCIDENT_LOST_EVENTS;);
+      if (incident)
+      {
+        Incident_log_event ev(thd, incident);
+        (void) mysql_bin_log.write(&ev);        /* error is ignored */
+        if (mysql_bin_log.rotate_and_purge(true))
+        {							
+          res= 1;
+          break;
+        }
+      }
+      DBUG_PRINT("debug", ("Just after generate_incident()"));
+    }
+#endif
+>>>>>>> Changes in code files according to initial review
     /* fall through */
   case SQLCOM_INSERT:
   {
@@ -4479,16 +4516,16 @@ mysql_execute_command(THD *thd)
 
 	Protocol* UNINIT_VAR(save_protocol);
 	bool replaced_protocol = false;
-
-	if (!select_lex->returning_list.is_empty())
+	
+	if (!thd->lex->returning_list.is_empty())
 	{
-		/* This is INSERT ... RETURNING.  It will return output to the client */
+		 /*This is INSERT ... RETURNING. It will return output to the client */ 
 		if (thd->lex->analyze_stmt)
 		{
-			/*
+      /*
 			  Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
 			  output and then discard it.
-			*/
+      */	
 			sel_result = new (thd->mem_root) select_send_analyze(thd);
 			replaced_protocol = true;
 			save_protocol = thd->protocol;
@@ -4500,15 +4537,15 @@ mysql_execute_command(THD *thd)
 				goto error;
 		}
 	}
-
+   
     res= mysql_insert(thd, all_tables, lex->field_list, lex->many_values,
 		      lex->update_list, lex->value_list,
                       lex->duplicates, lex->ignore, lex->result ? lex->result : sel_result);
 	if (replaced_protocol)
-    {
-      delete thd->protocol;
-      thd->protocol= save_protocol;
-    }
+	{
+    delete thd->protocol;
+    thd->protocol= save_protocol;
+  }
 	delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
@@ -4545,8 +4582,8 @@ mysql_execute_command(THD *thd)
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     select_insert *sel_result;
-	select_result* result = NULL;
-	bool with_returning_list = false;
+    TABLE_LIST *save_first=	NULL;
+    select_result* result = NULL;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
@@ -4599,9 +4636,8 @@ mysql_execute_command(THD *thd)
 	  Protocol* UNINIT_VAR(save_protocol);
 	  bool replaced_protocol = false;
 
-	  if (!select_lex->returning_list.is_empty())
+	  if (!thd->lex->returning_list.is_empty())
 	  {
-		  with_returning_list = true;
 		  /* This is INSERT ... RETURNING.  It will return output to the client */
 		  if (thd->lex->analyze_stmt)
 		  {
@@ -4636,22 +4672,24 @@ mysql_execute_command(THD *thd)
 		So we save the values in saved_first, saved_table_list and saved_first_name_resolution_context.
 		before they are masked.
 	  */
-	  select_lex->table_list.saved_first=select_lex->table_list.first;
+	  
+			TABLE_LIST *save_first=select_lex->table_list.first;
       select_lex->table_list.first= second_table;
-	  select_lex->context.saved_table_list=select_lex->context.table_list;
-	  select_lex->context.saved_name_resolution_table=
-		          select_lex->context.first_name_resolution_table;
+			select_lex->context.saved_table_list=select_lex->context.table_list;
+			select_lex->context.saved_name_resolution_table=
+        select_lex->context.first_name_resolution_table;
       select_lex->context.table_list= 
         select_lex->context.first_name_resolution_table= second_table;
-      res= mysql_insert_select_prepare(thd, lex->result ? lex->result : result);
-      if (!res && (sel_result= new (thd->mem_root) select_insert(with_returning_list, lex->result ? lex->result : result, thd,
-                                                             first_table,
-                                                             first_table->table,
-                                                             &lex->field_list,
-                                                             &lex->update_list,
-                                                             &lex->value_list,
-                                                             lex->duplicates,
-                                                             lex->ignore)))
+      res= mysql_insert_select_prepare(thd,lex->result ? lex->result : result);
+      if (!res && (sel_result= new (thd->mem_root) select_insert(thd, first_table,
+                                                              first_table->table,
+                                                              &lex->field_list,
+                                                              &lex->update_list,
+                                                              &lex->value_list,
+                                                              lex->duplicates,
+                                                              lex->ignore,
+                                                              lex->result ? lex->result : result,
+                                                              save_first)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -4687,7 +4725,7 @@ mysql_execute_command(THD *thd)
           sel_result->abort_result_set();
         }
         delete sel_result;
-		delete result;
+        delete result;
       }
       if (replaced_protocol)
       {
@@ -7607,7 +7645,15 @@ void THD::reset_for_next_command(bool do_clear_error)
 void
 mysql_init_select(LEX *lex)
 {
+<<<<<<< HEAD
   lex->init_select();
+=======
+  SELECT_LEX *select_lex= lex->current_select;
+  lex->returning_list.empty();
+  select_lex->init_select();
+  lex->wild= 0;
+  lex->exchange= 0;
+>>>>>>> Changes in code files according to initial review
 }
 
 

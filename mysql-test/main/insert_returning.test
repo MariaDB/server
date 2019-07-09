@@ -1,4 +1,4 @@
---echo # Syntax check for INSERT...RETURNING
+--echo # Test for INSERT...RETURNING
 
 CREATE TABLE t1(id1 INT, val1 VARCHAR(1));
 CREATE TABLE t2(id2 INT, val2 VARCHAR(1));

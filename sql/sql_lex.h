@@ -1081,11 +1081,7 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
-                      /*
-					  List of fields and expression for returning
-					  part of insert
-					  */
-  List<Item>          returning_list;
+                      
   List<Item>          pre_fix; /* above list before fix_fields */
   bool                is_item_list_lookup;
   /* 
@@ -3097,8 +3093,9 @@ private:
 public:
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
-  List<Item> returning_list;
   SELECT_LEX *all_selects_list;
+  /* List of fields and expression for returning part of insert*/
+  List<Item> returning_list;
   /* current with clause in parsing if any, otherwise 0*/
   With_clause *curr_with_clause;  
   /* pointer to the first with clause in the current statement */

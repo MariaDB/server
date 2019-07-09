@@ -1,10 +1,4 @@
-#
-#  Tests for DELETE FROM <table> ... RETURNING <expr>,...
-# 
-
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
+#Test for checking all dataypes are returned 
 
 CREATE TABLE t1(num_int1 INT(2) PRIMARY KEY, 
                 num_bit1 BIT(2),
@@ -89,4 +83,4 @@ DROP TABLE t2;
 
 #
 #END OF TEST CASE
-# 
+#  

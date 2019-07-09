@@ -1,41 +1,158 @@
-# RETURNING * and RETURNING <COLUMN_NAME> should work. 
-# Other cases with RETURNING should output syntax error.
-drop table if exists t1,t2;
+# Syntax check for INSERT...RETURNING
 CREATE TABLE t1(id1 INT, val1 VARCHAR(1));
-Table t1 created successfully. Fields: id1 INT, val1 VARCHAR(1);
 CREATE TABLE t2(id2 INT, val2 VARCHAR(1));
-Table t2 created successfully. Fields: id2 INT, val2 VARCHAR(1);
-#Simple insert statement
+INSERT INTO t2 VALUES (1,'a'),(2,'b'),(3,'c');
+#
+# Simple insert statement
+#
 INSERT INTO t1 (id1, val1) VALUES (1, 'a');
 INSERT INTO t1 (id1, val1) VALUES (2, 'b') RETURNING *;
 INSERT INTO t1 (id1, val1) VALUES (3, 'c') RETURNING id1, val1;
-INSERT INTO t1 (id1, val1) VALUES (3, 'c') RETURNING id1 AS id;
+INSERT INTO t1 (id1, val1) VALUES (4, 'd') RETURNING id1 as id;
+INSERT INTO t1 (id1, val1) VALUES (5, 'e') RETURNING id1 && id1;
+INSERT INTO t1 (id1, val1) VALUES (6, 'f') RETURNING id1 + id1;
+INSERT INTO t1 (id1, val1) VALUES (7, 'g') RETURNING id1 | id1;
+INSERT INTO t1 (id1, val1) VALUES (8, 'h') RETURNING id1, UPPER(val1);
+INSERT INTO t1(id1,val1) VALUES (9,'i') RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 WHERE id2=1);
+INSERT INTO t1(id1,val1) VALUES(10,'j') RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id2+1);
+INSERT INTO t1 (id1,val1) VALUES (11,'k') RETURNING id1,(SELECT id2 FROM  t2 WHERE val2='b');
 SELECT * FROM t1;
 id1	val1
 1	a
 2	b
 3	c
-3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+9	i
+10	j
+11	k
 TRUNCATE TABLE t1;
-SELECT * FROM t1;
-id1	val1
-#multiple values in one insert statement
+#
+# Multiple values in one insert statement
+#
 INSERT INTO t1 VALUES (1,'a'),(2,'b');
 INSERT INTO t1 VALUES (3,'c'),(4,'d') RETURNING *;
 INSERT INTO t1 VALUES (5,'e'),(6,'f') RETURNING id1, val1;
-INSERT INTO t1 VALUES (5,'e'),(6,'f') RETURNING id1 AS id;
-# INSERT...ON DULPICATE KEY UPDATE
+INSERT INTO t1 VALUES (7,'g'),(8,'h') RETURNING id1 AS id;
+INSERT INTO t1 VALUES (9,'i'),(10,'j') RETURNING id1 | id1;
+INSERT INTO t1 VALUES (11,'k'),(12,'l') RETURNING id1 + id1;
+INSERT INTO t1 VALUES (13,'m'),(14,'n') RETURNING id1 && id1;
+INSERT INTO t1 VALUES (15,'m'),(16,'n') RETURNING id1, UPPER(val1);
+INSERT INTO t1 VALUES (17,'o'),(18,'p') RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 WHERE id2=1);
+INSERT INTO t1 VALUES (19,'q'),(20,'r') RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id2+1);
+INSERT INTO t1 VALUES (21,'s'),(21,'t') RETURNING id1,(SELECT id2 FROM  t2 WHERE val2='b');
+SELECT * FROM t1;
+id1	val1
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+9	i
+10	j
+11	k
+12	l
+13	m
+14	n
+15	m
+16	n
+17	o
+18	p
+19	q
+20	r
+21	s
+21	t
+TRUNCATE TABLE t1;
+#
+# INSERT...ON DUPLICATE KEY UPDATE
+#
 CREATE TABLE ins_duplicate (id INT PRIMARY KEY, val VARCHAR(1));
 INSERT INTO ins_duplicate VALUES (1,'a');
 INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING id,val;
-INSERT INTO ins_duplicate VALUES (3,'b') ON DUPLICATE KEY UPDATE val='c' RETURNING *;
-INSERT INTO ins_duplicate VALUES (4,'b') ON DUPLICATE KEY UPDATE val='d' RETURNING id AS id1;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='c' RETURNING *;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='d' RETURNING id AS id1;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='e' RETURNING id | id;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='f' RETURNING id && id;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='g' RETURNING id +id;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='g' RETURNING id, UPPER(val);
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='i' RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 WHERE id2=1);
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='j' RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id2+1);
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='k' RETURNING id,(SELECT id2 FROM  t2 WHERE val2='b');
+SELECT * FROM ins_duplicate;
+id	val
+1	a
+2	k
+#
 # INSERT...SET
-INSERT INTO  t1 SET id1 = 1, val1 = 'a';
-INSERT INTO  t1 SET id1 = 2, val1 = 'b' RETURNING *;
-INSERT INTO  t1 SET id1 = 3, val1 = 'c' RETURNING id1,val1;
-INSERT INTO  t1 SET id1 = 3, val1 = 'c' RETURNING id1 AS id;
+#
+INSERT INTO t1 SET id1=1, val1 = 'a';
+INSERT INTO t1 SET id1=2, val1 = 'b' RETURNING *;
+INSERT INTO t1 SET id1=3, val1 = 'c' RETURNING id1,val1;
+INSERT INTO t1 SET id1=4, val1 = 'd' RETURNING id1 AS id;
+INSERT INTO t1 SET id1=5, val1 = 'e' RETURNING id1 | id1;
+INSERT INTO t1 SET id1=6, val1 = 'f' RETURNING id1 && id1;
+INSERT INTO t1 SET id1=7, val1 = 'g' RETURNING id1 + id1;
+INSERT INTO t1 SET id1=8, val1 = 'h' RETURNING id1,UPPER(val1);
+INSERT INTO t1 SET id1=9, val1 = 'i'  RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 WHERE id2=1);
+INSERT INTO t1 SET id1=10, val1='j' RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id2+1);
+INSERT INTO t1 SET id1=11, val1='k' RETURNING id1,(SELECT id2 FROM  t2 WHERE val2='b');
+SELECT * FROM t1;
+id1	val1
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+9	i
+10	j
+11	k
+#
+# INSERT...SELECT
+#
+TRUNCATE TABLE t2;
+INSERT INTO t2(id2,val2) SELECT * FROM t1;
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=1 RETURNING *;
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=2 RETURNING id2,val2;
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=3 RETURNING id2 AS id;
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=4 RETURNING id2 | id2;
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=5 RETURNING id2 && id2;
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=6 RETURNING id2+id2;
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=7 RETURNING id2,UPPER(val2);
+INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=8 RETURNING (SELECT GROUP_CONCAT(val1) FROM t1 WHERE id1=1);
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=9 RETURNING (SELECT GROUP_CONCAT(val1) FROM t1 GROUP BY id1 HAVING id1=id1+1);
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=10 RETURNING id2,(SELECT id1 FROM t1 WHERE val1='b');
+SELECT * FROM t2;
+id2	val2
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+9	i
+10	j
+11	k
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+9	i
+10	j
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE ins_duplicate;
-#End of test case 
