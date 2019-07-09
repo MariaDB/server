@@ -3037,7 +3037,7 @@ String *Field_decimal::val_str(String *val_buffer __attribute__((unused)),
   5.00 , -1.0,  05,  -05, +5 with optional pre/end space
 */
 
-int Field_decimal::cmp(const uchar *a_ptr,const uchar *b_ptr)
+int Field_decimal::cmp(const uchar *a_ptr,const uchar *b_ptr) const
 {
   const uchar *end;
   int swap=0;
@@ -3416,7 +3416,7 @@ my_decimal* Field_new_decimal::val_decimal(my_decimal *decimal_value)
 }
 
 
-int Field_new_decimal::cmp(const uchar *a,const uchar*b)
+int Field_new_decimal::cmp(const uchar *a,const uchar*b) const
 {
   return memcmp(a, b, bin_size);
 }
@@ -3738,7 +3738,7 @@ bool Field_tiny::send_binary(Protocol *protocol)
   return protocol->store_tiny((longlong) (int8) ptr[0]);
 }
 
-int Field_tiny::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_tiny::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   signed char a,b;
   a=(signed char) a_ptr[0]; b= (signed char) b_ptr[0];
@@ -3907,7 +3907,7 @@ bool Field_short::send_binary(Protocol *protocol)
 }
 
 
-int Field_short::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_short::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   short a,b;
   a=sint2korr(a_ptr);
@@ -4100,7 +4100,7 @@ bool Field_medium::send_binary(Protocol *protocol)
 }
 
 
-int Field_medium::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_medium::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   long a,b;
   if (unsigned_flag)
@@ -4278,7 +4278,7 @@ bool Field_long::send_binary(Protocol *protocol)
   return protocol->store_long(Field_long::val_int());
 }
 
-int Field_long::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_long::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   int32 a,b;
   a=sint4korr(a_ptr);
@@ -4424,7 +4424,7 @@ bool Field_longlong::send_binary(Protocol *protocol)
 }
 
 
-int Field_longlong::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_longlong::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   longlong a,b;
   a=sint8korr(a_ptr);
@@ -4559,7 +4559,7 @@ String *Field_float::val_str(String *val_buffer,
 }
 
 
-int Field_float::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_float::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   float a,b;
   float4get(a,a_ptr);
@@ -4901,7 +4901,7 @@ bool Field_double::send_binary(Protocol *protocol)
 }
 
 
-int Field_double::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_double::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   double a,b;
   float8get(a,a_ptr);
@@ -5314,7 +5314,7 @@ bool Field_timestamp::send_binary(Protocol *protocol)
 }
 
 
-int Field_timestamp::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_timestamp::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   int32 a,b;
   a=sint4korr(a_ptr);
@@ -5510,7 +5510,7 @@ bool Field_timestamp_with_dec::send_binary(Protocol *protocol)
 }
 
 
-int Field_timestamp_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_timestamp_hires::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   int32 a,b;
   ulong a_sec_part, b_sec_part;
@@ -5960,7 +5960,7 @@ bool Field_time::send_binary(Protocol *protocol)
 }
 
 
-int Field_time::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_time::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   int32 a,b;
   a=(int32) sint3korr(a_ptr);
@@ -6148,7 +6148,7 @@ bool Field_time_hires::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 }
 
 
-int Field_time_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_time_hires::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   ulonglong a=read_bigendian(a_ptr, Field_time_hires::pack_length());
   ulonglong b=read_bigendian(b_ptr, Field_time_hires::pack_length());
@@ -6476,7 +6476,7 @@ String *Field_date::val_str(String *val_buffer,
 }
 
 
-int Field_date::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_date::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   int32 a,b;
   a=sint4korr(a_ptr);
@@ -6580,7 +6580,7 @@ bool Field_newdate::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
 }
 
 
-int Field_newdate::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_newdate::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   uint32 a,b;
   a=(uint32) uint3korr(a_ptr);
@@ -6765,7 +6765,7 @@ bool Field_datetime::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
 }
 
 
-int Field_datetime::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_datetime::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   longlong a,b;
   a=sint8korr(a_ptr);
@@ -6867,7 +6867,7 @@ bool Field_datetime_hires::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
 }
 
 
-int Field_datetime_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_datetime_hires::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   ulonglong a=read_bigendian(a_ptr, Field_datetime_hires::pack_length());
   ulonglong b=read_bigendian(b_ptr, Field_datetime_hires::pack_length());
@@ -7258,7 +7258,7 @@ Field_string::compatible_field_size(uint field_metadata,
 }
 
 
-int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   size_t a_len, b_len;
 
@@ -7612,7 +7612,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 
 
 int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                             uint max_len)
+                             uint max_len) const
 {
   uint a_length, b_length;
   int diff;
@@ -7645,7 +7645,7 @@ int Field_varstring::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
     varstring and blob keys are ALWAYS stored with a 2 byte length prefix
 */
 
-int Field_varstring::key_cmp(const uchar *key_ptr, uint max_key_length)
+int Field_varstring::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
   size_t length=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
   size_t local_char_length= max_key_length / field_charset->mbmaxlen;
@@ -7670,7 +7670,7 @@ int Field_varstring::key_cmp(const uchar *key_ptr, uint max_key_length)
     (keys are created and compared in key.cc)
 */
 
-int Field_varstring::key_cmp(const uchar *a,const uchar *b)
+int Field_varstring::key_cmp(const uchar *a,const uchar *b) const
 {
   return field_charset->coll->strnncollsp(field_charset,
                                           a + HA_KEY_BLOB_LENGTH,
@@ -7870,7 +7870,7 @@ void Field_varstring::set_key_image(const uchar *buff,uint length)
 
 
 int Field_varstring::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
-                                uint32 max_length)
+                                uint32 max_length) const
 {
   uint32 a_length,b_length;
 
@@ -8043,7 +8043,7 @@ int Field_longstr::compress(char *to, uint to_length,
 */
 
 String *Field_longstr::uncompress(String *val_buffer, String *val_ptr,
-                                  const uchar *from, uint from_length)
+                                  const uchar *from, uint from_length) const
 {
   if (from_length)
   {
@@ -8122,7 +8122,7 @@ longlong Field_varstring_compressed::val_int(void)
 
 
 int Field_varstring_compressed::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                                        uint max_len)
+                                        uint max_len) const
 {
   String a, b;
   uint a_length, b_length;
@@ -8373,7 +8373,7 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
 
 
 int Field_blob::cmp(const uchar *a,uint32 a_length, const uchar *b,
-		    uint32 b_length)
+		    uint32 b_length) const
 {
   return field_charset->coll->strnncollsp(field_charset, 
                                           a, a_length, b, b_length);
@@ -8381,7 +8381,7 @@ int Field_blob::cmp(const uchar *a,uint32 a_length, const uchar *b,
 
 
 int Field_blob::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
-                        uint max_length)
+                        uint max_length) const
 {
   uchar *blob1,*blob2;
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
@@ -8394,7 +8394,7 @@ int Field_blob::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
 
 
 int Field_blob::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
-			   uint32 max_length)
+			   uint32 max_length) const
 {
   char *a,*b;
   uint diff;
@@ -8446,7 +8446,7 @@ void Field_blob::set_key_image(const uchar *buff,uint length)
 }
 
 
-int Field_blob::key_cmp(const uchar *key_ptr, uint max_key_length)
+int Field_blob::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
   uchar *blob1;
   size_t blob_length=get_length(ptr);
@@ -8461,7 +8461,7 @@ int Field_blob::key_cmp(const uchar *key_ptr, uint max_key_length)
 			 uint2korr(key_ptr));
 }
 
-int Field_blob::key_cmp(const uchar *a,const uchar *b)
+int Field_blob::key_cmp(const uchar *a,const uchar *b) const
 {
   return Field_blob::cmp(a+HA_KEY_BLOB_LENGTH, uint2korr(a),
 			 b+HA_KEY_BLOB_LENGTH, uint2korr(b));
@@ -8858,9 +8858,13 @@ double Field_enum::val_real(void)
 longlong Field_enum::val_int(void)
 {
   DBUG_ASSERT(marked_for_read());
-  return read_lowendian(ptr, packlength);
+  return val_int(ptr);
 }
 
+longlong Field_enum::val_int(const uchar *real_ptr) const
+{
+  return read_lowendian(real_ptr, packlength);
+}
 
 /**
    Save the field metadata for enum fields.
@@ -8894,14 +8898,10 @@ String *Field_enum::val_str(String *val_buffer __attribute__((unused)),
   return val_ptr;
 }
 
-int Field_enum::cmp(const uchar *a_ptr, const uchar *b_ptr)
+int Field_enum::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
-  uchar *old= ptr;
-  ptr= (uchar*) a_ptr;
-  ulonglong a=Field_enum::val_int();
-  ptr= (uchar*) b_ptr;
-  ulonglong b=Field_enum::val_int();
-  ptr= old;
+  ulonglong a=Field_enum::val_int(a_ptr);
+  ulonglong b=Field_enum::val_int(b_ptr);
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
@@ -9542,7 +9542,7 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
     The a and b pointer must be pointers to the field in a record
     (not the table->record[0] necessarily)
 */
-int Field_bit::cmp_max(const uchar *a, const uchar *b, uint max_len)
+int Field_bit::cmp_max(const uchar *a, const uchar *b, uint max_len) const
 {
   my_ptrdiff_t a_diff= a - ptr;
   my_ptrdiff_t b_diff= b - ptr;
@@ -9560,7 +9560,7 @@ int Field_bit::cmp_max(const uchar *a, const uchar *b, uint max_len)
 }
 
 
-int Field_bit::key_cmp(const uchar *str, uint length)
+int Field_bit::key_cmp(const uchar *str, uint length) const
 {
   if (bit_len)
   {

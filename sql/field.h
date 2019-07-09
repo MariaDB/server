@@ -1134,18 +1134,18 @@ public:
                                                    const Conv_param &param)
                                                    const;
   inline  int cmp(const uchar *str) { return cmp(ptr,str); }
-  virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
+  virtual int cmp_max(const uchar *a, const uchar *b, uint max_len) const
     { return cmp(a, b); }
-  virtual int cmp(const uchar *,const uchar *)=0;
-  virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U)
+  virtual int cmp(const uchar *,const uchar *) const=0;
+  virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U) const
   { return memcmp(a,b,pack_length()); }
   virtual int cmp_offset(my_ptrdiff_t row_offset)
   { return cmp(ptr,ptr+row_offset); }
   virtual int cmp_binary_offset(uint row_offset)
   { return cmp_binary(ptr, ptr+row_offset); };
-  virtual int key_cmp(const uchar *a,const uchar *b)
+  virtual int key_cmp(const uchar *a,const uchar *b) const
   { return cmp(a, b); }
-  virtual int key_cmp(const uchar *str, uint length)
+  virtual int key_cmp(const uchar *str, uint length) const
   { return cmp(ptr,str); }
   /*
     Update the value m of the 'min_val' field with the current value v
@@ -1977,7 +1977,7 @@ protected:
                uint *out_length,
                CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
-                     const uchar *from, uint from_length);
+                     const uchar *from, uint from_length) const;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -2092,7 +2092,7 @@ public:
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   void overflow(bool negative);
   bool zero_pack() const { return 0; }
@@ -2182,7 +2182,7 @@ public:
   {
     return my_decimal(ptr, precision, dec).to_bool();
   }
-  int cmp(const uchar *, const uchar *);
+  int cmp(const uchar *, const uchar *) const;
   void sort_string(uchar *buff, uint length);
   bool zero_pack() const { return 0; }
   void sql_type(String &str) const;
@@ -2288,7 +2288,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 1; }
   void sql_type(String &str) const;
@@ -2345,7 +2345,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 2; }
   void sql_type(String &str) const;
@@ -2386,7 +2386,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
@@ -2432,7 +2432,7 @@ public:
   longlong val_int(void);
   bool send_binary(Protocol *protocol);
   String *val_str(String*,String *);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
@@ -2489,7 +2489,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 8; }
   void sql_type(String &str) const;
@@ -2590,7 +2590,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return sizeof(float); }
   uint row_pack_length() const { return pack_length(); }
@@ -2655,7 +2655,7 @@ public:
   ulonglong val_uint(void) { return (ulonglong) val_int_from_real(true); }
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return sizeof(double); }
   uint row_pack_length() const { return pack_length(); }
@@ -2709,7 +2709,7 @@ public:
   String *val_str(String *value,String *value2)
   { value2->length(0); return value2;}
   bool is_equal(const Column_definition &new_field) const;
-  int cmp(const uchar *a, const uchar *b) { return 0;}
+  int cmp(const uchar *a, const uchar *b) const { return 0;}
   void sort_string(uchar *buff, uint length)  {}
   uint32 pack_length() const { return 0; }
   void sql_type(String &str) const;
@@ -2890,7 +2890,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
@@ -3003,7 +3003,7 @@ public:
   }
   bool val_native(Native *to);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   uint32 pack_length() const { return 4 + sec_part_bytes(dec); }
   uint size_of() const { return sizeof(*this); }
 };
@@ -3044,7 +3044,7 @@ public:
     uint tmp= my_timestamp_binary_length(field_metadata);
     DBUG_RETURN(tmp);
   }
-  int cmp(const uchar *a_ptr,const uchar *b_ptr)
+  int cmp(const uchar *a_ptr,const uchar *b_ptr) const
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
@@ -3167,7 +3167,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
@@ -3205,7 +3205,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
@@ -3269,7 +3269,7 @@ public:
   String *val_str(String*,String *);
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
@@ -3329,7 +3329,7 @@ public:
   }
   int reset(void);
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return Type_handler_time::hires_bytes(dec); }
   uint size_of() const { return sizeof(*this); }
@@ -3377,7 +3377,7 @@ public:
     DBUG_ASSERT(length == Field_timef::pack_length());
     memcpy(to, ptr, length);
   }
-  int cmp(const uchar *a_ptr, const uchar *b_ptr)
+  int cmp(const uchar *a_ptr, const uchar *b_ptr) const
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
@@ -3418,7 +3418,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 8; }
   void sql_type(String &str) const;
@@ -3503,7 +3503,7 @@ public:
   {
     DBUG_ASSERT(dec);
   }
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   uint32 pack_length() const { return Type_handler_datetime::hires_bytes(dec); }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetime_hires::get_TIME(ltime, ptr, fuzzydate); }
@@ -3545,7 +3545,7 @@ public:
     uint tmp= my_datetime_binary_length(field_metadata);
     DBUG_RETURN(tmp);
   }
-  int cmp(const uchar *a_ptr, const uchar *b_ptr)
+  int cmp(const uchar *a_ptr, const uchar *b_ptr) const
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
@@ -3657,7 +3657,7 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   void update_data_type_statistics(Data_type_statistics *st) const
   {
@@ -3783,8 +3783,8 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
+  int cmp_max(const uchar *, const uchar *, uint max_length) const;
+  int cmp(const uchar *a,const uchar *b) const
   {
     return cmp_max(a, b, ~0U);
   }
@@ -3795,9 +3795,9 @@ public:
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end, uint param_data);
-  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
-  int key_cmp(const uchar *,const uchar*);
-  int key_cmp(const uchar *str, uint length);
+  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U) const;
+  int key_cmp(const uchar *,const uchar*) const;
+  int key_cmp(const uchar *str, uint length) const;
   uint packed_col_length(const uchar *to, uint length);
   uint max_packed_col_length(uint max_length);
   uint32 data_length();
@@ -3856,14 +3856,14 @@ private:
   {
     return (field_length - 1) / field_charset->mbmaxlen;
   }
-  int cmp_max(const uchar *a_ptr, const uchar *b_ptr, uint max_len);
+  int cmp_max(const uchar *a_ptr, const uchar *b_ptr, uint max_len) const;
 
   /*
     Compressed fields can't have keys as two rows may have different
     compression methods or compression levels.
   */
 
-  int key_cmp(const uchar *str, uint length)
+  int key_cmp(const uchar *str, uint length) const
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
 };
@@ -4035,13 +4035,13 @@ public:
   longlong val_int(void);
   String *val_str(String*,String *);
   my_decimal *val_decimal(my_decimal *);
-  int cmp_max(const uchar *, const uchar *, uint max_length);
-  int cmp(const uchar *a,const uchar *b)
+  int cmp_max(const uchar *, const uchar *, uint max_length) const;
+  int cmp(const uchar *a,const uchar *b) const
     { return cmp_max(a, b, ~0U); }
-  int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length);
-  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
-  int key_cmp(const uchar *,const uchar*);
-  int key_cmp(const uchar *str, uint length);
+  int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length) const;
+  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U) const;
+  int key_cmp(const uchar *,const uchar*) const;
+  int key_cmp(const uchar *str, uint length) const;
   /* Never update the value of min_val for a blob field */
   bool update_min(Field *min_val, bool force_update) { return FALSE; }
   /* Never update the value of max_val for a blob field */
@@ -4219,9 +4219,9 @@ private:
   { DBUG_ASSERT(0); return 0; }
   void set_key_image(const uchar *buff, uint length)
   { DBUG_ASSERT(0); }
-  int key_cmp(const uchar *a, const uchar *b)
+  int key_cmp(const uchar *a, const uchar *b) const
   { DBUG_ASSERT(0); return 0; }
-  int key_cmp(const uchar *str, uint length)
+  int key_cmp(const uchar *str, uint length) const
   { DBUG_ASSERT(0); return 0; }
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
@@ -4232,6 +4232,7 @@ private:
 
 class Field_enum :public Field_str {
   static void do_field_enum(Copy_field *copy_field);
+  longlong val_int(const uchar *) const;
 protected:
   uint packlength;
 public:
@@ -4297,7 +4298,7 @@ public:
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
-  int cmp(const uchar *,const uchar *);
+  int cmp(const uchar *,const uchar *) const;
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return (uint32) packlength; }
   void store_type(ulonglong value);
@@ -4444,7 +4445,7 @@ public:
   virtual bool str_needs_quotes() { return TRUE; }
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
-  int cmp(const uchar *a, const uchar *b)
+  virtual int cmp(const uchar *a, const uchar *b) const
   {
     DBUG_ASSERT(ptr == a || ptr == b);
     if (ptr == a)
@@ -4454,10 +4455,10 @@ public:
   }
   int cmp_binary_offset(uint row_offset)
   { return cmp_offset(row_offset); }
-  int cmp_max(const uchar *a, const uchar *b, uint max_length);
-  int key_cmp(const uchar *a, const uchar *b)
+  int cmp_max(const uchar *a, const uchar *b, uint max_length) const;
+  int key_cmp(const uchar *a, const uchar *b) const
   { return cmp_binary((uchar *) a, (uchar *) b); }
-  int key_cmp(const uchar *str, uint length);
+  int key_cmp(const uchar *str, uint length) const;
   int cmp_offset(my_ptrdiff_t row_offset);
   bool update_min(Field *min_val, bool force_update)
   { 
