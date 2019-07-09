@@ -1418,7 +1418,7 @@ row_ins_foreign_check_on_constraint(
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
 #ifdef WITH_WSREP
-	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
+	err = wsrep_append_foreign_key(trx, foreign, cascade->pcur->old_rec, clust_index,
 				       FALSE, WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
@@ -1785,6 +1785,11 @@ row_ins_check_foreign_constraint(
 						check_index,
 						check_ref,
 						key_type);
+
+					if (err != DB_SUCCESS) {
+						fprintf(stderr,
+							"WSREP: foreign key append failed: %d\n", err);
+					}
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
