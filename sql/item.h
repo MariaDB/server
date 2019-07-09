@@ -5792,7 +5792,6 @@ public:
 #include "item_row.h"
 #include "item_cmpfunc.h"
 #include "item_strfunc.h"
-#include "item_geofunc.h"
 #include "item_timefunc.h"
 #include "item_subselect.h"
 #include "item_xmlfunc.h"

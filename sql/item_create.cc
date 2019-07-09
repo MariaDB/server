@@ -35,6 +35,7 @@
 #include "sp.h"
 #include "item_inetfunc.h"
 #include "sql_time.h"
+#include "sql_type_geom.h"
 
 /*
 =============================================================================

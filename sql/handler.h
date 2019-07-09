@@ -52,7 +52,6 @@ class Rowid_filter;
 class Field_string;
 class Field_varstring;
 class Field_blob;
-class Field_geom;
 class Column_definition;
 
 // the following is for checking tables
@@ -4814,11 +4813,6 @@ public:
     return false;
   }
   virtual bool can_convert_blob(const Field_blob *field,
-                                const Column_definition &new_type) const
-  {
-    return false;
-  }
-  virtual bool can_convert_geom(const Field_geom *field,
                                 const Column_definition &new_type) const
   {
     return false;

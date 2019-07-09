@@ -3484,6 +3484,12 @@ public:
   {
     return false;
   }
+  virtual uint Column_definition_gis_options_image(uchar *buff,
+                                                   const Column_definition &def)
+                                                   const
+  {
+    return 0;
+  }
   // Check if the implicit default value is Ok in the current sql_mode
   virtual bool validate_implicit_default_value(THD *thd,
                                                const Column_definition &def)

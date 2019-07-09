@@ -21,6 +21,7 @@
 #include <mysql/plugin.h>
 #include "sql_show.h"           // get_all_tables()
 #include "sql_error.h"          // convert_error_to_warning()
+#include "sql_type_geom.h"
 
 
 /*********** INFORMATION_SCHEMA.SPATIEL_REF_SYS *******************/

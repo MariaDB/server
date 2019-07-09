@@ -6089,7 +6089,7 @@ int ha_mroonga::storage_write_row(uchar *buf)
 #ifdef MRN_HAVE_SPATIAL
     bool is_null_geometry_value =
       field->real_type() == MYSQL_TYPE_GEOMETRY &&
-      static_cast<Field_geom *>(field)->get_length() == 0;
+      static_cast<Field_blob *>(field)->get_length() == 0;
     if (is_null_geometry_value) {
       continue;
     }
@@ -10729,7 +10729,7 @@ int ha_mroonga::generic_store_bulk_geometry(Field *field, grn_obj *buf)
   int error = 0;
 #ifdef MRN_HAVE_SPATIAL
   String buffer;
-  Field_geom *geometry = (Field_geom *)field;
+  Field_blob *geometry = (Field_blob *)field;
   String *value = geometry->val_str(0, &buffer);
   const char *wkb = value->ptr();
   int len = value->length();
@@ -11199,7 +11199,7 @@ void ha_mroonga::storage_store_field_geometry(Field *field,
   String *geometry_buffer = &blob_buffers[field->field_index];
   geometry_buffer->length(0);
   uint wkb_length = sizeof(wkb) / sizeof(*wkb);
-  Field_geom *geometry = (Field_geom *)field;
+  Field_blob *geometry= (Field_blob *)field;
   geometry_buffer->reserve(wkb_length);
   geometry_buffer->q_append((const char *) wkb, wkb_length);
   geometry->set_ptr((uint32) wkb_length, (uchar *) geometry_buffer->ptr());

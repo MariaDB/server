@@ -72,6 +72,9 @@ public:
                                  const st_value *value) const override;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const override;
+  uint Column_definition_gis_options_image(uchar *buff,
+                                           const Column_definition &def)
+                                           const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -315,6 +318,115 @@ extern MYSQL_PLUGIN_IMPORT
   Function_collection_geometry function_collection_geometry;
 
 extern MYSQL_PLUGIN_IMPORT Type_collection_geometry type_collection_geometry;
+
+
+#include "field.h"
+
+class Field_geom :public Field_blob
+{
+  const Type_handler_geometry *m_type_handler;
+public:
+  uint srid;
+  uint precision;
+  enum storage_type { GEOM_STORAGE_WKB= 0, GEOM_STORAGE_BINARY= 1};
+  enum storage_type storage;
+
+  Field_geom(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
+	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
+	     TABLE_SHARE *share, uint blob_pack_length,
+	     const Type_handler_geometry *gth,
+	     uint field_srid)
+     :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
+                 field_name_arg, share, blob_pack_length, &my_charset_bin),
+      m_type_handler(gth)
+  { srid= field_srid; }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const;
+  enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
+  const Type_handler *type_handler() const
+  {
+    return m_type_handler;
+  }
+  const Type_handler_geometry *type_handler_geom() const
+  {
+    return m_type_handler;
+  }
+  void set_type_handler(const Type_handler_geometry *th)
+  {
+    m_type_handler= th;
+  }
+  enum_field_types type() const
+  {
+    return MYSQL_TYPE_GEOMETRY;
+  }
+  enum_field_types real_type() const
+  {
+    return MYSQL_TYPE_GEOMETRY;
+  }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes();
+  }
+  void make_send_field(Send_field *to)
+  {
+    Field_longstr::make_send_field(to);
+  }
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const;
+  void sql_type(String &str) const;
+  Copy_func *get_copy_func(const Field *from) const
+  {
+    const Type_handler_geometry *fth=
+      dynamic_cast<const Type_handler_geometry*>(from->type_handler());
+    if (fth && m_type_handler->is_binary_compatible_geom_super_type_for(fth))
+      return get_identical_copy_func();
+    return do_conv_blob;
+  }
+  bool memcpy_field_possible(const Field *from) const
+  {
+    const Type_handler_geometry *fth=
+      dynamic_cast<const Type_handler_geometry*>(from->type_handler());
+    return fth &&
+           m_type_handler->is_binary_compatible_geom_super_type_for(fth) &&
+           !table->copy_blobs;
+  }
+  bool is_equal(const Column_definition &new_field) const;
+  bool can_be_converted_by_engine(const Column_definition &new_type) const
+  {
+    return false; // Override the Field_blob behavior
+  }
+
+  int  store(const char *to, size_t length, CHARSET_INFO *charset);
+  int  store(double nr);
+  int  store(longlong nr, bool unsigned_val);
+  int  store_decimal(const my_decimal *);
+  uint size_of() const { return sizeof(*this); }
+  /**
+   Key length is provided only to support hash joins. (compared byte for byte)
+   Ex: SELECT .. FROM t1,t2 WHERE t1.field_geom1=t2.field_geom2.
+
+   The comparison is not very relevant, as identical geometry might be
+   represented differently, but we need to support it either way.
+  */
+  uint32 key_length() const { return packlength; }
+
+  /**
+    Non-nullable GEOMETRY types cannot have defaults,
+    but the underlying blob must still be reset.
+   */
+  int reset(void) { return Field_blob::reset() || !maybe_null(); }
+  bool load_data_set_null(THD *thd);
+  bool load_data_set_no_data(THD *thd, bool fixed_format);
+
+  uint get_srid() const { return srid; }
+  void print_key_value(String *out, uint32 length)
+  {
+    out->append(STRING_WITH_LEN("unprintable_geometry_value"));
+  }
+};
 
 #endif // HAVE_SPATIAL
 

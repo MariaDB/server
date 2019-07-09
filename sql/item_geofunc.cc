@@ -38,6 +38,7 @@
 #ifdef HAVE_SPATIAL
 #include <m_ctype.h>
 #include "opt_range.h"
+#include "item_geofunc.h"
 
 
 bool Item_geometry_func::fix_length_and_dec()

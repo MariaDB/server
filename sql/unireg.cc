@@ -152,6 +152,25 @@ static size_t extra2_str_size(size_t len)
   return (len > 255 ? 3 : 1) + len;
 }
 
+
+static uint gis_field_options_image(uchar *buff,
+                                    List<Create_field> &create_fields)
+{
+  uint image_size= 0;
+  List_iterator<Create_field> it(create_fields);
+  Create_field *field;
+  while ((field= it++))
+  {
+    if (field->real_field_type() != MYSQL_TYPE_GEOMETRY)
+      continue;
+    uchar *cbuf= buff ? buff + image_size : NULL;
+    image_size+= field->type_handler()->
+                   Column_definition_gis_options_image(cbuf, *field);
+  }
+  return image_size;
+}
+
+
 /**
   Create a frm (table definition) file
 
@@ -241,9 +260,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   options_len= engine_table_options_frm_length(create_info->option_list,
                                                create_fields,
                                                keys, key_info);
-#ifdef HAVE_SPATIAL
   gis_extra2_len= gis_field_options_image(NULL, create_fields);
-#endif /*HAVE_SPATIAL*/
   DBUG_PRINT("info", ("Options length: %u", options_len));
 
   if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
@@ -356,14 +373,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                                         create_fields, keys, key_info);
   }
 
-#ifdef HAVE_SPATIAL
   if (gis_extra2_len)
   {
     *pos= EXTRA2_GIS;
     pos= extra2_write_len(pos+1, gis_extra2_len);
     pos+= gis_field_options_image(pos, create_fields);
   }
-#endif /*HAVE_SPATIAL*/
 
   // PERIOD
   if (create_info->period_info.is_set())
