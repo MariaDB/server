@@ -89,6 +89,7 @@ class Virtual_column_info;
 class Conv_source;
 class ST_FIELD_INFO;
 class Type_collection;
+class Create_func;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -6521,6 +6522,18 @@ class Type_handler_interval_DDhhmmssff: public Type_handler_long_blob
 public:
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
+};
+
+
+class Function_collection
+{
+public:
+  virtual ~Function_collection() {}
+  virtual bool init()= 0;
+  virtual void cleanup()= 0;
+  virtual Create_func *find_native_function_builder(THD *thd,
+                                                    const LEX_CSTRING &name)
+                                                    const= 0;
 };
 
 

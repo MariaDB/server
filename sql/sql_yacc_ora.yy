@@ -1358,7 +1358,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         primary_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
         expr_or_default set_expr_or_default
-        geometry_function signed_literal expr_or_literal
+        signed_literal expr_or_literal
         opt_escape
         sp_opt_default
         simple_ident_nospvar
@@ -11101,32 +11101,6 @@ function_call_conflict:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | geometry_function
-          {
-#ifdef HAVE_SPATIAL
-            $$= $1;
-            /* $1 may be NULL, GEOM_NEW not tested for out of memory */
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-#else
-            my_yyabort_error((ER_FEATURE_DISABLED, MYF(0), sym_group_geom.name,
-                              sym_group_geom.needed_define));
-#endif
-          }
-        ;
-
-geometry_function:
-          CONTAINS_SYM '(' expr ',' expr ')'
-          {
-            $$= GEOM_NEW(thd,
-                         Item_func_spatial_precise_rel(thd, $3, $5,
-                                                 Item_func::SP_CONTAINS_FUNC));
-          }
-        | WITHIN '(' expr ',' expr ')'
-          {
-            $$= GEOM_NEW(thd, Item_func_spatial_precise_rel(thd, $3, $5,
-                                                    Item_func::SP_WITHIN_FUNC));
-          }
         ;
 
 /*
@@ -11210,6 +11184,18 @@ function_call_generic:
             }
 
             if (unlikely(! ($$= item)))
+              MYSQL_YYABORT;
+          }
+        | CONTAINS_SYM '(' opt_expr_list ')'
+          {
+            if (!($$= Lex->make_item_func_call_native_or_parse_error(thd,
+                                                                     $1, $3)))
+              MYSQL_YYABORT;
+          }
+        | WITHIN '(' opt_expr_list ')'
+          {
+            if (!($$= Lex->make_item_func_call_native_or_parse_error(thd,
+                                                                     $1, $3)))
               MYSQL_YYABORT;
           }
         | ident_cli '.' ident_cli '(' opt_expr_list ')'

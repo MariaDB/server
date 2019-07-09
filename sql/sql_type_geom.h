@@ -258,6 +258,17 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_multipolygon    type_handler_multipolygo
 extern MYSQL_PLUGIN_IMPORT Type_handler_geometrycollection type_handler_geometrycollection;
 
 
+class Function_collection_geometry: public Function_collection
+{
+public:
+  bool init() override;
+  void cleanup() override;
+  Create_func *find_native_function_builder(THD *thd,
+                                            const LEX_CSTRING &name)
+                                            const override;
+};
+
+
 class Type_collection_geometry: public Type_collection
 {
   const Type_handler *aggregate_common(const Type_handler *a,
@@ -298,6 +309,10 @@ public:
     return NULL;
   }
 };
+
+
+extern MYSQL_PLUGIN_IMPORT
+  Function_collection_geometry function_collection_geometry;
 
 extern MYSQL_PLUGIN_IMPORT Type_collection_geometry type_collection_geometry;
 

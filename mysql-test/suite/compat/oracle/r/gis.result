@@ -1,6 +1,34 @@
+SET sql_mode=ORACLE;
+SELECT CONTAINS(POINT(1,1), POINT(1,1));
+CONTAINS(POINT(1,1), POINT(1,1))
+1
+SELECT CONTAINS(POINT(1,1), POINT(0,0));
+CONTAINS(POINT(1,1), POINT(0,0))
+0
 SELECT WITHIN(POINT(1,1), POINT(1,1));
 WITHIN(POINT(1,1), POINT(1,1))
 1
 SELECT WITHIN(POINT(1,1), POINT(0,0));
 WITHIN(POINT(1,1), POINT(0,0))
 0
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-19994 Add class Function_collection
+#
+SELECT CONTAINS();
+ERROR 42000: Incorrect parameter count in the call to native function 'CONTAINS()'
+SELECT CONTAINS(POINT(1,1));
+ERROR 42000: Incorrect parameter count in the call to native function 'CONTAINS(POINT(1,1))'
+SELECT CONTAINS(POINT(1,1), POINT(1,1), POINT(1,1));
+ERROR 42000: Incorrect parameter count in the call to native function 'CONTAINS(POINT(1,1), POINT(1,1), POINT(1,1))'
+SELECT WITHIN();
+ERROR 42000: Incorrect parameter count in the call to native function 'WITHIN()'
+SELECT WITHIN(POINT(1,1));
+ERROR 42000: Incorrect parameter count in the call to native function 'WITHIN(POINT(1,1))'
+SELECT WITHIN(POINT(1,1), POINT(1,1), POINT(1,1));
+ERROR 42000: Incorrect parameter count in the call to native function 'WITHIN(POINT(1,1), POINT(1,1), POINT(1,1))'
+#
+# End of 10.5 tests
+#

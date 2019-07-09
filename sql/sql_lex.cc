@@ -8609,6 +8609,20 @@ Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
 }
 
 
+Item *LEX::make_item_func_call_native_or_parse_error(THD *thd,
+                                                     Lex_ident_cli_st &name,
+                                                     List<Item> *args)
+{
+  Create_func *builder= find_native_function_builder(thd, &name);
+  DBUG_EXECUTE_IF("make_item_func_call_native_simulate_not_found",
+                  builder= NULL;);
+  if (builder)
+    return builder->create_func(thd, &name, args);
+  thd->parse_error(ER_SYNTAX_ERROR, name.end());
+  return NULL;
+}
+
+
 Item *LEX::create_item_qualified_asterisk(THD *thd,
                                           const Lex_ident_sys_st *name)
 {

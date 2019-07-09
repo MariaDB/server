@@ -69,6 +69,111 @@ protected:
 
 
 /**
+  Adapter for functions that takes exactly zero arguments.
+*/
+
+class Create_func_arg0 : public Create_func
+{
+public:
+  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
+                            List<Item> *item_list);
+
+  /**
+    Builder method, with no arguments.
+    @param thd The current thread
+    @return An item representing the function call
+  */
+  virtual Item *create_builder(THD *thd) = 0;
+
+protected:
+  /** Constructor. */
+  Create_func_arg0() {}
+  /** Destructor. */
+  virtual ~Create_func_arg0() {}
+};
+
+
+/**
+  Adapter for functions that takes exactly one argument.
+*/
+
+class Create_func_arg1 : public Create_func
+{
+public:
+  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  /**
+    Builder method, with one argument.
+    @param thd The current thread
+    @param arg1 The first argument of the function
+    @return An item representing the function call
+  */
+  virtual Item *create_1_arg(THD *thd, Item *arg1) = 0;
+
+protected:
+  /** Constructor. */
+  Create_func_arg1() {}
+  /** Destructor. */
+  virtual ~Create_func_arg1() {}
+};
+
+
+/**
+  Adapter for functions that takes exactly two arguments.
+*/
+
+class Create_func_arg2 : public Create_func
+{
+public:
+  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  /**
+    Builder method, with two arguments.
+    @param thd The current thread
+    @param arg1 The first argument of the function
+    @param arg2 The second argument of the function
+    @return An item representing the function call
+  */
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) = 0;
+
+protected:
+  /** Constructor. */
+  Create_func_arg2() {}
+  /** Destructor. */
+  virtual ~Create_func_arg2() {}
+};
+
+
+/**
+  Adapter for functions that takes exactly three arguments.
+*/
+
+class Create_func_arg3 : public Create_func
+{
+public:
+  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  /**
+    Builder method, with three arguments.
+    @param thd The current thread
+    @param arg1 The first argument of the function
+    @param arg2 The second argument of the function
+    @param arg3 The third argument of the function
+    @return An item representing the function call
+  */
+  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) = 0;
+
+protected:
+  /** Constructor. */
+  Create_func_arg3() {}
+  /** Destructor. */
+  virtual ~Create_func_arg3() {}
+};
+
+
+
+
+/**
   Adapter for native functions with a variable number of arguments.
   The main use of this class is to discard the following calls:
   <code>foo(expr1 AS name1, expr2 AS name2, ...)</code>

@@ -1,4 +1,36 @@
 -- source include/have_geometry.inc
 
+SET sql_mode=ORACLE;
+
+
+SELECT CONTAINS(POINT(1,1), POINT(1,1));
+SELECT CONTAINS(POINT(1,1), POINT(0,0));
+
 SELECT WITHIN(POINT(1,1), POINT(1,1));
 SELECT WITHIN(POINT(1,1), POINT(0,0));
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-19994 Add class Function_collection
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT CONTAINS();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT CONTAINS(POINT(1,1));
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT CONTAINS(POINT(1,1), POINT(1,1), POINT(1,1));
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT WITHIN();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT WITHIN(POINT(1,1));
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT WITHIN(POINT(1,1), POINT(1,1), POINT(1,1));
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

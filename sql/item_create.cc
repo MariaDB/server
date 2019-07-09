@@ -43,109 +43,6 @@
 */
 
 /**
-  Adapter for functions that takes exactly zero arguments.
-*/
-
-class Create_func_arg0 : public Create_func
-{
-public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name,
-                            List<Item> *item_list);
-
-  /**
-    Builder method, with no arguments.
-    @param thd The current thread
-    @return An item representing the function call
-  */
-  virtual Item *create_builder(THD *thd) = 0;
-
-protected:
-  /** Constructor. */
-  Create_func_arg0() {}
-  /** Destructor. */
-  virtual ~Create_func_arg0() {}
-};
-
-
-/**
-  Adapter for functions that takes exactly one argument.
-*/
-
-class Create_func_arg1 : public Create_func
-{
-public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  /**
-    Builder method, with one argument.
-    @param thd The current thread
-    @param arg1 The first argument of the function
-    @return An item representing the function call
-  */
-  virtual Item *create_1_arg(THD *thd, Item *arg1) = 0;
-
-protected:
-  /** Constructor. */
-  Create_func_arg1() {}
-  /** Destructor. */
-  virtual ~Create_func_arg1() {}
-};
-
-
-/**
-  Adapter for functions that takes exactly two arguments.
-*/
-
-class Create_func_arg2 : public Create_func
-{
-public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  /**
-    Builder method, with two arguments.
-    @param thd The current thread
-    @param arg1 The first argument of the function
-    @param arg2 The second argument of the function
-    @return An item representing the function call
-  */
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) = 0;
-
-protected:
-  /** Constructor. */
-  Create_func_arg2() {}
-  /** Destructor. */
-  virtual ~Create_func_arg2() {}
-};
-
-
-/**
-  Adapter for functions that takes exactly three arguments.
-*/
-
-class Create_func_arg3 : public Create_func
-{
-public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  /**
-    Builder method, with three arguments.
-    @param thd The current thread
-    @param arg1 The first argument of the function
-    @param arg2 The second argument of the function
-    @param arg3 The third argument of the function
-    @return An item representing the function call
-  */
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) = 0;
-
-protected:
-  /** Constructor. */
-  Create_func_arg3() {}
-  /** Destructor. */
-  virtual ~Create_func_arg3() {}
-};
-
-
-/**
   Function builder for Stored Functions.
 */
 
@@ -163,30 +60,6 @@ protected:
   /** Destructor. */
   virtual ~Create_sp_func() {}
 };
-
-
-#ifndef HAVE_SPATIAL
-/**
-  Common (non) builder for geometry functions.
-  This builder is used in <code>--without-geometry</code> builds only,
-  to report an error.
-*/
-
-class Create_func_no_geom : public Create_func
-{
-public:
-  virtual Item *create_func(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  /** Singleton. */
-  static Create_func_no_geom s_singleton;
-
-protected:
-  /** Constructor. */
-  Create_func_no_geom() {}
-  /** Destructor. */
-  virtual ~Create_func_no_geom() {}
-};
-#endif
 
 
 /*
@@ -258,51 +131,6 @@ protected:
   Create_func_aes_decrypt() {}
   virtual ~Create_func_aes_decrypt() {}
 };
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_area : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_area s_singleton;
-
-protected:
-  Create_func_area() {}
-  virtual ~Create_func_area() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_as_wkb : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_as_wkb s_singleton;
-
-protected:
-  Create_func_as_wkb() {}
-  virtual ~Create_func_as_wkb() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_as_wkt : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_as_wkt s_singleton;
-
-protected:
-  Create_func_as_wkt() {}
-  virtual ~Create_func_as_wkt() {}
-};
-#endif
 
 
 class Create_func_asin : public Create_func_arg1
@@ -409,20 +237,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_centroid : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_centroid s_singleton;
-
-protected:
-  Create_func_centroid() {}
-  virtual ~Create_func_centroid() {}
-};
-
-
 class Create_func_chr : public Create_func_arg1
 {
 public:
@@ -434,35 +248,6 @@ protected:
   Create_func_chr() {}
   virtual ~Create_func_chr() {}
 };
-
-
-class Create_func_convexhull : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_convexhull s_singleton;
-
-protected:
-  Create_func_convexhull() {}
-  virtual ~Create_func_convexhull() {}
-};
-
-
-class Create_func_pointonsurface : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_pointonsurface s_singleton;
-
-protected:
-  Create_func_pointonsurface() {}
-  virtual ~Create_func_pointonsurface() {}
-};
-
-
-#endif /*HAVE_SPATIAL*/
 
 
 class Create_func_char_length : public Create_func_arg1
@@ -630,34 +415,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_mbr_contains : public Create_func_arg2
-{
-  public:
-    virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-    static Create_func_mbr_contains s_singleton;
-
-  protected:
-    Create_func_mbr_contains() {}
-    virtual ~Create_func_mbr_contains() {}
-};
-
-
-class Create_func_contains : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_contains s_singleton;
-
-protected:
-  Create_func_contains() {}
-  virtual ~Create_func_contains() {}
-};
-#endif
-
-
 class Create_func_nvl2 : public Create_func_arg3
 {
 public:
@@ -734,21 +491,6 @@ protected:
   Create_func_crc32() {}
   virtual ~Create_func_crc32() {}
 };
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_crosses : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_crosses s_singleton;
-
-protected:
-  Create_func_crosses() {}
-  virtual ~Create_func_crosses() {}
-};
-#endif
 
 
 class Create_func_datediff : public Create_func_arg2
@@ -855,62 +597,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_dimension : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_dimension s_singleton;
-
-protected:
-  Create_func_dimension() {}
-  virtual ~Create_func_dimension() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_mbr_disjoint : public Create_func_arg2
-{
-  public:
-    virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-    static Create_func_mbr_disjoint s_singleton;
-
-  protected:
-    Create_func_mbr_disjoint() {}
-    virtual ~Create_func_mbr_disjoint() {}
-};
-
-
-class Create_func_disjoint : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_disjoint s_singleton;
-
-protected:
-  Create_func_disjoint() {}
-  virtual ~Create_func_disjoint() {}
-};
-
-
-class Create_func_distance : public Create_func_arg2
-{
-  public:
-    virtual Item* create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-    static Create_func_distance s_singleton;
-
-  protected:
-    Create_func_distance() {}
-    virtual ~Create_func_distance() {}
-};
-#endif
-
-
 class Create_func_elt : public Create_native_func
 {
 public:
@@ -950,76 +636,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_endpoint : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_endpoint s_singleton;
-
-protected:
-  Create_func_endpoint() {}
-  virtual ~Create_func_endpoint() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_envelope : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_envelope s_singleton;
-
-protected:
-  Create_func_envelope() {}
-  virtual ~Create_func_envelope() {}
-};
-
-class Create_func_boundary : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_boundary s_singleton;
-
-protected:
-  Create_func_boundary() {}
-  virtual ~Create_func_boundary() {}
-};
-#endif /*HAVE_SPATIAL*/
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_mbr_equals : public Create_func_arg2
-{
-  public:
-    virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-    static Create_func_mbr_equals s_singleton;
-
-  protected:
-    Create_func_mbr_equals() {}
-    virtual ~Create_func_mbr_equals() {}
-};
-
-
-class Create_func_equals : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_equals s_singleton;
-
-protected:
-  Create_func_equals() {}
-  virtual ~Create_func_equals() {}
-};
-#endif
-
-
 class Create_func_exp : public Create_func_arg1
 {
 public:
@@ -1044,21 +660,6 @@ protected:
   Create_func_export_set() {}
   virtual ~Create_func_export_set() {}
 };
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_exteriorring : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_exteriorring s_singleton;
-
-protected:
-  Create_func_exteriorring() {}
-  virtual ~Create_func_exteriorring() {}
-};
-#endif
 
 
 class Create_func_field : public Create_native_func
@@ -1165,94 +766,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_geometry_from_text : public Create_native_func
-{
-public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  static Create_func_geometry_from_text s_singleton;
-
-protected:
-  Create_func_geometry_from_text() {}
-  virtual ~Create_func_geometry_from_text() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_geometry_from_wkb : public Create_native_func
-{
-public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  static Create_func_geometry_from_wkb s_singleton;
-
-protected:
-  Create_func_geometry_from_wkb() {}
-  virtual ~Create_func_geometry_from_wkb() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_geometry_from_json : public Create_native_func
-{
-public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  static Create_func_geometry_from_json s_singleton;
-
-protected:
-  Create_func_geometry_from_json() {}
-  virtual ~Create_func_geometry_from_json() {}
-};
-
-
-class Create_func_as_geojson : public Create_native_func
-{
-public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
-
-  static Create_func_as_geojson s_singleton;
-
-protected:
-  Create_func_as_geojson() {}
-  virtual ~Create_func_as_geojson() {}
-};
-#endif /*HAVE_SPATIAL*/
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_geometry_type : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_geometry_type s_singleton;
-
-protected:
-  Create_func_geometry_type() {}
-  virtual ~Create_func_geometry_type() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_geometryn : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_geometryn s_singleton;
-
-protected:
-  Create_func_geometryn() {}
-  virtual ~Create_func_geometryn() {}
-};
-#endif
-
-
 class Create_func_get_lock : public Create_func_arg2
 {
 public:
@@ -1264,36 +777,6 @@ protected:
   Create_func_get_lock() {}
   virtual ~Create_func_get_lock() {}
 };
-
-
-#if defined(HAVE_SPATIAL) && !defined(DBUG_OFF)
-class Create_func_gis_debug : public Create_func_arg1
-{
-  public:
-    virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-    static Create_func_gis_debug s_singleton;
-
-  protected:
-    Create_func_gis_debug() {}
-    virtual ~Create_func_gis_debug() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_glength : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_glength s_singleton;
-
-protected:
-  Create_func_glength() {}
-  virtual ~Create_func_glength() {}
-};
-#endif
 
 
 class Create_func_greatest : public Create_native_func
@@ -1452,127 +935,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_interiorringn : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_interiorringn s_singleton;
-
-protected:
-  Create_func_interiorringn() {}
-  virtual ~Create_func_interiorringn() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_relate : public Create_func_arg3
-{
-public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
-
-  static Create_func_relate s_singleton;
-
-protected:
-  Create_func_relate() {}
-  virtual ~Create_func_relate() {}
-};
-
-
-class Create_func_mbr_intersects : public Create_func_arg2
-{
-  public:
-    virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-    static Create_func_mbr_intersects s_singleton;
-
-  protected:
-    Create_func_mbr_intersects() {}
-    virtual ~Create_func_mbr_intersects() {}
-};
-
-
-class Create_func_intersects : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_intersects s_singleton;
-
-protected:
-  Create_func_intersects() {}
-  virtual ~Create_func_intersects() {}
-};
-
-
-class Create_func_intersection : public Create_func_arg2
-{
-public:
-  virtual Item* create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_intersection s_singleton;
-
-protected:
-  Create_func_intersection() {}
-  virtual ~Create_func_intersection() {}
-};
-
-
-class Create_func_difference : public Create_func_arg2
-{
-public:
-  virtual Item* create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_difference s_singleton;
-
-protected:
-  Create_func_difference() {}
-  virtual ~Create_func_difference() {}
-};
-
-
-class Create_func_union : public Create_func_arg2
-{
-public:
-  virtual Item* create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_union s_singleton;
-
-protected:
-  Create_func_union() {}
-  virtual ~Create_func_union() {}
-};
-
-
-class Create_func_symdifference : public Create_func_arg2
-{
-public:
-  virtual Item* create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_symdifference s_singleton;
-
-protected:
-  Create_func_symdifference() {}
-  virtual ~Create_func_symdifference() {}
-};
-
-
-class Create_func_buffer : public Create_func_arg2
-{
-public:
-  virtual Item* create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_buffer s_singleton;
-
-protected:
-  Create_func_buffer() {}
-  virtual ~Create_func_buffer() {}
-};
-#endif /*HAVE_SPATIAL*/
-
-
 class Create_func_is_free_lock : public Create_func_arg1
 {
 public:
@@ -1599,49 +961,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_isclosed : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_isclosed s_singleton;
-
-protected:
-  Create_func_isclosed() {}
-  virtual ~Create_func_isclosed() {}
-};
-
-
-class Create_func_isring : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_isring s_singleton;
-
-protected:
-  Create_func_isring() {}
-  virtual ~Create_func_isring() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_isempty : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_isempty s_singleton;
-
-protected:
-  Create_func_isempty() {}
-  virtual ~Create_func_isempty() {}
-};
-#endif
-
-
 class Create_func_isnull : public Create_func_arg1
 {
 public:
@@ -1653,21 +972,6 @@ protected:
   Create_func_isnull() {}
   virtual ~Create_func_isnull() {}
 };
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_issimple : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_issimple s_singleton;
-
-protected:
-  Create_func_issimple() {}
-  virtual ~Create_func_issimple() {}
-};
-#endif
 
 
 class Create_func_json_exists : public Create_func_arg2
@@ -2378,51 +1682,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_numgeometries : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_numgeometries s_singleton;
-
-protected:
-  Create_func_numgeometries() {}
-  virtual ~Create_func_numgeometries() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_numinteriorring : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_numinteriorring s_singleton;
-
-protected:
-  Create_func_numinteriorring() {}
-  virtual ~Create_func_numinteriorring() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_numpoints : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_numpoints s_singleton;
-
-protected:
-  Create_func_numpoints() {}
-  virtual ~Create_func_numpoints() {}
-};
-#endif
-
-
 class Create_func_oct : public Create_func_arg1
 {
 public:
@@ -2447,34 +1706,6 @@ protected:
   Create_func_ord() {}
   virtual ~Create_func_ord() {}
 };
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_mbr_overlaps : public Create_func_arg2
-{
-  public:
-    virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-    static Create_func_mbr_overlaps s_singleton;
-
-  protected:
-    Create_func_mbr_overlaps() {}
-    virtual ~Create_func_mbr_overlaps() {}
-};
-
-
-class Create_func_overlaps : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_overlaps s_singleton;
-
-protected:
-  Create_func_overlaps() {}
-  virtual ~Create_func_overlaps() {}
-};
-#endif
 
 
 class Create_func_period_add : public Create_func_arg2
@@ -2514,21 +1745,6 @@ protected:
   Create_func_pi() {}
   virtual ~Create_func_pi() {}
 };
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_pointn : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_pointn s_singleton;
-
-protected:
-  Create_func_pointn() {}
-  virtual ~Create_func_pointn() {}
-};
-#endif
 
 
 class Create_func_pow : public Create_func_arg2
@@ -2848,36 +2064,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_srid : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_srid s_singleton;
-
-protected:
-  Create_func_srid() {}
-  virtual ~Create_func_srid() {}
-};
-#endif
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_startpoint : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_startpoint s_singleton;
-
-protected:
-  Create_func_startpoint() {}
-  virtual ~Create_func_startpoint() {}
-};
-#endif
-
-
 class Create_func_str_to_date : public Create_func_arg2
 {
 public:
@@ -3034,21 +2220,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_touches : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_touches s_singleton;
-
-protected:
-  Create_func_touches() {}
-  virtual ~Create_func_touches() {}
-};
-#endif
-
-
 class Create_func_ucase : public Create_func_arg1
 {
 public:
@@ -3179,33 +2350,6 @@ protected:
 };
 
 
-#ifdef HAVE_SPATIAL
-class Create_func_mbr_within : public Create_func_arg2
-{
-  public:
-    virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-    static Create_func_mbr_within s_singleton;
-
-  protected:
-    Create_func_mbr_within() {}
-    virtual ~Create_func_mbr_within() {}
-};
-
-
-class Create_func_within : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_within s_singleton;
-
-protected:
-  Create_func_within() {}
-  virtual ~Create_func_within() {}
-};
-#endif
-
 #ifdef WITH_WSREP
 class Create_func_wsrep_last_written_gtid : public Create_func_arg0
 {
@@ -3246,20 +2390,6 @@ protected:
 };
 #endif /* WITH_WSREP */
 
-#ifdef HAVE_SPATIAL
-class Create_func_x : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_x s_singleton;
-
-protected:
-  Create_func_x() {}
-  virtual ~Create_func_x() {}
-};
-#endif
-
 
 class Create_func_xml_extractvalue : public Create_func_arg2
 {
@@ -3285,21 +2415,6 @@ protected:
   Create_func_xml_update() {}
   virtual ~Create_func_xml_update() {}
 };
-
-
-#ifdef HAVE_SPATIAL
-class Create_func_y : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_y s_singleton;
-
-protected:
-  Create_func_y() {}
-  virtual ~Create_func_y() {}
-};
-#endif
 
 
 class Create_func_year_week : public Create_native_func
@@ -3343,21 +2458,6 @@ static bool has_named_parameters(List<Item> *params)
 
   return false;
 }
-
-#ifndef HAVE_SPATIAL
-Create_func_no_geom Create_func_no_geom::s_singleton;
-
-Item*
-Create_func_no_geom::create_func(THD * /* unused */,
-                            LEX_CSTRING /* unused */,
-                            List<Item> * /* unused */)
-{
-  /* FIXME: error message can't be translated. */
-  my_error(ER_FEATURE_DISABLED, MYF(0),
-           sym_group_geom.name, sym_group_geom.needed_define);
-  return NULL;
-}
-#endif
 
 
 Item*
@@ -3710,39 +2810,6 @@ Create_func_aes_decrypt::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_area Create_func_area::s_singleton;
-
-Item*
-Create_func_area::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_area(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_as_wkb Create_func_as_wkb::s_singleton;
-
-Item*
-Create_func_as_wkb::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_as_wkb(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_as_wkt Create_func_as_wkt::s_singleton;
-
-Item*
-Create_func_as_wkt::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_as_wkt(thd, arg1);
-}
-#endif
-
-
 Create_func_asin Create_func_asin::s_singleton;
 
 Item*
@@ -3854,16 +2921,6 @@ Create_func_ceiling::create_1_arg(THD *thd, Item *arg1)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_centroid Create_func_centroid::s_singleton;
-
-Item*
-Create_func_centroid::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_centroid(thd, arg1);
-}
-
-
 Create_func_chr Create_func_chr::s_singleton;
 
 Item*
@@ -3872,25 +2929,6 @@ Create_func_chr::create_1_arg(THD *thd, Item *arg1)
   CHARSET_INFO *cs_db= thd->variables.collation_database;
   return new (thd->mem_root) Item_func_chr(thd, arg1, cs_db);
 }
-
-
-Create_func_convexhull Create_func_convexhull::s_singleton;
-
-Item*
-Create_func_convexhull::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_convexhull(thd, arg1);
-}
-
-
-Create_func_pointonsurface Create_func_pointonsurface::s_singleton;
-
-Item*
-Create_func_pointonsurface::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_pointonsurface(thd, arg1);
-}
-#endif /*HAVE_SPATIAL*/
 
 
 Create_func_char_length Create_func_char_length::s_singleton;
@@ -4050,28 +3088,6 @@ Create_func_connection_id::create_builder(THD *thd)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
-
-Item*
-Create_func_mbr_contains::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
-      Item_func::SP_CONTAINS_FUNC);
-}
-
-
-Create_func_contains Create_func_contains::s_singleton;
-
-Item*
-Create_func_contains::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                  Item_func::SP_CONTAINS_FUNC);
-}
-#endif
-
-
 Create_func_nvl2 Create_func_nvl2::s_singleton;
 
 Item*
@@ -4124,19 +3140,6 @@ Create_func_crc32::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_crc32(thd, arg1);
 }
-
-
-#ifdef HAVE_SPATIAL
-Create_func_crosses Create_func_crosses::s_singleton;
-
-Item*
-Create_func_crosses::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                   Item_func::SP_CROSSES_FUNC);
-}
-#endif
-
 
 Create_func_datediff Create_func_datediff::s_singleton;
 
@@ -4270,48 +3273,6 @@ Create_func_des_encrypt::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_dimension Create_func_dimension::s_singleton;
-
-Item*
-Create_func_dimension::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_dimension(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_mbr_disjoint Create_func_mbr_disjoint::s_singleton;
-
-Item*
-Create_func_mbr_disjoint::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
-      Item_func::SP_DISJOINT_FUNC);
-}
-
-
-Create_func_disjoint Create_func_disjoint::s_singleton;
-
-Item*
-Create_func_disjoint::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                  Item_func::SP_DISJOINT_FUNC);
-}
-
-
-Create_func_distance Create_func_distance::s_singleton;
-
-Item*
-Create_func_distance::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_distance(thd, arg1, arg2);
-}
-#endif
-
-
 Create_func_elt Create_func_elt::s_singleton;
 
 Item*
@@ -4380,60 +3341,6 @@ Create_func_encrypt::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_endpoint Create_func_endpoint::s_singleton;
-
-Item*
-Create_func_endpoint::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
-                                                      Item_func::SP_ENDPOINT);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_envelope Create_func_envelope::s_singleton;
-
-Item*
-Create_func_envelope::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_envelope(thd, arg1);
-}
-
-
-Create_func_boundary Create_func_boundary::s_singleton;
-
-Item*
-Create_func_boundary::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_boundary(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_mbr_equals Create_func_mbr_equals::s_singleton;
-
-Item*
-Create_func_mbr_equals::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
-      Item_func::SP_EQUALS_FUNC);
-}
-
-
-Create_func_equals Create_func_equals::s_singleton;
-
-Item*
-Create_func_equals::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                    Item_func::SP_EQUALS_FUNC);
-}
-#endif
-
-
 Create_func_exp Create_func_exp::s_singleton;
 
 Item*
@@ -4494,18 +3401,6 @@ Create_func_export_set::create_native(THD *thd, LEX_CSTRING *name,
 
   return func;
 }
-
-
-#ifdef HAVE_SPATIAL
-Create_func_exteriorring Create_func_exteriorring::s_singleton;
-
-Item*
-Create_func_exteriorring::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
-                                                      Item_func::SP_EXTERIORRING);
-}
-#endif
 
 
 Create_func_field Create_func_field::s_singleton;
@@ -4650,203 +3545,6 @@ Create_func_from_unixtime::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_geometry_from_text Create_func_geometry_from_text::s_singleton;
-
-Item*
-Create_func_geometry_from_text::create_native(THD *thd, LEX_CSTRING *name,
-                                              List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
-    break;
-  }
-  case 2:
-  {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1, param_2);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_geometry_from_wkb Create_func_geometry_from_wkb::s_singleton;
-
-Item*
-Create_func_geometry_from_wkb::create_native(THD *thd, LEX_CSTRING *name,
-                                             List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
-    break;
-  }
-  case 2:
-  {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1, param_2);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_geometry_from_json Create_func_geometry_from_json::s_singleton;
-
-Item*
-Create_func_geometry_from_json::create_native(THD *thd, LEX_CSTRING *name,
-                                             List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *json= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
-    break;
-  }
-  case 2:
-  {
-    Item *json= item_list->pop();
-    Item *options= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json, options);
-    break;
-  }
-  case 3:
-  {
-    Item *json= item_list->pop();
-    Item *options= item_list->pop();
-    Item *srid= item_list->pop();
-    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json, options,
-                                                           srid);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
-}
-
-
-Create_func_as_geojson Create_func_as_geojson::s_singleton;
-
-Item*
-Create_func_as_geojson::create_native(THD *thd, LEX_CSTRING *name,
-                                             List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *geom= item_list->pop();
-    func= new (thd->mem_root) Item_func_as_geojson(thd, geom);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
-    break;
-  }
-  case 2:
-  {
-    Item *geom= item_list->pop();
-    Item *max_dec= item_list->pop();
-    func= new (thd->mem_root) Item_func_as_geojson(thd, geom, max_dec);
-    break;
-  }
-  case 3:
-  {
-    Item *geom= item_list->pop();
-    Item *max_dec= item_list->pop();
-    Item *options= item_list->pop();
-    func= new (thd->mem_root) Item_func_as_geojson(thd, geom, max_dec, options);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
-}
-#endif /*HAVE_SPATIAL*/
-
-
-#ifdef HAVE_SPATIAL
-Create_func_geometry_type Create_func_geometry_type::s_singleton;
-
-Item*
-Create_func_geometry_type::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_geometry_type(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_geometryn Create_func_geometryn::s_singleton;
-
-Item*
-Create_func_geometryn::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
-                                                        Item_func::SP_GEOMETRYN);
-}
-#endif
-
 
 Create_func_get_lock Create_func_get_lock::s_singleton;
 
@@ -4857,28 +3555,6 @@ Create_func_get_lock::create_2_arg(THD *thd, Item *arg1, Item *arg2)
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_get_lock(thd, arg1, arg2);
 }
-
-
-#if defined(HAVE_SPATIAL) && !defined(DBUG_OFF)
-Create_func_gis_debug Create_func_gis_debug::s_singleton;
-
-Item*
-Create_func_gis_debug::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_gis_debug(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_glength Create_func_glength::s_singleton;
-
-Item*
-Create_func_glength::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_glength(thd, arg1);
-}
-#endif
 
 
 Create_func_greatest Create_func_greatest::s_singleton;
@@ -5001,98 +3677,6 @@ Create_func_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_interiorringn Create_func_interiorringn::s_singleton;
-
-Item*
-Create_func_interiorringn::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
-                                                        Item_func::SP_INTERIORRINGN);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_relate Create_func_relate::s_singleton;
-
-Item*
-Create_func_relate::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *matrix)
-{
-  return new (thd->mem_root) Item_func_spatial_relate(thd, arg1, arg2, matrix);
-}
-
-
-Create_func_mbr_intersects Create_func_mbr_intersects::s_singleton;
-
-Item*
-Create_func_mbr_intersects::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
-      Item_func::SP_INTERSECTS_FUNC);
-}
-
-
-Create_func_intersects Create_func_intersects::s_singleton;
-
-Item*
-Create_func_intersects::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                Item_func::SP_INTERSECTS_FUNC);
-}
-
-
-Create_func_intersection Create_func_intersection::s_singleton;
-
-Item*
-Create_func_intersection::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
-                               Gcalc_function::op_intersection);
-}
-
-
-Create_func_difference Create_func_difference::s_singleton;
-
-Item*
-Create_func_difference::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
-                               Gcalc_function::op_difference);
-}
-
-
-Create_func_union Create_func_union::s_singleton;
-
-Item*
-Create_func_union::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
-                               Gcalc_function::op_union);
-}
-
-
-Create_func_symdifference Create_func_symdifference::s_singleton;
-
-Item*
-Create_func_symdifference::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
-                               Gcalc_function::op_symdifference);
-}
-
-
-Create_func_buffer Create_func_buffer::s_singleton;
-
-Item*
-Create_func_buffer::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_buffer(thd, arg1, arg2);
-}
-#endif /*HAVE_SPATAI*/
-
-
 Create_func_is_free_lock Create_func_is_free_lock::s_singleton;
 
 Item*
@@ -5115,35 +3699,6 @@ Create_func_is_used_lock::create_1_arg(THD *thd, Item *arg1)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_isclosed Create_func_isclosed::s_singleton;
-
-Item*
-Create_func_isclosed::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_isclosed(thd, arg1);
-}
-
-
-Create_func_isring Create_func_isring::s_singleton;
-
-Item*
-Create_func_isring::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_isring(thd, arg1);
-}
-
-
-Create_func_isempty Create_func_isempty::s_singleton;
-
-Item*
-Create_func_isempty::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_isempty(thd, arg1);
-}
-#endif /*HAVE_SPATIAL*/
-
-
 Create_func_isnull Create_func_isnull::s_singleton;
 
 Item*
@@ -5151,17 +3706,6 @@ Create_func_isnull::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_isnull(thd, arg1);
 }
-
-
-#ifdef HAVE_SPATIAL
-Create_func_issimple Create_func_issimple::s_singleton;
-
-Item*
-Create_func_issimple::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_issimple(thd, arg1);
-}
-#endif
 
 
 Create_func_json_exists Create_func_json_exists::s_singleton;
@@ -6211,39 +4755,6 @@ Create_func_nullif::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_numgeometries Create_func_numgeometries::s_singleton;
-
-Item*
-Create_func_numgeometries::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_numgeometries(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_numinteriorring Create_func_numinteriorring::s_singleton;
-
-Item*
-Create_func_numinteriorring::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_numinteriorring(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_numpoints Create_func_numpoints::s_singleton;
-
-Item*
-Create_func_numpoints::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_numpoints(thd, arg1);
-}
-#endif
-
-
 Create_func_oct Create_func_oct::s_singleton;
 
 Item*
@@ -6262,28 +4773,6 @@ Create_func_ord::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_ord(thd, arg1);
 }
-
-
-#ifdef HAVE_SPATIAL
-Create_func_mbr_overlaps Create_func_mbr_overlaps::s_singleton;
-
-Item*
-Create_func_mbr_overlaps::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
-      Item_func::SP_OVERLAPS_FUNC);
-}
-
-
-Create_func_overlaps Create_func_overlaps::s_singleton;
-
-Item*
-Create_func_overlaps::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                  Item_func::SP_OVERLAPS_FUNC);
-}
-#endif
 
 
 Create_func_period_add Create_func_period_add::s_singleton;
@@ -6311,18 +4800,6 @@ Create_func_pi::create_builder(THD *thd)
 {
   return new (thd->mem_root) Item_static_float_func(thd, "pi()", M_PI, 6, 8);
 }
-
-
-#ifdef HAVE_SPATIAL
-Create_func_pointn Create_func_pointn::s_singleton;
-
-Item*
-Create_func_pointn::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
-                                                        Item_func::SP_POINTN);
-}
-#endif
 
 
 Create_func_pow Create_func_pow::s_singleton;
@@ -6663,29 +5140,6 @@ Create_func_sqrt::create_1_arg(THD *thd, Item *arg1)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_srid Create_func_srid::s_singleton;
-
-Item*
-Create_func_srid::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_srid(thd, arg1);
-}
-#endif
-
-
-#ifdef HAVE_SPATIAL
-Create_func_startpoint Create_func_startpoint::s_singleton;
-
-Item*
-Create_func_startpoint::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
-                                                      Item_func::SP_STARTPOINT);
-}
-#endif
-
-
 Create_func_str_to_date Create_func_str_to_date::s_singleton;
 
 Item*
@@ -6819,18 +5273,6 @@ Create_func_to_seconds::create_1_arg(THD *thd, Item *arg1)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_touches Create_func_touches::s_singleton;
-
-Item*
-Create_func_touches::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                   Item_func::SP_TOUCHES_FUNC);
-}
-#endif
-
-
 Create_func_ucase Create_func_ucase::s_singleton;
 
 Item*
@@ -6960,27 +5402,6 @@ Create_func_weekofyear::create_1_arg(THD *thd, Item *arg1)
 }
 
 
-#ifdef HAVE_SPATIAL
-Create_func_mbr_within Create_func_mbr_within::s_singleton;
-
-Item*
-Create_func_mbr_within::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
-      Item_func::SP_WITHIN_FUNC);
-}
-
-
-Create_func_within Create_func_within::s_singleton;
-
-Item*
-Create_func_within::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
-                                                    Item_func::SP_WITHIN_FUNC);
-}
-#endif
-
 #ifdef WITH_WSREP
 Create_func_wsrep_last_written_gtid
 Create_func_wsrep_last_written_gtid::s_singleton;
@@ -7039,17 +5460,6 @@ Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
 }
 #endif /* WITH_WSREP */
 
-#ifdef HAVE_SPATIAL
-Create_func_x Create_func_x::s_singleton;
-
-Item*
-Create_func_x::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_x(thd, arg1);
-}
-#endif
-
-
 Create_func_xml_extractvalue Create_func_xml_extractvalue::s_singleton;
 
 Item*
@@ -7066,17 +5476,6 @@ Create_func_xml_update::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg
 {
   return new (thd->mem_root) Item_func_xml_update(thd, arg1, arg2, arg3);
 }
-
-
-#ifdef HAVE_SPATIAL
-Create_func_y Create_func_y::s_singleton;
-
-Item*
-Create_func_y::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_y(thd, arg1);
-}
-#endif
 
 
 Create_func_year_week Create_func_year_week::s_singleton;
@@ -7119,12 +5518,6 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
 
 #define BUILDER(F) & F::s_singleton
 
-#ifdef HAVE_SPATIAL
-  #define GEOM_BUILDER(F) & F::s_singleton
-#else
-  #define GEOM_BUILDER(F) & Create_func_no_geom::s_singleton
-#endif
-
 /*
   MySQL native functions.
   MAINTAINER:
@@ -7143,12 +5536,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("ADDTIME") }, BUILDER(Create_func_addtime)},
   { { STRING_WITH_LEN("AES_DECRYPT") }, BUILDER(Create_func_aes_decrypt)},
   { { STRING_WITH_LEN("AES_ENCRYPT") }, BUILDER(Create_func_aes_encrypt)},
-  { { STRING_WITH_LEN("AREA") }, GEOM_BUILDER(Create_func_area)},
-  { { STRING_WITH_LEN("ASBINARY") }, GEOM_BUILDER(Create_func_as_wkb)},
   { { STRING_WITH_LEN("ASIN") }, BUILDER(Create_func_asin)},
-  { { STRING_WITH_LEN("ASTEXT") }, GEOM_BUILDER(Create_func_as_wkt)},
-  { { STRING_WITH_LEN("ASWKB") }, GEOM_BUILDER(Create_func_as_wkb)},
-  { { STRING_WITH_LEN("ASWKT") }, GEOM_BUILDER(Create_func_as_wkt)},
   { { STRING_WITH_LEN("ATAN") }, BUILDER(Create_func_atan)},
   { { STRING_WITH_LEN("ATAN2") }, BUILDER(Create_func_atan)},
   { { STRING_WITH_LEN("BENCHMARK") }, BUILDER(Create_func_benchmark)},
@@ -7156,11 +5544,8 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("BINLOG_GTID_POS") }, BUILDER(Create_func_binlog_gtid_pos)},
   { { STRING_WITH_LEN("BIT_COUNT") }, BUILDER(Create_func_bit_count)},
   { { STRING_WITH_LEN("BIT_LENGTH") }, BUILDER(Create_func_bit_length)},
-  { { STRING_WITH_LEN("BOUNDARY") }, GEOM_BUILDER(Create_func_boundary)},
-  { { STRING_WITH_LEN("BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
   { { STRING_WITH_LEN("CEIL") }, BUILDER(Create_func_ceiling)},
   { { STRING_WITH_LEN("CEILING") }, BUILDER(Create_func_ceiling)},
-  { { STRING_WITH_LEN("CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
   { { STRING_WITH_LEN("CHARACTER_LENGTH") }, BUILDER(Create_func_char_length)},
   { { STRING_WITH_LEN("CHAR_LENGTH") }, BUILDER(Create_func_char_length)},
   { { STRING_WITH_LEN("CHR") }, BUILDER(Create_func_chr)},
@@ -7176,11 +5561,9 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("CONNECTION_ID") }, BUILDER(Create_func_connection_id)},
   { { STRING_WITH_LEN("CONV") }, BUILDER(Create_func_conv)},
   { { STRING_WITH_LEN("CONVERT_TZ") }, BUILDER(Create_func_convert_tz)},
-  { { STRING_WITH_LEN("CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
   { { STRING_WITH_LEN("COS") }, BUILDER(Create_func_cos)},
   { { STRING_WITH_LEN("COT") }, BUILDER(Create_func_cot)},
   { { STRING_WITH_LEN("CRC32") }, BUILDER(Create_func_crc32)},
-  { { STRING_WITH_LEN("CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
   { { STRING_WITH_LEN("DATEDIFF") }, BUILDER(Create_func_datediff)},
   { { STRING_WITH_LEN("DAYNAME") }, BUILDER(Create_func_dayname)},
   { { STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
@@ -7191,17 +5574,11 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DECODE_ORACLE") }, BUILDER(Create_func_decode_oracle)},
   { { STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
   { { STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
-  { { STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
-  { { STRING_WITH_LEN("DISJOINT") }, GEOM_BUILDER(Create_func_mbr_disjoint)},
   { { STRING_WITH_LEN("ELT") }, BUILDER(Create_func_elt)},
   { { STRING_WITH_LEN("ENCODE") }, BUILDER(Create_func_encode)},
   { { STRING_WITH_LEN("ENCRYPT") }, BUILDER(Create_func_encrypt)},
-  { { STRING_WITH_LEN("ENDPOINT") }, GEOM_BUILDER(Create_func_endpoint)},
-  { { STRING_WITH_LEN("ENVELOPE") }, GEOM_BUILDER(Create_func_envelope)},
-  { { STRING_WITH_LEN("EQUALS") }, GEOM_BUILDER(Create_func_equals)},
   { { STRING_WITH_LEN("EXP") }, BUILDER(Create_func_exp)},
   { { STRING_WITH_LEN("EXPORT_SET") }, BUILDER(Create_func_export_set)},
-  { { STRING_WITH_LEN("EXTERIORRING") }, GEOM_BUILDER(Create_func_exteriorring)},
   { { STRING_WITH_LEN("EXTRACTVALUE") }, BUILDER(Create_func_xml_extractvalue)},
   { { STRING_WITH_LEN("FIELD") }, BUILDER(Create_func_field)},
   { { STRING_WITH_LEN("FIND_IN_SET") }, BUILDER(Create_func_find_in_set)},
@@ -7211,18 +5588,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("FROM_BASE64") }, BUILDER(Create_func_from_base64)},
   { { STRING_WITH_LEN("FROM_DAYS") }, BUILDER(Create_func_from_days)},
   { { STRING_WITH_LEN("FROM_UNIXTIME") }, BUILDER(Create_func_from_unixtime)},
-  { { STRING_WITH_LEN("GEOMCOLLFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("GEOMCOLLFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("GEOMETRYCOLLECTIONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("GEOMETRYCOLLECTIONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("GEOMETRYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("GEOMETRYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("GEOMETRYN") }, GEOM_BUILDER(Create_func_geometryn)},
-  { { STRING_WITH_LEN("GEOMETRYTYPE") }, GEOM_BUILDER(Create_func_geometry_type)},
-  { { STRING_WITH_LEN("GEOMFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("GEOMFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("GET_LOCK") }, BUILDER(Create_func_get_lock)},
-  { { STRING_WITH_LEN("GLENGTH") }, GEOM_BUILDER(Create_func_glength)},
   { { STRING_WITH_LEN("GREATEST") }, BUILDER(Create_func_greatest)},
   { { STRING_WITH_LEN("HEX") }, BUILDER(Create_func_hex)},
   { { STRING_WITH_LEN("IFNULL") }, BUILDER(Create_func_ifnull)},
@@ -7235,13 +5601,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("IS_IPV4_COMPAT") }, BUILDER(Create_func_is_ipv4_compat)},
   { { STRING_WITH_LEN("IS_IPV4_MAPPED") }, BUILDER(Create_func_is_ipv4_mapped)},
   { { STRING_WITH_LEN("INSTR") }, BUILDER(Create_func_instr)},
-  { { STRING_WITH_LEN("INTERIORRINGN") }, GEOM_BUILDER(Create_func_interiorringn)},
-  { { STRING_WITH_LEN("INTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},
-  { { STRING_WITH_LEN("ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
-  { { STRING_WITH_LEN("ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
   { { STRING_WITH_LEN("ISNULL") }, BUILDER(Create_func_isnull)},
-  { { STRING_WITH_LEN("ISRING") }, GEOM_BUILDER(Create_func_isring)},
-  { { STRING_WITH_LEN("ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
   { { STRING_WITH_LEN("IS_FREE_LOCK") }, BUILDER(Create_func_is_free_lock)},
   { { STRING_WITH_LEN("IS_USED_LOCK") }, BUILDER(Create_func_is_used_lock)},
   { { STRING_WITH_LEN("JSON_ARRAY") }, BUILDER(Create_func_json_array)},
@@ -7282,10 +5642,6 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("LIKE_RANGE_MIN") }, BUILDER(Create_func_like_range_min)},
   { { STRING_WITH_LEN("LIKE_RANGE_MAX") }, BUILDER(Create_func_like_range_max)},
 #endif
-  { { STRING_WITH_LEN("LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("LINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("LINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("LN") }, BUILDER(Create_func_ln)},
   { { STRING_WITH_LEN("LOAD_FILE") }, BUILDER(Create_func_load_file)},
   { { STRING_WITH_LEN("LOCATE") }, BUILDER(Create_func_locate)},
@@ -7302,50 +5658,18 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("MAKE_SET") }, BUILDER(Create_func_make_set)},
   { { STRING_WITH_LEN("MASTER_GTID_WAIT") }, BUILDER(Create_func_master_gtid_wait)},
   { { STRING_WITH_LEN("MASTER_POS_WAIT") }, BUILDER(Create_func_master_pos_wait)},
-  { { STRING_WITH_LEN("MBRCONTAINS") }, GEOM_BUILDER(Create_func_mbr_contains)},
-  { { STRING_WITH_LEN("MBRDISJOINT") }, GEOM_BUILDER(Create_func_mbr_disjoint)},
-  { { STRING_WITH_LEN("MBREQUAL") }, GEOM_BUILDER(Create_func_mbr_equals)},
-  { { STRING_WITH_LEN("MBREQUALS") }, GEOM_BUILDER(Create_func_mbr_equals)},
-  { { STRING_WITH_LEN("MBRINTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},
-  { { STRING_WITH_LEN("MBROVERLAPS") }, GEOM_BUILDER(Create_func_mbr_overlaps)},
-  { { STRING_WITH_LEN("MBRTOUCHES") }, GEOM_BUILDER(Create_func_touches)},
-  { { STRING_WITH_LEN("MBRWITHIN") }, GEOM_BUILDER(Create_func_mbr_within)},
   { { STRING_WITH_LEN("MD5") }, BUILDER(Create_func_md5)},
-  { { STRING_WITH_LEN("MLINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("MLINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("MONTHNAME") }, BUILDER(Create_func_monthname)},
-  { { STRING_WITH_LEN("MPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("MPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("MPOLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("MPOLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("MULTILINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("MULTILINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("MULTIPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("MULTIPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("MULTIPOLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("MULTIPOLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
   { { STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
   { { STRING_WITH_LEN("NVL2") }, BUILDER(Create_func_nvl2)},
   { { STRING_WITH_LEN("NULLIF") }, BUILDER(Create_func_nullif)},
-  { { STRING_WITH_LEN("NUMGEOMETRIES") }, GEOM_BUILDER(Create_func_numgeometries)},
-  { { STRING_WITH_LEN("NUMINTERIORRINGS") }, GEOM_BUILDER(Create_func_numinteriorring)},
-  { { STRING_WITH_LEN("NUMPOINTS") }, GEOM_BUILDER(Create_func_numpoints)},
   { { STRING_WITH_LEN("OCT") }, BUILDER(Create_func_oct)},
   { { STRING_WITH_LEN("OCTET_LENGTH") }, BUILDER(Create_func_octet_length)},
   { { STRING_WITH_LEN("ORD") }, BUILDER(Create_func_ord)},
-  { { STRING_WITH_LEN("OVERLAPS") }, GEOM_BUILDER(Create_func_mbr_overlaps)},
   { { STRING_WITH_LEN("PERIOD_ADD") }, BUILDER(Create_func_period_add)},
   { { STRING_WITH_LEN("PERIOD_DIFF") }, BUILDER(Create_func_period_diff)},
   { { STRING_WITH_LEN("PI") }, BUILDER(Create_func_pi)},
-  { { STRING_WITH_LEN("POINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("POINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("POINTN") }, GEOM_BUILDER(Create_func_pointn)},
-  { { STRING_WITH_LEN("POINTONSURFACE") }, GEOM_BUILDER(Create_func_pointonsurface)},
-  { { STRING_WITH_LEN("POLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("POLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("POLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("POLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("POW") }, BUILDER(Create_func_pow)},
   { { STRING_WITH_LEN("POWER") }, BUILDER(Create_func_pow)},
   { { STRING_WITH_LEN("QUOTE") }, BUILDER(Create_func_quote)},
@@ -7373,90 +5697,8 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("SOUNDEX") }, BUILDER(Create_func_soundex)},
   { { STRING_WITH_LEN("SPACE") }, BUILDER(Create_func_space)},
   { { STRING_WITH_LEN("SQRT") }, BUILDER(Create_func_sqrt)},
-  { { STRING_WITH_LEN("SRID") }, GEOM_BUILDER(Create_func_srid)},
-  { { STRING_WITH_LEN("STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
   { { STRING_WITH_LEN("STRCMP") }, BUILDER(Create_func_strcmp)},
   { { STRING_WITH_LEN("STR_TO_DATE") }, BUILDER(Create_func_str_to_date)},
-  { { STRING_WITH_LEN("ST_AREA") }, GEOM_BUILDER(Create_func_area)},
-  { { STRING_WITH_LEN("ST_ASBINARY") }, GEOM_BUILDER(Create_func_as_wkb)},
-  { { STRING_WITH_LEN("ST_ASGEOJSON") }, GEOM_BUILDER(Create_func_as_geojson)},
-  { { STRING_WITH_LEN("ST_ASTEXT") }, GEOM_BUILDER(Create_func_as_wkt)},
-  { { STRING_WITH_LEN("ST_ASWKB") }, GEOM_BUILDER(Create_func_as_wkb)},
-  { { STRING_WITH_LEN("ST_ASWKT") }, GEOM_BUILDER(Create_func_as_wkt)},
-  { { STRING_WITH_LEN("ST_BOUNDARY") }, GEOM_BUILDER(Create_func_boundary)},
-  { { STRING_WITH_LEN("ST_BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
-  { { STRING_WITH_LEN("ST_CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
-  { { STRING_WITH_LEN("ST_CONTAINS") }, GEOM_BUILDER(Create_func_contains)},
-  { { STRING_WITH_LEN("ST_CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
-  { { STRING_WITH_LEN("ST_CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
-  { { STRING_WITH_LEN("ST_DIFFERENCE") }, GEOM_BUILDER(Create_func_difference)},
-  { { STRING_WITH_LEN("ST_DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
-  { { STRING_WITH_LEN("ST_DISJOINT") }, GEOM_BUILDER(Create_func_disjoint)},
-  { { STRING_WITH_LEN("ST_DISTANCE") }, GEOM_BUILDER(Create_func_distance)},
-  { { STRING_WITH_LEN("ST_ENDPOINT") }, GEOM_BUILDER(Create_func_endpoint)},
-  { { STRING_WITH_LEN("ST_ENVELOPE") }, GEOM_BUILDER(Create_func_envelope)},
-  { { STRING_WITH_LEN("ST_EQUALS") }, GEOM_BUILDER(Create_func_equals)},
-  { { STRING_WITH_LEN("ST_EXTERIORRING") }, GEOM_BUILDER(Create_func_exteriorring)},
-  { { STRING_WITH_LEN("ST_GEOMCOLLFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_GEOMCOLLFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_GEOMETRYCOLLECTIONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_GEOMETRYCOLLECTIONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_GEOMETRYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_GEOMETRYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_GEOMETRYN") }, GEOM_BUILDER(Create_func_geometryn)},
-  { { STRING_WITH_LEN("ST_GEOMETRYTYPE") }, GEOM_BUILDER(Create_func_geometry_type)},
-  { { STRING_WITH_LEN("ST_GEOMFROMGEOJSON") }, GEOM_BUILDER(Create_func_geometry_from_json)},
-  { { STRING_WITH_LEN("ST_GEOMFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_GEOMFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-#ifndef DBUG_OFF
-    { { STRING_WITH_LEN("ST_GIS_DEBUG") }, GEOM_BUILDER(Create_func_gis_debug)},
-#endif
-  { { STRING_WITH_LEN("ST_EQUALS") }, GEOM_BUILDER(Create_func_equals)},
-  { { STRING_WITH_LEN("ST_INTERIORRINGN") }, GEOM_BUILDER(Create_func_interiorringn)},
-  { { STRING_WITH_LEN("ST_INTERSECTS") }, GEOM_BUILDER(Create_func_intersects)},
-  { { STRING_WITH_LEN("ST_INTERSECTION") }, GEOM_BUILDER(Create_func_intersection)},
-  { { STRING_WITH_LEN("ST_ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
-  { { STRING_WITH_LEN("ST_ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
-  { { STRING_WITH_LEN("ST_ISRING") }, GEOM_BUILDER(Create_func_isring)},
-  { { STRING_WITH_LEN("ST_ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
-  { { STRING_WITH_LEN("ST_LENGTH") }, GEOM_BUILDER(Create_func_glength)},
-  { { STRING_WITH_LEN("ST_LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_LINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_LINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_MLINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_MLINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_MPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_MPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_MPOLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_MPOLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_MULTILINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_MULTILINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_MULTIPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_MULTIPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_MULTIPOLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_MULTIPOLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_NUMGEOMETRIES") }, GEOM_BUILDER(Create_func_numgeometries)},
-  { { STRING_WITH_LEN("ST_NUMINTERIORRINGS") }, GEOM_BUILDER(Create_func_numinteriorring)},
-  { { STRING_WITH_LEN("ST_NUMPOINTS") }, GEOM_BUILDER(Create_func_numpoints)},
-  { { STRING_WITH_LEN("ST_OVERLAPS") }, GEOM_BUILDER(Create_func_overlaps)},
-  { { STRING_WITH_LEN("ST_POINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_POINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_POINTN") }, GEOM_BUILDER(Create_func_pointn)},
-  { { STRING_WITH_LEN("ST_POINTONSURFACE") }, GEOM_BUILDER(Create_func_pointonsurface)},
-  { { STRING_WITH_LEN("ST_POLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_POLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_POLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
-  { { STRING_WITH_LEN("ST_POLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
-  { { STRING_WITH_LEN("ST_RELATE") }, GEOM_BUILDER(Create_func_relate)},
-  { { STRING_WITH_LEN("ST_SRID") }, GEOM_BUILDER(Create_func_srid)},
-  { { STRING_WITH_LEN("ST_STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
-  { { STRING_WITH_LEN("ST_SYMDIFFERENCE") }, GEOM_BUILDER(Create_func_symdifference)},
-  { { STRING_WITH_LEN("ST_TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
-  { { STRING_WITH_LEN("ST_UNION") }, GEOM_BUILDER(Create_func_union)},
-  { { STRING_WITH_LEN("ST_WITHIN") }, GEOM_BUILDER(Create_func_within)},
-  { { STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
-  { { STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("SUBSTR_ORACLE") },
       BUILDER(Create_func_substr_oracle)},
   { { STRING_WITH_LEN("SUBSTRING_INDEX") }, BUILDER(Create_func_substr_index)},
@@ -7465,7 +5707,6 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TIMEDIFF") }, BUILDER(Create_func_timediff)},
   { { STRING_WITH_LEN("TIME_FORMAT") }, BUILDER(Create_func_time_format)},
   { { STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
-  { { STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
   { { STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
@@ -7481,14 +5722,11 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("VERSION") }, BUILDER(Create_func_version)},
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
   { { STRING_WITH_LEN("WEEKOFYEAR") }, BUILDER(Create_func_weekofyear)},
-  { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
 #ifdef WITH_WSREP
   { { STRING_WITH_LEN("WSREP_LAST_WRITTEN_GTID") }, BUILDER(Create_func_wsrep_last_written_gtid)},
   { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
   { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
 #endif /* WITH_WSREP */
-  { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
-  { { STRING_WITH_LEN("Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)},
 
   { {0, 0}, NULL}
@@ -7549,6 +5787,11 @@ int item_create_append(Native_func_registry array[])
   }
 #endif
 
+#ifdef HAVE_SPATIAL
+  if (function_collection_geometry.init())
+    DBUG_RETURN(1);
+#endif
+
   DBUG_RETURN(0);
 }
 
@@ -7562,6 +5805,9 @@ void item_create_cleanup()
 {
   DBUG_ENTER("item_create_cleanup");
   my_hash_free(& native_functions_hash);
+#ifdef HAVE_SPATIAL
+  function_collection_geometry.cleanup();
+#endif
   DBUG_VOID_RETURN;
 }
 
@@ -7580,6 +5826,12 @@ find_native_function_builder(THD *thd, const LEX_CSTRING *name)
   {
     builder= func->builder;
   }
+
+#ifdef HAVE_SPATIAL
+  if (!builder)
+    builder= function_collection_geometry.find_native_function_builder(thd,
+                                                                       *name);
+#endif
 
   return builder;
 }
