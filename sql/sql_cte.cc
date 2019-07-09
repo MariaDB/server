@@ -767,7 +767,9 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
     true    on failure
 */
   
-bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
+bool With_element::set_unparsed_spec(THD *thd,
+                                     const char *spec_start,
+                                     const char *spec_end,
                                      my_ptrdiff_t spec_offset)
 {
   stmt_prepare_mode= thd->m_parser_state->m_lip.stmt_prepare_mode;
