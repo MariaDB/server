@@ -401,9 +401,19 @@ sub check_wsrep_version() {
 }
 
 sub wsrep_version_message() {
-  my $output= `$My::SafeProcess::wsrep_check_version -p`;
-  $output =~ s/\s+\z//;
-  return "Wsrep provider version mismatch (".$output.")";
+  if ($My::SafeProcess::wsrep_check_version ne "") {
+     my $output= `$My::SafeProcess::wsrep_check_version -p`;
+     if (($? >> 8) == 0) {
+        $output =~ s/\s+\z//;
+        return "Wsrep provider version mismatch (".$output.")";
+     }
+     else {
+        return "Galera library does not contain a version symbol";
+     }
+  }
+  else {
+     return "Unable to find a wsrep version check utility";
+  }
 }
 
 sub which($) { return `sh -c "command -v $_[0]"` }
