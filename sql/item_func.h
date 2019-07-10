@@ -3103,12 +3103,15 @@ public:
     set(handler, 0, 0);
   }
   const Type_handler *type_handler() const { return m_type_handler; }
-  Item *create_typecast_item(THD *thd, Item *item, CHARSET_INFO *cs= NULL)
+  Item *create_typecast_item(THD *thd, Item *item,
+                             CHARSET_INFO *cs= NULL) const
   {
     return m_type_handler->
       create_typecast_item(thd, item,
                            Type_cast_attributes(length(), dec(), cs));
   }
+  Item *create_typecast_item_or_error(THD *thd, Item *item,
+                                      CHARSET_INFO *cs= NULL) const;
 };
 
 

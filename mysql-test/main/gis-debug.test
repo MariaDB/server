@@ -171,5 +171,14 @@ SELECT WITHIN(POINT(1,1),POINT(1,1));
 SET SESSION debug_dbug="-d,make_item_func_call_native_simulate_not_found";
 
 --echo #
+--echo # MDEV-20009 Add CAST(expr AS pluggable_type)
+--echo #
+
+SET SESSION debug_dbug="+d,emulate_geometry_create_typecast_item";
+SELECT AsText(CAST('POINT(0 0)' AS GEOMETRY));
+SET SESSION debug_dbug="-d,emulate_geometry_create_typecast_item";
+
+
+--echo #
 --echo # End of 10.5 tests
 --echo #

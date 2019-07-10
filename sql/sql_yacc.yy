@@ -10277,7 +10277,8 @@ column_default_non_parenthesized_expr:
           }
         | CAST_SYM '(' expr AS cast_type ')'
           {
-            if (unlikely(!($$= $5.create_typecast_item(thd, $3, Lex->charset))))
+            if (unlikely(!($$= $5.create_typecast_item_or_error(thd, $3,
+                                                                Lex->charset))))
               MYSQL_YYABORT;
           }
         | CASE_SYM when_list_opt_else END
@@ -10293,7 +10294,8 @@ column_default_non_parenthesized_expr:
           }
         | CONVERT_SYM '(' expr ',' cast_type ')'
           {
-            if (unlikely(!($$= $5.create_typecast_item(thd, $3, Lex->charset))))
+            if (unlikely(!($$= $5.create_typecast_item_or_error(thd, $3,
+                                                                Lex->charset))))
               MYSQL_YYABORT;
           }
         | CONVERT_SYM '(' expr USING charset_name ')'
@@ -11700,6 +11702,14 @@ cast_type:
           }
         | cast_type_numeric  { $$= $1; Lex->charset= NULL; }
         | cast_type_temporal { $$= $1; Lex->charset= NULL; }
+        | IDENT_sys
+          {
+            const Type_handler *h;
+            if (!(h= Type_handler::handler_by_name_or_error($1)))
+              MYSQL_YYABORT;
+            $$.set(h);
+            Lex->charset= NULL;
+          }
         ;
 
 cast_type_numeric:

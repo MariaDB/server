@@ -7935,3 +7935,5 @@ ER_TOO_LONG_DATABASE_COMMENT
   eng "Comment for database '%-.64s' is too long (max = %u)"
 ER_UNKNOWN_DATA_TYPE
         eng "Unknown data type: '%-.64s'"
+ER_UNKNOWN_OPERATOR
+        eng "Operator does not exists: '%-.128s'"

@@ -10464,3 +10464,21 @@ Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
   init_last_field(res, &name, thd->variables.collation_database);
   return res;
 }
+
+
+Item *
+Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
+                                                CHARSET_INFO *cs) const
+{
+  Item *tmp= create_typecast_item(thd, item, cs);
+  if (!tmp)
+  {
+    Name name= m_type_handler->name();
+    char buf[128];
+    size_t length= my_snprintf(buf, sizeof(buf), "CAST(expr AS %.*s)",
+                               (int) name.length(), name.ptr());
+    my_error(ER_UNKNOWN_OPERATOR, MYF(0),
+             ErrConvString(buf, length, system_charset_info).ptr());
+  }
+  return tmp;
+}

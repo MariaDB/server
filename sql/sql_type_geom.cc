@@ -318,6 +318,18 @@ bool Type_handler_geometry::Key_part_spec_init_spatial(Key_part_spec *part,
 }
 
 
+Item *
+Type_handler_geometry::create_typecast_item(THD *thd, Item *item,
+                                           const Type_cast_attributes &attr)
+                                           const
+{
+  DBUG_EXECUTE_IF("emulate_geometry_create_typecast_item",
+    return new (thd->mem_root) Item_func_geometry_from_text(thd, item);
+  );
+
+  return NULL;
+}
+
 bool Type_handler_point::Key_part_spec_init_primary(Key_part_spec *part,
                                               const Column_definition &def,
                                               const handler *file) const

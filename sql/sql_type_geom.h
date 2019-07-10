@@ -50,6 +50,9 @@ public:
   const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const override;
   virtual geometry_types geometry_type() const { return GEOM_GEOMETRY; }
+  virtual Item *create_typecast_item(THD *thd, Item *item,
+                                     const Type_cast_attributes &attr)
+                                     const override;
   const Type_handler *type_handler_frm_unpack(const uchar *buffer)
                                               const override;
   bool is_binary_compatible_geom_super_type_for(const Type_handler_geometry *th)
