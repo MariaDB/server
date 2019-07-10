@@ -108,7 +108,8 @@ static const alter_table_operations INNOBASE_INPLACE_IGNORE
 	| ALTER_VIRTUAL_GCOL_EXPR
 	| ALTER_DROP_CHECK_CONSTRAINT
 	| ALTER_RENAME
-	| ALTER_COLUMN_INDEX_LENGTH;
+	| ALTER_COLUMN_INDEX_LENGTH
+	| ALTER_CHANGE_INDEX_COMMENT;
 
 /** Operations on foreign key definitions (changing the schema only) */
 static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS

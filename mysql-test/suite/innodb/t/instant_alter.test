@@ -752,3 +752,13 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+
+--echo #
+--echo # MDEV-18266: Changing an index comment unnecessarily rebuilds index
+--echo #
+
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB;
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2', ALGORITHM=INSTANT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

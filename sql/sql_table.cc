@@ -6521,10 +6521,11 @@ static int compare_uint(const uint *s, const uint *t)
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 
-enum class Compare_keys
+enum class Compare_keys : uint32_t
 {
   Equal,
   EqualButKeyPartLength,
+  EqualButComment,
   NotEqual
 };
 
@@ -6608,11 +6609,12 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     return Compare_keys::NotEqual;
 
   /* Check that key comment is not changed. */
-  if (table_key->comment.length != new_key->comment.length ||
-      (table_key->comment.length &&
-       memcmp(table_key->comment.str, new_key->comment.str,
-              table_key->comment.length) != 0))
-    return Compare_keys::NotEqual;
+  if (cmp(table_key->comment, new_key->comment) != 0)
+  {
+    if (result != Compare_keys::Equal)
+      return Compare_keys::NotEqual;
+    result= Compare_keys::EqualButComment;
+  }
 
   return result;
 }
@@ -7001,6 +7003,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       continue;
     case Compare_keys::EqualButKeyPartLength:
       ha_alter_info->handler_flags|= ALTER_COLUMN_INDEX_LENGTH;
+      continue;
+    case Compare_keys::EqualButComment:
+      ha_alter_info->handler_flags|= ALTER_CHANGE_INDEX_COMMENT;
       continue;
     case Compare_keys::NotEqual:
       break;

@@ -2533,3 +2533,17 @@ WHERE variable_name = 'innodb_instant_alter_column';
 instants
 181
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+#
+# MDEV-18266: Changing an index comment unnecessarily rebuilds index
+#
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB;
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2', ALGORITHM=INSTANT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `i1` (`a`) COMMENT 'comment2'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
