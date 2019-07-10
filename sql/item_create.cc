@@ -5764,7 +5764,15 @@ int item_create_init()
                    MYF(0)))
     DBUG_RETURN(1);
 
-  DBUG_RETURN(item_create_append(func_array));
+  if (item_create_append(func_array))
+    DBUG_RETURN(1);
+
+#ifdef HAVE_SPATIAL
+  if (function_collection_geometry.init())
+    DBUG_RETURN(1);
+#endif
+
+  DBUG_RETURN(0);
 }
 
 int item_create_append(Native_func_registry array[])
@@ -5786,11 +5794,6 @@ int item_create_append(Native_func_registry array[])
     DBUG_PRINT("info", ("native function: %s  length: %u",
                         func->name.str, (uint) func->name.length));
   }
-#endif
-
-#ifdef HAVE_SPATIAL
-  if (function_collection_geometry.init())
-    DBUG_RETURN(1);
 #endif
 
   DBUG_RETURN(0);
