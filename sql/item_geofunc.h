@@ -28,6 +28,8 @@
 
 #include "sql_type_geom.h"
 #include "item.h"
+#include "gstream.h"
+#include "spatial.h"
 #include "gcalc_slicescan.h"
 #include "gcalc_tools.h"
 

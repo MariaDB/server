@@ -322,6 +322,7 @@ public:
                                     bool er_on_3D, String *res);
   static Geometry *create_from_opresult(Geometry_buffer *g_buf,
                                   String *res, Gcalc_result_receiver &rr);
+  static uint get_key_image_itMBR(LEX_CSTRING &src, uchar *buff, uint length);
   int as_wkt(String *wkt, const char **end);
   int as_json(String *wkt, uint max_dec_digits, const char **end);
   int bbox_as_json(String *wkt);

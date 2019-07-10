@@ -20,6 +20,10 @@
 
 #define SPIDER_DBTON_SIZE 15
 
+#ifndef SIZEOF_STORED_DOUBLE
+#define SIZEOF_STORED_DOUBLE 8
+#endif
+
 #define SPIDER_DB_WRAPPER_MYSQL "mysql"
 #define SPIDER_DB_WRAPPER_MARIADB "mariadb"
 

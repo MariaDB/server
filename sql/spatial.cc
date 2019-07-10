@@ -185,6 +185,33 @@ Geometry *Geometry::construct(Geometry_buffer *buffer,
 }
 
 
+uint Geometry::get_key_image_itMBR(LEX_CSTRING &src, uchar *buff, uint length)
+{
+  const char *dummy;
+  MBR mbr;
+  Geometry_buffer buffer;
+  Geometry *gobj;
+  const uint image_length= SIZEOF_STORED_DOUBLE*4;
+
+  if (src.length < SRID_SIZE)
+  {
+    bzero(buff, image_length);
+    return image_length;
+  }
+  gobj= Geometry::construct(&buffer, (char*) src.str, (uint32) src.length);
+  if (!gobj || gobj->get_mbr(&mbr, &dummy))
+    bzero(buff, image_length);
+  else
+  {
+    float8store(buff,    mbr.xmin);
+    float8store(buff+8,  mbr.xmax);
+    float8store(buff+16, mbr.ymin);
+    float8store(buff+24, mbr.ymax);
+  }
+  return image_length;
+}
+
+
 Geometry *Geometry::create_from_wkt(Geometry_buffer *buffer,
 				    Gis_read_stream *trs, String *wkt,
 				    bool init_stream)

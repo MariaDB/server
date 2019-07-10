@@ -3929,6 +3929,7 @@ protected:
 
   static void do_copy_blob(Copy_field *copy);
   static void do_conv_blob(Copy_field *copy);
+  uint get_key_image_itRAW(uchar *buff, uint length);
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
@@ -4104,7 +4105,11 @@ public:
     set_ptr_offset(0, length, data);
   }
   int copy_value(Field_blob *from);
-  uint get_key_image(uchar *buff,uint length, imagetype type);
+  uint get_key_image(uchar *buff, uint length, imagetype type)
+  {
+    DBUG_ASSERT(type == itRAW);
+    return get_key_image_itRAW(buff, length);
+  }
   void set_key_image(const uchar *buff,uint length);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,

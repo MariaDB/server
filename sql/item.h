@@ -5785,8 +5785,6 @@ public:
 };
 
 #ifdef MYSQL_SERVER
-#include "gstream.h"
-#include "spatial.h"
 #include "item_sum.h"
 #include "item_func.h"
 #include "item_row.h"

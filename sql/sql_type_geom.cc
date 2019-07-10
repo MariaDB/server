@@ -886,4 +886,16 @@ bool Field_geom::load_data_set_null(THD *thd)
 }
 
 
+uint Field_geom::get_key_image(uchar *buff,uint length, imagetype type_arg)
+{
+  if (type_arg == itMBR)
+  {
+    LEX_CSTRING tmp;
+    tmp.str= (const char *) get_ptr();
+    tmp.length= get_length(ptr);
+    return Geometry::get_key_image_itMBR(tmp, buff, length);
+  }
+  return Field_blob::get_key_image_itRAW(buff, length);
+}
+
 #endif // HAVE_SPATIAL

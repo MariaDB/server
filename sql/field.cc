@@ -8414,41 +8414,10 @@ int Field_blob::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 
 /* The following is used only when comparing a key */
 
-uint Field_blob::get_key_image(uchar *buff,uint length, imagetype type_arg)
+uint Field_blob::get_key_image_itRAW(uchar *buff, uint length)
 {
   size_t blob_length= get_length(ptr);
-  uchar *blob;
-
-#ifdef HAVE_SPATIAL
-  if (type_arg == itMBR)
-  {
-    const char *dummy;
-    MBR mbr;
-    Geometry_buffer buffer;
-    Geometry *gobj;
-    const uint image_length= SIZEOF_STORED_DOUBLE*4;
-
-    if (blob_length < SRID_SIZE)
-    {
-      bzero(buff, image_length);
-      return image_length;
-    }
-    blob= get_ptr();
-    gobj= Geometry::construct(&buffer, (char*) blob, (uint32)blob_length);
-    if (!gobj || gobj->get_mbr(&mbr, &dummy))
-      bzero(buff, image_length);
-    else
-    {
-      float8store(buff,    mbr.xmin);
-      float8store(buff+8,  mbr.xmax);
-      float8store(buff+16, mbr.ymin);
-      float8store(buff+24, mbr.ymax);
-    }
-    return image_length;
-  }
-#endif /*HAVE_SPATIAL*/
-
-  blob= get_ptr();
+  uchar *blob= get_ptr();
   size_t local_char_length= length / field_charset->mbmaxlen;
   local_char_length= my_charpos(field_charset, blob, blob + blob_length,
                           local_char_length);

@@ -412,6 +412,7 @@ public:
    represented differently, but we need to support it either way.
   */
   uint32 key_length() const { return packlength; }
+  uint get_key_image(uchar *buff,uint length, imagetype type_arg);
 
   /**
     Non-nullable GEOMETRY types cannot have defaults,
