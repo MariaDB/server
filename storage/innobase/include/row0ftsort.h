@@ -59,6 +59,8 @@ struct fts_psort_t;
 struct fts_psort_common_t {
 	row_merge_dup_t*	dup;		/*!< descriptor of FTS index */
 	dict_table_t*		new_table;	/*!< source table */
+	/* Old table page size */
+	page_size_t		old_page_size;
 	trx_t*			trx;		/*!< transaction */
 	fts_psort_t*		all_info;	/*!< all parallel sort info */
 	os_event_t		sort_event;	/*!< sort event */
@@ -190,26 +192,27 @@ row_merge_create_fts_sort_index(
 				instead of 8 bytes integer to
 				store Doc ID during sort */
 
-/********************************************************************//**
-Initialize FTS parallel sort structures.
+/** Initialize FTS parallel sort structures.
+@param[in]	trx		transaction
+@param[in,out]	dup		descriptor of FTS index being created
+@param[in]	new_table	table where indexes are created
+@param[in]	opt_doc_id_size	whether to use 4 bytes instead of 8 bytes
+				integer to store Doc ID during sort
+@param[in]	old_page_size	page size of the old table during alter
+@param[out]	psort		parallel sort info to be instantiated
+@param[out]	merge		parallel merge info to be instantiated
 @return TRUE if all successful */
 ibool
 row_fts_psort_info_init(
-/*====================*/
-	trx_t*			trx,	/*!< in: transaction */
-	row_merge_dup_t*	dup,	/*!< in,own: descriptor of
-					FTS index being created */
-	const dict_table_t*	new_table,/*!< in: table where indexes are
-					created */
+	trx_t*			trx,
+	row_merge_dup_t*	dup,
+	const dict_table_t*	new_table,
 	ibool			opt_doc_id_size,
-					/*!< in: whether to use 4 bytes
-					instead of 8 bytes integer to
-					store Doc ID during sort */
-	fts_psort_t**		psort,	/*!< out: parallel sort info to be
-					instantiated */
-	fts_psort_t**		merge)	/*!< out: parallel merge info
-					to be instantiated */
+	const page_size_t	old_page_size,
+	fts_psort_t**		psort,
+	fts_psort_t**		merge)
 	MY_ATTRIBUTE((nonnull));
+
 /********************************************************************//**
 Clean up and deallocate FTS parallel sort structures, and close
 temparary merge sort files */

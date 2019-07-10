@@ -159,25 +159,26 @@ row_merge_create_fts_sort_index(
 
 	return(new_index);
 }
-/*********************************************************************//**
-Initialize FTS parallel sort structures.
+
+/** Initialize FTS parallel sort structures.
+@param[in]	trx		transaction
+@param[in,out]	dup		descriptor of FTS index being created
+@param[in]	new_table	table where indexes are created
+@param[in]	opt_doc_id_size	whether to use 4 bytes instead of 8 bytes
+				integer to store Doc ID during sort
+@param[in]	old_page_size	page size of the old table during alter
+@param[out]	psort		parallel sort info to be instantiated
+@param[out]	merge		parallel merge info to be instantiated
 @return TRUE if all successful */
 ibool
 row_fts_psort_info_init(
-/*====================*/
-	trx_t*			trx,	/*!< in: transaction */
-	row_merge_dup_t*	dup,	/*!< in,own: descriptor of
-					FTS index being created */
-	const dict_table_t*	new_table,/*!< in: table on which indexes are
-					created */
-	ibool			opt_doc_id_size,
-					/*!< in: whether to use 4 bytes
-					instead of 8 bytes integer to
-					store Doc ID during sort */
-	fts_psort_t**		psort,	/*!< out: parallel sort info to be
-					instantiated */
-	fts_psort_t**		merge)	/*!< out: parallel merge info
-					to be instantiated */
+        trx_t*                  trx,
+        row_merge_dup_t*        dup,
+        const dict_table_t*     new_table,
+        ibool                   opt_doc_id_size,
+        const page_size_t       old_page_size,
+        fts_psort_t**           psort,
+        fts_psort_t**           merge)
 {
 	ulint			i;
 	ulint			j;
@@ -210,6 +211,7 @@ row_fts_psort_info_init(
 
 	common_info->dup = dup;
 	common_info->new_table = (dict_table_t*) new_table;
+	common_info->old_page_size = old_page_size;
 	common_info->trx = trx;
 	common_info->all_info = psort_info;
 	common_info->sort_event = os_event_create(0);
@@ -803,7 +805,8 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
 
-	const page_size_t&	page_size = dict_table_page_size(table);
+	const page_size_t	old_page_size =
+			psort_info->psort_common->old_page_size;
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
 
@@ -833,7 +836,7 @@ loop:
 				doc.text.f_str =
 					btr_copy_externally_stored_field(
 						&doc.text.f_len, data,
-						page_size, data_len, blob_heap);
+						old_page_size, data_len, blob_heap);
 			} else {
 				doc.text.f_str = data;
 				doc.text.f_len = data_len;
