@@ -1,0 +1,2 @@
+--innodb_fatal_semaphore_wait_threshold=20
+--innodb_online_alter_log_max_size=536870912

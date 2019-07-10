@@ -7534,73 +7534,6 @@ commit_try_rebuild(
 		index->to_be_dropped = 0;
 	}
 
-	/* We copied the table. Any indexes that were requested to be
-	dropped were not created in the copy of the table. Apply any
-	last bit of the rebuild log and then rename the tables. */
-
-	if (ctx->online) {
-		DEBUG_SYNC_C("row_log_table_apply2_before");
-
-		dict_vcol_templ_t* s_templ  = NULL;
-
-		if (ctx->new_table->n_v_cols > 0) {
-			s_templ = UT_NEW_NOKEY(
-					dict_vcol_templ_t());
-			s_templ->vtempl = NULL;
-
-			innobase_build_v_templ(
-				altered_table, ctx->new_table, s_templ,
-				NULL, true);
-			ctx->new_table->vc_templ = s_templ;
-		}
-
-		error = row_log_table_apply(
-			ctx->thr, user_table, altered_table,
-			static_cast<ha_innobase_inplace_ctx*>(
-				ha_alter_info->handler_ctx)->m_stage);
-
-		if (s_templ) {
-			ut_ad(ctx->need_rebuild());
-			dict_free_vc_templ(s_templ);
-			UT_DELETE(s_templ);
-			ctx->new_table->vc_templ = NULL;
-		}
-
-		ulint	err_key = thr_get_trx(ctx->thr)->error_key_num;
-
-		switch (error) {
-			KEY*	dup_key;
-		case DB_SUCCESS:
-			break;
-		case DB_DUPLICATE_KEY:
-			if (err_key == ULINT_UNDEFINED) {
-				/* This should be the hidden index on
-				FTS_DOC_ID. */
-				dup_key = NULL;
-			} else {
-				DBUG_ASSERT(err_key <
-					    ha_alter_info->key_count);
-				dup_key = &ha_alter_info
-					->key_info_buffer[err_key];
-			}
-			print_keydup_error(altered_table, dup_key, MYF(0));
-			DBUG_RETURN(true);
-		case DB_ONLINE_LOG_TOO_BIG:
-			my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
-				 get_error_key_name(err_key, ha_alter_info,
-						    rebuilt_table));
-			DBUG_RETURN(true);
-		case DB_INDEX_CORRUPT:
-			my_error(ER_INDEX_CORRUPT, MYF(0),
-				 get_error_key_name(err_key, ha_alter_info,
-						    rebuilt_table));
-			DBUG_RETURN(true);
-		default:
-			my_error_innodb(error, table_name, user_table->flags);
-			DBUG_RETURN(true);
-		}
-	}
-
 	if ((ha_alter_info->handler_flags
 	     & Alter_inplace_info::ALTER_COLUMN_NAME)
 	    && innobase_rename_columns_try(ha_alter_info, ctx, old_table,
@@ -8127,6 +8060,90 @@ do {								\
 # define DBUG_INJECT_CRASH(prefix, count)
 #endif
 
+/** Apply the log for the table rebuild operation.
+@param[in]	ctx		Inplace Alter table context
+@param[in]	altered_table	MySQL table that is being altered
+@return true Failure, else false. */
+static bool alter_rebuild_apply_log(
+	ha_innobase_inplace_ctx*	ctx,
+	Alter_inplace_info*		ha_alter_info,
+	TABLE*				altered_table)
+{
+	DBUG_ENTER("alter_rebuild_apply_log");
+
+	if (!ctx->online) {
+		DBUG_RETURN(false);
+	}
+
+	/* We copied the table. Any indexes that were requested to be
+	dropped were not created in the copy of the table. Apply any
+	last bit of the rebuild log and then rename the tables. */
+	dict_table_t*	user_table = ctx->old_table;
+	dict_table_t*	rebuilt_table = ctx->new_table;
+
+	DEBUG_SYNC_C("row_log_table_apply2_before");
+
+	dict_vcol_templ_t* s_templ  = NULL;
+
+	if (ctx->new_table->n_v_cols > 0) {
+		s_templ = UT_NEW_NOKEY(
+				dict_vcol_templ_t());
+		s_templ->vtempl = NULL;
+
+		innobase_build_v_templ(altered_table, ctx->new_table, s_templ,
+				       NULL, true);
+		ctx->new_table->vc_templ = s_templ;
+	}
+
+	dberr_t error = row_log_table_apply(
+		ctx->thr, user_table, altered_table,
+		static_cast<ha_innobase_inplace_ctx*>(
+			ha_alter_info->handler_ctx)->m_stage);
+
+	if (s_templ) {
+		ut_ad(ctx->need_rebuild());
+		dict_free_vc_templ(s_templ);
+		UT_DELETE(s_templ);
+		ctx->new_table->vc_templ = NULL;
+	}
+
+	ulint	err_key = thr_get_trx(ctx->thr)->error_key_num;
+
+	switch (error) {
+		KEY*	dup_key;
+	case DB_SUCCESS:
+		break;
+	case DB_DUPLICATE_KEY:
+		if (err_key == ULINT_UNDEFINED) {
+			/* This should be the hidden index on
+			   FTS_DOC_ID. */
+			dup_key = NULL;
+		} else {
+			DBUG_ASSERT(err_key < ha_alter_info->key_count);
+			dup_key = &ha_alter_info->key_info_buffer[err_key];
+		}
+
+		print_keydup_error(altered_table, dup_key, MYF(0));
+		DBUG_RETURN(true);
+	case DB_ONLINE_LOG_TOO_BIG:
+		my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
+			 get_error_key_name(err_key, ha_alter_info,
+					    rebuilt_table));
+		DBUG_RETURN(true);
+	case DB_INDEX_CORRUPT:
+		my_error(ER_INDEX_CORRUPT, MYF(0),
+			 get_error_key_name(err_key, ha_alter_info,
+					    rebuilt_table));
+		DBUG_RETURN(true);
+	default:
+		my_error_innodb(error, ctx->old_table->name.m_name,
+				user_table->flags);
+		DBUG_RETURN(true);
+	}
+
+	DBUG_RETURN(false);
+}
+
 /** Commit or rollback the changes made during
 prepare_inplace_alter_table() and inplace_alter_table() inside
 the storage engine. Note that the allowed level of concurrency
@@ -8270,6 +8287,19 @@ ha_innobase::commit_inplace_alter_table(
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);
 			fts_optimize_remove_table(ctx->new_table);
+		}
+
+		/* Apply the online log of the table before acquiring
+		data dictionary latches. Here alter thread already acquired
+		MDL_EXCLUSIVE on the table. So there can't be anymore DDLs, DMLs
+		for the altered table. By applying the log here, InnoDB
+		makes sure that concurrent DDLs, purge thread or any other
+		background thread doesn't wait for the dict_operation_lock
+		for longer time. */
+		if (new_clustered && commit
+		    && alter_rebuild_apply_log(
+				ctx, ha_alter_info, altered_table)) {
+			DBUG_RETURN(true);
 		}
 	}
 
