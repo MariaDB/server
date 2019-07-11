@@ -1,6 +1,6 @@
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 INSERT INTO t1 values(NULL);
-connection node_1;
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
 # Wait 10 slave threads to start 1
@@ -15,15 +15,15 @@ VARIABLE_VALUE
 11
 connection node_2;
 SET SESSION wsrep_sync_wait=15;
-SELECT COUNT(*) = 1 FROM t1;
-COUNT(*) = 1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
 1
-# Generate 100 replication events
+# Generate 10 replication events
 connection node_1;
 SET SESSION wsrep_sync_wait=15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-101
+11
 # Wait 9 slave threads to exit 1
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 VARIABLE_VALUE
@@ -49,12 +49,12 @@ VARIABLE_VALUE
 21
 SET GLOBAL wsrep_slave_threads = 1;
 connection node_2;
-# Generate 100 replication events
+# Generate 20 replication events
 connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-201
-# Wait 10 slave threads to exit 3
+31
+# Wait 19 slave threads to exit 3
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 VARIABLE_VALUE
 1
@@ -66,14 +66,14 @@ VARIABLE_VALUE
 2
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
-# Wait 10 slave threads to start 3
+# Wait 10 slave threads to start 4
 connection node_2;
-# Generate 100 replication events
+# Generate 10 replication events
 connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-301
-# Wait 10 slave threads to exit 4
+41
+# Wait 9 slave threads to exit 4
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 VARIABLE_VALUE
 1

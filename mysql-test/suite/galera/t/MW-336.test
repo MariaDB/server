@@ -5,10 +5,9 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--connection node_1
 CREATE TABLE t1 (f1 INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 INSERT INTO t1 values(NULL);
-
---connection node_1
 
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
@@ -24,12 +23,12 @@ SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME 
 
 --connection node_2
 SET SESSION wsrep_sync_wait=15;
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) FROM t1;
 
---echo # Generate 100 replication events
+--echo # Generate 10 replication events
 --disable_query_log
 --disable_result_log
---let $count = 100
+--let $count = 10
 while ($count)
 {
   INSERT INTO t1 VALUES (NULL);
@@ -71,10 +70,10 @@ SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME 
 SET GLOBAL wsrep_slave_threads = 1;
 
 --connection node_2
---echo # Generate 100 replication events
+--echo # Generate 20 replication events
 --disable_query_log
 --disable_result_log
---let $count = 100
+--let $count = 20
 while ($count)
 {
   INSERT INTO t1 VALUES (NULL);
@@ -86,7 +85,7 @@ while ($count)
 --connection node_1
 SELECT COUNT(*) FROM t1;
 
---echo # Wait 10 slave threads to exit 3
+--echo # Wait 19 slave threads to exit 3
 # Wait until appliers exit
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
@@ -98,16 +97,16 @@ SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME 
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
 
---echo # Wait 10 slave threads to start 3
+--echo # Wait 10 slave threads to start 4
 --let $wait_timeout=600
 --let $wait_condition = SELECT VARIABLE_VALUE = 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
 
 --connection node_2
---echo # Generate 100 replication events
+--echo # Generate 10 replication events
 --disable_query_log
 --disable_result_log
---let $count = 100
+--let $count = 10
 while ($count)
 {
   INSERT INTO t1 VALUES (NULL);
@@ -119,7 +118,7 @@ while ($count)
 --connection node_1
 SELECT COUNT(*) FROM t1;
 
---echo # Wait 10 slave threads to exit 4
+--echo # Wait 9 slave threads to exit 4
 # Wait until appliers exit
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc

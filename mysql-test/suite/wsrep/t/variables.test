@@ -103,7 +103,6 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
 
 --echo # Wait for applier threads to get created.
-
 --let $wait_timeout=600
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
@@ -123,7 +122,7 @@ SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
 
 --echo # Wait for applier threads to get created.
---let $wait_condition = SELECT VARIABLE_VALUE = 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--let $wait_condition = SELECT VARIABLE_VALUE >= 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
 
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
