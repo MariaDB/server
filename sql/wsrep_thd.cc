@@ -360,6 +360,7 @@ static void wsrep_replication_process(THD *thd)
   thd->variables.option_bits|= OPTION_BEGIN;
   thd->server_status|= SERVER_STATUS_IN_TRANS;
 
+  thd_proc_info(thd, "wsrep applier idle");
   rcode = wsrep->recv(wsrep, (void *)thd);
   DBUG_PRINT("wsrep",("wsrep_repl returned: %d", rcode));
 
@@ -415,13 +416,12 @@ static void wsrep_replication_process(THD *thd)
   DBUG_VOID_RETURN;
 }
 
-static bool create_wsrep_THD(wsrep_thd_processor_fun processor)
+static bool create_wsrep_THD(wsrep_thread_args* args)
 {
   ulong old_wsrep_running_threads= wsrep_running_threads;
-  pthread_t unused;
   mysql_mutex_lock(&LOCK_thread_count);
-  bool res= pthread_create(&unused, &connection_attrib, start_wsrep_THD,
-                           (void*)processor);
+  bool res= pthread_create(&args->thread_id, &connection_attrib, start_wsrep_THD,
+                           (void*)args);
   /*
     if starting a thread on server startup, wait until the this thread's THD
     is fully initialized (otherwise a THD initialization code might
@@ -451,8 +451,20 @@ void wsrep_create_appliers(long threads)
 
   long wsrep_threads=0;
   while (wsrep_threads++ < threads) {
-    if (create_wsrep_THD(wsrep_replication_process))
+    wsrep_thread_args* arg;
+    if((arg = (wsrep_thread_args*)my_malloc(sizeof(wsrep_thread_args), MYF(0))) == NULL) {
+      WSREP_ERROR("Can't allocate memory for wsrep replication thread %ld\n", wsrep_threads);
+      assert(0);
+    }
+
+    arg->thread_type = WSREP_APPLIER_THREAD;
+    arg->processor = wsrep_replication_process;
+
+    if (create_wsrep_THD(arg)) {
       WSREP_WARN("Can't create thread to manage wsrep replication");
+      my_free(arg);
+      return;
+    }
   }
 }
 
@@ -539,9 +551,21 @@ void wsrep_create_rollbacker()
 {
   if (wsrep_provider && strcasecmp(wsrep_provider, "none"))
   {
+    wsrep_thread_args* arg;
+    if((arg = (wsrep_thread_args*)my_malloc(sizeof(wsrep_thread_args), MYF(0))) == NULL) {
+      WSREP_ERROR("Can't allocate memory for wsrep rollbacker thread\n");
+      assert(0);
+    }
+
+    arg->thread_type = WSREP_ROLLBACKER_THREAD;
+    arg->processor = wsrep_rollback_process;
+
     /* create rollbacker */
-    if (create_wsrep_THD(wsrep_rollback_process))
+    if (create_wsrep_THD(arg)) {
       WSREP_WARN("Can't create thread to manage wsrep rollback");
+      my_free(arg);
+      return;
+    }
   }
 }
 

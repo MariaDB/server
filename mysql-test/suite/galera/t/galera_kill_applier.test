@@ -6,7 +6,11 @@
 --source include/have_innodb.inc
 
 --connection node_1
---let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE IS NULL LIMIT 1`
+--let $wait_timeout=600
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+
+--let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle' LIMIT 1`
 
 --disable_query_log
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR

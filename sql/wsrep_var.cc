@@ -708,7 +708,9 @@ static SHOW_VAR wsrep_status_vars[]=
   {"provider_name",     (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
   {"provider_version",  (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
   {"provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
-  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH}
+  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
+  {"applier_thread_count", (char*)&wsrep_running_applier_threads, SHOW_LONG_NOFLUSH},
+  {"rollbacker_thread_count", (char *)&wsrep_running_rollbacker_threads, SHOW_LONG_NOFLUSH},
 };
 
 static int show_var_cmp(const void *var1, const void *var2)
