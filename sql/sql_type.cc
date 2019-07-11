@@ -8367,6 +8367,20 @@ const Name & Type_handler_timestamp_common::default_value() const
 
 /***************************************************************************/
 
+bool Type_handler::Column_definition_data_type_info_image(Binary_string *to,
+                                                   const Column_definition &def)
+                                                   const
+{
+  // Have *some* columns write type info (let's use string fields as an example)
+  DBUG_EXECUTE_IF("frm_data_type_info_emulate",
+                  if (cmp_type() == STRING_RESULT)
+                    return to->append(name().lex_cstring()););
+  return false;
+}
+
+
+/***************************************************************************/
+
 LEX_CSTRING Charset::collation_specific_name() const
 {
   /*

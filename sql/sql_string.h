@@ -528,6 +528,10 @@ public:
     q_append(s, size);
     return false;
   }
+  bool append(const LEX_CSTRING &s)
+  {
+    return append(s.str, s.length);
+  }
   bool append(const Binary_string &s)
   {
     return append(s.ptr(), s.length());
@@ -998,6 +1002,15 @@ public:
   {
     length(0);
   }
+};
+
+
+template<size_t buff_sz>
+class BinaryStringBuffer : public Binary_string
+{
+  char buff[buff_sz];
+public:
+  BinaryStringBuffer() : Binary_string(buff, buff_sz) { length(0); }
 };
 
 

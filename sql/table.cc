@@ -59,6 +59,7 @@ struct extra2_fields
   LEX_CUSTRING field_flags;
   LEX_CUSTRING system_period;
   LEX_CUSTRING application_period;
+  LEX_CUSTRING field_data_type_info;
   void reset()
   { bzero((void*)this, sizeof(*this)); }
 };
@@ -1508,6 +1509,12 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
           fields->application_period.str= extra2;
           fields->application_period.length= length;
           break;
+        case EXTRA2_FIELD_DATA_TYPE_INFO:
+          if (fields->field_data_type_info.str)
+            DBUG_RETURN(true);
+          fields->field_data_type_info.str= extra2;
+          fields->field_data_type_info.length= length;
+          break;
         default:
           /* abort frm parsing if it's an unknown but important extra2 value */
           if (type >= EXTRA2_ENGINE_IMPORTANT)
@@ -1520,6 +1527,86 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
   }
   DBUG_RETURN(false);
 }
+
+
+class Field_data_type_info_array
+{
+public:
+  class Elem
+  {
+    LEX_CSTRING m_type_info;
+  public:
+    void set(const LEX_CSTRING &type_info)
+    {
+      m_type_info= type_info;
+    }
+    const LEX_CSTRING &type_info() const
+    {
+      return m_type_info;
+    }
+  };
+private:
+  Elem *m_array;
+  uint m_count;
+  bool alloc(MEM_ROOT *root, uint count)
+  {
+    DBUG_ASSERT(!m_array);
+    DBUG_ASSERT(!m_count);
+    size_t nbytes= sizeof(Elem) * count;
+    if (!(m_array= (Elem*) alloc_root(root, nbytes)))
+      return true;
+    m_count= count;
+    bzero((void*) m_array, nbytes);
+    return false;
+  }
+  static uint32 read_length(uchar **pos, const uchar *end)
+  {
+    ulonglong num= safe_net_field_length_ll(pos, end - *pos);
+    if (num > UINT_MAX32)
+      return 0;
+    return (uint32) num;
+  }
+  static bool read_string(LEX_CSTRING *to, uchar **pos, const uchar *end)
+  {
+    to->length= read_length(pos, end);
+    if (*pos + to->length > end)
+      return true; // Not enough data
+    to->str= (const char *) *pos;
+    *pos+= to->length;
+    return false;
+  }
+public:
+  Field_data_type_info_array()
+   :m_array(NULL), m_count(0)
+  { }
+  uint count() const
+  {
+    return m_count;
+  }
+  const Elem element(uint i) const
+  {
+    DBUG_ASSERT(i < m_count);
+    return m_array[i];
+  }
+  bool parse(MEM_ROOT *root, uint count, LEX_CUSTRING &image)
+  {
+    const uchar *pos= image.str;
+    const uchar *end= pos + image.length;
+    if (alloc(root, count))
+      return true;
+    for (uint i= 0; i < count && pos < end; i++)
+    {
+      LEX_CSTRING type_info;
+      uint fieldnr= read_length((uchar**) &pos, end);
+      if ((fieldnr == 0 && i > 0) || fieldnr >= count)
+        return true; // Bad data
+      if (read_string(&type_info, (uchar**) &pos, end) || type_info.length == 0)
+        return true; // Bad data
+      m_array[fieldnr].set(type_info);
+    }
+    return pos < end; // Error if some data is still left
+  }
+};
 
 
 /**
@@ -1572,6 +1659,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
   bool vers_can_native= false;
+  Field_data_type_info_array field_data_type_info_array;
 
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
@@ -2111,6 +2199,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     status_var_increment(thd->status_var.feature_application_time_periods);
   }
 
+  if (extra2.field_data_type_info.length &&
+      field_data_type_info_array.parse(old_root, share->fields,
+                                       extra2.field_data_type_info))
+    goto err;
+
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
     uint interval_nr= 0, recpos;
@@ -2195,6 +2288,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                                              strpos,
                                                              &extra2.gis))
           goto err;
+
+        if (field_data_type_info_array.count())
+        {
+          DBUG_EXECUTE_IF("frm_data_type_info",
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+            ER_UNKNOWN_ERROR, "DBUG: [%u] name='%s' type_info='%.*s'",
+            i, share->fieldnames.type_names[i],
+            (uint) field_data_type_info_array.element(i).type_info().length,
+            field_data_type_info_array.element(i).type_info().str););
+        }
       }
 
       if (((uint) strpos[10]) & MYSQL57_GENERATED_FIELD)

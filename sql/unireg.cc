@@ -171,6 +171,61 @@ static uint gis_field_options_image(uchar *buff,
 }
 
 
+class Field_data_type_info_image: public BinaryStringBuffer<512>
+{
+  static uchar *store_length(uchar *pos, ulonglong length)
+  {
+    return net_store_length(pos, length);
+  }
+  static uchar *store_string(uchar *pos, const LEX_CSTRING &str)
+  {
+    pos= store_length(pos, str.length);
+    memcpy(pos, str.str, str.length);
+    return pos + str.length;
+  }
+  static uint store_length_required_length(ulonglong length)
+  {
+    return net_length_size(length);
+  }
+public:
+  Field_data_type_info_image() { }
+  bool append(uint fieldnr, const Column_definition &def)
+  {
+    BinaryStringBuffer<64> type_info;
+    if (def.type_handler()->
+              Column_definition_data_type_info_image(&type_info, def) ||
+        type_info.length() > 0xFFFF/*Some reasonable limit*/)
+      return true; // Error
+    if (!type_info.length())
+      return false;
+    size_t need_length= store_length_required_length(fieldnr) +
+                        store_length_required_length(type_info.length()) +
+                        type_info.length();
+    if (reserve(need_length))
+      return true; // Error
+    uchar *pos= (uchar *) end();
+    pos= store_length(pos, fieldnr);
+    pos= store_string(pos, type_info.lex_cstring());
+    size_t new_length= (const char *) pos - ptr();
+    DBUG_ASSERT(new_length < alloced_length());
+    length((uint32) new_length);
+    return false;
+  }
+  bool append(List<Create_field> &fields)
+  {
+    uint fieldnr= 0;
+    Create_field *field;
+    List_iterator<Create_field> it(fields);
+    for (field= it++; field; field= it++, fieldnr++)
+    {
+      if (append(fieldnr, *field))
+        return true; // Error
+    }
+    return false;
+  }
+};
+
+
 /**
   Create a frm (table definition) file
 
@@ -210,6 +265,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
   StringBuffer<MAX_FIELD_WIDTH> vcols;
+  Field_data_type_info_image field_data_type_info_image;
   DBUG_ENTER("build_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
@@ -263,6 +319,22 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   gis_extra2_len= gis_field_options_image(NULL, create_fields);
   DBUG_PRINT("info", ("Options length: %u", options_len));
 
+  if (field_data_type_info_image.append(create_fields))
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s: "
+                    "Building the field data type info image failed.",
+                    MYF(0), table.str);
+    DBUG_RETURN(frm);
+  }
+  DBUG_PRINT("info", ("Field data type info length: %u",
+                      (uint) field_data_type_info_image.length()));
+  DBUG_EXECUTE_IF("frm_data_type_info",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                  ER_UNKNOWN_ERROR,
+                  "build_frm_image: Field data type info length: %u",
+                  (uint) field_data_type_info_image.length()););
+
   if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
                               ER_TOO_LONG_TABLE_COMMENT, table.str))
      DBUG_RETURN(frm);
@@ -307,6 +379,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (gis_extra2_len)
     extra2_size+= 1 + extra2_str_size(gis_extra2_len);
+
+  if (field_data_type_info_image.length())
+    extra2_size+= 1 + extra2_str_size(field_data_type_info_image.length());
 
   if (create_info->versioned())
   {
@@ -378,6 +453,22 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     *pos= EXTRA2_GIS;
     pos= extra2_write_len(pos+1, gis_extra2_len);
     pos+= gis_field_options_image(pos, create_fields);
+  }
+
+  if (field_data_type_info_image.length())
+  {
+    if (field_data_type_info_image.length() > 0xFFFF)
+    {
+      my_printf_error(ER_CANT_CREATE_TABLE,
+                      "Cannot create table %`s: "
+                      "field data type info image is too large. "
+                      "Decrease the number of columns with "
+                      "extended data types.",
+                      MYF(0), table.str);
+      goto err;
+    }
+    *pos= EXTRA2_FIELD_DATA_TYPE_INFO;
+    pos= extra2_write_str(pos + 1, field_data_type_info_image.lex_cstring());
   }
 
   // PERIOD

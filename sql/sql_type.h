@@ -3076,6 +3076,7 @@ public:
   }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return (uint) LEX_CSTRING::length; }
+  const LEX_CSTRING &lex_cstring() const { return *this; }
   bool eq(const LEX_CSTRING &other) const
   {
     return !my_strnncoll(system_charset_info,
@@ -3490,6 +3491,9 @@ public:
   {
     return 0;
   }
+  virtual bool Column_definition_data_type_info_image(Binary_string *to,
+                                                   const Column_definition &def)
+                                                   const;
   // Check if the implicit default value is Ok in the current sql_mode
   virtual bool validate_implicit_default_value(THD *thd,
                                                const Column_definition &def)
