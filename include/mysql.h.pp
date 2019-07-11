@@ -1,3 +1,4 @@
+extern "C" {
 typedef char my_bool;
 typedef int my_socket;
 enum enum_server_command
@@ -109,6 +110,7 @@ enum enum_session_state_type
   SESSION_TRACK_TRANSACTION_STATE,
   SESSION_TRACK_always_at_the_end
 };
+extern "C" {
 my_bool my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);
@@ -127,6 +129,7 @@ struct sockaddr;
 int my_connect(my_socket s, const struct sockaddr *name, unsigned int namelen,
         unsigned int timeout);
 struct my_rnd_struct;
+}
 enum Item_result
 {
   STRING_RESULT=0, REAL_RESULT, INT_RESULT, ROW_RESULT, DECIMAL_RESULT,
@@ -152,6 +155,7 @@ typedef struct st_udf_init
   my_bool const_item;
   void *extension;
 } UDF_INIT;
+extern "C" {
 void create_random_string(char *to, unsigned int length,
                           struct my_rnd_struct *rand_st);
 void hash_password(unsigned long *to, const char *password, unsigned int password_len);
@@ -171,6 +175,7 @@ void get_tty_password_buff(const char *opt_message, char *to, size_t length);
 const char *mysql_errno_to_sqlstate(unsigned int mysql_errno);
 my_bool my_thread_init(void);
 void my_thread_end(void);
+}
 typedef long my_time_t;
 enum enum_mysql_timestamp_type
 {
@@ -184,6 +189,7 @@ typedef struct st_mysql_time
   my_bool neg;
   enum enum_mysql_timestamp_type time_type;
 } MYSQL_TIME;
+extern "C" {
 typedef struct st_list {
   struct st_list *prev,*next;
   void *data;
@@ -196,6 +202,7 @@ extern LIST *list_reverse(LIST *root);
 extern void list_free(LIST *root,unsigned int free_data);
 extern unsigned int list_length(LIST *);
 extern int list_walk(LIST *,list_walk_action action,unsigned char * argument);
+}
 extern unsigned int mariadb_deinitialize_ssl;
 extern unsigned int mysql_port;
 extern char *mysql_unix_port;
@@ -225,6 +232,7 @@ typedef struct st_mysql_field {
 typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
+extern "C" {
 typedef struct st_used_mem
 {
   struct st_used_mem *next;
@@ -244,6 +252,7 @@ typedef struct st_mem_root
   void (*error_handler)(void);
   const char *name;
 } MEM_ROOT;
+}
 typedef struct st_typelib {
   unsigned int count;
   const char *name;
@@ -770,3 +779,4 @@ unsigned int mysql_get_timeout_value(const MYSQL *mysql);
 unsigned int mysql_get_timeout_value_ms(const MYSQL *mysql);
 unsigned long mysql_net_read_packet(MYSQL *mysql);
 unsigned long mysql_net_field_length(unsigned char **packet);
+}
