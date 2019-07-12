@@ -3668,10 +3668,10 @@ double Item_param::val_real()
   case STRING_VALUE:
   case LONG_DATA_VALUE:
   {
-    int dummy_err;
-    char *end_not_used;
-    return my_strntod(str_value.charset(), (char*) str_value.ptr(),
-                      str_value.length(), &end_not_used, &dummy_err);
+    return double_from_string_with_check(str_value.charset(),
+                                         str_value.ptr(),
+                                         str_value.ptr() +
+                                         str_value.length());
   }
   case TIME_VALUE:
     /*
@@ -3706,11 +3706,10 @@ longlong Item_param::val_int()
   }
   case STRING_VALUE:
   case LONG_DATA_VALUE:
-    {
-      int dummy_err;
-      return my_strntoll(str_value.charset(), str_value.ptr(),
-                         str_value.length(), 10, (char**) 0, &dummy_err);
-    }
+    return longlong_from_string_with_check(str_value.charset(),
+                                           str_value.ptr(),
+                                           str_value.ptr() +
+                                           str_value.length());
   case TIME_VALUE:
     return (longlong) TIME_to_ulonglong(&value.time);
   case NULL_VALUE:
@@ -3735,8 +3734,7 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
     return dec;
   case STRING_VALUE:
   case LONG_DATA_VALUE:
-    string2my_decimal(E_DEC_FATAL_ERROR, &str_value, dec);
-    return dec;
+    return val_decimal_from_string(dec);
   case TIME_VALUE:
   {
     longlong i= (longlong) TIME_to_ulonglong(&value.time);
