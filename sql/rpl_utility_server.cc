@@ -1034,7 +1034,8 @@ public:
   bool add(const Type_handler *handler,
            uint16 metadata, const Field *target_field)
   {
-    Field *tmp= handler->make_conversion_table_field(this, metadata,
+    Field *tmp= handler->make_conversion_table_field(in_use->mem_root,
+                                                     this, metadata,
                                                      target_field);
     if (!tmp)
       return true;

@@ -320,7 +320,7 @@ class Item_sum_hybrid_simple : public Item_sum,
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
-  Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
   void clear()
   {
     value->clear();

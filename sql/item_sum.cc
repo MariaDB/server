@@ -1231,21 +1231,22 @@ void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 }
 
 
-Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
+Field *Item_sum_hybrid::create_tmp_field(MEM_ROOT *root,
+                                         bool group, TABLE *table)
 {
   DBUG_ENTER("Item_sum_hybrid::create_tmp_field");
 
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*) args[0])->field;
-    if ((field= field->create_tmp_field(table->in_use->mem_root, table, true)))
+    if ((field= field->create_tmp_field(root, table, true)))
     {
       DBUG_ASSERT((field->flags & NOT_NULL_FLAG) == 0);
       field->field_name= name;
     }
     DBUG_RETURN(field);
   }
-  DBUG_RETURN(tmp_table_field_from_field_type(table));
+  DBUG_RETURN(tmp_table_field_from_field_type(root, table));
 }
 
 /***********************************************************************
@@ -1935,7 +1936,7 @@ Item *Item_sum_avg::copy_or_same(THD* thd)
 }
 
 
-Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
+Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
 {
 
   if (group)
@@ -1945,7 +1946,7 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    Field *field= new (table->in_use->mem_root)
+    Field *field= new (root)
       Field_string(((result_type() == DECIMAL_RESULT) ?
                    dec_bin_size : sizeof(double)) + sizeof(longlong),
                    0, &name, &my_charset_bin);
@@ -1953,7 +1954,7 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
       field->init(table);
     return field;
   }
-  return tmp_table_field_from_field_type(table);
+  return tmp_table_field_from_field_type(root, table);
 }
 
 
@@ -2177,7 +2178,8 @@ Item *Item_sum_variance::copy_or_same(THD* thd)
   If we're grouping, then we need some space to serialize variables into, to
   pass around.
 */
-Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table)
+Field *Item_sum_variance::create_tmp_field(MEM_ROOT *root,
+                                           bool group, TABLE *table)
 {
   Field *field;
   if (group)
@@ -2187,11 +2189,12 @@ Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table)
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new Field_string(Stddev::binary_size(), 0, &name, &my_charset_bin);
+    field= new (root) Field_string(Stddev::binary_size(), 0,
+                                   &name, &my_charset_bin);
   }
   else
-    field= new Field_double(max_length, maybe_null, &name, decimals,
-                            TRUE);
+    field= new (root) Field_double(max_length, maybe_null, &name, decimals,
+                                   TRUE);
 
   if (field != NULL)
     field->init(table);

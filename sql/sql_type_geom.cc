@@ -205,7 +205,8 @@ const Type_handler *Type_handler_geometry::type_handler_for_comparison() const
 }
 
 
-Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
+Field *Type_handler_geometry::make_conversion_table_field(MEM_ROOT *root,
+                                                          TABLE *table,
                                                           uint metadata,
                                                           const Field *target)
                                                           const
@@ -218,7 +219,7 @@ Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
     The statistics was already incremented when "target" was created.
   */
   const Field_geom *fg= static_cast<const Field_geom*>(target);
-  return new(table->in_use->mem_root)
+  return new (root)
          Field_geom(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     table->s, 4, fg->type_handler_geom(), fg->srid);
 }
@@ -440,12 +441,13 @@ uint32 Type_handler_geometry::calc_pack_length(uint32 length) const
 }
 
 
-Field *Type_handler_geometry::make_table_field(const LEX_CSTRING *name,
+Field *Type_handler_geometry::make_table_field(MEM_ROOT *root,
+                                               const LEX_CSTRING *name,
                                                const Record_addr &addr,
                                                const Type_all_attributes &attr,
                                                TABLE *table) const
 {
-  return new (table->in_use->mem_root)
+  return new (root)
          Field_geom(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, table->s, 4, this, 0);
 }
@@ -609,14 +611,14 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
 
 
 Field *Type_handler_geometry::
-  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *root,
                             const LEX_CSTRING *name,
                             const Record_addr &rec, const Bit_addr &bit,
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
   status_var_increment(current_thd->status_var.feature_gis);
-  return new (mem_root)
+  return new (root)
     Field_geom(rec.ptr(), rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name, share,
                attr->pack_flag_to_pack_length(), this, attr->srid);

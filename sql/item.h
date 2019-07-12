@@ -783,10 +783,11 @@ protected:
   /**
     Create a field based on the exact data type handler.
   */
-  Field *create_table_field_from_handler(TABLE *table)
+  Field *create_table_field_from_handler(MEM_ROOT *root, TABLE *table)
   {
     const Type_handler *h= type_handler();
-    return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+    return h->make_and_init_table_field(root, &name,
+                                        Record_addr(maybe_null),
                                         *this, table);
   }
   /**
@@ -799,11 +800,12 @@ protected:
     @retval  NULL  error
     @retval  !NULL on success
   */
-  Field *tmp_table_field_from_field_type(TABLE *table)
+  Field *tmp_table_field_from_field_type(MEM_ROOT *root, TABLE *table)
   {
     DBUG_ASSERT(is_fixed());
     const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
-    return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+    return h->make_and_init_table_field(root, &name,
+                                        Record_addr(maybe_null),
                                         *this, table);
   }
   /**
@@ -815,17 +817,20 @@ protected:
     - does not need to set Field::is_created_from_null_item for the result
     See create_tmp_field_ex() for details on parameters and return values.
   */
-  Field *create_tmp_field_ex_simple(TABLE *table,
+  Field *create_tmp_field_ex_simple(MEM_ROOT *root,
+                                    TABLE *table,
                                     Tmp_field_src *src,
                                     const Tmp_field_param *param)
   {
     DBUG_ASSERT(!param->make_copy_field());
     DBUG_ASSERT(!is_result_field());
     DBUG_ASSERT(type() != NULL_ITEM);
-    return tmp_table_field_from_field_type(table);
+    return tmp_table_field_from_field_type(root, table);
   }
-  Field *create_tmp_field_int(TABLE *table, uint convert_int_length);
-  Field *tmp_table_field_from_field_type_maybe_null(TABLE *table,
+  Field *create_tmp_field_int(MEM_ROOT *root, TABLE *table,
+                              uint convert_int_length);
+  Field *tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
+                                            TABLE *table,
                                             Tmp_field_src *src,
                                             const Tmp_field_param *param,
                                             bool is_explicit_null);
@@ -1505,7 +1510,7 @@ public:
   int save_str_value_in_field(Field *field, String *result);
 
   virtual Field *get_tmp_table_field() { return 0; }
-  virtual Field *create_field_for_create_select(TABLE *table);
+  virtual Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table);
   virtual const char *full_name() const { return name.str ? name.str : "???"; }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name.str : NULL; }
@@ -2082,7 +2087,8 @@ public:
     @retval               NULL (on error)
     @retval               a pointer to a newly create Field (on success)
   */
-  virtual Field *create_tmp_field_ex(TABLE *table,
+  virtual Field *create_tmp_field_ex(MEM_ROOT *root,
+                                     TABLE *table,
                                      Tmp_field_src *src,
                                      const Tmp_field_param *param)= 0;
   virtual Item_field *field_for_view_update() { return 0; }
@@ -2653,7 +2659,8 @@ protected:
   }
   Item_basic_value(THD *thd): Item(thd) {}
 public:
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root,
+                             TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
 
@@ -2665,7 +2672,8 @@ public:
           DECLARE c CURSOR FOR SELECT 'test';
           OPEN c;
     */
-    return tmp_table_field_from_field_type_maybe_null(table, src, param,
+    return tmp_table_field_from_field_type_maybe_null(root,
+                                            table, src, param,
                                             type() == Item::NULL_ITEM);
   }
   bool eq(const Item *item, bool binary_cmp) const;
@@ -2737,10 +2745,11 @@ public:
   
   inline bool const_item() const;
   
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root,
+                             TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
-    return create_tmp_field_ex_simple(table, src, param);
+    return create_tmp_field_ex_simple(root, table, src, param);
   }
   inline int save_in_field(Field *field, bool no_conversions);
   inline bool send(Protocol *protocol, st_value *buffer);
@@ -2843,8 +2852,8 @@ public:
     The inherited implementation would create a column
     based on result_type(), which is less exact.
   */
-  Field *create_field_for_create_select(TABLE *table)
-  { return create_table_field_from_handler(table); }
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  { return create_table_field_from_handler(root, table); }
 
   bool is_valid_limit_clause_variable_with_error() const
   {
@@ -3033,7 +3042,8 @@ public:
     return TRUE;
   }
 
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root,
+                             TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     /*
@@ -3041,7 +3051,7 @@ public:
         DECLARE c CURSOR FOR SELECT NAME_CONST('x','y') FROM t1;
         OPEN c;
     */
-    return tmp_table_field_from_field_type_maybe_null(table, src, param,
+    return tmp_table_field_from_field_type_maybe_null(root, table, src, param,
                                               type() == Item::NULL_ITEM);
   }
   int save_in_field(Field *field, bool no_conversions)
@@ -3101,7 +3111,7 @@ public:
   {}
   ~Item_result_field() {}			/* Required with gcc 2.95 */
   Field *get_tmp_table_field() { return result_field; }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
   void get_tmp_field_src(Tmp_field_src *src, const Tmp_field_param *param);
   /*
@@ -3289,10 +3299,11 @@ public:
       return &type_handler_null;
     return field->type_handler();
   }
-  Field *create_tmp_field_from_item_field(TABLE *new_table,
+  Field *create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
                                           Item_ref *orig_item,
                                           const Tmp_field_param *param);
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root,
+                             TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
   const TYPELIB *get_typelib() const { return field->get_typelib(); }
   enum_monotonicity_info get_monotonicity_info() const
@@ -3535,7 +3546,7 @@ public:
   {
     return result_field->type();
   }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     DBUG_ASSERT(0);
@@ -4003,8 +4014,8 @@ public:
   Item_int(THD *thd, const char *str_arg, size_t length=64);
   const Type_handler *type_handler() const
   { return type_handler_long_or_longlong(); }
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  { return tmp_table_field_from_field_type(root, table); }
   const longlong *const_ptr_longlong() const { return &value; }
   longlong val_int() { return value; }
   longlong val_int_min() const { return value; }
@@ -5106,7 +5117,7 @@ public:
   Field *get_tmp_table_field()
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
   Item *get_tmp_table_item(THD *thd);
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   table_map used_tables() const;		
@@ -5866,7 +5877,7 @@ public:
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
 
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     DBUG_ASSERT(0);
@@ -6384,10 +6395,10 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
-    return create_tmp_field_ex_simple(table, src, param);
+    return create_tmp_field_ex_simple(root, table, src, param);
   }
 
   virtual void keep_array() {}
@@ -6929,11 +6940,11 @@ public:
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     return Item_type_holder::real_type_handler()->
-           make_and_init_table_field(&name, Record_addr(maybe_null),
+           make_and_init_table_field(root, &name, Record_addr(maybe_null),
                                      *this, table);
   }
   Item* get_copy(THD *thd) { return 0; }

@@ -60,7 +60,7 @@ public:
   bool with_subquery() const { DBUG_ASSERT(fixed); return m_with_subquery; }
   enum Type type() const { return ROW_ITEM; };
   const Type_handler *type_handler() const { return &type_handler_row; }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     return NULL; // Check with Vicentiu why it's called for Item_row

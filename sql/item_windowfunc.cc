@@ -458,7 +458,8 @@ bool Item_sum_hybrid_simple::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t f
   return retval;
 }
 
-Field *Item_sum_hybrid_simple::create_tmp_field(bool group, TABLE *table)
+Field *Item_sum_hybrid_simple::create_tmp_field(MEM_ROOT *root,
+                                                bool group, TABLE *table)
 {
   DBUG_ASSERT(0);
   return NULL;

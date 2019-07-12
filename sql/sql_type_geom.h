@@ -73,7 +73,8 @@ public:
                                  Item_param *param,
                                  const Type_all_attributes *attr,
                                  const st_value *value) const override;
-  Field *make_conversion_table_field(TABLE *, uint metadata,
+  Field *make_conversion_table_field(MEM_ROOT *root,
+                                     TABLE *table, uint metadata,
                                      const Field *target) const override;
   uint Column_definition_gis_options_image(uchar *buff,
                                            const Column_definition &def)
@@ -115,7 +116,8 @@ public:
                                   const handler *file) const override;
   bool Key_part_spec_init_spatial(Key_part_spec *part,
                                   const Column_definition &def) const override;
-  Field *make_table_field(const LEX_CSTRING *name,
+  Field *make_table_field(MEM_ROOT *root,
+                          const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const override;

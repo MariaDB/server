@@ -188,8 +188,8 @@ public:
 
   void signal_divide_by_null();
   friend class udf_handler;
-  Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  { return tmp_table_field_from_field_type(root, table); }
   Item *get_tmp_table_item(THD *thd);
 
   my_decimal *val_decimal(my_decimal *);
@@ -2673,10 +2673,10 @@ public:
   Item_func_user_var(THD *thd, Item_func_user_var *item)
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
-  Field *create_field_for_create_select(TABLE *table)
-  { return create_table_field_from_handler(table); }
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  { return create_table_field_from_handler(root, table); }
   bool check_vcol_func_processor(void *arg);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
@@ -2851,7 +2851,7 @@ public:
   {
     return 0;
   }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     DBUG_ASSERT(0);
@@ -3173,13 +3173,13 @@ public:
 
   const Type_handler *type_handler() const;
 
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
-  Field *create_field_for_create_select(TABLE *table)
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
   {
     return result_type() != STRING_RESULT ?
            sp_result_field :
-           create_table_field_from_handler(table);
+           create_table_field_from_handler(root, table);
   }
   void make_send_field(THD *thd, Send_field *tmp_field);
 

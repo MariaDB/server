@@ -1796,8 +1796,8 @@ public:
   TABLE *table;
   Item_temptable_rowid(TABLE *table_arg);
   const Type_handler *type_handler() const { return &type_handler_string; }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return create_table_field_from_handler(table); }
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+  { return create_table_field_from_handler(root, table); }
   String *val_str(String *str);
   enum Functype functype() const { return  TEMPTABLE_ROWID; }
   const char *func_name() const { return "<rowid>"; }

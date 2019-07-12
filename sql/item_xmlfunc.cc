@@ -195,7 +195,7 @@ public:
   {
     return &type_handler_xpath_nodeset;
   }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     DBUG_ASSERT(0);
@@ -606,7 +606,7 @@ public:
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     DBUG_ASSERT(0);

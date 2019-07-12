@@ -17474,16 +17474,18 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
   Create internal temporary table
 ****************************************************************************/
 
-Field *Item::create_tmp_field_int(TABLE *table, uint convert_int_length)
+Field *Item::create_tmp_field_int(MEM_ROOT *root, TABLE *table,
+                                  uint convert_int_length)
 {
   const Type_handler *h= &type_handler_long;
   if (max_char_length() > convert_int_length)
     h= &type_handler_longlong;
-  return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+  return h->make_and_init_table_field(root, &name, Record_addr(maybe_null),
                                       *this, table);
 }
 
-Field *Item::tmp_table_field_from_field_type_maybe_null(TABLE *table,
+Field *Item::tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
+                                            TABLE *table,
                                             Tmp_field_src *src,
                                             const Tmp_field_param *param,
                                             bool is_explicit_null)
@@ -17495,7 +17497,7 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(TABLE *table,
   DBUG_ASSERT(!param->make_copy_field() || type() == CONST_ITEM);
   DBUG_ASSERT(!is_result_field());
   Field *result;
-  if ((result= tmp_table_field_from_field_type(table)))
+  if ((result= tmp_table_field_from_field_type(root, table)))
   {
     if (result && is_explicit_null)
       result->is_created_from_null_item= true;
@@ -17504,15 +17506,14 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(TABLE *table,
 }
 
 
-Field *Item_sum::create_tmp_field(bool group, TABLE *table)
+Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
 {
   Field *UNINIT_VAR(new_field);
-  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   switch (cmp_type()) {
   case REAL_RESULT:
   {
-    new_field= new (mem_root)
+    new_field= new (root)
       Field_double(max_char_length(), maybe_null, &name, decimals, TRUE);
     break;
   }
@@ -17520,7 +17521,7 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table)
   case TIME_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
-    new_field= tmp_table_field_from_field_type(table);
+    new_field= tmp_table_field_from_field_type(root, table);
     break;
   case ROW_RESULT:
     // This case should never be choosen
@@ -17539,7 +17540,7 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table)
   either direct or referenced by an Item_ref.
 */
 Field *
-Item_field::create_tmp_field_from_item_field(TABLE *new_table,
+Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
                                              Item_ref *orig_item,
                                              const Tmp_field_param *param)
 {
@@ -17563,14 +17564,15 @@ Item_field::create_tmp_field_from_item_field(TABLE *new_table,
     Record_addr rec(orig_item ? orig_item->maybe_null : maybe_null);
     const Type_handler *handler= type_handler()->
                                    type_handler_for_tmp_table(this);
-    result= handler->make_and_init_table_field(orig_item ? &orig_item->name : &name,
+    result= handler->make_and_init_table_field(root,
+                                               orig_item ? &orig_item->name : &name,
                                                rec, *this, new_table);
   }
   else if (param->table_cant_handle_bit_fields() &&
            field->type() == MYSQL_TYPE_BIT)
   {
     const Type_handler *handler= type_handler_long_or_longlong();
-    result= handler->make_and_init_table_field(&name,
+    result= handler->make_and_init_table_field(root, &name,
                                                Record_addr(maybe_null),
                                                *this, new_table);
   }
@@ -17579,8 +17581,7 @@ Item_field::create_tmp_field_from_item_field(TABLE *new_table,
     LEX_CSTRING *tmp= orig_item ? &orig_item->name : &name;
     bool tmp_maybe_null= param->modify_item() ? maybe_null :
                                                 field->maybe_null();
-    result= field->create_tmp_field(new_table->in_use->mem_root, new_table,
-                                    tmp_maybe_null);
+    result= field->create_tmp_field(root, new_table, tmp_maybe_null);
     if (result)
       result->field_name= *tmp;
   }
@@ -17590,14 +17591,14 @@ Item_field::create_tmp_field_from_item_field(TABLE *new_table,
 }
 
 
-Field *Item_field::create_tmp_field_ex(TABLE *table,
+Field *Item_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
                                        Tmp_field_src *src,
                                        const Tmp_field_param *param)
 {
   DBUG_ASSERT(!is_result_field());
   Field *result;
   src->set_field(field);
-  if (!(result= create_tmp_field_from_item_field(table, NULL, param)))
+  if (!(result= create_tmp_field_from_item_field(root, table, NULL, param)))
     return NULL;
   /*
     Fields that are used as arguments to the DEFAULT() function already have
@@ -17610,7 +17611,7 @@ Field *Item_field::create_tmp_field_ex(TABLE *table,
 }
 
 
-Field *Item_ref::create_tmp_field_ex(TABLE *table,
+Field *Item_ref::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
                                      Tmp_field_src *src,
                                      const Tmp_field_param *param)
 {
@@ -17623,13 +17624,14 @@ Field *Item_ref::create_tmp_field_ex(TABLE *table,
     Tmp_field_param prm2(*param);
     prm2.set_modify_item(false);
     src->set_field(field->field);
-    if (!(result= field->create_tmp_field_from_item_field(table, this, &prm2)))
+    if (!(result= field->create_tmp_field_from_item_field(root, table,
+                                                          this, &prm2)))
       return NULL;
     if (param->modify_item())
       result_field= result;
     return result;
   }
-  return Item_result_field::create_tmp_field_ex(table, src, param);
+  return Item_result_field::create_tmp_field_ex(root, table, src, param);
 }
 
 
@@ -17648,7 +17650,7 @@ void Item_result_field::get_tmp_field_src(Tmp_field_src *src,
 }
 
 
-Field *Item_result_field::create_tmp_field_ex(TABLE *table,
+Field *Item_result_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
                                               Tmp_field_src *src,
                                               const Tmp_field_param *param)
 {
@@ -17662,13 +17664,14 @@ Field *Item_result_field::create_tmp_field_ex(TABLE *table,
   DBUG_ASSERT(type() != NULL_ITEM);
   get_tmp_field_src(src, param);
   Field *result;
-  if ((result= tmp_table_field_from_field_type(table)) && param->modify_item())
+  if ((result= tmp_table_field_from_field_type(root, table)) &&
+      param->modify_item())
     result_field= result;
   return result;
 }
 
 
-Field *Item_func_user_var::create_tmp_field_ex(TABLE *table,
+Field *Item_func_user_var::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
                                                Tmp_field_src *src,
                                                const Tmp_field_param *param)
 {
@@ -17676,20 +17679,20 @@ Field *Item_func_user_var::create_tmp_field_ex(TABLE *table,
   DBUG_ASSERT(type() != NULL_ITEM);
   get_tmp_field_src(src, param);
   Field *result;
-  if ((result= create_table_field_from_handler(table)) && param->modify_item())
+  if ((result= create_table_field_from_handler(root, table)) &&
+      param->modify_item())
     result_field= result;
   return result;
 }
 
 
-Field *Item_func_sp::create_tmp_field_ex(TABLE *table,
+Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
                                          Tmp_field_src *src,
                                          const Tmp_field_param *param)
 {
   Field *result;
   get_tmp_field_src(src, param);
-  if ((result= sp_result_field->create_tmp_field(table->in_use->mem_root,
-                                                 table)))
+  if ((result= sp_result_field->create_tmp_field(root, table)))
   {
     result->field_name= name;
     if (param->modify_item())
@@ -17735,7 +17738,8 @@ Field *create_tmp_field(TABLE *table, Item *item,
   Tmp_field_src src;
   Tmp_field_param prm(group, modify_item, table_cant_handle_bit_fields,
                       make_copy_field);
-  Field *result= item->create_tmp_field_ex(table, &src, &prm);
+  Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
+                                           table, &src, &prm);
   *from_field= src.field();
   *default_field= src.default_field();
   if (src.item_result_field())
@@ -18736,7 +18740,8 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
     bool visible= bitmap_is_set(&bitmap, fieldnr);
     Record_addr addr(def.nullable());
     const Type_handler *h= def.type_handler();
-    Field *field= h->make_schema_field(table, addr, def, visible);
+    Field *field= h->make_schema_field(&table->mem_root, table,
+                                       addr, def, visible);
     if (!field)
     {
       thd->mem_root= mem_root_save;

@@ -513,11 +513,11 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  virtual Field *create_tmp_field(bool group, TABLE *table);
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  virtual Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
-    return create_tmp_field(param->group(), table);
+    return create_tmp_field(root, param->group(), table);
   }
   virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);
@@ -928,7 +928,7 @@ public:
     return has_with_distinct() ? "avg(distinct " : "avg("; 
   }
   Item *copy_or_same(THD* thd);
-  Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
   void cleanup()
   {
     count= 0;
@@ -1013,7 +1013,7 @@ public:
   const char *func_name() const
     { return sample ? "var_samp(" : "variance("; }
   Item *copy_or_same(THD* thd);
-  Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
   const Type_handler *type_handler() const { return &type_handler_double; }
   void cleanup()
   {
@@ -1100,7 +1100,7 @@ protected:
   bool any_value() { return was_values; }
   void no_rows_in_result();
   void restore_to_before_no_rows_in_result();
-  Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
   void setup_caches(THD *thd) { setup_hybrid(thd, arguments()[0], NULL); }
 };
 
@@ -1323,9 +1323,9 @@ public:
   {
     return SP_AGGREGATE_FUNC;
   }
-  Field *create_field_for_create_select(TABLE *table)
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
   {
-    return create_table_field_from_handler(table);
+    return create_table_field_from_handler(root, table);
   }
   bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
@@ -1407,10 +1407,10 @@ public:
     unsigned_flag= item->unsigned_flag;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
-    return create_tmp_field_ex_simple(table, src, param);
+    return create_tmp_field_ex_simple(root, table, src, param);
   }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
   bool check_vcol_func_processor(void *arg)

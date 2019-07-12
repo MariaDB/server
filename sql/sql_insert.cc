@@ -4127,11 +4127,11 @@ void select_insert::abort_result_set() {
   CREATE TABLE (SELECT) ...
 ***************************************************************************/
 
-Field *Item::create_field_for_create_select(TABLE *table)
+Field *Item::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
 {
   static Tmp_field_param param(false, false, false, false);
   Tmp_field_src src;
-  return create_tmp_field_ex(table, &src, &param);
+  return create_tmp_field_ex(root, table, &src, &param);
 }
 
 
@@ -4202,7 +4202,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
   while ((item=it++))
   {
-    Field *tmp_field= item->create_field_for_create_select(&tmp_table);
+    Field *tmp_field= item->create_field_for_create_select(thd->mem_root,
+                                                           &tmp_table);
 
     if (!tmp_field)
       DBUG_RETURN(NULL);
