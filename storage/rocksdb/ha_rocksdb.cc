@@ -799,7 +799,7 @@ static void rocksdb_set_rocksdb_stats_level(THD *const thd,
 
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
   rocksdb_db_options->statistics->set_stats_level(
-      static_cast<const rocksdb::StatsLevel>(
+      static_cast<rocksdb::StatsLevel>(
           *static_cast<const uint64_t *>(save)));
   // Actual stats level is defined at rocksdb dbopt::statistics::stats_level_
   // so adjusting rocksdb_stats_level here to make sure it points to
