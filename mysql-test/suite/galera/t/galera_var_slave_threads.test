@@ -6,6 +6,7 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/force_restart.inc
 
 --connection node_1
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`

@@ -28,8 +28,6 @@
 
 ulong   wsrep_reject_queries;
 
-static long wsrep_prev_slave_threads = wsrep_slave_threads;
-
 int wsrep_init_vars()
 {
   wsrep_provider        = my_strdup(WSREP_NONE, MYF(MY_WME));
@@ -502,6 +500,8 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_start_replication())
   {
     wsrep_create_rollbacker();
+    WSREP_DEBUG("Cluster address update creating %ld applier threads running %lu",
+	    wsrep_slave_threads, wsrep_running_applier_threads);
     wsrep_create_appliers(wsrep_slave_threads);
   }
 
@@ -595,18 +595,20 @@ void wsrep_node_address_init (const char* value)
 
 static void wsrep_slave_count_change_update ()
 {
-  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_prev_slave_threads);
-  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
-	  wsrep_slave_threads, wsrep_prev_slave_threads, wsrep_slave_count_change);
-  wsrep_prev_slave_threads = wsrep_slave_threads;
+  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_applier_threads);
+  WSREP_DEBUG("Change on slave threads: New %ld old %lu difference %d",
+	  wsrep_slave_threads, wsrep_running_applier_threads, wsrep_slave_count_change);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 {
   wsrep_slave_count_change_update();
+
   if (wsrep_slave_count_change > 0)
   {
+    WSREP_DEBUG("Creating %d applier threads, total %ld", wsrep_slave_count_change, wsrep_slave_threads);
     wsrep_create_appliers(wsrep_slave_count_change);
+    WSREP_DEBUG("Running %lu applier threads", wsrep_running_applier_threads);
     wsrep_slave_count_change = 0;
   }
   return false;

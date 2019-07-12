@@ -134,7 +134,7 @@ wsrep_thread_count	0
 # Setting wsrep_cluster_address triggers the creation of
 # applier/rollbacker threads.
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
-# Wait for applier threads to get created.
+# Wait for applier thread to get created 1.
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 VARIABLE_VALUE
 1
@@ -159,7 +159,7 @@ wsrep_thread_count	2
 
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
-# Wait for applier threads to get created.
+# Wait for 9 applier threads to get created.
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 VARIABLE_VALUE
 10
