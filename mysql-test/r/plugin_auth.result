@@ -42,7 +42,13 @@ connection default;
 disconnect plug_con;
 ## test bad credentials
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
-## test bad default plugin : should get CR_AUTH_PLUGIN_CANNOT_LOAD
+## test bad default plugin : nothing bad happens, as that plugin was't required by the server
+connect plug_con_wrongp,localhost,plug,plug_dest,,,,,wrong_plugin_name;
+select USER(),CURRENT_USER();
+USER()	CURRENT_USER()
+plug@localhost	plug_dest@%
+connection default;
+disconnect plug_con_wrongp;
 ## test correct default plugin
 connect plug_con_rightp,localhost,plug,plug_dest,,,,,auth_test_plugin;
 connection plug_con_rightp;
