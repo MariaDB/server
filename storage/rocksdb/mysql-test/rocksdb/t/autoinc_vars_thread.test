@@ -23,8 +23,12 @@ connect (con3, localhost, root,,);
 
 # Start each thread on an insert that will block waiting for a signal
 connection con1;
+SET debug_sync='rocksdb.autoinc_vars2 SIGNAL go2';
 SET debug_sync='rocksdb.autoinc_vars SIGNAL parked1 WAIT_FOR go1';
 send INSERT INTO t1 VALUES(NULL);
+
+connection default;
+SET debug_sync='now WAIT_FOR parked1';
 
 connection con2;
 SET debug_sync='rocksdb.autoinc_vars SIGNAL parked2 WAIT_FOR go2';
@@ -32,13 +36,15 @@ send INSERT INTO t1 VALUES(NULL);
 
 # Wait for both threads to be at debug_sync point
 connection default;
-SET debug_sync='now WAIT_FOR parked1';
 SET debug_sync='now WAIT_FOR parked2';
 
+
 # Signal both threads to continue
+# (In MariaDB, we signal one of them which continues and signals the other)
 send SET debug_sync='now SIGNAL go1';
 connection con3;
-SET debug_sync='now SIGNAL go2';
+# MariaDB: do nothing here
+
 connection default;
 reap;
 

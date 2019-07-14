@@ -12178,6 +12178,7 @@ void ha_rocksdb::get_auto_increment(ulonglong off, ulonglong inc,
     an actual reserve of some values might be a better solution.
    */
   DEBUG_SYNC(ha_thd(), "rocksdb.autoinc_vars");
+  DEBUG_SYNC(ha_thd(), "rocksdb.autoinc_vars2");
 
   if (off > inc) {
     off = 1;
