@@ -1,4 +1,5 @@
 connection node_1;
+SET GLOBAL wsrep_slave_threads=2;
 Got one of the listed errors
 Got one of the listed errors
 Got one of the listed errors
