@@ -1917,7 +1917,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_basic_constant> text_literal
 
 %type <item_list>
-        expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
+        opt_select_expressions expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
         decode_when_list_oracle
         execute_using
@@ -13292,17 +13292,14 @@ insert:
             Select->set_lock_for_tables($3, true);
             Lex->current_select= Lex->first_select_lex();
           }
-          insert_field_spec opt_insert_update
+          insert_field_spec opt_insert_update opt_select_expressions
           {
-            Lex->returning_list.swap(Lex->current_select->item_list);
-          }
-          opt_select_expressions
-          {
-            Lex->returning_list.swap(Lex->current_select->item_list);
-             Lex->pop_select(); //main select
-             if (Lex->check_main_unit_semantics())
+            if($9)
+              Lex->returning_list=*($9);
+            Lex->pop_select(); //main select
+            if (Lex->check_main_unit_semantics())
                MYSQL_YYABORT;
-         }
+          }
          ;	
 
 replace:
@@ -13321,15 +13318,12 @@ replace:
             Select->set_lock_for_tables($3, true);
             Lex->current_select= Lex->first_select_lex();
           }
-          insert_field_spec
+          insert_field_spec opt_select_expressions
           {
-            Lex->returning_list.swap(Lex->current_select->item_list);
-          }
-		      opt_select_expressions
-          {
-            Lex->returning_list.swap(Lex->current_select->item_list);
-             Lex->pop_select(); //main select
-             if (Lex->check_main_unit_semantics())
+            if($7)
+              Lex->returning_list=*($7);
+            Lex->pop_select(); //main select
+            if (Lex->check_main_unit_semantics())
                MYSQL_YYABORT;
           }
          ;
@@ -13760,8 +13754,11 @@ single_multi:
         ;
 
 opt_select_expressions:
-          /* empty */ 
-        | RETURNING_SYM select_item_list 
+          /* empty */ {$$=NULL;}
+        | RETURNING_SYM select_item_list
+          {
+            $$=&Lex->current_select->item_list;
+          }
         ;
 
 table_wild_list:
