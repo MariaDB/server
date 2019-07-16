@@ -38,22 +38,36 @@ ALTER TABLE `cardtest_tbl` ENABLE KEYS;
 UNLOCK TABLES;
 
 use cardtest02;
---sleep 15
---vertical_results
-show indexes from cardtest_tbl;
---vertical_results
-select table_rows, avg_row_length, data_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl';
+--sleep 20
+
+let $cardinality1 = `SELECT cardinality from information_schema.statistics WHERE TABLE_NAME = 'cardtest_tbl'`;
+let $table_rows1 = `SELECT table_rows from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl'`;
+let $avg_row_length1 = `SELECT avg_row_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl'`;
+let $data_length1 = `SELECT data_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl'`;
+
 select count(*) from cardtest_tbl;
 
 --connection node_2
 set session wsrep_sync_wait=15;
 use cardtest02;
---sleep 15
---vertical_results
-show indexes from cardtest_tbl;
---vertical_results
-select table_rows, avg_row_length, data_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl';
 select count(*) from cardtest_tbl;
+
+if (`SELECT cardinality <> $cardinality1 from information_schema.statistics WHERE TABLE_NAME = 'cardtest_tbl'`)
+{
+SELECT cardinality from from information_schema.statistics WHERE TABLE_NAME = 'cardtest_tbl';
+}
+if (`SELECT table_rows <> $table_rows1 from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl'`)
+{
+SELECT table_rows from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl';
+}
+if (`SELECT avg_row_length <> $avg_row_length1 from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl'`)
+{
+SELECT avg_row_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl';
+}
+if (`SELECT data_length <> $data_length1 from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl'`)
+{
+SELECT data_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl';
+}
 
 --connection node_1
 use test;

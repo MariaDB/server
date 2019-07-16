@@ -34,49 +34,15 @@ Warnings:
 Note	1031	Storage engine InnoDB of the table `cardtest02`.`cardtest_tbl` doesn't have this option
 UNLOCK TABLES;
 use cardtest02;
-show indexes from cardtest_tbl;
-Table	cardtest_tbl
-Non_unique	0
-Key_name	PRIMARY
-Seq_in_index	1
-Column_name	id
-Collation	A
-Cardinality	301
-Sub_part	NULL
-Packed	NULL
-Null	
-Index_type	BTREE
-Comment	
-Index_comment	
-select table_rows, avg_row_length, data_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl';
-table_rows	301
-avg_row_length	81
-data_length	24576
 select count(*) from cardtest_tbl;
-count(*)	301
+count(*)
+301
 connection node_2;
 set session wsrep_sync_wait=15;
 use cardtest02;
-show indexes from cardtest_tbl;
-Table	cardtest_tbl
-Non_unique	0
-Key_name	PRIMARY
-Seq_in_index	1
-Column_name	id
-Collation	A
-Cardinality	301
-Sub_part	NULL
-Packed	NULL
-Null	
-Index_type	BTREE
-Comment	
-Index_comment	
-select table_rows, avg_row_length, data_length from information_schema.tables WHERE TABLE_NAME = 'cardtest_tbl';
-table_rows	301
-avg_row_length	81
-data_length	24576
 select count(*) from cardtest_tbl;
-count(*)	301
+count(*)
+301
 connection node_1;
 use test;
 drop database cardtest02;
