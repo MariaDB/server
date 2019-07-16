@@ -1917,7 +1917,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_basic_constant> text_literal
 
 %type <item_list>
-        opt_select_expressions expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
+        insert_field_spec opt_insert_update insert_values opt_select_expressions expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
         decode_when_list_oracle
         execute_using
@@ -2040,7 +2040,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         analyze_stmt_command backup backup_statements
         query verb_clause create change select select_into
         do drop insert replace insert2
-        insert_values update delete truncate rename compound_statement
+        update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
@@ -13292,10 +13292,22 @@ insert:
             Select->set_lock_for_tables($3, true);
             Lex->current_select= Lex->first_select_lex();
           }
-          insert_field_spec opt_insert_update opt_select_expressions
+          insert_field_spec opt_insert_update
+          { 
+            if($7)
+            {
+             List<Item> list;
+             list=*($7);
+             Lex->current_select->item_list.empty();
+             $7=&list;
+            }
+          }
+          opt_select_expressions
           {
-            if($9)
-              Lex->returning_list=*($9);
+           if($10)
+              Lex->returning_list=*($10);
+            if($7)
+                Lex->current_select->item_list=*($7);
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
                MYSQL_YYABORT;
@@ -13378,8 +13390,8 @@ insert_table:
         ;
 
 insert_field_spec:
-          insert_values {}
-        | insert_field_list insert_values {}
+          insert_values {$$=$1;}
+        | insert_field_list insert_values {$$=$2;}
         | SET
           {
             LEX *lex=Lex;
@@ -13413,7 +13425,11 @@ fields:
 
 
 insert_values:
-         create_select_query_expression {}
+         create_select_query_expression 
+         {
+           (!Lex->current_select->item_list.is_empty())?
+               $$=&Lex->current_select->item_list:$$=NULL;
+         }
         ;
 
 values_list:
