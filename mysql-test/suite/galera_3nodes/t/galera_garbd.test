@@ -5,6 +5,7 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_garbd.inc
 --source include/big_test.inc
 
 # Save galera ports
@@ -30,8 +31,6 @@
 
 --echo Killing node #3 to free ports for garbd ...
 --connection node_3
---let $gp3 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('base_port =', @@wsrep_provider_options) + LENGTH('base_port = '))`
---let $galera_port_3 = `SELECT SUBSTR('$gp3', 1, LOCATE(';', '$gp3') - 1)`
 --source include/shutdown_mysqld.inc
 
 --connection node_1
@@ -39,33 +38,7 @@
 --source include/wait_condition.inc
 
 --echo Starting garbd ...
---perl
-use strict;
-use File::Basename;
-my $provider_dirname = dirname($ENV{WSREP_PROVIDER});
-# Array of possible garbd executable paths to be checked
-# base is $provider_dirname
-my @garbd_executable_search = (
-  # WSREP_PROVIDER is set in galera repository
-  ${provider_dirname}."/garb/garbd",
-  # MariaDB (PR #1147)
-  ${provider_dirname}."/../../bin/garb/garbd"
-);
-my $garbd_executable = '';
-foreach my $garbd (@garbd_executable_search) {
-  if (-f $garbd) {
-    $garbd_executable= $garbd;
-  }
-}
-if ($garbd_executable eq '') {
-  die("Didn't locate garbd\n"); 
-}
-die unless open(FILE, ">$ENV{MYSQLTEST_VARDIR}/tmp/garbd.inc");
-print FILE "--exec $garbd_executable --address \"gcomm://127.0.0.1:\$NODE_GALERAPORT_1\" --group my_wsrep_cluster --options 'base_port=\$NODE_GALERAPORT_3' > \$MYSQL_TMP_DIR/garbd.log 2>&1 &\n";
-close(FILE);
-EOF
---source $MYSQLTEST_VARDIR/tmp/garbd.inc
---remove_file $MYSQLTEST_VARDIR/tmp/garbd.inc
+--exec $MTR_GARBD_EXE --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
 
 --sleep 5
 
