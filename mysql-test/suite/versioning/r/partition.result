@@ -557,6 +557,18 @@ insert into t1 values (1), (2);
 explain select max(pk) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+#
+# MDEV-20068 History partition rotation is not done under LOCK TABLES
+#
+create or replace table t1 (x int) with system versioning partition by system_time limit 1
+(partition p1 history, partition pn current);
+lock tables t1 write;
+insert into t1 values (0), (1), (2), (3);
+delete from t1 where x < 3;
+delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+unlock tables;
 # Test cleanup
 drop database test;
 create database test;

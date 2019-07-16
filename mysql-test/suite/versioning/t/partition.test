@@ -518,6 +518,17 @@ explain select max(pk) from t1;
 set default_storage_engine= @saved_storage_engine;
 --enable_query_log
 
+--echo #
+--echo # MDEV-20068 History partition rotation is not done under LOCK TABLES
+--echo #
+create or replace table t1 (x int) with system versioning partition by system_time limit 1
+(partition p1 history, partition pn current);
+lock tables t1 write;
+insert into t1 values (0), (1), (2), (3);
+delete from t1 where x < 3;
+delete from t1;
+unlock tables;
+
 --echo # Test cleanup
 drop database test;
 create database test;
