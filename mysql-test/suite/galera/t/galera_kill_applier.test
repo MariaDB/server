@@ -4,10 +4,16 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/force_restart.inc
 
---connection node_1
---sleep 2
---let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE IS NULL LIMIT 1`
+--connection node_2
+SET GLOBAL wsrep_slave_threads=2;
+
+--let $wait_condition = SELECT COUNT(*) >= 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle';
+--let $wait_condition_on_error_output = SELECT COUNT(*), 2 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
+--source include/wait_condition_with_debug.inc
+
+--let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle' LIMIT 1`
 
 --disable_query_log
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
@@ -24,3 +30,17 @@
 --error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
 --eval KILL QUERY $aborter_thread
 --enable_query_log
+
+SET GLOBAL wsrep_slave_threads=1;
+
+--connection node_1
+create table t1(a int not null primary key) engine=innodb;
+insert into t1 values (1);
+insert into t1 values (2);
+
+--connection node_2
+set global wsrep_sync_wait=15;
+select count(*) from t1;
+
+--connection node_1
+drop table t1;

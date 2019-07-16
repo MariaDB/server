@@ -222,7 +222,6 @@ set(ROCKSDB_SOURCES
         db/flush_job.cc
         db/flush_scheduler.cc
         db/forward_iterator.cc
-        db/in_memory_stats_history.cc
         db/internal_stats.cc
         db/log_reader.cc
         db/logs_with_prep_tracker.cc
@@ -270,9 +269,11 @@ set(ROCKSDB_SOURCES
         monitoring/histogram.cc
         monitoring/histogram_windowing.cc
         monitoring/instrumented_mutex.cc
+        monitoring/in_memory_stats_history.cc
         monitoring/iostats_context.cc
         monitoring/perf_context.cc
         monitoring/perf_level.cc
+        monitoring/persistent_stats_history.cc
         monitoring/statistics.cc
         monitoring/thread_status_impl.cc
         monitoring/thread_status_updater.cc
@@ -325,6 +326,7 @@ set(ROCKSDB_SOURCES
         tools/ldb_cmd.cc
         tools/ldb_tool.cc
         tools/sst_dump_tool.cc
+        trace_replay/block_cache_tracer.cc
         trace_replay/trace_replay.cc
         util/bloom.cc
         util/coding.cc

@@ -7554,6 +7554,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (res)
     goto rollback;
 
+  DEBUG_SYNC(thd, "alter_table_inplace_before_lock_upgrade");
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
     goto rollback;

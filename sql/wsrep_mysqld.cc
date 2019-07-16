@@ -38,6 +38,7 @@
 #include <cstdlib>
 #include "log_event.h"
 #include <slave.h>
+#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -134,7 +135,11 @@ mysql_mutex_t LOCK_wsrep_desync;
 mysql_mutex_t LOCK_wsrep_config_state;
 
 int wsrep_replaying= 0;
-ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
+ulong  wsrep_running_threads = 0; // # of currently running wsrep
+				  // # threads
+ulong  wsrep_running_applier_threads = 0; // # of running applier threads
+ulong  wsrep_running_rollbacker_threads = 0; // # of running
+					     // # rollbacker threads
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -2020,7 +2025,8 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
 pthread_handler_t start_wsrep_THD(void *arg)
 {
   THD *thd;
-  wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
+  wsrep_thread_args* args= (wsrep_thread_args*)arg;
+  wsrep_thd_processor_fun processor= args->processor;
 
   if (my_thread_init() || (!(thd= new THD(next_thread_id(), true))))
   {
@@ -2096,6 +2102,19 @@ pthread_handler_t start_wsrep_THD(void *arg)
 
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
+
+  switch (args->thread_type) {
+    case WSREP_APPLIER_THREAD:
+      wsrep_running_applier_threads++;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      wsrep_running_rollbacker_threads++;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", args->thread_type);
+      break;
+  }
+
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -2104,7 +2123,25 @@ pthread_handler_t start_wsrep_THD(void *arg)
   close_connection(thd, 0);
 
   mysql_mutex_lock(&LOCK_thread_count);
+  DBUG_ASSERT(wsrep_running_threads > 0);
   wsrep_running_threads--;
+
+  switch (args->thread_type) {
+    case WSREP_APPLIER_THREAD:
+      DBUG_ASSERT(wsrep_running_applier_threads > 0);
+      wsrep_running_applier_threads--;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      DBUG_ASSERT(wsrep_running_rollbacker_threads > 0);
+      wsrep_running_rollbacker_threads--;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", args->thread_type);
+      break;
+  }
+
+  my_free(args);
+
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -2132,6 +2169,8 @@ pthread_handler_t start_wsrep_THD(void *arg)
 
 error:
   WSREP_ERROR("Failed to create/initialize system thread");
+
+  my_free(args);
 
   /* Abort if its the first applier/rollbacker thread. */
   if (!mysqld_server_initialized)

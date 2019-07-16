@@ -4,6 +4,13 @@
 --echo # Disable for valgrind because this takes too long
 --source include/not_valgrind.inc
 
+# MariaDB: tooling to slowdown commits (also when running on ramdisk, we need 
+# write_prepared for some reason, this is set in the .opt file)
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_write_prepared.inc
+
+
 --disable_warnings
 DROP DATABASE IF EXISTS mysqlslap;
 --enable_warnings
@@ -14,6 +21,7 @@ CREATE TABLE t1(id BIGINT AUTO_INCREMENT, value BIGINT, PRIMARY KEY(id)) ENGINE=
 
 SET @save_rocksdb_enable_2pc= @@rocksdb_enable_2pc;
 SET @save_rocksdb_flush_log_at_trx_commit= @@rocksdb_flush_log_at_trx_commit;
+
 
 #
 # In MariaDB, regular group commit operation does not cause increment of
@@ -39,6 +47,19 @@ from information_schema.global_status where variable_name='Binlog_group_commits'
 select IF(variable_value - @b3 between 1000 and 1500, 'OK', variable_value - @b3) as Rocksdb_wal_synced
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
 
+# SQL layer solution is sufficient for Binlog counts but not RocksDB.
+#set @tmp_bcwc= @@binlog_commit_wait_count;
+#set @tmp_bcwu= @@binlog_commit_wait_usec;
+#set global binlog_commit_wait_count=30;
+#set global binlog_commit_wait_usec=500*1000;
+
+# RocksDB-side solution:
+
+set debug_dbug='+d,rocksdb_enable_delay_commits';
+create table dummy10(a int) engine=rocksdb;
+drop table dummy10;
+set debug_dbug='-d,rocksdb_enable_delay_commits';
+
 --echo ## 
 --echo ## 2PC + durability + group commit
 --echo ## 
@@ -54,6 +75,14 @@ select IF(variable_value - @b2 between 100 and 5000, 'OK', variable_value - @b2)
 from information_schema.global_status where variable_name='Binlog_group_commits';
 select IF(variable_value - @b3 between 1 and 9000, 'OK', variable_value - @b3)
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
+
+#set global binlog_commit_wait_count= @tmp_bcwc;
+#set global binlog_commit_wait_usec=  @tmp_bcwu;
+
+set debug_dbug='+d,rocksdb_disable_delay_commits';
+create table dummy10(a int) engine=rocksdb;
+drop table dummy10;
+set debug_dbug='-d,rocksdb_disable_delay_commits';
 
 --echo ## 
 --echo # 2PC enabled, MyRocks durability disabled, single thread

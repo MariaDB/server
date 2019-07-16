@@ -8,4 +8,3 @@ MAX(size) = 2
 SELECT COUNT(DISTINCT idx) = 2 FROM mtr_wsrep_notify.status;
 COUNT(DISTINCT idx) = 2
 1
-DROP SCHEMA mtr_wsrep_notify;

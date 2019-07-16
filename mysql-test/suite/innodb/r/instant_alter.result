@@ -1,6 +1,7 @@
 #
 # MDEV-11369: Instant ADD COLUMN for InnoDB
 #
+call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
 CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
 ALTER TABLE t ADD e INT, ROW_FORMAT=COMPRESSED;
 INSERT INTO t SET a=1;
@@ -328,6 +329,8 @@ affected rows: 1
 Warnings:
 Note	1265	Data truncated for column 'c7' at row 1
 Note	1265	Data truncated for column 'c8' at row 1
+SET innodb_strict_mode = OFF;
+affected rows: 0
 ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
 CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
 affected rows: 4
@@ -346,6 +349,8 @@ id	c2	c3	c4	c5	c6	c7	c8	phrase	b
 ALTER TABLE t3 DROP c3, DROP c7;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+SET innodb_strict_mode = OFF;
+affected rows: 0
 SELECT * FROM t3;
 id	c2	c4	c5	c6	c8	phrase	b
 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
@@ -760,6 +765,8 @@ affected rows: 1
 Warnings:
 Note	1265	Data truncated for column 'c7' at row 1
 Note	1265	Data truncated for column 'c8' at row 1
+SET innodb_strict_mode = OFF;
+affected rows: 0
 ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
 CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
 affected rows: 4
@@ -778,6 +785,8 @@ id	c2	c3	c4	c5	c6	c7	c8	phrase	b
 ALTER TABLE t3 DROP c3, DROP c7;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+SET innodb_strict_mode = OFF;
+affected rows: 0
 SELECT * FROM t3;
 id	c2	c4	c5	c6	c8	phrase	b
 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
@@ -1192,6 +1201,8 @@ affected rows: 1
 Warnings:
 Note	1265	Data truncated for column 'c7' at row 1
 Note	1265	Data truncated for column 'c8' at row 1
+SET innodb_strict_mode = OFF;
+affected rows: 0
 ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
 CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
 affected rows: 4
@@ -1210,6 +1221,8 @@ id	c2	c3	c4	c5	c6	c7	c8	phrase	b
 ALTER TABLE t3 DROP c3, DROP c7;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+SET innodb_strict_mode = OFF;
+affected rows: 0
 SELECT * FROM t3;
 id	c2	c4	c5	c6	c8	phrase	b
 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	

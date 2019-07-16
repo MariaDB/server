@@ -115,15 +115,6 @@ void Master_info::wait_until_free()
 Master_info::~Master_info()
 {
   wait_until_free();
-#ifdef WITH_WSREP
-  /*
-    Do not free "wsrep" rpl_filter. It will eventually be freed by
-    free_all_rpl_filters() when server terminates.
-  */
-  if (strncmp(connection_name.str, STRING_WITH_LEN("wsrep")))
-#endif
-  rpl_filters.delete_element(connection_name.str, connection_name.length,
-                             (void (*)(const char*, uchar*)) free_rpl_filter);
   my_free(const_cast<char*>(connection_name.str));
   delete_dynamic(&ignore_server_ids);
   mysql_mutex_destroy(&run_lock);

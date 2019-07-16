@@ -1120,6 +1120,12 @@ struct dict_index_t{
 	@return true on error */
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
+
+	/** If a record of this index might not fit on a single B-tree page,
+	  return true.
+	@param[in]	strict	issue error or warning
+	@return true if the index record could become too big */
+	bool rec_potentially_too_big(bool strict) const;
 };
 
 /** Detach a column from an index.
@@ -1569,6 +1575,9 @@ struct dict_table_t {
 		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
 		ut_ad(fk_checks > 0);
 	}
+
+	/** For overflow fields returns potential max length stored inline */
+	size_t get_overflow_field_local_len() const;
 
 	/** Id of the table. */
 	table_id_t				id;
