@@ -1,6 +1,6 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_filekeymanagement.inc
+--source include/have_file_key_management.inc
 --source include/innodb_encrypt_tables.inc
 --source include/innodb_page_size_small.inc
 --source include/have_mariabackup.inc
