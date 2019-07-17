@@ -13294,23 +13294,23 @@ insert:
           }
           insert_field_spec opt_insert_update
           { 
-            if($7)
+            if ($7)
             {
-             List<Item> list;
-             list=*($7);
-             Lex->current_select->item_list.empty();
-             $7=&list;
+              List<Item> list;
+              list=*($7);
+              Lex->current_select->item_list.empty();
+              $7=&list;
             }
           }
           opt_select_expressions
           {
-           if($10)
+            if ($10)
               Lex->returning_list=*($10);
-            if($7)
-                Lex->current_select->item_list=*($7);
+            if ($7)
+              Lex->current_select->item_list=*($7);
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
-               MYSQL_YYABORT;
+              MYSQL_YYABORT;
           }
          ;	
 
@@ -13330,15 +13330,27 @@ replace:
             Select->set_lock_for_tables($3, true);
             Lex->current_select= Lex->first_select_lex();
           }
-          insert_field_spec opt_select_expressions
+          insert_field_spec 
           {
-            if($7)
-              Lex->returning_list=*($7);
+            if ($6)
+            {
+              List<Item> list;
+              list=*($6);
+              Lex->current_select->item_list.empty();
+              $6=&list;
+            }
+          }
+          opt_select_expressions
+          {
+            if ($8)
+              Lex->returning_list=*($8);
+            if ($6)
+              Lex->current_select->item_list=*($6);
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
-               MYSQL_YYABORT;
+              MYSQL_YYABORT;
           }
-         ;
+          ;
 
 insert_lock_option:
           /* empty */
