@@ -3555,6 +3555,28 @@ void remove_status_vars(SHOW_VAR *list)
   }
 }
 
+/**
+  A union holding a pointer to a type that can be referred by a status variable.
+ */
+union Any_pointer {
+  const void *as_void;
+  const uchar *as_uchar;
+  const char *as_char;
+  const char ** as_charptr;
+  const double *as_double;
+  const int * as_int;
+  const uint * as_uint;
+  const long *as_long;
+  const longlong *as_longlong;
+  const bool *as_bool;
+  const my_bool *as_my_bool;
+  const sys_var *as_sys_var;
+  const system_status_var *as_system_status_var;
+  const ha_rows *as_ha_rows;
+  const LEX_STRING *as_lex_cstring;
+  const SHOW_COMP_OPTION *as_show_comp_options;
+  intptr as_intptr;
+};
 
 /**
   @brief Returns the value of a system or a status variable.
@@ -3579,16 +3601,18 @@ const char* get_one_variable(THD *thd,
                              const CHARSET_INFO **charset, char *buff,
                              size_t *length)
 {
-  void *value= variable->value;
+  Any_pointer value, status_var_value;
+  value.as_void= variable->value;
+  status_var_value.as_system_status_var= status_var;
   const char *pos= buff;
   const char *end= buff;
 
 
   if (show_type == SHOW_SYS)
   {
-    sys_var *var= (sys_var *) value;
+    const sys_var *var= value.as_sys_var;
     show_type= var->show_type();
-    value= var->value_ptr(thd, value_type, &null_clex_str);
+    value.as_uchar= var->value_ptr(thd, value_type, &null_clex_str);
     *charset= var->charset(thd);
   }
 
@@ -3598,66 +3622,65 @@ const char* get_one_variable(THD *thd,
   */
   switch (show_type) {
   case SHOW_DOUBLE_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_DOUBLE:
     /* 6 is the default precision for '%f' in sprintf() */
-    end= buff + my_fcvt(*(double *) value, 6, buff, NULL);
+    end= buff + my_fcvt(*value.as_double, 6, buff, NULL);
     break;
   case SHOW_LONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONG:
   case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
-    end= int10_to_str(*(long*) value, buff, 10);
+    end= int10_to_str(*value.as_long, buff, 10);
     break;
   case SHOW_LONGLONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, 10);
+    end= longlong10_to_str(*value.as_longlong, buff, 10);
     break;
   case SHOW_HA_ROWS:
-    end= longlong10_to_str((longlong) *(ha_rows*) value, buff, 10);
+    end= longlong10_to_str((longlong) *value.as_ha_rows, buff, 10);
     break;
   case SHOW_BOOL:
-    end= strmov(buff, *(bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_bool ? "ON" : "OFF");
     break;
   case SHOW_MY_BOOL:
-    end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_my_bool ? "ON" : "OFF");
     break;
   case SHOW_UINT32_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_UINT:
-    end= int10_to_str((long) *(uint*) value, buff, 10);
+    end= int10_to_str((long) *value.as_uint, buff, 10);
     break;
   case SHOW_SINT:
-    end= int10_to_str((long) *(int*) value, buff, -10);
+    end= int10_to_str((long) *value.as_int, buff, -10);
     break;
   case SHOW_SLONG:
-    end= int10_to_str(*(long*) value, buff, -10);
+    end= int10_to_str(*value.as_long, buff, -10);
     break;
   case SHOW_SLONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, -10);
+    end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
   case SHOW_HAVE:
     {
-      SHOW_COMP_OPTION tmp= *(SHOW_COMP_OPTION*) value;
-      pos= show_comp_option_name[(int) tmp];
+      pos= show_comp_option_name[(int) *value.as_show_comp_options];
       end= strend(pos);
       break;
     }
   case SHOW_CHAR:
     {
-      if (!(pos= (char*)value))
+      if (!(pos= value.as_char))
         pos= "";
       end= strend(pos);
       break;
     }
   case SHOW_CHAR_PTR:
     {
-      if (!(pos= *(char**) value))
+      if (!(pos= *value.as_charptr))
         pos= "";
 
       end= strend(pos);
@@ -3665,11 +3688,10 @@ const char* get_one_variable(THD *thd,
     }
   case SHOW_LEX_STRING:
     {
-      LEX_STRING *ls=(LEX_STRING*)value;
-      if (!(pos= ls->str))
+      if (!(pos= value.as_lex_cstring->str))
         end= pos= "";
       else
-        end= pos + ls->length;
+        end= pos + value.as_lex_cstring->length;
       break;
     }
   case SHOW_UNDEF:
