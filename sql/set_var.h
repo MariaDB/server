@@ -112,7 +112,7 @@ public:
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
 
   bool check(THD *thd, set_var *var);
-  uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
+  const uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
 
   /**
      Update the system variable with the default value from either
@@ -127,9 +127,9 @@ public:
   String *val_str(String *str, THD *thd, enum_var_type type, const LEX_CSTRING *base);
   double val_real(bool *is_null, THD *thd, enum_var_type type, const LEX_CSTRING *base);
 
-  SHOW_TYPE show_type() { return show_val_type; }
+  SHOW_TYPE show_type() const { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }
-  CHARSET_INFO *charset(THD *thd);
+  CHARSET_INFO *charset(THD *thd) const;
   bool is_readonly() const { return flags & READONLY; }
   /**
     the following is only true for keycache variables,
@@ -208,7 +208,7 @@ public:
   */
   virtual bool session_is_default(THD *thd) { return false; }
 
-  virtual uchar *default_value_ptr(THD *thd)
+  virtual const uchar *default_value_ptr(THD *thd) const
   { return (uchar*)&option.def_value; }
 
 private:
@@ -230,18 +230,18 @@ protected:
     It must be of show_val_type type (my_bool for SHOW_MY_BOOL,
     int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
-  virtual uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base);
-  virtual uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
+  virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 
   /**
     A pointer to a storage area of the variable, to the raw data.
     Typically it's the same as session_value_ptr(), but it's different,
     for example, for ENUM, that is printed as a string, but stored as a number.
   */
-  uchar *session_var_ptr(THD *thd)
+  uchar *session_var_ptr(THD *thd) const
   { return ((uchar*)&(thd->variables)) + offset; }
 
-  uchar *global_var_ptr()
+  uchar *global_var_ptr() const
   { return ((uchar*)&global_system_variables) + offset; }
 
   void *max_var_ptr()
