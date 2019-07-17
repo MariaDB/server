@@ -219,8 +219,8 @@ set global system_versioning_asof= now_global();
 drop function now_global;
 set global time_zone= "SYSTEM";
 set time_zone= "SYSTEM";
-set global system_versioning_asof= "DEFAULT";
-set system_versioning_asof= "DEFAULT";
+set global system_versioning_asof= default;
+set system_versioning_asof= default;
 show status like "Feature_system_versioning";
 Variable_name	Value
 Feature_system_versioning	2
