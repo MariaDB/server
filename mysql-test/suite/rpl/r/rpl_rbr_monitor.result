@@ -1,0 +1,56 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1(a int primary key) engine=innodb;
+connection slave;
+connection slave1;
+begin;
+insert into t1(a) values(1);
+connection master;
+select * from t1;
+a
+connection master;
+insert into t1(a) values(1);
+#monitoring write rows
+connection slave;
+SELECT db , state  FROM  INFORMATION_SCHEMA.PROCESSLIST
+WHERE DB = 'test' AND STATE LIKE  "Write_rows_log_event::write_row(%) on table %";
+db	state
+test	Write_rows_log_event::write_row(-1) on table `t1`
+#monitoring update rows
+connection slave1;
+rollback;
+begin;
+select a from t1 for update;
+a
+1
+connection master;
+update t1 set a = a + 1 ;
+connection slave;
+SELECT db, state  FROM  INFORMATION_SCHEMA.PROCESSLIST
+WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::find_row(%) on table %";
+db	state
+test	Update_rows_log_event::find_row(-1) on table `t1`
+#monitoring delete rows
+connection slave1;
+rollback;
+begin;
+select * from t1 for update;
+a
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1;
+a
+2
+SELECT db , state FROM  INFORMATION_SCHEMA.PROCESSLIST
+WHERE DB = 'test' AND STATE LIKE  "Delete_rows_log_event::find_row(%) on table %";
+db	state
+test	Delete_rows_log_event::find_row(-1) on table `t1`
+connection slave1;
+rollback;
+connection master;
+drop table t1;
+connection slave;
+include/rpl_end.inc
