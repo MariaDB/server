@@ -433,6 +433,7 @@ sub check_garbd_support() {
 }
 
 sub check_wsrep_support() {
+  $garbd_exe= "";
   if (have_wsrep()) {
     mtr_report(" - binaries built with wsrep patch");
 
