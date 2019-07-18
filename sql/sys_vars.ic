@@ -2631,63 +2631,82 @@ public:
 };
 
 
-class Sys_var_vers_asof: public Sys_var_enum
+class Sys_var_vers_asof: public sys_var
 {
-public:
-  static const char *asof_keywords[];
-
 public:
   Sys_var_vers_asof(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
-          CMD_LINE getopt, const char *values[],
-          uint def_val)
-    : Sys_var_enum(name_arg, comment, flag_args, off, size,
-                   getopt, values, def_val)
+          CMD_LINE getopt, uint def_val,
+          PolyLock *lock= NO_MUTEX_GUARD,
+          binlog_status_enum binlog_status_arg= VARIABLE_NOT_IN_BINLOG,
+          on_check_function on_check_func= NULL,
+          on_update_function on_update_func= NULL,
+          const char *substitute= NULL)
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off,
+              getopt.id, getopt.arg_type, SHOW_CHAR, def_val, lock,
+              binlog_status_arg, on_check_func, on_update_func, substitute)
   {
-    // setval() accepts string rather enum
     option.var_type= GET_STR;
   }
   virtual bool do_check(THD *thd, set_var *var)
   {
-    if (!Sys_var_enum::do_check(thd, var))
+    if (!var->value)
       return false;
+
     MYSQL_TIME ltime;
-    bool res= var->value->get_date(&ltime, TIME_NO_ZERO_IN_DATE|TIME_NO_ZERO_DATE);
+    bool res= var->value->get_date(&ltime,
+                                   TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
     if (!res)
     {
-      var->save_result.ulonglong_value= SYSTEM_TIME_AS_OF;
+      uint error;
+      var->save_result.timestamp.unix_time=
+              thd->variables.time_zone->TIME_to_gmt_sec(&ltime, &error);
+      var->save_result.timestamp.second_part= ltime.second_part;
+      res= error != 0;
     }
     return res;
   }
 
 private:
-  bool update(set_var *var, vers_asof_timestamp_t &out)
+  static bool update(THD *thd, set_var *var, vers_asof_timestamp_t *out)
   {
-    bool res= false;
-    out.type= static_cast<enum_var_type>(var->save_result.ulonglong_value);
-    if (out.type == SYSTEM_TIME_AS_OF)
+    if (var->value)
     {
-      if (var->value)
-      {
-        res= var->value->get_date(&out.ltime, TIME_NO_ZERO_IN_DATE|TIME_NO_ZERO_DATE);
-      }
-      else // set DEFAULT from global var
-      {
-        out= global_var(vers_asof_timestamp_t);
-        res= false;
-      }
+      out->type       = SYSTEM_TIME_AS_OF;
+      out->unix_time  = var->save_result.timestamp.unix_time;
+      out->second_part= var->save_result.timestamp.second_part;
     }
-    return res;
+    return 0;
+  }
+
+  static void save_default(set_var *var, vers_asof_timestamp_t *out)
+  {
+    out->type= SYSTEM_TIME_UNSPECIFIED;
   }
 
 public:
   virtual bool global_update(THD *thd, set_var *var)
   {
-    return update(var, global_var(vers_asof_timestamp_t));
+    return update(thd, var, &global_var(vers_asof_timestamp_t));
   }
   virtual bool session_update(THD *thd, set_var *var)
   {
-    return update(var, session_var(thd, vers_asof_timestamp_t));
+    return update(thd, var, &session_var(thd, vers_asof_timestamp_t));
+  }
+
+  virtual bool session_is_default(THD *thd)
+  {
+    const vers_asof_timestamp_t &var= session_var(thd, vers_asof_timestamp_t);
+    return var.type == SYSTEM_TIME_UNSPECIFIED;
+  }
+
+  virtual void session_save_default(THD *thd, set_var *var)
+  {
+    save_default(var, &session_var(thd, vers_asof_timestamp_t));
+  }
+  virtual void global_save_default(THD *thd, set_var *var)
+  {
+    save_default(var, &global_var(vers_asof_timestamp_t));
   }
 
 private:
@@ -2696,15 +2715,19 @@ private:
     switch (val.type)
     {
     case SYSTEM_TIME_UNSPECIFIED:
-    case SYSTEM_TIME_ALL:
-      return (uchar*) thd->strdup(asof_keywords[val.type]);
+      return (uchar*)"DEFAULT";
+      break;
     case SYSTEM_TIME_AS_OF:
     {
       uchar *buf= (uchar*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
-      if (buf &&!my_datetime_to_str(&val.ltime, (char*) buf, 6))
+      MYSQL_TIME ltime;
+
+      thd->variables.time_zone->gmt_sec_to_TIME(&ltime, val.unix_time);
+      ltime.second_part= val.second_part;
+
+      if (buf && !my_datetime_to_str(&ltime, (char*) buf, 6))
       {
-        // TODO: figure out variable name
-        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong datetime)");
+        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, "NULL (wrong datetime)");
         return (uchar*) thd->strdup("Error: wrong datetime");
       }
       return buf;
@@ -2712,7 +2735,7 @@ private:
     default:
       break;
     }
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong range type)");
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, "NULL (wrong range type)");
     return (uchar*) thd->strdup("Error: wrong range type");
   }
 

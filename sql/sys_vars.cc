@@ -438,11 +438,10 @@ static Sys_var_charptr Sys_my_bind_addr(
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
-const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
        "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
-       Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
+       DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
