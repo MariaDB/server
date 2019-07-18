@@ -1,0 +1,5 @@
+ADD_CONVENIENCE_LIBRARY(pmemac append_cache.c)
+ADD_EXECUTABLE(pmemac-bin pmemac.c)
+TARGET_LINK_LIBRARIES(pmemac mysys ${LIBPMEM})
+TARGET_LINK_LIBRARIES(pmemac-bin pmemac)
+SET_TARGET_PROPERTIES(pmemac-bin PROPERTIES OUTPUT_NAME pmemac)

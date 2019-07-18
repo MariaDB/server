@@ -168,6 +168,7 @@ INCLUDE(mysql_add_executable)
 INCLUDE(symlinks)
 INCLUDE(compile_flags)
 INCLUDE(crc32)
+INCLUDE(pmem)
 
 # Handle options
 OPTION(DISABLE_SHARED 

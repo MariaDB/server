@@ -112,3 +112,7 @@ IF(UNIX)
   MYSQL_ADD_EXECUTABLE(mysqld_safe_helper mysqld_safe_helper.c COMPONENT Server)
   TARGET_LINK_LIBRARIES(mysqld_safe_helper mysys)
 ENDIF()
+
+IF(LIBPMEMAC)
+  ADD_SUBDIRECTORY(libpmemac)
+ENDIF()
