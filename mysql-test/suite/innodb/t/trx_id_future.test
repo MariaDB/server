@@ -1,0 +1,58 @@
+--echo #
+--echo # Bug #20445525	ADD A CONSISTENCY CHECK AGAINST DB_TRX_ID BEING
+--echo #		IN THE FUTURE
+--echo #
+
+--source include/not_debug.inc
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+let PAGE_SIZE=`select @@innodb_page_size`;
+
+CREATE TABLE t1(a INT) row_format=redundant engine=innoDB;
+INSERT INTO t1 VALUES(1);
+
+let MYSQLD_DATADIR=`select @@datadir`;
+
+--source include/shutdown_mysqld.inc
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "+<", $file) || die "Unable to open $file";
+binmode FILE;
+
+#Seek the the infimum record and get the offset to next record
+#Infimum record exist at offset 101 for redundant format
+#And offset to the next record is present 2 bytes prior to
+#infimum record
+
+my $ps= $ENV{PAGE_SIZE};
+my $page;
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+#In this case the first record should be at offset 135
+die unless unpack("n", substr($page, 99, 2)) == 135;
+
+substr($page,135+6,6) = "\xff" x 6;
+
+my $polynomial = 0x82f63b78; # CRC-32C
+my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+substr($page,0,4)=$ck;
+substr($page,$ps-8,4)=$ck;
+sysseek(FILE, 3*$ps, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file";
+EOF
+
+--source include/start_mysqld.inc
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= \[Warning\] InnoDB: A transaction id in a record of table `test`\.`t1` is newer than the system-wide maximum;
+--source include/search_pattern_in_file.inc
+
+call mtr.add_suppression("\\[Warning\\] InnoDB: A transaction id in a record of table `test`\\.`t1` is newer than the system-wide maximum");
+
+SELECT * FROM t1;
+DROP TABLE t1;
