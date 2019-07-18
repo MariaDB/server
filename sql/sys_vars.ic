@@ -2661,19 +2661,25 @@ public:
   }
 
 private:
-  bool update(set_var *var, vers_asof_timestamp_t &out)
+  bool update(set_var *var, vers_asof_timestamp_t &out, system_variables& pool)
   {
     bool res= false;
+    uint error;
+    MYSQL_TIME ltime;
     out.type= static_cast<enum_var_type>(var->save_result.ulonglong_value);
     if (out.type == SYSTEM_TIME_AS_OF)
     {
       if (var->value)
       {
-        res= var->value->get_date(&out.ltime, TIME_NO_ZERO_IN_DATE|TIME_NO_ZERO_DATE);
+        res= var->value->get_date(&ltime, TIME_NO_ZERO_IN_DATE
+                                          | TIME_NO_ZERO_DATE);
+        out.unix_time= pool.time_zone->TIME_to_gmt_sec(&ltime, &error);
+        out.second_part= ltime.second_part;
+        res|= (error != 0);
       }
       else // set DEFAULT from global var
       {
-        out= global_var(vers_asof_timestamp_t);
+        out.type= SYSTEM_TIME_UNSPECIFIED;
         res= false;
       }
     }
@@ -2683,11 +2689,11 @@ private:
 public:
   virtual bool global_update(THD *thd, set_var *var)
   {
-    return update(var, global_var(vers_asof_timestamp_t));
+    return update(var, global_var(vers_asof_timestamp_t), thd->variables);
   }
   virtual bool session_update(THD *thd, set_var *var)
   {
-    return update(var, session_var(thd, vers_asof_timestamp_t));
+    return update(var, session_var(thd, vers_asof_timestamp_t), thd->variables);
   }
 
 private:
@@ -2701,10 +2707,14 @@ private:
     case SYSTEM_TIME_AS_OF:
     {
       uchar *buf= (uchar*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
-      if (buf &&!my_datetime_to_str(&val.ltime, (char*) buf, 6))
+      MYSQL_TIME ltime;
+
+      thd->variables.time_zone->gmt_sec_to_TIME(&ltime, val.unix_time);
+      ltime.second_part= val.second_part;
+
+      if (buf && !my_datetime_to_str(&ltime, (char*) buf, 6))
       {
-        // TODO: figure out variable name
-        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong datetime)");
+        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, "NULL (wrong datetime)");
         return (uchar*) thd->strdup("Error: wrong datetime");
       }
       return buf;
@@ -2712,7 +2722,7 @@ private:
     default:
       break;
     }
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong range type)");
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, "NULL (wrong range type)");
     return (uchar*) thd->strdup("Error: wrong range type");
   }
 
