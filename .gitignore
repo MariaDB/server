@@ -83,6 +83,7 @@ make_dist.cmake
 mariadb-*.*.*.tar.gz
 mariadb-*.*.*/
 mysql-test/lib/My/SafeProcess/my_safe_process
+mysql-test/lib/My/SafeProcess/wsrep_check_version
 mysql-test/mtr
 mysql-test/mysql-test-run
 mysql-test/var

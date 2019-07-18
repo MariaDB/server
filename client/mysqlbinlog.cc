@@ -94,7 +94,8 @@ static const char *default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
 const char *current_dbug_option= default_dbug_option;
 #endif
 static const char *load_groups[]=
-{ "mysqlbinlog", "client", "client-server", "client-mariadb", 0 };
+{ "mysqlbinlog", "mariadb-binlog", "client", "client-server", "client-mariadb",
+  0 };
 
 static void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);

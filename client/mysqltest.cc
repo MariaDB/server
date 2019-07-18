@@ -136,7 +136,8 @@ static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
-{ "mysqltest", "client", "client-server", "client-mariadb", 0 };
+{ "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
+  0 };
 static char line_buffer[MAX_DELIMITER_LENGTH], *line_buffer_pos= line_buffer;
 
 /* Info on properties that can be set with --enable_X and --disable_X */

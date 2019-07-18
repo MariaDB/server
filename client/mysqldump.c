@@ -555,7 +555,8 @@ static struct my_option my_long_options[] =
 };
 
 static const char *load_default_groups[]=
-{ "mysqldump", "client", "client-server", "client-mariadb", 0 };
+{ "mysqldump", "mariadb-dump", "client", "client-server", "client-mariadb",
+  0 };
 
 static void maybe_exit(int error);
 static void die(int error, const char* reason, ...);

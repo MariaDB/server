@@ -187,7 +187,8 @@ static struct my_option my_long_options[] =
 
 
 static const char *load_default_groups[]=
-{ "mysqlimport","client", "client-server", "client-mariadb", 0 };
+{ "mysqlimport", "mariadb-import", "client", "client-server", "client-mariadb",
+  0 };
 
 
 static void print_version(void)

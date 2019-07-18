@@ -173,6 +173,7 @@ static const char *load_default_groups[]=
 {
   "client",          /* Read settings how to connect to server */
   "mysql_upgrade",   /* Read special settings for mysql_upgrade */
+  "mariadb-upgrade", /* Read special settings for mysql_upgrade */
   "client-server",   /* Reads settings common between client & server */
   "client-mariadb",  /* Read mariadb unique client settings */
   0
