@@ -1916,6 +1916,7 @@ write_buffers:
 			UNIV_MEM_INVALID(&block[0], srv_sort_buf_size);
 
 			merge_buf[i] = row_merge_buf_empty(buf);
+			buf = merge_buf[i];
 
 			if (UNIV_LIKELY(row != NULL)) {
 				/* Try writing the record again, now
