@@ -50,7 +50,7 @@ if [ $1 = 1 ] ; then
 
   # Change permissions so that the user that will run the MySQL daemon
   # owns all database files.
-  chown -R %{mysqld_user}:%{mysqld_group} $datadir
+  chown -R -f %{mysqld_user}:%{mysqld_group} $datadir
 
   if [ ! -e $datadir/mysql ]; then
     # Create data directory

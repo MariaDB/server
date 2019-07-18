@@ -296,7 +296,7 @@ class Write_on_release_cache
 public:
   enum flag
   {
-    FLUSH_F
+    FLUSH_F= 1
   };
 
   typedef unsigned short flag_set;
