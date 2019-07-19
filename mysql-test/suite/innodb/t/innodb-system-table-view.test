@@ -4,11 +4,8 @@
 
 --source include/innodb_page_size_small.inc
 
---disable_query_log
-SET default_storage_engine=InnoDB;
 LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
---enable_query_log
 
 # The IDs of mysql.innodb_table_stats and mysql.innodb_index_stats may
 # vary depending on whether the tables have been rebuilt
