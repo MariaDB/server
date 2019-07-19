@@ -216,3 +216,35 @@ ALTER TABLE t1 DROP INDEX ftidx;
 ALTER TABLE t1 MODIFY c TEXT NULL, ALGORITHM=INSTANT;
 ALTER TABLE t1 MODIFY c TEXT NULL;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20048 dtuple_get_nth_field(): Assertion 'n < tuple->n_fields'
+--echo # failed on ROLLBACK after instant DROP COLUMN
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET @b = REPEAT('b', @@innodb_page_size / 2 + 1);
+INSERT INTO t1 VALUES(2, @b), (3, @b);
+BEGIN;
+DELETE FROM t1 WHERE a=2;
+
+# Stop purge so that it doesn't remove the delete-marked entry.
+connect (purge_control,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+COMMIT;
+
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+BEGIN;
+INSERT INTO t1 VALUES (2);
+
+connection purge_control;
+SELECT * FROM t1;
+disconnect purge_control;
+connection default;
+ROLLBACK;
+
+SELECT * FROM t1;
+DROP TABLE t1;
