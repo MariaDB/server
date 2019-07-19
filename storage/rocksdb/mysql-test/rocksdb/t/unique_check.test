@@ -102,15 +102,17 @@ truncate table t2;
 
 # 4) simulating T1 GetForUpdate() -> T2 GetForUpdate(). T2 should fail with lock wait timeout. 
 connection con1;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go1';
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go';
 send insert into t1 values (1,1);
-
-connection con2;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go2';
-send insert into t2 values (1,1,1);
 
 connection default;
 set debug_sync='now WAIT_FOR parked1';
+
+connection con2;
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go';
+send insert into t2 values (1,1,1);
+
+connection default;
 set debug_sync='now WAIT_FOR parked2';
 
 connection con3;
@@ -121,8 +123,7 @@ insert into t1 values (1,2);
 insert into t2 values (2,1,2);
 
 connection default;
-set debug_sync='now SIGNAL go1';
-set debug_sync='now SIGNAL go2';
+set debug_sync='now SIGNAL go';
 
 connection con1;
 reap;

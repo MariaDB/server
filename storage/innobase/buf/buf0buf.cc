@@ -1109,26 +1109,26 @@ buf_page_is_corrupted(
 	the first page of each file of the system tablespace.
 	Ignore it for the system tablespace. */
 	if (!checksum_field1 && !checksum_field2) {
-		ulint i = 0;
-		do {
-			if (read_buf[i]) {
-				return true;
-			}
-		} while (++i < FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-
+		/* Checksum fields can have valid value as zero.
+		If the page is not empty then do the checksum
+		calculation for the page. */
+		bool all_zeroes = true;
+		for (size_t i = 0; i < srv_page_size; i++) {
 #ifndef UNIV_INNOCHECKSUM
-		if (!space || !space->id) {
-			/* Skip FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
-			in the system tablespace. */
-			i += 8;
-		}
-#endif
-		do {
-			if (read_buf[i]) {
-				return true;
+			if (i == FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			    && (!space || !space->id)) {
+				i += 8;
 			}
-		} while (++i < srv_page_size);
-		return false;
+#endif
+			if (read_buf[i]) {
+				all_zeroes = false;
+				break;
+			}
+		}
+
+		if (all_zeroes) {
+			return false;
+		}
 	}
 
 	switch (curr_algo) {

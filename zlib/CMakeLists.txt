@@ -124,6 +124,8 @@ string(REGEX REPLACE ".*#define[ \t]+ZLIB_VERSION[ \t]+\"([-0-9A-Za-z.]+)\".*"
 
 ADD_CONVENIENCE_LIBRARY(zlib STATIC
   ${ZLIB_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
+RESTRICT_SYMBOL_EXPORTS(zlib)
+
 
 if(NOT CYGWIN)
     # This property causes shared libraries on Linux to have the full version
@@ -142,7 +144,4 @@ if(CMAKE_SYSTEM_NAME MATCHES "SunOS")
 elseif(UNIX)
     # On unix-like platforms the library is almost always called libz
    set_target_properties(zlib PROPERTIES OUTPUT_NAME z)
-   if(NOT APPLE)
-     set_target_properties(zlib PROPERTIES LINK_FLAGS "-Wl,--version-script,\"${CMAKE_CURRENT_SOURCE_DIR}/zlib.map\"")
-   endif()
 endif()
