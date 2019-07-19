@@ -44,7 +44,7 @@ EOF
 --shutdown_server 10
 
 --error 1
---exec $MYSQLD_CMD --plugin_load=$HA_ROCKSDB_SO --rocksdb_ignore_unknown_options=0 --loose-console --log-error=$error_log
+--exec $MYSQLD_CMD --plugin_load=$HA_ROCKSDB_SO --rocksdb_ignore_unknown_options=0 --log-error=$error_log
 
 let SEARCH_FILE= $error_log;
 let SEARCH_PATTERN= RocksDB: Compatibility check against existing database options failed;
