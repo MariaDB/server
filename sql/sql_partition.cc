@@ -2586,11 +2586,15 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
         err+= str.append(ctime, ctime_len);
         err+= str.append('\'');
       }
+      if (vers_info->auto_hist)
+        err+= str.append(STRING_WITH_LEN(" AUTO"));
     }
-    if (vers_info->limit)
+    else if (vers_info->limit)
     {
       err+= str.append(STRING_WITH_LEN("LIMIT "));
       err+= str.append_ulonglong(vers_info->limit);
+      if (vers_info->auto_hist)
+        err+= str.append(STRING_WITH_LEN(" AUTO"));
     }
   }
   else if (part_info->part_expr)
@@ -5315,7 +5319,9 @@ that are reorganised.
               now_part= el;
             }
           }
-          if (*fast_alter_table && tab_part_info->vers_info->interval.is_set())
+          if (*fast_alter_table &&
+              !(alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST) &&
+              tab_part_info->vers_info->interval.is_set())
           {
             partition_element *hist_part= tab_part_info->vers_info->hist_part;
             if (hist_part->range_value <= thd->query_start())
@@ -6013,7 +6019,7 @@ err:
                                records are added
 */
 
-static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
+static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt, bool copy_data)
 {
   char path[FN_REFLEN+1];
   int error;
@@ -6023,7 +6029,7 @@ static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
 
-  if(mysql_trans_prepare_alter_copy_data(thd))
+  if(copy_data && mysql_trans_prepare_alter_copy_data(thd))
     DBUG_RETURN(TRUE);
 
   /* TODO: test if bulk_insert would increase the performance */
@@ -6037,7 +6043,9 @@ static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
     file->print_error(error, MYF(error != ER_OUTOFMEMORY ? 0 : ME_FATAL));
   }
 
-  if (mysql_trans_commit_alter_copy_data(thd))
+  DBUG_ASSERT(copy_data || (!lpt->copied && !lpt->deleted));
+
+  if (copy_data && mysql_trans_commit_alter_copy_data(thd))
     error= 1;                                /* The error has been reported */
 
   DBUG_RETURN(MY_TEST(error));
@@ -7091,7 +7099,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
     thd->variables.option_bits|= OPTION_IF_EXISTS;
 
   if (table->file->alter_table_flags(alter_info->flags) &
-        HA_PARTITION_ONE_PHASE)
+        HA_PARTITION_ONE_PHASE &&
+      !(alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST))
   {
     /*
       In the case where the engine supports one phase online partition
@@ -7133,7 +7142,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       2) Perform the change within the handler
     */
     if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
-        mysql_change_partitions(lpt))
+        mysql_change_partitions(lpt, true))
     {
       goto err;
     }
@@ -7239,7 +7248,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   }
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
            (part_info->part_type == RANGE_PARTITION ||
-            part_info->part_type == LIST_PARTITION))
+            part_info->part_type == LIST_PARTITION ||
+            alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST))
   {
     /*
       ADD RANGE/LIST PARTITIONS
@@ -7283,7 +7293,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_4") ||
         ERROR_INJECT_ERROR("fail_add_partition_4") ||
-        mysql_change_partitions(lpt) ||
+        mysql_change_partitions(lpt, false) ||
         ERROR_INJECT_CRASH("crash_add_partition_5") ||
         ERROR_INJECT_ERROR("fail_add_partition_5") ||
         alter_close_table(lpt) ||
@@ -7378,7 +7388,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_change_partition_3") ||
         ERROR_INJECT_ERROR("fail_change_partition_3") ||
-        mysql_change_partitions(lpt) ||
+        mysql_change_partitions(lpt, true) ||
         ERROR_INJECT_CRASH("crash_change_partition_4") ||
         ERROR_INJECT_ERROR("fail_change_partition_4") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||

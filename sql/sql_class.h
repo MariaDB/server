@@ -1797,6 +1797,7 @@ public:
 #define SUB_STMT_TRIGGER 1
 #define SUB_STMT_FUNCTION 2
 #define SUB_STMT_STAT_TABLES 4
+#define SUB_STMT_AUTO_HIST 8
 
 
 class Sub_statement_state

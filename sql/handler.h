@@ -823,6 +823,8 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
 // Set for REORGANIZE PARTITION
 #define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
+// Set for vers_add_auto_hist_parts() operation
+#define ALTER_PARTITION_AUTO_HIST   (1ULL << 13)
 
 /*
   This is master database for most of system tables. However there
@@ -2119,7 +2121,6 @@ struct Vers_parse_info: public Table_period_info
 
   Table_period_info::start_end_t as_row;
 
-protected:
   friend struct Table_scope_and_contents_source_st;
   void set_start(const LEX_CSTRING field_name)
   {
@@ -2131,6 +2132,8 @@ protected:
     as_row.end= field_name;
     period.end= field_name;
   }
+
+protected:
   bool is_start(const char *name) const;
   bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
