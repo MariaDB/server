@@ -1572,7 +1572,7 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
               trans == &thd->transaction->stmt);
 
-  if (thd->in_sub_stmt)
+  if (thd->in_sub_stmt & ~SUB_STMT_AUTO_HIST)
   {
     DBUG_ASSERT(0);
     /*

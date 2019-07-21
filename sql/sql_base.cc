@@ -1625,6 +1625,52 @@ bool is_locked_view(THD *thd, TABLE_LIST *t)
 }
 
 
+bool TABLE::vers_need_hist_part(const THD *thd, const TABLE_LIST *table_list) const
+{
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (part_info && part_info->part_type == VERSIONING_PARTITION &&
+      !table_list->vers_conditions.delete_history &&
+      !thd->stmt_arena->is_stmt_prepare() &&
+      table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
+       table_list->mdl_request.type >= MDL_SHARED_WRITE &&
+      table_list->mdl_request.type < MDL_EXCLUSIVE)
+  {
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_INSERT:
+      if (thd->lex->duplicates != DUP_UPDATE)
+        break;
+    /* fall-through: */
+    case SQLCOM_LOCK_TABLES:
+    case SQLCOM_DELETE:
+    case SQLCOM_UPDATE:
+    case SQLCOM_REPLACE:
+    case SQLCOM_REPLACE_SELECT:
+    case SQLCOM_DELETE_MULTI:
+    case SQLCOM_UPDATE_MULTI:
+      return true;
+    default:;
+      break;
+    }
+    if (thd->rgi_slave && thd->rgi_slave->current_event && thd->lex->sql_command == SQLCOM_END)
+    {
+      switch (thd->rgi_slave->current_event->get_type_code())
+      {
+      case UPDATE_ROWS_EVENT:
+      case UPDATE_ROWS_EVENT_V1:
+      case DELETE_ROWS_EVENT:
+      case DELETE_ROWS_EVENT_V1:
+        return true;
+      default:;
+        break;
+      }
+    }
+  }
+#endif
+  return false;
+}
+
+
 /**
   Open a base table.
 
@@ -1777,6 +1823,11 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
+      if (table->vers_need_hist_part(thd, table_list))
+      {
+        /* Rotation is still needed under LOCK TABLES */
+        table->part_info->vers_set_hist_part(thd, false);
+      }
 #endif
       goto reset;
     }
@@ -2030,6 +2081,20 @@ retry_share:
 
     /* Add table to the share's used tables list. */
     tc_add_table(thd, table);
+  }
+
+  if (!ot_ctx->vers_create_count &&
+      table->vers_need_hist_part(thd, table_list))
+  {
+    ot_ctx->vers_create_count= table->part_info->vers_set_hist_part(thd, true);
+    if (ot_ctx->vers_create_count)
+    {
+      MYSQL_UNBIND_TABLE(table->file);
+      tc_release_table(table);
+      ot_ctx->request_backoff_action(Open_table_context::OT_ADD_HISTORY_PARTITION,
+                                      table_list);
+      DBUG_RETURN(TRUE);
+    }
   }
 
   if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK) &&
@@ -3025,7 +3090,8 @@ Open_table_context::Open_table_context(THD *thd, uint flags)
    m_flags(flags),
    m_action(OT_NO_ACTION),
    m_has_locks(thd->mdl_context.has_locks()),
-   m_has_protection_against_grl(0)
+   m_has_protection_against_grl(0),
+   vers_create_count(0)
 {}
 
 
@@ -3105,7 +3171,8 @@ request_backoff_action(enum_open_table_action action_arg,
   */
   if (table)
   {
-    DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR);
+    DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR ||
+                action_arg == OT_ADD_HISTORY_PARTITION);
     m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
     if (m_failed_table == NULL)
       return TRUE;
@@ -3172,10 +3239,18 @@ Open_table_context::recover_from_failed_open()
       break;
     case OT_DISCOVER:
     case OT_REPAIR:
-      if ((result= lock_table_names(m_thd, m_thd->lex->create_info,
-                                    m_failed_table, NULL,
-                                    get_timeout(), 0)))
+    case OT_ADD_HISTORY_PARTITION:
+      result= lock_table_names(m_thd, m_thd->lex->create_info, m_failed_table,
+                               NULL, get_timeout(), 0);
+      if (result)
+      {
+        if (m_action == OT_ADD_HISTORY_PARTITION)
+        {
+          m_thd->clear_error();
+          result= false;
+        }
         break;
+      }
 
       tdc_remove_table(m_thd, m_failed_table->db.str,
                        m_failed_table->table_name.str);
@@ -3206,6 +3281,26 @@ Open_table_context::recover_from_failed_open()
         case OT_REPAIR:
           result= auto_repair_table(m_thd, m_failed_table);
           break;
+        case OT_ADD_HISTORY_PARTITION:
+        {
+          result= false;
+          TABLE *table= open_ltable(m_thd, m_failed_table, TL_WRITE,
+                    MYSQL_OPEN_HAS_MDL_LOCK | MYSQL_OPEN_IGNORE_LOGGING_FORMAT);
+          if (table == NULL)
+          {
+            m_thd->clear_error();
+            break;
+          }
+
+          DBUG_ASSERT(vers_create_count);
+          TABLE_LIST *tl= m_failed_table;
+          result= vers_add_auto_hist_parts(m_thd, tl, vers_create_count);
+          if (!m_thd->transaction->stmt.is_empty())
+            trans_commit_stmt(m_thd);
+          close_tables_for_reopen(m_thd, &tl, start_of_statement_svp());
+          vers_create_count= 0;
+          break;
+        }
         case OT_BACKOFF_AND_RETRY:
         case OT_REOPEN_TABLES:
         case OT_NO_ACTION:
@@ -5133,7 +5228,8 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
   table_list->required_type= TABLE_TYPE_NORMAL;
 
   /* This function can't properly handle requests for such metadata locks. */
-  DBUG_ASSERT(table_list->mdl_request.type < MDL_SHARED_UPGRADABLE);
+  DBUG_ASSERT(lock_flags & MYSQL_OPEN_HAS_MDL_LOCK  ||
+              table_list->mdl_request.type < MDL_SHARED_UPGRADABLE);
 
   while ((error= open_table(thd, table_list, &ot_ctx)) &&
          ot_ctx.can_recover_from_failed_open())

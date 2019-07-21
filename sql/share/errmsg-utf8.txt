@@ -7860,7 +7860,7 @@ ER_VERS_PERIOD_COLUMNS
         eng "PERIOD FOR SYSTEM_TIME must use columns %`s and %`s"
 
 ER_PART_WRONG_VALUE
-        eng "Wrong parameters for partitioned %`s: wrong value for '%s'"
+        eng "Wrong parameters for partitioned %`s: wrong value for %s"
 
 ER_VERS_WRONG_PARTS
         eng "Wrong partitions for %`s: must have at least one HISTORY and exactly one last CURRENT"
@@ -7975,3 +7975,5 @@ ER_PK_INDEX_CANT_BE_IGNORED
         eng "A primary key cannot be marked as IGNORE"
 ER_BINLOG_UNSAFE_SKIP_LOCKED
 	eng "SKIP LOCKED makes this statement unsafe"
+ER_VERS_HIST_PART_FAILED
+        eng "Versioned table %`s.%`s: adding HISTORY partition failed"

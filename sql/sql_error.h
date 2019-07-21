@@ -1195,7 +1195,6 @@ public:
 
   void copy_non_errors_from_wi(THD *thd, const Warning_info *src_wi);
 
-private:
   Warning_info *get_warning_info() { return m_wi_stack.front(); }
 
   const Warning_info *get_warning_info() const { return m_wi_stack.front(); }

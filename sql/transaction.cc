@@ -78,7 +78,7 @@ static bool trans_check(THD *thd)
   */
   DBUG_ASSERT(thd->transaction->stmt.is_empty());
 
-  if (unlikely(thd->in_sub_stmt))
+  if (unlikely(thd->in_sub_stmt & ~SUB_STMT_AUTO_HIST))
   {
     my_error(ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0));
     DBUG_RETURN(TRUE);
@@ -463,7 +463,7 @@ bool trans_commit_stmt(THD *thd)
     a savepoint for each nested statement, and release the
     savepoint when statement has succeeded.
   */
-  DBUG_ASSERT(! thd->in_sub_stmt);
+  DBUG_ASSERT(!(thd->in_sub_stmt & ~SUB_STMT_AUTO_HIST));
 
   thd->merge_unsafe_rollback_flags();
 

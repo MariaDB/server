@@ -1762,6 +1762,7 @@ public:
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
+  bool vers_need_hist_part(const THD *thd, const TABLE_LIST *table_list) const;
 
   int update_generated_fields();
   int period_make_insert(Item *src, Field *dst);
