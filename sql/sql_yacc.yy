@@ -1908,6 +1908,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         simple_target_specification
         condition_number
         reset_lex_expr
+        select_item
 
 %type <item_param> param_marker
 
@@ -1917,11 +1918,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_basic_constant> text_literal
 
 %type <item_list>
-        insert_field_spec opt_insert_update insert_values opt_select_expressions expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
+        insert_field_spec opt_insert_update insert_values 
+        opt_select_expressions expr_list 
+        opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
         decode_when_list_oracle
         execute_using
         execute_params
+        select_item_list
 
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
@@ -2054,8 +2058,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keycache_list keycache_list_or_parts assign_to_keycache
         assign_to_keycache_parts
         preload_list preload_list_or_parts preload_keys preload_keys_parts
-        select_item_list select_item values_list no_braces
-        delete_limit_clause fields opt_values values
+        values_list no_braces delete_limit_clause fields opt_values values
         no_braces_with_names opt_values_with_names values_with_names
         procedure_list procedure_list2 procedure_item
         field_def handler opt_generated_always
@@ -9262,6 +9265,7 @@ query_specification_start:
           select_item_list
           {
             Select->parsing_place= NO_MATTER;
+            Select->item_list=*($5);
           }
           ;
 
@@ -9585,7 +9589,15 @@ opt_lock_wait_timeout_new:
 
 select_item_list:
           select_item_list ',' select_item
+          {
+            $1->push_back($3,thd->mem_root);
+            $$=$1;
+          }
         | select_item
+          {
+            if (unlikely(!($$= List<Item>::make(thd->mem_root, $1))))
+              MYSQL_YYABORT;
+          }
         | '*'
           {
             Item *item= new (thd->mem_root)
@@ -9593,8 +9605,10 @@ select_item_list:
                                      star_clex_str);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
-            if (unlikely(add_item_to_list(thd, item)))
+            if (unlikely(!($$= List<Item>::make(thd->mem_root, item))))
               MYSQL_YYABORT;
+            (thd->lex->current_select->with_wild)++;
+
             (thd->lex->current_select->with_wild)++;
           }
         ;
@@ -9602,15 +9616,12 @@ select_item_list:
 select_item:
           remember_name select_sublist_qualified_asterisk remember_end
           {
-            if (unlikely(add_item_to_list(thd, $2)))
-              MYSQL_YYABORT;
+            $$=$2;
           }
         | remember_name expr remember_end select_alias
           {
             DBUG_ASSERT($1 < $3);
-
-            if (unlikely(add_item_to_list(thd, $2)))
-              MYSQL_YYABORT;
+            $$=$2;
             if ($4.str)
             {
               if (unlikely(Lex->sql_command == SQLCOM_CREATE_VIEW &&
@@ -13294,13 +13305,15 @@ insert:
           }
           insert_field_spec opt_insert_update
           { 
+            List<Item> list;
             if ($7)
             {
-              List<Item> list;
               list=*($7);
               Lex->current_select->item_list.empty();
               $7=&list;
             }
+            else
+              $7=NULL;
           }
           opt_select_expressions
           {
@@ -13332,13 +13345,15 @@ replace:
           }
           insert_field_spec 
           {
+            List<Item> list;
             if ($6)
             {
-              List<Item> list;
               list=*($6);
               Lex->current_select->item_list.empty();
               $6=&list;
             }
+            else
+             $6=NULL;
           }
           opt_select_expressions
           {
@@ -13749,6 +13764,8 @@ single_multi:
           {
             if ($3)
               Select->order_list= *($3);
+            if($5)
+              Select->item_list=*($5);
             Lex->pop_select(); //main select
           }
         | table_wild_list
@@ -13785,7 +13802,7 @@ opt_select_expressions:
           /* empty */ {$$=NULL;}
         | RETURNING_SYM select_item_list
           {
-            $$=&Lex->current_select->item_list;
+            $$=$2;
           }
         ;
 
