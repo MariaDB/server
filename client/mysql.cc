@@ -1116,6 +1116,24 @@ inline int get_command_index(char cmd_char)
   return -1;
 }
 
+static void redact_mysql_pwd(void)
+{
+#ifndef DONT_USE_MYSQL_PWD
+  /* defense-in-depth: overwrite password in original environment vector */
+  char *passwd = getenv("MYSQL_PWD");
+  if (passwd) {
+      /* setenv copies passwd, result not visible in /proc/$pid/environ */
+      if (setenv("MYSQL_PWD", passwd, 1) == -1) {
+        put_info("setenv() failed", INFO_ERROR, 0);
+        my_end(0);
+        exit(1);
+      }
+      /* overwrite password in /proc/$pid/environ */
+      memset(passwd, 'x', strlen(passwd));
+  }
+#endif
+}
+
 static int delimiter_index= -1;
 static int charset_index= -1;
 static bool real_binary_mode= FALSE;
@@ -1128,6 +1146,8 @@ int main(int argc,char *argv[])
   MY_INIT(argv[0]);
   DBUG_ENTER("main");
   DBUG_PROCESS(argv[0]);
+
+  redact_mysql_pwd();
   
   charset_index= get_command_index('C');
   delimiter_index= get_command_index('d');
