@@ -825,15 +825,16 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   int error_code;
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (lock_type != F_UNLCK) {
-    trx->begin_trans();
-    trx->begin_stmt_trans();
+    if ((error_code = trx->begin_trans()))
+        return error_code;
+
+    if ((error_code = trx->begin_stmt_trans()))
+        return error_code;
+
     trans_register_ha(thd, FALSE, clustrixdb_hton);
     if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
       trans_register_ha(thd, TRUE, clustrixdb_hton);
   }
-
-  //if (lock_type != F_UNLCK)
-    //DBUG_ASSERT(trx && trx == get_trx(thd, &error_code));
 
   return 0;
 }
@@ -931,11 +932,13 @@ static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  if (trx->has_stmt_trans() && ((error_code = trx->commit_stmt_trans())))
-    return error_code;
-
-  if (all && trx->has_trans())
+  if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
+    if (trx->has_trans())
       error_code = trx->commit_trans();
+  } else {
+    if (trx->has_stmt_trans())
+      error_code = trx->commit_stmt_trans();
+  }
 
   return error_code;
 }
@@ -946,11 +949,13 @@ static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  if (trx->has_stmt_trans() && ((error_code = trx->rollback_stmt_trans())))
-    return error_code;
-
-  if (all || trx->has_trans())
-    error_code = trx->rollback_trans();
+  if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
+    if (trx->has_trans())
+      error_code = trx->rollback_trans();
+  } else {
+    if (trx->has_stmt_trans())
+      error_code = trx->rollback_stmt_trans();
+  }
 
   return error_code;
 }
