@@ -189,6 +189,7 @@ int clustrix_connection::rollback_trans()
 
 int clustrix_connection::begin_stmt_trans()
 {
+  assert(has_transaction);
   if (has_statement_trans)
     return 0;
 
@@ -202,6 +203,7 @@ int clustrix_connection::begin_stmt_trans()
 
 int clustrix_connection::commit_stmt_trans()
 {
+  assert(has_transaction);
   const char *stmt = "RELEASE SAVEPOINT STMT_TRANS";
   int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
   if (error_code)
@@ -212,6 +214,7 @@ int clustrix_connection::commit_stmt_trans()
 
 int clustrix_connection::rollback_stmt_trans()
 {
+  assert(has_transaction);
   const char *stmt = "ROLLBACK TO STMT_TRANS";
   int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
   if (error_code)
