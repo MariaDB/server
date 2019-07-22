@@ -73,7 +73,7 @@ allocations of small buffers. */
 
 /** If a memory heap is allowed to grow into the buffer pool, the following
 is the maximum size for a single allocated buffer: */
-#define MEM_MAX_ALLOC_IN_BUF		(srv_page_size - 200)
+#define MEM_MAX_ALLOC_IN_BUF		(srv_page_size - 200 + REDZONE_SIZE)
 
 /** Space needed when allocating for a user a field of length N.
 The space is allocated only in multiples of UNIV_MEM_ALIGNMENT.  */

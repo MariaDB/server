@@ -61,7 +61,7 @@ Created 9/20/1997 Heikki Tuuri
 
 /** Log records are stored in the hash table in chunks at most of this size;
 this must be less than srv_page_size as it is stored in the buffer pool */
-#define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t))
+#define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t) - REDZONE_SIZE)
 
 /** Read-ahead area in applying log records to file pages */
 #define RECV_READ_AHEAD_AREA	32

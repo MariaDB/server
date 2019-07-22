@@ -5798,6 +5798,7 @@ innobase_build_v_templ(
 	ulint	n_v_col = ib_table->n_v_cols;
 	bool	marker[REC_MAX_N_FIELDS];
 
+	DBUG_ENTER("innobase_build_v_templ");
 	ut_ad(ncol < REC_MAX_N_FIELDS);
 
 	if (add_v != NULL) {
@@ -5814,7 +5815,7 @@ innobase_build_v_templ(
 		if (!locked) {
 			mutex_exit(&dict_sys->mutex);
 		}
-		return;
+		DBUG_VOID_RETURN;
 	}
 
 	memset(marker, 0, sizeof(bool) * ncol);
@@ -5825,7 +5826,8 @@ innobase_build_v_templ(
 	s_templ->n_col = ncol;
 	s_templ->n_v_col = n_v_col;
 	s_templ->rec_len = table->s->reclength;
-	s_templ->default_rec = table->s->default_values;
+	s_templ->default_rec = UT_NEW_ARRAY_NOKEY(uchar, s_templ->rec_len);
+	memcpy(s_templ->default_rec, table->s->default_values, s_templ->rec_len);
 
 	/* Mark those columns could be base columns */
 	for (ulint i = 0; i < ib_table->n_v_cols; i++) {
@@ -5924,6 +5926,7 @@ innobase_build_v_templ(
 
 	s_templ->db_name = table->s->db.str;
 	s_templ->tb_name = table->s->table_name.str;
+	DBUG_VOID_RETURN;
 }
 
 /** Check consistency between .frm indexes and InnoDB indexes.
@@ -6121,6 +6124,8 @@ ha_innobase::open(const char* name, int, uint)
 
 	ib_table = open_dict_table(name, norm_name, is_part, ignore_err);
 
+	DEBUG_SYNC(thd, "ib_open_after_dict_open");
+
 	if (NULL == ib_table) {
 
 		if (is_part) {
@@ -6226,14 +6231,6 @@ no_such_table:
 		mutex_enter(&dict_sys->mutex);
 		if (ib_table->vc_templ == NULL) {
 			ib_table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
-		} else if (ib_table->get_ref_count() == 1) {
-			/* Clean and refresh the template if no one else
-			get hold on it */
-			dict_free_vc_templ(ib_table->vc_templ);
-			ib_table->vc_templ->vtempl = NULL;
-		}
-
-		if (ib_table->vc_templ->vtempl == NULL) {
 			innobase_build_v_templ(
 				table, ib_table, ib_table->vc_templ, NULL,
 				true);
@@ -20700,6 +20697,7 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 	if (table->vc_templ != NULL) {
 		return NULL;
 	}
+	DBUG_ENTER("innobase_init_vc_templ");
 
 	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 
@@ -20707,13 +20705,13 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 
 	ut_ad(mysql_table);
 	if (!mysql_table) {
-		return NULL;
+		DBUG_RETURN(NULL);
 	}
 
 	mutex_enter(&dict_sys->mutex);
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
 	mutex_exit(&dict_sys->mutex);
-	return mysql_table;
+	DBUG_RETURN(mysql_table);
 }
 
 /** Change dbname and table name in table->vc_templ.
@@ -20915,6 +20913,7 @@ innobase_get_computed_value(
 	ut_ad(thd != NULL);
 	ut_ad(mysql_table);
 
+	DBUG_ENTER("innobase_get_computed_value");
 	const mysql_row_templ_t*
 			vctempl =  index->table->vc_templ->vtempl[
 				index->table->vc_templ->n_col + col->v_pos];
@@ -21003,7 +21002,7 @@ innobase_get_computed_value(
 		      stderr);
 		dtuple_print(stderr, row);
 #endif /* INNODB_VIRTUAL_DEBUG */
-		return(NULL);
+		DBUG_RETURN(NULL);
 	}
 
 	if (vctempl->mysql_null_bit_mask
@@ -21011,7 +21010,7 @@ innobase_get_computed_value(
 	        & vctempl->mysql_null_bit_mask)) {
 		dfield_set_null(field);
 		field->type.prtype |= DATA_VIRTUAL;
-		return(field);
+		DBUG_RETURN(field);
 	}
 
 	row_mysql_store_col_in_innobase_format(
@@ -21043,7 +21042,7 @@ innobase_get_computed_value(
 		dfield_dup(field, heap);
 	}
 
-	return(field);
+	DBUG_RETURN(field);
 }
 
 
