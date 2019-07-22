@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -493,7 +493,7 @@ row_drop_table_for_mysql(
 	const char*	name,	/*!< in: table name */
 	trx_t*		trx,	/*!< in: dictionary transaction handle */
 	bool		drop_db,/*!< in: true=dropping whole database */
-	ibool		create_failed,/*!<in: TRUE=create table failed
+	bool		create_failed,/*!<in: TRUE=create table failed
 				       because e.g. foreign key column
 				       type mismatch. */
 	bool		nonatomic = true)

@@ -13219,11 +13219,12 @@ ha_innobase::delete_table(
 	++trx->will_lock;
 	trx->ddl = true;
 
+	const int sqlcom = thd_sql_command(thd);
+
 	/* Drop the table in InnoDB */
 	err = row_drop_table_for_mysql(
-		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB,
-		FALSE);
-
+		norm_name, trx, sqlcom == SQLCOM_DROP_DB,
+		sqlcom == SQLCOM_CREATE_TABLE /* CREATE TABLE ... SELECT */);
 
 	if (err == DB_TABLE_NOT_FOUND
 	    && innobase_get_lower_case_table_names() == 1) {
@@ -13253,8 +13254,9 @@ ha_innobase::delete_table(
 #endif
 			err = row_drop_table_for_mysql(
 				par_case_name, trx,
-				thd_sql_command(thd) == SQLCOM_DROP_DB,
-				FALSE);
+				sqlcom == SQLCOM_DROP_DB,
+				sqlcom == SQLCOM_CREATE_TABLE
+				/* CREATE TABLE ... SELECT */);
 		}
 	}
 

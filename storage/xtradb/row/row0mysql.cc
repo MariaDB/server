@@ -3893,7 +3893,7 @@ row_drop_table_for_mysql(
 	const char*	name,	/*!< in: table name */
 	trx_t*		trx,	/*!< in: transaction handle */
 	bool		drop_db,/*!< in: true=dropping whole database */
-	ibool		create_failed,/*!<in: TRUE=create table failed
+	bool		create_failed,/*!<in: TRUE=create table failed
 				       because e.g. foreign key column
 				       type mismatch. */
 	bool		nonatomic)
@@ -4233,12 +4233,13 @@ row_drop_table_for_mysql(
 		calling btr_search_drop_page_hash_index() while we
 		hold the InnoDB dictionary lock, we will drop any
 		adaptive hash index entries upfront. */
-		const bool is_temp = dict_table_is_temporary(table)
+		const bool immune = create_failed
+			|| dict_table_is_temporary(table)
 			|| strncmp(tablename_minus_db, tmp_file_prefix,
 				   tmp_file_prefix_length)
 			|| strncmp(tablename_minus_db, "FTS_", 4);
 		while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-			if ((!is_temp && trx_is_interrupted(trx))
+			if ((!immune && trx_is_interrupted(trx))
 			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 				err = DB_INTERRUPTED;
 				goto funct_exit;
