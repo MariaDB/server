@@ -2650,50 +2650,47 @@ public:
   virtual bool do_check(THD *thd, set_var *var)
   {
     if (!Sys_var_enum::do_check(thd, var))
-      return false;
-    MYSQL_TIME ltime;
-    bool res= var->value->get_date(&ltime, TIME_NO_ZERO_IN_DATE|TIME_NO_ZERO_DATE);
-    if (!res)
     {
-      var->save_result.ulonglong_value= SYSTEM_TIME_AS_OF;
+      var->save_result.time.time_type= MYSQL_TIMESTAMP_NONE;
+      return false;
+    }
+    bool res= var->value->get_date(&var->save_result.time,
+                                   TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
+    if (res)
+    {
+      var->save_result.time.time_type= MYSQL_TIMESTAMP_ERROR;
     }
     return res;
   }
 
 private:
-  bool update(set_var *var, vers_asof_timestamp_t &out, system_variables& pool)
+  bool update(THD *thd, set_var *var, vers_asof_timestamp_t *out)
   {
-    bool res= false;
-    uint error;
-    MYSQL_TIME ltime;
-    out.type= static_cast<enum_var_type>(var->save_result.ulonglong_value);
-    if (out.type == SYSTEM_TIME_AS_OF)
+    MYSQL_TIME &ltime= var->save_result.time;
+    uint error= 0;
+
+    if (var->value && ltime.time_type >= 0) // any valid value is ok
     {
-      if (var->value)
-      {
-        res= var->value->get_date(&ltime, TIME_NO_ZERO_IN_DATE
-                                          | TIME_NO_ZERO_DATE);
-        out.unix_time= pool.time_zone->TIME_to_gmt_sec(&ltime, &error);
-        out.second_part= ltime.second_part;
-        res|= (error != 0);
-      }
-      else // set DEFAULT from global var
-      {
-        out.type= SYSTEM_TIME_UNSPECIFIED;
-        res= false;
-      }
+      out->type       = SYSTEM_TIME_AS_OF;
+      out->unix_time  = thd->variables.time_zone->TIME_to_gmt_sec(&ltime,
+                                                                  &error);
+      out->second_part= ltime.second_part;
     }
-    return res;
+    else // DEFAULT is set
+    {
+      out->type= SYSTEM_TIME_UNSPECIFIED;
+    }
+    return (error != 0);
   }
 
 public:
   virtual bool global_update(THD *thd, set_var *var)
   {
-    return update(var, global_var(vers_asof_timestamp_t), thd->variables);
+    return update(thd, var, &global_var(vers_asof_timestamp_t));
   }
   virtual bool session_update(THD *thd, set_var *var)
   {
-    return update(var, session_var(thd, vers_asof_timestamp_t), thd->variables);
+    return update(thd, var, &session_var(thd, vers_asof_timestamp_t));
   }
 
 private:

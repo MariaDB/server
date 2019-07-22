@@ -296,6 +296,7 @@ public:
     plugin_ref *plugins;                ///< for Sys_var_pluginlist
     Time_zone *time_zone;               ///< for Sys_var_tz
     LEX_STRING string_value;            ///< for Sys_var_charptr and others
+    MYSQL_TIME time;                    ///< for Sys_var_vers_asof
     const void *ptr;                    ///< for Sys_var_struct
   } save_result;
   LEX_CSTRING base; /**< for structured variables, like keycache_name.variable_name */

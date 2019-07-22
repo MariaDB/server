@@ -61,7 +61,6 @@ ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '000
 set global system_versioning_asof= '1991-11-11 11:11:11.1111119';
 Warnings:
 Note	1292	Truncated incorrect datetime value: '1991-11-11 11:11:11.1111119'
-Note	1292	Truncated incorrect datetime value: '1991-11-11 11:11:11.1111119'
 show global variables like 'system_versioning_asof';
 Variable_name	Value
 system_versioning_asof	1991-11-11 11:11:11.111111
@@ -87,7 +86,6 @@ DEFAULT
 # SESSION @@system_versioning_asof
 set system_versioning_asof= '1991-11-11 11:11:11.1111119';
 Warnings:
-Note	1292	Truncated incorrect datetime value: '1991-11-11 11:11:11.1111119'
 Note	1292	Truncated incorrect datetime value: '1991-11-11 11:11:11.1111119'
 show variables like 'system_versioning_asof';
 Variable_name	Value
@@ -213,6 +211,12 @@ select * from t as empty;
 a
 disconnect subcon;
 connection default;
+# MDEV-16481: set global system_versioning_asof=sf() crashes in specific case
+# Using global variable inside a stored function should not crash
+create or replace function now_global() returns timestamp
+return  CONVERT_TZ(now(), @@session.time_zone, @@global.time_zone);
+set global system_versioning_asof= now_global();
+drop function now_global;
 set global time_zone= "SYSTEM";
 set time_zone= "SYSTEM";
 set global system_versioning_asof= "DEFAULT";

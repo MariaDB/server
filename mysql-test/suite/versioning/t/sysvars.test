@@ -155,6 +155,13 @@ select * from t as empty;
 --disconnect subcon
 --connection default
 
+--echo # MDEV-16481: set global system_versioning_asof=sf() crashes in specific case
+--echo # Using global variable inside a stored function should not crash
+create or replace function now_global() returns timestamp
+  return  CONVERT_TZ(now(), @@session.time_zone, @@global.time_zone);
+set global system_versioning_asof= now_global();
+drop function now_global;
+
 set global time_zone= "SYSTEM";
 set time_zone= "SYSTEM";
 set global system_versioning_asof= "DEFAULT";
