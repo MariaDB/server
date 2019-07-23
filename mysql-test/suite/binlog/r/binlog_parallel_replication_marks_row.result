@@ -89,6 +89,4 @@ BEGIN
 # server id 1  end_log_pos # 	Table_map: `test`.`t1` mapped to number #
 # server id 1  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
 COMMIT/*!*/;
-# server id 1  end_log_pos # 	GTID #-#-# ddl
-DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `t5`
 DROP TABLE t1;

@@ -2265,7 +2265,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   for (table= tables; table; table= table->next_local)
   {
     bool is_trans= 0;
-    bool table_creation_was_logged= 1;
+    bool table_creation_was_logged= 0;
     char *db=table->db;
     size_t db_length= table->db_length;
     handlerton *table_type= 0;
