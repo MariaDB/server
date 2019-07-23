@@ -354,7 +354,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                            select_lex->item_list, &conds,
                            &delete_while_scanning))
     DBUG_RETURN(TRUE);
-  
+
+  if (delete_history)
+    table->vers_write= false;
+
   if (with_select)
     (void) result->prepare(select_lex->item_list, NULL);
 
