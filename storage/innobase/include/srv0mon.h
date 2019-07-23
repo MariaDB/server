@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -718,8 +718,8 @@ monitor counter
 #define	MONITOR_INC_TIME_IN_MICRO_SECS(monitor, value)			\
 	MONITOR_CHECK_DEFINED(value);					\
 	if (MONITOR_IS_ON(monitor)) {					\
-		uintmax_t	old_time = (value);				\
-		value = ut_time_us(NULL);				\
+		uintmax_t	old_time = value;			\
+		value = microsecond_interval_timer();			\
 		MONITOR_VALUE(monitor) += (mon_type_t) (value - old_time);\
 	}
 
