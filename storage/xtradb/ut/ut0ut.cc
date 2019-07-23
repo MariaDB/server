@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -189,12 +190,7 @@ ut_time_us(
 /*=======*/
 	ullint*	tloc)	/*!< out: us since epoch, if non-NULL */
 {
-	struct timeval	tv;
-	ullint		us;
-
-	ut_gettimeofday(&tv, NULL);
-
-	us = (ullint) tv.tv_sec * 1000000 + tv.tv_usec;
+	ullint us = my_interval_timer() / 1000;
 
 	if (tloc != NULL) {
 		*tloc = us;
@@ -213,11 +209,7 @@ ulint
 ut_time_ms(void)
 /*============*/
 {
-	struct timeval	tv;
-
-	ut_gettimeofday(&tv, NULL);
-
-	return((ulint) tv.tv_sec * 1000 + tv.tv_usec / 1000);
+	return static_cast<ulint>(my_interval_timer() / 1000000);
 }
 #endif /* !UNIV_HOTBACKUP */
 
