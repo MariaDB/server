@@ -4666,13 +4666,16 @@ mysql_execute_command(THD *thd)
         TODO: fix it by removing the front element (restoring of it should
         be done properly as well)
       */
-	  /*
-	    If items are present in returning_list, then we need those items to point to 
-		INSERT table during setup_fields() and setup_wild(). But it gets masked before that. 
-		So we save the values in saved_first, saved_table_list and saved_first_name_resolution_context.
-		before they are masked.
-	  */
 	  
+      /*
+      Also, if items are present in returning_list, then we need those items 
+      to point to INSERT table during setup_fields() and setup_wild(). But 
+      it gets masked before that. So we save the values in saved_first, 
+      saved_table_list and saved_first_name_resolution_context before they are masked.
+      We will later swap the saved values with the masked values if returning_list
+      is not empty in INSERT...SELECT...RETURNING.
+      */
+
 			TABLE_LIST *save_first=select_lex->table_list.first;
       select_lex->table_list.first= second_table;
 			select_lex->context.saved_table_list=select_lex->context.table_list;

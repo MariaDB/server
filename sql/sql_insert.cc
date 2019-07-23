@@ -119,6 +119,11 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view);
   @returns false if success.
 */
 
+/*
+ Swaps the context before and after calling setup_fields() and setup_wild() in
+ INSERT...SELECT when LEX::returning_list is not empty
+
+*/
 template <typename T>
 void swap_context(T& cxt1, T& cxt2)
 {
@@ -696,6 +701,10 @@ Field **TABLE::field_to_fill()
 
 /**
   INSERT statement implementation
+  
+  SYNOPSIS
+  mysql_insert()
+  result    NULL if returning_list is empty
 
   @note Like implementations of other DDL/DML in MySQL, this function
   relies on the caller to close the thread tables. This is done in the
@@ -1524,6 +1533,7 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
 			be taken from table_list->table)    
     where		Where clause (for insert ... select)
     select_insert	TRUE if INSERT ... SELECT statement
+    with_returning_list TRUE if returning_list is not empty 
 
   TODO (in far future)
     In cases of:
@@ -3631,7 +3641,12 @@ bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
     SELECT_LEX do not belong to INSERT statement, so we can't add WHERE
     clause if table is VIEW
   */
-  
+  /*
+    Passing with_returning_list (last argument) as false otherwise
+    setup_field() and setup_wild() will be called twice. 1) in mysql_prepare_insert()
+    and 2) time in select_insert::prepare(). We want to call it only once:
+    in select_insert::prepare()
+  */
   if (mysql_prepare_insert(thd, lex->query_tables,
                            lex->query_tables->table, lex->field_list, 0,
                            lex->update_list, lex->value_list, lex->duplicates,

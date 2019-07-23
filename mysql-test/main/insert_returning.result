@@ -2,6 +2,10 @@
 CREATE TABLE t1(id1 INT, val1 VARCHAR(1));
 CREATE TABLE t2(id2 INT, val2 VARCHAR(1));
 INSERT INTO t2 VALUES (1,'a'),(2,'b'),(3,'c');
+CREATE FUNCTION f(arg INT) RETURNS INT
+BEGIN
+RETURN (SELECT arg+arg);
+END|
 #
 # Simple insert statement...RETURNING
 #
@@ -41,6 +45,9 @@ EXECUTE stmt;
 (SELECT id2 FROM t2 WHERE id2 IN (SELECT id2 FROM t2 WHERE val2='a'))
 1
 DEALLOCATE PREPARE stmt;
+INSERT INTO t1 (id1,val1) VALUES (13,'m') RETURNING f(id1);
+f(id1)
+26
 SELECT * FROM t1;
 id1	val1
 1	a
@@ -55,6 +62,7 @@ id1	val1
 10	j
 11	k
 12	l
+13	m
 TRUNCATE TABLE t1;
 #
 # Multiple values in one insert statement...RETURNING
@@ -106,6 +114,10 @@ EXECUTE stmt;
 1
 1
 DEALLOCATE PREPARE stmt;
+INSERT INTO t1 VALUES (23,'w'),(24,'x') RETURNING f(id1);
+f(id1)
+46
+48
 SELECT * FROM t1;
 id1	val1
 1	a
@@ -132,6 +144,8 @@ id1	val1
 21	t
 21	u
 22	v
+23	w
+24	x
 TRUNCATE TABLE t1;
 #
 # INSERT...ON DUPLICATE KEY UPDATE...RETURNING
@@ -173,10 +187,13 @@ EXECUTE stmt;
 (SELECT id2 FROM t2 WHERE id2 IN (SELECT id2 FROM t2 WHERE val2='a'))
 1
 DEALLOCATE PREPARE stmt;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='m' RETURNING f(id);
+f(id)
+4
 SELECT * FROM ins_duplicate;
 id	val
 1	a
-2	l
+2	m
 #
 # INSERT...SET...RETURNING
 #
@@ -216,6 +233,9 @@ EXECUTE stmt;
 (SELECT id2 FROM t2 WHERE id2 IN (SELECT id2 FROM t2 WHERE val2='a'))
 1
 DEALLOCATE PREPARE stmt;
+INSERT INTO t1 SET id1=13, val1='m' RETURNING f(id1);
+f(id1)
+26
 SELECT * FROM t1;
 id1	val1
 1	a
@@ -230,6 +250,7 @@ id1	val1
 10	j
 11	k
 12	l
+13	m
 #
 # INSERT...SELECT...RETURNING
 #
@@ -276,6 +297,9 @@ INSERT INTO t2 SELECT * FROM t1 WHERE id1=12 RETURNING (SELECT id1+id2 FROM t1 W
 INSERT INTO t2 SELECT * FROM t1 WHERE id1=3 RETURNING (SELECT id1+id2 FROM t2 WHERE id2=0);
 (SELECT id1+id2 FROM t2 WHERE id2=0)
 NULL
+INSERT INTO t2 SELECT * FROM t1 WHERE id1=13 RETURNING f(id2);
+f(id2)
+26
 SELECT * FROM t2;
 id2	val2
 1	a
@@ -290,6 +314,7 @@ id2	val2
 10	j
 11	k
 12	l
+13	m
 1	a
 2	b
 3	c
@@ -303,6 +328,8 @@ id2	val2
 11	k
 12	l
 3	c
+13	m
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE ins_duplicate;
+DROP FUNCTION f;
