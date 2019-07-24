@@ -80,6 +80,7 @@ wsrep_thread_count	#
 
 SHOW GLOBAL STATUS LIKE 'wsrep_%';
 Variable_name	Value
+wsrep_applier_thread_count	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
 wsrep_apply_window	#
@@ -133,6 +134,7 @@ wsrep_repl_keys_bytes	#
 wsrep_repl_other_bytes	#
 wsrep_replicated	#
 wsrep_replicated_bytes	#
+wsrep_rollbacker_thread_count	#
 wsrep_thread_count	#
 SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 Variable_name	Value
