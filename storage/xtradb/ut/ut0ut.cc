@@ -368,43 +368,6 @@ ut_sprintf_timestamp_without_extra_chars(
 		cal_tm_ptr->tm_sec);
 #endif
 }
-
-/**********************************************************//**
-Returns current year, month, day. */
-UNIV_INTERN
-void
-ut_get_year_month_day(
-/*==================*/
-	ulint*	year,	/*!< out: current year */
-	ulint*	month,	/*!< out: month */
-	ulint*	day)	/*!< out: day */
-{
-#ifdef __WIN__
-	SYSTEMTIME cal_tm;
-
-	GetLocalTime(&cal_tm);
-
-	*year = (ulint) cal_tm.wYear;
-	*month = (ulint) cal_tm.wMonth;
-	*day = (ulint) cal_tm.wDay;
-#else
-	struct tm* cal_tm_ptr;
-	time_t	   tm;
-
-#ifdef HAVE_LOCALTIME_R
-	struct tm  cal_tm;
-	time(&tm);
-	localtime_r(&tm, &cal_tm);
-	cal_tm_ptr = &cal_tm;
-#else
-	time(&tm);
-	cal_tm_ptr = localtime(&tm);
-#endif
-	*year = (ulint) cal_tm_ptr->tm_year + 1900;
-	*month = (ulint) cal_tm_ptr->tm_mon + 1;
-	*day = (ulint) cal_tm_ptr->tm_mday;
-#endif
-}
 #endif /* UNIV_HOTBACKUP */
 
 #ifndef UNIV_HOTBACKUP

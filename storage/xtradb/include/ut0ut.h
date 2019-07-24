@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -343,15 +344,6 @@ void
 ut_sprintf_timestamp_without_extra_chars(
 /*=====================================*/
 	char*	buf); /*!< in: buffer where to sprintf */
-/**********************************************************//**
-Returns current year, month, day. */
-UNIV_INTERN
-void
-ut_get_year_month_day(
-/*==================*/
-	ulint*	year,	/*!< out: current year */
-	ulint*	month,	/*!< out: month */
-	ulint*	day);	/*!< out: day */
 #else /* UNIV_HOTBACKUP */
 /*************************************************************//**
 Runs an idle loop on CPU. The argument gives the desired delay
