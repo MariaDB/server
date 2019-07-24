@@ -122,8 +122,10 @@ struct sync_cell_t {
 					has not been signalled in the
 					period between the reset and
 					wait call. */
-	time_t		reservation_time;/*!< time when the thread reserved
-					the wait cell */
+	/** time(NULL) when the wait cell was reserved.
+	FIXME: sync_array_print_long_waits_low() may display bogus
+	warnings when the system time is adjusted to the past! */
+	time_t		reservation_time;
 };
 
 /* NOTE: It is allowed for a thread to wait

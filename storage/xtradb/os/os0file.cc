@@ -214,7 +214,10 @@ struct os_aio_slot_t{
 	ulint		pos;		/*!< index of the slot in the aio
 					array */
 	ibool		reserved;	/*!< TRUE if this slot is reserved */
-	time_t		reservation_time;/*!< time when reserved */
+	/** time(NULL) when reserved.
+	FIXME: os_aio_simulated_handle() may malfunction if
+	the system time is adjusted! */
+	time_t		reservation_time;
 	ulint		len;		/*!< length of the block to read or
 					write */
 	byte*		buf;		/*!< buffer used in i/o */
