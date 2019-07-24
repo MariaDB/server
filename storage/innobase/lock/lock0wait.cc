@@ -226,7 +226,6 @@ lock_wait_suspend_thread(
 				user OS thread */
 {
 	srv_slot_t*	slot;
-	double		wait_time;
 	trx_t*		trx;
 	ulint		had_dict_lock;
 	ibool		was_declared_inside_innodb;
@@ -360,7 +359,7 @@ lock_wait_suspend_thread(
 		row_mysql_freeze_data_dictionary(trx);
 	}
 
-	wait_time = ut_difftime(ut_time(), slot->suspend_time);
+	double wait_time = difftime(time(NULL), slot->suspend_time);
 
 	/* Release the slot for others to use */
 
@@ -451,19 +450,12 @@ lock_wait_check_and_cancel(
 	const srv_slot_t*	slot)	/*!< in: slot reserved by a user
 					thread when the wait started */
 {
-	trx_t*		trx;
-	double		wait_time;
-	ib_time_t	suspend_time = slot->suspend_time;
-
 	ut_ad(lock_wait_mutex_own());
-
 	ut_ad(slot->in_use);
-
 	ut_ad(slot->suspended);
 
-	wait_time = ut_difftime(ut_time(), suspend_time);
-
-	trx = thr_get_trx(slot->thr);
+	double wait_time = difftime(time(NULL), slot->suspend_time);
+	trx_t* trx = thr_get_trx(slot->thr);
 
 	if (trx_is_interrupted(trx)
 	    || (slot->wait_timeout < 100000000
@@ -497,7 +489,6 @@ lock_wait_check_and_cancel(
 
 		trx_mutex_exit(trx);
 	}
-
 }
 
 /*********************************************************************//**

@@ -1332,7 +1332,10 @@ struct srv_slot_t{
 	/** time(NULL) when the thread was suspended.
 	FIXME: Use my_interval_timer() or similar, to avoid bogus
 	timeouts in lock_wait_check_and_cancel() or lock_wait_suspend_thread()
-	when the system time is adjusted to the past! */
+	when the system time is adjusted to the past!
+
+	FIXME: This is duplicating trx_lock_t::wait_started,
+	which is being used for diagnostic purposes only. */
 	time_t		suspend_time;
 	ulong		wait_timeout;		/*!< wait time that if exceeded
 						the thread will be timed out.

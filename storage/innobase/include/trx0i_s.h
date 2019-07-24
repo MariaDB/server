@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -133,7 +134,7 @@ struct i_s_trx_row_t {
 					/*!< pointer to a row
 					in innodb_locks if trx
 					is waiting, or NULL */
-	ib_time_t	trx_wait_started; /*!< trx_t::wait_started */
+	time_t		trx_wait_started; /*!< trx->lock.wait_started */
 	ullint		trx_weight;	/*!< TRX_WEIGHT() */
 	ulint		trx_mysql_thread_id; /*!< thd_get_thread_id() */
 	const char*	trx_query;	/*!< MySQL statement being
