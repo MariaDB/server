@@ -1948,13 +1948,14 @@ innobase_srv_conc_enter_innodb(
 
 		} else if (trx->mysql_thd != NULL
 			   && thd_is_replication_slave_thread(trx->mysql_thd)) {
-
-			UT_WAIT_FOR(
-				srv_conc_get_active_threads()
-				< srv_thread_concurrency,
-				srv_replication_delay * 1000);
-
-		}  else {
+			const ulonglong end = my_interval_timer()
+				+ ulonglong(srv_replication_delay) * 1000000;
+			while (srv_conc_get_active_threads()
+			       >= srv_thread_concurrency
+			       || my_interval_timer() >= end) {
+				os_thread_sleep(2000 /* 2 ms */);
+			}
+		} else {
 			srv_conc_enter_innodb(trx);
 		}
 	}

@@ -2232,7 +2232,7 @@ srv_master_do_active_tasks(void)
 /*============================*/
 {
 	ib_time_t	cur_time = ut_time();
-	ullint		counter_time = ut_time_us(NULL);
+	ulonglong	counter_time = microsecond_interval_timer();
 	ulint		n_evicted = 0;
 
 	/* First do the tasks that we are suppose to do at each
@@ -2261,7 +2261,7 @@ srv_master_do_active_tasks(void)
 
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
-	counter_time = ut_time_us(NULL);
+	counter_time = microsecond_interval_timer();
 	ibuf_merge_in_background(false);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
@@ -2323,9 +2323,7 @@ void
 srv_master_do_idle_tasks(void)
 /*==========================*/
 {
-	ullint	counter_time;
 	ulint	n_evicted = 0;
-
 	++srv_main_idle_loops;
 
 	MONITOR_INC(MONITOR_MASTER_IDLE_LOOPS);
@@ -2334,7 +2332,7 @@ srv_master_do_idle_tasks(void)
 	/* ALTER TABLE in MySQL requires on Unix that the table handler
 	can drop tables lazily after there no longer are SELECT
 	queries to them. */
-	counter_time = ut_time_us(NULL);
+	ulonglong counter_time = microsecond_interval_timer();
 	srv_main_thread_op_info = "doing background drop tables";
 	row_drop_tables_for_mysql_in_background();
 	MONITOR_INC_TIME_IN_MICRO_SECS(
@@ -2351,7 +2349,7 @@ srv_master_do_idle_tasks(void)
 	log_free_check();
 
 	/* Do an ibuf merge */
-	counter_time = ut_time_us(NULL);
+	counter_time = microsecond_interval_timer();
 	srv_main_thread_op_info = "doing insert buffer merge";
 	ibuf_merge_in_background(true);
 	MONITOR_INC_TIME_IN_MICRO_SECS(

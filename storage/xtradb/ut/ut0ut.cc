@@ -180,26 +180,6 @@ ut_usectime(
 }
 
 /**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return	us since epoch */
-UNIV_INTERN
-ullint
-ut_time_us(
-/*=======*/
-	ullint*	tloc)	/*!< out: us since epoch, if non-NULL */
-{
-	ullint us = my_interval_timer() / 1000;
-
-	if (tloc != NULL) {
-		*tloc = us;
-	}
-
-	return(us);
-}
-
-/**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
 purposes.

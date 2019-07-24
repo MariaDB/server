@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1698,19 +1698,18 @@ fil_crypt_get_page_throttle_func(
 
 	state->crypt_stat.pages_read_from_disk++;
 
-	ullint start = ut_time_us(NULL);
+	const ulonglong start = my_interval_timer();
 	block = buf_page_get_gen(space->id, zip_size, offset,
 				 RW_X_LATCH,
 				 NULL, BUF_GET_POSSIBLY_FREED,
 				 file, line, mtr);
-	ullint end = ut_time_us(NULL);
-
-	if (end < start) {
-		end = start; // safety...
-	}
+	const ulonglong end = my_interval_timer();
 
 	state->cnt_waited++;
-	state->sum_waited_us += (end - start);
+
+	if (end > start) {
+		state->sum_waited_us += (end - start) / 1000;
+	}
 
 	/* average page load */
 	ulint add_sleeptime_ms = 0;
@@ -2032,7 +2031,7 @@ fil_crypt_flush_space(
 		bool success = false;
 		ulint n_pages = 0;
 		ulint sum_pages = 0;
-		ullint start = ut_time_us(NULL);
+		const ulonglong start = my_interval_timer();
 
 		do {
 			success = buf_flush_list(ULINT_MAX, end_lsn, &n_pages);
@@ -2040,11 +2039,11 @@ fil_crypt_flush_space(
 			sum_pages += n_pages;
 		} while (!success && !space->is_stopping());
 
-		ullint end = ut_time_us(NULL);
+		const ulonglong end = my_interval_timer();
 
 		if (sum_pages && end > start) {
 			state->cnt_waited += sum_pages;
-			state->sum_waited_us += (end - start);
+			state->sum_waited_us += (end - start) / 1000;
 
 			/* statistics */
 			state->crypt_stat.pages_flushed += sum_pages;
