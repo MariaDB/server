@@ -54,22 +54,6 @@ Created 1/20/1994 Heikki Tuuri
 /** Time stamp */
 typedef time_t	ib_time_t;
 
-/*********************************************************************//**
-Delays execution for at most max_wait_us microseconds or returns earlier
-if cond becomes true.
-@param cond in: condition to wait for; evaluated every 2 ms
-@param max_wait_us in: maximum delay to wait, in microseconds */
-# define UT_WAIT_FOR(cond, max_wait_us)				\
-do {								\
-	uintmax_t	start_us;					\
-	start_us = ut_time_us(NULL);				\
-	while (!(cond)						\
-	       && ut_time_us(NULL) - start_us < (max_wait_us)) {\
-								\
-		os_thread_sleep(2000 /* 2 ms */);		\
-	}							\
-} while (0)
-
 #define ut_max	std::max
 #define ut_min	std::min
 
@@ -191,15 +175,6 @@ ut_usectime(
 	ulint*	sec,	/*!< out: seconds since the Epoch */
 	ulint*	ms);	/*!< out: microseconds since the Epoch+*sec */
 
-/**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return us since epoch */
-uintmax_t
-ut_time_us(
-/*=======*/
-	uintmax_t*	tloc);	/*!< out: us since epoch, if non-NULL */
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic

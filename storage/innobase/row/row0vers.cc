@@ -897,7 +897,8 @@ row_vers_old_has_index_entry(
 
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
+	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
+	ut_ad(also_curr || !vcol_info);
 
 	clust_index = dict_table_get_first_index(index->table);
 
@@ -964,7 +965,7 @@ row_vers_old_has_index_entry(
 				entry = row_build_index_entry(
 					row, ext, index, heap);
 				if (entry && !dtuple_coll_cmp(ientry, entry)) {
-					goto safe_to_purge;
+					goto unsafe_to_purge;
 				}
 			} else {
 				/* Build index entry out of row */
@@ -985,7 +986,7 @@ row_vers_old_has_index_entry(
 					    clust_index, clust_offsets,
 					    index, ientry, roll_ptr,
 					    trx_id, NULL, &vrow, mtr)) {
-					goto safe_to_purge;
+					goto unsafe_to_purge;
 				}
 			}
 			clust_offsets = rec_get_offsets(rec, clust_index, NULL,
@@ -1018,7 +1019,7 @@ row_vers_old_has_index_entry(
 			a different binary value in a char field, but the
 			collation identifies the old and new value anyway! */
 			if (entry && !dtuple_coll_cmp(ientry, entry)) {
-safe_to_purge:
+unsafe_to_purge:
 				mem_heap_free(heap);
 
 				if (v_heap) {
@@ -1058,7 +1059,6 @@ safe_to_purge:
 
 		if (!prev_version) {
 			/* Versions end here */
-unsafe_to_purge:
 			mem_heap_free(heap);
 
 			if (v_heap) {
@@ -1120,7 +1120,7 @@ unsafe_to_purge:
 			and new value anyway! */
 
 			if (entry && !dtuple_coll_cmp(ientry, entry)) {
-				goto safe_to_purge;
+				goto unsafe_to_purge;
 			}
 		}
 

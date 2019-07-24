@@ -146,30 +146,6 @@ ut_usectime(
 }
 
 /**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return us since epoch */
-uintmax_t
-ut_time_us(
-/*=======*/
-	uintmax_t*	tloc)	/*!< out: us since epoch, if non-NULL */
-{
-	struct timeval	tv;
-	uintmax_t	us;
-
-	ut_gettimeofday(&tv, NULL);
-
-	us = uintmax_t(tv.tv_sec) * 1000000 + uintmax_t(tv.tv_usec);
-
-	if (tloc != NULL) {
-		*tloc = us;
-	}
-
-	return(us);
-}
-
-/**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
 purposes.
@@ -178,11 +154,7 @@ ulint
 ut_time_ms(void)
 /*============*/
 {
-	struct timeval	tv;
-
-	ut_gettimeofday(&tv, NULL);
-
-	return(ulint(tv.tv_sec) * 1000 + ulint(tv.tv_usec / 1000));
+	return static_cast<ulint>(my_interval_timer() / 1000000);
 }
 
 /**********************************************************//**
