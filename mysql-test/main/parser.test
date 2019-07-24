@@ -1552,4 +1552,18 @@ create table t1 (a int);
 select * from t1 for update;
 drop table t1;
 
+--echo #
+--echo # MDEV-20108: [ERROR] mysqld got signal 11 in
+--echo # st_select_lex::add_table_to_list
+--echo #
+CREATE TABLE t1 (c1 INT NULL);
+CREATE TABLE t2 (c1 INT NULL);
+
+SET STATEMENT max_statement_time=900 FOR LOCK TABLES `t1` WRITE;
+select * from t1;
+--error ER_TABLE_NOT_LOCKED
+select * from t2;
+SET STATEMENT max_statement_time=900 FOR unlock tables;
+drop table t1, t2;
+
 --echo # End of 10.4 tests

@@ -16715,7 +16715,7 @@ table_lock:
                                       ? MDL_SHARED_WRITE
                                       : MDL_SHARED_NO_READ_WRITE;
 
-            if (unlikely(!Select->
+            if (unlikely(!Lex->current_select_or_default()->
                          add_table_to_list(thd, $1, $2, table_options,
                                            lock_type, mdl_type)))
               MYSQL_YYABORT;
