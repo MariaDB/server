@@ -277,5 +277,13 @@ UNUSABLE
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 plugin_name
+set names utf8;
+select convert('admin𝌆' using utf8);
+convert('admin𝌆' using utf8)
+admin
+Warnings:
+Warning	1300	Invalid utf8 character string: 'F09D8C'
+install plugin foo soname 'admin𝌆';
+ERROR HY000: No paths allowed for shared library
 insert mysql.plugin values ();
 delete from mysql.plugin where name = '';

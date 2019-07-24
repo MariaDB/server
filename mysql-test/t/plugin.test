@@ -225,8 +225,17 @@ uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 
 #
+#
+#
+set names utf8;
+select convert('admin𝌆' using utf8);
+--error ER_UDF_NO_PATHS
+install plugin foo soname 'admin𝌆';
+
+#
 # Bug#27302459: EMPTY VALUE IN MYSQL.PLUGIN TABLE CAUSES SERVER TO EXIT ON STARTUP
 #
 insert mysql.plugin values ();
 source include/restart_mysqld.inc;
 delete from mysql.plugin where name = '';
+
