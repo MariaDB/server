@@ -1106,7 +1106,7 @@ trx_start_low(
 
 	mutex_exit(&trx_sys->mutex);
 
-	trx->start_time = ut_time();
+	trx->start_time = time(NULL);
 
 	trx->start_time_micro = trx->mysql_thd
 		? thd_query_start_micro(trx->mysql_thd)

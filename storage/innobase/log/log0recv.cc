@@ -423,7 +423,7 @@ recv_sys_init(
 		recv_sys->last_block_buf_start, OS_FILE_LOG_BLOCK_SIZE));
 
 	recv_sys->found_corrupt_log = FALSE;
-	recv_sys->progress_time = ut_time();
+	recv_sys->progress_time = time(NULL);
 
 	recv_max_page_lsn = 0;
 
@@ -1702,7 +1702,7 @@ recv_recover_page_func(
 
 	mtr_commit(&mtr);
 
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 
 	mutex_enter(&recv_sys->mutex);
 
@@ -1714,7 +1714,7 @@ recv_recover_page_func(
 
 	ut_a(recv_sys->n_addrs > 0);
 	if (ulint n = --recv_sys->n_addrs) {
-		if (recv_sys->report(time)) {
+		if (recv_sys->report(now)) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"To recover: " ULINTPF " pages from log", n);
 			service_manager_extend_timeout(

@@ -58,9 +58,9 @@ create the internal counter ID in "monitor_id_t". */
 
 /** Structure containing the actual values of a monitor counter. */
 struct monitor_value_t {
-	ib_time_t	mon_start_time;	/*!< Start time of monitoring  */
-	ib_time_t	mon_stop_time;	/*!< Stop time of monitoring */
-	ib_time_t	mon_reset_time;	/*!< Time counter resetted */
+	time_t	mon_start_time;	/*!< Start time of monitoring  */
+	time_t	mon_stop_time;	/*!< Stop time of monitoring */
+	time_t	mon_reset_time;	/*!< Time of resetting the counter */
 	mon_type_t	mon_value;	/*!< Current counter Value */
 	mon_type_t	mon_max_value;	/*!< Current Max value */
 	mon_type_t	mon_min_value;	/*!< Current Min value */

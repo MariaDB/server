@@ -1716,10 +1716,11 @@ DECLARE_THREAD(srv_monitor_thread)(void*)
 	pfs_register_thread(srv_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
-	srv_last_monitor_time = ut_time();
-	last_table_monitor_time = ut_time();
-	last_tablespace_monitor_time = ut_time();
-	last_monitor_time = ut_time();
+	current_time = time(NULL);
+	srv_last_monitor_time = current_time;
+	last_table_monitor_time = current_time;
+	last_tablespace_monitor_time = current_time;
+	last_monitor_time = current_time;
 	mutex_skipped = 0;
 	last_srv_print_monitor = srv_print_innodb_monitor;
 loop:
@@ -1730,12 +1731,12 @@ loop:
 
 	os_event_wait_time_low(srv_monitor_event, 5000000, sig_count);
 
-	current_time = ut_time();
+	current_time = time(NULL);
 
 	time_elapsed = difftime(current_time, last_monitor_time);
 
 	if (time_elapsed > 15) {
-		last_monitor_time = ut_time();
+		last_monitor_time = current_time;
 
 		if (srv_print_innodb_monitor) {
 			/* Reset mutex_skipped counter everytime
@@ -1782,7 +1783,7 @@ loop:
 		if (srv_print_innodb_tablespace_monitor
 		    && difftime(current_time,
 				last_tablespace_monitor_time) > 60) {
-			last_tablespace_monitor_time = ut_time();
+			last_tablespace_monitor_time = current_time;
 
 			fputs("========================"
 			      "========================\n",
@@ -1808,7 +1809,7 @@ loop:
 		if (srv_print_innodb_table_monitor
 		    && difftime(current_time, last_table_monitor_time) > 60) {
 
-			last_table_monitor_time = ut_time();
+			last_table_monitor_time = current_time;
 
 			fprintf(stderr, "Warning: %s\n",
 				DEPRECATED_MSG_INNODB_TABLE_MONITOR);
@@ -2183,20 +2184,16 @@ static
 void
 srv_shutdown_print_master_pending(
 /*==============================*/
-	ib_time_t*	last_print_time,	/*!< last time the function
+	time_t*		last_print_time,	/*!< last time the function
 						print the message */
 	ulint		n_tables_to_drop,	/*!< number of tables to
 						be dropped */
 	ulint		n_bytes_merged)		/*!< number of change buffer
 						just merged */
 {
-	ib_time_t	current_time;
-	double		time_elapsed;
+	time_t current_time = time(NULL);
 
-	current_time = ut_time();
-	time_elapsed = ut_difftime(current_time, *last_print_time);
-
-	if (time_elapsed > 60) {
+	if (difftime(current_time, *last_print_time) > 60) {
 		*last_print_time = current_time;
 
 		if (n_tables_to_drop) {
@@ -2231,7 +2228,7 @@ void
 srv_master_do_active_tasks(void)
 /*============================*/
 {
-	ib_time_t	cur_time = ut_time();
+	time_t		cur_time = time(NULL);
 	ulonglong	counter_time = microsecond_interval_timer();
 	ulint		n_evicted = 0;
 
@@ -2390,7 +2387,7 @@ srv_shutdown(bool ibuf_merge)
 {
 	ulint		n_bytes_merged	= 0;
 	ulint		n_tables_to_drop;
-	ib_time_t	now = ut_time();
+	time_t		now = time(NULL);
 
 	do {
 		ut_ad(!srv_read_only_mode);
@@ -2539,10 +2536,10 @@ srv_purge_should_exit(ulint n_purged)
 	/* Slow shutdown was requested. */
 	if (n_purged) {
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
-		static ib_time_t progress_time;
-		ib_time_t time = ut_time();
-		if (time - progress_time >= 15) {
-			progress_time = time;
+		static time_t progress_time;
+		time_t now = time(NULL);
+		if (now - progress_time >= 15) {
+			progress_time = now;
 			service_manager_extend_timeout(
 				INNODB_EXTEND_TIMEOUT_INTERVAL,
 				"InnoDB: to purge " ULINTPF " transactions",

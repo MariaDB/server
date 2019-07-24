@@ -2171,7 +2171,7 @@ lock_rec_create(
 	/* Set the bit corresponding to rec */
 	lock_rec_set_nth_bit(lock, heap_no);
 
-	lock->requested_time = ut_time();
+	lock->requested_time = time(NULL);
 	lock->wait_time = 0;
 
 	index->table->n_rec_locks++;
@@ -3052,16 +3052,18 @@ lock_grant(
 		}
 	}
 
+	const time_t now = time(NULL);
+
 	/* Cumulate total lock wait time for statistics */
 	if (lock_get_type_low(lock) & LOCK_TABLE) {
 		lock->trx->total_table_lock_wait_time +=
-			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
+			(ulint)difftime(now, lock->trx->lock.wait_started);
 	} else {
 		lock->trx->total_rec_lock_wait_time +=
-			(ulint)difftime(ut_time(), lock->trx->lock.wait_started);
+			(ulint)difftime(now, lock->trx->lock.wait_started);
 	}
 
-	lock->wait_time = (ulint)difftime(ut_time(), lock->requested_time);
+	lock->wait_time = (ulint)difftime(now, lock->requested_time);
 
 	if (!owns_trx_mutex) {
 		trx_mutex_exit(lock->trx);
@@ -4961,7 +4963,7 @@ lock_table_create(
 
 	lock->type_mode = type_mode | LOCK_TABLE;
 	lock->trx = trx;
-	lock->requested_time = ut_time();
+	lock->requested_time = time(NULL);
 	lock->wait_time = 0;
 
 	lock->un_member.tab_lock.table = table;

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -405,7 +405,7 @@ sync_array_reserve_cell(
                         event = sync_cell_get_event(cell);
 			cell->signal_count = os_event_reset(event);
 
-			cell->reservation_time = ut_time();
+			cell->reservation_time = time(NULL);
 
 			cell->thread = os_thread_get_curr_id();
 

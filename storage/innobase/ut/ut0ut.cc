@@ -44,21 +44,6 @@ Created 5/11/1994 Heikki Tuuri
 # include "ha_prototypes.h"
 # include "mysql_com.h" /* NAME_LEN */
 # include <string>
-#endif /* UNIV_HOTBACKUP */
-
-/**********************************************************//**
-Returns system time. We do not specify the format of the time returned:
-the only way to manipulate it is to use the function ut_difftime.
-@return	system time */
-UNIV_INTERN
-ib_time_t
-ut_time(void)
-/*=========*/
-{
-	return(time(NULL));
-}
-
-#ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
@@ -72,20 +57,6 @@ ut_time_ms(void)
 	return static_cast<ulint>(my_interval_timer() / 1000000);
 }
 #endif /* !UNIV_HOTBACKUP */
-
-/**********************************************************//**
-Returns the difference of two times in seconds.
-@return	time2 - time1 expressed in seconds */
-UNIV_INTERN
-double
-ut_difftime(
-/*========*/
-	ib_time_t	time2,	/*!< in: time */
-	ib_time_t	time1)	/*!< in: time */
-{
-	return(difftime(time2, time1));
-}
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************//**

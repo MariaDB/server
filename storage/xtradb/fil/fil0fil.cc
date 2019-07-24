@@ -5128,7 +5128,7 @@ fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
 	ulint		dbpath_len	= 100;
         ulint 		files_read	= 0;
         ulint 		files_read_at_last_check	= 0;
-        ib_time_t 	prev_report_time = ut_time();
+	time_t		prev_report_time = time(NULL);
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;
@@ -5228,11 +5228,10 @@ fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
 					files_read++;
 					if (files_read - files_read_at_last_check >
 					    CHECK_TIME_EVERY_N_FILES) {
-						ib_time_t cur_time= ut_time();
+						time_t cur_time= time(NULL);
 						files_read_at_last_check= files_read;
-						double time_elapsed= ut_difftime(cur_time, 
-						                                 prev_report_time);
-						if (time_elapsed > 15) {
+						if (cur_time - prev_report_time
+						    > 15) {
 							ib_logf(IB_LOG_LEVEL_INFO, 
 								"Processed %ld .ibd/.isl files",
 								files_read);

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -4509,7 +4509,7 @@ os_aio_init(
 
 	os_aio_validate();
 
-	os_last_printout = ut_time();
+	os_last_printout = time(NULL);
 
 #ifdef _WIN32
 	ut_a(completion_port == 0 && read_completion_port == 0);
@@ -4837,7 +4837,7 @@ found:
 	}
 
 	slot->reserved = TRUE;
-	slot->reservation_time = ut_time();
+	slot->reservation_time = time(NULL);
 	slot->message1 = message1;
 	slot->message2 = message2;
 	slot->file     = file;
@@ -5979,7 +5979,7 @@ restart:
 		if (slot->reserved) {
 
 			age = (ulint) difftime(
-				ut_time(), slot->reservation_time);
+				time(NULL), slot->reservation_time);
 
 			if ((age >= 2 && age > biggest_age)
 			    || (age >= 2 && age == biggest_age
@@ -6392,7 +6392,7 @@ os_aio_print(
 	}
 
 	putc('\n', file);
-	current_time = ut_time();
+	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,

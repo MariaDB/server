@@ -77,8 +77,8 @@ UNIV_INTERN ulong	fts_min_token_size;
 
 
 // FIXME: testing
-ib_time_t elapsed_time = 0;
-ulint n_nodes = 0;
+static time_t elapsed_time;
+static ulint n_nodes;
 
 /** Error condition reported by fts_utf8_decode() */
 const ulint UTF8_ERROR = 0xFFFFFFFF;
@@ -3798,7 +3798,7 @@ fts_write_node(
 	pars_info_t*	info;
 	dberr_t		error;
 	ib_uint32_t	doc_count;
-	ib_time_t	start_time;
+	time_t		start_time;
 	doc_id_t	last_doc_id;
 	doc_id_t	first_doc_id;
 	char		table_name[MAX_FULL_NAME_LEN];
@@ -3845,9 +3845,9 @@ fts_write_node(
 			" :last_doc_id, :doc_count, :ilist);");
 	}
 
-	start_time = ut_time();
+	start_time = time(NULL);
 	error = fts_eval_sql(trx, *graph);
-	elapsed_time += ut_time() - start_time;
+	elapsed_time += time(NULL) - start_time;
 	++n_nodes;
 
 	return(error);
@@ -4298,7 +4298,7 @@ fts_sync_begin(
 	n_nodes = 0;
 	elapsed_time = 0;
 
-	sync->start_time = ut_time();
+	sync->start_time = time(NULL);
 
 	sync->trx = trx_allocate_for_background();
 
@@ -4457,7 +4457,7 @@ fts_sync_commit(
 			"SYNC for table %s: SYNC time : %lu secs: "
 			"elapsed %lf ins/sec",
 			sync->table->name,
-			(ulong) (ut_time() - sync->start_time),
+			(ulong) (time(NULL) - sync->start_time),
 			(double) n_nodes/ (double) elapsed_time);
 	}
 

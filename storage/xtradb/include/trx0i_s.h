@@ -129,7 +129,7 @@ struct i_s_trx_row_t {
 	trx_id_t		trx_id;		/*!< transaction identifier */
 	const char*		trx_state;	/*!< transaction state from
 						trx_get_que_state_str() */
-	ib_time_t		trx_started;	/*!< trx_t::start_time */
+	time_t			trx_started;	/*!< trx_t::start_time */
 	const i_s_locks_row_t*	requested_lock_row;
 					/*!< pointer to a row
 					in innodb_locks if trx

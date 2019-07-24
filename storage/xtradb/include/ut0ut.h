@@ -51,9 +51,6 @@ Created 1/20/1994 Heikki Tuuri
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
 
-/** Time stamp */
-typedef time_t	ib_time_t;
-
 /* In order to call a piece of code, when a function returns or when the
 scope ends, use this utility class.  It will invoke the given function
 object in its destructor. */
@@ -227,14 +224,6 @@ store the given number of bits.
 @return		number of bytes (octets) needed to represent b */
 #define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
 
-/**********************************************************//**
-Returns system time. We do not specify the format of the time returned:
-the only way to manipulate it is to use the function ut_difftime.
-@return	system time */
-UNIV_INTERN
-ib_time_t
-ut_time(void);
-/*=========*/
 #ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -256,17 +245,6 @@ UNIV_INTERN
 ulint
 ut_time_ms(void);
 /*============*/
-
-/**********************************************************//**
-Returns the difference of two times in seconds.
-@return	time2 - time1 expressed in seconds */
-UNIV_INTERN
-double
-ut_difftime(
-/*========*/
-	ib_time_t	time2,	/*!< in: time */
-	ib_time_t	time1);	/*!< in: time */
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************//**

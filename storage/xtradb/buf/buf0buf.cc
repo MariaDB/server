@@ -1700,7 +1700,7 @@ buf_pool_init_instance(
 
 		buf_pool->zip_hash = hash_create(2 * buf_pool->curr_size);
 
-		buf_pool->last_printout_time = ut_time();
+		buf_pool->last_printout_time = time(NULL);
 	}
 	/* 2. Initialize flushing fields
 	-------------------------------- */
@@ -6200,7 +6200,7 @@ buf_refresh_io_stats(
 /*=================*/
 	buf_pool_t*	buf_pool)	/*!< in: buffer pool instance */
 {
-	buf_pool->last_printout_time = ut_time();
+	buf_pool->last_printout_time = time(NULL);
 	buf_pool->old_stat = buf_pool->stat;
 }
 

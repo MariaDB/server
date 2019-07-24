@@ -1648,7 +1648,7 @@ fts_optimize_get_index_start_time(
 /*==============================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index,			/*!< in: FTS index */
-	ib_time_t*	start_time)		/*!< out: time in secs */
+	time_t*		start_time)		/*!< out: time in secs */
 {
 	return(fts_config_get_index_ulint(
 		       trx, index, FTS_OPTIMIZE_START_TIME,
@@ -1664,7 +1664,7 @@ fts_optimize_set_index_start_time(
 /*==============================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index,			/*!< in: FTS index */
-	ib_time_t	start_time)		/*!< in: start time */
+	time_t		start_time)		/*!< in: start time */
 {
 	return(fts_config_set_index_ulint(
 		       trx, index, FTS_OPTIMIZE_START_TIME,
@@ -1918,7 +1918,7 @@ fts_optimize_index_completed(
 	dberr_t		error;
 	byte		buf[sizeof(ulint)];
 #ifdef FTS_OPTIMIZE_DEBUG
-	ib_time_t	end_time = ut_time();
+	time_t		end_time = time(NULL);
 
 	error = fts_optimize_set_index_end_time(optim->trx, index, end_time);
 #endif
@@ -2337,14 +2337,14 @@ fts_optimize_indexes(
 		/* Start time will be 0 only for the first time or after
 		completing the optimization of all FTS indexes. */
 		if (start_time == 0) {
-			start_time = ut_time();
+			start_time = time(NULL);
 
 			error = fts_optimize_set_index_start_time(
 				optim->trx, index, start_time);
 		}
 
 		/* Check if this index needs to be optimized or not. */
-		if (ut_difftime(end_time, start_time) < 0) {
+		if (difftime(end_time, start_time) < 0) {
 			error = fts_optimize_index(optim, index);
 
 			if (error != DB_SUCCESS) {
@@ -2416,7 +2416,7 @@ fts_optimize_reset_start_time(
 	for (uint i = 0; i < ib_vector_size(fts->indexes); ++i) {
 		dict_index_t*	index;
 
-		ib_time_t	start_time = 0;
+		time_t	start_time = 0;
 
 		/* Reset the start time to 0 for this index. */
 		error = fts_optimize_set_index_start_time(
@@ -2471,7 +2471,7 @@ fts_optimize_table_bk(
 	    && table->fts->cache->deleted >= FTS_OPTIMIZE_THRESHOLD) {
 		error = fts_optimize_table(table);
 
-		slot->last_run = ut_time();
+		slot->last_run = time(NULL);
 
 		if (error == DB_SUCCESS) {
 			slot->running = false;
@@ -3001,7 +3001,7 @@ fts_optimize_init(void)
 
 	fts_optimize_wq = ib_wqueue_create();
 	ut_a(fts_optimize_wq != NULL);
-	last_check_sync_time = ut_time();
+	last_check_sync_time = time(NULL);
 
 	os_thread_create(fts_optimize_thread, fts_optimize_wq, NULL);
 }

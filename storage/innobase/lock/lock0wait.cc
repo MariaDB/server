@@ -60,7 +60,7 @@ lock_wait_table_print(void)
 			(ulong) slot->in_use,
 			(ulong) slot->suspended,
 			slot->wait_timeout,
-			(ulong) difftime(ut_time(), slot->suspend_time));
+			(ulong) difftime(time(NULL), slot->suspend_time));
 	}
 }
 
@@ -157,7 +157,7 @@ lock_wait_table_reserve_slot(
 
 			os_event_reset(slot->event);
 			slot->suspended = TRUE;
-			slot->suspend_time = ut_time();
+			slot->suspend_time = time(NULL);
 			slot->wait_timeout = wait_timeout;
 
 			if (slot == lock_sys->last_slot) {

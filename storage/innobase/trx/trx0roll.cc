@@ -738,11 +738,11 @@ trx_roll_must_shutdown()
 		return true;
 	}
 
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 	mutex_enter(&trx_sys->mutex);
 	mutex_enter(&recv_sys->mutex);
 
-	if (recv_sys->report(time)) {
+	if (recv_sys->report(now)) {
 		ulint n_trx = 0;
 		ulonglong n_rows = 0;
 		for (const trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
