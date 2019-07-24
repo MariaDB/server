@@ -1795,21 +1795,15 @@ trx_commit_or_rollback_prepare(
 		query thread to the suspended state */
 
 		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-
-			ulint		sec;
-			ulint		ms;
-			ib_uint64_t	now;
-
 			ut_a(trx->lock.wait_thr != NULL);
 			trx->lock.wait_thr->state = QUE_THR_SUSPENDED;
 			trx->lock.wait_thr = NULL;
 
 			if (UNIV_UNLIKELY(trx->take_stats)) {
-				ut_usectime(&sec, &ms);
-				now = (ib_uint64_t)sec * 1000000 + ms;
-				trx->lock_que_wait_timer
-					+= (ulint)
-					(now - trx->lock_que_wait_ustarted);
+				trx->lock_que_wait_timer += static_cast<ulint>(
+					(my_interval_timer()
+					 - trx->lock_que_wait_nstarted)
+					/ 1000);
 			}
 
 			trx->lock.que_state = TRX_QUE_RUNNING;

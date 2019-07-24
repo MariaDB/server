@@ -47,83 +47,6 @@ Created 5/11/1994 Heikki Tuuri
 # include <string>
 #endif /* UNIV_HOTBACKUP */
 
-#ifdef __WIN__
-#include <innodb_priv.h> /* For sql_print_error */
-typedef VOID(WINAPI *time_fn)(LPFILETIME);
-static time_fn ut_get_system_time_as_file_time = GetSystemTimeAsFileTime;
-
-/*****************************************************************//**
-NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
-epoch starts from 1970/1/1. For selection of constant see:
-http://support.microsoft.com/kb/167296/ */
-#define WIN_TO_UNIX_DELTA_USEC  ((ib_int64_t) 11644473600000000ULL)
-
-
-/**
-Initialise highest available time resolution API on Windows
-@return 0 if all OK else -1 */
-int
-ut_win_init_time()
-{
-	HMODULE h = LoadLibrary("kernel32.dll");
-	if (h != NULL)
-	{
-		time_fn pfn = (time_fn)GetProcAddress(h, "GetSystemTimePreciseAsFileTime");
-		if (pfn != NULL)
-		{
-			ut_get_system_time_as_file_time = pfn;
-		}
-		return false;
-	}
-	DWORD error = GetLastError();
-  sql_print_error(
-		"LoadLibrary(\"kernel32.dll\") failed: GetLastError returns %lu", error);
-	return(-1);
-}
-
-/*****************************************************************//**
-This is the Windows version of gettimeofday(2).
-@return	0 if all OK else -1 */
-static
-int
-ut_gettimeofday(
-/*============*/
-	struct timeval*	tv,	/*!< out: Values are relative to Unix epoch */
-	void*		tz)	/*!< in: not used */
-{
-	FILETIME	ft;
-	ib_int64_t	tm;
-
-	if (!tv) {
-		errno = EINVAL;
-		return(-1);
-	}
-
-	ut_get_system_time_as_file_time(&ft);
-
-	tm = (ib_int64_t) ft.dwHighDateTime << 32;
-	tm |= ft.dwLowDateTime;
-
-	ut_a(tm >= 0);	/* If tm wraps over to negative, the quotient / 10
-			does not work */
-
-	tm /= 10;	/* Convert from 100 nsec periods to usec */
-
-	/* If we don't convert to the Unix epoch the value for
-	struct timeval::tv_sec will overflow.*/
-	tm -= WIN_TO_UNIX_DELTA_USEC;
-
-	tv->tv_sec  = (long) (tm / 1000000L);
-	tv->tv_usec = (long) (tm % 1000000L);
-
-	return(0);
-}
-#else
-/** An alias for gettimeofday(2).  On Microsoft Windows, we have to
-reimplement this function. */
-#define	ut_gettimeofday		gettimeofday
-#endif
-
 /**********************************************************//**
 Returns system time. We do not specify the format of the time returned:
 the only way to manipulate it is to use the function ut_difftime.
@@ -137,48 +60,6 @@ ut_time(void)
 }
 
 #ifndef UNIV_HOTBACKUP
-/**********************************************************//**
-Returns system time.
-Upon successful completion, the value 0 is returned; otherwise the
-value -1 is returned and the global variable errno is set to indicate the
-error.
-@return	0 on success, -1 otherwise */
-UNIV_INTERN
-int
-ut_usectime(
-/*========*/
-	ulint*	sec,	/*!< out: seconds since the Epoch */
-	ulint*	ms)	/*!< out: microseconds since the Epoch+*sec */
-{
-	struct timeval	tv;
-	int		ret;
-	int		errno_gettimeofday;
-	int		i;
-
-	for (i = 0; i < 10; i++) {
-
-		ret = ut_gettimeofday(&tv, NULL);
-
-		if (ret == -1) {
-			errno_gettimeofday = errno;
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: gettimeofday(): %s\n",
-				strerror(errno_gettimeofday));
-			os_thread_sleep(100000);  /* 0.1 sec */
-			errno = errno_gettimeofday;
-		} else {
-			break;
-		}
-	}
-
-	if (ret != -1) {
-		*sec = (ulint) tv.tv_sec;
-		*ms  = (ulint) tv.tv_usec;
-	}
-
-	return(ret);
-}
-
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic

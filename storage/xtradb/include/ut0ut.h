@@ -237,19 +237,6 @@ ut_time(void);
 /*=========*/
 #ifndef UNIV_HOTBACKUP
 /**********************************************************//**
-Returns system time.
-Upon successful completion, the value 0 is returned; otherwise the
-value -1 is returned and the global variable errno is set to indicate the
-error.
-@return	0 on success, -1 otherwise */
-UNIV_INTERN
-int
-ut_usectime(
-/*========*/
-	ulint*	sec,	/*!< out: seconds since the Epoch */
-	ulint*	ms);	/*!< out: microseconds since the Epoch+*sec */
-
-/**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
 purposes.
@@ -258,15 +245,6 @@ UNIV_INTERN
 ulint
 ut_time_ms(void);
 /*============*/
-#ifdef _WIN32
-/**********************************************************//**
-Initialise highest available time resolution API on Windows
-@return 0 if all OK else -1 */
-int
-ut_win_init_time();
-
-#endif /* _WIN32 */
-
 #endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************//**

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -230,10 +230,6 @@ lock_wait_suspend_thread(
 	trx_t*		trx;
 	ulint		had_dict_lock;
 	ibool		was_declared_inside_innodb;
-	ib_int64_t	start_time			= 0;
-	ib_int64_t	finish_time;
-	ulint		sec;
-	ulint		ms;
 	ulong		lock_wait_timeout;
 
 	trx = thr_get_trx(thr);
@@ -279,15 +275,12 @@ lock_wait_suspend_thread(
 	lock_wait_mutex_exit();
 	trx_mutex_exit(trx);
 
+	ulonglong start_time = 0;
+
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
 		srv_stats.n_lock_wait_count.inc();
 		srv_stats.n_lock_wait_current_count.inc();
-
-		if (ut_usectime(&sec, &ms) == -1) {
-			start_time = -1;
-		} else {
-			start_time = (ib_int64_t) sec * 1000000 + ms;
-		}
+		start_time = my_interval_timer();
 	}
 
 	ulint	lock_type = ULINT_UNDEFINED;
@@ -374,32 +367,25 @@ lock_wait_suspend_thread(
 	lock_wait_table_release_slot(slot);
 
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		ulint	diff_time;
-
-		if (ut_usectime(&sec, &ms) == -1) {
-			finish_time = -1;
-		} else {
-			finish_time = (ib_int64_t) sec * 1000000 + ms;
-		}
-
-		diff_time = (finish_time > start_time) ?
-			    (ulint) (finish_time - start_time) : 0;
-
 		srv_stats.n_lock_wait_current_count.dec();
-		srv_stats.n_lock_wait_time.add(diff_time);
 
-		/* Only update the variable if we successfully
-		retrieved the start and finish times. See Bug#36819. */
-		if (diff_time > lock_sys->n_lock_max_wait_time
-		    && start_time != -1
-		    && finish_time != -1) {
+		const ulonglong finish_time = my_interval_timer();
+		ulint diff_time;
 
-			lock_sys->n_lock_max_wait_time = diff_time;
+		if (finish_time < start_time) {
+			diff_time = 0;
+		} else {
+			diff_time = ulint((finish_time - start_time) / 1000);
+			srv_stats.n_lock_wait_time.add(diff_time);
+			/* Only update the variable if we successfully
+			retrieved the start and finish times. See Bug#36819. */
+			if (diff_time > lock_sys->n_lock_max_wait_time) {
+				lock_sys->n_lock_max_wait_time = diff_time;
+			}
 		}
 
 		/* Record the lock wait time for this thread */
 		thd_set_lock_wait_time(trx->mysql_thd, diff_time);
-
 	}
 
 	if (lock_wait_timeout < 100000000

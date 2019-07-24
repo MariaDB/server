@@ -2968,10 +2968,6 @@ os_file_pread(
 	trx_t*		trx)
 {
 	off_t	offs;
-	ulint		sec;
-	ulint		ms;
-	ib_uint64_t	start_time;
-	ib_uint64_t	finish_time;
 
 	ut_ad(n);
 
@@ -2988,15 +2984,9 @@ os_file_pread(
 
 	os_n_file_reads++;
 
-	if (UNIV_UNLIKELY(trx && trx->take_stats))
-	{
-	        trx->io_reads++;
-		trx->io_read += n;
-		ut_usectime(&sec, &ms);
-		start_time = (ib_uint64_t)sec * 1000000 + ms;
-	} else {
-		start_time = 0;
-	}
+	const ulonglong start_time = UNIV_UNLIKELY(trx && trx->take_stats)
+		? my_interval_timer()
+		: 0;
 
 	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_READS);
 #ifdef HAVE_PREAD
@@ -3022,9 +3012,8 @@ os_file_pread(
 
 	if (UNIV_UNLIKELY(start_time != 0))
 	{
-		ut_usectime(&sec, &ms);
-		finish_time = (ib_uint64_t)sec * 1000000 + ms;
-		trx->io_reads_wait_timer += (ulint)(finish_time - start_time);
+		trx->io_reads_wait_timer += ulint((my_interval_timer()
+						   - start_time) / 1000);
 	}
 
 	return(n_bytes);
@@ -3071,9 +3060,8 @@ os_file_pread(
 
 		if (UNIV_UNLIKELY(start_time != 0)
 		{
-			ut_usectime(&sec, &ms);
-			finish_time = (ib_uint64_t)sec * 1000000 + ms;
-			trx->io_reads_wait_timer += (ulint)(finish_time - start_time);
+			trx->io_reads_wait_timer += ulint(
+				(my_interval_timer() - start_time) / 1000);
 		}
 
 		return(ret);

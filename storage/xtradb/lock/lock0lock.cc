@@ -2448,8 +2448,6 @@ lock_rec_enqueue_waiting(
 	trx_t*			trx;
 	lock_t*			lock;
 	trx_id_t		victim_trx_id;
-	ulint			sec;
-	ulint			ms;
 	ulint			space;
 	ulint			page_no;
 	dberr_t			err;
@@ -2535,8 +2533,7 @@ lock_rec_enqueue_waiting(
 		trx->lock.wait_started = ut_time();
 
 		if (UNIV_UNLIKELY(trx->take_stats)) {
-			ut_usectime(&sec, &ms);
-			trx->lock_que_wait_ustarted = (ib_uint64_t)sec * 1000000 + ms;
+			trx->lock_que_wait_nstarted = my_interval_timer();
 		}
 
 		ut_a(que_thr_stop(thr));
@@ -5205,8 +5202,6 @@ lock_table_enqueue_waiting(
 	trx_t*		trx;
 	lock_t*		lock;
 	trx_id_t	victim_trx_id;
-	ulint		sec;
-	ulint		ms;
 
 	ut_ad(lock_mutex_own());
 	ut_ad(!srv_read_only_mode);
@@ -5290,8 +5285,7 @@ lock_table_enqueue_waiting(
 	trx->n_table_lock_waits++;
 
 	if (UNIV_UNLIKELY(trx->take_stats)) {
-		ut_usectime(&sec, &ms);
-		trx->lock_que_wait_ustarted = (ib_uint64_t)sec * 1000000 + ms;
+		trx->lock_que_wait_nstarted = my_interval_timer();
 	}
 
 	ut_a(que_thr_stop(thr));
