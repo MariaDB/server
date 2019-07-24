@@ -570,7 +570,8 @@ trx_resurrect_insert(
 	/* trx_start_low() is not called with resurrect, so need to initialize
 	start time here.*/
 	if (trx->state != TRX_STATE_COMMITTED_IN_MEMORY) {
-		trx->start_time = ut_time();
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -656,7 +657,8 @@ trx_resurrect_update(
 	start time here.*/
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
-		trx->start_time = ut_time();
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -907,8 +909,9 @@ trx_start_low(
 
 	trx->start_time = ut_time();
 
-	trx->start_time_micro =
-		trx->mysql_thd ? thd_query_start_micro(trx->mysql_thd) : 0;
+	trx->start_time_micro = trx->mysql_thd
+		? thd_query_start_micro(trx->mysql_thd)
+		: microsecond_interval_timer();
 
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }

@@ -146,7 +146,8 @@ trx_purge_sys_create(
 	here only because the query threads code requires it. It is otherwise
 	quite unnecessary. We should get rid of it eventually. */
 	purge_sys->trx->id = 0;
-	purge_sys->trx->start_time = ut_time();
+	purge_sys->trx->start_time = time(NULL);
+	purge_sys->trx->start_time_micro = microsecond_interval_timer();
 	purge_sys->trx->state = TRX_STATE_ACTIVE;
 	purge_sys->trx->op_info = "purge trx";
 
