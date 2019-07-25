@@ -287,6 +287,18 @@ lock_rec_get_next_on_page_const(
 }
 
 /*********************************************************************//**
+Gets the mode from type_mode.
+@return mode */
+UNIV_INLINE
+enum lock_mode
+lock_get_mode(
+/*==========*/
+	const ib_uint32_t type_mode)
+{
+	return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
+}
+
+/*********************************************************************//**
 Gets the mode of a lock.
 @return mode */
 UNIV_INLINE
@@ -297,7 +309,7 @@ lock_get_mode(
 {
 	ut_ad(lock);
 
-	return(static_cast<enum lock_mode>(lock->type_mode & LOCK_MODE_MASK));
+	return(lock_get_mode(lock->type_mode));
 }
 
 /*********************************************************************//**

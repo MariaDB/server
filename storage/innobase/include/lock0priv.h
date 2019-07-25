@@ -64,40 +64,13 @@ operator<<(std::ostream& out, const lock_table_t& lock)
 	return(lock.print(out));
 }
 
-/** Convert the member 'type_mode' into a human readable string.
-@return human readable string */
-inline
-std::string
-ib_lock_t::type_mode_string() const
-{
-	std::ostringstream sout;
-	sout << type_string();
-	sout << " | " << lock_mode_string(mode());
-
-	if (is_record_not_gap()) {
-		sout << " | LOCK_REC_NOT_GAP";
-	}
-
-	if (is_waiting()) {
-		sout << " | LOCK_WAIT";
-	}
-
-	if (is_gap()) {
-		sout << " | LOCK_GAP";
-	}
-
-	if (is_insert_intention()) {
-		sout << " | LOCK_INSERT_INTENTION";
-	}
-	return(sout.str());
-}
-
 inline
 std::ostream&
 ib_lock_t::print(std::ostream& out) const
 {
-	out << "[lock_t: type_mode=" << type_mode << "("
-		<< type_mode_string() << ")";
+	out << "[lock_t: trx=" << trx << " (" << trx->lock.trx_locks.count
+		<< ":" << trx->lock.table_locks.size() << "), "
+		<< "type_mode=" << type_mode << "=" << type_mode_string() << " ";
 
 	if (is_record_lock()) {
 		out << un_member.rec_lock;
@@ -115,10 +88,6 @@ operator<<(std::ostream& out, const ib_lock_t& lock)
 {
 	return(lock.print(out));
 }
-
-#ifdef UNIV_DEBUG
-extern ibool	lock_print_waits;
-#endif /* UNIV_DEBUG */
 
 /** Restricts the length of search we will do in the waits-for
 graph of transactions */
@@ -595,6 +564,15 @@ lock_rec_get_first(
 	ulint			heap_no);/*!< in: heap number of the record */
 
 /*********************************************************************//**
+Gets the mode from type_mode.
+@return mode */
+UNIV_INLINE
+enum lock_mode
+lock_get_mode(
+/*==========*/
+	const ib_uint32_t type_mode);
+
+/*********************************************************************//**
 Gets the mode of a lock.
 @return mode */
 UNIV_INLINE
@@ -671,6 +649,7 @@ inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
 
 	trx->lock.wait_lock = lock;
 	lock->type_mode |= LOCK_WAIT;
+	DBUG_LOG("ib_lock", "+WAIT("<< lock << ") " << *lock);
 }
 
 /** Reset the wait status of a lock.
@@ -683,6 +662,7 @@ inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 	      || lock->trx->lock.wait_lock == lock);
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
+	DBUG_LOG("ib_lock", "-WAIT("<< lock << ") " << *lock);
 }
 
 inline
