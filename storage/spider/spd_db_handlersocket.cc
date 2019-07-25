@@ -505,8 +505,8 @@ SPIDER_DB_ROW *spider_db_handlersocket_row::clone()
     DBUG_RETURN(NULL);
   }
   if (!spider_bulk_malloc(spider_current_trx, 169, MYF(MY_WME),
-    &clone_row->hs_row, sizeof(SPIDER_HS_STRING_REF) * field_count,
-    &tmp_char, row_size,
+    &clone_row->hs_row, (uint) (sizeof(SPIDER_HS_STRING_REF) * field_count),
+    &tmp_char, (uint) (row_size),
     NullS)
   ) {
     delete clone_row;

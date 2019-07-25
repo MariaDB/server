@@ -2683,7 +2683,8 @@ int spider_db_fetch_for_item_sum_func(
           if (!spider->direct_aggregate_item_first)
           {
             if (!spider_bulk_malloc(spider_current_trx, 240, MYF(MY_WME),
-              &spider->direct_aggregate_item_first, sizeof(SPIDER_ITEM_HLD),
+              &spider->direct_aggregate_item_first,
+              (uint) (sizeof(SPIDER_ITEM_HLD)),
               NullS)
             ) {
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -2702,7 +2703,7 @@ int spider_db_fetch_for_item_sum_func(
           {
             if (!spider_bulk_malloc(spider_current_trx, 241, MYF(MY_WME),
               &spider->direct_aggregate_item_current->next,
-              sizeof(SPIDER_ITEM_HLD), NullS)
+              (uint) (sizeof(SPIDER_ITEM_HLD)), NullS)
             ) {
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
             }
@@ -4074,8 +4075,8 @@ int spider_db_store_result(
       current->field_count = field_count;
       if (!(position = (SPIDER_POSITION *)
         spider_bulk_malloc(spider_current_trx, 7, MYF(MY_WME | MY_ZEROFILL),
-          &position, sizeof(SPIDER_POSITION) * page_size,
-          &tmp_row, sizeof(char*) * field_count,
+          &position, (uint) (sizeof(SPIDER_POSITION) * page_size),
+          &tmp_row, (uint) (sizeof(SPIDER_DB_ROW) * field_count),
           NullS))
       )
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -10949,8 +10950,8 @@ int spider_db_udf_copy_tables(
   DBUG_ENTER("spider_db_udf_copy_tables");
   if (!(last_row_pos = (ulong *)
     spider_bulk_malloc(spider_current_trx, 30, MYF(MY_WME),
-      &last_row_pos, sizeof(ulong) * table->s->fields,
-      &last_lengths, sizeof(ulong) * table->s->fields,
+      &last_row_pos, (uint) (sizeof(ulong) * table->s->fields),
+      &last_lengths, (uint) (sizeof(ulong) * table->s->fields),
       NullS))
   ) {
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);

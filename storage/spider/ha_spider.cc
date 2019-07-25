@@ -395,15 +395,24 @@ int ha_spider::open(
   {
     if (!(searched_bitmap = (uchar *)
       spider_bulk_malloc(spider_current_trx, 15, MYF(MY_WME),
-        &searched_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &ft_discard_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &position_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &partition_handler_share, sizeof(SPIDER_PARTITION_HANDLER_SHARE),
-        &idx_read_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &idx_write_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &rnd_read_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &rnd_write_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &pt_handler_share_handlers, sizeof(ha_spider *) * part_num,
+        &searched_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &ft_discard_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &position_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &partition_handler_share,
+          (uint) sizeof(SPIDER_PARTITION_HANDLER_SHARE),
+        &idx_read_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &idx_write_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &rnd_read_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &rnd_write_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &pt_handler_share_handlers,
+          (uint) sizeof(ha_spider *) * part_num,
         NullS))
     ) {
       error_num = HA_ERR_OUT_OF_MEM;
@@ -11389,7 +11398,7 @@ int ha_spider::create(
     if (!(tmp_share.static_key_cardinality = (longlong *)
       spider_bulk_malloc(spider_current_trx, 246, MYF(MY_WME),
         &tmp_share.static_key_cardinality,
-          sizeof(*tmp_share.static_key_cardinality) * form->s->keys,
+          (uint) (sizeof(*tmp_share.static_key_cardinality) * form->s->keys),
         NullS))
     ) {
       error_num = HA_ERR_OUT_OF_MEM;
@@ -12198,7 +12207,8 @@ int ha_spider::info_push(
           spider_free(spider_current_trx, hs_pushed_ret_fields, MYF(0));
         if (!(hs_pushed_ret_fields = (uint32 *)
           spider_bulk_malloc(spider_current_trx, 17, MYF(MY_WME),
-          &hs_pushed_ret_fields, sizeof(uint32) * hs_pushed_ret_fields_num,
+          &hs_pushed_ret_fields,
+            (uint) (sizeof(uint32) * hs_pushed_ret_fields_num),
           NullS))
         ) {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -13762,8 +13772,8 @@ SPIDER_BULK_ACCESS_LINK *ha_spider::create_bulk_access_link()
 */
   if (!(bulk_access_link = (SPIDER_BULK_ACCESS_LINK *)
     spider_bulk_malloc(spider_current_trx, 168, MYF(MY_WME),
-    &bulk_access_link, sizeof(SPIDER_BULK_ACCESS_LINK),
-    &ref, ALIGN_SIZE(ref_length) * 2,
+    &bulk_access_link, (uint) (sizeof(SPIDER_BULK_ACCESS_LINK)),
+    &ref, (uint) (ALIGN_SIZE(ref_length) * 2),
     NullS))
   ) {
     goto error_bulk_malloc;

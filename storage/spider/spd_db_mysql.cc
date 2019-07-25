@@ -537,9 +537,9 @@ SPIDER_DB_ROW *spider_db_mbase_row::clone()
     row_size = record_size + field_count;
   }
   if (!spider_bulk_malloc(spider_current_trx, 29, MYF(MY_WME),
-    &clone_row->row, sizeof(char*) * field_count,
-    &tmp_char, row_size,
-    &clone_row->lengths, sizeof(ulong) * field_count,
+    &clone_row->row, (uint) (sizeof(char*) * field_count),
+    &tmp_char, (uint) (row_size),
+    &clone_row->lengths, (uint) (sizeof(ulong) * field_count),
     NullS)
   ) {
     delete clone_row;
@@ -5473,7 +5473,7 @@ int spider_db_mbase_util::append_tables_top_down(
   int error_num;
   uint outer_join_backup;
   TABLE_LIST *cur_table_list, *prev_table_list = NULL, *cond_table_list = NULL;
-  bool first;
+  bool first = TRUE;
   DBUG_ENTER("spider_db_mbase_util::append_tables_top_down");
   DBUG_PRINT("info",("spider this=%p", this));
   if (
@@ -13786,7 +13786,7 @@ int spider_mbase_handler::init_union_table_name_pos()
   if (!union_table_name_pos_first)
   {
     if (!spider_bulk_malloc(spider_current_trx, 236, MYF(MY_WME),
-      &union_table_name_pos_first, sizeof(SPIDER_INT_HLD),
+      &union_table_name_pos_first, (uint) (sizeof(SPIDER_INT_HLD)),
       NullS)
     ) {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -13807,7 +13807,7 @@ int spider_mbase_handler::set_union_table_name_pos()
     if (!union_table_name_pos_current->next)
     {
       if (!spider_bulk_malloc(spider_current_trx, 237, MYF(MY_WME),
-        &union_table_name_pos_current->next, sizeof(SPIDER_INT_HLD),
+        &union_table_name_pos_current->next, (uint) (sizeof(SPIDER_INT_HLD)),
         NullS)
       ) {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);

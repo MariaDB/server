@@ -588,16 +588,16 @@ int spider_db_oracle_row::init()
   if (
     !(ind = (sb2 *)
       spider_bulk_malloc(spider_current_trx, 161, MYF(MY_WME | MY_ZEROFILL),
-        &ind, sizeof(sb2) * field_count,
-        &rlen, sizeof(ub2) * field_count,
-        &coltp, sizeof(ub2) * field_count,
-        &colsz, sizeof(ub2) * field_count,
-        &row_size, sizeof(ulong) * field_count,
-        &val, sizeof(char *) * field_count,
-        &tmp_val, MAX_FIELD_WIDTH * field_count,
-        &defnp, sizeof(OCIDefine *) * field_count,
-        &lobhp, sizeof(OCILobLocator *) * field_count,
-        &colhp, sizeof(OCIParam *) * field_count,
+        &ind, (uint) (sizeof(sb2) * field_count),
+        &rlen, (uint) (sizeof(ub2) * field_count),
+        &coltp, (uint) (sizeof(ub2) * field_count),
+        &colsz, (uint) (sizeof(ub2) * field_count),
+        &row_size, (uint) (sizeof(ulong) * field_count),
+        &val, (uint) (sizeof(char *) * field_count),
+        &tmp_val, (uint) (MAX_FIELD_WIDTH * field_count),
+        &defnp, (uint) (sizeof(OCIDefine *) * field_count),
+        &lobhp, (uint) (sizeof(OCILobLocator *) * field_count),
+        &colhp, (uint) (sizeof(OCIParam *) * field_count),
         NullS)
     ) ||
     !(val_str = new spider_string[field_count])
@@ -12519,7 +12519,7 @@ int spider_oracle_handler::init_union_table_name_pos()
   if (!union_table_name_pos_first)
   {
     if (!spider_bulk_malloc(spider_current_trx, 238, MYF(MY_WME),
-      &union_table_name_pos_first, sizeof(SPIDER_INT_HLD),
+      &union_table_name_pos_first, (uint) (sizeof(SPIDER_INT_HLD)),
       NullS)
     ) {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -12540,7 +12540,7 @@ int spider_oracle_handler::set_union_table_name_pos()
     if (!union_table_name_pos_current->next)
     {
       if (!spider_bulk_malloc(spider_current_trx, 239, MYF(MY_WME),
-        &union_table_name_pos_current->next, sizeof(SPIDER_INT_HLD),
+        &union_table_name_pos_current->next, (uint) (sizeof(SPIDER_INT_HLD)),
         NullS)
       ) {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);

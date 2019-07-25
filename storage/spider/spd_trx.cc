@@ -549,81 +549,90 @@ int spider_create_trx_alter_table(
 
   if (!(alter_table = (SPIDER_ALTER_TABLE *)
     spider_bulk_malloc(spider_current_trx, 55, MYF(MY_WME | MY_ZEROFILL),
-      &alter_table, sizeof(*alter_table),
-      &tmp_name, sizeof(char) * (share->table_name_length + 1),
+      &alter_table, (uint) (sizeof(*alter_table)),
+      &tmp_name, (uint) (sizeof(char) * (share->table_name_length + 1)),
 
-      &tmp_server_names, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_table_names, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_dbs, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_hosts, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_usernames, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_passwords, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_sockets, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_wrappers, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_ssl_cas, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_ssl_capaths, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_ssl_certs, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_ssl_ciphers, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_ssl_keys, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_default_files, sizeof(char *) * share->all_link_count,
-      &tmp_tgt_default_groups, sizeof(char *) * share->all_link_count,
-      &tmp_static_link_ids, sizeof(char *) * share->all_link_count,
+      &tmp_server_names, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_table_names, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_dbs, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_hosts, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_usernames, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_passwords, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_sockets, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_wrappers, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_ssl_cas, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_ssl_capaths, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_ssl_certs, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_ssl_ciphers, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_ssl_keys, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_default_files, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_tgt_default_groups, (uint) (sizeof(char *) * share->all_link_count),
+      &tmp_static_link_ids, (uint) (sizeof(char *) * share->all_link_count),
 
-      &tmp_server_names_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_table_names_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_dbs_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_hosts_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_usernames_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_passwords_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_sockets_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_wrappers_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_ssl_cas_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_ssl_capaths_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_ssl_certs_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_ssl_ciphers_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_ssl_keys_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_default_files_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_tgt_default_groups_lengths, sizeof(uint) * share->all_link_count,
-      &tmp_static_link_ids_lengths, sizeof(uint) * share->all_link_count,
+      &tmp_server_names_lengths, (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_table_names_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_dbs_lengths, (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_hosts_lengths, (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_usernames_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_passwords_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_sockets_lengths, (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_wrappers_lengths, (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_ssl_cas_lengths, (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_ssl_capaths_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_ssl_certs_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_ssl_ciphers_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_ssl_keys_lengths, (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_default_files_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_tgt_default_groups_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
+      &tmp_static_link_ids_lengths,
+        (uint) (sizeof(uint) * share->all_link_count),
 
-      &tmp_tgt_ports, sizeof(long) * share->all_link_count,
-      &tmp_tgt_ssl_vscs, sizeof(long) * share->all_link_count,
+      &tmp_tgt_ports, (uint) (sizeof(long) * share->all_link_count),
+      &tmp_tgt_ssl_vscs, (uint) (sizeof(long) * share->all_link_count),
       &tmp_monitoring_binlog_pos_at_failing,
-        sizeof(long) * share->all_link_count,
-      &tmp_link_statuses, sizeof(long) * share->all_link_count,
+        (uint) (sizeof(long) * share->all_link_count),
+      &tmp_link_statuses, (uint) (sizeof(long) * share->all_link_count),
 
-      &tmp_server_names_char, sizeof(char) *
-        (share_alter->tmp_server_names_charlen + 1),
-      &tmp_tgt_table_names_char, sizeof(char) *
-        (share_alter->tmp_tgt_table_names_charlen + 1),
-      &tmp_tgt_dbs_char, sizeof(char) *
-        (share_alter->tmp_tgt_dbs_charlen + 1),
-      &tmp_tgt_hosts_char, sizeof(char) *
-        (share_alter->tmp_tgt_hosts_charlen + 1),
-      &tmp_tgt_usernames_char, sizeof(char) *
-        (share_alter->tmp_tgt_usernames_charlen + 1),
-      &tmp_tgt_passwords_char, sizeof(char) *
-        (share_alter->tmp_tgt_passwords_charlen + 1),
-      &tmp_tgt_sockets_char, sizeof(char) *
-        (share_alter->tmp_tgt_sockets_charlen + 1),
-      &tmp_tgt_wrappers_char, sizeof(char) *
-        (share_alter->tmp_tgt_wrappers_charlen + 1),
-      &tmp_tgt_ssl_cas_char, sizeof(char) *
-        (share_alter->tmp_tgt_ssl_cas_charlen + 1),
-      &tmp_tgt_ssl_capaths_char, sizeof(char) *
-        (share_alter->tmp_tgt_ssl_capaths_charlen + 1),
-      &tmp_tgt_ssl_certs_char, sizeof(char) *
-        (share_alter->tmp_tgt_ssl_certs_charlen + 1),
-      &tmp_tgt_ssl_ciphers_char, sizeof(char) *
-        (share_alter->tmp_tgt_ssl_ciphers_charlen + 1),
-      &tmp_tgt_ssl_keys_char, sizeof(char) *
-        (share_alter->tmp_tgt_ssl_keys_charlen + 1),
-      &tmp_tgt_default_files_char, sizeof(char) *
-        (share_alter->tmp_tgt_default_files_charlen + 1),
-      &tmp_tgt_default_groups_char, sizeof(char) *
-        (share_alter->tmp_tgt_default_groups_charlen + 1),
-      &tmp_static_link_ids_char, sizeof(char) *
-        (share_alter->tmp_static_link_ids_charlen + 1),
+      &tmp_server_names_char, (uint) (sizeof(char) *
+        (share_alter->tmp_server_names_charlen + 1)),
+      &tmp_tgt_table_names_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_table_names_charlen + 1)),
+      &tmp_tgt_dbs_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_dbs_charlen + 1)),
+      &tmp_tgt_hosts_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_hosts_charlen + 1)),
+      &tmp_tgt_usernames_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_usernames_charlen + 1)),
+      &tmp_tgt_passwords_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_passwords_charlen + 1)),
+      &tmp_tgt_sockets_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_sockets_charlen + 1)),
+      &tmp_tgt_wrappers_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_wrappers_charlen + 1)),
+      &tmp_tgt_ssl_cas_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_ssl_cas_charlen + 1)),
+      &tmp_tgt_ssl_capaths_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_ssl_capaths_charlen + 1)),
+      &tmp_tgt_ssl_certs_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_ssl_certs_charlen + 1)),
+      &tmp_tgt_ssl_ciphers_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_ssl_ciphers_charlen + 1)),
+      &tmp_tgt_ssl_keys_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_ssl_keys_charlen + 1)),
+      &tmp_tgt_default_files_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_default_files_charlen + 1)),
+      &tmp_tgt_default_groups_char, (uint) (sizeof(char) *
+        (share_alter->tmp_tgt_default_groups_charlen + 1)),
+      &tmp_static_link_ids_char, (uint) (sizeof(char) *
+        (share_alter->tmp_static_link_ids_charlen + 1)),
       NullS))
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -1201,10 +1210,10 @@ SPIDER_TRX *spider_get_trx(
     DBUG_PRINT("info",("spider create new trx"));
     if (!(trx = (SPIDER_TRX *)
       spider_bulk_malloc(NULL, 56, MYF(MY_WME | MY_ZEROFILL),
-        &trx, sizeof(*trx),
-        &tmp_share, sizeof(SPIDER_SHARE),
-        &udf_table_mutexes, sizeof(pthread_mutex_t) *
-          spider_param_udf_table_lock_mutex_count(),
+        &trx, (uint) (sizeof(*trx)),
+        &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
+        &udf_table_mutexes, (uint) (sizeof(pthread_mutex_t) *
+          spider_param_udf_table_lock_mutex_count()),
         NullS))
     )
       goto error_alloc_trx;
@@ -4205,10 +4214,10 @@ int spider_create_trx_ha(
   {
     if (!(trx_ha = (SPIDER_TRX_HA *)
       spider_bulk_malloc(spider_current_trx, 58, MYF(MY_WME),
-        &trx_ha, sizeof(SPIDER_TRX_HA),
-        &tmp_name, sizeof(char *) * (share->table_name_length + 1),
-        &conn_link_idx, sizeof(uint) * share->link_count,
-        &conn_can_fo, sizeof(uchar) * share->link_bitmap_size,
+        &trx_ha, (uint) (sizeof(SPIDER_TRX_HA)),
+        &tmp_name, (uint) (sizeof(char *) * (share->table_name_length + 1)),
+        &conn_link_idx, (uint) (sizeof(uint) * share->link_count),
+        &conn_can_fo, (uint) (sizeof(uchar) * share->link_bitmap_size),
         NullS))
     ) {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
