@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,13 +26,11 @@ Created 2012-09-23 Sunny Bains
 
 #include "os0event.h"
 #include "ut0mutex.h"
+#include <my_sys.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <synchapi.h>
-#endif /* _WIN32 */
-
-#ifdef _WIN32
 /** Native condition variable. */
 typedef CONDITION_VARIABLE	os_cond_t;
 #else
@@ -358,21 +357,9 @@ os_event::wait_time_low(
 	struct timespec	abstime;
 
 	if (time_in_usec != OS_SYNC_INFINITE_TIME) {
-		struct timeval	tv;
-		int		ret;
-		ulint		sec;
-		ulint		usec;
-
-		ret = ut_usectime(&sec, &usec);
-		ut_a(ret == 0);
-
-		tv.tv_sec = sec;
-		tv.tv_usec = usec;
-
-		tv.tv_usec += time_in_usec;
-
-		abstime.tv_sec = tv.tv_sec + tv.tv_usec / 1000000;
-		abstime.tv_nsec = tv.tv_usec % 1000000 * 1000;
+		ulonglong usec = ulonglong(time_in_usec) + my_hrtime().val;
+		abstime.tv_sec = usec / 1000000;
+		abstime.tv_nsec = (usec % 1000000) * 1000;
 	} else {
 		abstime.tv_nsec = 999999999;
 		abstime.tv_sec = (time_t) ULINT_MAX;

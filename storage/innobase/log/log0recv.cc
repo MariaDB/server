@@ -856,7 +856,7 @@ recv_sys_init()
 	recv_sys->buf_size = RECV_PARSING_BUF_SIZE;
 
 	recv_sys->addr_hash = hash_create(size / 512);
-	recv_sys->progress_time = ut_time();
+	recv_sys->progress_time = time(NULL);
 	recv_max_page_lsn = 0;
 
 	/* Call the constructor for recv_sys_t::dblwr member */
@@ -1000,7 +1000,7 @@ fail:
 		}
 	}
 
-	if (recv_sys->report(ut_time())) {
+	if (recv_sys->report(time(NULL))) {
 		ib::info() << "Read redo log up to LSN=" << *start_lsn;
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"Read redo log up to LSN=" LSN_PF,
@@ -2152,7 +2152,7 @@ skip_log:
 	mtr.discard_modifications();
 	mtr.commit();
 
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 
 	mutex_enter(&recv_sys->mutex);
 
@@ -2165,7 +2165,7 @@ skip_log:
 
 	ut_a(recv_sys->n_addrs > 0);
 	if (ulint n = --recv_sys->n_addrs) {
-		if (recv_sys->report(time)) {
+		if (recv_sys->report(now)) {
 			ib::info() << "To recover: " << n << " pages from log";
 			service_manager_extend_timeout(
 				INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);

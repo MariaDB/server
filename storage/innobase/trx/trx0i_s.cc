@@ -456,7 +456,7 @@ fill_trx_row(
 	ut_ad(lock_mutex_own());
 
 	row->trx_id = trx_get_id_for_print(trx);
-	row->trx_started = (ib_time_t) trx->start_time;
+	row->trx_started = trx->start_time;
 	row->trx_state = trx_get_que_state_str(trx);
 	row->requested_lock_row = requested_lock_row;
 	ut_ad(requested_lock_row == NULL
@@ -465,7 +465,7 @@ fill_trx_row(
 	if (trx->lock.wait_lock != NULL) {
 
 		ut_a(requested_lock_row != NULL);
-		row->trx_wait_started = (ib_time_t) trx->lock.wait_started;
+		row->trx_wait_started = trx->lock.wait_started;
 	} else {
 		ut_a(requested_lock_row == NULL);
 		row->trx_wait_started = 0;

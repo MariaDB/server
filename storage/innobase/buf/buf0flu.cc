@@ -2441,7 +2441,7 @@ page_cleaner_flush_pages_recommendation(
 	if (prev_lsn == 0) {
 		/* First time around. */
 		prev_lsn = cur_lsn;
-		prev_time = ut_time();
+		prev_time = time(NULL);
 		return(0);
 	}
 
@@ -2451,7 +2451,7 @@ page_cleaner_flush_pages_recommendation(
 
 	sum_pages += last_pages_in;
 
-	time_t	curr_time = ut_time();
+	time_t	curr_time = time(NULL);
 	double	time_elapsed = difftime(curr_time, prev_time);
 
 	/* We update our variables every srv_flushing_avg_loops

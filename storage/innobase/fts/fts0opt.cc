@@ -58,7 +58,7 @@ static os_event_t fts_opt_shutdown_event = NULL;
 static const ulint FTS_WORD_NODES_INIT_SIZE = 64;
 
 /** Last time we did check whether system need a sync */
-static ib_time_t	last_check_sync_time;
+static time_t	last_check_sync_time;
 
 /** FTS optimize thread message types. */
 enum fts_msg_type_t {
@@ -180,12 +180,11 @@ struct fts_slot_t {
 	ulint		deleted;	/*!< Number of doc ids deleted since the
 					last time this table was optimized */
 
-	ib_time_t	last_run;	/*!< Time last run completed */
+	/** time(NULL) of completing fts_optimize_table_bk() */
+	time_t		last_run;
 
-	ib_time_t	completed;	/*!< Optimize finish time */
-
-	ib_time_t	interval_time;	/*!< Minimum time to wait before
-					optimizing the table again. */
+	/** time(NULL) of latest successful fts_optimize_table() */
+	time_t		completed;
 };
 
 /** A table remove message for the FTS optimize thread. */
@@ -217,8 +216,8 @@ char	fts_enable_diag_print;
 /** ZLib compressed block size.*/
 static ulint FTS_ZIP_BLOCK_SIZE	= 1024;
 
-/** The amount of time optimizing in a single pass, in milliseconds. */
-static ib_time_t fts_optimize_time_limit = 0;
+/** The amount of time optimizing in a single pass, in seconds. */
+static ulint fts_optimize_time_limit;
 
 /** It's defined in fts0fts.cc  */
 extern const char* fts_common_tables[];
@@ -1530,7 +1529,7 @@ fts_optimize_compact(
 /*=================*/
 	fts_optimize_t*	optim,		/*!< in: optimize state data */
 	dict_index_t*	index,		/*!< in: current FTS being optimized */
-	ib_time_t	start_time)	/*!< in: optimize start time */
+	time_t		start_time)	/*!< in: optimize start time */
 {
 	ulint		i;
 	dberr_t		error = DB_SUCCESS;
@@ -1563,8 +1562,11 @@ fts_optimize_compact(
 		/* Free the word that was optimized. */
 		fts_word_free(word);
 
+		ulint interval = ulint(time(NULL) - start_time);
+
 		if (fts_optimize_time_limit > 0
-		    && (ut_time() - start_time) > fts_optimize_time_limit) {
+		    && (lint(interval) < 0
+			|| interval > fts_optimize_time_limit)) {
 
 			optim->done = TRUE;
 		}
@@ -1624,7 +1626,7 @@ fts_optimize_get_index_start_time(
 /*==============================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index,			/*!< in: FTS index */
-	ib_time_t*	start_time)		/*!< out: time in secs */
+	time_t*		start_time)		/*!< out: time in secs */
 {
 	return(fts_config_get_index_ulint(
 		       trx, index, FTS_OPTIMIZE_START_TIME,
@@ -1640,7 +1642,7 @@ fts_optimize_set_index_start_time(
 /*==============================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index,			/*!< in: FTS index */
-	ib_time_t	start_time)		/*!< in: start time */
+	time_t		start_time)		/*!< in: start time */
 {
 	return(fts_config_set_index_ulint(
 		       trx, index, FTS_OPTIMIZE_START_TIME,
@@ -1656,7 +1658,7 @@ fts_optimize_get_index_end_time(
 /*============================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index,			/*!< in: FTS index */
-	ib_time_t*	end_time)		/*!< out: time in secs */
+	time_t*		end_time)		/*!< out: time in secs */
 {
 	return(fts_config_get_index_ulint(
 		       trx, index, FTS_OPTIMIZE_END_TIME, (ulint*) end_time));
@@ -1671,7 +1673,7 @@ fts_optimize_set_index_end_time(
 /*============================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index,			/*!< in: FTS index */
-	ib_time_t	end_time)		/*!< in: end time */
+	time_t		end_time)		/*!< in: end time */
 {
 	return(fts_config_set_index_ulint(
 		       trx, index, FTS_OPTIMIZE_END_TIME, (ulint) end_time));
@@ -1734,21 +1736,22 @@ fts_optimize_free(
 Get the max time optimize should run in millisecs.
 @return max optimize time limit in millisecs. */
 static
-ib_time_t
+ulint
 fts_optimize_get_time_limit(
 /*========================*/
 	trx_t*		trx,			/*!< in: transaction */
 	fts_table_t*	fts_table)		/*!< in: aux table */
 {
-	ib_time_t	time_limit = 0;
+	ulint	time_limit = 0;
 
 	fts_config_get_ulint(
 		trx, fts_table,
-		FTS_OPTIMIZE_LIMIT_IN_SECS, (ulint*) &time_limit);
+		FTS_OPTIMIZE_LIMIT_IN_SECS, &time_limit);
 
+	/* FIXME: This is returning milliseconds, while the variable
+	is being stored and interpreted as seconds! */
 	return(time_limit * 1000);
 }
-
 
 /**********************************************************************//**
 Run OPTIMIZE on the given table. Note: this can take a very long time
@@ -1762,7 +1765,6 @@ fts_optimize_words(
 	fts_string_t*	word)	/*!< in: the starting word to optimize */
 {
 	fts_fetch_t	fetch;
-	ib_time_t	start_time;
 	que_t*		graph = NULL;
 	CHARSET_INFO*	charset = optim->fts_index_table.charset;
 
@@ -1772,7 +1774,7 @@ fts_optimize_words(
 	fts_optimize_time_limit = fts_optimize_get_time_limit(
 		optim->trx, &optim->fts_common_table);
 
-	start_time = ut_time();
+	const time_t start_time = time(NULL);
 
 	/* Setup the callback to use for fetching the word ilist etc. */
 	fetch.read_arg = optim->words;
@@ -1858,7 +1860,7 @@ fts_optimize_index_completed(
 	dberr_t		error;
 	byte		buf[sizeof(ulint)];
 #ifdef FTS_OPTIMIZE_DEBUG
-	ib_time_t	end_time = ut_time();
+	time_t		end_time = time(NULL);
 
 	error = fts_optimize_set_index_end_time(optim->trx, index, end_time);
 #endif
@@ -2249,8 +2251,8 @@ fts_optimize_indexes(
 		dict_index_t*	index;
 
 #ifdef	FTS_OPTIMIZE_DEBUG
-		ib_time_t	end_time;
-		ib_time_t	start_time;
+		time_t	end_time;
+		time_t	start_time;
 
 		/* Get the start and end optimize times for this index. */
 		error = fts_optimize_get_index_start_time(
@@ -2270,14 +2272,14 @@ fts_optimize_indexes(
 		/* Start time will be 0 only for the first time or after
 		completing the optimization of all FTS indexes. */
 		if (start_time == 0) {
-			start_time = ut_time();
+			start_time = time(NULL);
 
 			error = fts_optimize_set_index_start_time(
 				optim->trx, index, start_time);
 		}
 
 		/* Check if this index needs to be optimized or not. */
-		if (ut_difftime(end_time, start_time) < 0) {
+		if (difftime(end_time, start_time) < 0) {
 			error = fts_optimize_index(optim, index);
 
 			if (error != DB_SUCCESS) {
@@ -2349,7 +2351,7 @@ fts_optimize_reset_start_time(
 	for (uint i = 0; i < ib_vector_size(fts->indexes); ++i) {
 		dict_index_t*	index;
 
-		ib_time_t	start_time = 0;
+		time_t	start_time = 0;
 
 		/* Reset the start time to 0 for this index. */
 		error = fts_optimize_set_index_start_time(
@@ -2378,11 +2380,13 @@ fts_optimize_table_bk(
 /*==================*/
 	fts_slot_t*	slot)	/*!< in: table to optimiza */
 {
-	dberr_t		error;
+	const time_t now = time(NULL);
+	const ulint interval = ulint(now - slot->last_run);
 
 	/* Avoid optimizing tables that were optimized recently. */
 	if (slot->last_run > 0
-	    && (ut_time() - slot->last_run) < slot->interval_time) {
+	    && lint(interval) >= 0
+	    && interval < FTS_OPTIMIZE_INTERVAL_IN_SECS) {
 
 		return(DB_SUCCESS);
 	}
@@ -2390,12 +2394,19 @@ fts_optimize_table_bk(
 	dict_table_t* table = dict_table_open_on_id(
 		slot->table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
-	if (table && fil_table_accessible(table)
+	if (!table) {
+		slot->last_run = now;
+		return DB_SUCCESS;
+	}
+
+	dberr_t		error;
+
+	if (fil_table_accessible(table)
 	    && table->fts && table->fts->cache
 	    && table->fts->cache->deleted >= FTS_OPTIMIZE_THRESHOLD) {
 		error = fts_optimize_table(table);
 
-		slot->last_run = ut_time();
+		slot->last_run = time(NULL);
 
 		if (error == DB_SUCCESS) {
 			slot->running = false;
@@ -2403,7 +2414,7 @@ fts_optimize_table_bk(
 		}
 	} else {
 		/* Note time this run completed. */
-		slot->last_run = ut_time();
+		slot->last_run = now;
 		error = DB_SUCCESS;
 	}
 
@@ -2653,7 +2664,6 @@ static bool fts_optimize_new_table(dict_table_t* table)
 
 	slot->table_id = table->id;
 	slot->running = false;
-	slot->interval_time = FTS_OPTIMIZE_INTERVAL_IN_SECS;
 
 	return(TRUE);
 }
@@ -2689,37 +2699,23 @@ Calculate how many tables in fts_slots need to be optimized.
 @return no. of tables to optimize */
 static ulint fts_optimize_how_many()
 {
-	ulint		i;
-	ib_time_t	delta;
-	ulint		n_tables = 0;
-	ib_time_t	current_time;
+	ulint n_tables = 0;
+	const time_t current_time = time(NULL);
 
-	current_time = ut_time();
-
-	for (i = 0; i < ib_vector_size(fts_slots); ++i) {
+	for (ulint i = 0; i < ib_vector_size(fts_slots); ++i) {
 		const fts_slot_t* slot = static_cast<const fts_slot_t*>(
 			ib_vector_get_const(fts_slots, i));
 		if (slot->table_id == 0) {
 			continue;
 		}
 
-		if (!slot->running) {
-			ut_a(slot->completed <= current_time);
+		const time_t end = slot->running
+			? slot->last_run : slot->completed;
+		ulint interval = ulint(current_time - end);
 
-			delta = current_time - slot->completed;
-
-			/* Skip slots that have been optimized recently. */
-			if (delta >= slot->interval_time) {
-				++n_tables;
-			}
-		} else {
-			ut_a(slot->last_run <= current_time);
-
-			delta = current_time - slot->last_run;
-
-			if (delta > slot->interval_time) {
-				++n_tables;
-			}
+		if (lint(interval) < 0
+		    || interval >= FTS_OPTIMIZE_INTERVAL_IN_SECS) {
+			++n_tables;
 		}
 	}
 
@@ -2731,14 +2727,15 @@ Check if the total memory used by all FTS table exceeds the maximum limit.
 @return true if a sync is needed, false otherwise */
 static bool fts_is_sync_needed()
 {
-	ulint	total_memory = 0;
-	double	time_diff = difftime(ut_time(), last_check_sync_time);
+	ulint		total_memory = 0;
+	const time_t	now = time(NULL);
+	double		time_diff = difftime(now, last_check_sync_time);
 
-	if (fts_need_sync || time_diff < 5) {
+	if (fts_need_sync || (time_diff >= 0 && time_diff < 5)) {
 		return(false);
 	}
 
-	last_check_sync_time = ut_time();
+	last_check_sync_time = now;
 
 	for (ulint i = 0; i < ib_vector_size(fts_slots); ++i) {
 		const fts_slot_t* slot = static_cast<const fts_slot_t*>(
@@ -2776,7 +2773,7 @@ static void fts_optimize_sync_table(table_id_t table_id)
 		    table_id, FALSE, DICT_TABLE_OP_NORMAL)) {
 		if (fil_table_accessible(table)
 		    && table->fts && table->fts->cache) {
-			fts_sync_table(table, true, false, false);
+			fts_sync_table(table, false);
 		}
 
 		dict_table_close(table, FALSE, FALSE);
@@ -2969,7 +2966,7 @@ fts_optimize_init(void)
 	table_vector.clear();
 
 	fts_opt_shutdown_event = os_event_create(0);
-	last_check_sync_time = ut_time();
+	last_check_sync_time = time(NULL);
 
 	os_thread_create(fts_optimize_thread, fts_optimize_wq, NULL);
 }

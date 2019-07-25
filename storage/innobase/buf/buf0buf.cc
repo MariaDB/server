@@ -1983,7 +1983,7 @@ buf_pool_init_instance(
 
 		buf_pool->zip_hash = hash_create(2 * buf_pool->curr_size);
 
-		buf_pool->last_printout_time = ut_time();
+		buf_pool->last_printout_time = time(NULL);
 	}
 	/* 2. Initialize flushing fields
 	-------------------------------- */
@@ -2822,7 +2822,7 @@ buf_pool_resize()
 
 	buf_resize_status("Withdrawing blocks to be shrunken.");
 
-	ib_time_t	withdraw_started = ut_time();
+	time_t		withdraw_started = time(NULL);
 	ulint		message_interval = 60;
 	ulint		retry_interval = 1;
 
@@ -2848,8 +2848,10 @@ withdraw_retry:
 	/* abort buffer pool load */
 	buf_load_abort();
 
+	const time_t current_time = time(NULL);
+
 	if (should_retry_withdraw
-	    && ut_difftime(ut_time(), withdraw_started) >= message_interval) {
+	    && difftime(current_time, withdraw_started) >= message_interval) {
 
 		if (message_interval > 900) {
 			message_interval = 1800;
@@ -2865,8 +2867,7 @@ withdraw_retry:
 		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
 			if (trx->state != TRX_STATE_NOT_STARTED
 			    && trx->mysql_thd != NULL
-			    && ut_difftime(withdraw_started,
-					   trx->start_time) > 0) {
+			    && withdraw_started > trx->start_time) {
 				if (!found) {
 					ib::warn() <<
 						"The following trx might hold"
@@ -2879,13 +2880,13 @@ withdraw_retry:
 				}
 
 				lock_trx_print_wait_and_mvcc_state(
-					stderr, trx);
+					stderr, trx, current_time);
 			}
 		}
 		mutex_exit(&trx_sys.mutex);
 		lock_mutex_exit();
 
-		withdraw_started = ut_time();
+		withdraw_started = current_time;
 	}
 
 	if (should_retry_withdraw) {
@@ -6351,7 +6352,7 @@ void
 buf_refresh_io_stats(
 	buf_pool_t*	buf_pool)
 {
-	buf_pool->last_printout_time = ut_time();
+	buf_pool->last_printout_time = time(NULL);
 	buf_pool->old_stat = buf_pool->stat;
 }
 
