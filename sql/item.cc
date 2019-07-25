@@ -978,7 +978,7 @@ bool Item::check_type_general_purpose_string(const char *opname) const
 bool Item::check_type_traditional_scalar(const char *opname) const
 {
   const Type_handler *handler= type_handler();
-  if (handler->is_traditional_type() && handler->is_scalar_type())
+  if (handler->is_traditional_scalar_type())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
            handler->name().ptr(), opname);

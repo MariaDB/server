@@ -136,7 +136,6 @@ public:
   bool can_return_text() const override { return false; }
   bool can_return_date() const override { return false; }
   bool can_return_time() const override { return false; }
-  bool is_traditional_type() const override { return false; }
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const override;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const override;

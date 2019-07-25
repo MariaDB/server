@@ -936,7 +936,12 @@ public:
 /* Base class for operations like '+', '-', '*' */
 class Item_num_op :public Item_func_numhybrid
 {
- public:
+protected:
+  bool check_arguments() const
+  {
+    return false; // Checked by aggregate_for_num_op()
+  }
+public:
   Item_num_op(THD *thd, Item *a, Item *b): Item_func_numhybrid(thd, a, b) {}
   virtual void result_precision()= 0;
 
@@ -1798,6 +1803,10 @@ class Item_func_min_max :public Item_hybrid_func
   String tmp_value;
   int cmp_sign;
 protected:
+  bool check_arguments() const
+  {
+    return false; // Checked by aggregate_for_min_max()
+  }
   bool fix_attributes(Item **item, uint nitems);
 public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):

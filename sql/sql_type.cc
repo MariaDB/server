@@ -109,6 +109,58 @@ const Type_collection *Type_handler::type_collection() const
 }
 
 
+bool Type_handler::is_traditional_scalar_type() const
+{
+  return type_collection() == &type_collection_std;
+}
+
+
+class Type_collection_row: public Type_collection
+{
+public:
+  bool init(Type_handler_data *data) override
+  {
+    return false;
+  }
+  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
+  {
+    return NULL;
+  }
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  {
+    DBUG_ASSERT(a == &type_handler_row);
+    DBUG_ASSERT(b == &type_handler_row);
+    return &type_handler_row;
+  }
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  {
+    return NULL;
+  }
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+};
+
+
+static Type_collection_row type_collection_row;
+
+const Type_collection *Type_handler_row::type_collection() const
+{
+  return &type_collection_row;
+}
 
 
 bool Type_handler_data::init()
@@ -1752,15 +1804,12 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
                                                       Item **items, uint nitems)
 {
   bool bit_and_non_bit_mixture_found= false;
-  uint32 max_display_length;
   // LEAST/GREATEST require at least two arguments
   DBUG_ASSERT(nitems > 1);
   set_handler(items[0]->type_handler());
-  max_display_length= items[0]->max_display_length();
   for (uint i= 1; i < nitems;  i++)
   {
     const Type_handler *cur= items[i]->type_handler();
-    set_if_bigger(max_display_length, items[i]->max_display_length());
     // Check if BIT + non-BIT, or non-BIT + BIT
     bit_and_non_bit_mixture_found|= (m_type_handler == &type_handler_bit) !=
                                     (cur == &type_handler_bit);
@@ -1772,7 +1821,12 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
     }
   }
   if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_longlong)
+  {
+    uint32 max_display_length= items[0]->max_display_length();
+    for (uint i= 1; i < nitems; i++)
+      set_if_bigger(max_display_length, items[i]->max_display_length());
     set_handler(Type_handler::bit_and_int_mixture_handler(max_display_length));
+  }
   return false;
 }
 

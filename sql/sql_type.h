@@ -3314,7 +3314,7 @@ public:
   */
   virtual enum_field_types traditional_merge_field_type() const
   {
-    DBUG_ASSERT(is_traditional_type());
+    DBUG_ASSERT(is_traditional_scalar_type());
     return field_type();
   }
   virtual enum_field_types type_code_for_protocol() const
@@ -3413,13 +3413,10 @@ public:
   }
   virtual ~Type_handler() {}
   /**
-    Determines MariaDB traditional data types that always present
+    Determines MariaDB traditional scalar data types that always present
     in the server.
   */
-  virtual bool is_traditional_type() const
-  {
-    return true;
-  }
+  bool is_traditional_scalar_type() const;
   virtual bool is_scalar_type() const { return true; }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
@@ -3899,6 +3896,7 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  const Type_collection *type_collection() const override;
   bool is_scalar_type() const { return false; }
   bool can_return_int() const { return false; }
   bool can_return_decimal() const { return false; }

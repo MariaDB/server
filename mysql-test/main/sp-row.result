@@ -189,7 +189,7 @@ SELECT a+1;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types row and int for operation '+'
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 BEGIN
@@ -198,7 +198,7 @@ SELECT a+1;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types row and int for operation '+'
 DROP PROCEDURE p1;
 #
 # Comparing the entire ROW to a scalar value
