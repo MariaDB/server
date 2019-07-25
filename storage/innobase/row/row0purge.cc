@@ -46,6 +46,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "handler.h"
 #include "ha_innodb.h"
 #include "fil0fil.h"
+#include "debug_sync.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -1207,6 +1208,25 @@ row_purge_step(
 	node = static_cast<purge_node_t*>(thr->run_node);
 
 	node->start();
+
+#ifdef UNIV_DEBUG
+	srv_slot_t *slot = thr->thread_slot;
+	ut_ad(slot);
+
+	rw_lock_x_lock(&slot->debug_sync_lock);
+	while (UT_LIST_GET_LEN(slot->debug_sync)) {
+		srv_slot_t::debug_sync_t *sync =
+					UT_LIST_GET_FIRST(slot->debug_sync);
+		bool result = debug_sync_set_action(current_thd,
+						    sync->str,
+						    strlen(sync->str));
+		ut_a(!result);
+
+		UT_LIST_REMOVE(slot->debug_sync, sync);
+		ut_free(sync);
+	}
+	rw_lock_x_unlock(&slot->debug_sync_lock);
+#endif
 
 	if (!(node->undo_recs == NULL || ib_vector_is_empty(node->undo_recs))) {
 		trx_purge_rec_t*purge_rec;

@@ -467,6 +467,7 @@ row_vers_build_clust_v_col(
 		vcol_info->set_used();
 		maria_table = vcol_info->table();
 	}
+	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
 	ib_vcol_row vc(NULL);
 	byte *record = vc.record(thd, index, &maria_table);
