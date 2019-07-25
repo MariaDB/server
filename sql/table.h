@@ -50,6 +50,7 @@ class ACL_internal_table_access;
 class Field;
 class Table_statistics;
 class TDC_element;
+struct Name_resolution_context;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1828,6 +1829,7 @@ struct TABLE_LIST
   char		*db, *alias, *table_name, *schema_table_name;
   char          *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
+  Name_resolution_context *on_context;  /* For ON expressions */
 
   Item          *sj_on_expr;
   /*
@@ -2555,9 +2557,31 @@ public:
 };
 
 
+#define JOIN_OP_NEST       1
+#define REBALANCED_NEST    2
+
 typedef struct st_nested_join
 {
   List<TABLE_LIST>  join_list;       /* list of elements in the nested join */
+  /*
+    Currently the valid values for nest type are:
+    JOIN_OP_NEST - for nest created for JOIN operation used as an operand in
+    a join expression, contains 2 elements;
+    JOIN_OP_NEST | REBALANCED_NEST -  nest created after tree re-balancing
+    in st_select_lex::add_cross_joined_table(), contains 1 element;
+    0 - for all other nests.
+    Examples:
+    1.  SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a;
+    Here the nest created for LEFT JOIN at first has nest_type==JOIN_OP_NEST.
+    After re-balancing in st_select_lex::add_cross_joined_table() this nest
+    has nest_type==JOIN_OP_NEST | REBALANCED_NEST. The nest for JOIN created
+    in st_select_lex::add_cross_joined_table() has nest_type== JOIN_OP_NEST.
+    2.  SELECT * FROM t1 JOIN (t2 LEFT JOIN t3 ON t2.a=t3.a)
+    Here the nest created for LEFT JOIN has nest_type==0, because it's not
+    an operand in a join expression. The nest created for JOIN has nest_type
+    set to JOIN_OP_NEST.
+  */
+  uint nest_type;
   /* 
     Bitmap of tables within this nested join (including those embedded within
     its children), including tables removed by table elimination.
