@@ -24,8 +24,13 @@
 #include <assert.h>
 
 #ifndef _WIN32
+#define DO_SYSLOG
 #include <syslog.h>
+static const char out_type_desc[]= "Desired output type. Possible values - 'syslog', 'file'"
+                                   " or 'null' as no output.";
 #else
+static const char out_type_desc[]= "Desired output type. Possible values - 'file'"
+                                   " or 'null' as no output.";
 #define syslog(PRIORITY, FORMAT, INFO, MESSAGE_LEN, MESSAGE) do {}while(0)
 static void closelog() {}
 #define openlog(IDENT, LOG_NOWAIT, LOG_USER)  do {}while(0)
@@ -87,6 +92,7 @@ static void closelog() {}
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
 #include <string.h>
+#include "../../mysys/mysys_priv.h"
 #ifndef RTLD_DEFAULT
 #define RTLD_DEFAULT NULL
 #endif
@@ -384,18 +390,28 @@ static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
        "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE,"
            " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL.",
        NULL, NULL, 0, &events_typelib);
+#ifdef DO_SYSLOG
 #define OUTPUT_SYSLOG 0
 #define OUTPUT_FILE 1
+#else
+#define OUTPUT_SYSLOG 0xFFFF
+#define OUTPUT_FILE 0
+#endif /*DO_SYSLOG*/
+
 #define OUTPUT_NO 0xFFFF
-static const char *output_type_names[]= { "syslog", "file", 0 };
+static const char *output_type_names[]= {
+#ifdef DO_SYSLOG
+  "syslog",
+#endif
+  "file", 0 };
 static TYPELIB output_typelib=
 {
     array_elements(output_type_names) - 1, "output_typelib",
     output_type_names, NULL
 };
 static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
-       "Desired output type. Possible values - 'syslog', 'file'"
-       " or 'null' as no output.", 0, update_output_type, OUTPUT_FILE,
+       out_type_desc,
+       0, update_output_type, OUTPUT_FILE,
        &output_typelib);
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
        "Path to the log file.", NULL, update_file_path, default_file_name);
@@ -1138,6 +1154,7 @@ static void setup_connection_connect(struct connection_info *cn,
 
 
 #define SAFE_STRLEN(s) (s ? strlen(s) : 0)
+#define SAFE_STRLEN_UI(s) ((unsigned int) (s ? strlen(s) : 0))
 static char empty_str[1]= { 0 };
 
 
@@ -1297,7 +1314,7 @@ exit:
 
 static size_t log_header(char *message, size_t message_len,
                       time_t *ts,
-                      const char *serverhost, unsigned int serverhost_len,
+                      const char *serverhost, size_t serverhost_len,
                       const char *username, unsigned int username_len,
                       const char *host, unsigned int host_len,
                       const char *userip, unsigned int userip_len,
@@ -1315,7 +1332,7 @@ static size_t log_header(char *message, size_t message_len,
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
         "%.*s,%.*s,%.*s,%d,%lld,%s",
-        serverhost_len, serverhost,
+        (unsigned int) serverhost_len, serverhost,
         username_len, username,
         host_len, host,
         connection_id, query_id, operation);
@@ -1794,9 +1811,9 @@ static int log_table(const struct connection_info *cn,
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
                     servhost, servhost_len,
-                    event->user, (unsigned int)SAFE_STRLEN(event->user),
-                    event->host, (unsigned int)SAFE_STRLEN(event->host),
-                    event->ip, (unsigned int)SAFE_STRLEN(event->ip),
+                    event->user, SAFE_STRLEN_UI(event->user),
+                    event->host, SAFE_STRLEN_UI(event->host),
+                    event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, cn->query_id, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
             ",%.*s,%.*s,",event->database.length, event->database.str,
@@ -1816,9 +1833,9 @@ static int log_rename(const struct connection_info *cn,
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
                     servhost, servhost_len,
-                    event->user, (unsigned int)SAFE_STRLEN(event->user),
-                    event->host, (unsigned int)SAFE_STRLEN(event->host),
-                    event->ip, (unsigned int)SAFE_STRLEN(event->ip),
+                    event->user, SAFE_STRLEN_UI(event->user),
+                    event->host, SAFE_STRLEN_UI(event->host),
+                    event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, cn->query_id, "RENAME");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
             ",%.*s,%.*s|%.*s.%.*s,",event->database.length, event->database.str,

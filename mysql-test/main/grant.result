@@ -2752,6 +2752,25 @@ DROP USER dummy@localhost;
 # End of 10.2 tests
 #
 #
+# Start of 10.3 tests
+#
+#
+# MDEV-19948 'show grants' return privileges individually
+#
+CREATE USER ten2;
+GRANT ALL ON *.* TO ten2;
+SHOW GRANTS FOR ten2;
+Grants for ten2@%
+GRANT ALL PRIVILEGES ON *.* TO 'ten2'@'%'
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR ten2;
+Grants for ten2@%
+GRANT ALL PRIVILEGES ON *.* TO 'ten2'@'%'
+DROP USER ten2;
+#
+# End of 10.3 tests
+#
+#
 # MDEV-17932 : Assertion upon double RENAME USER
 #
 CREATE USER foo@localhost;

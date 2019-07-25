@@ -13153,7 +13153,10 @@ void JOIN_TAB::cleanup()
   if (table)
   {
     table->file->ha_end_keyread();
-    table->file->ha_index_or_rnd_end();
+    if (type == JT_FT)
+      table->file->ha_ft_end();
+    else
+      table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
     if (table->pos_in_table_list && 
         table->pos_in_table_list->jtbm_subselect)

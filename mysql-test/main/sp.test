@@ -9823,6 +9823,26 @@ SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
 DROP FUNCTION f;
 DROP VIEW v;
 
+--echo #
+--echo # MDEV-17963: Assertion `field_pos < field_count' failed in Protocol_text::store,
+--echo # Assertion `field_handlers == 0 || field_pos < field_count'
+--echo #
+
+CREATE TABLE t1 (ct time);
+INSERT INTO t1 VALUES ('16:11:28');
+
+DELIMITER |;
+--error ER_SP_NO_RETSET
+CREATE FUNCTION f1 () RETURNS varchar(100)
+BEGIN
+DECLARE xxx varchar(100);
+ANALYZE SELECT sum(ct) FROM t1 INTO xxx ;
+RETURN xxx;
+END|
+
+DELIMITER ;|
+drop table t1;
+
 --echo #End of 10.1 tests
 
 --echo #

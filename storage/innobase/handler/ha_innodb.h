@@ -944,3 +944,10 @@ ib_push_frm_error(
 	TABLE*		table,		/*!< in: MySQL table */
 	ulint		n_keys,		/*!< in: InnoDB #keys */
 	bool		push_warning);	/*!< in: print warning ? */
+
+/** Check each index part length whether they not exceed the max limit
+@param[in]	max_field_len	maximum allowed key part length
+@param[in]	key		MariaDB key definition
+@return true if index column length exceeds limit */
+MY_ATTRIBUTE((warn_unused_result))
+bool too_big_key_part_length(size_t max_field_len, const KEY& key);

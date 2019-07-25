@@ -1132,25 +1132,30 @@ buf_page_is_corrupted(
 	/* A page filled with NUL bytes is considered not corrupted.
 	The FIL_PAGE_FILE_FLUSH_LSN field may be written nonzero for
 	the first page of each file of the system tablespace.
-	Ignore it for the system tablespace. */
+	We want to ignore it for the system tablespace, but because
+	we do not know the expected tablespace here, we ignore the
+	field for all data files, except for
+	innodb_checksum_algorithm=full_crc32 which we handled above. */
 	if (!checksum_field1 && !checksum_field2) {
-		ulint i = 0;
-		do {
-			if (read_buf[i]) {
-				return true;
+		/* Checksum fields can have valid value as zero.
+		If the page is not empty then do the checksum
+		calculation for the page. */
+		bool all_zeroes = true;
+		for (size_t i = 0; i < srv_page_size; i++) {
+#ifndef UNIV_INNOCHECKSUM
+			if (i == FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) {
+				i += 8;
 			}
-		} while (++i < FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-
-		/* Ignore FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION unless
-		innodb_checksum_algorithm=full_crc32. */
-		i += 8;
-
-		do {
+#endif
 			if (read_buf[i]) {
-				return true;
+				all_zeroes = false;
+				break;
 			}
-		} while (++i < srv_page_size);
-		return false;
+		}
+
+		if (all_zeroes) {
+			return false;
+		}
 	}
 
 	switch (curr_algo) {
@@ -1991,7 +1996,7 @@ buf_pool_init_instance(
 
 		buf_pool->zip_hash = hash_create(2 * buf_pool->curr_size);
 
-		buf_pool->last_printout_time = ut_time();
+		buf_pool->last_printout_time = time(NULL);
 	}
 	/* 2. Initialize flushing fields
 	-------------------------------- */
@@ -2805,7 +2810,7 @@ buf_pool_resize()
 
 	buf_resize_status("Withdrawing blocks to be shrunken.");
 
-	ib_time_t	withdraw_started = ut_time();
+	time_t		withdraw_started = time(NULL);
 	ulint		message_interval = 60;
 	ulint		retry_interval = 1;
 
@@ -2831,8 +2836,10 @@ withdraw_retry:
 	/* abort buffer pool load */
 	buf_load_abort();
 
+	const time_t current_time = time(NULL);
+
 	if (should_retry_withdraw
-	    && ut_difftime(ut_time(), withdraw_started) >= message_interval) {
+	    && difftime(current_time, withdraw_started) >= message_interval) {
 
 		if (message_interval > 900) {
 			message_interval = 1800;
@@ -2848,8 +2855,7 @@ withdraw_retry:
 		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
 			if (trx->state != TRX_STATE_NOT_STARTED
 			    && trx->mysql_thd != NULL
-			    && ut_difftime(withdraw_started,
-					   trx->start_time) > 0) {
+			    && withdraw_started > trx->start_time) {
 				if (!found) {
 					ib::warn() <<
 						"The following trx might hold"
@@ -2862,13 +2868,13 @@ withdraw_retry:
 				}
 
 				lock_trx_print_wait_and_mvcc_state(
-					stderr, trx);
+					stderr, trx, current_time);
 			}
 		}
 		mutex_exit(&trx_sys.mutex);
 		lock_mutex_exit();
 
-		withdraw_started = ut_time();
+		withdraw_started = current_time;
 	}
 
 	if (should_retry_withdraw) {
@@ -6347,7 +6353,7 @@ void
 buf_refresh_io_stats(
 	buf_pool_t*	buf_pool)
 {
-	buf_pool->last_printout_time = ut_time();
+	buf_pool->last_printout_time = time(NULL);
 	buf_pool->old_stat = buf_pool->stat;
 }
 

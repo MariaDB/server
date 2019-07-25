@@ -4,6 +4,8 @@
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
 
+call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
+
 let $format= `SELECT CASE WHEN @@GLOBAL.innodb_page_size>16384
 THEN 'DYNAMIC' ELSE 'COMPRESSED' END`;
 CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
@@ -226,6 +228,7 @@ ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
 INSERT INTO t3 SET id=4;
 INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
 
+SET innodb_strict_mode = OFF;
 ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
 CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
 --disable_info
@@ -233,6 +236,7 @@ INSERT INTO t3 SET id=5, c2=9;
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8, phrase, b FROM t3;
 --enable_info
 ALTER TABLE t3 DROP c3, DROP c7;
+SET innodb_strict_mode = OFF;
 --disable_info
 SELECT * FROM t3;
 

@@ -6769,9 +6769,9 @@ longlong Item_func_lastval::val_int()
 /*
   Sets next value to be returned from sequences
 
-  SELECT setval('foo', 42, 0);           Next nextval will return 43
-  SELECT setval('foo', 42, 0, true);     Same as above
-  SELECT setval('foo', 42, 0, false);    Next nextval will return 42
+  SELECT setval(foo, 42, 0);           Next nextval will return 43
+  SELECT setval(foo, 42, 0, true);     Same as above
+  SELECT setval(foo, 42, 0, false);    Next nextval will return 42
 */
 
 longlong Item_func_setval::val_int()

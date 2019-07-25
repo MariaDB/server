@@ -2858,9 +2858,15 @@ fil_rename_tablespace(
 	space->n_pending_ops--;
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
-
-	bool	success = os_file_rename(
-		innodb_data_file_key, old_file_name, new_file_name);
+	bool success;
+	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+			goto skip_second_rename; );
+	success = os_file_rename(innodb_data_file_key,
+				 old_file_name,
+				 new_file_name);
+	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+skip_second_rename:
+                       success = false; );
 
 	ut_ad(node->name == old_file_name);
 

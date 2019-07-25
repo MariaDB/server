@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -190,10 +190,14 @@ struct ib_lock_t
 					lock. The link node in a singly linked
 					list, used during hashing. */
 
-	/* Statistics for how long lock has been held and time
-	how long this lock had to be waited before it was granted */
-	time_t		requested_time; /*!< Lock request time */
-	ulint		wait_time;	/*!< Time waited this lock or 0 */
+	/** time(NULL) of the lock request creation.
+	Used for computing wait_time and diagnostics only.
+	Note: bogus durations may be reported
+	when the system time is adjusted! */
+	time_t		requested_time;
+	/** Cumulated wait time in seconds.
+	Note: may be bogus when the system time is adjusted! */
+	ulint		wait_time;
 
 	union {
 		lock_table_t	tab_lock;/*!< table lock */

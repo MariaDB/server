@@ -3412,7 +3412,9 @@ row_drop_table_for_mysql(
 			calling btr_search_drop_page_hash_index() while we
 			hold the InnoDB dictionary lock, we will drop any
 			adaptive hash index entries upfront. */
-			bool immune = is_temp_name
+			const bool immune = is_temp_name
+				|| create_failed
+				|| sqlcom == SQLCOM_CREATE_TABLE
 				|| strstr(table->name.m_name, "/FTS");
 
 			while (buf_LRU_drop_page_hash_for_tablespace(table)) {

@@ -1,0 +1,1 @@
+auth_ed25519 : MDEV-20144 plugins.auth_ed25519 fails in buildbot with undefined symbol: inflate

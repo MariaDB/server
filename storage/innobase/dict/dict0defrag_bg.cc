@@ -238,7 +238,6 @@ dict_stats_save_defrag_summary(
 	dict_index_t*	index)	/*!< in: index */
 {
 	dberr_t	ret=DB_SUCCESS;
-	lint	now = (lint) ut_time();
 
 	if (dict_index_is_ibuf(index)) {
 		return DB_SUCCESS;
@@ -246,7 +245,7 @@ dict_stats_save_defrag_summary(
 
 	dict_sys_lock();
 
-	ret = dict_stats_save_index_stat(index, now, "n_pages_freed",
+	ret = dict_stats_save_index_stat(index, time(NULL), "n_pages_freed",
 					 index->stat_defrag_n_pages_freed,
 					 NULL,
 					 "Number of pages freed during"
@@ -276,7 +275,7 @@ dict_stats_save_defrag_stats(
 		return dict_stats_report_error(index->table, true);
 	}
 
-	lint	now = (lint) ut_time();
+	const time_t now = time(NULL);
 	mtr_t	mtr;
 	ulint	n_leaf_pages;
 	ulint	n_leaf_reserved;

@@ -2567,6 +2567,7 @@ write_buffers:
 							BTR_SEARCH_LEAF, &pcur,
 							&mtr);
 						buf = row_merge_buf_empty(buf);
+						merge_buf[i] = buf;
 						/* Restart the outer loop on the
 						record. We did not insert it
 						into any index yet. */
@@ -2692,6 +2693,7 @@ write_buffers:
 				}
 			}
 			merge_buf[i] = row_merge_buf_empty(buf);
+			buf = merge_buf[i];
 
 			if (UNIV_LIKELY(row != NULL)) {
 				/* Try writing the record again, now
@@ -2869,8 +2871,7 @@ wait_again:
 	if (max_doc_id && err == DB_SUCCESS) {
 		/* Sync fts cache for other fts indexes to keep all
 		fts indexes consistent in sync_doc_id. */
-		err = fts_sync_table(const_cast<dict_table_t*>(new_table),
-				     false, true, false);
+		err = fts_sync_table(const_cast<dict_table_t*>(new_table));
 
 		if (err == DB_SUCCESS) {
 			fts_update_next_doc_id(NULL, new_table, max_doc_id);
@@ -4682,6 +4683,7 @@ row_merge_build_indexes(
 			created */
 			if (!row_fts_psort_info_init(
 					trx, dup, new_table, opt_doc_id_size,
+					old_table->space->zip_size(),
 					&psort_info, &merge_info)) {
 				error = DB_CORRUPTION;
 				goto func_exit;

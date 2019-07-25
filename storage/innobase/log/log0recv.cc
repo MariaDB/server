@@ -60,7 +60,7 @@ Created 9/20/1997 Heikki Tuuri
 
 /** Log records are stored in the hash table in chunks at most of this size;
 this must be less than srv_page_size as it is stored in the buffer pool */
-#define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t))
+#define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t) - REDZONE_SIZE)
 
 /** Read-ahead area in applying log records to file pages */
 #define RECV_READ_AHEAD_AREA	32
@@ -864,7 +864,7 @@ void recv_sys_t::create()
 
 	addr_hash = hash_create(size / 512);
 	n_addrs = 0;
-	progress_time = ut_time();
+	progress_time = time(NULL);
 	recv_max_page_lsn = 0;
 
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
@@ -1006,7 +1006,7 @@ fail:
 		}
 	}
 
-	if (recv_sys.report(ut_time())) {
+	if (recv_sys.report(time(NULL))) {
 		ib::info() << "Read redo log up to LSN=" << *start_lsn;
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"Read redo log up to LSN=" LSN_PF,
@@ -2079,7 +2079,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	mtr.discard_modifications();
 	mtr.commit();
 
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 
 	mutex_enter(&recv_sys.mutex);
 
@@ -2092,7 +2092,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 	ut_a(recv_sys.n_addrs > 0);
 	if (ulint n = --recv_sys.n_addrs) {
-		if (recv_sys.report(time)) {
+		if (recv_sys.report(now)) {
 			ib::info() << "To recover: " << n << " pages from log";
 			service_manager_extend_timeout(
 				INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);

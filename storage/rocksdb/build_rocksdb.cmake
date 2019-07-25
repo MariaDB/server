@@ -171,7 +171,20 @@ set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 #add_subdirectory(${ROCKSDB_SOURCE_DIR}/tools)
 
 # Main library source code
-
+#  Note : RocksDB has a lot of unittests. We should not include these files
+#  in the build, because 1. they are not needed and 2. gtest causes warnings
+#  in windows build, which are treated as errors and cause the build to fail.
+#
+#  Unit tests themselves:
+#  - *_test.cc
+#  - *_bench.cc
+#
+#  - table/mock_table.cc
+#  - utilities/cassandra/cassandra_compaction_filter.cc
+#  - utilities/cassandra/format.cc
+#  - utilities/cassandra/merge_operator.cc
+#  - utilities/cassandra/test_utils.cc
+#
 set(ROCKSDB_SOURCES
         cache/clock_cache.cc
         cache/lru_cache.cc
@@ -209,7 +222,6 @@ set(ROCKSDB_SOURCES
         db/flush_job.cc
         db/flush_scheduler.cc
         db/forward_iterator.cc
-        db/in_memory_stats_history.cc
         db/internal_stats.cc
         db/log_reader.cc
         db/logs_with_prep_tracker.cc
@@ -251,16 +263,17 @@ set(ROCKSDB_SOURCES
         memtable/alloc_tracker.cc
         memtable/hash_linklist_rep.cc
         memtable/hash_skiplist_rep.cc
-        memtable/memtablerep_bench.cc
         memtable/skiplistrep.cc
         memtable/vectorrep.cc
         memtable/write_buffer_manager.cc
         monitoring/histogram.cc
         monitoring/histogram_windowing.cc
         monitoring/instrumented_mutex.cc
+        monitoring/in_memory_stats_history.cc
         monitoring/iostats_context.cc
         monitoring/perf_context.cc
         monitoring/perf_level.cc
+        monitoring/persistent_stats_history.cc
         monitoring/statistics.cc
         monitoring/thread_status_impl.cc
         monitoring/thread_status_updater.cc
@@ -298,7 +311,6 @@ set(ROCKSDB_SOURCES
         table/iterator.cc
         table/merging_iterator.cc
         table/meta_blocks.cc
-        table/mock_table.cc
         table/persistent_cache_helper.cc
         table/plain/plain_table_builder.cc
         table/plain/plain_table_factory.cc
@@ -308,13 +320,13 @@ set(ROCKSDB_SOURCES
         table/sst_file_reader.cc
         table/sst_file_writer.cc
         table/table_properties.cc
-        table/table_reader_bench.cc
         table/two_level_iterator.cc
         test_util/sync_point.cc
         test_util/sync_point_impl.cc
         tools/ldb_cmd.cc
         tools/ldb_tool.cc
         tools/sst_dump_tool.cc
+        trace_replay/block_cache_tracer.cc
         trace_replay/trace_replay.cc
         util/bloom.cc
         util/coding.cc
@@ -338,10 +350,6 @@ set(ROCKSDB_SOURCES
         utilities/blob_db/blob_log_format.cc
         utilities/blob_db/blob_log_reader.cc
         utilities/blob_db/blob_log_writer.cc
-        utilities/cassandra/cassandra_compaction_filter.cc
-        utilities/cassandra/format.cc
-        utilities/cassandra/merge_operator.cc
-        utilities/cassandra/test_utils.cc
         utilities/checkpoint/checkpoint_impl.cc
         utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
         utilities/convenience/info_log_finder.cc
@@ -361,8 +369,6 @@ set(ROCKSDB_SOURCES
         utilities/persistent_cache/block_cache_tier.cc
         utilities/persistent_cache/block_cache_tier_file.cc
         utilities/persistent_cache/block_cache_tier_metadata.cc
-        utilities/persistent_cache/hash_table_bench.cc
-        utilities/persistent_cache/persistent_cache_bench.cc
         utilities/persistent_cache/persistent_cache_tier.cc
         utilities/persistent_cache/volatile_tier_impl.cc
         utilities/simulator_cache/sim_cache.cc
@@ -384,7 +390,6 @@ set(ROCKSDB_SOURCES
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
-        util/log_write_bench.cc
         util/murmurhash.cc
         util/random.cc
         util/rate_limiter.cc

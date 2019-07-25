@@ -3055,11 +3055,14 @@ Item_sum_hybrid::min_max_update_str_field()
 
   if (!args[0]->null_value)
   {
-    result_field->val_str(&cmp->value2);
-
-    if (result_field->is_null() ||
-	(cmp_sign * sortcmp(res_str,&cmp->value2,collation.collation)) < 0)
+    if (result_field->is_null())
       result_field->store(res_str->ptr(),res_str->length(),res_str->charset());
+    else
+    {
+      result_field->val_str(&cmp->value2);
+      if ((cmp_sign * sortcmp(res_str,&cmp->value2,collation.collation)) < 0)
+        result_field->store(res_str->ptr(),res_str->length(),res_str->charset());
+    }
     result_field->set_notnull();
   }
   DBUG_VOID_RETURN;

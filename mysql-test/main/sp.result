@@ -8307,6 +8307,20 @@ UNION
 SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
 DROP FUNCTION f;
 DROP VIEW v;
+#
+# MDEV-17963: Assertion `field_pos < field_count' failed in Protocol_text::store,
+# Assertion `field_handlers == 0 || field_pos < field_count'
+#
+CREATE TABLE t1 (ct time);
+INSERT INTO t1 VALUES ('16:11:28');
+CREATE FUNCTION f1 () RETURNS varchar(100)
+BEGIN
+DECLARE xxx varchar(100);
+ANALYZE SELECT sum(ct) FROM t1 INTO xxx ;
+RETURN xxx;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+drop table t1;
 #End of 10.1 tests
 #
 # MDEV-11081: CURSOR for query with GROUP BY

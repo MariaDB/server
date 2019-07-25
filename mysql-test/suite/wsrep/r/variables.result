@@ -21,6 +21,7 @@ SET GLOBAL wsrep_provider=none;
 CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
 SHOW GLOBAL STATUS LIKE 'wsrep%';
 Variable_name	Value
+wsrep_applier_thread_count	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
 wsrep_apply_window	#
@@ -74,10 +75,12 @@ wsrep_repl_keys_bytes	#
 wsrep_repl_other_bytes	#
 wsrep_replicated	#
 wsrep_replicated_bytes	#
+wsrep_rollbacker_thread_count	#
 wsrep_thread_count	#
 
 SHOW GLOBAL STATUS LIKE 'wsrep_%';
 Variable_name	Value
+wsrep_applier_thread_count	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
 wsrep_apply_window	#
@@ -131,6 +134,7 @@ wsrep_repl_keys_bytes	#
 wsrep_repl_other_bytes	#
 wsrep_replicated	#
 wsrep_replicated_bytes	#
+wsrep_rollbacker_thread_count	#
 wsrep_thread_count	#
 SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 Variable_name	Value
@@ -185,7 +189,16 @@ wsrep_thread_count	0
 # Setting wsrep_cluster_address triggers the creation of
 # applier/rollbacker threads.
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
-# Wait for applier threads to get created.
+# Wait for applier thread to get created 1.
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+VARIABLE_VALUE
+1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+VARIABLE_VALUE
+1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+VARIABLE_VALUE
+2
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
 libgalera_smm.so
@@ -201,13 +214,19 @@ wsrep_thread_count	2
 
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
-# Wait for applier threads to get created.
+# Wait for 9 applier threads to get created.
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+VARIABLE_VALUE
+10
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+VARIABLE_VALUE
+1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+VARIABLE_VALUE
+11
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1
-SHOW STATUS LIKE 'wsrep_thread_count';
-Variable_name	Value
-wsrep_thread_count	11
 set wsrep_on=0;
 set wsrep_on=1;
 create user test@localhost;

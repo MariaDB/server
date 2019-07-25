@@ -1546,6 +1546,7 @@ end:
       {
         my_fwrite(result_file, (const uchar *) tmp_str.str, tmp_str.length,
                   MYF(MY_NABP));
+        fflush(result_file);
         my_free(tmp_str.str);
       }
     }

@@ -6,6 +6,7 @@
 --source include/have_direct_io.inc
 
 --echo Checking direct reads
+--let $restart_noprint=2
 --let $_mysqld_option=$io_option
 --source include/restart_mysqld_with_option.inc
 

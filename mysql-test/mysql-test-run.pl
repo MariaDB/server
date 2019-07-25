@@ -1008,6 +1008,8 @@ sub run_test_server ($$$) {
 	    next if (defined $t->{reserved} and $t->{reserved} != $wid);
 	    if (! defined $t->{reserved})
 	    {
+	      # Force-restart not relevant when comparing *next* test
+	      $t->{criteria} =~ s/force-restart$/no-restart/;
 	      my $criteria= $t->{criteria};
 	      # Reserve similar tests for this worker, but not too many
 	      my $maxres= (@$tests - $i) / $opt_parallel + 1;
@@ -2046,7 +2048,10 @@ sub collect_mysqld_features {
     if (/Copyright/ .. /^-{30,}/) {
       # here we want to detect all not mandatory plugins
       # they are listed in the --help output as
-      #  --archive[=name]    Enable or disable ARCHIVE plugin. Possible values are ON, OFF, FORCE (don't start if the plugin fails to load).
+      #  --archive[=name]
+      # Enable or disable ARCHIVE plugin. Possible values are ON, OFF,
+      # FORCE (don't start if the plugin fails to load),
+      # FORCE_PLUS_PERMANENT (like FORCE, but the plugin can not be uninstalled).
       push @optional_plugins, $1
         if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. One of: ON, OFF, FORCE/;
       next;
@@ -3899,6 +3904,25 @@ sub find_analyze_request
   return $analyze;
 }
 
+# The test can leave a file in var/tmp/ to signal
+# that all servers should be restarted
+sub restart_forced_by_test($)
+{
+  my $file = shift;
+  my $restart = 0;
+  foreach my $mysqld ( mysqlds() )
+  {
+    my $datadir = $mysqld->value('datadir');
+    my $force_restart_file = "$datadir/mtr/$file";
+    if ( -f $force_restart_file )
+    {
+      mtr_verbose("Restart of servers forced by test");
+      $restart = 1;
+      last;
+    }
+  }
+  return $restart;
+}
 
 # Return timezone value of tinfo or default value
 sub timezone {
@@ -4259,8 +4283,12 @@ sub run_testcase ($$) {
       if ( $res == 0 )
       {
         my $check_res;
-        if ( $opt_check_testcases and
-             $check_res= check_testcase($tinfo, "after"))
+	if ( restart_forced_by_test('force_restart') )
+        {
+          stop_all_servers($opt_shutdown_timeout);
+        }
+        elsif ( $opt_check_testcases and
+                $check_res= check_testcase($tinfo, "after"))
         {
           if ($check_res == 1) {
             # Test case had sideeffects, not fatal error, just continue
@@ -4295,7 +4323,8 @@ sub run_testcase ($$) {
         find_testcase_skipped_reason($tinfo);
         mtr_report_test_skipped($tinfo);
         # Restart if skipped due to missing perl, it may have had side effects
-        if ( $tinfo->{'comment'} =~ /^perl not found/ )
+	if ( restart_forced_by_test('force_restart_if_skipped') ||
+             $tinfo->{'comment'} =~ /^perl not found/ )
         {
           stop_all_servers($opt_shutdown_timeout);
         }
@@ -5447,6 +5476,11 @@ sub server_need_restart {
     return 0;
   }
 
+  if ( $tinfo->{'force_restart'} ) {
+    mtr_verbose_restart($server, "forced in .opt file");
+    return 1;
+  }
+
   if ( $opt_force_restart ) {
     mtr_verbose_restart($server, "forced restart turned on");
     return 1;
@@ -6541,6 +6575,7 @@ Misc options
                         servers to exit before finishing the process
   fast                  Run as fast as possible, don't wait for servers
                         to shutdown etc.
+  force-restart         Always restart servers between tests
   parallel=N            Run tests in N parallel threads (default 1)
                         Use parallel=auto for auto-setting of N
   repeat=N              Run each test N number of times

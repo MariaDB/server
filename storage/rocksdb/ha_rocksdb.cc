@@ -71,6 +71,9 @@
 #include "util/stop_watch.h"
 #include "./rdb_source_revision.h"
 
+// MariaRocks: this is needed to access RocksDB debug syncpoints:
+#include "test_util/sync_point.h"
+
 /* MyRocks includes */
 #include "./event_listener.h"
 #include "./ha_rocksdb_proto.h"
@@ -799,7 +802,7 @@ static void rocksdb_set_rocksdb_stats_level(THD *const thd,
 
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
   rocksdb_db_options->statistics->set_stats_level(
-      static_cast<const rocksdb::StatsLevel>(
+      static_cast<rocksdb::StatsLevel>(
           *static_cast<const uint64_t *>(save)));
   // Actual stats level is defined at rocksdb dbopt::statistics::stats_level_
   // so adjusting rocksdb_stats_level here to make sure it points to
@@ -7792,6 +7795,28 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
     }
   }
 
+  // The below adds/clears hooks in RocksDB sync points. There's no reason for
+  // this code to be in ::create() but it needs to be somewhere where it is
+  // away from any tight loops and where one can invoke it from mtr:
+  DBUG_EXECUTE_IF("rocksdb_enable_delay_commits",
+    {
+      auto syncpoint= rocksdb::SyncPoint::GetInstance();
+      syncpoint->SetCallBack("DBImpl::WriteImpl:BeforeLeaderEnters",
+                             [&](void* /*arg*/) {my_sleep(500);} );
+      syncpoint->EnableProcessing();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                        "enable_delay_commits_mode ON");
+
+    });
+  DBUG_EXECUTE_IF("rocksdb_disable_delay_commits",
+    {
+      auto syncpoint= rocksdb::SyncPoint::GetInstance();
+      syncpoint->ClearCallBack("DBImpl::WriteImpl:BeforeLeaderEnters");
+      syncpoint->DisableProcessing();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                        "enable_delay_commits_mode OFF");
+    });
+
   DBUG_RETURN(create_table(str, table_arg, create_info->auto_increment_value));
 }
 
@@ -12161,6 +12186,7 @@ void ha_rocksdb::get_auto_increment(ulonglong off, ulonglong inc,
     an actual reserve of some values might be a better solution.
    */
   DEBUG_SYNC(ha_thd(), "rocksdb.autoinc_vars");
+  DEBUG_SYNC(ha_thd(), "rocksdb.autoinc_vars2");
 
   if (off > inc) {
     off = 1;

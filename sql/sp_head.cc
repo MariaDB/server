@@ -147,7 +147,7 @@ sp_get_flags_for_command(LEX *lex)
 
   switch (lex->sql_command) {
   case SQLCOM_SELECT:
-    if (lex->result)
+    if (lex->result && !lex->analyze_stmt)
     {
       flags= 0;                      /* This is a SELECT with INTO clause */
       break;

@@ -176,7 +176,7 @@ void sequence_definition::store_fields(TABLE *table)
 
 
 /*
-  Check the sequence fields through seq_fields when createing a sequence.
+  Check the sequence fields through seq_fields when creating a sequence.
 
   RETURN VALUES
     false       Success

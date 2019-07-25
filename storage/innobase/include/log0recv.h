@@ -231,7 +231,7 @@ struct recv_sys_t{
 				/*!< the LSN of a MLOG_CHECKPOINT
 				record, or 0 if none was parsed */
 	/** the time when progress was last reported */
-	ib_time_t	progress_time;
+	time_t		progress_time;
 	mem_heap_t*	heap;	/*!< memory heap of log records and file
 				addresses*/
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
@@ -282,7 +282,7 @@ struct recv_sys_t{
 	@param[in]	time	the current time
 	@return	whether progress should be reported
 		(the last report was at least 15 seconds ago) */
-	bool report(ib_time_t time)
+	bool report(time_t time)
 	{
 		if (time - progress_time < 15) {
 			return false;

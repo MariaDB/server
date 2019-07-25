@@ -128,6 +128,32 @@ HANDLER h READ `PRIMARY` PREV WHERE 0;
 pk	f1	f2	f3	f4	f5	f6	f7	f8	filler
 HANDLER h CLOSE;
 DROP TABLE t1;
+CREATE TABLE t1(f1 int not null, primary key(f1))engine=innodb;
+CREATE TABLE t2(f1 INT AUTO_INCREMENT NOT NULL, f2 INT NOT NULL,
+status ENUM ('a', 'b', 'c'), INDEX idx1(f2),
+PRIMARY KEY(f1),
+FOREIGN KEY (f2) REFERENCES t1(f1))ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE f1 f1_id INT NOT NULL, ADD f3 VARCHAR(255) DEFAULT NULL;
+ALTER TABLE t1 CHANGE f1_id f1 INT NOT NULL;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f3` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT,
+  `f2` int(11) NOT NULL,
+  `status` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`f1`),
+  KEY `idx1` (`f2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 CHANGE status status VARCHAR(20) DEFAULT NULL;
+DROP TABLE t2, t1;
 create table t (
 a varchar(9),
 b int,
