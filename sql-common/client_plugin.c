@@ -363,7 +363,7 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
            mysql->options.extension->plugin_dir : PLUGINDIR, "/",
            name, SO_EXT, NullS);
 
-  if (strpbrk(name, "()[]!@#$%^&/*;.,'?"))
+  if (strpbrk(name, "()[]!@#$%^&/*;.,'?\\"))
   {
     errmsg= "invalid plugin name";
     goto err;
