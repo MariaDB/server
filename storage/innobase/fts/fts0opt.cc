@@ -2773,7 +2773,7 @@ static void fts_optimize_sync_table(table_id_t table_id)
 		    table_id, FALSE, DICT_TABLE_OP_NORMAL)) {
 		if (fil_table_accessible(table)
 		    && table->fts && table->fts->cache) {
-			fts_sync_table(table, true, false, false);
+			fts_sync_table(table, false);
 		}
 
 		dict_table_close(table, FALSE, FALSE);

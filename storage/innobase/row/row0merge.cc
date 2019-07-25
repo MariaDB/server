@@ -2730,8 +2730,7 @@ wait_again:
 	if (max_doc_id && err == DB_SUCCESS) {
 		/* Sync fts cache for other fts indexes to keep all
 		fts indexes consistent in sync_doc_id. */
-		err = fts_sync_table(const_cast<dict_table_t*>(new_table),
-				     false, true, false);
+		err = fts_sync_table(const_cast<dict_table_t*>(new_table));
 
 		if (err == DB_SUCCESS) {
 			fts_update_next_doc_id(NULL, new_table, max_doc_id);
