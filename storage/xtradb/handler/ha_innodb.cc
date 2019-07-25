@@ -92,7 +92,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0stats_bg.h"
 #include "ha_prototypes.h"
 #include "ut0mem.h"
-#include "ut0timer.h"
 #include "ibuf0ibuf.h"
 #include "dict0dict.h"
 #include "srv0mon.h"
@@ -18772,8 +18771,7 @@ innodb_defragment_frequency_update(
 	          from check function */
 {
 	srv_defragment_frequency = (*static_cast<const uint*>(save));
-	srv_defragment_interval = ut_microseconds_to_timer(
-		1000000.0 / srv_defragment_frequency);
+	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
 }
 
 /****************************************************************//**

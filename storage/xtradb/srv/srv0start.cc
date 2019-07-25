@@ -71,7 +71,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "buf0flu.h"
 #include "btr0defragment.h"
-#include "ut0timer.h"
 #include "btr0scrub.h"
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 
@@ -1742,9 +1741,6 @@ innobase_start_or_create_for_mysql()
 	os_fast_mutex_unlock(&srv_os_test_mutex);
 
 	os_fast_mutex_free(&srv_os_test_mutex);
-
-	/* This should be initialized early */
-	ut_init_timer();
 
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = 1;
