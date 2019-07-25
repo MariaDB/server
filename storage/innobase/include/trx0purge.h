@@ -67,7 +67,12 @@ trx_purge(
 					submit to task queue. */
 	ulint	limit,			/*!< in: the maximum number of
 					records to purge in one batch */
-	bool	truncate);		/*!< in: truncate history if true */
+	bool	truncate		/*!< in: truncate history if true */
+#ifdef UNIV_DEBUG
+	, srv_slot_t *slot		/*!< in/out: purge coordinator
+					thread slot */
+#endif
+);
 /*******************************************************************//**
 Stop purge and wait for it to stop, move to PURGE_STATE_STOP. */
 void

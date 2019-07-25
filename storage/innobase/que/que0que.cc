@@ -1082,6 +1082,9 @@ que_run_threads_low(
 	ut_a(thr_get_trx(thr)->error_state == DB_SUCCESS);
 	ut_ad(!trx_mutex_own(thr_get_trx(thr)));
 
+	/* slot can be received from purge thread for debug_sync setup */
+	ut_d(srv_slot_t *slot = thr->thread_slot);
+
 	/* cumul_resource counts how much resources the OS thread (NOT the
 	query thread) has spent in this function */
 

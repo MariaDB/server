@@ -1675,7 +1675,12 @@ trx_purge(
 					to submit to the work queue */
 	ulint	batch_size,		/*!< in: the maximum number of records
 					to purge in one batch */
-	bool	truncate)		/*!< in: truncate history if true */
+	bool	truncate		/*!< in: truncate history if true */
+#ifdef UNIV_DEBUG
+	, srv_slot_t *slot		/*!< in/out: purge coordinator
+					thread slot */
+#endif
+)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1730,6 +1735,7 @@ trx_purge(
 run_synchronously:
 		++purge_sys->n_submitted;
 
+		ut_d(thr->thread_slot = slot);
 		que_run_threads(thr);
 
 		my_atomic_addlint(
