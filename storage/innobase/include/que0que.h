@@ -378,6 +378,9 @@ struct que_thr_t{
 					related delete/updates */
 	row_prebuilt_t*	prebuilt;	/*!< prebuilt structure processed by
 					the query thread */
+
+	ut_d(srv_slot_t *thread_slot;)	/*!< a slot from srv_sys.sys_threads
+ * 					if any */
 };
 
 #define QUE_THR_MAGIC_N		8476583

@@ -1561,7 +1561,9 @@ trx_purge(
 /*======*/
 	ulint	n_purge_threads,	/*!< in: number of purge tasks
 					to submit to the work queue */
-	bool	truncate)		/*!< in: truncate history if true */
+	bool	truncate,		/*!< in: truncate history if true */
+	srv_slot_t *slot)		/*!< in/out: purge coordinator
+					thread slot */
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1597,6 +1599,7 @@ trx_purge(
 
 	thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
 
+	thr->thread_slot = slot;
 	que_run_threads(thr);
 
 	my_atomic_addlint(&purge_sys.n_completed, 1);
