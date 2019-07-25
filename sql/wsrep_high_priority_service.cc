@@ -379,20 +379,13 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
 
 void Wsrep_high_priority_service::store_globals()
 {
-  DBUG_ENTER("Wsrep_high_priority_service::store_globals");
-  /* In addition to calling THD::store_globals(), call
-     wsrep::client_state::store_globals() to gain ownership of
-     the client state */
-  m_thd->store_globals();
-  m_thd->wsrep_cs().store_globals();
-  DBUG_VOID_RETURN;
+  wsrep_store_threadvars(m_thd);
+  m_thd->wsrep_cs().acquire_ownership();
 }
 
 void Wsrep_high_priority_service::reset_globals()
 {
-  DBUG_ENTER("Wsrep_high_priority_service::reset_globals");
-  m_thd->reset_globals();
-  DBUG_VOID_RETURN;
+  wsrep_reset_threadvars(m_thd);
 }
 
 void Wsrep_high_priority_service::switch_execution_context(wsrep::high_priority_service& orig_high_priority_service)
@@ -572,11 +565,14 @@ Wsrep_replayer_service::Wsrep_replayer_service(THD* replayer_thd, THD* orig_thd)
   thd_proc_info(orig_thd, "wsrep replaying trx");
 
   /*
-    Swith execution context to replayer_thd and prepare it for
+    Switch execution context to replayer_thd and prepare it for
     replay execution.
   */
-  orig_thd->reset_globals();
-  replayer_thd->store_globals();
+  /* Copy thd vars from orig_thd before reset, otherwise reset
+     for orig thd clears thread local storage before copy. */
+  wsrep_assign_from_threadvars(replayer_thd);
+  wsrep_reset_threadvars(orig_thd);
+  wsrep_store_threadvars(replayer_thd);
   wsrep_open(replayer_thd);
   wsrep_before_command(replayer_thd);
   replayer_thd->wsrep_cs().clone_transaction_for_replay(orig_thd->wsrep_trx());
@@ -593,8 +589,8 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
   wsrep_after_apply(replayer_thd);
   wsrep_after_command_ignore_result(replayer_thd);
   wsrep_close(replayer_thd);
-  replayer_thd->reset_globals();
-  orig_thd->store_globals();
+  wsrep_reset_threadvars(replayer_thd);
+  wsrep_store_threadvars(orig_thd);
 
   DBUG_ASSERT(!orig_thd->get_stmt_da()->is_sent());
   DBUG_ASSERT(!orig_thd->get_stmt_da()->is_set());

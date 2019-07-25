@@ -25,6 +25,7 @@
 #include "wsrep_api.h"
 #include "wsrep_utils.h"
 #include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 
 #include <sql_class.h>
 
@@ -421,7 +422,8 @@ thd::thd (my_bool won) : init(), ptr(new THD(0))
   if (ptr)
   {
     ptr->thread_stack= (char*) &ptr;
-    ptr->store_globals();
+    wsrep_assign_from_threadvars(ptr);
+    wsrep_store_threadvars(ptr);
     ptr->variables.option_bits&= ~OPTION_BIN_LOG; // disable binlog
     ptr->variables.wsrep_on= won;
     ptr->security_ctx->master_access= ~(ulong)0;
