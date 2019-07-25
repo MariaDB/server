@@ -836,7 +836,10 @@ lock_rec_has_expl(
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
     if (lock->is_stronger(precise_mode, heap_no, trx))
+    {
+      DBUG_LOG("ib_lock", WEAKER(precise_mode, lock));
       return lock;
+    }
 
   return nullptr;
 }
@@ -995,7 +998,10 @@ lock_rec_other_has_conflicting(
 		same types then we don't have to wait for any locks. */
 		if (lock->is_stronger(mode, heap_no, trx)) {
 
-			return(NULL);
+                  DBUG_LOG("ib_lock", CONFLICTS(trx, mode, NULL)
+                                          << "because: "
+                                          << WEAKER(mode, lock));
+                  return (NULL);
 		}
 
 		if (!res && lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
@@ -1003,7 +1009,8 @@ lock_rec_other_has_conflicting(
 		}
 	}
 
-	return(res);
+        DBUG_LOG("ib_lock", CONFLICTS(trx, mode, res));
+        return(res);
 }
 
 /*********************************************************************//**
@@ -1098,6 +1105,7 @@ static void lock_reset_lock_and_trx_wait(lock_t *lock)
   trx->lock.wait_lock= nullptr;
   trx->lock.wait_trx= nullptr;
   lock->type_mode&= ~LOCK_WAIT;
+  DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
 }
 
 #ifdef UNIV_DEBUG
@@ -1204,7 +1212,8 @@ lock_rec_create_low(
  	}
 	lock_rec_bitmap_reset(lock);
 	lock_rec_set_nth_bit(lock, heap_no);
-	index->table->n_rec_locks++;
+        DBUG_LOG("ib_lock", "ADD(" << lock << ") " << *lock);
+        index->table->n_rec_locks++;
 	ut_ad(index->table->get_ref_count() || !index->table->can_be_evicted);
 
 	const auto lock_hash = &lock_sys.hash_get(type_mode);
@@ -1733,7 +1742,10 @@ dberr_t lock_wait(que_thr_t *thr)
     /* The lock has already been released or this transaction
     was chosen as a deadlock victim: no need to wait */
     if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
+    {
       trx->error_state= DB_DEADLOCK;
+      DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
+    }
     else
       trx->error_state= DB_SUCCESS;
 
@@ -1774,6 +1786,7 @@ dberr_t lock_wait(que_thr_t *thr)
     {
       ut_ad(!trx->lock.wait_lock);
       error_state= DB_DEADLOCK;
+      DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
       goto end_wait;
     }
   }
@@ -1861,6 +1874,7 @@ static void lock_wait_end(trx_t *trx)
   {
     ut_ad(state == TRX_STATE_ACTIVE);
     trx->error_state= DB_DEADLOCK;
+    DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
   }
 
   trx->lock.wait_thr= nullptr;
@@ -2185,7 +2199,8 @@ lock_rec_move(
 		if (type_mode & LOCK_WAIT) {
 			ut_ad(lock->trx->lock.wait_lock == lock);
 			lock->type_mode &= ~LOCK_WAIT;
-		}
+                        DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
+                }
 
 		trx_t* lock_trx = lock->trx;
 		lock_trx->mutex_lock();
@@ -2297,6 +2312,7 @@ lock_move_reorganize_page(
       {
         ut_ad(lock->trx->lock.wait_lock == lock);
         lock->type_mode&= ~LOCK_WAIT;
+        DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
       }
 
       lock= lock_rec_get_next_on_page(lock);
@@ -2479,6 +2495,7 @@ lock_move_rec_list_end(
           {
             ut_ad(lock_trx->lock.wait_lock == lock);
             lock->type_mode&= ~LOCK_WAIT;
+            DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
           }
 
           lock_rec_add_to_queue(type_mode, g.cell2(), new_id, new_block->frame,
@@ -2591,6 +2608,7 @@ lock_move_rec_list_start(
           {
             ut_ad(lock_trx->lock.wait_lock == lock);
             lock->type_mode&= ~LOCK_WAIT;
+            DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
           }
 
           lock_rec_add_to_queue(type_mode, g.cell2(), new_id, new_block->frame,
@@ -2683,6 +2701,7 @@ lock_rtr_move_rec_list(
           {
             ut_ad(lock_trx->lock.wait_lock == lock);
             lock->type_mode&= ~LOCK_WAIT;
+            DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
           }
 
           lock_rec_add_to_queue(type_mode, g.cell2(), new_id, new_block->frame,
@@ -3157,7 +3176,8 @@ allocated:
 		trx->lock.wait_lock = lock;
 	}
 
-	lock->trx->lock.table_locks.push_back(lock);
+        DBUG_LOG("ib_lock", "ADD(" << lock << ") " << *lock);
+        lock->trx->lock.table_locks.push_back(lock);
 
 	MONITOR_INC(MONITOR_TABLELOCK_CREATED);
 	MONITOR_INC(MONITOR_NUM_TABLELOCK);
@@ -3294,7 +3314,9 @@ lock_table_remove_low(
 	UT_LIST_REMOVE(trx->lock.trx_locks, lock);
 	ut_list_remove(table->locks, lock, TableLockGetNode());
 
-	MONITOR_INC(MONITOR_TABLELOCK_REMOVED);
+        DBUG_LOG("ib_lock", "DEL(" << lock << ") " << *lock);
+
+        MONITOR_INC(MONITOR_TABLELOCK_REMOVED);
 	MONITOR_DEC(MONITOR_NUM_TABLELOCK);
 	return table;
 }
@@ -3329,7 +3351,8 @@ lock_table_enqueue_waiting(
 
 #ifdef WITH_WSREP
 	if (trx->is_wsrep() && trx->lock.was_chosen_as_deadlock_victim) {
-		return(DB_DEADLOCK);
+          DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
+          return (DB_DEADLOCK);
 	}
 #endif /* WITH_WSREP */
 
@@ -3337,7 +3360,8 @@ lock_table_enqueue_waiting(
 	lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
 
 	trx->lock.wait_thr = thr;
-	trx->lock.was_chosen_as_deadlock_victim
+        DBUG_LOG("ib_lock", VICTIM(trx, false));
+        trx->lock.was_chosen_as_deadlock_victim
 		IF_WSREP(.fetch_and(byte(~1)), = false);
 
 	MONITOR_INC(MONITOR_TABLELOCK_WAIT);
@@ -4854,8 +4878,11 @@ lock_rec_convert_impl_to_expl_for_trx(
     if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) &&
         !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id, heap_no,
                            trx))
+    {
+      DBUG_LOG("ib_lock", "IMPL_TO_EXPL(trx=" << trx << ")");
       lock_rec_add_to_queue(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id,
                             page_align(rec), heap_no, index, trx, true);
+    }
   }
 
   trx->mutex_unlock();
@@ -5480,7 +5507,10 @@ dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock, bool check_victim)
       lock= trx->lock.wait_lock;
       if (!lock);
       else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
+      {
         err= DB_DEADLOCK;
+        DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
+      }
       else
         goto resolve_table_lock;
     }
@@ -5514,7 +5544,10 @@ resolve_table_lock:
       lock= trx->lock.wait_lock;
       if (!lock);
       else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
+      {
         err= DB_DEADLOCK;
+        DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
+      }
       else
         goto resolve_record_lock;
     }
@@ -5588,13 +5621,19 @@ while holding a clustered index leaf page latch.
 dberr_t lock_trx_handle_wait(trx_t *trx)
 {
   if (trx->lock.was_chosen_as_deadlock_victim)
+  {
+    DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
     return DB_DEADLOCK;
+  }
   if (!trx->lock.wait_lock)
     return DB_SUCCESS;
   dberr_t err= DB_SUCCESS;
   mysql_mutex_lock(&lock_sys.wait_mutex);
   if (trx->lock.was_chosen_as_deadlock_victim)
+  {
+    DBUG_LOG("ib_lock", "DEADLOCK(" << trx << ") ");
     err= DB_DEADLOCK;
+  }
   else if (lock_t *wait_lock= trx->lock.wait_lock)
     err= lock_sys_t::cancel(trx, wait_lock, true);
   lock_sys.deadlock_check();
@@ -6010,6 +6049,8 @@ static bool Deadlock::check_and_resolve(trx_t *trx)
 
   if (UNIV_LIKELY(!trx->lock.was_chosen_as_deadlock_victim))
     return false;
+
+  DBUG_LOG("ib_lock", VICTIM(trx));
 
   if (lock_t *wait_lock= trx->lock.wait_lock)
     lock_sys_t::cancel(trx, wait_lock, false);

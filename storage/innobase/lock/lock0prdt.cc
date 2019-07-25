@@ -880,7 +880,8 @@ lock_prdt_rec_move(
 		if (type_mode & LOCK_WAIT) {
 			ut_ad(lock->trx->lock.wait_lock == lock);
 			lock->type_mode &= ~LOCK_WAIT;
-		}
+                        DBUG_LOG("ib_lock", "-WAIT(" << lock << ") " << *lock);
+                }
 		lock_prdt_add_to_queue(
 			type_mode, receiver, lock->index, lock->trx,
 			lock_prdt, false);

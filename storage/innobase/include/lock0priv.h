@@ -48,8 +48,8 @@ those functions in lock/ */
 inline
 std::ostream& lock_table_t::print(std::ostream& out) const
 {
-	out << "[lock_table_t: name=" << table->name << "]";
-	return(out);
+  out << "[name=" << table->name << "]";
+  return (out);
 }
 
 /** The global output operator is overloaded to conveniently
@@ -76,32 +76,32 @@ ib_lock_t::print(std::ostream& out) const
   static_assert(LOCK_AUTO_INC == 4, "compatibility");
   static_assert(LOCK_NONE == 5, "compatibility");
   static_assert(LOCK_NONE_UNSET == 7, "compatibility");
-  const char *const modes[8]=
-  { "IS", "IX", "S", "X", "AUTO_INC", "NONE", "?", "NONE_UNSET" };
-
-  out << "[lock_t: type_mode=" << type_mode << "(" << type_string()
-      << " | LOCK_" << modes[mode()];
-
-  if (is_record_not_gap())
-    out << " | LOCK_REC_NOT_GAP";
-  if (is_waiting())
-    out << " | LOCK_WAIT";
-
-  if (is_gap())
-    out << " | LOCK_GAP";
-
-  if (is_insert_intention())
-    out << " | LOCK_INSERT_INTENTION";
-
-  out << ")";
+  out << "[trx=" << trx << " (" << trx->lock.trx_locks.count << ":"
+      << trx->lock.table_locks.size() << "), "
+      << "type_mode=" << type_mode << "=" << type_mode_string();
 
   if (is_table())
-    out << un_member.tab_lock;
+  {
+    out << " " << un_member.tab_lock;
+  }
   else
-    out << un_member.rec_lock;
+  {
+    const char *comma= ", heap_no=";
+    for (ib_uint32_t i= 0; i < un_member.rec_lock.n_bits; ++i)
+    {
+      const byte *b= ((const byte *) &(this[1])) + (i / 8);
+      if (1 & *b >> (i % 8))
+      {
+        out << comma << i;
+        comma= ",";
+      }
+    }
+
+    out << " " << un_member.rec_lock;
+  }
 
   out << "]";
-  return out;
+  return (out);
 }
 
 inline
@@ -539,6 +539,19 @@ inline lock_t *lock_sys_t::get_first(const hash_cell_t &cell, page_id_t id,
   }
   return nullptr;
 }
+/*********************************************************************/ /**
+ Gets the mode from type_mode.
+ @return mode */
+UNIV_INLINE
+enum lock_mode lock_get_mode(
+    const ib_uint32_t type_mode);
+
+/*********************************************************************/ /**
+ Gets the mode of a lock.
+ @return mode */
+UNIV_INLINE
+enum lock_mode lock_get_mode(
+    const lock_t *lock); /*!< in: lock */
 
 /*********************************************************************//**
 Calculates if lock mode 1 is compatible with lock mode 2.
