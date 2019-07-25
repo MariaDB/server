@@ -5,8 +5,3 @@ rocksdb_write_policy=write_committed
 [row-write-prepared]
 binlog-format=row
 rocksdb_write_policy=write_prepared
-
-[row-write-committed-slave-gtid-optimized]
-binlog-format=row
-rocksdb_write_policy=write_committed
-slave_gtid_info=optimized
