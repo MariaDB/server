@@ -629,22 +629,6 @@ lock_report_trx_id_insanity(
 	trx_id_t	max_trx_id)	/*!< in: trx_sys_get_max_trx_id() */
 	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
-Prints info of a table lock. */
-UNIV_INTERN
-void
-lock_table_print(
-/*=============*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock);	/*!< in: table type lock */
-/*********************************************************************//**
-Prints info of a record lock. */
-UNIV_INTERN
-void
-lock_rec_print(
-/*===========*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock);	/*!< in: record type lock */
-/*********************************************************************//**
 Prints info of locks for all transactions.
 @return FALSE if not able to obtain lock mutex and exits without
 printing info */

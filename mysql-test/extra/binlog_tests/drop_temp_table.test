@@ -14,12 +14,8 @@ CREATE TEMPORARY TABLE `table:name` (a INT);
 CREATE TEMPORARY TABLE shortn2 (a INT);
 
 ##############################################################################
-# BUG#46572 DROP TEMPORARY table IF EXISTS does not have a consistent behavior
-# in ROW mode 
-# 
-# In RBR, 'DROP TEMPORARY TABLE ...' statement should never be binlogged no
-# matter if the tables exist or not. In contrast, both in SBR and MBR, the
-# statement should be always binlogged no matter if the tables exist or not.
+# MDEV-20091: DROP TEMPORARY TABLE IF EXISTS statements will be written
+#             to binlog only if the corresponding temporary table exists.
 ##############################################################################
 CREATE TEMPORARY TABLE tmp(c1 int);
 CREATE TEMPORARY TABLE tmp1(c1 int);
@@ -30,12 +26,12 @@ CREATE TABLE t(c1 int);
 DROP TEMPORARY TABLE IF EXISTS tmp;
 
 --disable_warnings
-# Before fixing BUG#46572, 'DROP TEMPORARY TABLE IF EXISTS...' statement was
-# binlogged when the table did not exist in RBR.
+# Post MDEV-20091: Following DROP TEMPORARY TABLE statement should not be
+# logged as the table is already dropped above.
 DROP TEMPORARY TABLE IF EXISTS tmp;
 
-# In RBR, 'DROP TEMPORARY TABLE ...' statement is never binlogged no matter if
-# the tables exist or not.
+# Post MDEV-20091: Only DROP TEMPORARY TABLE statement should be written only
+# for 'tmp1' table.
 DROP TEMPORARY TABLE IF EXISTS tmp, tmp1;
 DROP TEMPORARY TABLE tmp3;
 
@@ -79,6 +75,12 @@ DROP DATABASE `drop-temp+table-test`;
 # if there are open temporary tables. As such the implicit drop
 # for temporary tables on session closing must be logged.
 #
+# MDEV-20091: DROP TEMPORARY TABLE IF EXISTS statements will be written to
+# binlog only if the corresponding temporary table exists. In row based
+# replication temporary tables are not replicated hence their corresponding
+# DROP TEMPORARY TABLE statement will be not be written to binary log upon
+# session closure.
+#
 
 RESET MASTER;
 
@@ -92,8 +94,10 @@ SELECT @@session.binlog_format;
 --disconnect con1
 
 -- connection default
+if (!`SELECT @@BINLOG_FORMAT = 'ROW'`) {
 --let $wait_binlog_event= DROP
 --source include/wait_for_binlog_event.inc
+}
 -- source include/show_binlog_events.inc
 RESET MASTER;
 

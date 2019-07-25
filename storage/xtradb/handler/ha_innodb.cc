@@ -92,7 +92,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0stats_bg.h"
 #include "ha_prototypes.h"
 #include "ut0mem.h"
-#include "ut0timer.h"
 #include "ibuf0ibuf.h"
 #include "dict0dict.h"
 #include "srv0mon.h"
@@ -1953,13 +1952,14 @@ innobase_srv_conc_enter_innodb(
 
 		} else if (trx->mysql_thd != NULL
 			   && thd_is_replication_slave_thread(trx->mysql_thd)) {
-
-			UT_WAIT_FOR(
-				srv_conc_get_active_threads()
-				< srv_thread_concurrency,
-				srv_replication_delay * 1000);
-
-		}  else {
+			const ulonglong end = my_interval_timer()
+				+ ulonglong(srv_replication_delay) * 1000000;
+			while (srv_conc_get_active_threads()
+			       >= srv_thread_concurrency
+			       || my_interval_timer() >= end) {
+				os_thread_sleep(2000 /* 2 ms */);
+			}
+		} else {
 			srv_conc_enter_innodb(trx);
 		}
 	}
@@ -4544,14 +4544,6 @@ innobase_change_buffering_inited_ok:
 
 	/* Turn on monitor counters that are default on */
 	srv_mon_default_on();
-
-#ifndef UNIV_HOTBACKUP
-#ifdef _WIN32
-	if (ut_win_init_time()) {
-		goto mem_free_and_error;
-	}
-#endif /* _WIN32 */
-#endif /* !UNIV_HOTBACKUP */
 
 	DBUG_RETURN(FALSE);
 error:
@@ -18707,8 +18699,7 @@ innodb_defragment_frequency_update(
 	          from check function */
 {
 	srv_defragment_frequency = (*static_cast<const uint*>(save));
-	srv_defragment_interval = ut_microseconds_to_timer(
-		1000000.0 / srv_defragment_frequency);
+	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
 }
 
 /****************************************************************//**

@@ -501,8 +501,7 @@ SET(INNOBASE_SOURCES
 	ut/ut0rnd.cc
 	ut/ut0ut.cc
 	ut/ut0vec.cc
-	ut/ut0wqueue.cc
-	ut/ut0timer.cc)
+	ut/ut0wqueue.cc)
 
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
     enable_language(ASM)

@@ -100,7 +100,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "row0trunc.h"
 #include "row0upd.h"
 #include "fil0crypt.h"
-#include "ut0timer.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -1723,21 +1722,6 @@ thd_trx_is_auto_commit(
 		       thd,
 		       OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)
 	       && thd_is_select(thd));
-}
-
-extern "C" time_t thd_start_time(const THD* thd);
-
-/******************************************************************//**
-Get the thread start time.
-@return the thread start time in seconds since the epoch. */
-ulint
-thd_start_time_in_secs(
-/*===================*/
-	THD*	thd)	/*!< in: thread handle, or NULL */
-{
-	// FIXME: This function should be added to the server code.
-	//return(thd_start_time(thd));
-	return(ulint(ut_time()));
 }
 
 /** Enter InnoDB engine after checking the max number of user threads
@@ -18891,8 +18875,7 @@ innodb_defragment_frequency_update(
 	          from check function */
 {
 	srv_defragment_frequency = (*static_cast<const uint*>(save));
-	srv_defragment_interval = ut_microseconds_to_timer(
-		(ulonglong) (1000000.0 / srv_defragment_frequency));
+	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
 }
 
 static inline char *my_strtok_r(char *str, const char *delim, char **saveptr)

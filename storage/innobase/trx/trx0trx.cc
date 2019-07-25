@@ -781,7 +781,8 @@ trx_resurrect_insert(
 	/* trx_start_low() is not called with resurrect, so need to initialize
 	start time here.*/
 	if (trx->state != TRX_STATE_COMMITTED_IN_MEMORY) {
-		trx->start_time = ut_time();
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -867,7 +868,8 @@ trx_resurrect_update(
 	start time here.*/
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
-		trx->start_time = ut_time();
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -1251,14 +1253,10 @@ trx_start_low(
 		}
 	}
 
-	if (trx->mysql_thd != NULL) {
-		trx->start_time = thd_start_time_in_secs(trx->mysql_thd);
-		trx->start_time_micro = thd_query_start_micro(trx->mysql_thd);
-
-	} else {
-		trx->start_time = ut_time();
-		trx->start_time_micro = 0;
-	}
+	trx->start_time = time(NULL);
+	trx->start_time_micro = trx->mysql_thd
+		? thd_query_start_micro(trx->mysql_thd)
+		: microsecond_interval_timer();
 
 	ut_a(trx->error_state == DB_SUCCESS);
 
@@ -1539,7 +1537,7 @@ trx_update_mod_tables_timestamp(
 
 	/* consider using trx->start_time if calling time() is too
 	expensive here */
-	time_t	now = ut_time();
+	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
 

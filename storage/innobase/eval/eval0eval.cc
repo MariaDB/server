@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -814,7 +815,7 @@ eval_predefined(
 			       dfield_get_data(que_node_get_val(arg1)));
 
 	} else if (func == PARS_SYSDATE_TOKEN) {
-		int_val = (lint) ut_time();
+		int_val = (lint) time(NULL);
 	} else {
 		eval_predefined_2(func_node);
 

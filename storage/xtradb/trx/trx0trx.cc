@@ -749,7 +749,8 @@ trx_resurrect_insert(
 	/* trx_start_low() is not called with resurrect, so need to initialize
 	start time here.*/
 	if (trx->state != TRX_STATE_COMMITTED_IN_MEMORY) {
-		trx->start_time = ut_time();
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -835,7 +836,8 @@ trx_resurrect_update(
 	start time here.*/
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
-		trx->start_time = ut_time();
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -1104,10 +1106,11 @@ trx_start_low(
 
 	mutex_exit(&trx_sys->mutex);
 
-	trx->start_time = ut_time();
+	trx->start_time = time(NULL);
 
-	trx->start_time_micro =
-		trx->mysql_thd ? thd_query_start_micro(trx->mysql_thd) : 0;
+	trx->start_time_micro = trx->mysql_thd
+		? thd_query_start_micro(trx->mysql_thd)
+		: microsecond_interval_timer();
 
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
@@ -1795,21 +1798,15 @@ trx_commit_or_rollback_prepare(
 		query thread to the suspended state */
 
 		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-
-			ulint		sec;
-			ulint		ms;
-			ib_uint64_t	now;
-
 			ut_a(trx->lock.wait_thr != NULL);
 			trx->lock.wait_thr->state = QUE_THR_SUSPENDED;
 			trx->lock.wait_thr = NULL;
 
 			if (UNIV_UNLIKELY(trx->take_stats)) {
-				ut_usectime(&sec, &ms);
-				now = (ib_uint64_t)sec * 1000000 + ms;
-				trx->lock_que_wait_timer
-					+= (ulint)
-					(now - trx->lock_que_wait_ustarted);
+				trx->lock_que_wait_timer += static_cast<ulint>(
+					(my_interval_timer()
+					 - trx->lock_que_wait_nstarted)
+					/ 1000);
 			}
 
 			trx->lock.que_state = TRX_QUE_RUNNING;

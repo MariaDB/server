@@ -6062,7 +6062,7 @@ AIO::start(
 
 	os_aio_validate();
 
-	os_last_printout = ut_time();
+	os_last_printout = time(NULL);
 
 	if (srv_use_native_aio) {
 		return(true);
@@ -6318,7 +6318,7 @@ AIO::reserve_slot(
 	}
 
 	slot->is_reserved = true;
-	slot->reservation_time = ut_time();
+	slot->reservation_time = time(NULL);
 	slot->m1       = m1;
 	slot->m2       = m2;
 	slot->file     = file;
@@ -7128,7 +7128,7 @@ private:
 	{
 		ulint	age;
 
-		age = (ulint) difftime(ut_time(), slot->reservation_time);
+		age = (ulint) difftime(time(NULL), slot->reservation_time);
 
 		if ((age >= 2 && age > m_oldest)
 		    || (age >= 2
@@ -7530,7 +7530,7 @@ os_aio_print(FILE*	file)
 	AIO::print_all(file);
 
 	putc('\n', file);
-	current_time = ut_time();
+	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,
@@ -7596,7 +7596,7 @@ os_aio_refresh_stats()
 
 	os_bytes_read_since_printout = 0;
 
-	os_last_printout = ut_time();
+	os_last_printout = time(NULL);
 }
 
 /** Checks that all slots in the system have been freed, that is, there are

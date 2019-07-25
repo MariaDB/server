@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2591,7 +2591,8 @@ loop:
 	start_lsn += len;
 	buf += len;
 
-	if (recv_recovery_is_on() && recv_sys && recv_sys->report(ut_time())) {
+	if (recv_recovery_is_on() && recv_sys
+	    && recv_sys->report(time(NULL))) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Read redo log up to LSN=" LSN_PF,
 			start_lsn);
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,

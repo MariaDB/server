@@ -1701,7 +1701,7 @@ buf_pool_init_instance(
 
 		buf_pool->zip_hash = hash_create(2 * buf_pool->curr_size);
 
-		buf_pool->last_printout_time = ut_time();
+		buf_pool->last_printout_time = time(NULL);
 	}
 	/* 2. Initialize flushing fields
 	-------------------------------- */
@@ -2488,10 +2488,6 @@ buf_page_get_zip(
 	ibool		discard_attempted = FALSE;
 	ibool		must_read;
 	trx_t*		trx = NULL;
-	ulint		sec;
-	ulint		ms;
-	ib_uint64_t	start_time;
-	ib_uint64_t	finish_time;
 	buf_pool_t*	buf_pool = buf_pool_get(space, offset);
 
 	if (UNIV_UNLIKELY(innobase_get_slow_log())) {
@@ -2610,14 +2606,10 @@ got_block:
 	if (must_read) {
 		/* Let us wait until the read operation
 		completes */
-
-		if (UNIV_UNLIKELY(trx && trx->take_stats))
-		{
-			ut_usectime(&sec, &ms);
-			start_time = (ib_uint64_t)sec * 1000000 + ms;
-		} else {
-			start_time = 0;
-		}
+		const ulonglong start_time = UNIV_UNLIKELY(trx
+							   && trx->take_stats)
+			? my_interval_timer()
+			: 0;
 		for (;;) {
 			enum buf_io_fix	io_fix;
 
@@ -2632,11 +2624,9 @@ got_block:
 				break;
 			}
 		}
-		if (UNIV_UNLIKELY(start_time != 0))
-		{
-			ut_usectime(&sec, &ms);
-			finish_time = (ib_uint64_t)sec * 1000000 + ms;
-			trx->io_reads_wait_timer += (ulint)(finish_time - start_time);
+		if (UNIV_UNLIKELY(start_time != 0)) {
+			trx->io_reads_wait_timer += ulint(
+				(my_interval_timer() - start_time) / 1000);
 		}
 	}
 
@@ -3016,21 +3006,13 @@ buf_wait_for_read(buf_block_t* block, trx_t* trx)
 
 	if (buf_block_get_io_fix_unlocked(block) == BUF_IO_READ) {
 
-		ib_uint64_t	start_time;
-		ulint		sec;
-		ulint		ms;
-
 		/* Wait until the read operation completes */
 
 		ib_mutex_t*	mutex = buf_page_get_mutex(&block->page);
-
-		if (UNIV_UNLIKELY(trx && trx->take_stats))
-		{
-			ut_usectime(&sec, &ms);
-			start_time = (ib_uint64_t)sec * 1000000 + ms;
-		} else {
-			start_time = 0;
-		}
+		const ulonglong start_time = UNIV_UNLIKELY(trx
+							   && trx->take_stats)
+			? my_interval_timer()
+			: 0;
 
 		for (;;) {
 			buf_io_fix	io_fix;
@@ -3050,15 +3032,10 @@ buf_wait_for_read(buf_block_t* block, trx_t* trx)
 			}
 		}
 
-		if (UNIV_UNLIKELY(start_time != 0))
-		{
-			ut_usectime(&sec, &ms);
-			ib_uint64_t finish_time
-				= (ib_uint64_t)sec * 1000000 + ms;
-			trx->io_reads_wait_timer
-				+= (ulint)(finish_time - start_time);
+		if (UNIV_UNLIKELY(start_time != 0)) {
+			trx->io_reads_wait_timer += ulint(
+				(my_interval_timer() - start_time) / 1000);
 		}
-
 	}
 }
 
@@ -6226,7 +6203,7 @@ buf_refresh_io_stats(
 /*=================*/
 	buf_pool_t*	buf_pool)	/*!< in: buffer pool instance */
 {
-	buf_pool->last_printout_time = ut_time();
+	buf_pool->last_printout_time = time(NULL);
 	buf_pool->old_stat = buf_pool->stat;
 }
 

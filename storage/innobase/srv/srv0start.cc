@@ -47,7 +47,6 @@ Created 2/16/1996 Heikki Tuuri
 
 #include "row0ftsort.h"
 #include "ut0mem.h"
-#include "ut0timer.h"
 #include "mem0mem.h"
 #include "data0data.h"
 #include "data0type.h"

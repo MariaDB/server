@@ -171,7 +171,8 @@ purge_graph_build()
 
 	trx_t* trx = trx_allocate_for_background();
 	ut_ad(!trx->id);
-	trx->start_time = ut_time();
+	trx->start_time = time(NULL);
+	trx->start_time_micro = microsecond_interval_timer();
 	trx->state = TRX_STATE_ACTIVE;
 	trx->op_info = "purge trx";
 

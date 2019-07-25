@@ -135,7 +135,7 @@ ib_wqueue_timedwait(
 /*================*/
 					/* out: work item or NULL on timeout*/
 	ib_wqueue_t*	wq,		/* in: work queue */
-	ib_time_t	wait_in_usecs)	/* in: wait time in micro seconds */
+	ulint		wait_in_usecs)	/* in: wait time in micro seconds */
 {
 	ib_list_node_t*	node = NULL;
 

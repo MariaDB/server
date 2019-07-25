@@ -45,7 +45,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "trx0trx.h" /* trx_create() */
 #include "trx0roll.h" /* trx_rollback_to_savepoint() */
 #include "ut0rnd.h" /* ut_rnd_interval() */
-#include "ut0ut.h" /* ut_format_name(), ut_time() */
+#include "ut0ut.h" /* ut_format_name() */
 
 #include <algorithm>
 #include <map>
@@ -1000,7 +1000,7 @@ dict_stats_update_transient(
 	table->stat_sum_of_other_index_sizes = sum_of_index_sizes
 		- index->stat_index_size;
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -2325,7 +2325,7 @@ dict_stats_update_persistent(
 			+= index->stat_index_size;
 	}
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -2535,7 +2535,7 @@ dict_stats_save(
 	/* MySQL's timestamp is 4 byte, so we use
 	pars_info_add_int4_literal() which takes a lint arg, so "now" is
 	lint */
-	now = (lint) ut_time();
+	now = (lint) time(NULL);
 
 	pinfo = pars_info_create();
 
@@ -3980,7 +3980,7 @@ dict_stats_save_defrag_summary(
 	dict_index_t*	index)	/*!< in: index */
 {
 	dberr_t	ret;
-	lint	now = (lint) ut_time();
+	lint	now = (lint) time(NULL);
 	if (dict_index_is_univ(index)) {
 		return DB_SUCCESS;
 	}
@@ -4017,7 +4017,7 @@ dict_stats_save_defrag_stats(
 		return DB_SUCCESS;
 	}
 
-	lint	now = (lint) ut_time();
+	lint	now = (lint) time(NULL);
 	mtr_t	mtr;
 	ulint	n_leaf_pages;
 	ulint	n_leaf_reserved;
