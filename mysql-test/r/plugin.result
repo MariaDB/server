@@ -285,5 +285,4 @@ Warnings:
 Warning	1300	Invalid utf8 character string: 'F09D8C'
 install plugin foo soname 'admin𝌆';
 ERROR HY000: No paths allowed for shared library
-insert mysql.plugin values ();
-delete from mysql.plugin where name = '';
+# End of 5.5 test
