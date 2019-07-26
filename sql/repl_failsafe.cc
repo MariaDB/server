@@ -148,7 +148,7 @@ int THD::register_slave(uchar *packet, size_t packet_length)
     si->master_id= global_system_variables.server_id;
 
   if (!*si->host)
-    strmake(si->host, thd->main_security_ctx.host_or_ip, sizeof(si->host));
+    ::strmake(si->host, main_security_ctx.host_or_ip, sizeof(si->host));
 
   unregister_slave();
   mysql_mutex_lock(&LOCK_thd_data);
