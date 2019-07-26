@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.7"
+#define PLUGIN_STR_VERSION "1.4.8"
 
 #define _my_thread_var loc_thread_var
 
@@ -2260,7 +2260,7 @@ static void auditing_v13(MYSQL_THD thd, unsigned int *ev_v0)
 }
 
 
-int get_db_mysql57(MYSQL_THD thd, char **name, int *len)
+int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len)
 {
   int db_off;
   int db_len_off;
@@ -2287,7 +2287,7 @@ int get_db_mysql57(MYSQL_THD thd, char **name, int *len)
 
 #ifdef __linux__
   *name= *(char **) (((char *) thd) + db_off);
-  *len= *((int *) (((char*) thd) + db_len_off));
+  *len= *((size_t *) (((char*) thd) + db_len_off));
   if (*name && (*name)[*len] != 0)
     return 1;
   return 0;
