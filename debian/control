@@ -718,6 +718,8 @@ Depends: libcrack2 (>= 2.9.0),
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+ .
+ Install and configure this to enforce stronger passwords for MariaDB users.
 
 Package: mariadb-test
 Architecture: any
