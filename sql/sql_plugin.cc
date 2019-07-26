@@ -748,9 +748,9 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
     This is done to ensure that only approved libraries from the
     plugin directory are used (to make this even remotely secure).
   */
-  if (check_valid_path(dl->str, dl->length) ||
-      check_string_char_length((LEX_STRING *) dl, 0, NAME_CHAR_LEN,
+  if (check_string_char_length((LEX_STRING *) dl, 0, NAME_CHAR_LEN,
                                system_charset_info, 1) ||
+      check_valid_path(dl->str, dl->length) ||
       plugin_dir_len + dl->length + 1 >= FN_REFLEN)
   {
     report_error(report, ER_UDF_NO_PATHS);
@@ -1825,6 +1825,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
 
     LEX_STRING name= {(char *)str_name.ptr(), str_name.length()};
     LEX_STRING dl= {(char *)str_dl.ptr(), str_dl.length()};
+
+    if (!name.length || !dl.length)
+      continue;
 
     /*
       there're no other threads running yet, so we don't need a mutex.

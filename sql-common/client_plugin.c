@@ -362,7 +362,13 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
            mysql->options.extension && mysql->options.extension->plugin_dir ?
            mysql->options.extension->plugin_dir : PLUGINDIR, "/",
            name, SO_EXT, NullS);
-   
+
+  if (strpbrk(name, "()[]!@#$%^&/*;.,'?\\"))
+  {
+    errmsg= "invalid plugin name";
+    goto err;
+  }
+
   DBUG_PRINT ("info", ("dlopeninig %s", dlpath));
   /* Open new dll handle */
   if (!(dlhandle= dlopen(dlpath, RTLD_NOW)))

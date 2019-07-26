@@ -12282,6 +12282,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
     ((st_mysql_auth *) (plugin_decl(mpvio->plugin)->info))->client_auth_plugin;
 
   DBUG_EXECUTE_IF("auth_disconnect", { DBUG_RETURN(1); });
+  DBUG_EXECUTE_IF("auth_invalid_plugin", client_auth_plugin="foo/bar"; );
   DBUG_ASSERT(client_auth_plugin);
 
   /*

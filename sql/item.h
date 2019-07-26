@@ -4832,6 +4832,7 @@ public:
   void update_used_tables();
   table_map not_null_tables() const;
   bool const_item() const { return used_tables() == 0; }
+  TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||

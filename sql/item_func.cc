@@ -222,6 +222,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
+      not_null_tables_cache|= item->not_null_tables();
       with_subselect|=        item->has_subquery();
     }
   }

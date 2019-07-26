@@ -388,7 +388,7 @@ case "$mode" in
       fi
     else
       # Try to find appropriate mysqld process
-      mysqld_pid=`pgrep $libexecdir/mysqld`
+      mysqld_pid=`pgrep -f $libexecdir/mysqld`
 
       # test if multiple pids exist
       pid_count=`echo $mysqld_pid | wc -w`

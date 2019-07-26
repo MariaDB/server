@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1023,6 +1023,8 @@ public:
   TABLE_LIST *end_nested_join(THD *thd);
   TABLE_LIST *nest_last_join(THD *thd);
   void add_joined_table(TABLE_LIST *table);
+  bool add_cross_joined_table(TABLE_LIST *left_op, TABLE_LIST *right_op,
+                              bool straight_fl);
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
   ulong get_table_join_options();
@@ -3040,9 +3042,9 @@ public:
     return context_stack.push_front(context, mem_root);
   }
 
-  void pop_context()
+  Name_resolution_context *pop_context()
   {
-    context_stack.pop();
+    return context_stack.pop();
   }
 
   bool copy_db_to(char **p_db, size_t *p_db_length) const;
@@ -3260,15 +3262,18 @@ public:
 class Yacc_state
 {
 public:
-  Yacc_state()
-  {
-    reset();
-  }
+  Yacc_state() : yacc_yyss(NULL), yacc_yyvs(NULL) { reset(); }
 
   void reset()
   {
-    yacc_yyss= NULL;
-    yacc_yyvs= NULL;
+    if (yacc_yyss != NULL) {
+      my_free(yacc_yyss);
+      yacc_yyss = NULL;
+    }
+    if (yacc_yyvs != NULL) {
+      my_free(yacc_yyvs);
+      yacc_yyvs = NULL;
+    }
     m_set_signal_info.clear();
     m_lock_type= TL_READ_DEFAULT;
     m_mdl_type= MDL_SHARED_READ;

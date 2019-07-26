@@ -1025,7 +1025,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
   Currently there are 102 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 102
+%expect 101
 
 /*
    Comments for TOKENS.
@@ -1714,9 +1714,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %token IMPOSSIBLE_ACTION		/* To avoid warning for yyerrlab1 */
 
-%left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT
 /* A dummy token to force the priority of table_ref production in a join. */
-%left   TABLE_REF_PRIORITY
+%left   CONDITIONLESS_JOIN
+%left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT ON_SYM USING
 %left   SET_VAR
 %left   OR_OR_SYM OR_SYM OR2_SYM
 %left   XOR
@@ -10817,9 +10817,9 @@ join_table_list:
   and are ignored.
 */
 esc_table_ref:
-        table_ref { $$=$1; }
-      | '{' ident table_ref '}' { $$=$3; }
-      ;
+          table_ref { $$=$1; }
+        | '{' ident table_ref '}' { $$=$3; }
+        ;
 
 /* Equivalent to <table reference list> in the SQL:2003 standard. */
 /* Warning - may return NULL in case of incomplete SELECT */
@@ -10832,11 +10832,9 @@ derived_table_list:
         ;
 
 /*
-  Notice that JOIN is a left-associative operation, and it must be parsed
-  as such, that is, the parser must process first the left join operand
-  then the right one. Such order of processing ensures that the parser
-  produces correct join trees which is essential for semantic analysis
-  and subsequent optimization phases.
+  Notice that JOIN can be a left-associative operator in one context and
+  a right-associative operator in another context (see the comment for
+  st_select_lex::add_cross_joined_table).
 */
 join_table:
           /* INNER JOIN variants */
@@ -10845,8 +10843,13 @@ join_table:
             so that [INNER | CROSS] JOIN is properly nested as other
             left-associative joins.
           */
-          table_ref normal_join table_ref %prec TABLE_REF_PRIORITY
-          { MYSQL_YYABORT_UNLESS($1 && ($$=$3)); $3->straight=$2; }
+          table_ref normal_join table_ref %prec CONDITIONLESS_JOIN
+          {
+            MYSQL_YYABORT_UNLESS($1 && ($$=$3));
+
+            if (unlikely(Select->add_cross_joined_table($1, $3, $2)))
+              MYSQL_YYABORT;
+          }
         | table_ref normal_join table_ref
           ON
           {
@@ -10860,7 +10863,7 @@ join_table:
           {
 	    $3->straight=$2;
             add_join_on(thd, $3, $6);
-            Lex->pop_context();
+            $3->on_context= Lex->pop_context();
             Select->parsing_place= NO_MATTER;
           }
         | table_ref normal_join table_ref
@@ -10894,7 +10897,7 @@ join_table:
           expr
           {
             add_join_on(thd, $5, $8);
-            Lex->pop_context();
+            $5->on_context= Lex->pop_context();
             $5->outer_join|=JOIN_TYPE_LEFT;
             $$=$5;
             Select->parsing_place= NO_MATTER;
@@ -10933,7 +10936,7 @@ join_table:
             if (!($$= lex->current_select->convert_right_join()))
               MYSQL_YYABORT;
             add_join_on(thd, $$, $8);
-            Lex->pop_context();
+            $1->on_context= Lex->pop_context();
             Select->parsing_place= NO_MATTER;
           }
         | table_ref RIGHT opt_outer JOIN_SYM table_factor

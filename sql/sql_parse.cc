@@ -8123,6 +8123,7 @@ TABLE_LIST *st_select_lex::end_nested_join(THD *thd)
   join_list= ptr->join_list;
   embedding= ptr->embedding;
   nested_join= ptr->nested_join;
+  nested_join->nest_type= 0;
   if (nested_join->join_list.elements == 1)
   {
     TABLE_LIST *embedded= nested_join->join_list.head();
@@ -8132,6 +8133,8 @@ TABLE_LIST *st_select_lex::end_nested_join(THD *thd)
     join_list->push_front(embedded, thd->mem_root);
     ptr= embedded;
     embedded->lifted= 1;
+    if (embedded->nested_join)
+      embedded->nested_join->nest_type= 0;
   }
   else if (nested_join->join_list.elements == 0)
   {
@@ -8162,6 +8165,16 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   List<TABLE_LIST> *embedded_list;
   DBUG_ENTER("nest_last_join");
 
+  TABLE_LIST *head= join_list->head();
+  if (head->nested_join && head->nested_join->nest_type & REBALANCED_NEST)
+  {
+    List_iterator<TABLE_LIST> li(*join_list);
+    li++;
+    while (li++)
+      li.remove();
+    DBUG_RETURN(head);
+  }
+
   if (!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
                                        sizeof(NESTED_JOIN))))
     DBUG_RETURN(0);
@@ -8173,6 +8186,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   ptr->alias= (char*) "(nest_last_join)";
   embedded_list= &nested_join->join_list;
   embedded_list->empty();
+  nested_join->nest_type= JOIN_OP_NEST;
 
   for (uint i=0; i < 2; i++)
   {
@@ -8220,6 +8234,227 @@ void st_select_lex::add_joined_table(TABLE_LIST *table)
   table->join_list= join_list;
   table->embedding= embedding;
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  @brief
+    Create a node for JOIN/INNER JOIN/CROSS JOIN/STRAIGHT_JOIN operation
+
+  @param left_op     the node for the left operand constructed by the parser
+  @param right_op    the node for the right operand constructed by the parser
+  @param straight_fl TRUE if STRAIGHT_JOIN is used
+
+  @retval
+    false on success
+    true  otherwise
+
+  @details
+
+    JOIN operator can be left-associative with other join operators in one
+    context and right-associative in another context.
+
+    In this query
+       SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a  (Q1)
+    JOIN is left-associative and the query Q1 is interpreted as
+       SELECT * FROM (t1 JOIN t2) LEFT JOIN t3 ON t2.a=t3.a.
+    While in this query
+       SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a ON t1.b=t2.b (Q2)
+    JOIN is right-associative and the query Q2 is interpreted as
+       SELECT * FROM t1 JOIN (t2 LEFT JOIN t3 ON t2.a=t3.a) ON t1.b=t2.b
+
+    JOIN is right-associative if it is used with ON clause or with USING clause.
+    Otherwise it is left-associative.
+    When parsing a join expression with JOIN operator we can't determine
+    whether this operation left or right associative until either we read the
+    corresponding ON clause or we reach the end of the expression. This creates
+    a problem for the parser to build a proper internal representation of the
+    used join expression.
+
+    For Q1 and Q2 the trees representing the used join expressions look like
+
+            LJ - ON                   J - ON
+           /  \                      / \
+          J    t3   (TQ1)          t1   LJ - ON      (TQ2)
+         / \                           /  \
+       t1   t2                       t2    t3
+
+    To build TQ1 the parser has to reduce the expression for JOIN right after
+    it has read the reference to t2. To build TQ2 the parser reduces JOIN
+    when he has read the whole join expression. There is no way to determine
+    whether an early reduction is needed until the whole join expression is
+    read.
+    A solution here is always to do a late reduction. In this case the parser
+    first builds an incorrect tree TQ1* that has to be rebalanced right after
+    it has been constructed.
+
+             J                               LJ - ON
+            / \                             /  \
+          t1   LJ - ON    (TQ1*)    =>     J    t3
+              /  \                        / \
+            t2    t3                    t1   t2
+
+    Actually the transformation is performed over the nodes t1 and LJ before the
+    node for J is created in the function st_select_lex::add_cross_joined_table.
+    The function creates a node for J which replaces the node t2. Then it
+    attaches the nodes t1 and t2 to this newly created node. The node LJ becomes
+    the top node of the tree.
+
+    For the query
+      SELECT * FROM t1 JOIN t2 RIGHT JOIN t3 ON t2.a=t3.a  (Q3)
+    the transformation looks slightly differently because the parser
+    replaces the RIGHT JOIN tree for an equivalent LEFT JOIN tree.
+
+             J                               LJ - ON
+            / \                             /  \
+          t1   LJ - ON    (TQ3*)    =>     J    t2
+              /  \                        / \
+            t3    t2                    t1   t3
+
+    With several left associative JOINs
+      SELECT * FROM t1 JOIN t2 JOIN t3 LEFT JOIN t4 ON t3.a=t4.a (Q4)
+    the newly created node for JOIN replaces the left most node of the tree:
+
+          J1                         LJ - ON
+         /  \                       /  \
+       t1    LJ - ON               J2   t4
+            /  \          =>      /  \
+           J2   t4              J1    t3
+          /  \                 /  \
+        t2    t3             t1    t2
+
+     Here's another example:
+       SELECT *
+       FROM t1 JOIN t2 LEFT JOIN t3 JOIN t4 ON t3.a=t4.a ON t2.b=t3.b (Q5)
+
+          J                       LJ - ON
+         / \                     /   \
+       t1   LJ - ON             J     J - ON
+           /  \          =>    / \   / \
+         t2    J - ON         t1 t2 t3 t4
+              / \
+            t3   t4
+
+     If the transformed nested join node node is a natural join node like in
+     the following query
+       SELECT * FROM t1 JOIN t2 LEFT JOIN t3 USING(a)  (Q6)
+     the transformation additionally has to take care about setting proper
+     references in the field natural_join for both operands of the natural
+     join operation.
+     The function also has to change the name resolution context for ON
+     expressions used in the transformed join expression to take into
+     account the tables of the left_op node.
+*/
+
+bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
+                                           TABLE_LIST *right_op,
+                                           bool straight_fl)
+{
+  DBUG_ENTER("add_cross_joined_table");
+  THD *thd= parent_lex->thd;
+  if (!(right_op->nested_join &&
+	(right_op->nested_join->nest_type & JOIN_OP_NEST)))
+  {
+    /*
+      This handles the cases when the right operand is not a nested join.
+      like in queries
+        SELECT * FROM t1 JOIN t2;
+        SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a JOIN t3
+    */
+    right_op->straight= straight_fl;
+    DBUG_RETURN(false);
+  }
+
+  TABLE_LIST *tbl;
+  List<TABLE_LIST> *jl= &right_op->nested_join->join_list;
+  TABLE_LIST *cj_nest;
+
+  /*
+    Create the node NJ for a new nested join for the future inclusion
+    of left_op in it. Initially the nest is empty.
+  */
+  if (unlikely(!(cj_nest=
+                 (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
+                                           sizeof(NESTED_JOIN)))))
+    DBUG_RETURN(true);
+  cj_nest->nested_join=
+    ((NESTED_JOIN*) ((uchar*) cj_nest + ALIGN_SIZE(sizeof(TABLE_LIST))));
+  cj_nest->nested_join->nest_type= JOIN_OP_NEST;
+  List<TABLE_LIST> *cjl=  &cj_nest->nested_join->join_list;
+  cjl->empty();
+
+  /* Look for the left most node tbl of the right_op tree */
+  for ( ; ; )
+  {
+    TABLE_LIST *pair_tbl= 0;  /* useful only for operands of natural joins */
+
+    List_iterator<TABLE_LIST> li(*jl);
+    tbl= li++;
+
+    /* Expand name resolution context */
+    Name_resolution_context *on_context;
+    if ((on_context= tbl->on_context))
+    {
+      on_context->first_name_resolution_table=
+        left_op->first_leaf_for_name_resolution();
+    }
+
+    if (!(tbl->outer_join & JOIN_TYPE_RIGHT))
+    {
+      pair_tbl= tbl;
+      tbl= li++;
+    }
+    if (tbl->nested_join &&
+        tbl->nested_join->nest_type & JOIN_OP_NEST)
+    {
+      jl= &tbl->nested_join->join_list;
+      continue;
+    }
+
+    /* Replace the tbl node in the tree for the newly created NJ node */
+    cj_nest->outer_join= tbl->outer_join;
+    cj_nest->on_expr= tbl->on_expr;
+    cj_nest->embedding= tbl->embedding;
+    cj_nest->join_list= jl;
+    cj_nest->alias= (char*) "(nest_last_join)";
+    li.replace(cj_nest);
+
+    /*
+      If tbl is an operand of a natural join set properly the references
+      in the fields natural_join for both operands of the operation.
+    */
+    if(tbl->embedding && tbl->embedding->is_natural_join)
+    {
+      if (!pair_tbl)
+        pair_tbl= li++;
+      pair_tbl->natural_join= cj_nest;
+      cj_nest->natural_join= pair_tbl;
+    }
+    break;
+  }
+
+  /* Attach tbl as the right operand of NJ */
+  if (unlikely(cjl->push_back(tbl, thd->mem_root)))
+    DBUG_RETURN(true);
+  tbl->outer_join= 0;
+  tbl->on_expr= 0;
+  tbl->straight= straight_fl;
+  tbl->natural_join= 0;
+  tbl->embedding= cj_nest;
+  tbl->join_list= cjl;
+
+  /* Add left_op as the left operand of NJ */
+  if (unlikely(cjl->push_back(left_op, thd->mem_root)))
+    DBUG_RETURN(true);
+  left_op->embedding= cj_nest;
+  left_op->join_list= cjl;
+
+  /*
+    Mark right_op as a rebalanced nested join in order not to
+    create a new top level nested join node.
+  */
+  right_op->nested_join->nest_type|= REBALANCED_NEST;
+  DBUG_RETURN(false);
 }
 
 

@@ -274,9 +274,16 @@ then
 fi
 if test -n "$srcdir"
 then
+  # In an out-of-source build, builddir is not srcdir. Try to guess where
+  # builddir is by looking for my_print_defaults.
   if test -z "$builddir"
   then
-    builddir="$srcdir"
+    if test -x "$dirname0/extra/my_print_defaults"
+    then
+      builddir="$dirname0"
+    else
+      builddir="$srcdir"
+    fi
   fi
   print_defaults="$builddir/extra/my_print_defaults"
 elif test -n "$basedir"

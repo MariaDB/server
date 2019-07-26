@@ -2797,14 +2797,13 @@ void st_select_lex::print_limit(THD *thd,
   if (item && unit->global_parameters() == this)
   {
     Item_subselect::subs_type subs_type= item->substype();
-    if (subs_type == Item_subselect::EXISTS_SUBS ||
-        subs_type == Item_subselect::IN_SUBS ||
+    if (subs_type == Item_subselect::IN_SUBS ||
         subs_type == Item_subselect::ALL_SUBS)
     {
       return;
     }
   }
-  if (explicit_limit)
+  if (explicit_limit && select_limit)
   {
     str->append(STRING_WITH_LEN(" limit "));
     if (offset_limit)
