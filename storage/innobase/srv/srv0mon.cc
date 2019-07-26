@@ -2052,7 +2052,7 @@ srv_mon_process_existing_counter(
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
-		value = btr_cur_n_non_sea;
+		value = my_atomic_loadlint(&btr_cur_n_non_sea);
 		break;
 
         case MONITOR_OVLD_PAGE_COMPRESS_SAVED:

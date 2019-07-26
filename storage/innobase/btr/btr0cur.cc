@@ -1292,7 +1292,7 @@ btr_cur_search_to_nth_level_func(
 	}
 # endif /* BTR_CUR_HASH_ADAPT */
 #endif /* BTR_CUR_ADAPT */
-	btr_cur_n_non_sea++;
+	my_atomic_addlint(&btr_cur_n_non_sea, 1);
 
 	/* If the hash search did not succeed, do binary search down the
 	tree */

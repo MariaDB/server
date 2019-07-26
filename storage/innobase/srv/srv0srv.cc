@@ -1150,7 +1150,7 @@ srv_refresh_innodb_monitor_stats(void)
 #ifdef BTR_CUR_HASH_ADAPT
 	btr_cur_n_sea_old = btr_cur_n_sea;
 #endif /* BTR_CUR_HASH_ADAPT */
-	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
+	btr_cur_n_non_sea_old = my_atomic_loadlint(&btr_cur_n_non_sea);
 
 	log_refresh_stats();
 
@@ -1309,16 +1309,16 @@ srv_printf_innodb_monitor(
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
 		(btr_cur_n_sea - btr_cur_n_sea_old)
 		/ time_elapsed,
-		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		(my_atomic_loadlint(&btr_cur_n_non_sea) - btr_cur_n_non_sea_old)
 		/ time_elapsed);
 	btr_cur_n_sea_old = btr_cur_n_sea;
 #else /* BTR_CUR_HASH_ADAPT */
 	fprintf(file,
 		"%.2f non-hash searches/s\n",
-		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		(my_atomic_loadlint(&btr_cur_n_non_sea) - btr_cur_n_non_sea_old)
 		/ time_elapsed);
 #endif /* BTR_CUR_HASH_ADAPT */
-	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
+	btr_cur_n_non_sea_old = my_atomic_loadlint(&btr_cur_n_non_sea);
 
 	fputs("---\n"
 	      "LOG\n"
