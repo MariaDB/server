@@ -88,24 +88,8 @@ public:
   }
   virtual int finish(uchar *dst, uint *dlen)
   {
-#ifdef HAVE_WOLFSSL
-     /*
-       Bug in WolfSSL - sometimes EVP_CipherFinal_ex
-       returns success without setting destination length
-       when it should return error.
-       We catch it by presetting invalid value for length,
-       and checking if it has changed after the call.
-
-       See https://github.com/wolfSSL/wolfssl/issues/2224
-     */
-    *dlen= UINT_MAX;
-#endif
     if (EVP_CipherFinal_ex(ctx, dst, (int*)dlen) != 1)
       return MY_AES_BAD_DATA;
-#ifdef HAVE_WOLFSSL
-    if (*dlen == UINT_MAX)
-      return MY_AES_BAD_DATA;
-#endif
     return MY_AES_OK;
   }
 };

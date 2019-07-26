@@ -41,12 +41,6 @@ my_bool srv_encrypt_log;
 
 struct aes_block_t {
 	byte		bytes[MY_AES_BLOCK_SIZE];
-#ifdef HAVE_WOLFSSL
-	// Workaround for  MDEV-19582.
-	// WolfSSL reads memory out of bounds with decrypt/NOPAD
-	// Pad the structure to workaround
-	byte		pad[MY_AES_BLOCK_SIZE];
-#endif
 };
 
 struct crypt_info_t {

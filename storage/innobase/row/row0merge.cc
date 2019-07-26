@@ -54,14 +54,6 @@ Completed by Sunny Bains and Marko Makela
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
 
-#ifdef HAVE_WOLFSSL
-// Workaround for MDEV-19582
-// (WolfSSL accesses memory out of bounds)
-# define WOLFSSL_PAD_SIZE MY_AES_BLOCK_SIZE
-#else
-# define WOLFSSL_PAD_SIZE 0
-#endif
-
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
 
@@ -4627,7 +4619,7 @@ row_merge_build_indexes(
 
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-			alloc.allocate_large(block_size + WOLFSSL_PAD_SIZE,
+			alloc.allocate_large(block_size,
 					     &crypt_pfx));
 
 		if (crypt_block == NULL) {
@@ -4999,7 +4991,7 @@ func_exit:
 
 	if (crypt_block) {
 		alloc.deallocate_large(crypt_block, &crypt_pfx,
-				       block_size + WOLFSSL_PAD_SIZE);
+				       block_size);
 	}
 
 	DICT_TF2_FLAG_UNSET(new_table, DICT_TF2_FTS_ADD_DOC_ID);
