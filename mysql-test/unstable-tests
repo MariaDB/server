@@ -23,13 +23,14 @@
 #
 ##############################################################################
 #
-# Based on 10.1 1f498f901b394e869c430b777fdc233ab98d428f
+# Based on 10.1 2382cd14a8c96cf8b4375d7338abfa6e1b333a86
 
 main.alter_table_trans             : MDEV-12084 - timeout
 main.analyze_stmt                  : Modified in 10.1.39
 main.analyze_stmt_slow_query_log   : MDEV-12237 - Wrong result
 main.auth_named_pipe               : MDEV-14724 - System error 2
 main.bootstrap                     : Modified in 10.1.41
+main.connect_debug                 : Modified in 10.1.41
 main.count_distinct2               : MDEV-11768 - timeout
 main.create_delayed                : MDEV-10605 - failed with timeout
 main.create_drop_event             : MDEV-16271 - Wrong result
@@ -81,11 +82,14 @@ main.host_cache_size_functionality : MDEV-10606 - sporadic failure on shutdown
 main.index_intersect_innodb        : MDEV-10643 - failed with timeout
 main.index_merge_innodb            : MDEV-7142 - Wrong execution plan, timeout with valgrind; modified in 10.1.39
 main.index_merge_myisam            : Include files modified in 10.1.39
+main.information_schema_parameters : Modified in 10.1.41
 main.information_schema_prepare    : Added in 10.1.39
 main.innodb_mysql_lock             : MDEV-7861 - sporadic lock detection failure
+main.join                          : Modified in 10.1.41
 main.join_cache                    : Modified in 10.1.41
 main.join_nested                   : Modified in 10.1.41
 main.join_outer                    : Modified in 10.1.41
+main.join_outer_innodb             : Modified in 10.1.41
 main.kill_processlist-6619         : MDEV-10793 - wrong result in processlist; modified in 10.1.39
 main.loaddata                      : MDEV-19368 - mysqltest failed but provided no output; modified in 10.1.39
 main.log_slow                      : MDEV-13263 - Wrong result; modified in 10.1.39
@@ -117,7 +121,10 @@ main.partition                     : Modified in 10.1.39
 main.partition_debug_sync          : MDEV-15669 - Deadlock found when trying to get lock
 main.partition_innodb              : Modified in 10.1.39
 main.partition_innodb_plugin       : MDEV-12901 - Valgrind warnings
-main.ps                            : MDEV-11017 - sporadic wrong Prepared_stmt_count; modified in 10.1.39
+main.plugin                        : Modified in 10.1.41
+main.plugin_not_embedded           : Modified in 10.1.41
+main.ps                            : MDEV-11017 - sporadic wrong Prepared_stmt_count; modified in 10.1.41
+main.ps_innodb                     : Added in 10.1.41
 main.query_cache                   : MDEV-12895 - Wrong result
 main.query_cache_debug             : MDEV-15281 - Resize or similar command in progress
 main.range_vs_index_merge_innodb   : MDEV-15283 - Server has gone away
@@ -135,6 +142,7 @@ main.stat_tables_par_innodb        : MDEV-14155 - wrong rounding
 main.statistics                    : Modified in 10.1.39
 main.status                        : MDEV-8510 - sporadic wrong result
 main.status2                       : Modified in 10.1.39
+main.subselect                     : Modified in 10.1.41
 main.subselect_innodb              : MDEV-10614 - sporadic wrong results
 main.subselect_sj                  : Modified in 10.1.41
 main.subselect_sj_mat              : Modified in 10.1.41
@@ -150,7 +158,7 @@ main.type_decimal                  : Modified in 10.1.39
 main.type_year                     : Modified in 10.1.39
 main.update_innodb                 : Modified in 10.1.39
 main.userstat                      : Modified in 10.1.39
-main.view                          : Modified in 10.1.39
+main.view                          : Modified in 10.1.41
 main.view_grant                    : Modified in 10.1.39
 main.wait_timeout                  : Lost connection to MySQL server during query
 main.xa                            : MDEV-11769 - lock wait timeout
@@ -169,13 +177,17 @@ archive-test_sql_discovery.discover : MDEV-16817 - Table marked as crashed
 
 #-----------------------------------------------------------------------
 
-binlog.binlog_commit_wait            : MDEV-10150 - Error: too much time elapsed
-binlog.binlog_innodb_stm             : Added in 10.1.39
-binlog.binlog_killed                 : MDEV-12925 - Wrong result
-binlog.binlog_mysqlbinlog2           : Modified in 10.1.39
-binlog.binlog_mysqlbinlog_stop_never : Added in 10.1.41
-binlog.binlog_xa_recover             : MDEV-8517 - Extra checkpoint
-binlog.load_data_stm_view            : MDEV-16948 - Wrong result
+binlog.binlog_commit_wait                        : MDEV-10150 - Error: too much time elapsed
+binlog.binlog_innodb_stm                         : Added in 10.1.39
+binlog.binlog_killed                             : MDEV-12925 - Wrong result
+binlog.binlog_mysqlbinlog2                       : Modified in 10.1.39
+binlog.binlog_mysqlbinlog_stop_never             : Added in 10.1.41
+binlog.binlog_parallel_replication_marks_row     : Include file modified in 10.1.41
+binlog.binlog_parallel_replication_marks_stm_mix : Include file modified in 10.1.41
+binlog.binlog_row_drop_tmp_tbl                   : Include file modified in 10.1.41
+binlog.binlog_stm_drop_tmp_tbl                   : MDEV-20188 - Unknown table on exec; include file modified in 10.1.41
+binlog.binlog_xa_recover                         : MDEV-8517 - Extra checkpoint
+binlog.load_data_stm_view                        : MDEV-16948 - Wrong result
 
 #-----------------------------------------------------------------------
 
@@ -279,6 +291,7 @@ innodb.innodb-64k-crash                      : MDEV-13872 - Failure and crash on
 innodb.innodb-alter-debug                    : MDEV-13182 - InnoDB: adjusting FSP_SPACE_FLAGS
 innodb.innodb-alter-nullable                 : Modified in 10.1.39
 innodb.innodb-alter-table                    : MDEV-10619 - Testcase timeout
+innodb.innodb-autoinc                        : Modified in 10.1.41
 innodb.innodb-blob                           : MDEV-12053 - Client crash
 innodb.innodb-corrupted-table                : Modified in 10.1.39
 innodb.innodb-fk                             : MDEV-13832 - Assertion failure on shutdown
@@ -309,7 +322,6 @@ innodb.xa_recovery                           : MDEV-15279 - mysqld got exception
 
 #-----------------------------------------------------------------------
 
-innodb_fts.innodb-fts-fic        : MDEV-14154 - Assertion failure
 innodb_fts.innodb_ft_aux_table   : Added in 10.1.41
 innodb_fts.innodb_fts_misc_debug : MDEV-14156 - Unexpected warning
 
@@ -397,6 +409,9 @@ roles.flush_roles-17898     : Modified in 10.1.39
 #-----------------------------------------------------------------------
 
 rpl.circular_serverid0                  : MDEV-19372 - ASAN heap-use-after-free
+rpl.create_or_replace_mix               : Include file modified in 10.1.41
+rpl.create_or_replace_row               : Include file modified in 10.1.41
+rpl.create_or_replace_statement         : Include file modified in 10.1.41
 rpl.create_select                       : MDEV-14121 - Assertion failure
 rpl.kill_race_condition                 : Modified in 10.1.41
 rpl.last_insert_id                      : MDEV-10625 - warnings in error log
@@ -447,6 +462,7 @@ rpl.rpl_rewrt_db                        : Modified in 10.1.39
 rpl.rpl_row_basic_11bugs                : MDEV-12171 - Server failed to start
 rpl.rpl_row_basic_2myisam               : MDEV-13875 - command "diff_files" failed
 rpl.rpl_row_drop_create_temp_table      : MDEV-14487 - Wrong result
+rpl.rpl_row_drop_temp_table             : Added in 10.1.41
 rpl.rpl_row_img_blobs                   : MDEV-13875 - command "diff_files" failed
 rpl.rpl_row_img_eng_min                 : MDEV-13875 - command "diff_files" failed
 rpl.rpl_row_img_eng_noblob              : MDEV-13875 - command "diff_files" failed
