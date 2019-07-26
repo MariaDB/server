@@ -4974,6 +4974,7 @@ int toku_ft_layer_init(void) {
 
     // Portability must be initialized first
     r = toku_portability_init();
+    assert(r==0);
     if (r) {
         goto exit;
     }
@@ -4981,6 +4982,7 @@ int toku_ft_layer_init(void) {
     toku_pfs_keys_init("fti");
 
     r = db_env_set_toku_product_name("tokudb");
+    assert(r==0);
     if (r) {
         goto exit;
     }
