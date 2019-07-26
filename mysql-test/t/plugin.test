@@ -260,13 +260,7 @@ select convert('admin𝌆' using utf8);
 --error ER_UDF_NO_PATHS
 install plugin foo soname 'admin𝌆';
 
-#
-# Bug#27302459: EMPTY VALUE IN MYSQL.PLUGIN TABLE CAUSES SERVER TO EXIT ON STARTUP
-#
-insert mysql.plugin values ();
-source include/restart_mysqld.inc;
-delete from mysql.plugin where name = '';
-
+--echo # End of 5.5 test
 
 --echo #
 --echo # MDEV-5309 - RENAME TABLE does not check for existence of the table's
@@ -280,3 +274,5 @@ UNINSTALL PLUGIN example;
 --error ER_NO_SUCH_TABLE
 RENAME TABLE t1 TO t2;
 DROP TABLE t1;
+
+--echo # End of 10.1 test

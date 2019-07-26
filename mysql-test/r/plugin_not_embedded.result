@@ -11,3 +11,6 @@ UNINSTALL PLUGIN example;
 DROP USER bug51770@localhost;
 INSTALL PLUGIN example SONAME '../ha_example.so';
 ERROR HY000: No paths allowed for shared library
+insert mysql.plugin values ();
+delete from mysql.plugin where name = '';
+# End of 5.5 tests
