@@ -5064,6 +5064,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info= NULL;
   update_handler= NULL;
   check_unique_buf= NULL;
+  vers_write= s->versioned;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;

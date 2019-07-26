@@ -158,6 +158,16 @@ with system versioning;
 insert into t1 (f) values ('a'), ('b'), ('c'), ('d'), ('e'), ('f'), ('g'), ('h');
 delete from t1;
 delete history from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-20186 Wrong result or Assertion on INSERT after DELETE HISTORY
+--echo #
+create or replace table t1 (a int check (a > 0)) with system versioning;
+delete history from t1;
+insert into t1 values (1);
+select * from t1;
+drop table t1;
 
 drop database test;
 create database test;
