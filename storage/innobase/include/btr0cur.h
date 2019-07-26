@@ -1034,7 +1034,7 @@ inherited external field. */
 #define BTR_EXTERN_INHERITED_FLAG	64U
 
 /** Number of searches down the B-tree in btr_cur_search_to_nth_level(). */
-extern ulint	btr_cur_n_non_sea;
+extern Atomic_counter<ulint>	btr_cur_n_non_sea;
 /** Old value of btr_cur_n_non_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */

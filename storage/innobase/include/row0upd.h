@@ -571,14 +571,6 @@ struct upd_node_t{
 				/* column assignment list */
 	ulint		magic_n;
 
-	/** Also set row_start = CURRENT_TIMESTAMP/trx->id
-	@param[in]	trx	transaction */
-	void make_versioned_update(const trx_t* trx);
-	/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
-	Do not touch other fields at all.
-	@param[in]	trx	transaction */
-	void make_versioned_delete(const trx_t* trx);
-
 private:
 	/** Appends row_start or row_end field to update vector and sets a
 	CURRENT_TIMESTAMP/trx->id value to it.
@@ -587,6 +579,24 @@ private:
 	@param[in]	trx	transaction
 	@param[in]	vers_sys_idx	table->row_start or table->row_end */
 	void make_versioned_helper(const trx_t* trx, ulint idx);
+
+public:
+	/** Also set row_start = CURRENT_TIMESTAMP/trx->id
+	@param[in]	trx	transaction */
+	void make_versioned_update(const trx_t* trx)
+	{
+		make_versioned_helper(trx, table->vers_start);
+	}
+
+	/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
+	Do not touch other fields at all.
+	@param[in]	trx	transaction */
+	void make_versioned_delete(const trx_t* trx)
+	{
+		update->n_fields = 0;
+		is_delete = VERSIONED_DELETE;
+		make_versioned_helper(trx, table->vers_end);
+	}
 };
 
 #define	UPD_NODE_MAGIC_N	1579975

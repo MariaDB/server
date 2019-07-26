@@ -3476,7 +3476,8 @@ void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
 
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
-	/* row_create_update_node_for_mysql() pre-allocated this much */
+	/* row_create_update_node_for_mysql() pre-allocated this much.
+	   At least one PK column always remains unchanged. */
 	ut_ad(update->n_fields < ulint(table->n_cols + table->n_v_cols));
 
 	update->n_fields++;
@@ -3496,19 +3497,3 @@ void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
 	dfield_set_data(&ufield->new_val, update->vers_sys_value, col->len);
 }
 
-/** Also set row_start = CURRENT_TIMESTAMP/trx->id
-@param[in]	trx	transaction */
-void upd_node_t::make_versioned_update(const trx_t* trx)
-{
-	make_versioned_helper(trx, table->vers_start);
-}
-
-/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
-Do not touch other fields at all.
-@param[in]	trx	transaction */
-void upd_node_t::make_versioned_delete(const trx_t* trx)
-{
-	update->n_fields = 0;
-	is_delete = VERSIONED_DELETE;
-	make_versioned_helper(trx, table->vers_end);
-}
