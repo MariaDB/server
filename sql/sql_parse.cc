@@ -8496,7 +8496,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
     cj_nest->on_expr= tbl->on_expr;
     cj_nest->embedding= tbl->embedding;
     cj_nest->join_list= jl;
-    cj_nest->alias= {STRING_WITH_LEN("(nest_last_join)")};
+    cj_nest->alias.str= "(nest_last_join)";
+    cj_nest->alias.length= sizeof("(nest_last_join)");
     li.replace(cj_nest);
 
     /*
