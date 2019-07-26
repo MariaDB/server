@@ -1,4 +1,4 @@
-# generate tests from test generator python programs
+# generate tests from test generator python2 programs
 
 S = $(wildcard *.py)
 T = $(patsubst %.py,%.test,$(S))
@@ -6,5 +6,5 @@ T = $(patsubst %.py,%.test,$(S))
 default: $(T)
 
 %.test: %.py
-	python $< >$@
+	python2 $< >$@
 
