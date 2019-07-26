@@ -381,7 +381,4 @@ planner	167	41.75
 postcard	23	5.75
 DROP TABLE t1;
 true
-<<<<<<< HEAD
-=======
 set connect_enable_mongo=0;
->>>>>>> connect/10.0

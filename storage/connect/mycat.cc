@@ -134,7 +134,9 @@ TABTYPE GetTypeID(const char *type)
 #endif
 #if defined(JAVA_SUPPORT)
 								 : (!stricmp(type, "JDBC"))  ? TAB_JDBC
-		             : (!stricmp(type, "MONGO")) ? TAB_MONGO
+#endif
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+		             : (!stricmp(type, "MONGO") && MongoEnabled()) ? TAB_MONGO
 #endif
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 		             : (!stricmp(type, "MONGO") && MongoEnabled()) ? TAB_MONGO

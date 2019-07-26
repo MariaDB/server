@@ -178,30 +178,38 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 				v = 'Y';
 			}	// endif len
 
-		break;
-	case 92:   // TIME
-		type = TYPE_DATE;
-		len = 8 + ((prec) ? (prec+1) : 0);
-		v = 'T';
-		break;
-	case -5:   // BIGINT
-		type = TYPE_BIGINT;
-		break;
-	case 0:    // NULL
-	case -2:   // BINARY
-	case -4:   // LONGVARBINARY
-	case 70:   // DATALINK
-	case 2000: // JAVA_OBJECT
-	case 2001: // DISTINCT
-	case 2002: // STRUCT
-	case 2003: // ARRAY
-	case 2004: // BLOB
-	case 2005: // CLOB
-	case 2006: // REF
-	case 2009: // SQLXML
-	case 2011: // NCLOB
-	default:
-		type = TYPE_ERROR;
+			break;
+		case 92:   // TIME
+			type = TYPE_DATE;
+			len = 8 + ((prec) ? (prec + 1) : 0);
+			v = 'T';
+			break;
+		case -5:   // BIGINT
+			type = TYPE_BIGINT;
+			break;
+		case 1111: // UNKNOWN or UUID
+			if (!tn || !stricmp(tn, "UUID")) {
+				type = TYPE_STRING;
+				len = 36;
+				break;
+			}	// endif tn
+
+			// Pass through
+		case 0:    // NULL
+		case -2:   // BINARY
+		case -4:   // LONGVARBINARY
+		case 70:   // DATALINK
+		case 2000: // JAVA_OBJECT
+		case 2001: // DISTINCT
+		case 2002: // STRUCT
+		case 2003: // ARRAY
+		case 2004: // BLOB
+		case 2005: // CLOB
+		case 2006: // REF
+		case 2009: // SQLXML
+		case 2011: // NCLOB
+		default:
+			type = TYPE_ERROR;
 		len = 0;
 	} // endswitch type
 
