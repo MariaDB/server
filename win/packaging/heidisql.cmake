@@ -12,5 +12,5 @@ IF(NOT EXISTS ${HEIDISQL_DOWNLOAD_DIR}/${HEIDISQL_ZIP})
   )
 ENDIF()
 
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/heidisql.wxi.in ${CMAKE_CURRENT_BINARY_DIR}/heidisql.wxi)
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/heidisql_feature.wxi.in ${CMAKE_CURRENT_BINARY_DIR}/heidisql_feature.wxi)
+CONFIGURE_FILE(${SRCDIR}/heidisql.wxi.in ${CMAKE_CURRENT_BINARY_DIR}/heidisql.wxi)
+CONFIGURE_FILE(${SRCDIR}/heidisql_feature.wxi.in ${CMAKE_CURRENT_BINARY_DIR}/heidisql_feature.wxi)
