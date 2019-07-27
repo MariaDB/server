@@ -144,8 +144,6 @@ enum enum_indicator_type
 #define STMT_BULK_FLAG_INSERT_ID_REQUEST 64
 
 
-/* sql type stored in .frm files for virtual fields */
-#define MYSQL_TYPE_VIRTUAL 245
 /*
   Length of random string sent by server on handshake; this is also length of
   obfuscated password, received from client
@@ -500,7 +498,8 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
                         MYSQL_TYPE_BLOB_COMPRESSED= 140,
                         MYSQL_TYPE_VARCHAR_COMPRESSED= 141,
 
-                        MYSQL_TYPE_NEWDECIMAL=246,
+			MYSQL_TYPE_JSON=245,
+			MYSQL_TYPE_NEWDECIMAL=246,
 			MYSQL_TYPE_ENUM=247,
 			MYSQL_TYPE_SET=248,
 			MYSQL_TYPE_TINY_BLOB=249,

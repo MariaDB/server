@@ -16,6 +16,7 @@
 
 #include "mariadb.h"
 #include "sql_type.h"
+#include "sql_type_json_binary.h"
 #include "sql_const.h"
 #include "sql_class.h"
 #include "sql_time.h"
@@ -1849,6 +1850,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_DOUBLE:      return &type_handler_double;
   case MYSQL_TYPE_NULL:        return &type_handler_null;
   case MYSQL_TYPE_VARCHAR:     return &type_handler_varchar;
+  case MYSQL_TYPE_JSON:        return &type_handler_json_binary;
   case MYSQL_TYPE_TINY_BLOB:   return &type_handler_tiny_blob;
   case MYSQL_TYPE_MEDIUM_BLOB: return &type_handler_medium_blob;
   case MYSQL_TYPE_LONG_BLOB:   return &type_handler_long_blob;
@@ -1905,6 +1907,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_NULL:        return &type_handler_null;
   case MYSQL_TYPE_VARCHAR:     return &type_handler_varchar;
   case MYSQL_TYPE_VARCHAR_COMPRESSED: return &type_handler_varchar_compressed;
+  case MYSQL_TYPE_JSON:        return &type_handler_json_binary;
   case MYSQL_TYPE_TINY_BLOB:   return &type_handler_tiny_blob;
   case MYSQL_TYPE_MEDIUM_BLOB: return &type_handler_medium_blob;
   case MYSQL_TYPE_LONG_BLOB:   return &type_handler_long_blob;

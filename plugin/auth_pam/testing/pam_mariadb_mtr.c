@@ -56,7 +56,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     if (strcmp(r1, "crash pam module") == 0 && atoi(r2) == 616)
       abort();
 
-    if (strlen(r1) == (uint)atoi(r2) % 100)
+    if (strlen(r1) == (size_t)atoi(r2) % 100)
       retval = PAM_SUCCESS;
     else
       retval = PAM_AUTH_ERR;

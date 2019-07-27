@@ -666,6 +666,12 @@ can_convert_field_to(Field *field,
              (field->real_type() == MYSQL_TYPE_DATETIME2 &&
               source_type == MYSQL_TYPE_DATETIME))) ||
             /*
+              Conversion from MYSQL JSON to MariaDB JSON is non-lossy.
+             */
+            (metadata == 0 &&
+             (field->real_type() == MYSQL_TYPE_BLOB &&
+              source_type == MYSQL_TYPE_JSON)) ||
+            /*
               Conversion from MySQL56 TIMESTAMP(N), TIME(N), DATETIME(N)
               to the corresponding MariaDB or MySQL55 types is non-lossy.
             */
@@ -868,12 +874,12 @@ can_convert_field_to(Field *field,
   current settings of @c SLAVE_TYPE_CONVERSIONS.
 
   If the tables are compatible and conversions are required, @c
-  *tmp_table_var will be set to a virtual temporary table with field
+  *conv_table_var will be set to a virtual temporary table with field
   pointers for the fields that require conversions.  This allow simple
   checking of whether a conversion are to be applied or not.
 
   If tables are compatible, but no conversions are necessary, @c
-  *tmp_table_var will be set to NULL.
+  *conv_table_var will be set to NULL.
 
   @param rli_arg[in]
   Relay log info, for error reporting.
@@ -881,7 +887,7 @@ can_convert_field_to(Field *field,
   @param table[in]
   Table to compare with
 
-  @param tmp_table_var[out]
+  @param conv_table_var[out]
   Virtual temporary table for performing conversions, if necessary.
 
   @retval true Master table is compatible with slave table.

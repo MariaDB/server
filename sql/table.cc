@@ -2140,7 +2140,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	comment_pos+=   comment_length;
       }
 
-      if ((uchar) strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL)
+      if (strpos[10] & MYSQL57_GENERATED_FIELD)
       {
         /*
           MariaDB version 10.0 version.
