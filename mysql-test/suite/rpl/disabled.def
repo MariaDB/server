@@ -15,5 +15,4 @@ rpl_get_master_version_and_clock : Bug#11766137 Jan 05 2011 joro Valgrind warnin
 rpl_partition_archive     : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
 rpl_row_binlog_max_cache_size : MDEV-11092
 rpl_row_index_choice      : MDEV-11666
-mdev_17588: MDEV-20137
 rpl_slave_grp_exec: MDEV-10514
