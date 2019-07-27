@@ -1,23 +1,28 @@
 --source include/master-slave.inc
 --source include/have_innodb.inc
 
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
 --connection master
 create table t1 (a int) engine=innodb;
 create table t2 (a int);
 create table t3 (a int) engine=innodb;
---source include/save_master_gtid.inc
+--save_master_pos
 
 --connection slave
 # Using ER_UNKNOWN_STORAGE_ENGINE wont work
 let $slave_sql_errno= 1286;
---source include/wait_for_slave_sql_error.inc
---let $status_items= Last_Error
---source include/show_slave_status.inc
-STOP SLAVE IO_THREAD;
-source include/wait_for_slave_to_stop.inc;
-SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
---source include/start_slave.inc
---source include/sync_with_master_gtid.inc
+--source include/wait_for_slave_sql_error_and_skip.inc
+--sync_with_master
+
+--let $show_statement= SHOW PROCESSLIST
+--let $field= State
+--let $condition= 'Slave has read all relay log; waiting for the slave I/O thread to update it';
+--source include/wait_show_condition.inc
+
 show tables;
 show create table t2;
 --error ER_NO_SUCH_TABLE
