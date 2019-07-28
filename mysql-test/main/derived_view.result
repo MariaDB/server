@@ -1624,7 +1624,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 't.a' of SELECT #3 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(1,<expr_cache><`test`.`t1`.`a`>(exists(/* select#3 */ select 28 from `test`.`t3` where 'j' < `test`.`t1`.`a`)))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(1,<expr_cache><`test`.`t1`.`a`>(exists(/* select#3 */ select 28 from `test`.`t3` where 'j' < `test`.`t1`.`a` limit 1)))
 SELECT * FROM (SELECT * FROM t1) AS t
 WHERE EXISTS (SELECT t2.a FROM t3 RIGHT JOIN t2 ON (t3.a = t2.a)
 WHERE t2.b < t.a);
@@ -3422,3 +3422,60 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 7	DERIVED	p9	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
 7	DERIVED	p10	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
 DROP TABLE  t1, t2;
+#
+# MDEV-19778: equality condition for mergeable view returning constants
+#             in its columns and used as inner table of outer join
+#
+create table t1 (pk int, a int);
+insert into t1 values (1,7), (2,3), (3,2), (4,3);
+create table t2 (b int);
+insert into t2 values (5), (1), (NULL), (3);
+create table t3 (c int);
+insert into t3 values (1), (8);
+create view v1 as
+select 3 as d, t2.b from t2;
+select * from t1 left join v1 on t1.pk <= 2 where t1.a=v1.d;
+pk	a	d	b
+2	3	3	5
+2	3	3	1
+2	3	3	NULL
+2	3	3	3
+explain extended select * from t1 left join v1 on t1.pk <= 2 where t1.a=v1.d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,3 AS `d`,`test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = 3 and `test`.`t1`.`pk` <= 2
+select * from t1 left join (select 3 as d, t2.b from t2) dt on t1.pk <= 2
+where t1.a=dt.d;
+pk	a	d	b
+2	3	3	5
+2	3	3	1
+2	3	3	NULL
+2	3	3	3
+explain extended select * from t1 left join (select 3 as d, t2.b from t2) dt on t1.pk <= 2
+where t1.a=dt.d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,3 AS `d`,`test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = 3 and `test`.`t1`.`pk` <= 2
+select * from t1 left join (v1,t3) on t1.pk <= 2 where t1.a=v1.d;
+pk	a	d	b	c
+2	3	3	5	1
+2	3	3	5	8
+2	3	3	1	1
+2	3	3	1	8
+2	3	3	NULL	1
+2	3	3	NULL	8
+2	3	3	3	1
+2	3	3	3	8
+explain extended select * from t1 left join (v1,t3) on t1.pk <= 2 where t1.a=v1.d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,3 AS `d`,`test`.`t2`.`b` AS `b`,`test`.`t3`.`c` AS `c` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`a` = 3 and `test`.`t1`.`pk` <= 2
+drop view v1;
+drop table t1,t2,t3;

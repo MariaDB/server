@@ -1211,6 +1211,410 @@ DROP PROCEDURE p1;
 DROP TABLE t1,t2,t3,t4,t5;
 
 --echo #
+--echo # MDEV-19421: Embedding inner joins
+--echo #
+
+create table t1 (a int);
+insert into t1 values (7), (5), (3);
+create table s1 (b int);
+insert into s1 values (7), (5), (3);
+create table t2 (a int);
+insert into t2 values (5), (1), (7);
+create table s2 (b int);
+insert into s2 values (5), (1), (7);
+create table t3 (a int);
+insert into t3 values (2), (7), (3);
+create table t4 (a int);
+insert into t4 values (4), (7), (9), (5);
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 on t2.a=t3.a on t1.a=t2.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 on t2.a=t3.a on t1.a=t2.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 on t2.a=t3.a on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 using(a) using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 using(a) using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 using(a) using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3 on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 left join t3 on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 right join t3 on t1.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join (t2 join t3 on t2.a=t3.a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join (t2 left join t3 on t2.a=t3.a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join (t2 right join t3 on t2.a=t3.a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 left join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 right join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from s1 join t2 join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from s1 join t2 left join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from s1 join t2 right join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b, t2.a as t2_a, t3.a as t3_a
+from (s1 join t2) right join t3 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 natural join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 natural left join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select *
+from s1 join t2 natural right join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from t1 join t2 join t3
+where t1.a=t2.a and t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
+from s1 join s2 join t3 join t4 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
+from s1 join s2 join t3 left join t4 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
+from s1 join s2 join t3 right join t4 using(a);
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 join t3 on t2.a=t3.a join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 left join t3 on t2.a=t3.a join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 on t2.a=t3.a join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t2 join t3 using(a) join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t2 left join t3 using(a) join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t2 right join t3 using(a) join t4;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 left join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 left join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 left join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 right join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 right join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 right join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t1 left join t2 on s1.b=t2.a join t3 join t4 on t4.a=s1.b;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t1 left join t2 on s1.b=t2.a join t3 left join t4 on t4.a=s1.b;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from s1 join t1 left join t2 on s1.b=t2.a join t3 right join t4 on t4.a=s1.b;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from s1 join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from s1 left join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
+from s1 right join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from (t1 join t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+let $q=
+select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
+from (t1, t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
+eval explain extended $q;
+eval $q;
+
+drop table t1,t2,t3,t4,s1,s2;
+
+--echo #
 --echo # End of MariaDB 5.5 tests
 --echo #
 

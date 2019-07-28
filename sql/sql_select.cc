@@ -1812,7 +1812,6 @@ JOIN::optimize_inner()
       DBUG_RETURN(1); /* purecov: inspected */
     /* dump_TABLE_LIST_graph(select_lex, select_lex->leaf_tables); */
     select_lex->update_used_tables();
-
   }
   
   eval_select_list_used_tables();
@@ -1881,6 +1880,8 @@ JOIN::optimize_inner()
     sel->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
 
     sel->where= conds;
+
+    select_lex->update_used_tables();
 
     if (arena)
       thd->restore_active_arena(arena, &backup);
@@ -14338,6 +14339,9 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
   {
     if (((Item_ref*)left_item)->get_depended_from())
       return FALSE;
+    if (((Item_direct_view_ref*)left_item)->get_null_ref_table() !=
+        NO_NULL_TABLE && !left_item->real_item()->used_tables())
+      return FALSE;
     left_item= left_item->real_item();
   }
   if (right_item->type() == Item::REF_ITEM &&
@@ -14345,6 +14349,9 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
       ((Item_ref*)right_item)->ref_type() == Item_ref::REF))
   {
     if (((Item_ref*)right_item)->get_depended_from())
+      return FALSE;
+    if (((Item_direct_view_ref*)right_item)->get_null_ref_table() !=
+        NO_NULL_TABLE && !right_item->real_item()->used_tables())
       return FALSE;
     right_item= right_item->real_item();
   }

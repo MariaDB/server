@@ -90,23 +90,23 @@ CREATE TABLE t2 LIKE t1;
 # Test alias in subquery
 CREATE VIEW v1 AS SELECT a FROM t1 WHERE EXISTS (SELECT 1 FROM t2 AS b WHERE b.a = 0);
 DROP VIEW v1;
-CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select 1 from `test`.`t2` `b` where `b`.`a` = 0);
+CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select 1 from `test`.`t2` `b` where `b`.`a` = 0 limit 1);
 DROP VIEW v1;
 # Test column alias in subquery
 CREATE VIEW v1 AS SELECT a FROM t1 WHERE EXISTS (SELECT a AS alias FROM t1 GROUP BY alias);
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` where exists(select `t1`.`a` AS `alias` from `t1` group by `t1`.`a`)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` where exists(select `t1`.`a` AS `alias` from `t1` group by `t1`.`a` limit 1)	latin1	latin1_swedish_ci
 DROP VIEW v1;
-CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select `test`.`t1`.`a` AS `alias` from `test`.`t1` group by `test`.`t1`.`a`);
+CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select `test`.`t1`.`a` AS `alias` from `test`.`t1` group by `test`.`t1`.`a` limit 1);
 DROP VIEW v1;
 # Alias as the expression column name.
 CREATE VIEW v1 AS SELECT a FROM t1 WHERE EXISTS (SELECT '  a   ' AS alias FROM t1 GROUP BY alias);
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` where exists(select '  a   ' AS `alias` from `t1` group by '  a   ')	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` where exists(select '  a   ' AS `alias` from `t1` group by '  a   ' limit 1)	latin1	latin1_swedish_ci
 DROP VIEW v1;
-CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select '  a   ' AS `alias` from `test`.`t1` group by '  a   ');
+CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select '  a   ' AS `alias` from `test`.`t1` group by '  a   ' limit 1);
 DROP VIEW v1;
 DROP TABLE t1, t2;
 create view v1 as select interval(55,10) as my_col;

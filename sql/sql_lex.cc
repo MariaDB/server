@@ -3071,14 +3071,13 @@ void st_select_lex::print_limit(THD *thd,
   if (item && unit->global_parameters() == this)
   {
     Item_subselect::subs_type subs_type= item->substype();
-    if (subs_type == Item_subselect::EXISTS_SUBS ||
-        subs_type == Item_subselect::IN_SUBS ||
+    if (subs_type == Item_subselect::IN_SUBS ||
         subs_type == Item_subselect::ALL_SUBS)
     {
       return;
     }
   }
-  if (explicit_limit)
+  if (explicit_limit && select_limit)
   {
     str->append(STRING_WITH_LEN(" limit "));
     if (offset_limit)
@@ -5514,6 +5513,19 @@ bool LEX::push_context(Name_resolution_context *context)
                         0)));
   bool res= context_stack.push_front(context, thd->mem_root);
   DBUG_RETURN(res);
+}
+
+
+Name_resolution_context *LEX::pop_context()
+{
+  DBUG_ENTER("LEX::pop_context");
+  Name_resolution_context *context= context_stack.pop();
+  DBUG_PRINT("info", ("Context: %p Select: %p (%d)",
+                       context, context->select_lex,
+                       (context->select_lex ?
+                        context->select_lex->select_number:
+                        0)));
+  DBUG_RETURN(context);
 }
 
 

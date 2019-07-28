@@ -2236,3 +2236,37 @@ JOIN
  ) gp_20 ON gp_20.id=t2.id ;
 
 DROP TABLE  t1, t2;
+
+--echo #
+--echo # MDEV-19778: equality condition for mergeable view returning constants
+--echo #             in its columns and used as inner table of outer join
+--echo #
+
+create table t1 (pk int, a int);
+insert into t1 values (1,7), (2,3), (3,2), (4,3);
+create table t2 (b int);
+insert into t2 values (5), (1), (NULL), (3);
+create table t3 (c int);
+insert into t3 values (1), (8);
+
+create view v1 as
+select 3 as d, t2.b from t2;
+
+let $q=
+select * from t1 left join v1 on t1.pk <= 2 where t1.a=v1.d;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join (select 3 as d, t2.b from t2) dt on t1.pk <= 2
+  where t1.a=dt.d;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join (v1,t3) on t1.pk <= 2 where t1.a=v1.d;
+eval $q;
+eval explain extended $q;
+
+drop view v1;
+drop table t1,t2,t3;
