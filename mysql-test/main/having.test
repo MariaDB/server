@@ -909,4 +909,17 @@ HAVING t.f != 112 AND t.f = 'x' AND t.f != 'a';
 
 DROP TABLE t1,t2;
 
+
+--echo #
+--echo # MDEV-20200: AddressSanitizer: use-after-poison in
+--echo # Item_direct_view_ref::get_null_ref_table
+--echo #
+
+CREATE TABLE t (f VARCHAR(512));
+INSERT INTO t VALUES ('a'),('b');
+SELECT * FROM t HAVING f = 'foo';
+
+# Cleanup
+DROP TABLE t;
+
 --echo # End of 10.4 tests
