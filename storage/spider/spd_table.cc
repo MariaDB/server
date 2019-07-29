@@ -10039,6 +10039,8 @@ void *spider_table_bg_sts_action(
       }
       ++i;
     }
+    thd->mysys_var->current_cond = &thread->cond;
+    thd->mysys_var->current_mutex = &thread->mutex;
     DBUG_PRINT("info",("spider first_free_wait=%s",
       thread->first_free_wait ? "TRUE" : "FALSE"));
     if (!thread->first_free_wait && !thd->killed)
@@ -10067,6 +10069,8 @@ void *spider_table_bg_sts_action(
       }
       ++i;
     }
+    thd->mysys_var->current_cond = &thread->cond;
+    thd->mysys_var->current_mutex = &thread->mutex;
     thd->client_capabilities -= CLIENT_MULTI_RESULTS;
     reenable_binlog(thd);
     thread->init_command = FALSE;
