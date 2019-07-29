@@ -66,6 +66,7 @@ extern pthread_attr_t spider_pt_attr;
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key spd_key_mutex_mta_conn;
 extern PSI_mutex_key spd_key_mutex_conn_i;
+extern PSI_mutex_key spd_key_mutex_conn_loop_check;
 extern PSI_cond_key spd_key_cond_conn_i;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 extern PSI_mutex_key spd_key_mutex_bg_conn_chain;
@@ -741,6 +742,11 @@ SPIDER_CONN *spider_create_conn(
     goto error_mta_conn_mutex_init;
   }
 
+  if (unlikely((*error_num = spider_conn_init(conn))))
+  {
+    goto error_conn_init;
+  }
+
   spider_conn_queue_connect(share, conn, link_idx);
   conn->ping_time = (time_t) time((time_t*) 0);
   conn->connect_error_time = conn->ping_time;
@@ -792,12 +798,10 @@ SPIDER_CONN *spider_create_conn(
 
   DBUG_RETURN(conn);
 
-/*
-error_init_lock_table_hash:
-  DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
-  pthread_mutex_destroy(&conn->mta_conn_mutex);
-*/
 error_too_many_ipport_count:
+  spider_conn_done(conn);
+error_conn_init:
+  pthread_mutex_destroy(&conn->mta_conn_mutex);
 error_mta_conn_mutex_init:
 error_db_conn_init:
   delete conn->db_conn;
@@ -1232,6 +1236,20 @@ SPIDER_CONN *spider_get_conn(
       conn->queued_ping = FALSE;
   }
 
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  if (conn_kind == SPIDER_CONN_KIND_MYSQL)
+  {
+#endif
+    if (unlikely(spider &&
+      (*error_num = spider_conn_queue_loop_check(
+        conn, spider, base_link_idx))))
+    {
+      goto error;
+    }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  }
+#endif
+
   DBUG_PRINT("info",("spider conn=%p", conn));
   DBUG_RETURN(conn);
 
@@ -1524,6 +1542,7 @@ void spider_conn_clear_queue(
   conn->queued_time_zone = FALSE;
   conn->queued_trx_start = FALSE;
   conn->queued_xa_start = FALSE;
+  my_hash_reset(&conn->loop_check_queue);
   DBUG_VOID_RETURN;
 }
 

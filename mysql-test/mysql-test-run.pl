@@ -1766,6 +1766,7 @@ sub command_line_setup {
   {
     $opt_debug= 1;
     $debug_d= "d,query,info,error,enter,exit";
+    $debug_d= "S:T:t:r:p:n:L:i:F:f:D:d,info,error,query,my,exit,general,where,enter,plugin";
   }
 }
 

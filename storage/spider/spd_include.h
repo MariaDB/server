@@ -270,7 +270,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           268
+#define SPIDER_MEM_CALC_LIST_NUM           270
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -611,6 +611,10 @@ typedef struct st_spider_conn
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
 #endif
   SPIDER_IP_PORT_CONN *ip_port_conn;
+
+  pthread_mutex_t    loop_check_mutex;
+  HASH               loop_checked;
+  HASH               loop_check_queue;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share

@@ -26,6 +26,36 @@
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
 #endif
 
+#define SPIDER_CONN_LOOP_CHECK_ROUTE_TO_FLG_SENT (1 << 0)
+
+typedef struct st_spider_conn_loop_check_route_to
+{
+  LEX_CSTRING        name;
+  uchar              flag;
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  my_hash_value_type hash_value;
+#endif
+} SPIDER_CONN_LOOP_CHECK_ROUTE_TO;
+
+typedef struct st_spider_conn_loop_check_route_from
+{
+  LEX_CSTRING        name;
+  LEX_CSTRING        value;
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  my_hash_value_type hash_value;
+#endif
+} SPIDER_CONN_LOOP_CHECK_ROUTE_FROM;
+
+typedef struct st_spider_conn_loop_check
+{
+  LEX_CSTRING        lex_str;
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  my_hash_value_type hash_value;
+#endif
+  HASH               from;
+  HASH               to;
+} SPIDER_CONN_LOOP_CHECK;
+
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
   size_t *length,

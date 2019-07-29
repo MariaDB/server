@@ -231,6 +231,9 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_SUBPARTITION_STR " subpartition "
 #define SPIDER_SQL_SUBPARTITION_LEN (sizeof(SPIDER_SQL_SUBPARTITION_STR) - 1)
 
+#define SPIDER_SQL_LOP_CHK_PRM_PRF_STR "spider_loop_"
+#define SPIDER_SQL_LOP_CHK_PRM_PRF_LEN (sizeof(SPIDER_SQL_LOOP_CHK_PRM_PRF_STR) - 1)
+
 #define SPIDER_CONN_KIND_MYSQL (1 << 0)
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #define SPIDER_CONN_KIND_HS_READ (1 << 2)

@@ -595,6 +595,11 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
     goto error_mta_conn_mutex_init;
   }
 
+  if (unlikely((*error_num = spider_conn_init(conn))))
+  {
+    goto error_conn_init;
+  }
+
   if ((*error_num = spider_db_udf_direct_sql_connect(direct_sql, conn)))
     goto error;
   conn->ping_time = (time_t) time((time_t*) 0);
@@ -648,8 +653,10 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
 
 error:
   DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
-  pthread_mutex_destroy(&conn->mta_conn_mutex);
 error_too_many_ipport_count:
+  spider_conn_done(conn);
+error_conn_init:
+  pthread_mutex_destroy(&conn->mta_conn_mutex);
 error_mta_conn_mutex_init:
 error_db_conn_init:
   delete conn->db_conn;
