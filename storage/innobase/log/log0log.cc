@@ -942,11 +942,14 @@ loop:
 	the trailer fields of the log blocks */
 
 	for (i = 0; i < write_len / OS_FILE_LOG_BLOCK_SIZE; i++) {
+#ifdef UNIV_DEBUG
+		ulint hdr_no_2 = log_block_get_hdr_no(buf) + i;
+		DBUG_EXECUTE_IF("innodb_small_log_block_no_limit",
+				hdr_no_2 = ((hdr_no_2 - 1) & 0xFUL) + 1;);
+#endif
 		ut_ad(pad_len >= len
-		      || i * OS_FILE_LOG_BLOCK_SIZE >= len - pad_len
-		      || log_block_get_hdr_no(
-			      buf + i * OS_FILE_LOG_BLOCK_SIZE)
-			 == log_block_get_hdr_no(buf) + i);
+			|| i * OS_FILE_LOG_BLOCK_SIZE >= len - pad_len
+			|| log_block_get_hdr_no(buf + i * OS_FILE_LOG_BLOCK_SIZE) == hdr_no_2);
 		log_block_store_checksum(buf + i * OS_FILE_LOG_BLOCK_SIZE);
 	}
 

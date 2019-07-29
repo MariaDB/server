@@ -1852,13 +1852,11 @@ innobase_start_or_create_for_mysql()
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
 
-	if (srv_n_log_files * srv_log_file_size >= 512ULL << 30) {
-		/* log_block_convert_lsn_to_no() limits the returned block
-		number to 1G and given that OS_FILE_LOG_BLOCK_SIZE is 512
-		bytes, then we have a limit of 512 GB. If that limit is to
-		be raised, then log_block_convert_lsn_to_no() must be
-		modified. */
-		ib::error() << "Combined size of log files must be < 512 GB";
+	if (srv_n_log_files * srv_log_file_size >= log_group_max_size) {
+		/* Log group size is limited by the size of page number. Remove this
+		limitation when fil_io() is not used for recovery log io. */
+		ib::error() << "Combined size of log files must be < "
+			<< log_group_max_size << " GB";
 
 		return(srv_init_abort(DB_ERROR));
 	}
@@ -2070,7 +2068,7 @@ innobase_start_or_create_for_mysql()
 		ut_a(fil_validate());
 		ut_a(log_space);
 
-		ut_a(srv_log_file_size <= 512ULL << 30);
+		ut_a(srv_log_file_size <= log_group_max_size);
 
 		const ulint size = 1 + ulint((srv_log_file_size - 1)
 					     >> srv_page_size_shift);

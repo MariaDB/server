@@ -20453,7 +20453,7 @@ static MYSQL_SYSVAR_LONG(log_buffer_size, innobase_log_buffer_size,
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of each log file in a log group.",
-  NULL, NULL, 48 << 20, 1 << 20, 512ULL << 30, UNIV_PAGE_SIZE_MAX);
+  NULL, NULL, 48 << 20, 1 << 20, log_group_max_size, UNIV_PAGE_SIZE_MAX);
 /* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
 but fil_space_t is being used for the redo log, and it uses data pages. */
 

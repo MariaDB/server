@@ -1298,7 +1298,7 @@ struct my_option xb_server_options[] =
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
-   GET_ULL, REQUIRED_ARG, 48 << 20, 1 << 20, 512ULL << 30, 0,
+   GET_ULL, REQUIRED_ARG, 48 << 20, 1 << 20, log_group_max_size, 0,
    UNIV_PAGE_SIZE_MAX, 0},
   {"innodb_log_files_in_group", OPT_INNODB_LOG_FILES_IN_GROUP,
    "Ignored for mysqld option compatibility",

@@ -3333,6 +3333,7 @@ sub mysql_install_db {
   # Create the bootstrap.sql file
   # ----------------------------------------------------------------------
   my $bootstrap_sql_file= "$opt_vardir/log/bootstrap.sql";
+  $ENV{'MYSQL_BOOTSTRAP_SQL_FILE'}= $bootstrap_sql_file;
 
   if (! -e $bootstrap_sql_file)
   {

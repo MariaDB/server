@@ -40,6 +40,10 @@ Created 12/9/1995 Heikki Tuuri
 #include "os0event.h"
 #include "os0file.h"
 
+#ifndef UINT32_MAX
+#define UINT32_MAX             (4294967295U)
+#endif
+
 /** Redo log group */
 struct log_group_t;
 
@@ -526,6 +530,12 @@ MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
 					/* second checkpoint field in the log
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
+
+/* As long as fil_io() is used to handle log io, log group max size is limited
+by (maximum page number) * (minimum page size). Page number type is uint32_t.
+Remove this limitation if page number is no longer used for log file io. */
+static const ulonglong log_group_max_size =
+	((ulonglong(UINT32_MAX) + 1) * UNIV_PAGE_SIZE_MIN - 1);
 
 /** The state of a log group */
 enum log_group_state_t {
