@@ -7380,10 +7380,16 @@ int spider_db_init(
   DBUG_PRINT("info",("spider before releasing mutex"));
   pthread_mutex_unlock(&spider_table_sts_threads[0].mutex);
   DBUG_PRINT("info",("spider after releasing mutex"));
+  if (spider_table_sts_threads[0].error)
+  {
+    error_num = spider_table_sts_threads[0].error;
+    goto error_init_sql;
+  }
 #endif
   DBUG_RETURN(0);
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
+error_init_sql:
 error_init_dbton:
   for (roop_count--; roop_count >= 0; roop_count--)
   {
@@ -10033,7 +10039,8 @@ void *spider_table_bg_sts_action(
         (uint) spider_init_queries[i].length, FALSE, FALSE);
       if (unlikely(thd->is_error()))
       {
-        fprintf(stderr, "[ERROR] %s\n", thd->get_stmt_da()->message());
+        thread->error = spider_stmt_da_sql_errno(thd);
+        fprintf(stderr, "[ERROR] %s\n", spider_stmt_da_message(thd));
         thd->clear_error();
         break;
       }
@@ -10057,17 +10064,20 @@ void *spider_table_bg_sts_action(
       pthread_cond_wait(&thread->cond, &thread->mutex);
       thread->thd_wait = FALSE;
     }
-    while (spider_init_queries[i].length && !thd->killed)
+    if (likely(!thread->error))
     {
-      dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
-        (uint) spider_init_queries[i].length, FALSE, FALSE);
-      if (unlikely(thd->is_error()))
+      while (spider_init_queries[i].length && !thd->killed)
       {
-        fprintf(stderr, "[ERROR] %s\n", thd->get_stmt_da()->message());
-        thd->clear_error();
-        break;
+        dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
+          (uint) spider_init_queries[i].length, FALSE, FALSE);
+        if (unlikely(thd->is_error()))
+        {
+          fprintf(stderr, "[ERROR] %s\n", spider_stmt_da_message(thd));
+          thd->clear_error();
+          break;
+        }
+        ++i;
       }
-      ++i;
     }
     thd->mysys_var->current_cond = &thread->cond;
     thd->mysys_var->current_mutex = &thread->mutex;
