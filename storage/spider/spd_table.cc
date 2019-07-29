@@ -10027,7 +10027,7 @@ void *spider_table_bg_sts_action(
     tmp_disable_binlog(thd);
     thd->security_ctx->skip_grants();
     thd->client_capabilities |= CLIENT_MULTI_RESULTS;
-    while (spider_init_queries[i + 2].length)
+    while (spider_init_queries[i + 2].length && !thd->killed)
     {
       dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
         (uint) spider_init_queries[i].length, FALSE, FALSE);
@@ -10041,7 +10041,7 @@ void *spider_table_bg_sts_action(
     }
     DBUG_PRINT("info",("spider first_free_wait=%s",
       thread->first_free_wait ? "TRUE" : "FALSE"));
-    if (!thread->first_free_wait)
+    if (!thread->first_free_wait && !thd->killed)
     {
       thread->thd_wait = TRUE;
       pthread_cond_wait(&thread->cond, &thread->mutex);
@@ -10049,10 +10049,13 @@ void *spider_table_bg_sts_action(
     }
     DBUG_ASSERT(thread->first_free_wait);
     pthread_cond_signal(&thread->sync_cond);
-    thread->thd_wait = TRUE;
-    pthread_cond_wait(&thread->cond, &thread->mutex);
-    thread->thd_wait = FALSE;
-    while (spider_init_queries[i].length)
+    if (!thd->killed)
+    {
+      thread->thd_wait = TRUE;
+      pthread_cond_wait(&thread->cond, &thread->mutex);
+      thread->thd_wait = FALSE;
+    }
+    while (spider_init_queries[i].length && !thd->killed)
     {
       dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
         (uint) spider_init_queries[i].length, FALSE, FALSE);
@@ -10067,6 +10070,10 @@ void *spider_table_bg_sts_action(
     thd->client_capabilities -= CLIENT_MULTI_RESULTS;
     reenable_binlog(thd);
     thread->init_command = FALSE;
+  }
+  if (thd->killed)
+  {
+    thread->killed = TRUE;
   }
 
   while (TRUE)
