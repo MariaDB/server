@@ -14333,27 +14333,38 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
 {
   Item *orig_left_item= left_item;
   Item *orig_right_item= right_item;
-  if (left_item->type() == Item::REF_ITEM &&
-      (((Item_ref*)left_item)->ref_type() == Item_ref::VIEW_REF ||
-      ((Item_ref*)left_item)->ref_type() == Item_ref::REF))
+  if (left_item->type() == Item::REF_ITEM)
   {
-    if (((Item_ref*)left_item)->get_depended_from())
-      return FALSE;
-    if (((Item_direct_view_ref*)left_item)->get_null_ref_table() !=
-        NO_NULL_TABLE && !left_item->real_item()->used_tables())
-      return FALSE;
-    left_item= left_item->real_item();
+    Item_ref::Ref_Type left_ref= ((Item_ref*)left_item)->ref_type();
+
+    if (left_ref == Item_ref::VIEW_REF ||
+        left_ref == Item_ref::REF)
+    {
+      if (((Item_ref*)left_item)->get_depended_from())
+        return FALSE;
+      if (left_ref == Item_ref::VIEW_REF &&
+          ((Item_direct_view_ref*)left_item)->get_null_ref_table() !=
+           NO_NULL_TABLE &&
+          !left_item->real_item()->used_tables())
+        return FALSE;
+      left_item= left_item->real_item();
+    }
   }
-  if (right_item->type() == Item::REF_ITEM &&
-      (((Item_ref*)right_item)->ref_type() == Item_ref::VIEW_REF ||
-      ((Item_ref*)right_item)->ref_type() == Item_ref::REF))
+  if (right_item->type() == Item::REF_ITEM)
   {
-    if (((Item_ref*)right_item)->get_depended_from())
-      return FALSE;
-    if (((Item_direct_view_ref*)right_item)->get_null_ref_table() !=
-        NO_NULL_TABLE && !right_item->real_item()->used_tables())
-      return FALSE;
-    right_item= right_item->real_item();
+    Item_ref::Ref_Type right_ref= ((Item_ref*)right_item)->ref_type();
+    if (right_ref == Item_ref::VIEW_REF ||
+       (right_ref == Item_ref::REF))
+    {
+      if (((Item_ref*)right_item)->get_depended_from())
+        return FALSE;
+      if (right_ref == Item_ref::VIEW_REF &&
+          ((Item_direct_view_ref*)right_item)->get_null_ref_table() !=
+           NO_NULL_TABLE &&
+          !right_item->real_item()->used_tables())
+        return FALSE;
+      right_item= right_item->real_item();
+    }
   }
   if (left_item->type() == Item::FIELD_ITEM &&
       right_item->type() == Item::FIELD_ITEM &&
