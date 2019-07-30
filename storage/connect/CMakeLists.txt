@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 SET(CONNECT_PLUGIN_STATIC  "connect")
 SET(CONNECT_PLUGIN_DYNAMIC "connect")
@@ -69,6 +69,10 @@ ELSE(NOT UNIX)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
+  IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
+    # Connect does not work with clang-cl
+    RETURN()
+  ENDIF()
 ENDIF(UNIX)
 
 
@@ -109,7 +113,6 @@ IF(CONNECT_WITH_LIBXML2)
   FIND_PACKAGE(LibXml2)
   IF (LIBXML2_FOUND)
     INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
-    SET(ZLIB_LIBRARY "z") # see ZLIB_INCLUDE_DIR below
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp libdoc.h)
     add_definitions(-DLIBXML2_SUPPORT)
@@ -302,6 +305,24 @@ ENDIF(CONNECT_WITH_MONGO)
 
 
 #
+# REST
+#
+
+OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
+
+IF(CONNECT_WITH_REST)
+  MESSAGE(STATUS "=====> REST support is ON")
+  FIND_PACKAGE(cpprestsdk)
+  IF (cpprestsdk_FOUND)
+    MESSAGE(STATUS "=====> cpprestsdk found")
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)
+    add_definitions(-DREST_SUPPORT)
+  ELSE(NOT cpprestsdk_FOUND)
+    MESSAGE(STATUS "=====> cpprestsdk package not found")
+  ENDIF (cpprestsdk_FOUND)
+ENDIF(CONNECT_WITH_REST)
+
+#
 # XMAP
 #
 
@@ -324,14 +345,6 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
 
 IF(NOT TARGET connect)
   RETURN()
-ENDIF()
-
-# Don't link with bundled zlib and systel libxml2 at the same time.
-# System libxml2 uses system zlib, might conflict with the bundled one.
-IF (XML_LIBRARY AND BUILD_BUNDLED_ZLIB)
-  GET_PROPERTY(INCS TARGET connect PROPERTY INCLUDE_DIRECTORIES)
-  LIST(REMOVE_ITEM INCS ${ZLIB_INCLUDE_DIR})
-  SET_PROPERTY(TARGET connect PROPERTY INCLUDE_DIRECTORIES ${INCS})
 ENDIF()
 
 IF(WIN32)

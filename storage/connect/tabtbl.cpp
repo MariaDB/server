@@ -232,7 +232,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   {
   int     n;
   uint    sln;
-  char   *scs;
+  const char   *scs;
   PTABLE  tp, tabp;
   PCOL    colp;
   PTBLDEF tdp = (PTBLDEF)To_Def;
@@ -281,7 +281,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 
     } // endfor tp
 
-  hc->get_table()->s->connect_string.str = scs;
+  hc->get_table()->s->connect_string.str = (char*)scs;
   hc->get_table()->s->connect_string.length = sln;
 
 //NumTables = n;
