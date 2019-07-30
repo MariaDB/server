@@ -42,6 +42,8 @@ COUNT(*)
 >>> Something was written to binary log <<<
 connection master;
 ALTER TABLE t1 ADD PRIMARY KEY pk_t1 (a,b);
+Warnings:
+Warning	1280	Name 'pk_t1' ignored for PRIMARY key.
 connection slave;
 connection master;
 INSERT INTO t1 VALUES (1,2,1),(2,2,2),(3,2,3),(4,2,4);
