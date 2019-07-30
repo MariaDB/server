@@ -28,7 +28,12 @@ WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
+WSREP_SST_OPT_SUFFIX_VALUE=""
+WSREP_SST_OPT_MYSQLD=""
 INNODB_DATA_HOME_DIR_ARG=""
+INNODB_LOG_GROUP_HOME_ARG=""
+INNODB_UNDO_DIR_ARG=""
+LOG_BIN_ARG=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -83,6 +88,18 @@ case "$1" in
         readonly INNODB_DATA_HOME_DIR_ARG="$2"
         shift
         ;;
+    '--innodb-log-group-home-dir')
+        readonly INNODB_LOG_GROUP_HOME_ARG="$2"
+        shift
+        ;;
+    '--innodb-undo-directory')
+        readonly INNODB_UNDO_DIR_ARG="$2"
+        shift
+        ;;
+    '--log-bin')
+        readonly LOG_BIN_ARG="$2"
+        shift
+        ;;
     '--defaults-file')
         readonly WSREP_SST_OPT_DEFAULT="$1=$2"
         shift
@@ -93,6 +110,7 @@ case "$1" in
         ;;
     '--defaults-group-suffix')
         readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_SUFFIX_VALUE="$2"
         shift
         ;;
     '--host')
@@ -142,6 +160,46 @@ case "$1" in
     '--gtid-domain-id')
         readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
         shift
+        ;;
+    '--mysqld-args')
+        original_cmd=""
+        shift
+        while [ $# -gt 0 ]; do
+           option=${1%%=*}
+           if [ "$option" != "--defaults-file" ]; then
+              value=${1#*=}
+              case "$option" in
+                  '--innodb-data-home-dir')
+                      if [ -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+                          readonly INNODB_DATA_HOME_DIR_ARG="$value"
+                      fi
+                      ;;
+                  '--innodb-log-group-home-dir')
+                      if [ -z "$INNODB_LOG_GROUP_HOME_ARG" ]; then
+                          readonly INNODB_LOG_GROUP_HOME_ARG="$value"
+                      fi
+                      ;;
+                  '--innodb-undo-directory')
+                      if [ -z "$INNODB_UNDO_DIR_ARG" ]; then
+                          readonly INNODB_UNDO_DIR_ARG="$value"
+                      fi
+                      ;;
+                  '--log-bin')
+                      if [ -z "$LOG_BIN_ARG" ]; then
+                          readonly LOG_BIN_ARG="$value"
+                      fi
+                      ;;
+              esac
+              if [ -z "$original_cmd" ]; then
+                  original_cmd="$1"
+              else
+                  original_cmd+=" $1"
+              fi
+           fi
+           shift
+        done
+        readonly WSREP_SST_OPT_MYSQLD="$original_cmd"
+        break
         ;;
     *) # must be command
        # usage
