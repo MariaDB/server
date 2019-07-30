@@ -308,7 +308,9 @@ sub report_mysqlds
 
 sub start_mysqlds()
 {
-  my (@groups, $com, $tmp, $i, @options, $j, $mysqld_found, $info_sent);
+  my (@groups, $com, $tmp, $i, @options, $j, $mysqld_found, $suffix_found, $info_sent);
+
+  $suffix_found= 0;
 
   if (!$opt_no_log)
   {
@@ -347,6 +349,10 @@ sub start_mysqlds()
         $options[$j]= quote_shell_word($options[$j]);
         $tmp.= " $options[$j]";
       }
+      elseif ("--defaults-group-suffix=" eq substr($options[$j], 0, 24))
+      {
+        $suffix_found= 1;
+      }
       else
       {
 	$options[$j]= quote_shell_word($options[$j]);
@@ -363,6 +369,12 @@ sub start_mysqlds()
       $info_sent= 1;
     }
     $com.= $tmp;
+
+    if (!$suffix_found)
+    {
+      $com.= " --defaults-group-suffix=";
+      $com.= $groups[$i];
+    }
 
     if ($opt_wsrep_new_cluster) {
       $com.= " --wsrep-new-cluster";

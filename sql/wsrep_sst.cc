@@ -592,17 +592,76 @@ static int sst_append_data_dir(wsp::env& env, const char* data_dir)
   return -env.error();
 }
 
+static size_t estimate_cmd_len (bool* extra_args)
+{
+  /*
+    The length of the area reserved for the control parameters
+    of the SST script (excluding the copying of the original
+    mysqld arguments):
+  */
+  size_t cmd_len= 4096;
+  bool extra= false;
+  /*
+    If mysqld was started with arguments, add them all:
+  */
+  if (orig_argc > 1)
+  {
+    for (int i = 1; i < orig_argc; i++)
+    {
+      cmd_len += strlen(orig_argv[i]);
+    }
+    extra = true;
+    cmd_len += strlen(WSREP_SST_OPT_MYSQLD);
+    /*
+      Add the separating spaces between arguments,
+      and one additional space before "--mysqld-args":
+    */
+    cmd_len += orig_argc;
+  }
+  *extra_args= extra;
+  return cmd_len;
+}
+
+static void copy_orig_argv (char* cmd_str)
+{
+  /*
+     If mysqld was started with arguments, copy them all:
+  */
+  if (orig_argc > 1)
+  {
+    size_t n = strlen(WSREP_SST_OPT_MYSQLD);
+    *cmd_str++ = ' ';
+    memcpy(cmd_str, WSREP_SST_OPT_MYSQLD, n * sizeof(char));
+    cmd_str += n;
+    for (int i = 1; i < orig_argc; i++)
+    {
+      char* arg= orig_argv[i];
+      *cmd_str++ = ' ';
+      n = strlen(arg);
+      memcpy(cmd_str, arg, n * sizeof(char));
+      cmd_str += n;
+    }
+    /*
+      Add a terminating null character (not counted in the length,
+      since we've overwritten the original null character which
+      was previously added by snprintf:
+    */
+    *cmd_str = 0;
+  }
+}
+
 static ssize_t sst_prepare_other (const char*  method,
                                   const char*  sst_auth,
                                   const char*  addr_in,
                                   const char** addr_out)
 {
-  int const cmd_len= 4096;
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
   wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
-    WSREP_ERROR("sst_prepare_other(): could not allocate cmd buffer of %d bytes",
+    WSREP_ERROR("sst_prepare_other(): could not allocate cmd buffer of %zd bytes",
                 cmd_len);
     return -ENOMEM;
   }
@@ -652,6 +711,9 @@ static ssize_t sst_prepare_other (const char*  method,
     WSREP_ERROR("sst_prepare_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   wsp::env env(NULL);
   if (env.error())
@@ -916,13 +978,14 @@ static int sst_donate_mysqldump (const char*         addr,
   }
   memcpy(host, address.get_address(), address.get_address_len());
   int port= address.get_port();
-  int const cmd_len= 4096;
-  wsp::string  cmd_str(cmd_len);
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
     WSREP_ERROR("sst_donate_mysqldump(): "
-                "could not allocate cmd buffer of %d bytes", cmd_len);
+                "could not allocate cmd buffer of %zd bytes", cmd_len);
     return -ENOMEM;
   }
 
@@ -950,6 +1013,9 @@ static int sst_donate_mysqldump (const char*         addr,
     WSREP_ERROR("sst_donate_mysqldump(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   WSREP_DEBUG("Running: '%s'", cmd_str());
 
@@ -1270,13 +1336,14 @@ static int sst_donate_other (const char*   method,
                              bool          bypass,
                              char**        env) // carries auth info
 {
-  int const cmd_len= 4096;
-  wsp::string  cmd_str(cmd_len);
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
     WSREP_ERROR("sst_donate_other(): "
-                "could not allocate cmd buffer of %d bytes", cmd_len);
+                "could not allocate cmd buffer of %zd bytes", cmd_len);
     return -ENOMEM;
   }
 
@@ -1316,6 +1383,9 @@ static int sst_donate_other (const char*   method,
     WSREP_ERROR("sst_donate_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(FALSE);
 

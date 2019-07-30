@@ -116,7 +116,14 @@ then
 fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
+# Try to set WSREP_LOG_DIR from the command line:
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$INNODB_LOG_GROUP_HOME_ARG
+fi
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir '')
+fi
 if [ -z "$WSREP_LOG_DIR" ]; then
     WSREP_LOG_DIR=$(parse_cnf --mysqld innodb-log-group-home-dir '')
 fi
@@ -135,6 +142,9 @@ if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
     INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
 fi
 # if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
 fi

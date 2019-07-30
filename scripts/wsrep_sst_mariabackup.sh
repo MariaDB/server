@@ -699,8 +699,7 @@ if [[ ${FORCE_FTWRL:-0} -eq 1 ]];then
     iopts+=" --no-backup-locks "
 fi
 
-
-INNOEXTRA=""
+INNOEXTRA=$WSREP_SST_OPT_MYSQLD
 
 INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
 # Try to set INNODB_DATA_HOME_DIR from the command line:
@@ -708,6 +707,9 @@ if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
     INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
 fi
 # if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
 fi
@@ -828,7 +830,9 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE tmpdir "") && \
+              -z $(parse_cnf --mysqld tmpdir "") && \
+              -z $(parse_cnf xtrabackup tmpdir "") ]]; then
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir=$xtmpdir "
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -951,8 +955,24 @@ then
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
     ib_home_dir=$INNODB_DATA_HOME_DIR
-    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
+
+    # Try to set ib_log_dir from the command line:
+    ib_log_dir=$INNODB_LOG_GROUP_HOME_ARG
+    if [ -z "$ib_log_dir" ]; then
+        ib_log_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir "")
+    fi
+    if [ -z "$ib_log_dir" ]; then
+        ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    fi
+
+    # Try to set ib_undo_dir from the command line:
+    ib_undo_dir=$INNODB_UNDO_DIR_ARG
+    if [ -z "$ib_undo_dir" ]; then
+        ib_undo_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-undo-directory "")
+    fi
+    if [ -z "$ib_undo_dir" ]; then
+        ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
+    fi
 
     stagemsg="Joiner-Recv"
 
@@ -1029,7 +1049,13 @@ then
             find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
 	fi
 
-        tempdir=$(parse_cnf --mysqld log-bin "")
+        tempdir=$LOG_BIN_ARG
+        if [ -z "$tempdir" ]; then
+           tempdir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE log-bin "")
+        fi
+        if [ -z "$tempdir" ]; then
+            tempdir=$(parse_cnf --mysqld log-bin "")
+        fi
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)
