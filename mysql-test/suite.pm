@@ -62,17 +62,17 @@ sub skip_combinations {
   $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
             unless ::have_mariabackup();
 
-  $skip{'include/have_mariabackup.inc'} = 'Need ss'
-            unless ::which("ss");
+  $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
+            unless IS_WINDOWS || ::which("ss");
 
   $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
-            unless $ENV{MTR_GALERA_TFMT};
+            unless IS_WINDOWS || $ENV{MTR_GALERA_TFMT};
 
   $skip{'include/have_xtrabackup.inc'} = 'Need innobackupex'
-            unless ::which(innobackupex);
+            unless IS_WINDOWS || ::which("innobackupex");
 
   $skip{'include/have_xtrabackup.inc'} = 'Need socat or nc'
-            unless $ENV{MTR_GALERA_TFMT};
+            unless IS_WINDOWS || $ENV{MTR_GALERA_TFMT};
 
   $skip{'include/have_garbd.inc'} = 'Need garbd'
             unless ::have_garbd();

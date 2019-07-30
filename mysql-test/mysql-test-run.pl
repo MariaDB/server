@@ -440,26 +440,36 @@ sub check_wsrep_support() {
     # ADD scripts to $PATH to that wsrep_sst_* can be found
     my ($spath) = grep { -f "$_/wsrep_sst_rsync"; } "$bindir/scripts", $path_client_bindir;
     mtr_error("No SST scripts") unless $spath;
-    $ENV{PATH}="$spath:$ENV{PATH}";
+    my $separator= (IS_WINDOWS) ? ';' : ':';
+    $ENV{PATH}="$spath$separator$ENV{PATH}";
 
     # ADD mysql client library path to path so that wsrep_notify_cmd can find mysql
     # client for loading the tables. (Don't assume each machine has mysql install)
     my ($cpath) = grep { -f "$_/mysql"; } "$bindir/scripts", $path_client_bindir;
     mtr_error("No scritps") unless $cpath;
-    $ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
+    $ENV{PATH}="$cpath$separator$ENV{PATH}" unless $cpath eq $spath;
 
     # ADD my_print_defaults script path to path so that SST scripts can find it
-    my ($epath) = grep { -f "$_/my_print_defaults"; } "$bindir/extra", $path_client_bindir;
+    my $my_print_defaults_exe=
+      mtr_exe_maybe_exists(
+        "$bindir/extra/my_print_defaults",
+        "$path_client_bindir/my_print_defaults");
+    my $epath= "";
+    if ($my_print_defaults_exe ne "") {
+       $epath= dirname($my_print_defaults_exe);
+    }
     mtr_error("No my_print_defaults") unless $epath;
-    $ENV{PATH}="$epath:$ENV{PATH}" unless ($epath eq $spath) or
-                                          ($epath eq $cpath);
+    $ENV{PATH}="$epath$separator$ENV{PATH}" unless ($epath eq $spath) or
+                                                   ($epath eq $cpath);
 
     $extra_path= $epath;
 
-    if (which("socat")) {
-      $ENV{MTR_GALERA_TFMT}="socat";
-    } elsif (which("nc")) {
-      $ENV{MTR_GALERA_TFMT}="nc";
+    if (!IS_WINDOWS) {
+      if (which("socat")) {
+        $ENV{MTR_GALERA_TFMT}="socat";
+      } elsif (which("nc")) {
+        $ENV{MTR_GALERA_TFMT}="nc";
+      }
     }
 
     # Check whether WSREP_PROVIDER environment variable is set.
@@ -506,8 +516,9 @@ sub check_mariabackup_support() {
       "$bindir/extra/mariabackup$opt_vs_config/mariabackup",
       "$path_client_bindir/mariabackup");
   if ($mariabackup_exe ne "") {
-    my ($bpath) = grep { -f "$_/mariabackup"; } "$bindir/extra/mariabackup$opt_vs_config", $path_client_bindir;
-    $ENV{PATH}="$bpath:$ENV{PATH}" unless $bpath eq $extra_path;
+    my $bpath= dirname($mariabackup_exe);
+    my $separator= (IS_WINDOWS) ? ';' : ':';
+    $ENV{PATH}="$bpath$separator$ENV{PATH}" unless $bpath eq $extra_path;
 
     $mariabackup_path= $bpath;
 
