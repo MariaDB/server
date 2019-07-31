@@ -376,3 +376,15 @@ SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
 CREATE TABLE t2 LIKE t1;
 SET debug_dbug= DEFAULT;
 DROP TABLE t1, t2;
+#
+# MDEV-20210
+# If you have an INVISIBLE VIRTUAL column, SHOW CREATE TABLE doesn't list it as INVISIBLE
+#
+CREATE TABLE t1 (i INT, v int GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
