@@ -685,6 +685,25 @@ inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 	lock->type_mode &= ~LOCK_WAIT;
 }
 
+inline
+bool ib_lock_t::is_stronger(ulint precise_mode, ulint heap_no, const trx_t* t) const
+{
+	ut_ad(is_record_lock());
+	return trx == t
+	    && !is_waiting()
+	    && !is_insert_intention()
+	    && (!is_record_not_gap()
+		|| (precise_mode & LOCK_REC_NOT_GAP) /* only record */
+		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
+	    && (!is_gap()
+		|| (precise_mode & LOCK_GAP)         /* only gap */
+		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
+	    && lock_mode_stronger_or_eq(
+		mode(),
+		static_cast<lock_mode>(
+			precise_mode & LOCK_MODE_MASK));
+}
+
 #include "lock0priv.ic"
 
 #endif /* lock0priv_h */
