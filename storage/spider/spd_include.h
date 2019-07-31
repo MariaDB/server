@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -293,7 +294,6 @@ typedef struct st_spider_thread
   volatile bool         thd_wait;
   volatile bool         first_free_wait;
   volatile bool         init_command;
-  volatile int          error;
   pthread_t             thread;
   pthread_cond_t        cond;
   pthread_mutex_t       mutex;
