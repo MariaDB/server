@@ -10068,6 +10068,10 @@ void *spider_table_bg_sts_action(
   {
     thread->killed = TRUE;
   }
+  if (thd->killed)
+  {
+    thread->killed = TRUE;
+  }
 
   while (TRUE)
   {
