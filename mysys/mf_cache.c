@@ -63,6 +63,9 @@ my_bool real_open_cached_file(IO_CACHE *cache)
                                     O_BINARY, MYF(MY_WME | MY_TEMPORARY))) >= 0)
   {
     error=0;
+#ifdef HAVE_PMEMAC
+    cache->pmemac.file_fd= cache->file;
+#endif
   }
   DBUG_RETURN(error);
 }

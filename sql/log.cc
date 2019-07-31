@@ -2402,6 +2402,9 @@ File open_binlog(IO_CACHE *log, const char *log_file_name, const char **errmsg)
   File file;
   DBUG_ENTER("open_binlog");
 
+  /* We shouldn't do this for relay log!!! */
+  mysql_bin_log.pmemac_flush();
+
   if ((file= mysql_file_open(key_file_binlog,
                              log_file_name, O_RDONLY | O_BINARY | O_SHARE,
                              MYF(MY_WME))) < 0)
@@ -2694,6 +2697,18 @@ bool MYSQL_LOG::open(
   else if ((seek_offset= mysql_file_tell(file, MYF(MY_WME))))
     goto err;
 
+#ifdef HAVE_PMEMAC
+  if (log_type == LOG_BIN && io_cache_type == WRITE_CACHE)
+  {
+    if (init_io_cache_with_pmemac(&log_file, file, IO_SIZE, io_cache_type,
+                                  seek_offset, 0,
+                                  MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL),
+                                  &pmem_append_cache_directory, 0,
+                                  log_file_name))
+      goto err;
+  }
+  else
+#endif
   if (init_io_cache(&log_file, file, IO_SIZE, io_cache_type, seek_offset, 0,
                     MYF(MY_WME | MY_NABP |
                         ((log_type == LOG_BIN) ? MY_WAIT_IF_FULL : 0))))
@@ -5460,7 +5475,7 @@ err:
 
 bool MYSQL_BIN_LOG::flush_and_sync(bool *synced)
 {
-  int err=0, fd=log_file.file;
+  int err= 0;
   if (synced)
     *synced= 0;
   mysql_mutex_assert_owner(&LOCK_log);
@@ -5470,7 +5485,11 @@ bool MYSQL_BIN_LOG::flush_and_sync(bool *synced)
   if (sync_period && ++sync_counter >= sync_period)
   {
     sync_counter= 0;
-    err= mysql_file_sync(fd, MYF(MY_WME|MY_SYNC_FILESIZE));
+#ifdef HAVE_PMEMAC
+    err= log_file.pmemac.sync(&log_file.pmemac, MYF(MY_WME | MY_SYNC_FILESIZE));
+#else
+    err= mysql_file_sync(log_file.file, MYF(MY_WME | MY_SYNC_FILESIZE));
+#endif
     if (synced)
       *synced= 1;
 #ifndef DBUG_OFF

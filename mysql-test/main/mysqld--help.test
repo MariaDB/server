@@ -33,7 +33,8 @@ perl;
               test-sql-discovery query-cache-info
               query-response-time metadata-lock-info locales unix-socket
               wsrep file-key-management cracklib-password-check user-variables
-              thread-pool-groups thread-pool-queues thread-pool-stats thread-pool-waits/;
+              thread-pool-groups thread-pool-queues thread-pool-stats
+              thread-pool-waits pmem-append-cache/;
 
   # And substitute the content some environment variables with their
   # names:

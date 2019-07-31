@@ -649,6 +649,19 @@ static Sys_var_mybool Sys_binlog_direct(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
 
+#ifdef HAVE_PMEMAC
+static Sys_var_charptr Sys_pmem_append_cache_file(
+       "pmem_append_cache_file",
+       "Path to persistent memory cache file",
+       READ_ONLY GLOBAL_VAR(pmem_append_cache_file), CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_ulonglong  Sys_pmem_append_cache_size(
+       "pmem_append_cache_size",
+       "Size of persistent memory cache file",
+       READ_ONLY GLOBAL_VAR(pmem_append_cache_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(25, SIZE_T_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
+#endif
 
 static Sys_var_mybool Sys_explicit_defaults_for_timestamp(
        "explicit_defaults_for_timestamp",

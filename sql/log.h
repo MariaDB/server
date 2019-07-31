@@ -931,6 +931,14 @@ public:
   */
   my_off_t binlog_end_pos;
   char binlog_end_pos_file[FN_REFLEN];
+
+  void pmemac_flush()
+  {
+#ifdef HAVE_PMEMAC
+    if (is_open())
+      log_file.pmemac.flush(&log_file.pmemac, 0);
+#endif
+  }
 };
 
 class Log_event_handler

@@ -41,6 +41,9 @@ typedef struct my_aio_result {
 #endif
 #include <mysql/plugin.h>
 #include <mysql/service_my_print_error.h>
+#ifdef HAVE_PMEMAC
+#include "append_cache.h"
+#endif
 
 #define MY_INIT(name)   { my_progname= name; my_init(); }
 
@@ -500,6 +503,9 @@ typedef struct st_io_cache		/* Used when caching files */
   my_off_t aio_read_pos;
   my_aio_result aio_result;
 #endif
+#ifdef HAVE_PMEMAC
+  PMEM_APPEND_CACHE pmemac;
+#endif
 } IO_CACHE;
 
 typedef int (*qsort2_cmp)(const void *, const void *, const void *);
@@ -801,6 +807,14 @@ my_off_t my_get_ptr(uchar *ptr, size_t pack_length);
 extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
 			 enum cache_type type,my_off_t seek_offset,
 			 my_bool use_async_io, myf cache_myflags);
+#ifdef HAVE_PMEMAC
+extern int init_io_cache_with_pmemac(IO_CACHE *info, File file,
+                                     size_t cachesize, enum cache_type type,
+                                     my_off_t seek_offset, my_bool use_async_io,
+                                     myf cache_myflags,
+                                     PMEM_APPEND_CACHE_DIRECTORY *dir,
+                                     uint64_t n, const char *file_name);
+#endif
 extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
 			       my_off_t seek_offset, my_bool use_async_io,
 			       my_bool clear_cache);

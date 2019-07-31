@@ -242,6 +242,11 @@ extern uint max_prepared_stmt_count, prepared_stmt_count;
 extern MYSQL_PLUGIN_IMPORT ulong open_files_limit;
 extern ulonglong binlog_cache_size, binlog_stmt_cache_size, binlog_file_cache_size;
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
+#ifdef HAVE_PMEMAC
+extern ulonglong pmem_append_cache_size;
+extern const char *pmem_append_cache_file;
+extern PMEM_APPEND_CACHE_DIRECTORY pmem_append_cache_directory;
+#endif
 extern ulong max_binlog_size;
 extern ulong slave_max_allowed_packet;
 extern ulong opt_binlog_rows_event_max_size;

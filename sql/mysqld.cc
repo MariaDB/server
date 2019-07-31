@@ -480,6 +480,11 @@ ulong thread_cache_size=0;
 ulonglong binlog_cache_size=0;
 ulonglong binlog_file_cache_size=0;
 ulonglong max_binlog_cache_size=0;
+#ifdef HAVE_PMEMAC
+ulonglong pmem_append_cache_size;
+const char *pmem_append_cache_file;
+PMEM_APPEND_CACHE_DIRECTORY pmem_append_cache_directory;
+#endif
 ulong slave_max_allowed_packet= 0;
 ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
@@ -2018,6 +2023,10 @@ static void clean_up(bool print_message)
   free_global_client_stats();
   free_global_table_stats();
   free_global_index_stats();
+#ifdef HAVE_PMEMAC
+  if (pmem_append_cache_close(&pmem_append_cache_directory))
+    sql_print_error("Failed to close pmem append cache.");
+#endif
   delete_dynamic(&all_options);                 // This should be empty
   free_all_rpl_filters();
   wsrep_thr_deinit();
@@ -5032,6 +5041,15 @@ static int init_server_components()
   /* Allow storage engine to give real error messages */
   if (unlikely(ha_init_errors()))
     DBUG_RETURN(1);
+
+#ifdef HAVE_PMEMAC
+  if (pmem_append_cache_init(&pmem_append_cache_directory,
+                             pmem_append_cache_file, pmem_append_cache_size, 1))
+  {
+    sql_print_error("Failed to initialize pmem append cache.");
+    unireg_abort(1);
+  }
+#endif
 
   tc_log= 0; // ha_initialize_handlerton() needs that
 

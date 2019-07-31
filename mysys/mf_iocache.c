@@ -153,6 +153,20 @@ init_functions(IO_CACHE* info)
 int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
 		  enum cache_type type, my_off_t seek_offset,
 		  my_bool use_async_io, myf cache_myflags)
+#ifdef HAVE_PMEMAC
+{
+  return init_io_cache_with_pmemac(info, file, cachesize, type, seek_offset,
+                                   use_async_io, cache_myflags, 0, 0, 0);
+}
+
+
+int init_io_cache_with_pmemac(IO_CACHE *info, File file,
+                              size_t cachesize, enum cache_type type,
+                              my_off_t seek_offset, my_bool use_async_io,
+                              myf cache_myflags,
+                              PMEM_APPEND_CACHE_DIRECTORY *dir,
+                              uint64_t n, const char *file_name)
+#endif
 {
   size_t min_cache;
   my_off_t pos;
@@ -299,6 +313,10 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
     info->read_function=_my_b_async_read;
   }
   info->inited=info->aio_result.pending=0;
+#endif
+#ifdef HAVE_PMEMAC
+  if (pmem_append_cache_attach(&info->pmemac, dir, n, info->file, file_name))
+    DBUG_RETURN(1);
 #endif
   DBUG_RETURN(0);
 }						/* init_io_cache */
@@ -1751,7 +1769,11 @@ int _my_b_cache_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
     }
     info->seek_not_done=0;
   }
+#ifdef HAVE_PMEMAC
+  if (info->pmemac.write(&info->pmemac, Buffer, Count, info->myflags | MY_NABP))
+#else
   if (mysql_file_write(info->file, Buffer, Count, info->myflags | MY_NABP))
+#endif
     return info->error= -1;
 
   info->pos_in_file+= Count;
@@ -2018,6 +2040,11 @@ int end_io_cache(IO_CACHE *info)
     /* Destroy allocated mutex */
     mysql_mutex_destroy(&info->append_buffer_lock);
   }
+#ifdef HAVE_PMEMAC
+  /* maria_repair_by_sort is calling this with uninitialised info */
+  if (info->write_function && pmem_append_cache_detach(&info->pmemac) && !error)
+    error= -1;
+#endif
   info->share= 0;
   info->type= TYPE_NOT_SET;                  /* Ensure that flush_io_cache() does nothing */
   info->write_end= 0;                        /* Ensure that my_b_write() fails */
