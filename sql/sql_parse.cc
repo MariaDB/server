@@ -4519,6 +4519,7 @@ mysql_execute_command(THD *thd)
 	
 	if (!thd->lex->returning_list.is_empty())
 	{
+    status_var_increment(thd->status_var.feature_insert_returning);
 		 /*This is INSERT ... RETURNING. It will return output to the client */ 
 		if (thd->lex->analyze_stmt)
 		{
@@ -4638,6 +4639,7 @@ mysql_execute_command(THD *thd)
 
 	  if (!thd->lex->returning_list.is_empty())
 	  {
+      status_var_increment(thd->status_var.feature_insert_returning);
 		  /* This is INSERT ... RETURNING.  It will return output to the client */
 		  if (thd->lex->analyze_stmt)
 		  {
