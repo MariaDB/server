@@ -75,4 +75,4 @@ INSERT INTO t2 (num_int2,num_bit2,num_float2,num_double2,char_enum2,char_set2,st
 
 
 DROP TABLE t1;
-DROP TABLE t2;  
+DROP TABLE t2;
