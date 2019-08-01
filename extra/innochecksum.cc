@@ -525,7 +525,8 @@ is_page_corrupted(
 			page_size.is_compressed() ? page_size.physical() : 0);
 		if (is_corrupted && log_file) {
 			fprintf(log_file,
-				"Page " ULINTPF ":%llu may be corrupted;"
+				"[page id: space=" ULINTPF
+				", page_number=%llu] may be corrupted;"
 				" key_version=" ULINTPF "\n",
 				space_id, cur_page_num,
 				mach_read_from_4(
