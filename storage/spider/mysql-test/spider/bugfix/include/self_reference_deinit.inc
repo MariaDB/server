@@ -1,6 +1,5 @@
 --connection master_1
 set global spider_internal_lock_wait_timeout= @old_spider_internal_lock_wait_timeout;
-set spider_same_server_link= @old_spider_same_server_link;
 --let $MASTER_1_COMMENT_2_1= $MASTER_1_COMMENT_2_1_BACKUP
 --disable_warnings
 --disable_query_log

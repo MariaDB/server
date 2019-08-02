@@ -10,6 +10,4 @@ let $MASTER_1_COMMENT_2_1=
   COMMENT='table "tbl_a", host "127.0.0.1", port "$MASTER_1_MYPORT", user "root"';
 --connection master_1
 set @old_spider_internal_lock_wait_timeout= @@spider_internal_lock_wait_timeout;
-set @old_spider_same_server_link= @@spider_same_server_link;
 set global spider_internal_lock_wait_timeout= 0;
-set spider_same_server_link= ON;
