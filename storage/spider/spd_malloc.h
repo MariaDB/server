@@ -1,4 +1,5 @@
-/* Copyright (C) 2012-2014 Kentoku Shiba
+/* Copyright (C) 2012-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,7 +20,7 @@
 #define spider_bulk_malloc(A,B,C,...) \
   spider_bulk_alloc_mem(A,B,__func__,__FILE__,__LINE__,C,__VA_ARGS__)
 #define spider_current_trx \
-  (current_thd ? ((SPIDER_TRX *) thd_get_ha_data(current_thd, spider_hton_ptr)) : NULL)
+  (current_thd && spider_hton_ptr->slot != HA_SLOT_UNDEF ? ((SPIDER_TRX *) thd_get_ha_data(current_thd, spider_hton_ptr)) : NULL)
 
 #define init_calc_mem(A) init_mem_calc(A,__func__,__FILE__,__LINE__)
 
