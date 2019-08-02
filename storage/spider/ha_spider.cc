@@ -8241,28 +8241,9 @@ int ha_spider::info(
       info_auto_called = TRUE;
 #endif
     }
-    DBUG_PRINT("info",
-      ("spider sts_init=%s", share->sts_init ? "TRUE" : "FALSE"));
     if (!share->sts_init)
     {
-#ifdef SPIDER_HAS_MUTEX_TIMEDLOCK
-      struct timespec abstime;
-      set_timespec(abstime, spider_param_internal_lock_wait_timeout());
-      do {
-        error_num = pthread_mutex_timedlock(&share->sts_mutex, &abstime);
-      } while (error_num == EINTR);
-      if (error_num)
-      {
-        error_num = ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_NUM;
-        my_printf_error(error_num, ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_STR,
-          MYF(0), "getting a table status information");
-        DBUG_RETURN(check_error_mode(error_num));
-      }
-#else
       pthread_mutex_lock(&share->sts_mutex);
-#endif
-      DBUG_PRINT("info",
-        ("spider sts_init=%s", share->sts_init ? "TRUE" : "FALSE"));
       if (share->sts_init)
         pthread_mutex_unlock(&share->sts_mutex);
       else {
@@ -8323,25 +8304,7 @@ int ha_spider::info(
         {
 #endif
           if (sts_interval == 0)
-          {
-#ifdef SPIDER_HAS_MUTEX_TIMEDLOCK
-            struct timespec abstime;
-            set_timespec(abstime, spider_param_internal_lock_wait_timeout());
-            do {
-              error_num = pthread_mutex_timedlock(&share->sts_mutex, &abstime);
-            } while (error_num == EINTR);
-            if (error_num)
-            {
-              error_num = ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_NUM;
-              my_printf_error(error_num,
-                ER_SPIDER_INTERNAL_LOCK_WAIT_TIMEOUT_STR,
-                MYF(0), "getting a table status information");
-              DBUG_RETURN(check_error_mode(error_num));
-            }
-#else
             pthread_mutex_lock(&share->sts_mutex);
-#endif
-          }
           if (difftime(tmp_time, share->sts_get_time) >= sts_interval)
           {
             if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this,

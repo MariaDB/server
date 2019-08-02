@@ -2972,26 +2972,6 @@ uint spider_param_conn_wait_timeout()
   DBUG_RETURN(spider_conn_wait_timeout);
 }
 
-static uint spider_internal_lock_wait_timeout;
-static MYSQL_SYSVAR_UINT(
-  internal_lock_wait_timeout,
-  spider_internal_lock_wait_timeout,
-  PLUGIN_VAR_RQCMDARG,
-  "the values, as the max waiting time when spider get a internal mutex lock",
-  NULL,
-  NULL,
-  50, /* def */
-  0, /* min */
-  4294967295U, /* max */
-  0 /* blk */
-);
-
-uint spider_param_internal_lock_wait_timeout()
-{
-  DBUG_ENTER("spider_param_internal_lock_wait_timeout");
-  DBUG_RETURN(spider_internal_lock_wait_timeout);
-}
-
 static uint spider_log_result_errors;
 /*
   0: no log
@@ -3587,7 +3567,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(index_hint_pushdown),
   MYSQL_SYSVAR(max_connections),
   MYSQL_SYSVAR(conn_wait_timeout),
-  MYSQL_SYSVAR(internal_lock_wait_timeout),
   MYSQL_SYSVAR(log_result_errors),
   MYSQL_SYSVAR(log_result_error_with_sql),
   MYSQL_SYSVAR(version),

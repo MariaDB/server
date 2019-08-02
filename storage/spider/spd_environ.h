@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2019 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
    Copyright (C) 2017-2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
@@ -57,7 +57,6 @@
 #define SPIDER_REWRITE_AVAILABLE
 #define SPIDER_TOKEN_10_4
 #define SPIDER_LIKE_FUNC_HAS_GET_NEGATED
-#define SPIDER_HAS_MUTEX_TIMEDLOCK
 #define HA_HAS_CHECKSUM_EXTENDED
 #endif
 #endif /* SPD_ENVIRON_INCLUDED */
