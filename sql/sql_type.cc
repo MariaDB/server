@@ -2482,7 +2482,7 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
 }
 
 /*************************************************************************/
-Field *Type_handler_mysql_json::make_table_field(const LEX_CSTRING *name, 
+Field *Type_handler_mysql_json::make_table_field(const LEX_CSTRING *name,
                                                  const Record_addr &addr,
                                                  const Type_all_attributes &attr,
                                                  TABLE *table) const

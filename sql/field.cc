@@ -11202,29 +11202,29 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
   // Each document should start with a one-byte type specifier.
   if (length < 1)
     return true;
-  
-  // First byte is type, starting from second byte, raw data are considered for 
+
+  // First byte is type, starting from second byte, raw data are considered for
   // obtaining the header and key/value vectors.
   size_t type= data[0];
-  const char* data1= data + 1;
   size_t len= length - 1;
 
   // The fifth argument represents `large` parameter and since it is validated
   // according to the `type` in parse_value() false value is not important here.
-  if(parse_value(s, type, data1, len, false, 0))
+  if(parse_value(s, type, data + 1, len, false, 0))
     return true;
 
   return false;
 }
 
- String *Field_mysql_json::val_str(String *buf1_tmp, String *buf2 __attribute__((unused)))
+ String *Field_mysql_json::val_str(String *buf1,
+                                   String *buf2 __attribute__((unused)))
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  String *buf1= Field_blob::val_str(buf1_tmp, buf2);
+  String *blob= Field_blob::val_str(buf1, buf2);
 
-  if (this->parse_mysql(buf1, true, field_name.str))
-    buf1->length(0);
-  return buf1;
+  if (this->parse_mysql(blob, true, field_name.str))
+    blob->length(0);
+  return blob;
 }
 
 

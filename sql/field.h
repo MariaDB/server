@@ -4842,7 +4842,7 @@ class Field_mysql_json :public Field_blob
      @param[in,out] buf1 string buffer for converting JSON value to string
     @param[in,out] buf2 unused
   */
-  enum class enum_type
+  enum enum_type
   {
     OBJECT, ARRAY, STRING, INT, UINT, DOUBLE,
     LITERAL_NULL, LITERAL_TRUE, LITERAL_FALSE,

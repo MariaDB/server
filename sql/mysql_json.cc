@@ -73,7 +73,7 @@ bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
 
   // Calculate number of elements and length of binary (number of bytes).
   size_t element_count, bytes;
-  
+
   element_count= read_offset_or_size(data, large);
   bytes= read_offset_or_size(data + offset_size, large);
 
@@ -92,7 +92,7 @@ bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
     if (buffer->append('['))
       return true;
   }
-  
+
   // Variables used for an object - vector of keys.
   size_t key_json_offset, key_json_start, key_json_len;
   char *key_element;
@@ -117,7 +117,7 @@ bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
       // The length of keys is always on 2 bytes (large == false)
       key_json_len= read_offset_or_size(data + key_json_offset + offset_size,
                                         false);
-      
+
       key_element= new char[key_json_len + 1];
       memmove(key_element, &data[key_json_start], key_json_len);
       key_element[key_json_len]= '\0';
@@ -135,11 +135,11 @@ bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
       delete[] key_element;
       if (buffer->append('"'))
         return true;
-      
+
       if (buffer->append(':'))
         return true;
 
-      value_type_offset= 2 * offset_size +  
+      value_type_offset= 2 * offset_size +
         (large ? KEY_ENTRY_SIZE_LARGE : KEY_ENTRY_SIZE_SMALL) * (element_count) +
         (large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL) * i;
 
@@ -216,7 +216,7 @@ bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
     if (buffer->append(']'))
       return true;
   }
-  
+
   return false;
 }
 
@@ -281,19 +281,19 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
         case JSONB_NULL_LITERAL:
         {
           if (buffer->append("null"))
-            return true; 
+            return true;
           break;
         }
         case JSONB_TRUE_LITERAL:
         {
           if (buffer->append("true"))
-            return true; 
+            return true;
           break;
         }
         case JSONB_FALSE_LITERAL:
         {
           if (buffer->append("false"))
-            return true; 
+            return true;
           break;
         }
         default:
@@ -369,12 +369,12 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
     {
       size_t value_length, n;
       char *value_element;
-    
+
       if (read_variable_length(data, len, &value_length, &n))
         return true;
       if (len < n + value_length)
         return true;
-      
+
       value_element= new char[value_length + 1];
       memmove(value_element, &data[n], value_length);
       value_element[value_length]= '\0';
@@ -395,7 +395,7 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
       break;
     }
 
-    /** FINISHED WORKS  ???? **/
+    /** FINISHED WORKS **/
     case JSONB_TYPE_OPAQUE:
     {
       // The type_byte is encoded as a uint8 that maps to an enum_field_types
@@ -405,17 +405,16 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
 
       size_t value_length, n;
       char *value_element;
-    
+
       if (read_variable_length(data + 1, len, &value_length, &n))
         return true;
       if (len < n + value_length)
         return true;
-      
+
       value_element= new char[value_length + 1];
       memmove(value_element, &data[n + 1], value_length);
       value_element[value_length]= '\0';
 
-    
       MYSQL_TIME t;
       switch (field_type)
       {
@@ -427,11 +426,11 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
         case MYSQL_TYPE_DATE:
         {
           // The bellow line cannot work since it is not defined in sql/compat56.h
-          //TIME_from_longlong_date_packed(ltime, packed_value); 
+          //TIME_from_longlong_date_packed(ltime, packed_value);
           TIME_from_longlong_datetime_packed(&t, sint8korr(value_element));
           t.time_type= MYSQL_TIMESTAMP_DATE;
           break;
-        } 
+        }
         case MYSQL_TYPE_DATETIME:
         case MYSQL_TYPE_TIMESTAMP:
         {
@@ -505,4 +504,4 @@ bool parse_mysql_scalar(String* buffer, size_t value_json_type,
     } // opaque
   }
   return false;
-} 
+}

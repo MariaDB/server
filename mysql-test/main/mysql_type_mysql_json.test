@@ -175,21 +175,6 @@ SELECT * FROM test.mysql_json;
 DROP TABLE test.mysql_json;
 
 --echo #
---echo # Test array with JSONB_TYPE_LARGE_OBJECT
---echo #
-
---copy_file std_data/long_string_JSONB_TYPE_LARGE_OBJECT.frm $datadir/test/mysql_json.frm
---copy_file std_data/long_string_JSONB_TYPE_LARGE_OBJECT.MYI $datadir/test/mysql_json.MYI
---copy_file std_data/long_string_JSONB_TYPE_LARGE_OBJECT.MYD $datadir/test/mysql_json.MYD
-
---error ER_NOT_FORM_FILE
-SELECT * FROM mysql_json;
-
-ALTER TABLE mysql_json FORCE;
-SELECT * FROM test.mysql_json;
-DROP TABLE test.mysql_json;
-
---echo #
 --echo # Test array with json array
 --echo #
 
@@ -203,22 +188,6 @@ SELECT * FROM mysql_json;
 ALTER TABLE mysql_json FORCE;
 SELECT * FROM test.mysql_json;
 DROP TABLE test.mysql_json;
-
---echo #
---echo # Test array with JSONB_TYPE_LARGE_ARRAY
---echo #
-
---copy_file std_data/bigarray.frm $datadir/test/mysql_json.frm
---copy_file std_data/bigarray.MYI $datadir/test/mysql_json.MYI
---copy_file std_data/bigarray.MYD $datadir/test/mysql_json.MYD
-
---error ER_NOT_FORM_FILE
-SELECT * FROM mysql_json;
-
-ALTER TABLE mysql_json FORCE;
-SELECT * FROM test.mysql_json;
-DROP TABLE test.mysql_json;
-
 
 --echo #
 --echo # Date and time (casting in mysql)
@@ -252,7 +221,7 @@ ALTER TABLE mysql_json FORCE;
 SELECT * FROM test.mysql_json;
 DROP TABLE test.mysql_json;
 
---echo # 
+--echo #
 --echo # --- opaque data types ---
 --echo #
 
@@ -283,7 +252,7 @@ ALTER TABLE mysql_json FORCE;
 SELECT * FROM test.mysql_json;
 DROP TABLE test.mysql_json;
 
---echo # 
+--echo #
 --echo # --- utf8 characters ---
 --echo #
 

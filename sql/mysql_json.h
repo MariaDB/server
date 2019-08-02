@@ -146,4 +146,4 @@ bool parse_array_or_object(String * buffer, Field_mysql_json::enum_type,
                            const char *, size_t, bool);
 bool parse_mysql_scalar(String* buffer, size_t type,
                         const char *data, size_t len, bool large, size_t depth);
-#endif  /* MYSQL_JSON_INCLUDED */ 
+#endif  /* MYSQL_JSON_INCLUDED */

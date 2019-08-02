@@ -3665,7 +3665,8 @@ class Type_handler_mysql_json: public Type_handler_blob
   public:
     virtual ~Type_handler_mysql_json() {}
     const Name name() const { return m_name_mysql_json; }
-    enum_field_types field_type() const { return (enum_field_types) MYSQL_TYPE_MYSQL_JSON; }
+    enum_field_types field_type() const 
+      { return (enum_field_types) MYSQL_TYPE_MYSQL_JSON; }
     Field *make_table_field(const LEX_CSTRING *name,
                             const Record_addr &addr,
                             const Type_all_attributes &attr,
