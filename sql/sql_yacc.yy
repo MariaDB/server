@@ -9588,10 +9588,10 @@ opt_lock_wait_timeout_new:
       ;
 
       /*
-       Here, we make select_item_list return List<Item> to prevent it from adding 
-       everything to SELECT_LEX::item_list. If items are already there in the item_list 
-       then using RETURNING with INSERT...SELECT is not possible because rules occuring
-       after insert_values add everything to SELECT_LEX::item_list.
+        Here, we make select_item_list return List<Item> to prevent it from adding 
+        everything to SELECT_LEX::item_list. If items are already there in the item_list 
+        then using RETURNING with INSERT...SELECT is not possible because rules occuring
+        after insert_values add everything to SELECT_LEX::item_list.
       */
 
 select_item_list:
@@ -13773,6 +13773,10 @@ single_multi:
           }
         ;
 
+      /* 
+         Return NULL if the  rule is empty else return the list of items 
+         in the select expression 
+      */
 opt_select_expressions:
           /* empty */ {$$=NULL;}
         | RETURNING_SYM select_item_list
