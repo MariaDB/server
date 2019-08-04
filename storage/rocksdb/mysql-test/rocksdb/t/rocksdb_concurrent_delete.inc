@@ -1,4 +1,7 @@
---source include/have_rocksdb.inc
+# MariaDB: including the below too many times causes really long argv list
+# in win_main()'s argument which blows up some limit on Windows.
+# Comment it out:
+#--source include/have_rocksdb.inc
 --source include/have_debug_sync.inc
 
 --source include/count_sessions.inc
