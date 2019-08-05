@@ -2377,6 +2377,10 @@ public:
   }
   bool to_TIME(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) const;
   bool to_native(Native *to, uint decimals) const;
+  Datetime to_datetime(THD *thd) const
+  {
+    return Datetime(thd, *this);
+  }
   long fraction_remainder(uint dec) const
   {
     return my_time_fraction_remainder(tv_usec, dec);
@@ -2417,7 +2421,7 @@ public:
   - real TIMESTAMP (seconds and microseconds since epoch), or
   - zero datetime '0000-00-00 00:00:00.000000'
 */
-class Timestamp_or_zero_datetime: public Timestamp
+class Timestamp_or_zero_datetime: protected Timestamp
 {
   bool m_is_zero_datetime;
 public:
@@ -2434,14 +2438,11 @@ public:
   Timestamp_or_zero_datetime(THD *thd, const MYSQL_TIME *ltime, uint *err_code);
   Datetime to_datetime(THD *thd) const
   {
-    return Datetime(thd, *this);
+    if (is_zero_datetime())
+      return Datetime();
+    return Timestamp::to_datetime(thd);
   }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
-  const struct timeval &tv() const
-  {
-    DBUG_ASSERT(!is_zero_datetime());
-    return Timestamp::tv();
-  }
   void trunc(uint decimals)
   {
     if (!is_zero_datetime())
@@ -2487,7 +2488,7 @@ public:
   {
     return is_zero_datetime() ?
            Datetime() :
-           Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+           Datetime(thd, Timestamp(*this).tv());
   }
   bool is_zero_datetime() const
   {

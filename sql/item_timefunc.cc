@@ -1220,7 +1220,7 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
   Timestamp_or_zero_datetime_native_null native(current_thd, args[0], true);
   if ((null_value= native.is_null() || native.is_zero_datetime()))
     return true;
-  Timestamp_or_zero_datetime tm(native);
+  Timestamp tm(native);
   *seconds= tm.tv().tv_sec;
   *second_part= tm.tv().tv_usec;
   return false;

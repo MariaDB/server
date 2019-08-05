@@ -9909,7 +9909,7 @@ Datetime Item_cache_timestamp::to_datetime(THD *thd)
     null_value= true;
     return Datetime();
   }
-  return Datetime(thd, Timestamp_or_zero_datetime(m_native).tv());
+  return m_native.to_datetime(thd);
 }
 
 
