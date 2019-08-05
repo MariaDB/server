@@ -1864,7 +1864,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           share->mysql_version < 100000 &&
           strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL)
       {
-         if(thd->lex->alter_info.flags != ALTER_RECREATE)
+        if(thd->lex->sql_command != SQLCOM_ALTER_TABLE ||
+           thd->lex->alter_info.flags != ALTER_RECREATE)
         {
           // Raise an error for every operation expect `alter table <table_name> force`
           mysql_table_to_upgrade=1;

@@ -11210,7 +11210,7 @@ bool Field_mysql_json::parse_mysql(String *s, bool json_quoted,
 
   // The fifth argument represents `large` parameter and since it is validated
   // according to the `type` in parse_value() false value is not important here.
-  if(parse_value(s, type, data + 1, len, false, 0))
+  if (parse_value(s, type, data + 1, len, false, 0))
     return true;
 
   return false;
