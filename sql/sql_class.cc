@@ -2400,7 +2400,6 @@ bool THD::check_string_for_wellformedness(const char *str,
                                           size_t length,
                                           CHARSET_INFO *cs) const
 {
-  DBUG_ASSERT(charset_is_system_charset);
   size_t wlen= Well_formed_prefix(cs, str, length).length();
   if (wlen < length)
   {

@@ -46,3 +46,13 @@ SELECT @@GLOBAL.replicate_ignore_table;
 
 # Cleanup.
 SET @@GLOBAL.replicate_ignore_table = @save_replicate_ignore_table;
+#
+# MDEV-20101 Assertion failure on select @@global.'m2'.replicate_ignore_table
+#
+SET NAMES latin1;
+SELECT @@global.'m2'.replicate_ignore_table;
+@@global.'m2'.replicate_ignore_table
+NULL
+Warnings:
+Warning	1617	There is no master connection 'm2'
+Warning	1617	There is no master connection 'm2'

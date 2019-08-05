@@ -49,3 +49,10 @@ SELECT @@GLOBAL.replicate_ignore_table;
 
 --echo # Cleanup.
 SET @@GLOBAL.replicate_ignore_table = @save_replicate_ignore_table;
+
+--echo #
+--echo # MDEV-20101 Assertion failure on select @@global.'m2'.replicate_ignore_table
+--echo #
+
+SET NAMES latin1;
+SELECT @@global.'m2'.replicate_ignore_table;
