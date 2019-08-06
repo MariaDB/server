@@ -5218,34 +5218,33 @@ int MYSQL_BIN_LOG::new_file_impl()
   }
   new_name_ptr=new_name;
 
-  if (log_type == LOG_BIN)
   {
+    /*
+      We log the whole file name for log file as the user may decide
+      to change base names at some point.
+    */
+    Rotate_log_event r(new_name + dirname_length(new_name), 0, LOG_EVENT_OFFSET,
+                       is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
+    /*
+      The current relay-log's closing Rotate event must have checksum
+      value computed with an algorithm of the last relay-logged FD event.
+    */
+    if (is_relay_log)
+      r.checksum_alg= relay_log_checksum_alg;
+    DBUG_ASSERT(!is_relay_log ||
+                relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
+    if (DBUG_EVALUATE_IF("fault_injection_new_file_rotate_event",
+                         (error= close_on_error= TRUE), FALSE) ||
+        (error= write_event(&r)))
     {
-      /*
-        We log the whole file name for log file as the user may decide
-        to change base names at some point.
-      */
-      Rotate_log_event r(new_name+dirname_length(new_name), 0, LOG_EVENT_OFFSET,
-                         is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
-      /* 
-         The current relay-log's closing Rotate event must have checksum
-         value computed with an algorithm of the last relay-logged FD event.
-      */
-      if (is_relay_log)
-        r.checksum_alg= relay_log_checksum_alg;
-      DBUG_ASSERT(!is_relay_log || relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
-      if(DBUG_EVALUATE_IF("fault_injection_new_file_rotate_event", (error=close_on_error=TRUE), FALSE) ||
-         (error= write_event(&r)))
-      {
-        DBUG_EXECUTE_IF("fault_injection_new_file_rotate_event", errno=2;);
-        close_on_error= TRUE;
-        my_printf_error(ER_ERROR_ON_WRITE,
-                        ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE),
-                        MYF(ME_FATAL), name, errno);
-        goto end;
-      }
-      bytes_written += r.data_written;
+      DBUG_EXECUTE_IF("fault_injection_new_file_rotate_event", errno= 2;);
+      close_on_error= TRUE;
+      my_printf_error(ER_ERROR_ON_WRITE,
+                      ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE),
+                      MYF(ME_FATAL), name, errno);
+      goto end;
     }
+    bytes_written+= r.data_written;
   }
 
   /*
@@ -5276,7 +5275,7 @@ int MYSQL_BIN_LOG::new_file_impl()
     delay_close= true;
   }
   close(close_flag);
-  if (log_type == LOG_BIN && checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF)
+  if (checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF)
   {
     DBUG_ASSERT(!is_relay_log);
     DBUG_ASSERT(binlog_checksum_options != checksum_alg_reset);
@@ -8487,9 +8486,9 @@ void MYSQL_BIN_LOG::close(uint exiting)
 
   if (log_state == LOG_OPENED)
   {
+    DBUG_ASSERT(log_type == LOG_BIN);
 #ifdef HAVE_REPLICATION
-    if (log_type == LOG_BIN &&
-	(exiting & LOG_CLOSE_STOP_EVENT))
+    if (exiting & LOG_CLOSE_STOP_EVENT)
     {
       Stop_log_event s;
       // the checksumming rule for relay-log case is similar to Rotate
@@ -8526,8 +8525,7 @@ void MYSQL_BIN_LOG::close(uint exiting)
 #endif /* HAVE_REPLICATION */
 
     /* don't pwrite in a file opened with O_APPEND - it doesn't work */
-    if (log_file.type == WRITE_CACHE && log_type == LOG_BIN
-        && !(exiting & LOG_CLOSE_DELAYED_CLOSE))
+    if (log_file.type == WRITE_CACHE && !(exiting & LOG_CLOSE_DELAYED_CLOSE))
     {
       my_off_t org_position= mysql_file_tell(log_file.file, MYF(0));
       if (!failed_to_save_state)
