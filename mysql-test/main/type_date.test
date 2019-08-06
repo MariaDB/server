@@ -692,5 +692,13 @@ SET sql_mode=DEFAULT;
 
 
 --echo #
+--echo # MDEV-19301 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+--echo #
+
+SELECT NULLIF(CAST(1012.5 AS DATE), 1);
+SELECT CAST(1012.5 AS DATE) * 1.0;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
