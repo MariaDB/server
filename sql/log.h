@@ -773,7 +773,6 @@ public:
   void init_pthread_objects();
   void cleanup();
   bool open(const char *log_name,
-            enum_log_type log_type,
             const char *new_name,
             ulong next_log_number,
 	    enum cache_type io_cache_type_arg,

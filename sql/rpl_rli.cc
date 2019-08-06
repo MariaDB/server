@@ -237,7 +237,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     */
     mysql_mutex_lock(log_lock);
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
-        relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
+        relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
                        (ulong)max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(log_lock);
@@ -1178,7 +1178,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
         DBUG_RETURN(1);
       }
       mysql_mutex_lock(rli->relay_log.get_log_lock());
-      if (rli->relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
+      if (rli->relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
                              (ulong)(rli->max_relay_log_size ? rli->max_relay_log_size :
                               max_binlog_size), 1, TRUE))
       {
