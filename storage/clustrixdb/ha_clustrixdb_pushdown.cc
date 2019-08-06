@@ -128,7 +128,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   if (!trx)
     goto err;
 
-  if ((error_code = trx->scan_query_init(query, fieldtype, items_number,
+  if ((error_code = trx->scan_query(query, fieldtype, items_number,
         null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
     goto err;
   }
@@ -312,7 +312,7 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
   if (!trx)
     goto err;
 
-  if ((error_code = trx->scan_query_init(query, fieldtype, items_number,
+  if ((error_code = trx->scan_query(query, fieldtype, items_number,
         null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
     goto err;
   }

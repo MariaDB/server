@@ -586,9 +586,9 @@ int ha_clustrixdb::index_first(uchar *buf)
   bitmap_set_all(&scan_fields);
 #endif
 
-  if ((error_code = trx->scan_init(clustrix_table_oid, active_index,
-                                   clustrix_connection::SORT_NONE, &scan_fields,
-                                   &scan_refid)))
+  if ((error_code = trx->scan_table(clustrix_table_oid, active_index,
+                                    clustrix_connection::SORT_NONE,
+                                    &scan_fields, &scan_refid)))
     return error_code;
 
 
@@ -619,9 +619,9 @@ int ha_clustrixdb::index_last(uchar *buf)
   bitmap_set_all(&scan_fields);
 #endif
 
-  if ((error_code = trx->scan_init(clustrix_table_oid, active_index,
-                                   clustrix_connection::SORT_NONE, &scan_fields,
-                                   &scan_refid)))
+  if ((error_code = trx->scan_table(clustrix_table_oid, active_index,
+                                    clustrix_connection::SORT_NONE,
+                                    &scan_fields, &scan_refid)))
     return error_code;
 
 
@@ -686,9 +686,9 @@ int ha_clustrixdb::rnd_init(bool scan)
   bitmap_set_all(&scan_fields);
 #endif
 
-  if ((error_code = trx->scan_init(clustrix_table_oid, 0,
-                                   clustrix_connection::SORT_NONE, &scan_fields,
-                                   &scan_refid)))
+  if ((error_code = trx->scan_table(clustrix_table_oid, 0,
+                                    clustrix_connection::SORT_NONE,
+                                    &scan_fields, &scan_refid)))
     return error_code;
 
   return 0;

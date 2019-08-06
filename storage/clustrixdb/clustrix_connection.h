@@ -93,15 +93,14 @@ public:
                uchar **rowdata, ulong *rowdata_length);
 
   enum sort_order {SORT_NONE = 0, SORT_ASC = 1, SORT_DESC = 2};
-  int scan_init(ulonglong clustrix_table_oid, uint index,
-                enum sort_order sort, MY_BITMAP *read_set,
-                ulonglong *scan_refid);
+  int scan_table(ulonglong clustrix_table_oid, uint index,
+                 enum sort_order sort, MY_BITMAP *read_set,
+                 ulonglong *scan_refid);
   int scan_next(ulonglong scan_refid, uchar **rowdata, ulong *rowdata_length);
   int scan_end(ulonglong scan_refid);
-  int scan_query_init(String &stmt, uchar *fieldtype,
-                uint fields, uchar *null_bits,
-                uint null_bits_size, uchar *field_metadata,
-                uint field_metadata_size, ulonglong *scan_refid);
+  int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
+                 uint null_bits_size, uchar *field_metadata,
+                 uint field_metadata_size, ulonglong *scan_refid);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
