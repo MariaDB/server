@@ -127,8 +127,6 @@ public:
 
 	iterator begin() const { return data_; }
 	iterator end() const { return data_ + size_; }
-	const_iterator cbegin() const { return data_; }
-	const_iterator cend() const { return data_ + size_; }
 	reverse_iterator rbegin() const
 	{
 		return std::reverse_iterator<iterator>(std::advance(end(), -1));
@@ -136,16 +134,6 @@ public:
 	reverse_iterator rend() const
 	{
 		return std::reverse_iterator<iterator>(
-		    std::advance(begin(), -1));
-	}
-	const_reverse_iterator crbegin() const
-	{
-		return std::reverse_iterator<const_iterator>(
-		    std::advance(end(), -1));
-	}
-	const_reverse_iterator crend() const
-	{
-		return std::reverse_iterator<const_iterator>(
 		    std::advance(begin(), -1));
 	}
 
