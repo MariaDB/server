@@ -23,12 +23,12 @@ static const char charset_name[] = "utf8";
 
 enum clustrix_commands {
   CLUSTRIX_WRITE_ROW = 1,
-  CLUSTRIX_SCAN_INIT,
+  CLUSTRIX_SCAN_TABLE,
   CLUSTRIX_SCAN_NEXT,
   CLUSTRIX_SCAN_STOP,
   CLUSTRIX_KEY_READ,
   CLUSTRIX_KEY_DELETE,
-  CLUSTRIX_QUERY_INIT
+  CLUSTRIX_SCAN_QUERY
 };
 
 /****************************************************************************
@@ -316,14 +316,14 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   return 0;
 }
 
-int clustrix_connection::scan_init(ulonglong clustrix_table_oid, uint index,
-                                   enum sort_order sort, MY_BITMAP *read_set,
-                                   ulonglong *scan_refid)
+int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
+                                    enum sort_order sort, MY_BITMAP *read_set,
+                                    ulonglong *scan_refid)
 {
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_INIT)))
+  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_TABLE)))
     return error_code;
 
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
@@ -367,15 +367,16 @@ int clustrix_connection::scan_init(ulonglong clustrix_table_oid, uint index,
  *   scan_refid id used to reference this scan later
  *   Used in pushdowns to initiate query scan.
  **/
-int clustrix_connection::scan_query_init(String &stmt, uchar *fieldtype,
-                                  uint fields, uchar *null_bits,
-                                  uint null_bits_size, uchar *field_metadata,
-                                  uint field_metadata_size, ulonglong *scan_refid)
+int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
+                                    uchar *null_bits, uint null_bits_size,
+                                    uchar *field_metadata,
+                                    uint field_metadata_size,
+                                    ulonglong *scan_refid)
 {
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_QUERY_INIT)))
+  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_QUERY)))
     return error_code;
 
   if ((error_code = add_command_operand_str((uchar*)stmt.ptr(), stmt.length())))
