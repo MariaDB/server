@@ -8593,7 +8593,11 @@ void Field_blob::sql_type(String &res) const
   }
   res.set_ascii(str,length);
   if (charset() == &my_charset_bin)
+  {
     res.append(STRING_WITH_LEN("blob"));
+    if (packlength == 2 && (get_thd()->variables.sql_mode & MODE_ORACLE))
+      res.append(STRING_WITH_LEN("(65535)"));
+  }
   else
   {
     res.append(STRING_WITH_LEN("text"));
