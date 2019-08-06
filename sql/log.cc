@@ -2590,24 +2590,14 @@ end:
 }
 
 
-void MYSQL_LOG::init(enum_log_type log_type_arg,
-                     enum cache_type io_cache_type_arg)
-{
-  DBUG_ENTER("MYSQL_LOG::init");
-  log_type= log_type_arg;
-  io_cache_type= io_cache_type_arg;
-  DBUG_PRINT("info",("log_type: %d", log_type));
-  DBUG_VOID_RETURN;
-}
-
-
 bool MYSQL_LOG::init_and_set_log_file_name(const char *log_name,
                                            const char *new_name,
                                            ulong next_log_number,
                                            enum_log_type log_type_arg,
                                            enum cache_type io_cache_type_arg)
 {
-  init(log_type_arg, io_cache_type_arg);
+  log_type= log_type_arg;
+  io_cache_type= io_cache_type_arg;
 
   if (new_name)
   {
@@ -10438,24 +10428,6 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 
 
 #ifdef INNODB_COMPATIBILITY_HOOKS
-/**
-  Get the file name of the MySQL binlog.
-  @return the name of the binlog file
-*/
-extern "C"
-const char* mysql_bin_log_file_name(void)
-{
-  return mysql_bin_log.get_log_fname();
-}
-/**
-  Get the current position of the MySQL binlog.
-  @return byte offset from the beginning of the binlog
-*/
-extern "C"
-ulonglong mysql_bin_log_file_pos(void)
-{
-  return (ulonglong) mysql_bin_log.get_log_file()->pos_in_file;
-}
 /*
   Get the current position of the MySQL binlog for transaction currently being
   committed.
