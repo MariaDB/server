@@ -176,6 +176,8 @@ void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary);
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list, uint wild_num, uint * hidden_bit_fields);
+int setup_returning_fields(THD* thd, SELECT_LEX* select_lex,
+                           TABLE_LIST* table_list);
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,

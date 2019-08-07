@@ -3094,10 +3094,10 @@ public:
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
-  /* List of fields and expression for returning part of insert*/
+  /* List of fields and expression for returning part of insert */
   List<Item> returning_list;
   /* current with clause in parsing if any, otherwise 0*/
-  With_clause *curr_with_clause;  
+  With_clause *curr_with_clause;
   /* pointer to the first with clause in the current statement */
   With_clause *with_clauses_list;
   /*

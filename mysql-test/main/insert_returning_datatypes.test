@@ -32,46 +32,70 @@ CREATE TABLE t2(num_int2 INT(2) PRIMARY KEY,
 --echo #
 --echo # SIMLPE INSERT STATEMENT
 --echo #
-INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,str_varchar1, str_binary1,d1,dt1,ts1,y1,b1) VALUES(1,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0) RETURNING *;
-
-INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,str_varchar1, str_binary1,d1,dt1,ts1,y1,b1) VALUES(2,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0) RETURNING num_int1,num_bit1,d1,dt1;
-
+INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,
+str_varchar1, str_binary1,d1,dt1,ts1,y1,b1) VALUES(1,0, 123.45, 123.55, 'A',
+'b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0) 
+RETURNING *;
+INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,
+str_varchar1, str_binary1,d1,dt1,ts1,y1,b1) VALUES(2,0, 123.45, 123.55, 'A',
+'b,e', 'V','10','120314', "2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0) 
+RETURNING num_int1,num_bit1,d1,dt1;
 
 
 --echo #
 --echo # MULTIPLE ROWS IN SINGLE STATEMENT 
 --echo #
-
-INSERT INTO t1 VALUES(3,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0),(4,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,1),(5,0, 123.45, 123.55, 'A','b,e','V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,1) RETURNING *;
-
-INSERT INTO t1 VALUES(6,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0),(7,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,1),(8,0, 123.45, 123.55, 'A','b,e','V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,1) RETURNING char_set1,ts1,y1;
+INSERT INTO t1 VALUES(3,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',
+"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0),(4,0, 123.45, 123.55, 
+'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',
+2012,1),(5,0, 123.45, 123.55, 'A','b,e','V','10','120314',
+"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,1) RETURNING *;
+INSERT INTO t1 VALUES(6,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',
+"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0),(7,0, 123.45, 123.55, 
+'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',
+2012,1),(8,0, 123.45, 123.55, 'A','b,e','V','10','120314',
+"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,1) RETURNING char_set1,ts1,
+y1;
 
 
 
 --echo #
 --echo # INSERT...SET...RETURNING
 --echo #
-INSERT INTO t1 SET num_int1=9,num_bit1=0,num_float1=124.67,num_double1=231.12,char_enum1='B',char_set1='a,d,e',str_varchar1='AB',str_binary1='01', d1='120314',dt1="2012-04-19 13:08:22",ts1='2001-07-22 12:12:1',y1=2014,b1=1 RETURNING *;
-
-INSERT INTO t1 SET num_int1=10,num_bit1=0,num_float1=124.67,num_double1=231.12,char_enum1='B',char_set1='a,d,e',str_varchar1='AB',str_binary1='01',d1='120314',dt1="2012-04-19 13:08:22",ts1='2001-07-22 12:12:1',y1=2014,b1=1 RETURNING b1,char_enum1;
+INSERT INTO t1 SET num_int1=9,num_bit1=0,num_float1=124.67,num_double1=231.12,
+char_enum1='B',char_set1='a,d,e',str_varchar1='AB',str_binary1='01', 
+d1='120314',dt1="2012-04-19 13:08:22",ts1='2001-07-22 12:12:1',y1=2014,
+b1=1 RETURNING *;
+INSERT INTO t1 SET num_int1=10,num_bit1=0,num_float1=124.67,num_double1=231.12,
+char_enum1='B',char_set1='a,d,e',str_varchar1='AB',str_binary1='01',
+d1='120314',dt1="2012-04-19 13:08:22",ts1='2001-07-22 12:12:1',
+y1=2014,b1=1 RETURNING b1,char_enum1;
 
 
 
 --echo #
 --echo # INSERT...ON DUPLICATE KEY UPDATE
 --echo # 
-INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,str_varchar1, str_binary1,d1,dt1,ts1,y1,b1) VALUES (10,0, 123.45, 123.55, 'C','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0) ON DUPLICATE KEY UPDATE num_float1=111.111 RETURNING *;
-
-INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,str_varchar1, str_binary1,d1,dt1,ts1,y1,b1) VALUES (11,0, 123.45, 123.55, 'A','b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0) ON DUPLICATE KEY UPDATE char_set1='a,b' RETURNING char_set1,num_int1;
+INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,
+str_varchar1,str_binary1,d1,dt1,ts1,y1,b1) VALUES (10,0, 123.45, 123.55, 'C',
+'b,e', 'V','10','120314',"2012-04-19 13:08:22", '2001-07-22 12:12:12',2012,0) 
+ON DUPLICATE KEY UPDATE num_float1=111.111 RETURNING *;
+INSERT INTO t1(num_int1,num_bit1,num_float1,num_double1,char_enum1,char_set1,
+str_varchar1, str_binary1,d1,dt1,ts1,y1,b1) VALUES (11,0, 123.45, 123.55, 
+'A','b,e', 'V','10','120314', "2012-04-19 13:08:22", '2001-07-22 12:12:12',
+2012,0) ON DUPLICATE KEY UPDATE char_set1='a,b' RETURNING char_set1,num_int1;
 
 
 
 --echo #
 --echo # INSERT...SELECT...RETURNING
 --echo #
-INSERT INTO t2 (num_int2,num_bit2,num_float2,num_double2,char_enum2,char_set2,str_varchar2, str_binary2,d2,dt2,ts2,y2,b2) SELECT * FROM t1 RETURNING *;
+INSERT INTO t2(num_int2,num_bit2,num_float2,num_double2,char_enum2,char_set2,
+str_varchar2, str_binary2,d2,dt2,ts2,y2,b2) SELECT * FROM t1 RETURNING *;
 TRUNCATE TABLE t2;
-INSERT INTO t2 (num_int2,num_bit2,num_float2,num_double2,char_enum2,char_set2,str_varchar2, str_binary2,d2,dt2,ts2,y2,b2) SELECT * FROM t1 RETURNING num_double2,str_varchar2,str_binary2;
+INSERT INTO t2(num_int2,num_bit2,num_float2,num_double2,char_enum2,char_set2,
+str_varchar2, str_binary2,d2,dt2,ts2,y2,b2) SELECT * FROM t1 
+RETURNING num_double2,str_varchar2,str_binary2;
 
 
 DROP TABLE t1;

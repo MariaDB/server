@@ -81,6 +81,7 @@
 #include <my_bit.h>
 
 #include "debug_sync.h"
+#include <algorithm>
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */
@@ -119,18 +120,7 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view);
   @returns false if success.
 */
 
-/*
- Swaps the context before and after calling setup_fields() and setup_wild() in
- INSERT...SELECT when LEX::returning_list is not empty.
-*/
-template <typename T>
-void swap_context(T& cxt1, T& cxt2)
-{
-	T temp = cxt1;
-	cxt1 = cxt2;
-	cxt2 = temp;
 
-}
 static bool check_view_single_update(List<Item> &fields, List<Item> *values,
                                      TABLE_LIST *view, table_map *map,
                                      bool insert)
@@ -700,23 +690,20 @@ Field **TABLE::field_to_fill()
 
 /**
   INSERT statement implementation
-  
+
   SYNOPSIS
   mysql_insert()
-  result    NULL if returning_list is empty
+  result    NULL if the insert is not outputing results
+            via 'RETURNING' clause.
 
   @note Like implementations of other DDL/DML in MySQL, this function
   relies on the caller to close the thread tables. This is done in the
   end of dispatch_command().
 */
-
-bool mysql_insert(THD *thd,TABLE_LIST *table_list,
-                  List<Item> &fields,
-                  List<List_item> &values_list,
-                  List<Item> &update_fields,
-                  List<Item> &update_values,
-                  enum_duplicates duplic,
-		  bool ignore, select_result* result)
+bool mysql_insert(THD *thd, TABLE_LIST *table_list,
+                  List<Item> &fields, List<List_item> &values_list,
+                  List<Item> &update_fields, List<Item> &update_values,
+                  enum_duplicates duplic, bool ignore, select_result *result)
 {
   bool retval= true;
   int error, res;
@@ -735,8 +722,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
-  SELECT_LEX* select_lex = thd->lex->first_select_lex();
-  List<Item>& returning_list = thd->lex->returning_list;
+  SELECT_LEX* select_lex= thd->lex->first_select_lex();
+
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
   /*
@@ -792,14 +779,13 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   value_count= values->elements;
 
   if (mysql_prepare_insert(thd, table_list, table, fields, values,
-			   update_fields, update_values, duplic, &unused_conds,
-                           FALSE,result?true:false))
-	  goto abort;
-  
+                           update_fields, update_values, duplic,
+                           &unused_conds, FALSE))
+    goto abort;
+
   /* Prepares LEX::returing_list if it is not empty */
   if (result)
-		(void)result->prepare(returning_list, NULL);
-	  
+    (void)result->prepare(thd->lex->returning_list, NULL);
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
 
@@ -970,15 +956,16 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     }
   }
   /*
-  If  statement returns result set, we need to send the result set metadata 
-  to the client so that it knows that it has to expect an EOF or ERROR. 
-  At this point we have all the required information to send the result set metadata.
+    If statement returns result set, we need to send the result set metadata
+    to the client so that it knows that it has to expect an EOF or ERROR.
+    At this point we have all the required information to send the result set
+    metadata.
   */
   if (result)
   {
-	  if (unlikely(result->send_result_set_metadata(returning_list,
-      Protocol::SEND_NUM_ROWS |
-      Protocol::SEND_EOF)))
+    if (unlikely(result->send_result_set_metadata(thd->lex->returning_list,
+                                                  Protocol::SEND_NUM_ROWS |
+                                                  Protocol::SEND_EOF)))
       goto values_loop_end;
   }
 
@@ -1098,6 +1085,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 
       thd->decide_logging_format_low(table);
 =======
@@ -1124,6 +1112,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 >>>>>>> Changes in code files according to initial review
 =======
 >>>>>>> deleted insert_parser because redundant, fixed AUTO_INCREMENT and INSERT..ON DUPLICATE KEY UPDAYE added comments, update result files
+=======
+
+>>>>>>> Coding style review, test & result updated
 #ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {
@@ -1135,23 +1126,25 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       }
       else
 #endif
-        error=write_record(thd, table ,&info);	    
+      error=write_record(thd, table ,&info);
       if (unlikely(error))
         break;
       /*
-        We send the rows after writing them to table so that the correct information
-        is sent to the client. Example INSERT...ON DUPLICAT KEY UPDATE and values
-        set to auto_increment. Write record handles auto_increment updating values
-        if there is a duplicate key. We want to send the rows to the client only
-        after these operations are carried out. Otherwise it shows 0 to the client
-        if the fields that are incremented automatically are not given explicitly 
-        and the irreplaced values in case of ON DUPLICATE KEY UPDATE (even if 
-        the values are replaced or incremented while writing record. 
-        Hence it shows different result set to the client)
+        We send the rows after writing them to table so that the correct
+        information is sent to the client. Example INSERT...ON DUPLICATE
+        KEY UPDATE and values set to auto_increment. write_record
+        handles auto_increment updating values if there is a duplicate
+        key. We want to send the rows to the client only after these
+        operations are performed out. Otherwise it shows 0 to the client
+        if the fields that are incremented automatically are not given
+        explicitly and the irreplaced values in case of
+        ON DUPLICATE KEY UPDATE (even if the values are replaced or
+        incremented while writing record. Hence it shows different
+        result set to the client)
       */
-      if (result && result->send_data(returning_list) < 0)
+      if (result && result->send_data(thd->lex->returning_list) < 0)
       {
-        error = 1;
+        error= 1;
         break;
       }
       thd->get_stmt_da()->inc_current_row_for_warning();
@@ -1165,7 +1158,7 @@ values_loop_end:
   joins_freed= TRUE;
 
   /*
-    Now all rows are inserted.  Time to update logs and sends response to
+    Now all rows are inserted. Time to update logs and sends response to
     user
   */
 #ifndef EMBEDDED_LIBRARY
@@ -1312,52 +1305,52 @@ values_loop_end:
     retval= thd->lex->explain->send_explain(thd);
     goto abort;
   }
-  
+
   if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   { 
     /*
-      Client expects an EOF/Ok packet if result set metadata was sent. If 
-      LEX::returning_list is not empty and the statement returns result set 
+      Client expects an EOF/Ok packet if result set metadata was sent. If
+      LEX::returning_list is not empty and the statement returns result set
       we send EOF which is the indicator of the end of the row stream.
-      Else we send Ok packet i.e when the statement returns only the status 
+      Else we send Ok packet i.e when the statement returns only the status
       information
     */
-	  if (result)
+   if (result)
       result->send_eof();
-	  else
+   else
       my_ok(thd, info.copied + info.deleted +
                ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                 info.touched : info.updated),id);
   }
   else
-  { 
+  {
     char buff[160];
     ha_rows updated=((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                      info.touched : info.updated);
-	
+
     if (ignore)
       sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-	      (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
-	      (ulong) (info.records - info.copied),
+       (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
+       (ulong) (info.records - info.copied),
               (long) thd->get_stmt_da()->current_statement_warn_count());
     else
       sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-	      (ulong) (info.deleted + updated),
+       (ulong) (info.deleted + updated),
               (long) thd->get_stmt_da()->current_statement_warn_count());
-		if (result)
-			result->send_eof();
-		else
+    if (result)
+      result->send_eof();
+    else
       ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
   }
-  
+
   thd->abort_on_warning= 0;
   if (thd->lex->current_select->first_cond_optimization)
   {
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-  
+
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1558,13 +1551,14 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
 
   SYNOPSIS
     mysql_prepare_insert()
-    thd			Thread handler
-    table_list	        Global/local table list
-    table		Table to insert into (can be NULL if table should
-			be taken from table_list->table)    
-    where		Where clause (for insert ... select)
-    select_insert	TRUE if INSERT ... SELECT statement
-    with_returning_list TRUE if returning_list is not empty 
+    thd                 Thread handler
+    table_list          Global/local table list
+    table               Table to insert into
+                        (can be NULL if table should
+                        be taken from table_list->table)
+    where               Where clause (for insert ... select)
+    select_insert       TRUE if INSERT ... SELECT statement
+    with_returning_list TRUE if returning_list is not empty
 
   TODO (in far future)
     In cases of:
@@ -1575,7 +1569,7 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
   WARNING
     You MUST set table->insert_values to 0 after calling this function
     before releasing the table object.
-  
+
   RETURN VALUE
     FALSE OK
     TRUE  error
@@ -1585,7 +1579,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                           TABLE *table, List<Item> &fields, List_item *values,
                           List<Item> &update_fields, List<Item> &update_values,
                           enum_duplicates duplic, COND **where,
-                          bool select_insert,  bool with_returning_list)
+                          bool select_insert)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
@@ -1651,24 +1645,14 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
      */
     table_list->next_local= 0;
     context->resolve_in_table_list_only(table_list);
-  
-    /*
-      Perform checks like all given fields exists, if exists fill struct with 
-      current data and expand all '*' in given fields for LEX::returning_list.
-    */  	
-	if(with_returning_list) 
-	{
-	  res= ((select_lex->with_wild && setup_wild(thd, table_list, 
-						thd->lex->returning_list,NULL, select_lex->with_wild, 
-						&select_lex->hidden_bit_fields)) ||
-						setup_fields(thd, Ref_ptr_array(),
-						thd->lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0));
-	}
 
-    res= (res||setup_fields(thd, Ref_ptr_array(),
-                       *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
+  if (!select_insert && !thd->lex->returning_list.is_empty())
+    res= setup_returning_fields(thd, select_lex, table_list);
+
+    res= res || setup_fields(thd, Ref_ptr_array(),
+                             *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
           check_insert_fields(thd, context->table_list, fields, *values,
-                              !insert_into_view, 0, &map));
+                              !insert_into_view, 0, &map);
 
     if (!res)
       res= setup_fields(thd, Ref_ptr_array(),
@@ -1790,8 +1774,8 @@ int vers_insert_history_row(TABLE *table)
     then both on update triggers will work instead. Similarly both on
     delete triggers will be invoked if we will delete conflicting records.
 
-    Sets thd->transaction.stmt.modified_non_trans_table to TRUE if table which is updated didn't have
-    transactions.
+    Sets thd->transaction.stmt.modified_non_trans_table to TRUE if table which
+    is updated didn't have transactions.
 
   RETURN VALUE
     0     - success
@@ -1810,7 +1794,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   DBUG_ENTER("write_record");
 
   info->records++;
-  save_read_set=  table->read_set;
+  save_read_set= table->read_set;
   save_write_set= table->write_set;
 
   if (info->handle_duplicates == DUP_REPLACE ||
@@ -3665,38 +3649,33 @@ bool Delayed_insert::handle_inserts(void)
     TRUE  Error
 */
 
-bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
+bool mysql_insert_select_prepare(THD *thd, select_result *sel_res)
 {
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
   DBUG_ENTER("mysql_insert_select_prepare");
-  List<Item>& returning_list = thd->lex->returning_list;
 
   /*
     SELECT_LEX do not belong to INSERT statement, so we can't add WHERE
     clause if table is VIEW
   */
-  /*
-    Passing with_returning_list (last argument) as false otherwise
-    setup_field() and setup_wild() will be called twice. 1) in mysql_prepare_insert()
-    and 2) time in select_insert::prepare(). We want to call it only once:
-    in select_insert::prepare()
-  */
   if (mysql_prepare_insert(thd, lex->query_tables,
                            lex->query_tables->table, lex->field_list, 0,
                            lex->update_list, lex->value_list, lex->duplicates,
-                           &select_lex->where, TRUE,false))
+                           &select_lex->where, TRUE))
     DBUG_RETURN(TRUE);
 
-  /* If LEX::returning_list is not empty, we prepare the list */
+  /*
+    If sel_res is not empty, it means we have items in returing_list.
+    So we prepare the list now
+  */
   if (sel_res)
-	  (void)sel_res->prepare(returning_list, NULL);
+    (void)sel_res->prepare(thd->lex->returning_list, NULL);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
   TABLE_LIST *table;
   uint insert_tables;
-
 
   if (select_lex->first_cond_optimization)
   {
@@ -3725,7 +3704,6 @@ bool mysql_insert_select_prepare(THD *thd,select_result *sel_res)
   while ((table= ti++) && insert_tables--)
     ti.remove();
 
-
   DBUG_RETURN(FALSE);
 }
 
@@ -3736,7 +3714,9 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
                              List<Item> *update_fields,
                              List<Item> *update_values,
                              enum_duplicates duplic,
-                             bool ignore_check_option_errors,select_result *result, TABLE_LIST *save_first):
+                             bool ignore_check_option_errors,
+                             select_result *result,
+                             TABLE_LIST *save_first):
   select_result_interceptor(thd_arg),
   table_list(table_list_par), table(table_par), fields(fields_par),
   autoinc_value_of_last_inserted_row(0),
@@ -3750,7 +3730,7 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   info.view= (table_list_par->view ? table_list_par : 0);
   info.table_list= table_list_par;
   sel_result= result;
-  insert_table=	save_first; 
+  insert_table= save_first;
 }
 
 
@@ -3758,11 +3738,11 @@ int
 select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 {
   LEX *lex= thd->lex;
-  int res=0;
+  int res= 0;
   table_map map= 0;
   SELECT_LEX *lex_current_select_save= lex->current_select;
   DBUG_ENTER("select_insert::prepare");
-  SELECT_LEX* select_lex = thd->lex->first_select_lex();
+  SELECT_LEX *select_lex= thd->lex->first_select_lex();
 
   unit= u;
 
@@ -3774,35 +3754,37 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   lex->current_select= lex->first_select_lex();
 
   /*
-    We want the returning_list to point to insert table. But the context is masked. 
-	  So we swap it with the context saved during parsing stage. 
+    We want the returning_list to point to insert table. But the context
+    is masked. So we swap it with the context saved during parsing stage.
   */
-  if(sel_result) 
-  {     
-    swap_context(insert_table,select_lex->table_list.first);
-    swap_context(select_lex->context.saved_table_list,select_lex->context.table_list);
-    swap_context(select_lex->context.saved_name_resolution_table,select_lex->context.first_name_resolution_table);
+  if(sel_result)
+  {
+    std::swap(insert_table,select_lex->table_list.first);
+    std::swap(select_lex->context.saved_table_list,
+              select_lex->context.table_list);
+    std::swap(select_lex->context.saved_name_resolution_table,
+              select_lex->context.first_name_resolution_table);
+    /*
+      Perform checks for LEX::returning_list like we do for
+      other variant of INSERT.
+    */
+    res= setup_returning_fields(thd, select_lex, table_list);
 
     /*
-      Perform checks for LEX::returning_list like we do for other variant of INSERT.
+      Swap it back to retore the previous state for the rest of the
+      function.
     */
-    res=((select_lex->with_wild && setup_wild(thd, table_list, 
-			thd->lex->returning_list, NULL, select_lex->with_wild,
-			&select_lex->hidden_bit_fields)) ||
-			setup_fields(thd, Ref_ptr_array(),
-  			thd->lex->returning_list, MARK_COLUMNS_READ, 0, NULL, 0));
-
-		/* Swap it back to retore the previous state for the rest of the function */
-
-		swap_context(insert_table,select_lex->table_list.first);
-    swap_context(select_lex->context.saved_table_list,select_lex->context.table_list);
-		swap_context(select_lex->context.saved_name_resolution_table, select_lex->context.first_name_resolution_table);
+    std::swap(insert_table,select_lex->table_list.first);
+    std::swap(select_lex->context.saved_table_list,
+              select_lex->context.table_list);
+    std::swap(select_lex->context.saved_name_resolution_table,
+              select_lex->context.first_name_resolution_table);
   }
 
   res= res || (setup_fields(thd, Ref_ptr_array(),
-                     values, MARK_COLUMNS_READ, 0, NULL, 0) ||
-        check_insert_fields(thd, table_list, *fields, values,
-                            !insert_into_view, 1, &map));
+               values, MARK_COLUMNS_READ, 0, NULL, 0) ||
+              check_insert_fields(thd, table_list, *fields, values,
+                                 !insert_into_view, 1, &map));
 
   if (!res && fields->elements)
   {
@@ -3961,17 +3943,14 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     If the result table is the same as one of the source tables
     (INSERT SELECT), the result table is not finally prepared at the
     join prepair phase.  Do the final preparation now.
-		       
+
   RETURN
     0   OK
 */
 
 int select_insert::prepare2(JOIN *)
 {
-  
   DBUG_ENTER("select_insert::prepare2");
-  List<Item>& returning_list = thd->lex->returning_list;
-  LEX* lex = thd->lex;
   if (thd->lex->current_select->options & OPTION_BUFFER_RESULT &&
       thd->locked_tables_mode <= LTM_LOCK_TABLES &&
       !thd->lex->describe)
@@ -3982,11 +3961,10 @@ int select_insert::prepare2(JOIN *)
   /* Same as the other variants of INSERT */
   if (sel_result)
   {
-	  if(unlikely(sel_result->send_result_set_metadata(returning_list,
-		  Protocol::SEND_NUM_ROWS |
-		  Protocol::SEND_EOF)))
-
-		  DBUG_RETURN(1);
+    if (unlikely(sel_result->send_result_set_metadata(thd->lex->returning_list,
+                                                      Protocol::SEND_NUM_ROWS |
+                                                      Protocol::SEND_EOF)))
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
 }
@@ -4001,8 +3979,8 @@ void select_insert::cleanup()
 select_insert::~select_insert()
 {
   DBUG_ENTER("~select_insert");
-  sel_result=NULL;
-  insert_table=NULL;
+  sel_result= NULL;
+  insert_table= NULL;
   if (table && table->is_created())
   {
     table->next_number_field=0;
@@ -4018,8 +3996,6 @@ select_insert::~select_insert()
 int select_insert::send_data(List<Item> &values)
 {
   DBUG_ENTER("select_insert::send_data");
-  LEX* lex = thd->lex;
-  List<Item>& returning_list = thd->lex->returning_list;
   bool error=0;
 
   if (unit->offset_limit_cnt)
@@ -4052,21 +4028,20 @@ int select_insert::send_data(List<Item> &values)
       DBUG_RETURN(1);
     }
   }
-  
+
   error= write_record(thd, table, &info);
-  
   /*
-    Sending the result set to the cliet after writing record. The reason is same
-    as other variants of insert.
+    Sending the result set to the cliet after writing record. The reason is
+    same as other variants of insert.
   */
-  if (sel_result && sel_result->send_data(returning_list) < 0)
+  if (sel_result && sel_result->send_data(thd->lex->returning_list) < 0)
   {
-    error = 1;
+    error= 1;
     DBUG_RETURN(1);
   }
   table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
-  
+
   if (likely(!error))
   {
     if (table->triggers || info.handle_duplicates == DUP_UPDATE)
@@ -4197,7 +4172,6 @@ bool select_insert::send_ok_packet() {
   char  message[160];                           /* status message */
   ulonglong row_count;                          /* rows affected */
   ulonglong id;                                 /* last insert-id */
-  LEX *lex=thd->lex;
   DBUG_ENTER("select_insert::send_ok_packet");
 
   if (info.ignore)
@@ -4218,13 +4192,13 @@ bool select_insert::send_ok_packet() {
     (thd->arg_of_last_insert_id_function ?
      thd->first_successful_insert_id_in_prev_stmt :
      (info.copied ? autoinc_value_of_last_inserted_row : 0));
-  
+
   /*
-    Client expects an EOF/Ok packet If LEX::returning_list is not empty and 
-    if result set meta was sent. See explanation for other variants of INSERT. 
+    Client expects an EOF/Ok packet If LEX::returning_list is not empty and
+    if result set meta was sent. See explanation for other variants of INSERT.
   */
   if (sel_result)
-	  sel_result->send_eof();
+    sel_result->send_eof();
   else
     ::my_ok(thd, row_count, id, message);
 

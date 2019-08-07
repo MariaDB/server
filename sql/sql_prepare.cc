@@ -1298,7 +1298,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, table_list->table,
                              fields, values, update_fields, update_values,
-                             duplic, &unused_conds, FALSE,false))
+                             duplic, &unused_conds, FALSE))
       goto error;
 
     value_count= values->elements;
@@ -2157,7 +2157,7 @@ static int mysql_insert_select_prepare_tester(THD *thd)
     thd->lex->first_select_lex()->context.first_name_resolution_table=
     second_table;
 
-  return mysql_insert_select_prepare(thd,NULL);
+  return mysql_insert_select_prepare(thd, NULL);
 }
 
 

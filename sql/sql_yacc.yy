@@ -1918,8 +1918,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_basic_constant> text_literal
 
 %type <item_list>
-        opt_insert_update 
-        opt_select_expressions expr_list 
+        opt_insert_update
+        opt_select_expressions expr_list
         opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
         decode_when_list_oracle
@@ -9265,7 +9265,7 @@ query_specification_start:
           select_item_list
           {
             Select->parsing_place= NO_MATTER;
-            Select->item_list=*($5);
+            Select->item_list= *($5);
           }
           ;
 
@@ -9587,18 +9587,18 @@ opt_lock_wait_timeout_new:
         }
       ;
 
-      /*
-        Here, we make select_item_list return List<Item> to prevent it from adding 
-        everything to SELECT_LEX::item_list. If items are already there in the item_list 
-        then using RETURNING with INSERT...SELECT is not possible because rules occuring
-        after insert_values add everything to SELECT_LEX::item_list.
-      */
-
+/*
+  Here, we make select_item_list return List<Item> to prevent it from
+  adding everything to SELECT_LEX::item_list. If items are already there
+  in the item_list then using RETURNING with INSERT...SELECT is not
+  possible because rules occuring after insert_values add everything
+  to SELECT_LEX::item_list.
+*/
 select_item_list:
           select_item_list ',' select_item
           {
-            $1->push_back($3,thd->mem_root);
-            $$=$1;
+            $1->push_back($3, thd->mem_root);
+            $$= $1;
           }
         | select_item
           {
@@ -9614,8 +9614,6 @@ select_item_list:
               MYSQL_YYABORT;
             if (unlikely(!($$= List<Item>::make(thd->mem_root, item))))
               MYSQL_YYABORT;
-            (thd->lex->current_select->with_wild)++;
-
             (thd->lex->current_select->with_wild)++;
           }
         ;
@@ -13311,14 +13309,14 @@ insert:
             Lex->current_select= Lex->first_select_lex();
           }
           insert_field_spec opt_insert_update opt_select_expressions
-          { 
+          {
             if ($9)
-              Lex->returning_list=*($9);
+              Lex->returning_list= *($9);
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
           }
-         ;	
+        ;
 
 replace:
           REPLACE
@@ -13339,12 +13337,12 @@ replace:
           insert_field_spec opt_select_expressions
           {
             if ($7)
-              Lex->returning_list=*($7);
+              Lex->returning_list= *($7);
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
           }
-          ;
+        ;
 
 insert_lock_option:
           /* empty */
@@ -13396,7 +13394,7 @@ insert_table:
         ;
 
 insert_field_spec:
-          insert_values 
+          insert_values
         | insert_field_list insert_values
         | SET
           {
@@ -13740,7 +13738,7 @@ single_multi:
             if ($3)
               Select->order_list= *($3);
             if($5)
-              Select->item_list=*($5);
+              Select->item_list= *($5);
             Lex->pop_select(); //main select
           }
         | table_wild_list
@@ -13773,15 +13771,15 @@ single_multi:
           }
         ;
 
-      /* 
-         Return NULL if the  rule is empty else return the list of items 
-         in the select expression 
-      */
+/*
+  Return NULL if the  rule is empty else return the list of items
+  in the select expression.
+*/
 opt_select_expressions:
-          /* empty */ {$$=NULL;}
+          /* empty */ {$$= NULL;}
         | RETURNING_SYM select_item_list
           {
-            $$=$2;
+            $$= $2;
           }
         ;
 

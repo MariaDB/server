@@ -15,7 +15,8 @@ INSERT INTO t2(id2,val2) VALUES(4,'d') RETURNING (SELECT * FROM t1);
 ERROR 21000: Operand should contain 1 column(s)
 INSERT INTO t2(id2,val2) VALUES(4,'d') RETURNING (SELECT * FROM t2);
 ERROR 21000: Operand should contain 1 column(s)
-INSERT INTO t2(id2,val2) VALUES(5,'e') RETURNING id2, (SELECT id1+id2 FROM t1 WHERE id1=1);
+INSERT INTO t2(id2,val2) VALUES(5,'e') RETURNING id2, (SELECT id1+id2 FROM 
+t1 WHERE id1=1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
@@ -32,7 +33,8 @@ INSERT INTO t2 VALUES(7,'g'),(8,'h') RETURNING (SELECT * FROM t1);
 ERROR 21000: Operand should contain 1 column(s)
 INSERT INTO t2 VALUES(9,'g'),(10,'h') RETURNING (SELECT * FROM t2);
 ERROR 21000: Operand should contain 1 column(s)
-INSERT INTO t2 VALUES(11,'e'),(12,'f') RETURNING id2, (SELECT id1+id2 FROM t1 WHERE id1=1);
+INSERT INTO t2 VALUES(11,'e'),(12,'f') RETURNING id2, (SELECT id1+id2 FROM 
+t1 WHERE id1=1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 INSERT INTO t2 VALUES(13,'f'),(14,'g') RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
@@ -49,26 +51,34 @@ INSERT INTO t2 SET id2=4, val2='d' RETURNING (SELECT * FROM t1);
 ERROR 21000: Operand should contain 1 column(s)
 INSERT INTO t2 SET id2=4, val2='d' RETURNING (SELECT * FROM t2);
 ERROR 21000: Operand should contain 1 column(s)
-INSERT INTO t2 SET id2=5, val2='e' RETURNING id2, (SELECT id1+id2 FROM t1 WHERE id1=1);
+INSERT INTO t2 SET id2=5, val2='e' RETURNING id2, (SELECT id1+id2 FROM t1 
+WHERE id1=1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 INSERT INTO t2 SET id2=5, val2='f' RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 #
 # INSERT...ON DUPLICATE KEY UPDATE
 #
-INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING id1;
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' 
+RETURNING id1;
 ERROR 42S22: Unknown column 'id1' in 'field list'
-INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING MAX(id);
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' 
+RETURNING MAX(id);
 ERROR HY000: Invalid use of group function
-INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING (SELECT id1 FROM t1);
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' 
+RETURNING (SELECT id1 FROM t1);
 ERROR 21000: Subquery returns more than 1 row
-INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING (SELECT * FROM t1);
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' 
+RETURNING (SELECT * FROM t1);
 ERROR 21000: Operand should contain 1 column(s)
-INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING (SELECT * FROM ins_duplicate);
+INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b' 
+RETURNING (SELECT * FROM ins_duplicate);
 ERROR 21000: Operand should contain 1 column(s)
-INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING id2, (SELECT id1+id FROM t1 WHERE id1=1);
+INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b' 
+RETURNING id2, (SELECT id1+id FROM t1 WHERE id1=1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
-INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b' RETURNING (SELECT id FROM ins_duplicate);
+INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b' 
+RETURNING (SELECT id FROM ins_duplicate);
 ERROR HY000: Table 'ins_duplicate' is specified twice, both as a target for 'INSERT' and as a separate source for data
 #
 # INSERT...SELECT
@@ -77,13 +87,17 @@ INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=1 RETURNING id1;
 ERROR 42S22: Unknown column 'id1' in 'field list'
 INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING MAX(id2);
 ERROR HY000: Invalid use of group function
-INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT id1 FROM t1);
+INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT 
+id1 FROM t1);
 ERROR 21000: Subquery returns more than 1 row
-INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT * FROM t1);
+INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT 
+* FROM t1);
 ERROR 21000: Operand should contain 1 column(s)
-INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING(SELECT * FROM t2);
+INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING(SELECT 
+* FROM t2);
 ERROR 21000: Operand should contain 1 column(s)
-INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT id2 FROM t2);
+INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT 
+id2 FROM t2);
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t1;
 DROP TABLE t2;
