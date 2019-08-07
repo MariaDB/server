@@ -654,7 +654,7 @@ public:
 class Item_func_not_all :public Item_func_not
 {
   /* allow to check presence of values in max/min optimization */
-  Item_sum_hybrid *test_sum_item;
+  Item_sum_min_max *test_sum_item;
   Item_maxmin_subselect *test_sub_item;
 
 public:
@@ -670,7 +670,7 @@ public:
   bool fix_fields(THD *thd, Item **ref)
     {return Item_func::fix_fields(thd, ref);}
   virtual void print(String *str, enum_query_type query_type);
-  void set_sum_test(Item_sum_hybrid *item) { test_sum_item= item; test_sub_item= 0; };
+  void set_sum_test(Item_sum_min_max *item) { test_sum_item= item; test_sub_item= 0; };
   void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd);

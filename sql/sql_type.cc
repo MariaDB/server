@@ -365,7 +365,7 @@ Type_handler::blob_type_handler(const Item *item)
 
 /**
   This method is used by:
-  - Item_sum_hybrid, e.g. MAX(item), MIN(item).
+  - Item_sum_min_max, e.g. MAX(item), MIN(item).
   - Item_func_set_user_var
 */
 const Type_handler *
@@ -3086,9 +3086,9 @@ bool Type_handler_real_result::
   QQ: Items should probably be fixed to preserve the exact type.
 */
 bool Type_handler_numeric::
-       Item_sum_hybrid_fix_length_and_dec_numeric(Item_sum_hybrid *func,
-                                                  const Type_handler *handler)
-                                                  const
+       Item_sum_min_max_fix_length_and_dec_numeric(Item_sum_min_max *func,
+                                                   const Type_handler *handler)
+                                                   const
 {
   Item *item= func->arguments()[0];
   Item *item2= item->real_item();
@@ -3104,28 +3104,28 @@ bool Type_handler_numeric::
 
 
 bool Type_handler_int_result::
-       Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
+       Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const
 {
-  return Item_sum_hybrid_fix_length_and_dec_numeric(func,
-                                                    &type_handler_longlong);
+  return Item_sum_min_max_fix_length_and_dec_numeric(func,
+                                                     &type_handler_longlong);
 }
 
 
 bool Type_handler_real_result::
-       Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
+       Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const
 {
-  (void) Item_sum_hybrid_fix_length_and_dec_numeric(func,
-                                                    &type_handler_double);
+  (void) Item_sum_min_max_fix_length_and_dec_numeric(func,
+                                                     &type_handler_double);
   func->max_length= func->float_length(func->decimals);
   return false;
 }
 
 
 bool Type_handler_decimal_result::
-       Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
+       Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const
 {
-  return Item_sum_hybrid_fix_length_and_dec_numeric(func,
-                                                    &type_handler_newdecimal);
+  return Item_sum_min_max_fix_length_and_dec_numeric(func,
+                                                     &type_handler_newdecimal);
 }
 
 
@@ -3138,7 +3138,7 @@ bool Type_handler_decimal_result::
    MAX(str_item) chooses the best suitable string type.
 */
 bool Type_handler_string_result::
-       Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
+       Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const
 {
   Item *item= func->arguments()[0];
   Item *item2= item->real_item();
@@ -3164,7 +3164,7 @@ bool Type_handler_string_result::
   Traditional temporal types always preserve the type of the argument.
 */
 bool Type_handler_temporal_result::
-       Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
+       Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const
 {
   Item *item= func->arguments()[0];
   func->Type_std_attributes::set(item);

@@ -292,21 +292,18 @@ class Item_sum_dense_rank: public Item_sum_int
   { return get_item_copy<Item_sum_dense_rank>(thd, this); }
 };
 
-class Item_sum_hybrid_simple : public Item_sum,
-                               public Type_handler_hybrid_field_type
+class Item_sum_hybrid_simple : public Item_sum_hybrid
 {
  public:
   Item_sum_hybrid_simple(THD *thd, Item *arg):
-   Item_sum(thd, arg),
-   Type_handler_hybrid_field_type(&type_handler_longlong),
+   Item_sum_hybrid(thd, arg),
    value(NULL)
-  { collation.set(&my_charset_bin); }
+  { }
 
   Item_sum_hybrid_simple(THD *thd, Item *arg1, Item *arg2):
-   Item_sum(thd, arg1, arg2),
-   Type_handler_hybrid_field_type(&type_handler_longlong),
+   Item_sum_hybrid(thd, arg1, arg2),
    value(NULL)
-  { collation.set(&my_charset_bin); }
+  { }
 
   bool add();
   bool fix_fields(THD *, Item **);
@@ -317,8 +314,6 @@ class Item_sum_hybrid_simple : public Item_sum,
   void reset_field();
   String *val_str(String *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
   Field *create_tmp_field(bool group, TABLE *table);
   void clear()
