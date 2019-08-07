@@ -3506,10 +3506,6 @@ public:
   {
     return (m_type_handler= Type_handler::get_handler_by_result_type(type));
   }
-  const Type_handler *set_handler_by_cmp_type(Item_result type)
-  {
-    return (m_type_handler= Type_handler::get_handler_by_cmp_type(type));
-  }
   const Type_handler *set_handler_by_result_type(Item_result type,
                                                  uint max_octet_length,
                                                  CHARSET_INFO *cs)

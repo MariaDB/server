@@ -174,7 +174,8 @@ bool Item_window_func::check_result_type_of_order_item()
 {
   if (only_single_element_order_list())
   {
-    Item_result rtype= window_spec->order_list->first->item[0]->cmp_type();
+    Item *src_item= window_spec->order_list->first->item[0];
+    Item_result rtype= src_item->cmp_type();
     // TODO (varun) : support date type in percentile_cont function
     if (rtype != REAL_RESULT && rtype != INT_RESULT &&
         rtype != DECIMAL_RESULT && rtype != TIME_RESULT)
@@ -182,7 +183,14 @@ bool Item_window_func::check_result_type_of_order_item()
       my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0), window_func()->func_name());
       return TRUE;
     }
-    setting_handler_for_percentile_functions(rtype);
+    if (window_func()->sum_func() == Item_sum::PERCENTILE_DISC_FUNC)
+    {
+      Item_sum_percentile_disc *func=
+        static_cast<Item_sum_percentile_disc*>(window_func());
+      func->set_handler(src_item->type_handler());
+      func->Type_std_attributes::set(src_item);
+      Type_std_attributes::set(src_item);
+    }
   }
   return FALSE;
 }
