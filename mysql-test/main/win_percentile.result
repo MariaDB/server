@@ -451,3 +451,17 @@ Lady of the Flies	20000000000.00
 Lord of the Ladybirds	30000000000.00
 Lord of the Ladybirds	30000000000.00
 DROP TABLE t2, t1;
+#
+# MDEV-20272 PERCENTILE_DISC() crashes on a temporal type input
+#
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating TIME);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+ERROR HY000: Numeric datatype is required for percentile_disc function
+DROP TABLE t1;

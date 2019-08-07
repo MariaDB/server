@@ -209,3 +209,20 @@ CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
 SHOW CREATE TABLE t2;
 SELECT * FROM t2 ORDER BY name, pc;
 DROP TABLE t2, t1;
+
+
+--echo #
+--echo # MDEV-20272 PERCENTILE_DISC() crashes on a temporal type input
+--echo #
+
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating TIME);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+--error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
+SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+DROP TABLE t1;
