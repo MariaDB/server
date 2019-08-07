@@ -144,7 +144,49 @@ static inline bool read_variable_length(const char *data, size_t data_length,
   // corrupted JSON document.
   return true;
 }
+// Similar to sql_string.cc:append_for_single_quote()
+static bool append_string_json(String *buffer, const char *data, size_t len)
+{
+  const char *last= data + len;
+  for (; data < last; data++)
+  {
+    uchar c= *data;
+   switch (c) {
 
+    case '\\':
+      buffer->append("\\\\");
+      break;
+    case '\'':
+      buffer->append("\\'");
+      break;
+    case '\n':
+      buffer->append("\\n");
+      break;
+    case '\r':
+      buffer->append("\\r");
+      break;
+    case '\032':
+      buffer->append("\\Z");
+      break;
+    case '"':
+      buffer->append("\\\"");
+      break;
+    case '\b':
+      buffer->append("\\b");
+      break;
+    case '\f':
+      buffer->append("\\f");
+      break;
+    case '\t':
+      buffer->append("\\t");
+      break;
+    default:
+      buffer->append(c);
+      break;
+    }
+  }
+  return false;
+}
 
 static bool parse_mysql_scalar(String* buffer, size_t value_json_type,
                         const char *data, size_t len, bool large, size_t depth)
@@ -264,7 +306,7 @@ static bool parse_mysql_scalar(String* buffer, size_t value_json_type,
         delete[] value_element;
         return true;
       }
-      if (buffer->append(String((const char *)value_element, &my_charset_bin)))
+      if (append_string_json(buffer, value_element, value_length + 1))
       {
         delete[] value_element;
         return true;
@@ -386,7 +428,6 @@ static bool parse_mysql_scalar(String* buffer, size_t value_json_type,
   return false;
 }
 
-
 static bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
                                   const char *data, size_t len, bool large)
 {
@@ -457,7 +498,7 @@ static bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
         delete[] key_element;
         return true;
       }
-      if (buffer->append(String((const char *)key_element, &my_charset_bin)))
+      if (append_string_json(buffer, key_element, key_json_len + 1))
       {
         delete[] key_element;
         return true;
@@ -487,11 +528,11 @@ static bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
           return true;
       }
       else // Non-inlined values - we need to get the lenght of data and use
-           // recursively parse_value()
+           // recursively parse_mysql_json_value()
       {
         size_t val_start_offset= read_offset_or_size(data + value_type_offset + 1,
                                                 large);
-        if (parse_value(buffer, type, data + val_start_offset, bytes - val_start_offset,
+        if (parse_mysql_json_value(buffer, type, data + val_start_offset, bytes - val_start_offset,
                         large, 0))
           return true;
       }
@@ -519,11 +560,11 @@ static bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
           return true;
       }
       else // Non-inlined values - we need to get the lenght of data and use
-           // recursively parse_value()
+           // recursively parse_mysql_json_value()
       {
         size_t val_len_ptr= read_offset_or_size(data + value_type_offset + 1,
                                                 large);
-        if (parse_value(buffer, type, data + val_len_ptr, bytes - val_len_ptr,
+        if (parse_mysql_json_value(buffer, type, data + val_len_ptr, bytes - val_len_ptr,
                         large, 0))
           return true;
       }
@@ -551,7 +592,7 @@ static bool parse_array_or_object(String *buffer, Field_mysql_json::enum_type t,
 }
 
 
-bool parse_value(String *buffer, size_t type, const char *data, size_t len,
+bool parse_mysql_json_value(String *buffer, size_t type, const char *data, size_t len,
                  bool large, size_t depth)
 {
   switch (type)
