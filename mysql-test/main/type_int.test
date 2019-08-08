@@ -177,5 +177,16 @@ DROP FUNCTION uint64;
 DROP FUNCTION sint64;
 
 --echo #
+--echo # MDEV-20285 Wrong result on INSERT..SELECT when converting from SIGNED to UNSIGNED
+--echo #
+
+CREATE TABLE t1 (a TINYINT UNSIGNED);
+CREATE TABLE t2 (a TINYINT);
+INSERT INTO t1 VALUES (255);
+INSERT IGNORE INTO t2 SELECT a FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

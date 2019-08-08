@@ -236,5 +236,18 @@ DROP FUNCTION sint32;
 DROP FUNCTION uint64;
 DROP FUNCTION sint64;
 #
+# MDEV-20285 Wrong result on INSERT..SELECT when converting from SIGNED to UNSIGNED
+#
+CREATE TABLE t1 (a TINYINT UNSIGNED);
+CREATE TABLE t2 (a TINYINT);
+INSERT INTO t1 VALUES (255);
+INSERT IGNORE INTO t2 SELECT a FROM t1;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t2;
+a
+127
+DROP TABLE t1, t2;
+#
 # End of 10.3 tests
 #
