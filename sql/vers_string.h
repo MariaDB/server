@@ -17,6 +17,8 @@
 #ifndef VERS_STRING_INCLUDED
 #define VERS_STRING_INCLUDED
 
+#include "lex_string.h"
+
 /*
   LEX_CSTRING with comparison semantics.
 */
@@ -43,41 +45,6 @@ struct Compare_identifiers
     DBUG_ASSERT(b.str[b.length] == 0);
     return my_strcasecmp(system_charset_info, a.str, b.str);
   }
-};
-
-class Lex_cstring : public LEX_CSTRING
-{
-  public:
-  Lex_cstring()
-  {
-    str= NULL;
-    length= 0;
-  }
-  Lex_cstring(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
-  Lex_cstring(const char *start, const char *end)
-  {
-    DBUG_ASSERT(start <= end);
-    str= start;
-    length= end - start;
-  }
-  void set(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
-};
-
-
-class Lex_cstring_strlen: public Lex_cstring
-{
-public:
-  Lex_cstring_strlen(const char *from)
-   :Lex_cstring(from, from ? strlen(from) : 0)
-  { }
 };
 
 
