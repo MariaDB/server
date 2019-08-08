@@ -60,6 +60,23 @@ select count(*), sum(a), sum(b), sum(c), sum(d) from t1;
 drop table t1;
 
 --echo #
+--echo # Test ALTER TABLE with locked table for S3
+--echo #
+
+create table t1 (a int, b int) engine=aria select seq as a,seq+10 as b from seq_1_to_10;
+lock table t1 write;
+--error ER_OPEN_AS_READONLY
+alter table t1 add column c int, engine=s3;
+unlock tables;
+select count(*), sum(a), sum(b), sum(c) from t1;
+--error ER_OPEN_AS_READONLY
+lock table t1 write;
+lock table t1 read;
+select count(*), sum(a), sum(b), sum(c) from t1;
+unlock tables;
+drop table t1;
+
+--echo #
 --echo # Test RENAME TABLE
 --echo #
 

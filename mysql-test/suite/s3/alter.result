@@ -89,6 +89,25 @@ count(*)	sum(a)	sum(b)	sum(c)	sum(d)
 10	55	155	NULL	NULL
 drop table t1;
 #
+# Test ALTER TABLE with locked table for S3
+#
+create table t1 (a int, b int) engine=aria select seq as a,seq+10 as b from seq_1_to_10;
+lock table t1 write;
+alter table t1 add column c int, engine=s3;
+ERROR HY000: Table 't1' is read only
+unlock tables;
+select count(*), sum(a), sum(b), sum(c) from t1;
+count(*)	sum(a)	sum(b)	sum(c)
+10	55	155	NULL
+lock table t1 write;
+ERROR HY000: Table 't1' is read only
+lock table t1 read;
+select count(*), sum(a), sum(b), sum(c) from t1;
+count(*)	sum(a)	sum(b)	sum(c)
+10	55	155	NULL
+unlock tables;
+drop table t1;
+#
 # Test RENAME TABLE
 #
 create table t1 (a int, b int) engine=aria select seq as a, seq+10 as b from seq_1_to_10;
