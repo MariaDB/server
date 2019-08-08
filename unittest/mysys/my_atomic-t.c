@@ -90,10 +90,10 @@ pthread_handler_t test_atomic_cas(void *arg)
     y= my_atomic_load32(&bad);
     x= (x*m+0x87654321) & INT_MAX32;
     do {
-      ok= my_atomic_cas32(&bad, &y, (uint32)y+x);
+      ok= my_atomic_cas32((int32*) &bad, &y, y+x);
     } while (!ok) ;
     do {
-      ok= my_atomic_cas32(&bad, &y, y-x);
+      ok= my_atomic_cas32((int32*) &bad, &y, y-x);
     } while (!ok) ;
   }
   return 0;

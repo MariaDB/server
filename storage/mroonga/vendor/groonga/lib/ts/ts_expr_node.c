@@ -5173,7 +5173,7 @@ grn_ts_expr_node_deref(grn_ctx *ctx, grn_ts_expr_node **node_ptr)
 {
   grn_ts_expr_node *node = *node_ptr, **in_ptr = NULL;
   while ((node->data_kind & ~GRN_TS_VECTOR_FLAG) == GRN_TS_REF) {
-    grn_ts_expr_node *new_node;
+    grn_ts_expr_node *new_node= 0;
     grn_rc rc = grn_ts_expr_node_deref_once(ctx, node, &new_node);
     if (rc != GRN_SUCCESS) {
       if (in_ptr) {

@@ -2864,7 +2864,8 @@ strncmpic(pcre_uint8 *s, pcre_uint8 *t, int n)
 {
 while (n--)
   {
-  int c = tolower(*s++) - tolower(*t++);
+  int c = tolower(*s) - tolower(*t);
+  s++; t++;
   if (c) return c;
   }
 return 0;
