@@ -562,8 +562,6 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
   MaxSize = -1;                        // Size must be recalculated
   Cardinal = -1;                       // as well as Cardinality
 
-  PTXF xp = Txfp;
-
   To_Filter = NULL;                     // Disable filtering
 //To_BlkIdx = NULL;                     // and index filtering
   To_BlkFil = NULL;                     // and block filtering
@@ -635,8 +633,9 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   PDOSDEF    defp = (PDOSDEF)To_Def;
   PDOSCOL    colp = NULL;
   PDBUSER    dup = PlgGetUser(g);
-  PCATLG     cat = defp->GetCat();
 //void      *memp = cat->GetDescp();
+  (void) defp->GetCat();                        // XXX Should be removed?
+
 
   if ((nrec = defp->GetElemt()) < 2) {
     if (!To_Def->Partitioned()) {
@@ -998,15 +997,17 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
   {
   char       filename[_MAX_PATH];
   int        i, lg, n[NZ];
-  int        nrec, block = 0, last = 0, allocblk = 0;
+  int        nrec, block = 0, last = 0;
   int        len;
   bool       newblk = false;
   size_t     ndv, nbm, nbk, blk;
   FILE      *opfile;
   PCOLDEF    cdp;
   PDOSDEF    defp = (PDOSDEF)To_Def;
-  PCATLG     cat = defp->GetCat();
-	PDBUSER    dup = PlgGetUser(g);
+  PDBUSER    dup = PlgGetUser(g);
+
+  (void) defp->GetCat();                        // XXX Should be removed?
+
 
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)
@@ -1287,7 +1288,7 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
 
     } // endif blk
 
-  int  i, op = filp->GetOpc(), opm = filp->GetOpm(), n = 0;
+  int  i, op = filp->GetOpc(), opm = filp->GetOpm();
   bool cnv[2];
   PCOL colp;
   PXOB arg[2] = {NULL,NULL};
@@ -1330,13 +1331,14 @@ PBF TDBDOS::InitBlockFilter(PGLOBAL g, PFIL filp)
               bfp = new(g) BLKSPCIN(g, this, op, opm, arg, Txfp->Nrec);
 
           } else if (blk && Txfp->Nrec > 1 && colp->IsClustered())
+          {
             // Clustered column and constant array
             if (colp->GetClustered() == 2)
               bfp = new(g) BLKFILIN2(g, this, op, opm, arg);
             else
               bfp = new(g) BLKFILIN(g, this, op, opm, arg);
-
-          } // endif this
+          }
+        } // endif this
 
 #if 0
       } else if (filp->GetArgType(0) == TYPE_SCALF &&
@@ -1412,12 +1414,12 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
 //bool    conv = false, xdb2 = false, ok = false, b[2];
 //PXOB   *xarg1, *xarg2 = NULL, xp[2];
   int     i, n = 0, type[2] = {0,0};
-  bool    conv = false, xdb2 = false, ok = false;
-  PXOB   *xarg2 = NULL, xp[2];
+  bool    conv = false, xdb2 = false;
+  PXOB    xp[2];
   PCOL    colp;
 //LSTVAL *vlp = NULL;
 //SFROW  *sfr[2];
-  PBF    *fp = NULL, bfp = NULL;
+  PBF    bfp = NULL;
 
   for (i = 0; i < 2; i++) {
     switch (arg[i]->GetType()) {
@@ -1648,7 +1650,7 @@ int TDBDOS::TestBlock(PGLOBAL g)
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
 	int     k, n, rc = RC_OK;
-	bool    fixed, doit, sep, b = (pxdf != NULL);
+	bool    fixed, doit, sep;
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -2822,6 +2824,7 @@ bool DOSCOL::SetBitMap(PGLOBAL g)
 bool DOSCOL::CheckSorted(PGLOBAL g)
   {
   if (Sorted)
+  {
     if (OldVal) {
       // Verify whether this column is sorted all right
       if (OldVal->CompareValue(Value) > 0) {
@@ -2834,7 +2837,7 @@ bool DOSCOL::CheckSorted(PGLOBAL g)
 
     } else
       OldVal = AllocateValue(g, Value);
-
+  }
   return false;
   } // end of CheckSorted
 

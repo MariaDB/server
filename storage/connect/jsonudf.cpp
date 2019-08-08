@@ -247,7 +247,7 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 {
 	char   *p, *p1 = NULL, *p2 = NULL, *pbuf = NULL;
 	int     i;
-	my_bool a, mul = false;
+	my_bool a;
 
 	if (Parsed)
 		return false;                       // Already done
@@ -424,7 +424,6 @@ PVAL JSNX::GetColumnValue(PGLOBAL g, PJSON row, int i)
 /*********************************************************************************/
 PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 {
-	my_bool expd = false;
 	PJAR    arp;
 	PJVAL   val = NULL;
 
@@ -763,7 +762,7 @@ my_bool JSNX::WriteValue(PGLOBAL g, PJVAL jvalp)
 PSZ JSNX::Locate(PGLOBAL g, PJSON jsp, PJVAL jvp, int k)
 {
 	PSZ     str = NULL;
-	my_bool b = false, err = true;
+	my_bool err = true;
 
 	g->Message[0] = 0;
 
@@ -885,7 +884,7 @@ my_bool JSNX::LocateValue(PJVAL jvp)
 PSZ JSNX::LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx)
 {
 	PSZ     str = NULL;
-	my_bool b = false, err = true;
+	my_bool err = true;
 	PJPN    jnp;
 	
 	if (!jsp) {
@@ -1352,7 +1351,7 @@ static PBSON MakeBinResult(PGLOBAL g, UDF_ARGS *args, PJSON top, ulong len, int 
 
 		bsnp->Pretty = pretty;
 
-		if (bsnp->Filename = (char*)args->args[0]) {
+		if ((bsnp->Filename = (char*)args->args[0])) {
 			bsnp->Filename = MakePSZ(g, args, 0);
 			strncpy(bsnp->Msg, bsnp->Filename, BMX);
 		} else
@@ -3755,11 +3754,13 @@ my_bool jsonlocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		strcpy(message, "Third argument is not an integer (rank)");
 		return true;
 	} else if (args->arg_count > 3)
+        {
 		if (args->arg_type[3] != INT_RESULT) {
 			strcpy(message, "Fourth argument is not an integer (memory)");
 			return true;
 		} else
 			more += (ulong)*(longlong*)args->args[2];
+        }
 
 	CalcLen(args, false, reslen, memlen);
 
@@ -5178,7 +5179,7 @@ char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PCSZ  key;
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0, &top);
-		PJSON jsp = jvp->GetJson();
+		(void) jvp->GetJson();          // XXX Should be removed?
 
 		if (CheckPath(g, args, top, jvp, 2))
 			PUSH_WARNING(g->Message);
@@ -5889,7 +5890,7 @@ long long countin(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	memcpy(str2, args->args[1], lg);
 	str2[lg] = 0;
 
-	while (s = strstr(s, str2)) {
+	while ((s = strstr(s, str2))) {
 		n++;
 		s += lg;
 	} // endwhile

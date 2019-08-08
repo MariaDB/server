@@ -647,7 +647,7 @@ int ZBKFAM::WriteBuffer(PGLOBAL g)
 int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   if (irc == RC_EF) {
-    LPCSTR  name = Tdbp->GetName();
+    (void) Tdbp->GetName();                     // XXX Should be removed ?
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     defp->SetBlock(0);
@@ -673,7 +673,7 @@ void ZBKFAM::CloseTableFile(PGLOBAL g, bool)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    LPCSTR  name = Tdbp->GetName();
+    (void) Tdbp->GetName();                     // XXX Should be removed?
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     if (CurNum && !Closing) {
@@ -1355,7 +1355,7 @@ void ZLBFAM::CloseTableFile(PGLOBAL g, bool)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    LPCSTR  name = Tdbp->GetName();
+    (void) Tdbp->GetName();                     // XXX Should be removed?
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     // Closing is True if last Write was in error

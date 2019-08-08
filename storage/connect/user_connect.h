@@ -35,7 +35,7 @@
 //typedef struct _global *PGLOBAL;
 typedef class user_connect *PCONNECT;
 typedef class ha_connect *PHC;
-static int connect_done_func(void *);
+int connect_done_func(void *);
 
 /*****************************************************************************/
 /*  The CONNECT users. There should be one by connected users.               */

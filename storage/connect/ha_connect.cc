@@ -782,7 +782,7 @@ static int connect_init_func(void *p)
   @brief
   Plugin clean up
 */
-static int connect_done_func(void *)
+int connect_done_func(void *)
 {
   int error= 0;
   PCONNECT pc, pn;

@@ -190,7 +190,7 @@ bool CloseMemMap(void *memory, size_t dwSize)
   {
   if (memory) {
     // All this must be redesigned
-    int rc = msync((char*)memory, dwSize, MS_SYNC);
+    msync((char*)memory, dwSize, MS_SYNC);
     return (munmap((char*)memory, dwSize) < 0) ? true : false;
   } else
     return false;
