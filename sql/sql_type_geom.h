@@ -199,8 +199,8 @@ class Type_handler_linestring: public Type_handler_geometry
 {
   static const Name m_name_linestring;
 public:
-  geometry_types geometry_type() const { return GEOM_LINESTRING; }
-  const Name name() const { return m_name_linestring; }
+  geometry_types geometry_type() const override { return GEOM_LINESTRING; }
+  const Name name() const override { return m_name_linestring; }
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -209,8 +209,8 @@ class Type_handler_polygon: public Type_handler_geometry
 {
   static const Name m_name_polygon;
 public:
-  geometry_types geometry_type() const { return GEOM_POLYGON; }
-  const Name name() const { return m_name_polygon; }
+  geometry_types geometry_type() const override { return GEOM_POLYGON; }
+  const Name name() const override { return m_name_polygon; }
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -219,8 +219,8 @@ class Type_handler_multipoint: public Type_handler_geometry
 {
   static const Name m_name_multipoint;
 public:
-  geometry_types geometry_type() const { return GEOM_MULTIPOINT; }
-  const Name name() const { return m_name_multipoint; }
+  geometry_types geometry_type() const override { return GEOM_MULTIPOINT; }
+  const Name name() const override { return m_name_multipoint; }
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -229,8 +229,8 @@ class Type_handler_multilinestring: public Type_handler_geometry
 {
   static const Name m_name_multilinestring;
 public:
-  geometry_types geometry_type() const { return GEOM_MULTILINESTRING; }
-  const Name name() const { return m_name_multilinestring; }
+  geometry_types geometry_type() const override { return GEOM_MULTILINESTRING; }
+  const Name name() const override { return m_name_multilinestring; }
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -239,8 +239,8 @@ class Type_handler_multipolygon: public Type_handler_geometry
 {
   static const Name m_name_multipolygon;
 public:
-  geometry_types geometry_type() const { return GEOM_MULTIPOLYGON; }
-  const Name name() const { return m_name_multipolygon; }
+  geometry_types geometry_type() const override { return GEOM_MULTIPOLYGON; }
+  const Name name() const override { return m_name_multipolygon; }
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -249,8 +249,8 @@ class Type_handler_geometrycollection: public Type_handler_geometry
 {
   static const Name m_name_geometrycollection;
 public:
-  geometry_types geometry_type() const { return GEOM_GEOMETRYCOLLECTION; }
-  const Name name() const { return m_name_geometrycollection; }
+  geometry_types geometry_type() const override { return GEOM_GEOMETRYCOLLECTION; }
+  const Name name() const override { return m_name_geometrycollection; }
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
