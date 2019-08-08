@@ -20,6 +20,8 @@
 #ifndef _myisamchk_h
 #define _myisamchk_h
 
+#include <my_stack_alloc.h>
+
 /*
   Flags used by xxxxchk.c or/and ha_xxxx.cc that are NOT passed
   to xxxcheck.c follows:
@@ -32,15 +34,6 @@
 /* Bits set in out_flag */
 #define O_NEW_DATA	2U
 #define O_DATA_LOST	4U
-
-typedef struct st_sort_key_blocks		/* Used when sorting */
-{
-  uchar *buff, *end_pos;
-  uchar lastkey[HA_MAX_POSSIBLE_KEY_BUFF];
-  uint last_length;
-  int inited;
-} SORT_KEY_BLOCKS;
-
 
 /* 
   MARIA/MYISAM supports several statistics collection
@@ -111,6 +104,7 @@ typedef struct st_handler_check_param
   my_bool retry_repair, force_sort, calc_checksum, static_row_size;
   char temp_filename[FN_REFLEN];
   IO_CACHE read_cache;
+  STACK_ALLOC stack_alloc;
   enum_handler_stats_method stats_method;
   /* For reporting progress */
   uint stage, max_stage;
@@ -123,14 +117,6 @@ typedef struct st_handler_check_param
   my_bool need_print_msg_lock;
   myf malloc_flags;
 } HA_CHECK;
-
-
-typedef struct st_sort_ftbuf
-{
-  uchar *buf, *end;
-  int count;
-  uchar lastkey[HA_MAX_KEY_BUFF];
-} SORT_FT_BUF;
 
 
 typedef struct st_buffpek {

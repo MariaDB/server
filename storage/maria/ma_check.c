@@ -46,8 +46,7 @@
 #include "trnman.h"
 #include "ma_key_recover.h"
 #include <my_check_opt.h>
-
-#include <stdarg.h>
+#include <my_stack_alloc.h>
 #include <my_getopt.h>
 #ifdef HAVE_SYS_VADVISE_H
 #include <sys/vadvise.h>
@@ -78,11 +77,11 @@ static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
 static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a);
 static my_off_t get_record_for_key(MARIA_KEYDEF *keyinfo, const uchar *key);
 static int sort_insert_key(MARIA_SORT_PARAM  *sort_param,
-                           reg1 SORT_KEY_BLOCKS *key_block,
+                           reg1 MA_SORT_KEY_BLOCKS *key_block,
 			   const uchar *key, my_off_t prev_block);
 static int sort_delete_record(MARIA_SORT_PARAM *sort_param);
 /*static int _ma_flush_pending_blocks(HA_CHECK *param);*/
-static SORT_KEY_BLOCKS	*alloc_key_blocks(HA_CHECK *param, uint blocks,
+static MA_SORT_KEY_BLOCKS	*alloc_key_blocks(HA_CHECK *param, uint blocks,
 					  uint buffer_length);
 static ha_checksum maria_byte_checksum(const uchar *buf, uint length);
 static void set_data_file_type(MARIA_SORT_INFO *sort_info, MARIA_SHARE *share);
@@ -127,6 +126,10 @@ void maria_chk_init(HA_CHECK *param)
   param->pagecache_block_size= KEY_CACHE_BLOCK_SIZE;
   param->stats_method= MI_STATS_METHOD_NULLS_NOT_EQUAL;
   param->max_stage= 1;
+  init_stack_alloc(&param->stack_alloc,
+                   STACK_ALLOC_BIG_BLOCK,
+                   STACK_ALLOC_SMALL_BLOCK,
+                   4096);
 }
 
 
@@ -863,7 +866,8 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   MARIA_SHARE *share= info->s;
   char llbuff[22];
   uint diff_pos[2];
-  uchar tmp_key_buff[MARIA_MAX_KEY_BUFF];
+  uchar *tmp_key_buff;
+  my_bool temp_buff_alloced;
   MARIA_KEY tmp_key;
   DBUG_ENTER("chk_index");
   DBUG_DUMP("buff", anc_page->buff, anc_page->size);
@@ -872,11 +876,17 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   if (keyinfo->flag & (HA_SPATIAL | HA_RTREE_INDEX))
     DBUG_RETURN(0);
 
-  if (!(temp_buff=(uchar*) my_alloca((uint) keyinfo->block_length)))
   {
-    _ma_check_print_error(param,"Not enough memory for keyblock");
-    DBUG_RETURN(-1);
+    void *res;
+    alloc_on_stack(&param->stack_alloc, res, temp_buff_alloced,
+                   (keyinfo->block_length + keyinfo->max_store_length));
+    if (!(temp_buff= res))
+    {
+      _ma_check_print_error(param,"Not enough memory for keyblock");
+      DBUG_RETURN(-1);
+    }
   }
+  tmp_key_buff= temp_buff+ keyinfo->block_length;
 
   if (keyinfo->flag & HA_NOSAME)
   {
@@ -1068,10 +1078,10 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
                           (uint) (keypos - anc_page->buff));
     goto err;
   }
-  my_afree(temp_buff);
+  stack_alloc_free(temp_buff, temp_buff_alloced);
   DBUG_RETURN(0);
  err:
-  my_afree(temp_buff);
+  stack_alloc_free(temp_buff, temp_buff_alloced);
   DBUG_RETURN(1);
 } /* chk_index */
 
@@ -3227,6 +3237,7 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
   MARIA_SHARE *share= info->s;
   MARIA_KEY key;
   MARIA_PAGE page;
+  my_bool buff_alloced;
   DBUG_ENTER("sort_one_index");
 
   /* cannot walk over R-tree indices */
@@ -3235,12 +3246,15 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
   param->new_file_pos+=keyinfo->block_length;
   key.keyinfo= keyinfo;
 
-  if (!(buff= (uchar*) my_alloca((uint) keyinfo->block_length +
-                                 keyinfo->maxlength +
-                                 MARIA_INDEX_OVERHEAD_SIZE)))
   {
-    _ma_check_print_error(param,"Not enough memory for key block");
-    DBUG_RETURN(-1);
+    void *res;
+    alloc_on_stack(&param->stack_alloc, res, buff_alloced,
+                   keyinfo->block_length + keyinfo->max_store_length);
+    if (!(buff= res))
+    {
+      _ma_check_print_error(param,"Not enough memory for keyblock");
+      DBUG_RETURN(-1);
+    }
   }
   key.data= buff + keyinfo->block_length;
 
@@ -3306,10 +3320,10 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
     _ma_check_print_error(param,"Can't write indexblock, error: %d",my_errno);
     goto err;
   }
-  my_afree(buff);
+  stack_alloc_free(buff, buff_alloced);
   DBUG_RETURN(0);
 err:
-  my_afree(buff);
+  stack_alloc_free(buff, buff_alloced);
   DBUG_RETURN(1);
 } /* sort_one_index */
 
@@ -4472,6 +4486,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 
   (void) pthread_attr_init(&thr_attr);
   (void) pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
+  (void) my_setstacksize(&thr_attr, my_thread_stack_size);
 
   for (i=0 ; i < sort_info.total_keys ; i++)
   {
@@ -5581,11 +5596,11 @@ static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
 int _ma_sort_ft_buf_flush(MARIA_SORT_PARAM *sort_param)
 {
   MARIA_SORT_INFO *sort_info=sort_param->sort_info;
-  SORT_KEY_BLOCKS *key_block=sort_info->key_block;
+  MA_SORT_KEY_BLOCKS *key_block=sort_info->key_block;
   MARIA_SHARE *share=sort_info->info->s;
   uint val_off, val_len;
   int error;
-  SORT_FT_BUF *maria_ft_buf=sort_info->ft_buf;
+  MA_SORT_FT_BUF *maria_ft_buf=sort_info->ft_buf;
   uchar *from, *to;
 
   val_len=share->ft2_keyinfo.keylength;
@@ -5629,8 +5644,8 @@ static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
 {
   uint a_len, val_off, val_len, error;
   MARIA_SORT_INFO *sort_info= sort_param->sort_info;
-  SORT_FT_BUF *ft_buf= sort_info->ft_buf;
-  SORT_KEY_BLOCKS *key_block= sort_info->key_block;
+  MA_SORT_FT_BUF *ft_buf= sort_info->ft_buf;
+  MA_SORT_KEY_BLOCKS *key_block= sort_info->key_block;
   MARIA_SHARE *share= sort_info->info->s;
 
   val_len=HA_FT_WLEN+share->rec_reflength;
@@ -5646,8 +5661,8 @@ static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
          share->rec_reflength) &&
         (share->options &
           (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD)))
-      ft_buf= (SORT_FT_BUF *)my_malloc(sort_param->keyinfo->block_length +
-                                       sizeof(SORT_FT_BUF), MYF(MY_WME));
+      ft_buf= (MA_SORT_FT_BUF *)my_malloc(sort_param->keyinfo->block_length +
+                                       sizeof(MA_SORT_FT_BUF), MYF(MY_WME));
 
     if (!ft_buf)
     {
@@ -5731,7 +5746,7 @@ static my_off_t get_record_for_key(MARIA_KEYDEF *keyinfo,
 /* Insert a key in sort-key-blocks */
 
 static int sort_insert_key(MARIA_SORT_PARAM *sort_param,
-			   register SORT_KEY_BLOCKS *key_block,
+			   register MA_SORT_KEY_BLOCKS *key_block,
                            const uchar *key,
 			   my_off_t prev_block)
 {
@@ -5913,7 +5928,7 @@ int _ma_flush_pending_blocks(MARIA_SORT_PARAM *sort_param)
 {
   uint nod_flag,length;
   my_off_t filepos;
-  SORT_KEY_BLOCKS *key_block;
+  MA_SORT_KEY_BLOCKS *key_block;
   MARIA_SORT_INFO *sort_info= sort_param->sort_info;
   myf myf_rw=sort_info->param->myf_rw;
   MARIA_HA *info=sort_info->info;
@@ -5965,14 +5980,14 @@ err:
 
 	/* alloc space and pointers for key_blocks */
 
-static SORT_KEY_BLOCKS *alloc_key_blocks(HA_CHECK *param, uint blocks,
+static MA_SORT_KEY_BLOCKS *alloc_key_blocks(HA_CHECK *param, uint blocks,
                                          uint buffer_length)
 {
   reg1 uint i;
-  SORT_KEY_BLOCKS *block;
+  MA_SORT_KEY_BLOCKS *block;
   DBUG_ENTER("alloc_key_blocks");
 
-  if (!(block= (SORT_KEY_BLOCKS*) my_malloc((sizeof(SORT_KEY_BLOCKS)+
+  if (!(block= (MA_SORT_KEY_BLOCKS*) my_malloc((sizeof(MA_SORT_KEY_BLOCKS)+
                                              buffer_length+IO_SIZE)*blocks,
                                             MYF(0))))
   {

@@ -114,11 +114,11 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
                               MARIA_PINNED_PAGE **res_page_link,
                               uchar **res_page_buff)
 {
-  my_bool last_key_not_used;
+  my_bool last_key_not_used, buff_alloced;
   int error,flag;
   uint page_flag, nod_flag, used_length;
   uchar *keypos,*maxpos;
-  uchar lastkey[MARIA_MAX_KEY_BUFF];
+  uchar *lastkey;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   MARIA_PAGE page;
   MARIA_PINNED_PAGE *page_link;
@@ -136,6 +136,14 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
     if (!(nextflag & (SEARCH_SMALLER | SEARCH_BIGGER | SEARCH_LAST)))
       DBUG_RETURN(-1);                          /* Not found ; return error */
     DBUG_RETURN(1);                             /* Search at upper levels */
+  }
+
+  {
+    void *res;
+    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
+                   keyinfo->max_store_length);
+    if (!(lastkey= res))
+      DBUG_RETURN(1);
   }
 
   if (_ma_fetch_keypage(&page, info, keyinfo, pos,
@@ -164,16 +172,17 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
     if ((error= _ma_search_no_save(info, key, nextflag,
                                    _ma_kpos(nod_flag,keypos),
                                    res_page_link, res_page_buff)) <= 0)
-      DBUG_RETURN(error);
+      goto ret_error;
 
+    error= 1;                                    /* Default return value */
     if (flag >0)
     {
       if (nextflag & (SEARCH_SMALLER | SEARCH_LAST) &&
           keypos == page.buff + info->s->keypage_header + nod_flag)
-        DBUG_RETURN(1);                                 /* Bigger than key */
+        goto ret_error;                         /* Bigger than key */
     }
     else if (nextflag & SEARCH_BIGGER && keypos >= maxpos)
-      DBUG_RETURN(1);                                   /* Smaller than key */
+      goto ret_error;                           /* Smaller than key */
   }
   else
   {
@@ -188,7 +197,7 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
                                      _ma_kpos(nod_flag,keypos),
                                      res_page_link, res_page_buff)) >= 0 ||
           my_errno != HA_ERR_KEY_NOT_FOUND)
-        DBUG_RETURN(error);
+        goto ret_error;
     }
   }
 
@@ -233,6 +242,7 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
   *res_page_link= page_link;
   *res_page_buff= page.buff;
   
+  stack_alloc_free(lastkey, buff_alloced);
   DBUG_PRINT("exit",("found key at %lu",(ulong) info->cur_row.lastpos));
   DBUG_RETURN(0);
 
@@ -240,7 +250,11 @@ err:
   DBUG_PRINT("exit",("Error: %d",my_errno));
   info->cur_row.lastpos= HA_OFFSET_ERROR;
   info->page_changed=1;
-  DBUG_RETURN (-1);
+  error= -1;
+
+ret_error:
+  stack_alloc_free(lastkey, buff_alloced);
+  DBUG_RETURN(error);
 }
 
 

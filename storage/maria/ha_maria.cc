@@ -1093,11 +1093,8 @@ double ha_maria::scan_time()
   splitting algorithms depends on this. (With only one key on a page
   we also can't use any compression, which may make the index file much
   larger)
-  We use HA_MAX_KEY_LENGTH as this is a stack restriction imposed by the
-  handler interface.  If we want to increase this, we have also to
-  increase HA_MARIA_KEY_BUFF and MARIA_MAX_KEY_BUFF as the buffer needs
-  to take be able to store the extra lenght bytes that is part of the stored
-  key.
+  We use MARIA_MAX_KEY_LENGTH to limit the key size as we don't want to use
+  too much stack when searching in the b_tree.
 
   We also need to reserve place for a record pointer (8) and 3 bytes
   per key segment to store the length of the segment + possible null bytes.
@@ -2805,6 +2802,9 @@ int ha_maria::external_lock(THD *thd, int lock_type)
                                                F_UNLCK : F_EXTRA_LCK));
   if (!file->s->base.born_transactional)
     file->state= &file->s->state.state;         // Restore state if clone
+
+  /* Remember stack end for this thread */
+  aria_init_stack_alloc(file);
   DBUG_RETURN(result);
 }
 

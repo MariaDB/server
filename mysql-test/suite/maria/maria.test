@@ -373,12 +373,12 @@ drop table t1;
 #
 
 --error 1071
-CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), KEY t1 (a, b, c, d, e));
+CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255), KEY t1 (a, b, c, d, e, f, g, h, i));
 --error 1070
 CREATE TABLE t1 (a varchar(1), b varchar(1), key (a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b));
-CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255));
+CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255));
 --error 1071
-ALTER TABLE t1 ADD INDEX t1 (a, b, c, d, e);
+ALTER TABLE t1 ADD INDEX t1 (a, b, c, d, e, f, g, h, i);
 DROP TABLE t1;
 
 #

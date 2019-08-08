@@ -48,6 +48,9 @@
 /* maria_open() flag, specific for maria_pack */
 #define HA_OPEN_IGNORE_MOVED_STATE (1U << 30)
 
+typedef struct st_sort_key_blocks MA_SORT_KEY_BLOCKS;
+typedef struct st_sort_ftbuf MA_SORT_FT_BUF;
+
 extern PAGECACHE maria_pagecache_var, *maria_pagecache;
 int maria_assign_to_pagecache(MARIA_HA *info, ulonglong key_map,
 			      PAGECACHE *key_cache);
@@ -62,8 +65,8 @@ typedef struct st_maria_sort_info
   MARIA_HA *info, *new_info;
   HA_CHECK *param;
   char *buff;
-  SORT_KEY_BLOCKS *key_block, *key_block_end;
-  SORT_FT_BUF *ft_buf;
+  MA_SORT_KEY_BLOCKS *key_block, *key_block_end;
+  MA_SORT_FT_BUF *ft_buf;
   my_off_t filelength, dupp, buff_length;
   pgcache_page_no_t page;
   ha_rows max_records;
@@ -221,6 +224,10 @@ typedef struct st_maria_state_info
 #define MARIA_FILE_CREATE_RENAME_LSN_OFFSET 4
 #define MARIA_FILE_CREATE_TRID_OFFSET (4 + LSN_STORE_SIZE*3 + 11*8)
 
+#define MARIA_MAX_KEY_LENGTH    2000
+#define MARIA_MAX_KEY_BUFF      (MARIA_MAX_KEY_LENGTH+HA_MAX_KEY_SEG*6+8+8 + \
+                                 MARIA_MAX_PACK_TRANSID_SIZE)
+#define MARIA_MAX_POSSIBLE_KEY_BUFF  (MARIA_MAX_KEY_LENGTH + 24+ 6+6)
 #define MARIA_STATE_KEY_SIZE	(8 + 4)
 #define MARIA_STATE_KEYBLOCK_SIZE  8
 #define MARIA_STATE_KEYSEG_SIZE	12
@@ -228,7 +235,6 @@ typedef struct st_maria_state_info
 #define MARIA_KEYDEF_SIZE	(2+ 5*2)
 #define MARIA_UNIQUEDEF_SIZE	(2+1+1)
 #define HA_KEYSEG_SIZE		(6+ 2*2 + 4*2)
-#define MARIA_MAX_KEY_BUFF	(HA_MAX_KEY_BUFF + MARIA_MAX_PACK_TRANSID_SIZE)
 #define MARIA_COLUMNDEF_SIZE	(2*7+1+1+4)
 #define MARIA_BASE_INFO_SIZE	(MY_UUID_SIZE + 5*8 + 6*4 + 11*2 + 6 + 5*2 + 1 + 16)
 #define MARIA_INDEX_BLOCK_MARGIN 16	/* Safety margin for .MYI tables */
@@ -244,6 +250,8 @@ typedef struct st_maria_state_info
   /* extra options */
 #define MA_EXTRA_OPTIONS_ENCRYPTED (1 << 0)
 #define MA_EXTRA_OPTIONS_INSERT_ORDER (1 << 1)
+
+#include "ma_check.h"
 
 /*
   Basic information of the Maria table. This is stored on disk
@@ -615,6 +623,7 @@ struct st_maria_handler
   MARIA_STATUS_INFO *state_start;       /* State at start of transaction */
   MARIA_USED_TABLES *used_tables;
   struct ms3_st *s3;
+  STACK_ALLOC stack_alloc;
   MARIA_ROW cur_row;                    /* The active row that we just read */
   MARIA_ROW new_row;			/* Storage for a row during update */
   MARIA_KEY last_key;                   /* Last found key */
@@ -1458,4 +1467,19 @@ static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
   if (info->s->file_map)
     _ma_unmap_file(info);
 #endif
+}
+
+static inline void aria_init_stack_alloc(MARIA_HA *info)
+{
+#ifndef DEBUG_STACK_ALLOC
+  init_stack_alloc(&info->stack_alloc,
+                   STACK_ALLOC_BIG_BLOCK,
+                   STACK_ALLOC_SMALL_BLOCK,
+                   4096);
+#else
+  /*
+    Force all allocation to go trough malloc to more easily find corruptions
+  */
+  init_stack_alloc(&info->stack_alloc, 10000000, 10000000, 4096);
+#endif /* DEBUG_STACK_ALLOC */
 }

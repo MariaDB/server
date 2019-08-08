@@ -309,6 +309,8 @@ extern int mi_make_backup_of_index(struct st_myisam_info *info,
 #define   MYISAMCHK_VERIFY 2  /* Verify, run repair if failure */
 
 typedef uint mi_bit_type;
+typedef struct st_sort_key_blocks SORT_KEY_BLOCKS;
+typedef struct st_sort_ftbuf SORT_FT_BUF;
 
 typedef struct st_mi_bit_buff
 {                                       /* Used for packing of record */

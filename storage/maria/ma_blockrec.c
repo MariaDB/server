@@ -2458,12 +2458,16 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
     /* Compact events by removing filler and tail events */
     uchar *new_block= 0;
     uchar *end, *to, *compact_extent_info;
-    my_bool res;
+    my_bool result, buff_alloced;
     uint extents_count;
 
-    if (!(compact_extent_info= my_alloca(row->extents_count *
-                                         ROW_EXTENT_SIZE)))
-      DBUG_RETURN(1);
+    {
+      void *res;
+      alloc_on_stack(&info->stack_alloc, res, buff_alloced,
+                     row->extents_count * ROW_EXTENT_SIZE);
+      if (!(compact_extent_info= res))
+        DBUG_RETURN(1);
+    }
 
     to= compact_extent_info;
     for (end= extents + row->extents_count * ROW_EXTENT_SIZE ;
@@ -2501,7 +2505,7 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
         No ranges. This happens in the rear case when we have a allocated
         place for a blob on a tail page but it did fit into the main page.
       */
-      my_afree(compact_extent_info);
+      stack_alloc_free(compact_extent_info, buff_alloced);
       DBUG_RETURN(0);
     }
     extents_count= (uint) (extents_length / ROW_EXTENT_SIZE);
@@ -2510,14 +2514,14 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
     log_array[TRANSLOG_INTERNAL_PARTS + 0].length= sizeof(log_data);
     log_array[TRANSLOG_INTERNAL_PARTS + 1].str=    compact_extent_info;
     log_array[TRANSLOG_INTERNAL_PARTS + 1].length= extents_length;
-    res= translog_write_record(&lsn, LOGREC_REDO_FREE_BLOCKS, info->trn,
-                               info,
-                               (translog_size_t) (sizeof(log_data) +
-                                                  extents_length),
-                               TRANSLOG_INTERNAL_PARTS + 2, log_array,
-                               log_data, NULL);
-    my_afree(compact_extent_info);
-    if (res)
+    result= translog_write_record(&lsn, LOGREC_REDO_FREE_BLOCKS, info->trn,
+                                  info,
+                                  (translog_size_t) (sizeof(log_data) +
+                                                     extents_length),
+                                  TRANSLOG_INTERNAL_PARTS + 2, log_array,
+                                  log_data, NULL);
+    stack_alloc_free(compact_extent_info, buff_alloced);
+    if (result)
       DBUG_RETURN(1);
   }
 
@@ -5192,14 +5196,16 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
   uchar *org_rec_buff, *old_record;
   size_t org_rec_buff_size;
   int error;
+  my_bool buff_alloced;
   DBUG_ENTER("_ma_cmp_block_unique");
 
-  /*
-    Don't allocate more than 16K on the stack to ensure we don't get
-    stack overflow.
-  */
-  if (!(old_record= my_safe_alloca(info->s->base.reclength)))
-    DBUG_RETURN(1);
+  {
+    void *res;
+    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
+                   info->s->base.reclength);
+    if (!(old_record= res))
+      DBUG_RETURN(1);
+  }
 
   /* Don't let the compare destroy blobs that may be in use */
   org_rec_buff=      info->rec_buff;
@@ -5220,7 +5226,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff_size= org_rec_buff_size;
   }
   DBUG_PRINT("exit", ("result: %d", error));
-  my_safe_afree(old_record, info->s->base.reclength);
+  stack_alloc_free(old_record, buff_alloced);
   DBUG_RETURN(error != 0);
 }
 

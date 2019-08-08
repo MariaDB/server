@@ -186,6 +186,7 @@ typedef struct st_maria_keydef          /* Key definition with open & info */
   uint16 keylength;                     /* Tot length of keyparts (auto) */
   uint16 minlength;                     /* min length of (packed) key (auto) */
   uint16 maxlength;                     /* max length of (packed) key (auto) */
+  uint16 max_store_length;              /* Size to store key + overhead */
   uint32 write_comp_flag;		/* compare flag for write key (auto) */
   uint32 version;                       /* For concurrent read/write */
   uint32 ftkey_nr;                      /* full-text index number */

@@ -870,7 +870,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       record_type= DYNAMIC_RECORD;
     break;
   case 'k':
-    if (key_length < 4 || key_length > HA_MAX_KEY_LENGTH)
+    if (key_length < 4 || key_length > MARIA_MAX_KEY_LENGTH)
     {
       fprintf(stderr,"Wrong key length\n");
       exit(1);

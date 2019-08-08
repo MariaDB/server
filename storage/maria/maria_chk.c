@@ -19,7 +19,6 @@
 #include <myisamchk.h>
 #include <my_bit.h>
 #include <m_ctype.h>
-#include <stdarg.h>
 #include <my_getopt.h>
 #include <my_check_opt.h>
 #include <my_handler_errors.h>
@@ -2012,9 +2011,10 @@ static int sort_record_index(MARIA_SORT_PARAM *sort_param,
   MARIA_HA *info= ma_page->info;
   MARIA_SHARE *share= info->s;
   uint	page_flag, nod_flag,used_length;
+  my_bool buff_alloced;
   uchar *temp_buff,*keypos,*endpos;
   my_off_t next_page,rec_pos;
-  uchar lastkey[MARIA_MAX_KEY_BUFF];
+  uchar *lastkey;
   char llbuff[22];
   MARIA_SORT_INFO *sort_info= sort_param->sort_info;
   HA_CHECK *param=sort_info->param;
@@ -2023,20 +2023,27 @@ static int sort_record_index(MARIA_SORT_PARAM *sort_param,
   const MARIA_KEYDEF *keyinfo= ma_page->keyinfo;
   DBUG_ENTER("sort_record_index");
 
+  temp_buff=0;
   page_flag= ma_page->flag;
   nod_flag=  ma_page->node;
-  temp_buff=0;
   tmp_key.keyinfo= (MARIA_KEYDEF*) keyinfo;
-  tmp_key.data=    lastkey;
 
-  if (nod_flag)
   {
-    if (!(temp_buff= (uchar*) my_alloca(tmp_key.keyinfo->block_length)))
+    void *res;
+    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
+                   (nod_flag ? keyinfo->block_length  : 0) +
+                   ALIGN_SIZE(keyinfo->max_store_length));
+    if (!(lastkey= res))
     {
       _ma_check_print_error(param,"Not Enough memory");
       DBUG_RETURN(-1);
     }
+    if (nod_flag)
+      temp_buff= lastkey + ALIGN_SIZE(keyinfo->max_store_length);
   }
+
+  tmp_key.data=    lastkey;
+
   used_length= ma_page->size;
   keypos= ma_page->buff + share->keypage_header + nod_flag;
   endpos= ma_page->buff + used_length;
@@ -2091,12 +2098,11 @@ static int sort_record_index(MARIA_SORT_PARAM *sort_param,
     _ma_check_print_error(param,"%d when updating keyblock",my_errno);
     goto err;
   }
-  if (temp_buff)
-    my_afree(temp_buff);
+  stack_alloc_free(lastkey, buff_alloced);
   DBUG_RETURN(0);
+
 err:
-  if (temp_buff)
-    my_afree(temp_buff);
+  stack_alloc_free(lastkey, buff_alloced);
   DBUG_RETURN(1);
 } /* sort_record_index */
 
