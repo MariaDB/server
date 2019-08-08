@@ -6294,7 +6294,7 @@ TABLE *TABLE_LIST::get_real_join_table()
         if (!tbl->nested_join)
           break;
         /* go deeper if we've found nested join */
-        ti= tbl->nested_join->join_list;
+        ti.init(tbl->nested_join->join_list);
       }
     }
   }

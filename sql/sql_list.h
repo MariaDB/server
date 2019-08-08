@@ -374,6 +374,13 @@ public:
   }
 #endif // LIST_EXTRA_DEBUG
 
+
+  void sublist(list_node *start, base_list *l, uint elems)
+  {
+    first= start;
+    last= l->last;
+    elements= elems;
+  }
 protected:
   void after(void *info,list_node *node)
   {
@@ -534,6 +541,7 @@ public:
   List_iterator() : base_list_iterator() {}
   inline void init(List<T> &a) { base_list_iterator::init(a); }
   inline T* operator++(int) { return (T*) base_list_iterator::next(); }
+  inline void operator++() { base_list_iterator::next(); }
   inline T* peek() { return (T*) base_list_iterator::peek(); }
   inline T *replace(T *a)   { return (T*) base_list_iterator::replace(a); }
   inline T *replace(List<T> &a) { return (T*) base_list_iterator::replace(a); }
@@ -544,24 +552,49 @@ public:
 };
 
 
-template <class T> class List_iterator_fast :public base_list_iterator
+template <class T> class List_iterator_fast
 {
-protected:
-  inline T *replace(T *)   { return (T*) 0; }
-  inline T *replace(List<T> &) { return (T*) 0; }
-  inline void remove(void)  {}
-  inline void after(T *)    {}
-  inline T** ref(void)	    { return (T**) 0; }
+  List<T> *list;
+  list_node *elem;
 
-public:
-  inline List_iterator_fast(List<T> &a) : base_list_iterator(a) {}
-  inline List_iterator_fast() : base_list_iterator() {}
-  inline void init(List<T> &a) { base_list_iterator::init(a); }
-  inline T* operator++(int) { return (T*) base_list_iterator::next_fast(); }
-  inline void rewind(void)  { base_list_iterator::rewind(); }
-  void sublist(List<T> &list_arg, uint el_arg)
+  friend void sublist(List_iterator_fast<T> &it, List<T> &list, uint elements)
   {
-    base_list_iterator::sublist(list_arg, el_arg);
+    list.first= *it.elem;
+    list.last= it.list->last;
+    list.elements= elements;
+  }
+public:
+  inline List_iterator_fast(): list(NULL), elem(NULL) {}
+  explicit inline List_iterator_fast(List<T> &a): list(&a),
+                                                  elem(a.first_node()) {}
+  inline void init(List<T> &a) { *this= List_iterator_fast(a); }
+  inline T* operator++(int)
+  {
+    elem= elem->next;
+    return static_cast<T*>(elem->info);
+  }
+  inline void operator++()
+  {
+    elem= elem->next;
+  }
+  inline T** ref() { return reinterpret_cast<T**>(&elem->info); }
+  inline void rewind()  { elem= list->first_node(); }
+  void sublist(List<T> &list_arg, uint elements)
+  {
+    list_arg.sublist(elem, list, elements);
+  }
+  inline bool operator != (const List_iterator_fast<T> &it)
+  {
+    return elem != it.elem;
+  }
+
+  inline T& operator *() {return *static_cast<T*>(elem->info);}
+
+  static inline List_iterator_fast<T> end(List<T> &l)
+  {
+    List_iterator_fast<T> it(l);
+    it.elem= &end_of_list;
+    return it;
   }
 };
 
@@ -811,4 +844,16 @@ list_copy_and_replace_each_value(List<T> &list, MEM_ROOT *mem_root)
 void free_list(I_List <i_string_pair> *list);
 void free_list(I_List <i_string> *list);
 
+template<class T>
+List_iterator_fast<T> begin(List<T> &l)
+{
+  List_iterator_fast<T> it(l);
+  return it;
+}
+
+template<class T>
+List_iterator_fast<T> end(List<T> &l)
+{
+  return List_iterator_fast<T>::end(l);
+}
 #endif // INCLUDES_MYSQL_SQL_LIST_H
