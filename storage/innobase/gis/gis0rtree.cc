@@ -1243,7 +1243,7 @@ func_start:
 	For compressed pages, page_cur_tuple_insert() will have
 	attempted this already. */
 	if (rec == NULL) {
-		if (!page_cur_get_page_zip(page_cursor)
+		if (!is_page_cur_get_page_zip(page_cursor)
 		    && btr_page_reorganize(page_cursor, cursor->index, mtr)) {
 			rec = page_cur_tuple_insert(page_cursor, tuple,
 						    cursor->index, offsets,

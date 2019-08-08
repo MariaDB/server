@@ -73,6 +73,7 @@ page_cur_get_rec(
 # define page_cur_get_page_zip(cur)	buf_block_get_page_zip((cur)->block)
 # define page_cur_get_rec(cur)		(cur)->rec
 #endif /* UNIV_DEBUG */
+# define is_page_cur_get_page_zip(cur)	is_buf_block_get_page_zip((cur)->block)
 /*********************************************************//**
 Sets the cursor object to point before the first user record
 on the page. */
