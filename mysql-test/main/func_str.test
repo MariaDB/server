@@ -2028,6 +2028,19 @@ SELECT LPAD( c, 0, '?' ) FROM t1;
 SELECT RPAD( c, 0, '?' ) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-20292 REPEAT(x,-1) returns a wrong data type
+--echo #
+
+CREATE OR REPLACE TABLE t1 (i BIGINT);
+INSERT INTO t1 VALUES (42);
+CREATE OR REPLACE TABLE t2 AS SELECT
+  REPEAT(i,0) AS c0,
+  REPEAT(i,-1) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
 
 --echo #
 --echo # End of 10.3 tests

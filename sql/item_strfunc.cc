@@ -2967,20 +2967,20 @@ bool Item_func_repeat::fix_length_and_dec()
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return TRUE;
   DBUG_ASSERT(collation.collation != NULL);
-  if (args[1]->const_item())
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    /* must be longlong to avoid truncation */
-    longlong count= args[1]->val_int();
-
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      count= 0;
-    else if (count > INT_MAX32)
-      count= INT_MAX32;
-
-    ulonglong char_length= (ulonglong) args[0]->max_char_length() * count;
-    fix_char_length_ulonglong(char_length);
+    Longlong_hybrid nr= args[1]->to_longlong_hybrid();
+    if (args[1]->null_value || nr.neg())
+      fix_char_length(0);
+    else
+    {
+      /* Assumes that the maximum length of a String is < INT_MAX32. */
+      longlong count= nr.value();
+      if (count > INT_MAX32)
+        count= INT_MAX32;
+      ulonglong char_length= (ulonglong) args[0]->max_char_length() * count;
+      fix_char_length_ulonglong(char_length);
+    }
   }
   else
   {
