@@ -9383,6 +9383,11 @@ best_extension_by_limited_search(JOIN      *join,
                                           current_record_count /
                                           (double) TIME_FOR_COMPARE));
 
+      if (unlikely(thd->trace_started()))
+      {
+        trace_one_table.add("rows_for_plan", current_record_count);
+        trace_one_table.add("cost_for_plan", current_read_time);
+      }
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);
 
@@ -9441,6 +9446,10 @@ best_extension_by_limited_search(JOIN      *join,
 				                          remaining_tables &
                                                           ~real_table_bit);
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
+
+      if (unlikely(thd->trace_started()) && pushdown_cond_selectivity < 1.0)
+        trace_one_table.add("selectivity", pushdown_cond_selectivity);
+
       double partial_join_cardinality= current_record_count *
                                         pushdown_cond_selectivity;
       if ( (search_depth > 1) && (remaining_tables & ~real_table_bit) & allowed_tables )
