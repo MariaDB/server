@@ -182,6 +182,10 @@ public:
     str->set(nr, collation.collation);
     return str;
   }
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  {
+    return val_decimal_from_int(decimal_value);
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
     return get_date_from_int(thd, ltime, fuzzydate);
@@ -450,6 +454,10 @@ public:
     DBUG_ASSERT(fixed == 1);
     str->set(val_int(), &my_charset_bin);
     return null_value ? 0 : str;
+  }
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  {
+    return val_decimal_from_int(decimal_value);
   }
   const char *func_name() const
   {

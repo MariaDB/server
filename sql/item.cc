@@ -329,6 +329,7 @@ my_decimal *Item::val_decimal_from_real(my_decimal *decimal_value)
 
 my_decimal *Item::val_decimal_from_int(my_decimal *decimal_value)
 {
+  DBUG_ASSERT(is_fixed());
   longlong nr= val_int();
   if (null_value)
     return 0;

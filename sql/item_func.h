@@ -192,8 +192,6 @@ public:
   { return tmp_table_field_from_field_type(root, table); }
   Item *get_tmp_table_item(THD *thd);
 
-  my_decimal *val_decimal(my_decimal *);
-
   void fix_char_length_ulonglong(ulonglong max_char_length_arg)
   {
     ulonglong max_result_length= max_char_length_arg *
@@ -1005,6 +1003,10 @@ public:
   { collation.set_numeric(); }
   double val_real();
   String *val_str(String*str);
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  {
+    return val_decimal_from_int(decimal_value);
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return get_date_from_int(thd, ltime, fuzzydate); }
   const Type_handler *type_handler() const= 0;
@@ -2424,6 +2426,10 @@ public:
     Item_udf_func(thd, udf_arg, list) {}
   longlong val_int();
   double val_real() { return (double) Item_func_udf_int::val_int(); }
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  {
+    return val_decimal_from_int(decimal_value);
+  }
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   bool fix_length_and_dec() { decimals= 0; max_length= 21; return FALSE; }
