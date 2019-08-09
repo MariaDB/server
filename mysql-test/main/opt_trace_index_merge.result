@@ -213,7 +213,9 @@ explain select * from t1 where a=1 or b=1	{
                       "chosen": true
                     }
                   ]
-                }
+                },
+                "rows_for_plan": 2,
+                "cost_for_plan": 4.5484
               }
             ]
           },
