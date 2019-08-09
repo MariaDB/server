@@ -353,39 +353,15 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
   }
-  Type_std_attributes::set(args[0]);
+
   for (uint i= 0; i < arg_count && !m_with_subquery; i++)
     m_with_subquery|= args[i]->with_subquery();
 
-  Item *item2= args[0]->real_item();
-  if (item2->type() == Item::FIELD_ITEM)
-    set_handler(item2->type_handler());
-  else if (args[0]->cmp_type() == TIME_RESULT)
-    set_handler(item2->type_handler());
-  else
-    set_handler_by_result_type(item2->result_type(),
-                               max_length, collation.collation);
-
-  switch (result_type()) {
-  case INT_RESULT:
-  case DECIMAL_RESULT:
-  case STRING_RESULT:
-    break;
-  case REAL_RESULT:
-    max_length= float_length(decimals);
-    break;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0); // XXX(cvicentiu) Should this never happen?
-    return TRUE;
-  };
-  setup_hybrid(thd, args[0]);
-  /* MIN/MAX can return NULL for empty set indepedent of the used column */
-  maybe_null= 1;
-  result_field=0;
-  null_value=1;
   if (fix_length_and_dec())
-    return TRUE;
+    return true;
+
+  setup_hybrid(thd, args[0]);
+  result_field=0;
 
   if (check_sum_func(thd, ref))
     return TRUE;
@@ -396,6 +372,14 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   fixed= 1;
   return FALSE;
 }
+
+
+bool Item_sum_hybrid_simple::fix_length_and_dec()
+{
+  maybe_null= null_value= true;
+  return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
+}
+
 
 bool Item_sum_hybrid_simple::add()
 {

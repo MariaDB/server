@@ -307,6 +307,7 @@ class Item_sum_hybrid_simple : public Item_sum_hybrid
 
   bool add();
   bool fix_fields(THD *, Item **);
+  bool fix_length_and_dec();
   void setup_hybrid(THD *thd, Item *item);
   double val_real();
   longlong val_int();

@@ -33,7 +33,7 @@ class Item;
 class Item_param;
 class Item_cache;
 class Item_func_or_sum;
-class Item_sum_min_max;
+class Item_sum_hybrid;
 class Item_sum_sum;
 class Item_sum_avg;
 class Item_sum_variance;
@@ -1314,7 +1314,7 @@ public:
                                                 Item_func_min_max *func,
                                                 Item **items,
                                                 uint nitems) const;
-  virtual bool Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *) const= 0;
+  virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
   virtual bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const= 0;
   virtual bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const= 0;
   virtual
@@ -1563,7 +1563,7 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
-  bool Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
   {
     DBUG_ASSERT(0);
     return true;
@@ -1742,10 +1742,6 @@ public:
 */
 class Type_handler_numeric: public Type_handler
 {
-protected:
-  bool Item_sum_min_max_fix_length_and_dec_numeric(Item_sum_min_max *func,
-                                                   const Type_handler *handler)
-                                                   const;
 public:
   String *print_item_value(THD *thd, Item *item, String *str) const;
   double Item_func_min_max_val_real(Item_func_min_max *) const;
@@ -1796,7 +1792,7 @@ public:
                                        Item **items, uint nitems) const;
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const;
-  bool Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
@@ -1874,7 +1870,7 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
-  bool Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
@@ -2068,7 +2064,7 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
-  bool Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
@@ -2145,7 +2141,7 @@ public:
                                             const Item *outer) const;
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const;
-  bool Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
@@ -2258,7 +2254,7 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
-  bool Item_sum_min_max_fix_length_and_dec(Item_sum_min_max *func) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
