@@ -5386,11 +5386,11 @@ static int rocksdb_done_func(void *const p) {
 // Disown the cache data since we're shutting down.
 // This results in memory leaks but it improved the shutdown time.
 // Don't disown when running under valgrind
-#ifndef HAVE_purify
+#ifndef HAVE_valgrind
   if (rocksdb_tbl_options->block_cache) {
     rocksdb_tbl_options->block_cache->DisownData();
   }
-#endif /* HAVE_purify */
+#endif /* HAVE_valgrind */
 
   /*
     MariaDB: don't clear rocksdb_db_options and rocksdb_tbl_options.
