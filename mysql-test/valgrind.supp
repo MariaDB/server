@@ -1856,6 +1856,30 @@
 
 
 {
+   Still reachable for once-per-process initializations 2
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb6DBImpl4OpenERKNS_9DBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISD_EEPSC_IPNS_18ColumnFamilyHandleESaISJ_EEPPNS_2DBEbb
+   fun:_ZN7rocksdb13TransactionDB4OpenERKNS_9DBOptionsERKNS_20TransactionDBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISG_EEPSF_IPNS_18ColumnFamilyHandleESaISM_EEPPS0_
+#   fun:_ZN7myrocksL17rocksdb_init_funcEPv
+#  ^ commenting the above out because we are hitting the --num-callers=16
+#    limitation that MTR sets for valgrind
+}
+
+{
+   Still reachable for once-per-process initializations 3
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb6DBImpl22CreateColumnFamilyImplERKNS_19ColumnFamilyOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPPNS_18ColumnFamilyHandleE
+}
+
+{
    Still reachable for once-per-process initializations
    Memcheck:Leak
    match-leak-kinds: reachable
@@ -1863,7 +1887,6 @@
    fun:_ZN7rocksdb19ThreadStatusUpdater14RegisterThreadENS_12ThreadStatus10ThreadTypeEm
    fun:_ZN7rocksdb16ThreadStatusUtil14RegisterThreadEPKNS_3EnvENS_12ThreadStatus10ThreadTypeE
    fun:_ZN7rocksdb14ThreadPoolImpl4Impl15BGThreadWrapperEPv
-   fun:_ZNSt12_Bind_simpleIFPFPvS0_EPN7rocksdb16BGThreadMetadataEEE9_M_invokeIILm0EEEES0_St12_Index_tupleIIXspT_EEE
    ...
 }
 
