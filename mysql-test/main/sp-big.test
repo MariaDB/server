@@ -112,6 +112,17 @@ delimiter ;//
 insert t1 select seq, seq, 1, 1, seq, seq, seq from seq_1_to_2000;
 set @before=unix_timestamp();
 call select_test();
-select unix_timestamp() - @before < 60;
+
+--let $time=60
+if ($VALGRIND_TEST)
+{
+  --let $time=600
+}
+
+--disable_query_log
+--eval set @time=$time;
+--enable_query_log
+
+select unix_timestamp() - @before < @time;
 drop procedure select_test;
 drop table t1;

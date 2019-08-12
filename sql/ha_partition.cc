@@ -2547,9 +2547,9 @@ register_query_cache_dependant_tables(THD *thd,
         sub_elem= subpart_it++;
         part= i * num_subparts + j;
         /* we store the end \0 as part of the key */
-        end= strmov(engine_pos, sub_elem->partition_name);
+        end= strmov(engine_pos, sub_elem->partition_name) + 1;
         length= (uint)(end - engine_key);
-        /* Copy the suffix also to query cache key */
+        /* Copy the suffix and end 0 to query cache key */
         memcpy(query_cache_key_end, engine_key_end, (end - engine_key_end));
         if (reg_query_cache_dependant_table(thd, engine_key, length,
                                             query_cache_key,
@@ -2565,7 +2565,7 @@ register_query_cache_dependant_tables(THD *thd,
     {
       char *end= engine_pos+1;                  // copy end \0
       uint length= (uint)(end - engine_key);
-      /* Copy the suffix also to query cache key */
+      /* Copy the suffix and end 0 to query cache key */
       memcpy(query_cache_key_end, engine_key_end, (end - engine_key_end));
       if (reg_query_cache_dependant_table(thd, engine_key, length,
                                           query_cache_key,

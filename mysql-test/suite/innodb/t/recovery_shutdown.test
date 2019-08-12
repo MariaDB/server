@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
+# Valgrind has to be disabled as killing the server hard gives a lot of
+# leak warnings
+--source include/not_valgrind.inc
 
 # Flush any open myisam tables from previous tests
 FLUSH TABLES;

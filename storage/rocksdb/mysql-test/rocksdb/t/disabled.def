@@ -99,3 +99,4 @@ drop_table: Hangs on shutdown
 allow_to_start_after_corruption : result difference and assertion failure
 index_merge_rocksdb2 : result difference
 rocksdb_range2 : result difference, update after MDEV-16746 is fixed
+add_index_inplace: FORCE INDEX gives wrong count

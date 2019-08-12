@@ -474,7 +474,7 @@ static int scan(TABLE* table, uint field, char* strbuf, uint strbuf_len)
 {
   String str;
   (void)table->field[field]->val_str(&str);
-  strncpy(strbuf, str.c_ptr(), std::min(str.length(), strbuf_len));
+  strncpy(strbuf, str.ptr(), std::min(str.length(), strbuf_len));
   strbuf[strbuf_len - 1]= '\0';
   return 0;
 }

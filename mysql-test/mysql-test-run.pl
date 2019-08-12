@@ -1902,9 +1902,13 @@ sub command_line_setup {
   if ($opt_valgrind && ! grep(/^--tool=/i, @valgrind_args))
   {
     # Set valgrind_option unless already defined
-    push(@valgrind_args, ("--show-reachable=yes", "--leak-check=yes",
-                          "--num-callers=16"))
-      unless @valgrind_args;
+    if (!@valgrind_args)
+    {
+      push(@valgrind_args, ("--show-reachable=yes", "--leak-check=yes",
+                            "--num-callers=20"));
+      push(@valgrind_args, ("--gen-suppressions=all"));
+      # push(@valgrind_args, ("--trace-signals=yes"));
+    }
     unshift(@valgrind_args, "--tool=memcheck");
   }
 

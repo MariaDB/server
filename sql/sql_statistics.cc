@@ -2129,7 +2129,11 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   Histogram_type hist_type= (Histogram_type) (thd->variables.histogram_type);
   uchar *histogram= NULL;
   if (hist_size > 0)
-    histogram= (uchar *) alloc_root(&table->mem_root, hist_size * columns);
+  {
+    if ((histogram= (uchar *) alloc_root(&table->mem_root,
+                                         hist_size * columns)))
+      bzero(histogram, hist_size * columns);
+  }
 
   if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency ||
       (hist_size && !histogram))
