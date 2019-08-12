@@ -815,3 +815,24 @@ SELECT 0 + LEAST(TIME'-10:00:00',TIME'10:00:00') AS c;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20332 Wrong UNSIGNED metadata flag returned for COALESCE(unsigned_field,timestamp_field)
+--echo #
+
+CREATE TABLE t1 (a INT UNSIGNED, b TIMESTAMP);
+--disable_ps_protocol
+--enable_metadata
+SELECT COALESCE(a,b) FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -1201,7 +1201,7 @@ bool Type_std_attributes::aggregate_attributes_string(const char *func_name,
     max_length= find_max_octet_length(items, nitems);
   else
     fix_char_length(find_max_char_length(items, nitems));
-  unsigned_flag= count_unsigned(items, nitems) > 0;
+  unsigned_flag= false;
   decimals= max_length ? NOT_FIXED_DEC : 0;
   return false;
 }

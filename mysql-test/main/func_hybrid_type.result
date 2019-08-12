@@ -4104,3 +4104,18 @@ c
 #
 # End of 10.4 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20332 Wrong UNSIGNED metadata flag returned for COALESCE(unsigned_field,timestamp_field)
+#
+CREATE TABLE t1 (a INT UNSIGNED, b TIMESTAMP);
+SELECT COALESCE(a,b) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(a,b)	253	19	0	Y	0	39	8
+COALESCE(a,b)
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
