@@ -2773,38 +2773,87 @@ char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
   return tmp > UINT_MAX32 ? (uint32) UINT_MAX32 : static_cast<uint32>(tmp);
 }
 
-/**
-  A class to store type attributes for the standard data types.
-  Does not include attributes for the extended data types
-  such as ENUM, SET, GEOMETRY.
-*/
-class Type_std_attributes
+
+class Type_numeric_attributes
 {
 public:
-  DTCollation collation;
-  uint decimals;
+  static uint count_unsigned(Item **item, uint nitems);
+  static uint32 find_max_char_length(Item **item, uint nitems);
+  static uint32 find_max_octet_length(Item **item, uint nitems);
+  static int find_max_decimal_int_part(Item **item, uint nitems);
+  static uint find_max_decimals(Item **item, uint nitems);
+public:
   /*
     The maximum value length in characters multiplied by collation->mbmaxlen.
     Almost always it's the maximum value length in bytes.
   */
   uint32 max_length;
+  uint decimals;
   bool unsigned_flag;
+public:
+  Type_numeric_attributes()
+   :max_length(0), decimals(0), unsigned_flag(false)
+  { }
+  Type_numeric_attributes(uint32 max_length_arg, uint decimals_arg,
+                          bool unsigned_flag_arg)
+   :max_length(max_length_arg),
+    decimals(decimals_arg),
+    unsigned_flag(unsigned_flag_arg)
+  { }
+protected:
+  void aggregate_numeric_attributes_real(Item **item, uint nitems);
+  void aggregate_numeric_attributes_decimal(Item **item, uint nitems,
+                                            bool unsigned_arg);
+};
+
+
+
+class Type_temporal_attributes: public Type_numeric_attributes
+{
+public:
+  Type_temporal_attributes(uint int_part_length, uint dec, bool unsigned_arg)
+   :Type_numeric_attributes(int_part_length + (dec ? 1 : 0),
+                            MY_MIN(dec, TIME_SECOND_PART_DIGITS),
+                            unsigned_arg)
+  {
+    max_length+= decimals;
+  }
+};
+
+
+class Type_temporal_attributes_not_fixed_dec: public Type_numeric_attributes
+{
+public:
+  Type_temporal_attributes_not_fixed_dec(uint32 int_part_length, uint dec,
+                                         bool unsigned_flag)
+   :Type_numeric_attributes(int_part_length, dec, unsigned_flag)
+  {
+    if (decimals == NOT_FIXED_DEC)
+      max_length+= TIME_SECOND_PART_DIGITS + 1;
+    else if (decimals)
+    {
+      set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+      max_length+= decimals + 1;
+    }
+  }
+};
+
+
+/**
+  A class to store type attributes for the standard data types.
+  Does not include attributes for the extended data types
+  such as ENUM, SET, GEOMETRY.
+*/
+class Type_std_attributes: public Type_numeric_attributes
+{
+public:
+  DTCollation collation;
   Type_std_attributes()
-   :collation(&my_charset_bin, DERIVATION_COERCIBLE),
-    decimals(0), max_length(0), unsigned_flag(false)
+   :collation(&my_charset_bin, DERIVATION_COERCIBLE)
   { }
-  Type_std_attributes(const Type_std_attributes *other)
-   :collation(other->collation),
-    decimals(other->decimals),
-    max_length(other->max_length),
-    unsigned_flag(other->unsigned_flag)
-  { }
-  Type_std_attributes(uint32 max_length_arg, uint decimals_arg,
-                      bool unsigned_flag_arg, const DTCollation &dtc)
-    :collation(dtc),
-     decimals(decimals_arg),
-     max_length(max_length_arg),
-     unsigned_flag(unsigned_flag_arg)
+  Type_std_attributes(const Type_numeric_attributes &nattr,
+                      const DTCollation &dtc)
+   :Type_numeric_attributes(nattr), collation(dtc)
   { }
   void set(const Type_std_attributes *other)
   {
@@ -2813,6 +2862,10 @@ public:
   void set(const Type_std_attributes &other)
   {
     *this= other;
+  }
+  void set(const Type_numeric_attributes &nattr, const DTCollation &dtc)
+  {
+    *this= Type_std_attributes(nattr, dtc);
   }
   uint32 max_char_length() const
   { return max_length / collation.collation->mbmaxlen; }
@@ -2826,41 +2879,11 @@ public:
     max_length= char_to_byte_length_safe(max_char_length_arg,
                                          collation.collation->mbmaxlen);
   }
-  void fix_char_length_temporal_not_fixed_dec(uint int_part_length, uint dec)
+  void fix_attributes_temporal(uint32 int_part_length, uint dec)
   {
-    uint char_length= int_part_length;
-    if ((decimals= dec))
-    {
-      if (decimals == NOT_FIXED_DEC)
-        char_length+= TIME_SECOND_PART_DIGITS + 1;
-      else
-      {
-        set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
-        char_length+= decimals + 1;
-      }
-    }
-    fix_char_length(char_length);
-  }
-  void fix_attributes_temporal_not_fixed_dec(uint int_part_length, uint dec)
-  {
-    collation= DTCollation_numeric();
-    unsigned_flag= 0;
-    fix_char_length_temporal_not_fixed_dec(int_part_length, dec);
-  }
-  void fix_attributes_time_not_fixed_dec(uint dec)
-  {
-    fix_attributes_temporal_not_fixed_dec(MIN_TIME_WIDTH, dec);
-  }
-  void fix_attributes_datetime_not_fixed_dec(uint dec)
-  {
-    fix_attributes_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
-  }
-  void fix_attributes_temporal(uint int_part_length, uint dec)
-  {
-    collation= DTCollation_numeric();
-    unsigned_flag= 0;
-    decimals= MY_MIN(dec, TIME_SECOND_PART_DIGITS);
-    max_length= decimals + int_part_length + (dec ? 1 : 0);
+    *this= Type_std_attributes(
+             Type_temporal_attributes(int_part_length, dec, false),
+             DTCollation_numeric());
   }
   void fix_attributes_date()
   {
@@ -2875,38 +2898,31 @@ public:
     fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   }
 
-  void count_only_length(Item **item, uint nitems);
-  void count_octet_length(Item **item, uint nitems);
-  void count_real_length(Item **item, uint nitems);
-  void count_decimal_length(Item **item, uint nitems);
-  bool count_string_length(const char *func_name, Item **item, uint nitems);
-  uint count_max_decimals(Item **item, uint nitems);
-
   void aggregate_attributes_int(Item **items, uint nitems)
   {
     collation= DTCollation_numeric();
-    count_only_length(items, nitems);
+    fix_char_length(find_max_char_length(items, nitems));
+    unsigned_flag= count_unsigned(items, nitems) > 0;
     decimals= 0;
   }
   void aggregate_attributes_real(Item **items, uint nitems)
   {
     collation= DTCollation_numeric();
-    count_real_length(items, nitems);
+    aggregate_numeric_attributes_real(items, nitems);
   }
-  void aggregate_attributes_decimal(Item **items, uint nitems)
+  void aggregate_attributes_decimal(Item **items, uint nitems,
+                                    bool unsigned_arg)
   {
     collation= DTCollation_numeric();
-    count_decimal_length(items, nitems);
+    aggregate_numeric_attributes_decimal(items, nitems,
+                                         (unsigned_flag= unsigned_arg));
   }
   bool aggregate_attributes_string(const char *func_name,
-                                   Item **item, uint nitems)
-  {
-    return count_string_length(func_name, item, nitems);
-  }
+                                   Item **item, uint nitems);
   void aggregate_attributes_temporal(uint int_part_length,
                                      Item **item, uint nitems)
   {
-    fix_attributes_temporal(int_part_length, count_max_decimals(item, nitems));
+    fix_attributes_temporal(int_part_length, find_max_decimals(item, nitems));
   }
 
   bool agg_item_collations(DTCollation &c, const char *name,
@@ -3010,7 +3026,7 @@ public:
   Type_all_attributes()
    :Type_std_attributes()
   { }
-  Type_all_attributes(const Type_all_attributes *other)
+  Type_all_attributes(const Type_all_attributes &other)
    :Type_std_attributes(other)
   { }
   virtual ~Type_all_attributes() {}

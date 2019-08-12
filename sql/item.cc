@@ -449,7 +449,7 @@ const TABLE_SHARE *Item::field_table_or_null()
   tables.
 */
 Item::Item(THD *thd, Item *item):
-  Type_all_attributes(item),
+  Type_all_attributes(*item),
   join_tab_idx(item->join_tab_idx),
   is_expensive_cache(-1),
   rsize(0),

@@ -1556,9 +1556,11 @@ public:
   {
     uint dec= MY_MAX(item->arguments()[0]->datetime_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
-    item->collation.set(item->default_charset(),
-                        DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-    item->fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
+    item->Type_std_attributes::set(
+      Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH, dec, false),
+      DTCollation(item->default_charset(),
+                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII));
+    item->fix_char_length(item->max_length);
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
@@ -1663,9 +1665,11 @@ public:
     uint dec0= item->arguments()[0]->decimals;
     uint dec1= Interval_DDhhmmssff::fsp(current_thd, item->arguments()[1]);
     uint dec= MY_MAX(dec0, dec1);
-    item->collation.set(item->default_charset(),
-                        DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-    item->fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
+    item->Type_std_attributes::set(
+      Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH, dec, false),
+      DTCollation(item->default_charset(),
+                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII));
+    item->fix_char_length(item->max_length);
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,

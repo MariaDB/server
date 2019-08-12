@@ -950,7 +950,7 @@ public:
   bool fix_type_handler(const Type_aggregator *aggregator);
   void fix_length_and_dec_double()
   {
-    count_real_length(args, arg_count);
+    aggregate_numeric_attributes_real(args, arg_count);
     max_length= float_length(decimals);
   }
   void fix_length_and_dec_decimal()

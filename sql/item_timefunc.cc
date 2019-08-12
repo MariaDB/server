@@ -1920,7 +1920,10 @@ bool Item_func_from_unixtime::fix_length_and_dec()
   THD *thd= current_thd;
   thd->time_zone_used= 1;
   tz= thd->variables.time_zone;
-  fix_attributes_datetime_not_fixed_dec(args[0]->decimals);
+  Type_std_attributes::set(
+    Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH,
+                                           args[0]->decimals, false),
+    DTCollation_numeric());
   maybe_null= true;
   return FALSE;
 }

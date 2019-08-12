@@ -781,11 +781,13 @@ public:
         const LEX_CSTRING *field_name_arg);
   virtual ~Field() {}
 
-  virtual Type_std_attributes type_std_attributes() const
+  virtual Type_numeric_attributes type_numeric_attributes() const
   {
-    return Type_std_attributes(field_length, decimals(),
-                               MY_TEST(flags & UNSIGNED_FLAG),
-                               dtcollation());
+    return Type_numeric_attributes(field_length, decimals(), is_unsigned());
+  }
+  Type_std_attributes type_std_attributes() const
+  {
+    return Type_std_attributes(type_numeric_attributes(), dtcollation());
   }
 
   bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
@@ -2238,7 +2240,7 @@ public:
   {
     return type_limits_int()->char_length();
   }
-  Type_std_attributes type_std_attributes() const
+  Type_numeric_attributes type_numeric_attributes() const
   {
     /*
       For integer data types, the user-specified length does not constrain the
@@ -2252,9 +2254,8 @@ public:
     */
     uint32 length1= max_display_length();
     uint32 length2= field_length;
-    return Type_std_attributes(MY_MAX(length1, length2), decimals(),
-                               MY_TEST(flags & UNSIGNED_FLAG),
-                               dtcollation());
+    return Type_numeric_attributes(MY_MAX(length1, length2),
+                                   decimals(), is_unsigned());
   }
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
@@ -3991,11 +3992,10 @@ public:
   {
     return FIELD_BLOB;
   }
-  Type_std_attributes type_std_attributes() const
+  Type_numeric_attributes type_numeric_attributes() const
   {
-    return Type_std_attributes(Field_blob::max_display_length(), decimals(),
-                               MY_TEST(flags & UNSIGNED_FLAG),
-                               dtcollation());
+    return Type_numeric_attributes(Field_blob::max_display_length(),
+                                   decimals(), is_unsigned());
   }
   Information_schema_character_attributes
     information_schema_character_attributes() const

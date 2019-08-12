@@ -1078,7 +1078,7 @@ Datetime_truncation_not_needed::Datetime_truncation_not_needed(THD *thd, Item *i
 
 /********************************************************************/
 
-uint Type_std_attributes::count_max_decimals(Item **item, uint nitems)
+uint Type_numeric_attributes::find_max_decimals(Item **item, uint nitems)
 {
   uint res= 0;
   for (uint i= 0; i < nitems; i++)
@@ -1087,55 +1087,61 @@ uint Type_std_attributes::count_max_decimals(Item **item, uint nitems)
 }
 
 
+uint Type_numeric_attributes::count_unsigned(Item **item, uint nitems)
+{
+  uint res= 0;
+  for (uint i= 0 ; i < nitems ; i++)
+  {
+    if (item[i]->unsigned_flag)
+      res++;
+  }
+  return res;
+}
+
+
+uint32 Type_numeric_attributes::find_max_char_length(Item **item, uint nitems)
+{
+  uint32 char_length= 0;
+  for (uint i= 0; i < nitems ; i++)
+    set_if_bigger(char_length, item[i]->max_char_length());
+  return char_length;
+}
+
+
+uint32 Type_numeric_attributes::find_max_octet_length(Item **item, uint nitems)
+{
+  uint32 octet_length= 0;
+  for (uint i= 0; i < nitems ; i++)
+    set_if_bigger(octet_length, item[i]->max_length);
+  return octet_length;
+}
+
+
+int Type_numeric_attributes::find_max_decimal_int_part(Item **item, uint nitems)
+{
+  int max_int_part= 0;
+  for (uint i=0 ; i < nitems ; i++)
+    set_if_bigger(max_int_part, item[i]->decimal_int_part());
+  return max_int_part;
+}
+
+
 /**
   Set max_length/decimals of function if function is fixed point and
   result length/precision depends on argument ones.
 */
 
-void Type_std_attributes::count_decimal_length(Item **item, uint nitems)
+void
+Type_numeric_attributes::aggregate_numeric_attributes_decimal(Item **item,
+                                                              uint nitems,
+                                                              bool unsigned_arg)
 {
-  int max_int_part= 0;
-  decimals= 0;
-  unsigned_flag= 1;
-  for (uint i=0 ; i < nitems ; i++)
-  {
-    set_if_bigger(decimals, item[i]->decimals);
-    set_if_bigger(max_int_part, item[i]->decimal_int_part());
-    set_if_smaller(unsigned_flag, item[i]->unsigned_flag);
-  }
+  int max_int_part= find_max_decimal_int_part(item, nitems);
+  decimals= find_max_decimals(item, nitems);
   int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
-  fix_char_length(my_decimal_precision_to_length_no_truncation(precision,
-                                                               (uint8) decimals,
-                                                               unsigned_flag));
-}
-
-
-/**
-  Set max_length of if it is maximum length of its arguments.
-*/
-
-void Type_std_attributes::count_only_length(Item **item, uint nitems)
-{
-  uint32 char_length= 0;
-  unsigned_flag= 0;
-  for (uint i= 0; i < nitems ; i++)
-  {
-    set_if_bigger(char_length, item[i]->max_char_length());
-    set_if_bigger(unsigned_flag, item[i]->unsigned_flag);
-  }
-  fix_char_length(char_length);
-}
-
-
-void Type_std_attributes::count_octet_length(Item **item, uint nitems)
-{
-  max_length= 0;
-  unsigned_flag= 0;
-  for (uint i= 0; i < nitems ; i++)
-  {
-    set_if_bigger(max_length, item[i]->max_length);
-    set_if_bigger(unsigned_flag, item[i]->unsigned_flag);
-  }
+  max_length= my_decimal_precision_to_length_no_truncation(precision,
+                                                           (uint8) decimals,
+                                                           unsigned_flag);
 }
 
 
@@ -1144,7 +1150,9 @@ void Type_std_attributes::count_octet_length(Item **item, uint nitems)
   result length/precision depends on argument ones.
 */
 
-void Type_std_attributes::count_real_length(Item **items, uint nitems)
+void
+Type_numeric_attributes::aggregate_numeric_attributes_real(Item **items,
+                                                           uint nitems)
 {
   uint32 length= 0;
   decimals= 0;
@@ -1183,16 +1191,17 @@ void Type_std_attributes::count_real_length(Item **items, uint nitems)
 
   @retval            False on success, true on error.
 */
-bool Type_std_attributes::count_string_length(const char *func_name,
-                                              Item **items, uint nitems)
+bool Type_std_attributes::aggregate_attributes_string(const char *func_name,
+                                                      Item **items, uint nitems)
 {
   if (agg_arg_charsets_for_string_result(collation, func_name,
                                          items, nitems, 1))
     return true;
   if (collation.collation == &my_charset_bin)
-    count_octet_length(items, nitems);
+    max_length= find_max_octet_length(items, nitems);
   else
-    count_only_length(items, nitems);
+    fix_char_length(find_max_char_length(items, nitems));
+  unsigned_flag= count_unsigned(items, nitems) > 0;
   decimals= max_length ? NOT_FIXED_DEC : 0;
   return false;
 }
@@ -4170,7 +4179,7 @@ bool Type_handler_int_result::
     {
       // Convert a mixture of signed and unsigned int to decimal
       handler->set_handler(&type_handler_newdecimal);
-      func->aggregate_attributes_decimal(items, nitems);
+      func->aggregate_attributes_decimal(items, nitems, false);
       return false;
     }
   }
@@ -4198,7 +4207,8 @@ bool Type_handler_decimal_result::
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
 {
-  func->aggregate_attributes_decimal(items, nitems);
+  uint unsigned_count= func->count_unsigned(items, nitems);
+  func->aggregate_attributes_decimal(items, nitems, unsigned_count == nitems);
   return false;
 }
 
