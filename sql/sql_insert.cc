@@ -1051,6 +1051,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         break;
       }
 
+      thd->decide_logging_format_low(table);
 #ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {

@@ -1954,9 +1954,9 @@ innobase_srv_conc_enter_innodb(
 			   && thd_is_replication_slave_thread(trx->mysql_thd)) {
 			const ulonglong end = my_interval_timer()
 				+ ulonglong(srv_replication_delay) * 1000000;
-			while (srv_conc_get_active_threads()
-			       >= srv_thread_concurrency
-			       || my_interval_timer() >= end) {
+			while ((srv_conc_get_active_threads()
+			        >= srv_thread_concurrency)
+			       && my_interval_timer() < end) {
 				os_thread_sleep(2000 /* 2 ms */);
 			}
 		} else {
