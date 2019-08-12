@@ -1435,7 +1435,6 @@ error_exit:
 			goto run_again;
 		}
 
-		node->duplicate = NULL;
 		trx->op_info = "";
 
 		if (blob_heap != NULL) {
@@ -1444,8 +1443,6 @@ error_exit:
 
 		return(err);
 	}
-
-	node->duplicate = NULL;
 
 	if (dict_table_has_fts_index(table)) {
 		doc_id_t	doc_id;
