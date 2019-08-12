@@ -781,10 +781,6 @@ public:
         const LEX_CSTRING *field_name_arg);
   virtual ~Field() {}
 
-  DTCollation dtcollation() const
-  {
-    return DTCollation(charset(), derivation(), repertoire());
-  }
   virtual Type_std_attributes type_std_attributes() const
   {
     return Type_std_attributes(field_length, decimals(),
@@ -1424,14 +1420,12 @@ public:
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   virtual const TYPELIB *get_typelib() const { return NULL; }
-  virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
+  virtual CHARSET_INFO *charset(void) const= 0;
+  virtual const DTCollation &dtcollation() const= 0;
   virtual CHARSET_INFO *charset_for_protocol(void) const
   { return binary() ? &my_charset_bin : charset(); }
   virtual CHARSET_INFO *sort_charset(void) const { return charset(); }
   virtual bool has_charset(void) const { return FALSE; }
-  virtual enum Derivation derivation(void) const
-  { return DERIVATION_IMPLICIT; }
-  virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment, ulong current_row=0) const;
@@ -1826,9 +1820,14 @@ public:
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const LEX_CSTRING *field_name_arg,
             uint8 dec_arg, bool zero_arg, bool unsigned_arg);
-  enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
-  uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
-  CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
+  CHARSET_INFO *charset(void) const
+  {
+    return DTCollation_numeric::singleton().collation;
+  }
+  const DTCollation &dtcollation() const
+  {
+    return DTCollation_numeric::singleton();
+  }
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
     return (flags & ZEROFILL_FLAG) ?
@@ -1879,10 +1878,10 @@ public:
 
 class Field_str :public Field {
 protected:
-  // TODO-10.2: Reuse DTCollation instead of these three members
-  CHARSET_INFO *field_charset;
-  enum Derivation field_derivation;
-  uint field_repertoire;
+  DTCollation m_collation;
+  // A short alias for m_collation.collation with non-virtual linkage
+  const CHARSET_INFO *field_charset() const { return m_collation.collation; }
+  uint mbmaxlen() const { return m_collation.collation->mbmaxlen; }
 public:
   bool can_be_substituted_to_equal_item(const Context &ctx,
                                         const Item_equal *item_equal);
@@ -1906,13 +1905,18 @@ public:
   {
     return store(str, length, &my_charset_bin);
   }
-  uint repertoire(void) const { return field_repertoire; }
-  CHARSET_INFO *charset(void) const { return field_charset; }
-  enum Derivation derivation(void) const { return field_derivation; }
-  bool binary() const { return field_charset == &my_charset_bin; }
+  CHARSET_INFO *charset(void) const { return m_collation.collation; }
+  const DTCollation &dtcollation() const
+  {
+    return m_collation;
+  }
+  bool binary() const { return field_charset() == &my_charset_bin; }
   uint32 max_display_length() const { return field_length; }
   uint32 character_octet_length() const { return field_length; }
-  uint32 char_length() const { return field_length / field_charset->mbmaxlen; }
+  uint32 char_length() const
+  {
+    return field_length / mbmaxlen();
+  }
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {
@@ -1961,7 +1965,7 @@ protected:
   {
     String_copier copier;
 
-    *copy_length= copier.well_formed_copy(field_charset, to, to_length,
+    *copy_length= copier.well_formed_copy(field_charset(), to, to_length,
                                           from_cs, from, from_length,
                                           nchars);
 
@@ -2785,9 +2789,14 @@ public:
   bool memcpy_field_possible(const Field *from) const;
   uint32 max_display_length() const { return field_length; }
   bool str_needs_quotes() { return TRUE; }
-  enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
-  uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
-  CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
+  CHARSET_INFO *charset(void) const
+  {
+    return DTCollation_numeric::singleton().collation;
+  }
+  const DTCollation &dtcollation() const
+  {
+    return DTCollation_numeric::singleton();
+  }
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   bool binary() const { return true; }
   bool val_bool() { return val_real() != 0e0; }
@@ -3762,7 +3771,7 @@ public:
   uint32 key_length() const { return (uint32) field_length; }
   uint32 sort_length() const
   {
-    return (uint32) field_length + (field_charset == &my_charset_bin ?
+    return (uint32) field_length + (field_charset() == &my_charset_bin ?
                                     length_bytes : 0);
   }
   Copy_func *get_copy_func(const Field *from) const;
@@ -3854,7 +3863,7 @@ private:
   uint32 character_octet_length() const { return field_length - 1; }
   uint32 char_length() const
   {
-    return (field_length - 1) / field_charset->mbmaxlen;
+    return (field_length - 1) / mbmaxlen();
   }
   int cmp_max(const uchar *a_ptr, const uchar *b_ptr, uint max_len) const;
 
@@ -3992,7 +4001,7 @@ public:
     information_schema_character_attributes() const
   {
     uint32 octets= Field_blob::character_octet_length();
-    uint32 chars= octets / field_charset->mbminlen;
+    uint32 chars= octets / field_charset()->mbminlen;
     return Information_schema_character_attributes(octets, chars);
   }
   void update_data_type_statistics(Data_type_statistics *st) const
@@ -4411,6 +4420,8 @@ public:
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const;
+  CHARSET_INFO *charset() const { return &my_charset_bin; }
+  const DTCollation & dtcollation() const;
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {

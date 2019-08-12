@@ -24,6 +24,14 @@
 #include "log.h"
 #include "tztime.h"
 
+
+const DTCollation &DTCollation_numeric::singleton()
+{
+  static const DTCollation_numeric tmp;
+  return tmp;
+}
+
+
 Type_handler_row         type_handler_row;
 
 Type_handler_null        type_handler_null;

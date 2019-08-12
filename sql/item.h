@@ -3087,7 +3087,7 @@ public:
 class Item_num: public Item_literal
 {
 public:
-  Item_num(THD *thd): Item_literal(thd) { collation.set_numeric(); }
+  Item_num(THD *thd): Item_literal(thd) { collation= DTCollation_numeric(); }
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
@@ -4653,14 +4653,14 @@ public:
   Item_temporal_literal(THD *thd, const MYSQL_TIME *ltime)
    :Item_literal(thd)
   {
-    collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+    collation= DTCollation_numeric();
     decimals= 0;
     cached_time= *ltime;
   }
   Item_temporal_literal(THD *thd, const MYSQL_TIME *ltime, uint dec_arg):
     Item_literal(thd)
   {
-    collation.set(&my_charset_numeric, DERIVATION_NUMERIC, MY_REPERTOIRE_ASCII);
+    collation= DTCollation_numeric();
     decimals= dec_arg;
     cached_time= *ltime;
   }

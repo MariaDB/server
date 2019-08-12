@@ -2060,7 +2060,7 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
   if (value_item->collation.derivation == DERIVATION_NUMERIC)
-    collation.set_numeric();
+    collation= DTCollation_numeric();
   else
     collation.set(value_item->collation.collation, DERIVATION_IMPLICIT);
   max_length= value_item->max_length;
@@ -3923,7 +3923,7 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   DBUG_ASSERT(value.type_handler()->cmp_type() == INT_RESULT);
   value.integer= (longlong) i;
   state= SHORT_DATA_VALUE;
-  collation.set_numeric();
+  collation= DTCollation_numeric();
   max_length= max_length_arg;
   decimals= 0;
   maybe_null= 0;
@@ -3937,7 +3937,7 @@ void Item_param::set_double(double d)
   DBUG_ASSERT(value.type_handler()->cmp_type() == REAL_RESULT);
   value.real= d;
   state= SHORT_DATA_VALUE;
-  collation.set_numeric();
+  collation= DTCollation_numeric();
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
   maybe_null= 0;
@@ -3968,7 +3968,7 @@ void Item_param::set_decimal(const char *str, ulong length)
   str2my_decimal(E_DEC_FATAL_ERROR, str, &value.m_decimal, &end);
   state= SHORT_DATA_VALUE;
   decimals= value.m_decimal.frac;
-  collation.set_numeric();
+  collation= DTCollation_numeric();
   max_length=
     my_decimal_precision_to_length_no_truncation(value.m_decimal.precision(),
                                                  decimals, unsigned_flag);
@@ -3985,7 +3985,7 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
   my_decimal2decimal(dv, &value.m_decimal);
 
   decimals= (uint8) value.m_decimal.frac;
-  collation.set_numeric();
+  collation= DTCollation_numeric();
   unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(value.m_decimal.intg + decimals,
                                              decimals, unsigned_flag);
@@ -3997,7 +3997,7 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
 void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
 {
   state= SHORT_DATA_VALUE;
-  collation.set_numeric();
+  collation= DTCollation_numeric();
   max_length= max_length_arg;
   decimals= decimals_arg;
   maybe_null= 0;

@@ -2706,9 +2706,7 @@ public:
   { }
   void set(const DTCollation &dt)
   {
-    collation= dt.collation;
-    derivation= dt.derivation;
-    repertoire= dt.repertoire;
+    *this= dt;
   }
   void set(CHARSET_INFO *collation_arg, Derivation derivation_arg)
   {
@@ -2723,12 +2721,6 @@ public:
     collation= collation_arg;
     derivation= derivation_arg;
     repertoire= repertoire_arg;
-  }
-  void set_numeric()
-  {
-    collation= &my_charset_numeric;
-    derivation= DERIVATION_NUMERIC;
-    repertoire= MY_REPERTOIRE_NUMERIC;
   }
   void set(CHARSET_INFO *collation_arg)
   {
@@ -2760,6 +2752,17 @@ public:
                                         (uchar *) s->ptr(), s->length(),
                                         (uchar *) t->ptr(), t->length());
   }
+};
+
+
+class DTCollation_numeric: public DTCollation
+{
+public:
+  DTCollation_numeric()
+   :DTCollation(charset_info(), DERIVATION_NUMERIC, MY_REPERTOIRE_NUMERIC)
+  { }
+  static const CHARSET_INFO *charset_info() { return &my_charset_numeric; }
+  static const DTCollation & singleton();
 };
 
 
@@ -2840,7 +2843,7 @@ public:
   }
   void fix_attributes_temporal_not_fixed_dec(uint int_part_length, uint dec)
   {
-    collation.set_numeric();
+    collation= DTCollation_numeric();
     unsigned_flag= 0;
     fix_char_length_temporal_not_fixed_dec(int_part_length, dec);
   }
@@ -2854,7 +2857,7 @@ public:
   }
   void fix_attributes_temporal(uint int_part_length, uint dec)
   {
-    collation.set_numeric();
+    collation= DTCollation_numeric();
     unsigned_flag= 0;
     decimals= MY_MIN(dec, TIME_SECOND_PART_DIGITS);
     max_length= decimals + int_part_length + (dec ? 1 : 0);
@@ -2881,18 +2884,18 @@ public:
 
   void aggregate_attributes_int(Item **items, uint nitems)
   {
-    collation.set_numeric();
+    collation= DTCollation_numeric();
     count_only_length(items, nitems);
     decimals= 0;
   }
   void aggregate_attributes_real(Item **items, uint nitems)
   {
-    collation.set_numeric();
+    collation= DTCollation_numeric();
     count_real_length(items, nitems);
   }
   void aggregate_attributes_decimal(Item **items, uint nitems)
   {
-    collation.set_numeric();
+    collation= DTCollation_numeric();
     count_decimal_length(items, nitems);
   }
   bool aggregate_attributes_string(const char *func_name,

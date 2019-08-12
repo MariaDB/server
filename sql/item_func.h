@@ -404,13 +404,13 @@ public:
 class Item_real_func :public Item_func
 {
 public:
-  Item_real_func(THD *thd): Item_func(thd) { collation.set_numeric(); }
+  Item_real_func(THD *thd): Item_func(thd) { collation= DTCollation_numeric(); }
   Item_real_func(THD *thd, Item *a): Item_func(thd, a)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   Item_real_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   Item_real_func(THD *thd, List<Item> &list): Item_func(thd, list)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
@@ -721,19 +721,19 @@ public:
 public:
   Item_func_hybrid_field_type(THD *thd):
     Item_hybrid_func(thd)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   Item_func_hybrid_field_type(THD *thd, Item *a):
     Item_hybrid_func(thd, a)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   Item_func_hybrid_field_type(THD *thd, Item *a, Item *b):
     Item_hybrid_func(thd, a, b)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   Item_func_hybrid_field_type(THD *thd, Item *a, Item *b, Item *c):
     Item_hybrid_func(thd, a, b, c)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   Item_func_hybrid_field_type(THD *thd, List<Item> &list):
     Item_hybrid_func(thd, list)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
 
   double val_real()
   {
@@ -987,20 +987,20 @@ public:
     Min signed   =  -9,223,372,036,854,775,808 = 19 digits, 20 characters
   */
   Item_int_func(THD *thd): Item_func(thd)
-  { collation.set_numeric(); fix_char_length(21); }
+  { collation= DTCollation_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item *a): Item_func(thd, a)
-  { collation.set_numeric(); fix_char_length(21); }
+  { collation= DTCollation_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b)
-  { collation.set_numeric(); fix_char_length(21); }
+  { collation= DTCollation_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item *a, Item *b, Item *c): Item_func(thd, a, b, c)
-  { collation.set_numeric(); fix_char_length(21); }
+  { collation= DTCollation_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
     Item_func(thd, a, b, c, d)
-  { collation.set_numeric(); fix_char_length(21); }
+  { collation= DTCollation_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, List<Item> &list): Item_func(thd, list)
-  { collation.set_numeric(); fix_char_length(21); }
+  { collation= DTCollation_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item_int_func *item) :Item_func(thd, item)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   double val_real();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *decimal_value)
@@ -1207,7 +1207,7 @@ public:
    :Item_func(thd, a)
   {
     decimals= (uint8) dec;
-    collation.set_numeric();
+    collation= DTCollation_numeric();
     fix_char_length(my_decimal_precision_to_length_no_truncation(len, dec,
                                                                  unsigned_flag));
   }

@@ -170,7 +170,7 @@ class Item_func_month :public Item_func
 {
 public:
   Item_func_month(THD *thd, Item *a): Item_func(thd, a)
-  { collation.set_numeric(); }
+  { collation= DTCollation_numeric(); }
   longlong val_int();
   double val_real()
   { DBUG_ASSERT(fixed == 1); return (double) Item_func_month::val_int(); }
@@ -446,7 +446,7 @@ class Item_func_weekday :public Item_func
   bool odbc_type;
 public:
   Item_func_weekday(THD *thd, Item *a, bool type_arg):
-    Item_func(thd, a), odbc_type(type_arg) { collation.set_numeric(); }
+    Item_func(thd, a), odbc_type(type_arg) { collation= DTCollation_numeric(); }
   longlong val_int();
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
   String *val_str(String *str)

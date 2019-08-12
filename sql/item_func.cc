@@ -5502,7 +5502,7 @@ bool Item_func_get_system_var::fix_length_and_dec()
     case SHOW_SINT:
     case SHOW_SLONG:
     case SHOW_SLONGLONG:
-      collation.set_numeric();
+      collation= DTCollation_numeric();
       fix_char_length(MY_INT64_NUM_DECIMAL_DIGITS);
       decimals=0;
       break;
@@ -5536,13 +5536,13 @@ bool Item_func_get_system_var::fix_length_and_dec()
       break;
     case SHOW_BOOL:
     case SHOW_MY_BOOL:
-      collation.set_numeric();
+      collation= DTCollation_numeric();
       fix_char_length(1);
       decimals=0;
       break;
     case SHOW_DOUBLE:
       decimals= 6;
-      collation.set_numeric();
+      collation= DTCollation_numeric();
       fix_char_length(DBL_DIG + 6);
       break;
     default:
