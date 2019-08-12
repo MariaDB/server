@@ -1184,8 +1184,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     {
       List<Item> *field_list= new (mem_root) List<Item>();
       Item *list_item;
-      KEY *key;
-      uint key_index, parts;
+      KEY *key= 0;
+      uint key_index, parts= 0;
       for (key_index= 0; key_index < table->s->keys; key_index++)
       {
         key=table->key_info + key_index;
@@ -1193,7 +1193,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         if (key->key_part[parts].fieldnr == field->field_index + 1)
           break;
       }
-      if (key->algorithm != HA_KEY_ALG_LONG_HASH)
+      if (!key || key->algorithm != HA_KEY_ALG_LONG_HASH)
         goto end;
       KEY_PART_INFO *keypart;
       for (uint i=0; i < parts; i++)

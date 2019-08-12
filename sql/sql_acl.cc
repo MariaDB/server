@@ -4315,7 +4315,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   bool handle_as_role= combo->is_role();
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
-  ACL_USER new_acl_user, *old_acl_user;
+  ACL_USER new_acl_user, *old_acl_user= 0;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);

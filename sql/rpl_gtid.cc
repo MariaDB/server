@@ -874,7 +874,7 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
     Query_tables_list lex_backup;
     TABLE_LIST tlist;
     TABLE *table;
-    handler::Table_flags direct_pos;
+    handler::Table_flags direct_pos= 0;
     list_element *cur, **cur_ptr_ptr;
     bool table_opened= false;
     bool index_inited= false;

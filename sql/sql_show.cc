@@ -6636,6 +6636,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     {
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
+                             HA_STATUS_CONST |
                              HA_STATUS_TIME);
       set_statistics_for_table(thd, show_table);
     }
@@ -6670,15 +6671,15 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
                                     "D" : "A"), 1, cs);
             table->field[8]->set_notnull();
           }
-          KEY *key=show_table->key_info+i;
-          if (key->rec_per_key[j] && key->algorithm != HA_KEY_ALG_LONG_HASH)
+          if (key_info->algorithm != HA_KEY_ALG_LONG_HASH &&
+              key_info->rec_per_key[j])
           {
             ha_rows records= (ha_rows) ((double) show_table->stat_records() /
-                                        key->actual_rec_per_key(j));
+                                        key_info->actual_rec_per_key(j));
             table->field[9]->store((longlong) records, TRUE);
             table->field[9]->set_notnull();
           }
-          if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+          if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
             table->field[13]->store(STRING_WITH_LEN("HASH"), cs);
           else
           {

@@ -7903,8 +7903,8 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     if (item->type() != Item::FIELD_ITEM &&
         !(item->type() == Item::REF_ITEM &&
           item->real_type() == Item::FIELD_ITEM &&
-        ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
-        (((Item_ref *) item)->ref_type() == Item_ref::REF))))
+          ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
+           (((Item_ref *) item)->ref_type() == Item_ref::REF))))
       continue;
 
     Field_pair *grouping_tmp_field=

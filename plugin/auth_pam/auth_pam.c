@@ -40,7 +40,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   int p_to_c[2], c_to_p[2]; /* Parent-to-child and child-to-parent pipes. */
   pid_t proc_id;
-  int result= CR_ERROR, pkt_len;
+  int result= CR_ERROR, pkt_len= 0;
   unsigned char field, *pkt;
 
   PAM_DEBUG((stderr, "PAM: opening pipes.\n"));
