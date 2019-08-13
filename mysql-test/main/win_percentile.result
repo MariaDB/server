@@ -36,23 +36,23 @@ Tata	4.0000000000
 Tatiana	4.0000000000
 select name, percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
 name	c
-Chun	3.0000000000
-Chun	3.0000000000
-Kaolin	4.0000000000
-Kaolin	4.0000000000
-Kaolin	4.0000000000
-Tata	4.0000000000
-Tatiana	4.0000000000
+Chun	3.0000
+Chun	3.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Tata	4.0000
+Tatiana	4.0000
 # no partition clause
 select name, percentile_disc(0.5) within group(order by score)  over ()  from t1;
 name	percentile_disc(0.5) within group(order by score)  over ()
-Chun	4.0000000000
-Chun	4.0000000000
-Kaolin	4.0000000000
-Kaolin	4.0000000000
-Kaolin	4.0000000000
-Tata	4.0000000000
-Tatiana	4.0000000000
+Chun	4.0000
+Chun	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Tata	4.0000
+Tatiana	4.0000
 select name, percentile_cont(0.5) within group(order by score)  over ()  from t1;
 name	percentile_cont(0.5) within group(order by score)  over ()
 Chun	4.0000000000
@@ -79,13 +79,13 @@ Tata	4.0000000000
 Tatiana	4.0000000000
 select * from ( select name , percentile_disc(0.5) within group ( order by score) over (partition by name ) from t1 ) as t;
 name	percentile_disc(0.5) within group ( order by score) over (partition by name )
-Chun	3.0000000000
-Chun	3.0000000000
-Kaolin	4.0000000000
-Kaolin	4.0000000000
-Kaolin	4.0000000000
-Tata	4.0000000000
-Tatiana	4.0000000000
+Chun	3.0000
+Chun	3.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Tata	4.0000
+Tatiana	4.0000
 select name from t1 a where (select  percentile_disc(0.5) within group (order by score) over (partition by name) from t1 b limit 1) >= 0.5;
 name
 Chun
@@ -118,13 +118,13 @@ ERROR HY000: percentile_disc function only accepts arguments that can be convert
 #complete query with partition column
 select name,cume_dist() over (partition by name order by score), percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
 name	cume_dist() over (partition by name order by score)	c
-Chun	0.5000000000	3.0000000000
-Chun	1.0000000000	3.0000000000
-Kaolin	0.3333333333	4.0000000000
-Kaolin	0.6666666667	4.0000000000
-Kaolin	1.0000000000	4.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name, percentile_cont(0.5)  within group(order by score) over (partition by name) as c from t1;
 name	c
 Chun	5.0000000000
@@ -136,94 +136,94 @@ Tata	4.0000000000
 Tatiana	4.0000000000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.1)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	3.0000000000
-Chun	1.0000000000	3.0000000000
-Kaolin	0.3333333333	3.0000000000
-Kaolin	0.6666666667	3.0000000000
-Kaolin	1.0000000000	3.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	3.0000
+Kaolin	0.6666666667	3.0000
+Kaolin	1.0000000000	3.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.2)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	3.0000000000
-Chun	1.0000000000	3.0000000000
-Kaolin	0.3333333333	3.0000000000
-Kaolin	0.6666666667	3.0000000000
-Kaolin	1.0000000000	3.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	3.0000
+Kaolin	0.6666666667	3.0000
+Kaolin	1.0000000000	3.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.3)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	3.0000000000
-Chun	1.0000000000	3.0000000000
-Kaolin	0.3333333333	3.0000000000
-Kaolin	0.6666666667	3.0000000000
-Kaolin	1.0000000000	3.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	3.0000
+Kaolin	0.6666666667	3.0000
+Kaolin	1.0000000000	3.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.4)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	3.0000000000
-Chun	1.0000000000	3.0000000000
-Kaolin	0.3333333333	4.0000000000
-Kaolin	0.6666666667	4.0000000000
-Kaolin	1.0000000000	4.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	3.0000000000
-Chun	1.0000000000	3.0000000000
-Kaolin	0.3333333333	4.0000000000
-Kaolin	0.6666666667	4.0000000000
-Kaolin	1.0000000000	4.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.6)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	7.0000000000
-Chun	1.0000000000	7.0000000000
-Kaolin	0.3333333333	4.0000000000
-Kaolin	0.6666666667	4.0000000000
-Kaolin	1.0000000000	4.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.7)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	7.0000000000
-Chun	1.0000000000	7.0000000000
-Kaolin	0.3333333333	7.0000000000
-Kaolin	0.6666666667	7.0000000000
-Kaolin	1.0000000000	7.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.8)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	7.0000000000
-Chun	1.0000000000	7.0000000000
-Kaolin	0.3333333333	7.0000000000
-Kaolin	0.6666666667	7.0000000000
-Kaolin	1.0000000000	7.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.9)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	7.0000000000
-Chun	1.0000000000	7.0000000000
-Kaolin	0.3333333333	7.0000000000
-Kaolin	0.6666666667	7.0000000000
-Kaolin	1.0000000000	7.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select name,cume_dist() over (partition by name order by score) as b, percentile_disc(1)  within group(order by score) over (partition by name) as c from t1;
 name	b	c
-Chun	0.5000000000	7.0000000000
-Chun	1.0000000000	7.0000000000
-Kaolin	0.3333333333	7.0000000000
-Kaolin	0.6666666667	7.0000000000
-Kaolin	1.0000000000	7.0000000000
-Tata	1.0000000000	4.0000000000
-Tatiana	1.0000000000	4.0000000000
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
 select median(score) over (partition by name), percentile_cont(0)  within group(order by score) over (partition by name) as c from t1;
 median(score) over (partition by name)	c
 5.0000000000	3.0000000000
@@ -366,3 +366,102 @@ median(val) OVER ()
 2.0000000000
 drop table t1;
 drop view v1;
+#
+# MDEV-20278 PERCENTILE_DISC() returns a wrong data type
+#
+# INT variants
+CREATE TABLE t1 (name CHAR(30), star_rating INT);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+# UNSIGNED INT variants
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating BIGINT UNSIGNED);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 0x8000000000000005);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 0x8000000000000003);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000001);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000002);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000003);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT name, pc, HEX(pc) FROM t2 ORDER BY name, pc;
+name	pc	HEX(pc)
+Lady of the Flies	9223372036854775810	8000000000000002
+Lady of the Flies	9223372036854775810	8000000000000002
+Lady of the Flies	9223372036854775810	8000000000000002
+Lord of the Ladybirds	9223372036854775811	8000000000000003
+Lord of the Ladybirds	9223372036854775811	8000000000000003
+DROP TABLE t2, t1;
+# FLOAT variants
+CREATE TABLE t1 (name CHAR(30), star_rating FLOAT);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+CREATE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` float DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+# DECIMAL variants
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating DECIMAL(30,2));
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 50000000000);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 30000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 10000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 20000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 50000000000);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` decimal(30,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2 ORDER BY name, pc;
+name	pc
+Lady of the Flies	20000000000.00
+Lady of the Flies	20000000000.00
+Lady of the Flies	20000000000.00
+Lord of the Ladybirds	30000000000.00
+Lord of the Ladybirds	30000000000.00
+DROP TABLE t2, t1;
+#
+# MDEV-20272 PERCENTILE_DISC() crashes on a temporal type input
+#
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating TIME);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+ERROR HY000: Numeric datatype is required for percentile_disc function
+DROP TABLE t1;

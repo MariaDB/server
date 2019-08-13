@@ -1151,9 +1151,9 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
+Item_sum_min_max::fix_fields(THD *thd, Item **ref)
 {
-  DBUG_ENTER("Item_sum_hybrid::fix_fields");
+  DBUG_ENTER("Item_sum_min_max::fix_fields");
   DBUG_ASSERT(fixed == 0);
 
   if (init_sum_func_check(thd))
@@ -1183,10 +1183,72 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
 }
 
 
-bool Item_sum_hybrid::fix_length_and_dec()
+bool Item_sum_hybrid::fix_length_and_dec_generic()
+{
+  Item *item= arguments()[0];
+  Type_std_attributes::set(item);
+  set_handler(item->type_handler());
+  return false;
+}
+
+
+/**
+  MAX/MIN for the traditional numeric types preserve the exact data type
+  from Fields, but do not preserve the exact type from Items:
+    MAX(float_field)              -> FLOAT
+    MAX(smallint_field)           -> LONGLONG
+    MAX(COALESCE(float_field))    -> DOUBLE
+    MAX(COALESCE(smallint_field)) -> LONGLONG
+  QQ: Items should probably be fixed to preserve the exact type.
+*/
+bool Item_sum_hybrid::fix_length_and_dec_numeric(const Type_handler *handler)
+{
+  Item *item= arguments()[0];
+  Item *item2= item->real_item();
+  Type_std_attributes::set(item);
+  if (item2->type() == Item::FIELD_ITEM)
+    set_handler(item2->type_handler());
+  else
+    set_handler(handler);
+  return false;
+}
+
+
+/**
+   MAX(str_field) converts ENUM/SET to CHAR, and preserve all other types
+   for Fields.
+   QQ: This works differently from UNION, which preserve the exact data
+   type for ENUM/SET if the joined ENUM/SET fields are equally defined.
+   Perhaps should be fixed.
+   MAX(str_item) chooses the best suitable string type.
+*/
+bool Item_sum_hybrid::fix_length_and_dec_string()
+{
+  Item *item= arguments()[0];
+  Item *item2= item->real_item();
+  Type_std_attributes::set(item);
+  if (item2->type() == Item::FIELD_ITEM)
+  {
+    // Fields: convert ENUM/SET to CHAR, preserve the type otherwise.
+    set_handler(item->type_handler());
+  }
+  else
+  {
+    // Items: choose VARCHAR/BLOB/MEDIUMBLOB/LONGBLOB, depending on length.
+    set_handler(type_handler_varchar.
+          type_handler_adjusted_to_max_octet_length(max_length,
+                                                    collation.collation));
+  }
+  return false;
+}
+
+
+bool Item_sum_min_max::fix_length_and_dec()
 {
   DBUG_ASSERT(args[0]->field_type() == args[0]->real_item()->field_type());
   DBUG_ASSERT(args[0]->result_type() == args[0]->real_item()->result_type());
+  /* MIN/MAX can return NULL for empty set indepedent of the used column */
+  maybe_null= null_value= true;
   return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
 }
 
@@ -1208,9 +1270,9 @@ bool Item_sum_hybrid::fix_length_and_dec()
     and Item_sum_min::add() to use different values!
 */
 
-void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
+void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 {
-  DBUG_ENTER("Item_sum_hybrid::setup_hybrid");
+  DBUG_ENTER("Item_sum_min_max::setup_hybrid");
   if (!(value= item->get_cache(thd)))
     DBUG_VOID_RETURN;
   value->setup(thd, item);
@@ -1231,9 +1293,9 @@ void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 }
 
 
-Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
+Field *Item_sum_min_max::create_tmp_field(bool group, TABLE *table)
 {
-  DBUG_ENTER("Item_sum_hybrid::create_tmp_field");
+  DBUG_ENTER("Item_sum_min_max::create_tmp_field");
 
   if (args[0]->type() == Item::FIELD_ITEM)
   {
@@ -2305,9 +2367,9 @@ Item *Item_sum_variance::result_item(THD *thd, Field *field)
 
 /* min & max */
 
-void Item_sum_hybrid::clear()
+void Item_sum_min_max::clear()
 {
-  DBUG_ENTER("Item_sum_hybrid::clear");
+  DBUG_ENTER("Item_sum_min_max::clear");
   value->clear();
   null_value= 1;
   DBUG_VOID_RETURN;
@@ -2315,7 +2377,7 @@ void Item_sum_hybrid::clear()
 
 
 bool
-Item_sum_hybrid::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+Item_sum_min_max::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
@@ -2327,9 +2389,9 @@ Item_sum_hybrid::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 }
 
 
-void Item_sum_hybrid::direct_add(Item *item)
+void Item_sum_min_max::direct_add(Item *item)
 {
-  DBUG_ENTER("Item_sum_hybrid::direct_add");
+  DBUG_ENTER("Item_sum_min_max::direct_add");
   DBUG_PRINT("info", ("item: %p", item));
   direct_added= TRUE;
   direct_item= item;
@@ -2337,9 +2399,9 @@ void Item_sum_hybrid::direct_add(Item *item)
 }
 
 
-double Item_sum_hybrid::val_real()
+double Item_sum_min_max::val_real()
 {
-  DBUG_ENTER("Item_sum_hybrid::val_real");
+  DBUG_ENTER("Item_sum_min_max::val_real");
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     DBUG_RETURN(0.0);
@@ -2349,9 +2411,9 @@ double Item_sum_hybrid::val_real()
   DBUG_RETURN(retval);
 }
 
-longlong Item_sum_hybrid::val_int()
+longlong Item_sum_min_max::val_int()
 {
-  DBUG_ENTER("Item_sum_hybrid::val_int");
+  DBUG_ENTER("Item_sum_min_max::val_int");
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     DBUG_RETURN(0);
@@ -2362,9 +2424,9 @@ longlong Item_sum_hybrid::val_int()
 }
 
 
-my_decimal *Item_sum_hybrid::val_decimal(my_decimal *val)
+my_decimal *Item_sum_min_max::val_decimal(my_decimal *val)
 {
-  DBUG_ENTER("Item_sum_hybrid::val_decimal");
+  DBUG_ENTER("Item_sum_min_max::val_decimal");
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     DBUG_RETURN(0);
@@ -2376,9 +2438,9 @@ my_decimal *Item_sum_hybrid::val_decimal(my_decimal *val)
 
 
 String *
-Item_sum_hybrid::val_str(String *str)
+Item_sum_min_max::val_str(String *str)
 {
-  DBUG_ENTER("Item_sum_hybrid::val_str");
+  DBUG_ENTER("Item_sum_min_max::val_str");
   DBUG_ASSERT(fixed == 1);
   if (null_value)
     DBUG_RETURN(0);
@@ -2389,7 +2451,7 @@ Item_sum_hybrid::val_str(String *str)
 }
 
 
-bool Item_sum_hybrid::val_native(THD *thd, Native *to)
+bool Item_sum_min_max::val_native(THD *thd, Native *to)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
@@ -2398,9 +2460,9 @@ bool Item_sum_hybrid::val_native(THD *thd, Native *to)
 }
 
 
-void Item_sum_hybrid::cleanup()
+void Item_sum_min_max::cleanup()
 {
-  DBUG_ENTER("Item_sum_hybrid::cleanup");
+  DBUG_ENTER("Item_sum_min_max::cleanup");
   Item_sum::cleanup();
   if (cmp)
     delete cmp;
@@ -2416,9 +2478,9 @@ void Item_sum_hybrid::cleanup()
   DBUG_VOID_RETURN;
 }
 
-void Item_sum_hybrid::no_rows_in_result()
+void Item_sum_min_max::no_rows_in_result()
 {
-  DBUG_ENTER("Item_sum_hybrid::no_rows_in_result");
+  DBUG_ENTER("Item_sum_min_max::no_rows_in_result");
   /* We may be called here twice in case of ref field in function */
   if (was_values)
   {
@@ -2429,7 +2491,7 @@ void Item_sum_hybrid::no_rows_in_result()
   DBUG_VOID_RETURN;
 }
 
-void Item_sum_hybrid::restore_to_before_no_rows_in_result()
+void Item_sum_min_max::restore_to_before_no_rows_in_result()
 {
   if (!was_values)
   {
@@ -2674,10 +2736,10 @@ bool Item_sum_and::add()
 ** reset result of a Item_sum with is saved in a tmp_table
 *************************************************************************/
 
-void Item_sum_hybrid::reset_field()
+void Item_sum_min_max::reset_field()
 {
   Item *UNINIT_VAR(tmp_item), *arg0;
-  DBUG_ENTER("Item_sum_hybrid::reset_field");
+  DBUG_ENTER("Item_sum_min_max::reset_field");
 
   arg0= args[0];
   if (unlikely(direct_added))
@@ -3015,9 +3077,9 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 }
 
 
-void Item_sum_hybrid::update_field()
+void Item_sum_min_max::update_field()
 {
-  DBUG_ENTER("Item_sum_hybrid::update_field");
+  DBUG_ENTER("Item_sum_min_max::update_field");
   Item *UNINIT_VAR(tmp_item);
   if (unlikely(direct_added))
   {
@@ -3047,9 +3109,9 @@ void Item_sum_hybrid::update_field()
 
 
 void
-Item_sum_hybrid::min_max_update_str_field()
+Item_sum_min_max::min_max_update_str_field()
 {
-  DBUG_ENTER("Item_sum_hybrid::min_max_update_str_field");
+  DBUG_ENTER("Item_sum_min_max::min_max_update_str_field");
   DBUG_ASSERT(cmp);
   String *res_str=args[0]->val_str(&cmp->value1);
 
@@ -3070,11 +3132,11 @@ Item_sum_hybrid::min_max_update_str_field()
 
 
 void
-Item_sum_hybrid::min_max_update_real_field()
+Item_sum_min_max::min_max_update_real_field()
 {
   double nr,old_nr;
 
-  DBUG_ENTER("Item_sum_hybrid::min_max_update_real_field");
+  DBUG_ENTER("Item_sum_min_max::min_max_update_real_field");
   old_nr=result_field->val_real();
   nr= args[0]->val_real();
   if (!args[0]->null_value)
@@ -3092,11 +3154,11 @@ Item_sum_hybrid::min_max_update_real_field()
 
 
 void
-Item_sum_hybrid::min_max_update_int_field()
+Item_sum_min_max::min_max_update_int_field()
 {
   longlong nr,old_nr;
 
-  DBUG_ENTER("Item_sum_hybrid::min_max_update_int_field");
+  DBUG_ENTER("Item_sum_min_max::min_max_update_int_field");
   old_nr=result_field->val_int();
   nr=args[0]->val_int();
   if (!args[0]->null_value)
@@ -3127,9 +3189,9 @@ Item_sum_hybrid::min_max_update_int_field()
   optimize: do not get result_field in case of args[0] is NULL
 */
 void
-Item_sum_hybrid::min_max_update_decimal_field()
+Item_sum_min_max::min_max_update_decimal_field()
 {
-  DBUG_ENTER("Item_sum_hybrid::min_max_update_decimal_field");
+  DBUG_ENTER("Item_sum_min_max::min_max_update_decimal_field");
   my_decimal old_val, nr_val;
   const my_decimal *old_nr;
   const my_decimal *nr= args[0]->val_decimal(&nr_val);

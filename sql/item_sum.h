@@ -1045,10 +1045,35 @@ class Item_sum_std :public Item_sum_variance
   { return get_item_copy<Item_sum_std>(thd, this); }
 };
 
+
+class Item_sum_hybrid: public Item_sum,
+                       public Type_handler_hybrid_field_type
+{
+public:
+  Item_sum_hybrid(THD *thd, Item *item_par):
+    Item_sum(thd, item_par),
+    Type_handler_hybrid_field_type(&type_handler_longlong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item *a, Item *b):
+    Item_sum(thd, a, b),
+    Type_handler_hybrid_field_type(&type_handler_longlong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
+    :Item_sum(thd, item),
+    Type_handler_hybrid_field_type(item)
+  { }
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
+  bool fix_length_and_dec_generic();
+  bool fix_length_and_dec_numeric(const Type_handler *h);
+  bool fix_length_and_dec_string();
+};
+
+
 // This class is a string or number function depending on num_func
 class Arg_comparator;
 class Item_cache;
-class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
+class Item_sum_min_max :public Item_sum_hybrid
 {
 protected:
   bool direct_added;
@@ -1059,16 +1084,14 @@ protected:
   bool was_values;  // Set if we have found at least one row (for max/min only)
   bool was_null_value;
 
-  public:
-  Item_sum_hybrid(THD *thd, Item *item_par,int sign):
-    Item_sum(thd, item_par),
-    Type_handler_hybrid_field_type(&type_handler_longlong),
+public:
+  Item_sum_min_max(THD *thd, Item *item_par,int sign):
+    Item_sum_hybrid(thd, item_par),
     direct_added(FALSE), value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
-  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
-    :Item_sum(thd, item),
-    Type_handler_hybrid_field_type(item),
+  Item_sum_min_max(THD *thd, Item_sum_min_max *item)
+    :Item_sum_hybrid(thd, item),
     direct_added(FALSE), value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
@@ -1088,8 +1111,6 @@ protected:
   {
     return get_arg(0)->real_type_handler();
   }
-  const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
   TYPELIB *get_typelib() const { return args[0]->get_typelib(); }
   void update_field();
   void min_max_update_str_field();
@@ -1105,11 +1126,11 @@ protected:
 };
 
 
-class Item_sum_min :public Item_sum_hybrid
+class Item_sum_min :public Item_sum_min_max
 {
 public:
-  Item_sum_min(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, 1) {}
-  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_min(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, 1) {}
+  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MIN_FUNC;}
 
   bool add();
@@ -1120,11 +1141,11 @@ public:
 };
 
 
-class Item_sum_max :public Item_sum_hybrid
+class Item_sum_max :public Item_sum_min_max
 {
 public:
-  Item_sum_max(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, -1) {}
-  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
+  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MAX_FUNC;}
 
   bool add();

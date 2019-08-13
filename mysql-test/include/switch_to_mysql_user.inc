@@ -48,7 +48,7 @@ CREATE TABLE mysql.user (
   is_role enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
   default_role char(80) binary DEFAULT '' NOT NULL,
   max_statement_time decimal(12,6) DEFAULT 0 NOT NULL,
-  PRIMARY KEY Host (Host,User)
+  PRIMARY KEY (Host,User)
 ) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges';
 insert mysql.user select * from mysql.user_bak;
 rename table mysql.global_priv to mysql.global_priv_bak;

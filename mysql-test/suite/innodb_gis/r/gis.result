@@ -792,11 +792,15 @@ POINT(1 1)
 drop function fn3;
 create table t1(pt POINT);
 alter table t1 add primary key pti(pt);
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1(pt GEOMETRY);
 alter table t1 add primary key pti(pt);
 ERROR 42000: BLOB/TEXT column 'pt' used in key specification without a key length
 alter table t1 add primary key pti(pt(20));
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1 select ST_GeomFromText('point(1 1)');
 desc t1;

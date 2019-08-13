@@ -711,6 +711,16 @@ DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
 --echo #
+--echo # MDEV-18456 Assertion `item->maybe_null' failed in Type_handler_temporal_result::make_sort_key
+--echo #
+
+CREATE TABLE t1 (t TIME NOT NULL);
+INSERT INTO t1 VALUES ('00:20:11'),('14:52:05');
+SELECT GREATEST('9999', t) FROM t1 ORDER BY 1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

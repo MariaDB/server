@@ -146,3 +146,83 @@ select * from v1;
 select median(val) OVER () FROM t1;
 drop table t1;
 drop view v1;
+
+
+--echo #
+--echo # MDEV-20278 PERCENTILE_DISC() returns a wrong data type
+--echo #
+
+--echo # INT variants
+
+CREATE TABLE t1 (name CHAR(30), star_rating INT);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+--echo # UNSIGNED INT variants
+
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating BIGINT UNSIGNED);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 0x8000000000000005);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 0x8000000000000003);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000001);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000002);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000003);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+SELECT name, pc, HEX(pc) FROM t2 ORDER BY name, pc;
+DROP TABLE t2, t1;
+
+--echo # FLOAT variants
+
+CREATE TABLE t1 (name CHAR(30), star_rating FLOAT);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+CREATE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+--echo # DECIMAL variants
+
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating DECIMAL(30,2));
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 50000000000);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 30000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 10000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 20000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 50000000000);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2 ORDER BY name, pc;
+DROP TABLE t2, t1;
+
+
+--echo #
+--echo # MDEV-20272 PERCENTILE_DISC() crashes on a temporal type input
+--echo #
+
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating TIME);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+--error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
+SELECT name, PERCENTILE_DISC(0.5)
+  WITHIN GROUP (ORDER BY star_rating)
+  OVER (PARTITION BY name) AS pc FROM t1;
+DROP TABLE t1;

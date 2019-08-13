@@ -1996,7 +1996,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
       (!select_lex->ref_pointer_array[0]->maybe_null ||  /*4*/
        substype() != Item_subselect::ALL_SUBS))          /*4*/
   {
-    Item_sum_hybrid *item;
+    Item_sum_min_max *item;
     nesting_map save_allow_sum_func;
     if (func->l_op())
     {
