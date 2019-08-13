@@ -1784,4 +1784,17 @@ a
 select * from t1 for update;
 a
 drop table t1;
+#
+# MDEV-20108: [ERROR] mysqld got signal 11 in
+# st_select_lex::add_table_to_list
+#
+CREATE TABLE t1 (c1 INT NULL);
+CREATE TABLE t2 (c1 INT NULL);
+SET STATEMENT max_statement_time=900 FOR LOCK TABLES `t1` WRITE;
+select * from t1;
+c1
+select * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+SET STATEMENT max_statement_time=900 FOR unlock tables;
+drop table t1, t2;
 # End of 10.4 tests

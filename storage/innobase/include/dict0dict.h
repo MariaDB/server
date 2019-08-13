@@ -826,6 +826,18 @@ dict_table_has_atomic_blobs(const dict_table_t* table)
 	return(DICT_TF_HAS_ATOMIC_BLOBS(table->flags));
 }
 
+/** @return potential max length stored inline for externally stored fields */
+inline size_t dict_table_t::get_overflow_field_local_len() const
+{
+	if (dict_table_has_atomic_blobs(this)) {
+		/* ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED: do not
+		store any BLOB prefix locally */
+		return BTR_EXTERN_FIELD_REF_SIZE;
+	}
+	/* up to MySQL 5.1: store a 768-byte prefix locally */
+	return BTR_EXTERN_FIELD_REF_SIZE + DICT_ANTELOPE_MAX_INDEX_COL_LEN;
+}
+
 /** Set the various values in a dict_table_t::flags pointer.
 @param[in,out]	flags,		Pointer to a 4 byte Table Flags
 @param[in]	format,		File Format

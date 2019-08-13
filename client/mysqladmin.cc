@@ -237,7 +237,8 @@ static struct my_option my_long_options[] =
 
 
 static const char *load_default_groups[]=
-{ "mysqladmin", "client", "client-server", "client-mariadb", 0 };
+{ "mysqladmin", "mariadb-admin", "client", "client-server", "client-mariadb",
+  0 };
 
 my_bool
 get_one_option(int optid, const struct my_option *opt __attribute__((unused)),

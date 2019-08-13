@@ -2194,23 +2194,6 @@ buffer_close(grn_ctx *ctx, grn_ii *ii, uint32_t pseg)
   return GRN_SUCCESS;
 }
 
-inline static uint32_t
-buffer_open_if_capable(grn_ctx *ctx, grn_ii *ii, int32_t seg, int size, buffer **b)
-{
-  uint32_t pseg, pos = SEG2POS(seg, 0);
-  if ((pseg = buffer_open(ctx, ii, pos, NULL, b)) != GRN_II_PSEG_NOT_ASSIGNED) {
-    uint16_t nterms = (*b)->header.nterms - (*b)->header.nterms_void;
-    if (!((nterms < 4096 ||
-           (ii->header->total_chunk_size >> ((nterms >> 8) - 6))
-           > (*b)->header.chunk_size) &&
-          ((*b)->header.buffer_free >= size + sizeof(buffer_term)))) {
-      buffer_close(ctx, ii, pseg);
-      return GRN_II_PSEG_NOT_ASSIGNED;
-    }
-  }
-  return pseg;
-}
-
 typedef struct {
   uint32_t rid;
   uint32_t sid;

@@ -1274,6 +1274,9 @@ void
 dict_free_vc_templ(
 	dict_vcol_templ_t*	vc_templ)
 {
+	UT_DELETE_ARRAY(vc_templ->default_rec);
+	vc_templ->default_rec = NULL;
+
 	if (vc_templ->vtempl != NULL) {
 		ut_ad(vc_templ->n_v_col > 0);
 		for (ulint i = 0; i < vc_templ->n_col

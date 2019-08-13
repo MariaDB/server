@@ -2858,9 +2858,15 @@ fil_rename_tablespace(
 	space->n_pending_ops--;
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
-
-	bool	success = os_file_rename(
-		innodb_data_file_key, old_file_name, new_file_name);
+	bool success;
+	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+			goto skip_second_rename; );
+	success = os_file_rename(innodb_data_file_key,
+				 old_file_name,
+				 new_file_name);
+	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+skip_second_rename:
+                       success = false; );
 
 	ut_ad(node->name == old_file_name);
 
@@ -4294,6 +4300,11 @@ fil_io(
 	const char* name = node->name == NULL ? space->name : node->name;
 
 	req_type.set_fil_node(node);
+
+	ut_ad(!req_type.is_write()
+	      || page_id.space() == SRV_LOG_SPACE_FIRST_ID
+	      || !fil_is_user_tablespace_id(page_id.space())
+	      || offset == page_id.page_no() * zip_size);
 
 	/* Queue the aio request */
 	dberr_t err = os_aio(

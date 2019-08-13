@@ -1514,6 +1514,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
         next_state= MY_LEX_START;         // Allow signed numbers
+      yylval->kwd.set_keyword(m_tok_start, 1);
       return((int) c);
 
     case MY_LEX_MINUS_OR_COMMENT:

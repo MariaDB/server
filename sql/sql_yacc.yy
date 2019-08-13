@@ -1799,7 +1799,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <simple_string>
         remember_name remember_end
-        remember_tok_start remember_tok_end
+        remember_tok_start
         wild_and_where
 
 %type <const_simple_string>
@@ -2174,9 +2174,12 @@ END_OF_INPUT
 %type <frame_exclusion> opt_window_frame_exclusion;
 %type <window_frame_bound> window_frame_start window_frame_bound;
 
-%type <NONE>
+%type <kwd>
         '-' '+' '*' '/' '%' '(' ')'
-        ',' '!' '{' '}' '&' '|' AND_SYM OR_SYM BETWEEN_SYM CASE_SYM
+        ',' '!' '{' '}' '&' '|'
+
+%type <NONE>
+        AND_SYM OR_SYM BETWEEN_SYM CASE_SYM
         THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
         MYSQL_CONCAT_SYM ORACLE_CONCAT_SYM
 
@@ -8829,6 +8832,7 @@ persistent_column_stat_spec:
           }
           table_column_list
           ')' 
+          { }
         ;
  
 persistent_index_stat_spec:
@@ -8842,6 +8846,7 @@ persistent_index_stat_spec:
           }
           table_index_list
           ')' 
+          { }
         ;
 
 table_column_list:
@@ -9605,12 +9610,6 @@ select_item:
 remember_tok_start:
           {
             $$= (char*) YYLIP->get_tok_start();
-          }
-        ;
-
-remember_tok_end:
-          {
-            $$= (char*) YYLIP->get_tok_end();
           }
         ;
 
@@ -12442,6 +12441,7 @@ window_spec:
           opt_window_ref opt_window_partition_clause
           opt_window_order_clause opt_window_frame_clause
           ')'
+          { }
         ;
 
 opt_window_ref:
@@ -15238,16 +15238,16 @@ with_list_element:
               MYSQL_YYABORT;
             Lex->with_column_list.empty();
           }
-          AS '(' remember_tok_start query_expression remember_tok_end ')'
+          AS '(' query_expression ')'
  	  {
             LEX *lex= thd->lex;
             const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
                                                  : thd->query();
-            char *spec_start= $6 + 1;
-            With_element *elem= new With_element($1, *$2, $7);
+            const char *spec_start= $5.pos() + 1;
+            With_element *elem= new With_element($1, *$2, $6);
 	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
 	      MYSQL_YYABORT;
-            if (elem->set_unparsed_spec(thd, spec_start, $8,
+            if (elem->set_unparsed_spec(thd, spec_start, $7.pos(),
                                         spec_start - query_start))
               MYSQL_YYABORT;
 	  }
@@ -16765,7 +16765,7 @@ table_lock:
                                       ? MDL_SHARED_WRITE
                                       : MDL_SHARED_NO_READ_WRITE;
 
-            if (unlikely(!Select->
+            if (unlikely(!Lex->current_select_or_default()->
                          add_table_to_list(thd, $1, $2, table_options,
                                            lock_type, mdl_type)))
               MYSQL_YYABORT;
@@ -17342,7 +17342,7 @@ opt_column_list:
             LEX *lex=Lex;
             lex->grant |= lex->which_columns;
           }
-        | '(' column_list ')'
+        | '(' column_list ')' { }
         ;
 
 column_list:
@@ -17651,7 +17651,7 @@ view_suid:
 view_list_opt:
           /* empty */
           {}
-        | '(' view_list ')'
+        | '(' view_list ')' { }
         ;
 
 view_list:

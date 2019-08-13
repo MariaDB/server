@@ -5,6 +5,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/big_test.inc
+--source include/force_restart.inc
 
 # Create a second connection to node1 so that we can run transactions concurrently
 --let $galera_connection_name = node_1a
@@ -20,8 +21,9 @@ CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoD
 --connection node_2
 set session wsrep_sync_wait=15;
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+
 SET GLOBAL wsrep_slave_threads = 4;
---let $wait_condition = SELECT VARIABLE_VALUE = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
 
 --connection node_1

@@ -117,8 +117,10 @@ int maria_close(register MARIA_HA *info)
                         share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
         error= my_errno;
       unmap_file(info);
-      if (((share->changed && share->base.born_transactional) ||
-           maria_is_crashed(info) || (share->temporary && !share->deleting)))
+      if (!internal_table &&
+          (((share->changed && share->base.born_transactional) ||
+            maria_is_crashed(info) ||
+            (share->temporary && !share->deleting))))
       {
         if (save_global_changed)
         {

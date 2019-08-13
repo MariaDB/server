@@ -49,8 +49,6 @@ tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE
 DROP TABLE t1;
 connection node_1;
 CREATE EVENT event1 ON SCHEDULE AT '2038-01-01 23:59:59' DO SELECT 1;
-Warnings:
-Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 connection node_2;
 SHOW CREATE EVENT event1;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation

@@ -222,7 +222,8 @@ static struct my_option my_long_options[] =
 };
 
 static const char *load_default_groups[]=
-{ "mysqlcheck", "client", "client-server", "client-mariadb", 0 };
+{ "mysqlcheck", "mariadb-check", "client", "client-server", "client-mariadb",
+  0 };
 
 
 static void print_version(void);

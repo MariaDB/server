@@ -1838,19 +1838,18 @@ fil_crypt_get_page_throttle_func(
 
 	state->crypt_stat.pages_read_from_disk++;
 
-	uintmax_t start = ut_time_us(NULL);
+	const ulonglong start = my_interval_timer();
 	block = buf_page_get_gen(page_id, zip_size,
 				 RW_X_LATCH,
 				 NULL, BUF_GET_POSSIBLY_FREED,
 				file, line, mtr, &err);
-	uintmax_t end = ut_time_us(NULL);
-
-	if (end < start) {
-		end = start; // safety...
-	}
+	const ulonglong end = my_interval_timer();
 
 	state->cnt_waited++;
-	state->sum_waited_us += (end - start);
+
+	if (end > start) {
+		state->sum_waited_us += (end - start) / 1000;
+	}
 
 	/* average page load */
 	ulint add_sleeptime_ms = 0;
@@ -2174,7 +2173,7 @@ fil_crypt_flush_space(
 		bool success = false;
 		ulint n_pages = 0;
 		ulint sum_pages = 0;
-		uintmax_t start = ut_time_us(NULL);
+		const ulonglong start = my_interval_timer();
 
 		do {
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
@@ -2182,11 +2181,11 @@ fil_crypt_flush_space(
 			sum_pages += n_pages;
 		} while (!success && !space->is_stopping());
 
-		uintmax_t end = ut_time_us(NULL);
+		const ulonglong end = my_interval_timer();
 
 		if (sum_pages && end > start) {
 			state->cnt_waited += sum_pages;
-			state->sum_waited_us += (end - start);
+			state->sum_waited_us += (end - start) / 1000;
 
 			/* statistics */
 			state->crypt_stat.pages_flushed += sum_pages;
@@ -2621,7 +2620,8 @@ fil_space_crypt_close_tablespace(
 {
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 
-	if (!crypt_data || srv_n_fil_crypt_threads == 0) {
+	if (!crypt_data || srv_n_fil_crypt_threads == 0
+	    || !fil_crypt_threads_inited) {
 		return;
 	}
 

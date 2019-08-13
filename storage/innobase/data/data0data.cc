@@ -601,7 +601,6 @@ dtuple_convert_big_rec(
 	dfield_t*	dfield;
 	ulint		size;
 	ulint		n_fields;
-	ulint		local_len;
 	ulint		local_prefix_len;
 
 	if (!dict_index_is_clust(index)) {
@@ -612,6 +611,7 @@ dtuple_convert_big_rec(
 		return NULL;
 	}
 
+	ulint local_len = index->table->get_overflow_field_local_len();
 	const auto zip_size = index->table->space->zip_size();
 
 	ut_ad(index->n_uniq > 0);

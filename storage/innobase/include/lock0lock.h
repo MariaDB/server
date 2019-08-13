@@ -566,11 +566,10 @@ lock_print_info_summary(
 
 /** Prints transaction lock wait and MVCC state.
 @param[in,out]	file	file where to print
-@param[in]	trx	transaction */
+@param[in]	trx	transaction
+@param[in]	now	current time */
 void
-lock_trx_print_wait_and_mvcc_state(
-	FILE*		file,
-	const trx_t*	trx);
+lock_trx_print_wait_and_mvcc_state(FILE* file, const trx_t* trx, time_t now);
 
 /*********************************************************************//**
 Prints info of locks for each transaction. This function assumes that the

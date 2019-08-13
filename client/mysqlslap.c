@@ -177,7 +177,8 @@ static int get_options(int *argc,char ***argv);
 static uint opt_mysql_port= 0;
 
 static const char *load_default_groups[]=
-{ "mysqlslap", "client", "client-server", "client-mariadb", 0 };
+{ "mysqlslap", "mariadb-slap", "client", "client-server", "client-mariadb",
+  0 };
 
 typedef struct statement statement;
 

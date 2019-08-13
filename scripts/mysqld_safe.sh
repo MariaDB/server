@@ -577,8 +577,8 @@ append_arg_to_args () {
 
 args=
 
-# Get first arguments from the my.cnf file, groups [mysqld] and [mysqld_safe]
-# and then merge with the command line arguments
+# Get first arguments from the my.cnf file, groups [mysqld] and [server]
+# (and related) and then merge with the command line arguments
 
 SET_USER=2
 parse_arguments `$print_defaults $defaults --loose-verbose --mysqld`
@@ -590,7 +590,7 @@ fi
 # If arguments come from [mysqld_safe] section of my.cnf
 # we complain about unrecognized options
 unrecognized_handling=complain
-parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe`
+parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd-safe`
 
 # We only need to pass arguments through to the server if we don't
 # handle them here.  So, we collect unrecognized options (passed on
@@ -720,9 +720,9 @@ fi
 safe_mysql_unix_port=${mysql_unix_port:-${MYSQL_UNIX_PORT:-@MYSQL_UNIX_ADDR@}}
 # Make sure that directory for $safe_mysql_unix_port exists
 mysql_unix_port_dir=`dirname $safe_mysql_unix_port`
-if [ ! -d $mysql_unix_port_dir ]
+if [ ! -d $mysql_unix_port_dir -a $dry_run -eq 0 ]
 then
-  if ! `mkdir -p $mysql_unix_port_dir`
+  if ! mkdir -p $mysql_unix_port_dir
   then
     log_error "Fatal error Can't create database directory '$mysql_unix_port'"
     exit 1

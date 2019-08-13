@@ -504,13 +504,13 @@ public:
 		/* No op - base constructor is called. */
 	}
 
-	~RemoteDatafile()
+	~RemoteDatafile() override
 	{
 		shutdown();
 	}
 
 	/** Release the resources. */
-	void shutdown();
+	void shutdown() override;
 
 	/** Get the link filepath.
 	@return m_link_filepath */
@@ -532,7 +532,7 @@ public:
 	in read-only mode so that it can be validated.
 	@param[in]	strict	whether to issue error messages
 	@return DB_SUCCESS or error code */
-	dberr_t open_read_only(bool strict);
+	dberr_t open_read_only(bool strict) override;
 
 	/** Opens a handle to the file linked to in an InnoDB Symbolic Link
 	file in read-write mode so that it can be restored from doublewrite
@@ -540,7 +540,7 @@ public:
 	@param[in]	read_only_mode	If true, then readonly mode checks
 					are enforced.
 	@return DB_SUCCESS or error code */
-	dberr_t open_read_write(bool read_only_mode)
+	dberr_t open_read_write(bool read_only_mode) override
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/******************************************************************

@@ -45,13 +45,13 @@ public:
   {
     m_thd->variables.option_bits&= ~OPTION_BEGIN;
     m_thd->server_status&= ~SERVER_STATUS_IN_TRANS;
-    m_thd->wsrep_cs().enter_toi(ws_meta);
+    m_thd->wsrep_cs().enter_toi_mode(ws_meta);
   }
   ~Wsrep_non_trans_mode()
   {
     m_thd->variables.option_bits= m_option_bits;
     m_thd->server_status= m_server_status;
-    m_thd->wsrep_cs().leave_toi();
+    m_thd->wsrep_cs().leave_toi_mode();
   }
 private:
   Wsrep_non_trans_mode(const Wsrep_non_trans_mode&);
@@ -343,7 +343,8 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
 }
 
 int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
-                                           const wsrep::const_buffer& data)
+                                           const wsrep::const_buffer& data,
+                                           wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_high_priority_service::apply_toi");
   THD* thd= m_thd;
@@ -404,21 +405,33 @@ void Wsrep_high_priority_service::switch_execution_context(wsrep::high_priority_
 }
 
 int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_handle,
-                                                     const wsrep::ws_meta& ws_meta)
+                                                     const wsrep::ws_meta& ws_meta,
+                                                     wsrep::mutable_buffer& err)
 {
   DBUG_ENTER("Wsrep_high_priority_service::log_dummy_write_set");
   int ret= 0;
   DBUG_PRINT("info",
              ("Wsrep_high_priority_service::log_dummy_write_set: seqno=%lld",
               ws_meta.seqno().get()));
-  m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta);
-  WSREP_DEBUG("Log dummy write set %lld", ws_meta.seqno().get());
-  if (!(opt_log_slave_updates && wsrep_gtid_mode && m_thd->variables.gtid_seq_no))
+  if (ws_meta.ordered())
   {
-    m_thd->wsrep_cs().before_rollback();
-    m_thd->wsrep_cs().after_rollback();
+    wsrep::client_state& cs(m_thd->wsrep_cs());
+    if (!cs.transaction().active())
+    {
+      cs.start_transaction(ws_handle, ws_meta);
+    }
+    adopt_apply_error(err);
+    WSREP_DEBUG("Log dummy write set %lld", ws_meta.seqno().get());
+    ret= cs.provider().commit_order_enter(ws_handle, ws_meta);
+    if (!(ret && opt_log_slave_updates && wsrep_gtid_mode &&
+          m_thd->variables.gtid_seq_no))
+    {
+      cs.before_rollback();
+      cs.after_rollback();
+    }
+    ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+    cs.after_applying();
   }
-  m_thd->wsrep_cs().after_applying();
   DBUG_RETURN(ret);
 }
 
@@ -452,7 +465,8 @@ Wsrep_applier_service::~Wsrep_applier_service()
 }
 
 int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
-                                           const wsrep::const_buffer& data)
+                                           const wsrep::const_buffer& data,
+                                           wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_applier_service::apply_write_set");
   THD* thd= m_thd;
@@ -606,7 +620,8 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
 }
 
 int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
-                                                 const wsrep::const_buffer& data)
+                                            const wsrep::const_buffer& data,
+                                            wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_replayer_service::apply_write_set");
   THD* thd= m_thd;

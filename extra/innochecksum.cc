@@ -75,6 +75,8 @@ ulong srv_page_size;
 ulong srv_page_size_shift;
 /* Current page number (0 based). */
 unsigned long long		cur_page_num;
+/* Current space. */
+unsigned long long		cur_space;
 /* Skip the checksum verification. */
 static bool			no_check;
 /* Enabled for strict checksum verification. */
@@ -282,7 +284,9 @@ static void init_page_size(const byte* buf)
 						 + FSP_SPACE_FLAGS);
 
 	if (fil_space_t::full_crc32(flags)) {
-		srv_page_size = fil_space_t::logical_size(flags);
+		const ulong ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
+		srv_page_size_shift = UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize;
+		srv_page_size = 512U << ssize;
 		physical_page_size = srv_page_size;
 		return;
 	}
@@ -424,6 +428,27 @@ ulint read_file(
 	return bytes;
 }
 
+/** Check whether the page contains all zeroes.
+@param[in]	buf	page
+@param[in]	size	physical size of the page
+@return true if the page is all zeroes; else false */
+static bool is_page_all_zeroes(
+	byte*	buf,
+	ulint	size)
+{
+	/* On pages that are not all zero, the page number
+	must match. */
+	const ulint* p = reinterpret_cast<const ulint*>(buf);
+	const ulint* const end = reinterpret_cast<const ulint*>(buf + size);
+	do {
+		if (*p++) {
+			return false;
+		}
+	} while (p != end);
+
+	return true;
+}
+
 /** Check if page is corrupted or not.
 @param[in]	buf		page frame
 @param[in]	is_encrypted	true if page0 contained cryp_data
@@ -450,6 +475,26 @@ is_page_corrupted(
 	ulint zip_size = fil_space_t::zip_size(flags);
 	ulint is_compressed = fil_space_t::is_compressed(flags);
 	const bool use_full_crc32 = fil_space_t::full_crc32(flags);
+
+	if (mach_read_from_4(buf + FIL_PAGE_OFFSET) != cur_page_num
+	    || (space_id != cur_space
+		&& (!use_full_crc32 || (!is_encrypted && !is_compressed)))) {
+		/* On pages that are not all zero, the page number
+		must match. */
+		if (is_page_all_zeroes(buf,
+				       fil_space_t::physical_size(flags))) {
+			return false;
+		}
+
+		if (is_log_enabled) {
+			fprintf(log_file,
+				"page id mismatch space::" ULINTPF
+				" page::%llu \n",
+				space_id, cur_page_num);
+		}
+
+		return true;
+	}
 
 	/* We can't trust only a page type, thus we take account
 	also fsp_flags or crypt_data on page 0 */
@@ -1539,9 +1584,6 @@ int main(
 	FILE*		fil_page_type		= NULL;
 	fpos_t		pos;
 
-	/* Use to check the space id of given file. If space_id is zero,
-	then check whether page is doublewrite buffer.*/
-	ulint		space_id = 0UL;
 	/* enable when space_id of given file is zero. */
 	bool		is_system_tablespace = false;
 
@@ -1663,9 +1705,8 @@ int main(
 		/* enable variable is_system_tablespace when space_id of given
 		file is zero. Use to skip the checksum verification and rewrite
 		for doublewrite pages. */
-		is_system_tablespace = (!memcmp(&space_id, buf +
-					FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 4))
-					? true : false;
+		cur_space = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
+		cur_page_num = mach_read_from_4(buf + FIL_PAGE_OFFSET);
 
 		/* Determine page size, zip_size and page compression
 		from fsp_flags and encryption metadata from page 0 */
@@ -1673,7 +1714,9 @@ int main(
 
 		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
 
-		if (physical_page_size > UNIV_ZIP_SIZE_MIN) {
+		if (physical_page_size == UNIV_ZIP_SIZE_MIN) {
+			partial_page_read = false;
+		} else {
 			/* Read rest of the page 0 to determine crypt_data */
 			bytes = read_file(buf, partial_page_read, physical_page_size, fil_in);
 			if (bytes != physical_page_size) {
@@ -1687,6 +1730,7 @@ int main(
 			}
 			partial_page_read = false;
 		}
+
 
 		/* Now that we have full page 0 in buffer, check encryption */
 		bool is_encrypted = check_encryption(filename, buf);
@@ -1761,6 +1805,36 @@ int main(
 					"pages in range::%llu to %llu\n",
 					start_page, use_end_page ?
 					end_page : (pages - 1));
+			}
+		}
+
+		off_t cur_offset = 0;
+		/* Find the first non all-zero page and fetch the
+		space id from there. */
+		while (is_page_all_zeroes(buf, physical_page_size)) {
+			bytes = ulong(read_file(
+					buf, false, physical_page_size,
+					fil_in));
+
+			if (feof(fil_in)) {
+				fprintf(stderr, "All are "
+					"zero-filled pages.");
+				goto my_exit;
+			}
+
+			cur_offset++;
+		}
+
+		cur_space = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
+		is_system_tablespace = (cur_space == 0);
+
+		if (cur_offset > 0) {
+			/* Re-read the non-zero page to check the
+			checksum. So move the file pointer to
+			previous position and reset the page number too. */
+			cur_page_num = mach_read_from_4(buf + FIL_PAGE_OFFSET);
+			if (!start_page) {
+				goto first_non_zero;
 			}
 		}
 
@@ -1856,6 +1930,7 @@ int main(
 				goto my_exit;
 			}
 
+first_non_zero:
 			if (is_system_tablespace) {
 				/* enable when page is double write buffer.*/
 				skip_page = is_page_doublewritebuffer(buf);

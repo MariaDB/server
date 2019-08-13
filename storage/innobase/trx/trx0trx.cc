@@ -610,7 +610,8 @@ trx_resurrect_table_locks(
 */
 
 static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
-                          ib_time_t start_time, uint64_t *rows_to_undo,
+                          time_t start_time, ulonglong start_time_micro,
+                          uint64_t *rows_to_undo,
                           bool is_old_insert)
 {
   trx_state_t state;
@@ -662,6 +663,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx->id= undo->trx_id;
   trx->is_recovered= true;
   trx->start_time= start_time;
+  trx->start_time_micro= start_time_micro;
 
   if (undo->dict_operation)
   {
@@ -702,7 +704,8 @@ trx_lists_init_at_db_start()
 
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
-	const ib_time_t	start_time	= ut_time();
+	const time_t	start_time	= time(NULL);
+	const ulonglong	start_time_micro= microsecond_interval_timer();
 	uint64_t	rows_to_undo	= 0;
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
@@ -721,8 +724,8 @@ trx_lists_init_at_db_start()
 		undo = UT_LIST_GET_FIRST(rseg->old_insert_list);
 		while (undo) {
 			trx_undo_t* next = UT_LIST_GET_NEXT(undo_list, undo);
-			trx_resurrect(undo, rseg, start_time, &rows_to_undo,
-				      true);
+			trx_resurrect(undo, rseg, start_time, start_time_micro,
+				      &rows_to_undo, true);
 			undo = next;
 		}
 
@@ -733,6 +736,7 @@ trx_lists_init_at_db_start()
 			trx_t *trx = trx_sys.find(0, undo->trx_id, false);
 			if (!trx) {
 				trx_resurrect(undo, rseg, start_time,
+					      start_time_micro,
 					      &rows_to_undo, false);
 			} else {
 				ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
@@ -994,14 +998,10 @@ trx_start_low(
 		}
 	}
 
-	if (trx->mysql_thd != NULL) {
-		trx->start_time = thd_start_time_in_secs(trx->mysql_thd);
-		trx->start_time_micro = thd_query_start_micro(trx->mysql_thd);
-
-	} else {
-		trx->start_time = ut_time();
-		trx->start_time_micro = 0;
-	}
+	trx->start_time = time(NULL);
+	trx->start_time_micro = trx->mysql_thd
+		? thd_query_start_micro(trx->mysql_thd)
+		: microsecond_interval_timer();
 
 	ut_a(trx->error_state == DB_SUCCESS);
 
@@ -1236,7 +1236,7 @@ trx_update_mod_tables_timestamp(
 {
 	/* consider using trx->start_time if calling time() is too
 	expensive here */
-	time_t	now = ut_time();
+	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
 

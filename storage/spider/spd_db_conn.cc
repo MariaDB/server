@@ -389,6 +389,13 @@ int spider_db_conn_queue_action(
           append_wait_timeout(&sql_str, conn->queued_wait_timeout_val))
       ) ||
       (
+        conn->queued_sql_mode &&
+        conn->queued_sql_mode_val != conn->sql_mode &&
+        conn->db_conn->set_sql_mode_in_bulk_sql() &&
+        (error_num = spider_dbton[conn->dbton_id].db_util->
+          append_sql_mode(&sql_str, conn->queued_sql_mode_val))
+      ) ||
+      (
         conn->queued_time_zone &&
         conn->queued_time_zone_val != conn->time_zone &&
         conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -470,6 +477,15 @@ int spider_db_conn_queue_action(
       DBUG_RETURN(error_num);
     }
     if (
+      conn->queued_sql_mode &&
+      conn->queued_sql_mode_val != conn->sql_mode &&
+      !conn->db_conn->set_sql_mode_in_bulk_sql() &&
+      (error_num = spider_dbton[conn->dbton_id].db_util->
+        append_sql_mode(&sql_str, conn->queued_sql_mode_val))
+    ) {
+      DBUG_RETURN(error_num);
+    }
+    if (
       conn->queued_time_zone &&
       conn->queued_time_zone_val != conn->time_zone &&
       !conn->db_conn->set_time_zone_in_bulk_sql() &&
@@ -541,6 +557,13 @@ int spider_db_conn_queue_action(
       conn->queued_wait_timeout_val != conn->wait_timeout
     ) {
       conn->wait_timeout = conn->queued_wait_timeout_val;
+    }
+
+    if (
+      conn->queued_sql_mode &&
+      conn->queued_sql_mode_val != conn->sql_mode
+    ) {
+      conn->sql_mode = conn->queued_sql_mode_val;
     }
 
     if (conn->queued_autocommit)
@@ -1416,7 +1439,7 @@ int spider_db_append_name_with_quote_str(
 ) {
   DBUG_ENTER("spider_db_append_name_with_quote_str");
   DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
-    str, name, strlen(name), dbton_id));
+    str, name, strlen(name), system_charset_info, dbton_id));
 }
 
 int spider_db_append_name_with_quote_str(
@@ -1426,13 +1449,25 @@ int spider_db_append_name_with_quote_str(
 ) {
   DBUG_ENTER("spider_db_append_name_with_quote_str");
   DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
-    str, name.str, name.length, dbton_id));
+    str, name.str, name.length, system_charset_info, dbton_id));
 }
 
 int spider_db_append_name_with_quote_str_internal(
   spider_string *str,
   const char *name,
   int length,
+  uint dbton_id
+) {
+  DBUG_ENTER("spider_db_append_name_with_quote_str_internal");
+  DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
+    str, name, length, system_charset_info, dbton_id));
+}
+
+int spider_db_append_name_with_quote_str_internal(
+  spider_string *str,
+  const char *name,
+  int length,
+  CHARSET_INFO *cs,
   uint dbton_id
 ) {
   int error_num;
@@ -1443,9 +1478,9 @@ int spider_db_append_name_with_quote_str_internal(
   {
     head_code = *name;
 #ifdef SPIDER_HAS_MY_CHARLEN
-    if ((length = my_charlen(system_charset_info, name, name_end)) < 1)
+    if ((length = my_charlen(cs, name, name_end)) < 1)
 #else
-    if (!(length = my_mbcharlen(system_charset_info, (uchar) head_code)))
+    if (!(length = my_mbcharlen(cs, (uchar) head_code)))
 #endif
     {
       my_message(ER_SPIDER_WRONG_CHARACTER_IN_NAME_NUM,
@@ -1462,7 +1497,7 @@ int spider_db_append_name_with_quote_str_internal(
         DBUG_RETURN(error_num);
       }
     } else {
-      if (str->append(name, length, system_charset_info))
+      if (str->append(name, length, cs))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
   }
@@ -9039,10 +9074,11 @@ int spider_db_open_item_ident(
       str->q_append(alias, alias_length);
 #ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name(str, item_ident->field_name.str, field_name_length)))
+        append_escaped_name(str, item_ident->field_name.str,
+          field_name_length)))
 #else
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name(str, item_ident->field_name, field_name_length)))
+        append_escaped_name(str, item_ident->field_name, field_name_length)))
 #endif
       {
         DBUG_RETURN(error_num);
@@ -9053,11 +9089,11 @@ int spider_db_open_item_ident(
       str->q_append(alias, alias_length);
 #ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name_with_charset(str, item_ident->field_name.str,
+        append_escaped_name_with_charset(str, item_ident->field_name.str,
           field_name_length, system_charset_info)))
 #else
       if ((error_num = spider_dbton[dbton_id].db_util->
-        append_name_with_charset(str, item_ident->field_name,
+        append_escaped_name_with_charset(str, item_ident->field_name,
           field_name_length, system_charset_info)))
 #endif
       {

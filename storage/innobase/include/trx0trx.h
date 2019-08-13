@@ -927,10 +927,11 @@ public:
 					on dict_sys.latch. Protected
 					by dict_sys.latch. */
 
-	time_t		start_time;	/*!< time the state last time became
-					TRX_STATE_ACTIVE */
-	ib_uint64_t	start_time_micro; /*!< start time of transaction in
-					microseconds */
+	/** wall-clock time of the latest transition to TRX_STATE_ACTIVE;
+	used for diagnostic purposes only */
+	time_t		start_time;
+	/** microsecond_interval_timer() of transaction start */
+	ulonglong	start_time_micro;
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
 	table_id_t	table_id;	/*!< Table to drop iff dict_operation
 					== TRX_DICT_OP_TABLE, or 0. */

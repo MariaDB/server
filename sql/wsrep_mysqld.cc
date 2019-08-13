@@ -47,6 +47,7 @@
 #include <string>
 #include "log_event.h"
 #include <slave.h>
+#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 #include <sstream>
 
@@ -153,7 +154,11 @@ mysql_mutex_t LOCK_wsrep_SR_pool;
 mysql_mutex_t LOCK_wsrep_SR_store;
 
 int wsrep_replaying= 0;
-ulong  wsrep_running_threads= 0; // # of currently running wsrep threads
+ulong  wsrep_running_threads = 0; // # of currently running wsrep
+				  // # threads
+ulong  wsrep_running_applier_threads = 0; // # of running applier threads
+ulong  wsrep_running_rollbacker_threads = 0; // # of running
+					     // # rollbacker threads
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -1782,7 +1787,7 @@ static void wsrep_TOI_begin_failed(THD* thd, const wsrep_buf_t* /* const err */)
     if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
     if (wsrep_write_dummy_event(thd, "TOI begin failed")) { goto fail; }
     wsrep::client_state& cs(thd->wsrep_cs());
-    int const ret= cs.leave_toi();
+    int const ret= cs.leave_toi_local(wsrep::mutable_buffer());
     if (ret)
     {
       WSREP_ERROR("Leaving critical section for failed TOI failed: thd: %lld, "
@@ -1850,10 +1855,10 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   thd_proc_info(thd, "acquiring total order isolation");
 
   wsrep::client_state& cs(thd->wsrep_cs());
-  int ret= cs.enter_toi(key_array,
-                        wsrep::const_buffer(buff.ptr, buff.len),
-                        wsrep::provider::flag::start_transaction |
-                        wsrep::provider::flag::commit);
+  int ret= cs.enter_toi_local(key_array,
+                              wsrep::const_buffer(buff.ptr, buff.len),
+                              wsrep::provider::flag::start_transaction |
+                              wsrep::provider::flag::commit);
 
   if (ret)
   {
@@ -1909,7 +1914,7 @@ static void wsrep_TOI_end(THD *thd) {
   if (wsrep_thd_is_local_toi(thd))
   {
     wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
-    int ret= client_state.leave_toi();
+    int ret= client_state.leave_toi_local(wsrep::mutable_buffer());
     if (!ret)
     {
       WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
@@ -2400,8 +2405,7 @@ int wsrep_must_ignore_error(THD* thd)
   const uint flags= sql_command_flags[thd->lex->sql_command];
 
   DBUG_ASSERT(error);
-  DBUG_ASSERT((wsrep_thd_is_toi(thd)) ||
-              (wsrep_thd_is_applying(thd) && thd->wsrep_apply_toi));
+  DBUG_ASSERT(wsrep_thd_is_toi(thd) || wsrep_thd_is_applying(thd));
 
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_DDL))
     goto ignore_error;
@@ -2652,7 +2656,21 @@ void* start_wsrep_THD(void *arg)
   thd->set_command(COM_SLEEP);
   thd->init_for_queries();
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+
   wsrep_running_threads++;
+
+  switch (thd_args->thread_type()) {
+    case WSREP_APPLIER_THREAD:
+      wsrep_running_applier_threads++;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      wsrep_running_rollbacker_threads++;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", thd_args->thread_type());
+      break;
+  }
+
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
@@ -2672,7 +2690,23 @@ void* start_wsrep_THD(void *arg)
   delete thd_args;
 
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+  DBUG_ASSERT(wsrep_running_threads > 0);
   wsrep_running_threads--;
+
+  switch (thd_args->thread_type()) {
+    case WSREP_APPLIER_THREAD:
+      DBUG_ASSERT(wsrep_running_applier_threads > 0);
+      wsrep_running_applier_threads--;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      DBUG_ASSERT(wsrep_running_rollbacker_threads > 0);
+      wsrep_running_rollbacker_threads--;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", thd_args->thread_type());
+      break;
+  }
+
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);

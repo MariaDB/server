@@ -1,0 +1,46 @@
+SET GLOBAL enable_blind_replace=ON;
+create table t1(c1 int,c2 int, primary key (c1)) engine=rocksdb;
+insert into t1 values(1,1),(2,2),(3,3);
+select * from t1;
+c1	c2
+1	1
+2	2
+3	3
+SELECT @@global.enable_blind_replace;
+@@global.enable_blind_replace
+1
+begin;
+replace into t1 values(1,11);
+SELECT @@global.enable_blind_replace;
+@@global.enable_blind_replace
+1
+begin;
+update t1 set c2=22 where c1=1;
+commit;
+# Reap update.
+commit;
+select * from t1;
+c1	c2
+1	22
+2	2
+3	3
+SELECT @@global.enable_blind_replace;
+@@global.enable_blind_replace
+1
+begin;
+update t1 set c2=55 where c1=1;
+SELECT @@global.enable_blind_replace;
+@@global.enable_blind_replace
+1
+begin;
+replace into t1 values(1,66);
+commit;
+# Reap replace into.
+commit;
+select * from t1;
+c1	c2
+1	66
+2	2
+3	3
+drop table t1;
+SET GLOBAL enable_blind_replace=DEFAULT;

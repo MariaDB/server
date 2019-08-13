@@ -1088,7 +1088,7 @@ int ha_myisammrg::close(void)
   DBUG_RETURN(rc);
 }
 
-int ha_myisammrg::write_row(uchar * buf)
+int ha_myisammrg::write_row(const uchar * buf)
 {
   DBUG_ENTER("ha_myisammrg::write_row");
   DBUG_ASSERT(this->file->children_attached);

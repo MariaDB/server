@@ -209,9 +209,8 @@ EOF
 --exec $INNOCHECKSUM $t3_IBD
 
 --echo # Run innochecksum on t6
---echo # In new checksum format, checksum calculated for whole page.
---echo # So It should affected.
---error $error_code
+--echo # Space ID mismatch
+--error 1
 --exec $INNOCHECKSUM $t6_IBD
 
 --enable_result_log

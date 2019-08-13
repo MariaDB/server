@@ -70,7 +70,7 @@ CHECK_C_SOURCE_RUNS(
 
 
 # Check is special processor flag needs to be set on older GCC
-#that defaults to v8 sparc . Code here is taken from my_rdtsc.c 
+#that defaults to v8 sparc . Code here is taken from my_rdtsc.h
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_SIZEOF_VOID_P EQUAL 4
   AND CMAKE_SYSTEM_PROCESSOR MATCHES "sparc")
   SET(SOURCE

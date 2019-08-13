@@ -101,9 +101,9 @@
 #   * datadir
 #
 #
-# PRE-10.3
+# PRE-10.4
 #
-# Before 10.3 MYSQLD_MULTI_INSTANCE was effectively --defaults-file=@sysconf2dir@/my%I.cnf
+# Before 10.4 MYSQLD_MULTI_INSTANCE was effectively --defaults-file=@sysconf2dir@/my%I.cnf
 # As @sysconfdir@/my.cnf included these files it was a bad choice as an
 # existing single instance would include all these files. If you want to
 # continue a file based multi-instance mysqld, recommend the Configuration File
@@ -164,8 +164,15 @@ PrivateNetwork=false
 ## Package maintainers
 ##
 
-# To allow memlock to be used as non-root user if set in configuration
-CapabilityBoundingSet=CAP_IPC_LOCK
+# CAP_IPC_LOCK To allow memlock to be used as non-root user
+# CAP_DAC_OVERRIDE To allow auth_pam_tool (which is SUID root) to read /etc/shadow when it's chmod 0
+#   does nothing for non-root, not needed if /etc/shadow is u+r
+# CAP_AUDIT_WRITE auth_pam_tool needs it on Debian for whatever reason
+CapabilityBoundingSet=CAP_IPC_LOCK CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+
+# PrivateDevices=true implies NoNewPrivileges=true and
+# SUID auth_pam_tool suddenly doesn't do setuid anymore
+PrivateDevices=false
 
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
@@ -173,8 +180,6 @@ ProtectSystem=full
 # Requires kernel 4.14 or later and SELinux transition rule for mysqld_t
 # (https://github.com/systemd/systemd/issues/3845)
 # NoNewPrivileges=true
-
-PrivateDevices=true
 
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true

@@ -93,6 +93,8 @@ extern ulong       wsrep_trx_fragment_unit;
 extern ulong       wsrep_SR_store_type;
 extern uint        wsrep_ignore_apply_errors;
 extern ulong       wsrep_running_threads;
+extern ulong       wsrep_running_applier_threads;
+extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
@@ -393,19 +395,28 @@ void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);
 void thd_binlog_rollback_stmt(THD * thd);
 void thd_binlog_trx_reset(THD * thd);
 
+enum wsrep_thread_type {
+  WSREP_APPLIER_THREAD=1,
+  WSREP_ROLLBACKER_THREAD=2
+};
+
 typedef void (*wsrep_thd_processor_fun)(THD*, void *);
 class Wsrep_thd_args
 {
  public:
- Wsrep_thd_args(wsrep_thd_processor_fun fun, void* args)
+ Wsrep_thd_args(wsrep_thd_processor_fun fun, void* args,
+                wsrep_thread_type thread_type)
    :
   fun_ (fun),
-  args_(args)
+  args_ (args),
+  thread_type_ (thread_type)
   { }
 
   wsrep_thd_processor_fun fun() { return fun_; }
 
   void* args() { return args_; }
+
+  enum wsrep_thread_type thread_type() {return thread_type_;}
 
  private:
 
@@ -413,7 +424,8 @@ class Wsrep_thd_args
   Wsrep_thd_args& operator=(const Wsrep_thd_args&);
 
   wsrep_thd_processor_fun fun_;
-  void*                    args_;
+  void*                   args_;
+  enum wsrep_thread_type  thread_type_;
 };
 
 void* start_wsrep_THD(void*);

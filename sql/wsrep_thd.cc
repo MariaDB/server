@@ -123,7 +123,8 @@ void wsrep_create_appliers(long threads)
   
   while (wsrep_threads++ < threads)
   {
-    Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_replication_process, 0));
+    Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_replication_process, 0,
+                                            WSREP_APPLIER_THREAD));
     if (create_wsrep_THD(args))
     {
       WSREP_WARN("Can't create thread to manage wsrep replication");
@@ -312,14 +313,16 @@ void wsrep_create_rollbacker()
 {
   if (wsrep_cluster_address && wsrep_cluster_address[0] != 0)
   {
-    Wsrep_thd_args* args= new Wsrep_thd_args(wsrep_rollback_process, 0);
+    Wsrep_thd_args* args= new Wsrep_thd_args(wsrep_rollback_process, 0,
+                                             WSREP_ROLLBACKER_THREAD);
 
     /* create rollbacker */
     if (create_wsrep_THD(args))
       WSREP_WARN("Can't create thread to manage wsrep rollback");
 
     /* create post_rollbacker */
-    args= new Wsrep_thd_args(wsrep_post_rollback_process, 0);
+    args= new Wsrep_thd_args(wsrep_post_rollback_process, 0,
+                             WSREP_ROLLBACKER_THREAD);
     if (create_wsrep_THD(args))
       WSREP_WARN("Can't create thread to manage wsrep post rollback");
    }

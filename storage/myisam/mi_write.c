@@ -40,7 +40,7 @@ int _mi_ck_write_btree(register MI_INFO *info, uint keynr,uchar *key,
 
 	/* Write new record to database */
 
-int mi_write(MI_INFO *info, uchar *record)
+int mi_write(MI_INFO *info, const uchar *record)
 {
   MYISAM_SHARE *share=info->s;
   uint i;

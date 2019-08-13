@@ -1314,7 +1314,7 @@ char *ha_connect::GetRealString(PCSZ s)
 {
   char *sv;
 
-  if (IsPartitioned() && s && partname && *partname) {
+  if (IsPartitioned() && s && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -3065,7 +3065,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                 strncat(s, res->ptr(), res->length());
 
                 if (res->length() < 19)
-                  strcat(s, "1970-01-01 00:00:00" + res->length());
+                  strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
                 strcat(s, "'}");
                 break;
@@ -3096,7 +3096,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                     strncat(s, res->ptr(), res->length());
 
                     if (res->length() < 19)
-                      strcat(s, "1970-01-01 00:00:00" + res->length());
+                      strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
                     strcat(s, "'}");
                     break;
@@ -3575,7 +3575,7 @@ int ha_connect::close(void)
   item_sum.cc, item_sum.cc, sql_acl.cc, sql_insert.cc,
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc and sql_update.cc
 */
-int ha_connect::write_row(uchar *buf)
+int ha_connect::write_row(const uchar *buf)
 {
   int      rc= 0;
   PGLOBAL& g= xp->g;

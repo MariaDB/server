@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
+Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
 Copyright (C) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -36,7 +36,6 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "srv0start.h"
-#include "ut0timer.h"
 
 #include <list>
 
@@ -100,8 +99,7 @@ Initialize defragmentation. */
 void
 btr_defragment_init()
 {
-	srv_defragment_interval = ut_microseconds_to_timer(
-		(ulonglong) (1000000.0 / srv_defragment_frequency));
+	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
 	mutex_create(LATCH_ID_BTR_DEFRAGMENT_MUTEX, &btr_defragment_mutex);
 }
 
@@ -728,7 +726,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 		}
 
 		pcur = item->pcur;
-		ulonglong now = ut_timer_now();
+		ulonglong now = my_interval_timer();
 		ulonglong elapsed = now - item->last_processed;
 
 		if (elapsed < srv_defragment_interval) {
@@ -738,11 +736,12 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 			defragmentation of all indices queue up on a single
 			thread, it's likely other indices that follow this one
 			don't need to sleep again. */
-			os_thread_sleep(((ulint)ut_timer_to_microseconds(
-						srv_defragment_interval - elapsed)));
+			os_thread_sleep(static_cast<ulint>
+					((srv_defragment_interval - elapsed)
+					 / 1000));
 		}
 
-		now = ut_timer_now();
+		now = my_interval_timer();
 		mtr_start(&mtr);
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);

@@ -227,7 +227,7 @@ void ha_heap::update_key_stats()
 }
 
 
-int ha_heap::write_row(uchar * buf)
+int ha_heap::write_row(const uchar * buf)
 {
   int res;
   if (table->next_number_field && buf == table->record[0])

@@ -1,0 +1,6 @@
+SET @@global.ROCKSDB_DELETE_CF = 'nonexistent_cf';
+ERROR 42000: Variable 'rocksdb_delete_cf' can't be set to the value of 'nonexistent_cf'
+SET @@global.ROCKSDB_DELETE_CF = '__system__';
+ERROR 42000: Variable 'rocksdb_delete_cf' can't be set to the value of '__system__'
+SET @@global.ROCKSDB_DELETE_CF = 'default';
+ERROR 42000: Variable 'rocksdb_delete_cf' can't be set to the value of 'default'

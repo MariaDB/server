@@ -562,7 +562,8 @@ static struct my_option my_long_options[] =
 };
 
 static const char *load_default_groups[]=
-{ "mysqldump", "client", "client-server", "client-mariadb", 0 };
+{ "mysqldump", "mariadb-dump", "client", "client-server", "client-mariadb",
+  0 };
 
 static void maybe_exit(int error);
 static void die(int error, const char* reason, ...);
@@ -2525,7 +2526,9 @@ static uint dump_routines_for_db(char *db)
 
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        db_cl_altered= FALSE;
-
+  // before 10.3 packages are not supported
+  uint upper_bound= mysql_get_server_version(mysql) >= 100300 ?
+                    array_elements(routine_type) : 2;
   DBUG_ENTER("dump_routines_for_db");
   DBUG_PRINT("enter", ("db: '%s'", db));
 
@@ -2555,7 +2558,7 @@ static uint dump_routines_for_db(char *db)
     fputs("\t<routines>\n", sql_file);
 
   /* 0, retrieve and dump functions, 1, procedures, etc. */
-  for (i= 0; i < array_elements(routine_type); i++)
+  for (i= 0; i < upper_bound; i++)
   {
     my_snprintf(query_buff, sizeof(query_buff),
                 "SHOW %s STATUS WHERE Db = '%s'",

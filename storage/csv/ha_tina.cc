@@ -1003,7 +1003,7 @@ int ha_tina::close(void)
   of the file and appends the data. In an error case it really should
   just truncate to the original position (this is not done yet).
 */
-int ha_tina::write_row(uchar * buf)
+int ha_tina::write_row(const uchar * buf)
 {
   int size;
   DBUG_ENTER("ha_tina::write_row");

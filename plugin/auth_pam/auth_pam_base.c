@@ -170,8 +170,9 @@ static int pam_auth_base(struct param *param, MYSQL_SERVER_AUTH_INFO *info)
   info->authenticated_as[sizeof(info->authenticated_as)-1]= 0;
 
 end:
+  PAM_DEBUG((stderr, "PAM: status = %d (%s) user = %s\n",
+             status, pam_strerror(pamh, status), info->authenticated_as));
   pam_end(pamh, status);
-  PAM_DEBUG((stderr, "PAM: status = %d user = %s\n", status, info->authenticated_as));
   return status == PAM_SUCCESS ? CR_OK : CR_ERROR;
 }
 

@@ -1,4 +1,4 @@
-Windows bug: happens when a new line is exactly at the right offset.
+Windows bug: new line disappears when it is exactly at the right offset.
 The following options may be given as the first argument:
 --print-defaults Print the program argument list and exit.
 --no-defaults Don't read default options from any option file.

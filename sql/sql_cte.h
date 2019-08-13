@@ -197,7 +197,7 @@ public:
 
   TABLE_LIST *find_first_sq_rec_ref_in_select(st_select_lex *sel);
 
-  bool set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
+  bool set_unparsed_spec(THD *thd, const char *spec_start, const char *spec_end,
                          my_ptrdiff_t spec_offset);
 
   st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);

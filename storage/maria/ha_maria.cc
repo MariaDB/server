@@ -356,10 +356,12 @@ static PSI_file_info all_aria_files[]=
   { &key_file_control, "control", PSI_FLAG_GLOBAL}
 };
 
+# ifdef HAVE_PSI_STAGE_INTERFACE
 static PSI_stage_info *all_aria_stages[]=
 {
   & stage_waiting_for_a_resource
 };
+# endif /* HAVE_PSI_STAGE_INTERFACE */
 
 static void init_aria_psi_keys(void)
 {
@@ -380,9 +382,10 @@ static void init_aria_psi_keys(void)
 
   count= array_elements(all_aria_files);
   mysql_file_register(category, all_aria_files, count);
-
+# ifdef HAVE_PSI_STAGE_INTERFACE
   count= array_elements(all_aria_stages);
   mysql_stage_register(category, all_aria_stages, count);
+# endif /* HAVE_PSI_STAGE_INTERFACE */
 }
 #else
 #define init_aria_psi_keys() /* no-op */
@@ -1228,7 +1231,7 @@ int ha_maria::close(void)
 }
 
 
-int ha_maria::write_row(uchar * buf)
+int ha_maria::write_row(const uchar * buf)
 {
   /*
      If we have an auto_increment column and we are writing a changed row
@@ -2778,7 +2781,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
             changes to commit (rollback shouldn't be tested).
           */
           DBUG_ASSERT(!thd->get_stmt_da()->is_sent() ||
-                      thd->killed == KILL_CONNECTION);
+                      thd->killed);
           /* autocommit ? rollback a transaction */
 #ifdef MARIA_CANNOT_ROLLBACK
           if (ma_commit(trn))

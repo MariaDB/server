@@ -117,7 +117,7 @@ const char *ha_blackhole::index_type(uint key_number)
                HA_KEY_ALG_RTREE) ? "RTREE" : "BTREE");
 }
 
-int ha_blackhole::write_row(uchar * buf)
+int ha_blackhole::write_row(const uchar * buf)
 {
   DBUG_ENTER("ha_blackhole::write_row");
   DBUG_RETURN(table->next_number_field ? update_auto_increment() : 0);

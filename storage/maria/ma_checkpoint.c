@@ -170,7 +170,7 @@ static int really_execute_checkpoint(void)
     "Horizon" is a lower bound of the LSN of the next log record.
   */
   checkpoint_start_log_horizon= translog_get_horizon();
-  DBUG_PRINT("info",("checkpoint_start_log_horizon " LSN_FMT,
+  DBUG_PRINT("info",("checkpoint_start_log_horizon " LSN_FMT "",
                      LSN_IN_PARTS(checkpoint_start_log_horizon)));
   lsn_store(checkpoint_start_log_horizon_char, checkpoint_start_log_horizon);
 

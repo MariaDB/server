@@ -659,6 +659,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
+#ifndef EMBEDDED_LIBRARY
+   audit_plugin_version(-1),
+#endif
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -691,7 +694,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_apply_toi(false),
    wsrep_rbr_buf(NULL),
    wsrep_sync_wait_gtid(WSREP_GTID_UNDEFINED),
    wsrep_affected_rows(0),

@@ -1768,20 +1768,10 @@ dict_col_name_is_reserved(
 	return(FALSE);
 }
 
-/****************************************************************//**
-If a record of this index might not fit on a single B-tree page,
-return TRUE.
-@return TRUE if the index record could become too big */
-static
-ibool
-dict_index_too_big_for_tree(
-/*========================*/
-	const dict_table_t*	table,		/*!< in: table */
-	const dict_index_t*	new_index,	/*!< in: index */
-	bool			strict)		/*!< in: TRUE=report error if
-						records could be too big to
-						fit in an B-tree page */
+bool dict_index_t::rec_potentially_too_big(bool strict) const
 {
+	ut_ad(table);
+
 	ulint	comp;
 	ulint	i;
 	/* maximum possible storage size of a record */
@@ -1793,8 +1783,8 @@ dict_index_too_big_for_tree(
 
 	/* FTS index consists of auxiliary tables, they shall be excluded from
 	index row size check */
-	if (new_index->type & DICT_FTS) {
-		return(false);
+	if (type & DICT_FTS) {
+		return false;
 	}
 
 	DBUG_EXECUTE_IF(
@@ -1815,8 +1805,7 @@ dict_index_too_big_for_tree(
 		an empty page, minus a byte for recoding the heap
 		number in the page modification log.  The maximum
 		allowed node pointer size is half that. */
-		page_rec_max = page_zip_empty_size(new_index->n_fields,
-						   zip_size);
+		page_rec_max = page_zip_empty_size(n_fields, zip_size);
 		if (page_rec_max) {
 			page_rec_max--;
 		}
@@ -1844,25 +1833,24 @@ dict_index_too_big_for_tree(
 	if (comp) {
 		/* Include the "null" flags in the
 		maximum possible record size. */
-		rec_max_size += UT_BITS_IN_BYTES(
-			unsigned(new_index->n_nullable));
+                rec_max_size += UT_BITS_IN_BYTES(unsigned(n_nullable));
 	} else {
-		/* For each column, include a 2-byte offset and a
+                /* For each column, include a 2-byte offset and a
 		"null" flag.  The 1-byte format is only used in short
 		records that do not contain externally stored columns.
 		Such records could never exceed the page limit, even
 		when using the 2-byte format. */
-		rec_max_size += 2 * unsigned(new_index->n_fields);
+		rec_max_size += 2 * unsigned(n_fields);
 	}
 
-	/* Compute the maximum possible record size. */
-	for (i = 0; i < new_index->n_fields; i++) {
+	const ulint max_local_len = table->get_overflow_field_local_len();
+
+        /* Compute the maximum possible record size. */
+	for (i = 0; i < n_fields; i++) {
 		const dict_field_t*	field
-			= dict_index_get_nth_field(new_index, i);
+			= dict_index_get_nth_field(this, i);
 		const dict_col_t*	col
 			= dict_field_get_col(field);
-		ulint			field_max_size;
-		ulint			field_ext_max_size;
 
 		/* In dtuple_convert_big_rec(), variable-length columns
 		that are longer than BTR_EXTERN_LOCAL_STORED_MAX_SIZE
@@ -1876,26 +1864,28 @@ dict_index_too_big_for_tree(
 		case in rec_get_converted_size_comp() for
 		REC_STATUS_ORDINARY records. */
 
-		field_max_size = dict_col_get_fixed_size(col, comp);
+		size_t field_max_size = dict_col_get_fixed_size(col, comp);
 		if (field_max_size && field->fixed_len != 0) {
 			/* dict_index_add_col() should guarantee this */
 			ut_ad(!field->prefix_len
 			      || field->fixed_len == field->prefix_len);
 			/* Fixed lengths are not encoded
 			in ROW_FORMAT=COMPACT. */
-			field_ext_max_size = 0;
 			goto add_field_size;
 		}
 
 		field_max_size = dict_col_get_max_size(col);
-		field_ext_max_size = field_max_size < 256 ? 1 : 2;
 
 		if (field->prefix_len) {
 			if (field->prefix_len < field_max_size) {
 				field_max_size = field->prefix_len;
 			}
-		} else if (field_max_size > BTR_EXTERN_LOCAL_STORED_MAX_SIZE
-			   && dict_index_is_clust(new_index)) {
+
+		// those conditions were copied from dtuple_convert_big_rec()
+		} else if (field_max_size > max_local_len
+			   && field_max_size > BTR_EXTERN_LOCAL_STORED_MAX_SIZE
+			   && DATA_BIG_COL(col)
+			   && dict_index_is_clust(this)) {
 
 			/* In the worst case, we have a locally stored
 			column of BTR_EXTERN_LOCAL_STORED_MAX_SIZE bytes.
@@ -1903,21 +1893,26 @@ dict_index_too_big_for_tree(
 			column were stored externally, the lengths in
 			the clustered index page would be
 			BTR_EXTERN_FIELD_REF_SIZE and 2. */
-			field_max_size = BTR_EXTERN_LOCAL_STORED_MAX_SIZE;
-			field_ext_max_size = 1;
+			field_max_size = max_local_len;
 		}
 
 		if (comp) {
 			/* Add the extra size for ROW_FORMAT=COMPACT.
 			For ROW_FORMAT=REDUNDANT, these bytes were
 			added to rec_max_size before this loop. */
-			rec_max_size += field_ext_max_size;
+			rec_max_size += field_max_size < 256 ? 1 : 2;
 		}
 add_field_size:
 		rec_max_size += field_max_size;
 
 		/* Check the size limit on leaf pages. */
 		if (rec_max_size >= page_rec_max) {
+			// with 4k page size innodb_index_stats becomes too big
+			// this crutch allows server bootstrapping to continue
+			if (table->is_system_db) {
+				return false;
+			}
+
 			ib::error_or_warn(strict)
 				<< "Cannot add field " << field->name
 				<< " in table " << table->name
@@ -1927,7 +1922,7 @@ add_field_size:
 				" size (" << page_rec_max
 				<< ") for a record on index leaf page.";
 
-			return(TRUE);
+			return true;
 		}
 
 		/* Check the size limit on non-leaf pages.  Records
@@ -1936,14 +1931,14 @@ add_field_size:
 		and a node pointer field.  When we have processed the
 		unique columns, rec_max_size equals the size of the
 		node pointer record minus the node pointer column. */
-		if (i + 1 == dict_index_get_n_unique_in_tree(new_index)
+		if (i + 1 == dict_index_get_n_unique_in_tree(this)
 		    && rec_max_size + REC_NODE_PTR_SIZE >= page_ptr_max) {
 
-			return(TRUE);
+			return true;
 		}
 	}
 
-	return(FALSE);
+	return false;
 }
 
 /** Adds an index to the dictionary cache, with possible indexing newly
@@ -2013,7 +2008,7 @@ dict_index_add_to_cache(
 	new_index->disable_ahi = index->disable_ahi;
 #endif
 
-	if (dict_index_too_big_for_tree(index->table, new_index, strict)) {
+	if (new_index->rec_potentially_too_big(strict)) {
 
 		if (strict) {
 			dict_mem_index_free(new_index);

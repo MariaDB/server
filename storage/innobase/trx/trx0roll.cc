@@ -730,9 +730,9 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
 /** Report progress when rolling back a row of a recovered transaction. */
 void trx_roll_report_progress()
 {
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 	mutex_enter(&recv_sys.mutex);
-	bool report = recv_sys.report(time);
+	bool report = recv_sys.report(now);
 	mutex_exit(&recv_sys.mutex);
 
 	if (report) {

@@ -22,6 +22,9 @@ sub skip_combinations {
   $skip{'include/maybe_debug.combinations'} =
     [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
 
+  $skip{'include/have_debug.inc'} = 'Requires debug build'
+             unless defined $::mysqld_variables{'debug-dbug'};
+
   # and for the wrong word size
   # check for exact values, in case the default changes to be small everywhere
   my $longsysvar= $::mysqld_variables{'max-binlog-stmt-cache-size'};
@@ -36,13 +39,6 @@ sub skip_combinations {
   $skip{'include/not_embedded.inc'} = 'Not run for embedded server'
              if $::opt_embedded_server;
 
-  $skip{'include/have_debug.inc'} = 'Requires debug build'
-             unless defined $::mysqld_variables{'debug-dbug'};
-
-  $skip{'include/have_ssl_communication.inc'} =
-  $skip{'include/have_ssl_crypto_functs.inc'} = 'Requires SSL'
-             unless defined $::mysqld_variables{'ssl-ca'};
-
   $skip{'include/have_example_plugin.inc'} = 'Need example plugin'
              unless $ENV{HA_EXAMPLE_SO};
 
@@ -50,6 +46,21 @@ sub skip_combinations {
 
   $skip{'main/plugin_loaderr.test'} = 'needs compiled-in innodb'
             unless $::mysqld_variables{'innodb'} eq "ON";
+
+  $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
+            unless ::have_mariabackup();
+
+  $skip{'include/have_mariabackup.inc'} = 'Need ss'
+            unless ::which("ss");
+
+  $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
+            unless $ENV{MTR_GALERA_TFMT};
+
+  $skip{'include/have_garbd.inc'} = 'Need garbd'
+            unless ::have_garbd();
+
+  $skip{'include/have_file_key_management.inc'} = 'Needs file_key_management plugin'
+            unless $ENV{FILE_KEY_MANAGEMENT_SO};
 
   # disable tests that use ipv6, if unsupported
   sub ipv6_ok() {
@@ -62,22 +73,31 @@ sub skip_combinations {
   }
   $skip{'include/check_ipv6.inc'} = 'No IPv6' unless ipv6_ok();
 
-  $skip{'main/openssl_6975.test'} = 'no or wrong openssl version'
-    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-       and $1 ge "1.0.1d" and $1 lt "1.1.1";
+  # SSL is complicated
+  my $ssl_lib= $::mysqld_variables{'version-ssl-library'};
+  my $openssl_ver= $ssl_lib =~ /OpenSSL (\S+)/ ? $1 : "";
 
-  sub x509v3_ok() {
-   return ($::mysqld_variables{'version-ssl-library'} =~ /WolfSSL/) ||
-          ($::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-            and $1 ge "1.0.2");
-  }
+  $skip{'include/have_ssl_communication.inc'} =
+  $skip{'include/have_ssl_crypto_functs.inc'} = 'Requires SSL' unless $ssl_lib;
+
+  $skip{'main/openssl_6975.test'} = 'no or wrong openssl version'
+    unless $openssl_ver ge "1.0.1d" and $openssl_ver lt "1.1.1";
 
   $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
-    unless x509v3_ok();
+    unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "1.0.2";
 
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
-    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-       and $1 ge "1.0.2";
+    unless $openssl_ver ge "1.0.2";
+
+  my $openssl_cnf='/etc/ssl/openssl.cnf';
+  if ($openssl_ver and open my $f, '<', $openssl_cnf) {
+    local $/;
+    my $cnf=<$f>;
+    $skip{'main/tls_version.test'} = "TLSv1.1 disabled in $openssl_cnf"
+      if $cnf =~ /^\s*MinProtocol\s*=\s*TLSv1.[2-9]/m;
+    $skip{'main/tls_version1.test'} = "TLSv1.0 disabled in $openssl_cnf"
+      if $cnf =~ /^\s*MinProtocol\s*=\s*TLSv1.[1-9]/m;
+  }
 
   %skip;
 }

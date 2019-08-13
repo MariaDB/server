@@ -29,6 +29,17 @@ public:
     uint name_length,
     CHARSET_INFO *name_charset
   );
+  int append_escaped_name(
+    spider_string *str,
+    const char *name,
+    uint name_length
+  );
+  int append_escaped_name_with_charset(
+    spider_string *str,
+    const char *name,
+    uint name_length,
+    CHARSET_INFO *name_charset
+  );
   bool is_name_quote(
     const char head_code
   );
@@ -67,6 +78,14 @@ public:
   int append_wait_timeout(
     spider_string *str,
     int wait_timeout
+  );
+  virtual int append_sql_mode_internal(
+    spider_string *str,
+    sql_mode_t sql_mode
+  );
+  int append_sql_mode(
+    spider_string *str,
+    sql_mode_t sql_mode
   );
   int append_time_zone(
     spider_string *str,
@@ -183,6 +202,13 @@ class spider_db_mysql_util: public spider_db_mbase_util
 public:
   spider_db_mysql_util();
   ~spider_db_mysql_util();
+  int append_column_value(
+    ha_spider *spider,
+    spider_string *str,
+    Field *field,
+    const uchar *new_ptr,
+    CHARSET_INFO *access_charset
+  );
 };
 
 class spider_db_mariadb_util: public spider_db_mbase_util
@@ -190,6 +216,17 @@ class spider_db_mariadb_util: public spider_db_mbase_util
 public:
   spider_db_mariadb_util();
   ~spider_db_mariadb_util();
+  int append_sql_mode_internal(
+    spider_string *str,
+    sql_mode_t sql_mode
+  );
+  int append_column_value(
+    ha_spider *spider,
+    spider_string *str,
+    Field *field,
+    const uchar *new_ptr,
+    CHARSET_INFO *access_charset
+  );
 };
 
 class spider_db_mbase_row: public spider_db_row
@@ -475,6 +512,11 @@ public:
   bool set_wait_timeout_in_bulk_sql();
   int set_wait_timeout(
     int wait_timeout,
+    int *need_mon
+  );
+  bool set_sql_mode_in_bulk_sql();
+  int set_sql_mode(
+    sql_mode_t sql_mode,
     int *need_mon
   );
   bool set_time_zone_in_bulk_sql();

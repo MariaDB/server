@@ -17,67 +17,44 @@ SELECT @@wsrep_slave_threads = 1;
 @@wsrep_slave_threads = 1
 1
 SET GLOBAL wsrep_slave_threads = 1;
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
-COUNT(*)
-3
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 COUNT(*)
 1
-SET GLOBAL wsrep_slave_threads = 64;
 connection node_1;
 INSERT INTO t1 VALUES (1);
 connection node_2;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*)
-1
+SET GLOBAL wsrep_slave_threads = 64;
 SET GLOBAL wsrep_slave_threads = 1;
 connection node_1;
 connection node_2;
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-64
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*)
-1
-SET GLOBAL wsrep_slave_threads = 5;
+70
 SET GLOBAL wsrep_slave_threads = 1;
-connection node_2;
-Shutting down server ...
-connection node_1;
-show status like 'wsrep_cluster_size';
-Variable_name	Value
-wsrep_cluster_size	1
-SET GLOBAL wsrep_slave_threads = 6;
-SET GLOBAL wsrep_slave_threads = 1;
-SET GLOBAL wsrep_cluster_address='';
-SET GLOBAL wsrep_cluster_address='gcomm://';
-SET GLOBAL wsrep_slave_threads = 10;
-connection node_2;
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
-COUNT(*)
-3
-connection node_1;
-SET GLOBAL wsrep_slave_threads = 1;
-connection node_2;
-SET GLOBAL wsrep_slave_threads = 1;
-connection node_1;
-connection node_2;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-1
-SELECT COUNT(*) FROM t2;
-COUNT(*)
-192
-connection node_1;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-1
-SELECT COUNT(*) FROM t2;
-COUNT(*)
-192
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# lp:1372840 - Changing wsrep_slave_threads causes future connections to hang
+#
+connection node_1;
+CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 4;
+SET GLOBAL wsrep_slave_threads = 1;
+connection node_1;
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+DROP TABLE t1;
+connection node_2;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+NAME
 # End of tests

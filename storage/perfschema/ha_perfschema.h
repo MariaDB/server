@@ -120,7 +120,7 @@ public:
     @param buf the row to write
     @return 0 on success
   */
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
 
   void use_hidden_primary_key();
 

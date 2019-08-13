@@ -700,6 +700,16 @@ SELECT 1 FROM t1 WHERE 20160101 > SOME (SELECT CAST(a AS DATETIME) FROM t1);
 SELECT * FROM t1 WHERE 20160101 > CAST(a AS DATETIME);
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-17857 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed upon SELECT with GROUP BY
+--echo #
+
+CREATE TABLE t1 (i INT, d DATETIME);
+INSERT INTO t1 VALUES (3,NULL),(3,'1976-12-14 13:21:07'),(NULL,'1981-09-24 01:04:47');
+SELECT ExtractValue('foo','bar'), i, MIN(d) FROM t1 GROUP BY i;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

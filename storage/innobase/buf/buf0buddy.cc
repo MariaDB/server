@@ -635,7 +635,7 @@ buf_buddy_relocate(
 
 	if (buf_page_can_relocate(bpage)) {
 		/* Relocate the compressed page. */
-		uintmax_t	usec = ut_time_us(NULL);
+		const ulonglong ns = my_interval_timer();
 
 		ut_a(bpage->zip.data == src);
 
@@ -651,7 +651,7 @@ buf_buddy_relocate(
 
 		buf_buddy_stat_t*	buddy_stat = &buf_pool->buddy_stat[i];
 		buddy_stat->relocated++;
-		buddy_stat->relocated_usec += ut_time_us(NULL) - usec;
+		buddy_stat->relocated_usec+= (my_interval_timer() - ns) / 1000;
 		return(true);
 	}
 

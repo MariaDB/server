@@ -2310,7 +2310,7 @@ int ha_sphinx::extra ( enum ha_extra_function op )
 }
 
 
-int ha_sphinx::write_row ( byte * )
+int ha_sphinx::write_row ( const byte * )
 {
 	SPH_ENTER_METHOD();
 	if ( !m_pShare || !m_pShare->m_bSphinxQL )

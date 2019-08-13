@@ -798,7 +798,7 @@ void ha_oqgraph::update_key_stats()
 }
 
 
-int ha_oqgraph::write_row(byte * buf)
+int ha_oqgraph::write_row(const byte * buf)
 {
   return HA_ERR_TABLE_READONLY;
 }

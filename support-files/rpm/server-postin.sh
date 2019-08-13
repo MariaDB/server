@@ -50,7 +50,7 @@ if [ $1 = 1 ] ; then
 
   # Change permissions so that the user that will run the MySQL daemon
   # owns all database files.
-  chown -R %{mysqld_user}:%{mysqld_group} $datadir
+  chown -R -f %{mysqld_user}:%{mysqld_group} $datadir
 
   if [ ! -e $datadir/mysql ]; then
     # Create data directory
@@ -67,6 +67,12 @@ if [ $1 = 1 ] ; then
   # can read them.
   chmod -R og-rw $datadir/mysql
 fi
+
+# Set correct filesystem ownership/permissions for the PAM v2 plugin
+chown %{mysqld_group} /usr/lib*/mysql/plugin/auth_pam_tool_dir
+chmod 0700            /usr/lib*/mysql/plugin/auth_pam_tool_dir
+chown 0               /usr/lib*/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
+chmod 04755           /usr/lib*/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
 
 # install SELinux files - but don't override existing ones
 SETARGETDIR=/etc/selinux/targeted/src/policy

@@ -76,7 +76,7 @@ uint plugin_maturity_map[]=
 { 0, 1, 2, 3, 4, 5, 6 };
 
 /*
-  When you ad a new plugin type, add both a string and make sure that the
+  When you add a new plugin type, add both a string and make sure that the
   init and deinit array are correctly updated.
 */
 const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
@@ -227,6 +227,7 @@ static DYNAMIC_ARRAY plugin_array;
 static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
 static bool reap_needed= false;
+volatile int global_plugin_version= 1;
 
 static bool initialized= 0;
 ulong dlopen_count;
@@ -2225,6 +2226,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     reap_plugins();
   }
 err:
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   if (argv)
     free_defaults(argv);
@@ -2375,6 +2377,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   }
   reap_plugins();
 
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
 #ifdef WITH_WSREP
@@ -3693,7 +3696,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   const LEX_CSTRING plugin_dash = { STRING_WITH_LEN("plugin-") };
   size_t plugin_name_len= strlen(plugin_name);
   size_t optnamelen;
-  const int max_comment_len= 180;
+  const int max_comment_len= 255;
   char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
   char *optname;
 
@@ -3727,8 +3730,9 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
     options[0].typelib= options[1].typelib= &global_plugin_typelib;
 
     strxnmov(comment, max_comment_len, "Enable or disable ", plugin_name,
-            " plugin. One of: ON, OFF, FORCE (don't start "
-            "if the plugin fails to load).", NullS);
+            " plugin. One of: ON, OFF, FORCE (don't start if the plugin"
+            " fails to load), FORCE_PLUS_PERMANENT (like FORCE, but the"
+            " plugin can not be uninstalled).", NullS);
     options[0].comment= comment;
     /*
       Allocate temporary space for the value of the tristate.

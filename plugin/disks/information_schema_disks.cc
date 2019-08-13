@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2017, MariaDB
+   Copyright (c) 2017, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include <mntent.h>
 #include <sql_class.h>
 #include <sql_i_s.h>
+#include <sql_acl.h>                            /* check_global_access() */
 
 bool schema_table_store_record(THD *thd, TABLE *table);
 
@@ -87,6 +88,9 @@ int disks_fill_table(THD* pThd, TABLE_LIST* pTables, Item* pCond)
     int rv = 1;
     TABLE* pTable = pTables->table;
 
+    if (check_global_access(pThd, FILE_ACL, true))
+      return 0;
+
     FILE* pFile = setmntent("/etc/mtab", "r");
 
     if (pFile)
@@ -148,11 +152,11 @@ maria_declare_plugin(disks)
     PLUGIN_LICENSE_GPL,                /* license type */
     Show::disks_table_init,            /* init function */
     NULL,                              /* deinit function */
-    0x0100,                            /* version = 1.0 */
+    0x0101,                            /* version = 1.1 */
     NULL,                              /* no status variables */
     NULL,                              /* no system variables */
-    "1.0",                             /* String version representation */
-    MariaDB_PLUGIN_MATURITY_GAMMA      /* Maturity (see include/mysql/plugin.h)*/
+    "1.1",                             /* String version representation */
+    MariaDB_PLUGIN_MATURITY_STABLE     /* Maturity (see include/mysql/plugin.h)*/
 }
 mysql_declare_plugin_end;
 

@@ -1824,7 +1824,7 @@ bool ha_federated::append_stmt_insert(String *query)
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc, and sql_update.cc.
 */
 
-int ha_federated::write_row(uchar *buf)
+int ha_federated::write_row(const uchar *buf)
 {
   char values_buffer[FEDERATED_QUERY_BUFFER_SIZE];
   char insert_field_value_buffer[STRING_BUFFER_USUAL_SIZE];

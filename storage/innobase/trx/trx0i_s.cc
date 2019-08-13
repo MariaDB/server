@@ -140,9 +140,8 @@ struct i_s_table_cache_t {
 struct trx_i_s_cache_t {
 	rw_lock_t	rw_lock;	/*!< read-write lock protecting
 					the rest of this structure */
-	uintmax_t	last_read;	/*!< last time the cache was read;
-					measured in microseconds since
-					epoch */
+	ulonglong	last_read;	/*!< last time the cache was read;
+					measured in nanoseconds */
 	ib_mutex_t		last_read_mutex;/*!< mutex protecting the
 					last_read member - it is updated
 					inside a shared lock of the
@@ -434,7 +433,7 @@ fill_trx_row(
 	ut_ad(lock_mutex_own());
 
 	row->trx_id = trx_get_id_for_print(trx);
-	row->trx_started = (ib_time_t) trx->start_time;
+	row->trx_started = trx->start_time;
 	row->trx_state = trx_get_que_state_str(trx);
 	row->requested_lock_row = requested_lock_row;
 	ut_ad(requested_lock_row == NULL
@@ -443,7 +442,7 @@ fill_trx_row(
 	if (trx->lock.wait_lock != NULL) {
 
 		ut_a(requested_lock_row != NULL);
-		row->trx_wait_started = (ib_time_t) trx->lock.wait_started;
+		row->trx_wait_started = trx->lock.wait_started;
 	} else {
 		ut_a(requested_lock_row == NULL);
 		row->trx_wait_started = 0;
@@ -1142,22 +1141,16 @@ add_trx_relevant_locks_to_cache(
 }
 
 /** The minimum time that a cache must not be updated after it has been
-read for the last time; measured in microseconds. We use this technique
+read for the last time; measured in nanoseconds. We use this technique
 to ensure that SELECTs which join several INFORMATION SCHEMA tables read
 the same version of the cache. */
-#define CACHE_MIN_IDLE_TIME_US	100000 /* 0.1 sec */
+#define CACHE_MIN_IDLE_TIME_NS	100000000 /* 0.1 sec */
 
 /*******************************************************************//**
 Checks if the cache can safely be updated.
-@return TRUE if can be updated */
-static
-ibool
-can_cache_be_updated(
-/*=================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
+@return whether the cache can be updated */
+static bool can_cache_be_updated(trx_i_s_cache_t* cache)
 {
-	uintmax_t	now;
-
 	/* Here we read cache->last_read without acquiring its mutex
 	because last_read is only updated when a shared rw lock on the
 	whole cache is being held (see trx_i_s_cache_end_read()) and
@@ -1167,13 +1160,7 @@ can_cache_be_updated(
 
 	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_X));
 
-	now = ut_time_us(NULL);
-	if (now - cache->last_read > CACHE_MIN_IDLE_TIME_US) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
+	return my_interval_timer() - cache->last_read > CACHE_MIN_IDLE_TIME_NS;
 }
 
 /*******************************************************************//**
@@ -1273,8 +1260,7 @@ trx_i_s_possibly_fetch_data_into_cache(
 	lock_mutex_exit();
 
 	/* update cache last read time */
-	time_t now = ut_time_us(NULL);
-	cache->last_read = now;
+	cache->last_read = my_interval_timer();
 
 	return(0);
 }
@@ -1364,12 +1350,10 @@ trx_i_s_cache_end_read(
 /*===================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	uintmax_t	now;
-
 	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_S));
 
 	/* update cache last read time */
-	now = ut_time_us(NULL);
+	const ulonglong now = my_interval_timer();
 	mutex_enter(&cache->last_read_mutex);
 	cache->last_read = now;
 	mutex_exit(&cache->last_read_mutex);

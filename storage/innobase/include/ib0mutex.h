@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,8 +29,8 @@ Created 2013-03-26 Sunny Bains.
 #ifndef ib0mutex_h
 #define ib0mutex_h
 
-#include "ut0ut.h"
-#include "ut0rnd.h"
+#include "my_atomic.h"
+#include "my_cpu.h"
 #include "os0event.h"
 #include "sync0arr.h"
 

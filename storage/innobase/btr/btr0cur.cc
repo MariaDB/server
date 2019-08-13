@@ -4904,6 +4904,7 @@ btr_cur_pessimistic_update(
 	itself.  Thus the following call is safe. */
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
 						     entry_heap);
+	const ulint n = new_entry->n_fields;
 	btr_cur_trim(new_entry, index, update, thr);
 
 	/* We have to set appropriate extern storage bits in the new
@@ -4911,7 +4912,10 @@ btr_cur_pessimistic_update(
 
 	ut_ad(!page_is_comp(page) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_validate(rec, index, *offsets));
-	n_ext += btr_push_update_extern_fields(new_entry, update, entry_heap);
+	if (index->is_primary()) {
+		n_ext += btr_push_update_extern_fields(
+			new_entry, n, update, entry_heap);
+	}
 
 	if ((flags & BTR_NO_UNDO_LOG_FLAG)
 	    && rec_offs_any_extern(*offsets)) {
@@ -4926,7 +4930,7 @@ btr_cur_pessimistic_update(
 		ut_ad(dict_index_is_clust(index));
 		ut_ad(thr_get_trx(thr)->in_rollback);
 
-		DBUG_EXECUTE_IF("ib_blob_update_rollback", DBUG_SUICIDE(););
+		DEBUG_SYNC_C("blob_rollback_middle");
 
 		btr_rec_free_updated_extern_fields(
 			index, rec, page_zip, *offsets, update, true, mtr);
@@ -7246,29 +7250,33 @@ btr_cur_unmark_extern_fields(
 	}
 }
 
-/*******************************************************************//**
-Flags the data tuple fields that are marked as extern storage in the
+/** Flag the data tuple fields that are marked as extern storage in the
 update vector.  We use this function to remember which fields we must
 mark as extern storage in a record inserted for an update.
+@param[in,out]	tuple	clustered index record
+@param[in]	n	number of fields in tuple, before any btr_cur_trim()
+@param[in]	update	update vector
+@param[in,out]	heap	memory heap
 @return number of flagged external columns */
 ulint
-btr_push_update_extern_fields(
-/*==========================*/
-	dtuple_t*	tuple,	/*!< in/out: data tuple */
-	const upd_t*	update,	/*!< in: update vector */
-	mem_heap_t*	heap)	/*!< in: memory heap */
+btr_push_update_extern_fields(dtuple_t* tuple, ulint n, const upd_t* update,
+			      mem_heap_t* heap)
 {
-	ulint			n_pushed	= 0;
-	ulint			n;
-	const upd_field_t*	uf;
+	ulint n_pushed = 0;
+	const upd_field_t* uf = update->fields;
 
-	uf = update->fields;
-	n = upd_get_n_fields(update);
+	ut_ad(n >= tuple->n_fields);
+	/* The clustered index record must always contain a
+	PRIMARY KEY and the system columns DB_TRX_ID,DB_ROLL_PTR. */
+	ut_ad(tuple->n_fields > DATA_ROLL_PTR);
+	compile_time_assert(DATA_ROLL_PTR == 2);
 
-	for (; n--; uf++) {
-		if (dfield_is_ext(&uf->new_val)) {
-			dfield_t*	field
-				= dtuple_get_nth_field(tuple, uf->field_no);
+	for (ulint un = upd_get_n_fields(update); un--; uf++) {
+		ut_ad(uf->field_no < n);
+
+		if (dfield_is_ext(&uf->new_val)
+		    && uf->field_no < tuple->n_fields) {
+			dfield_t* field = &tuple->fields[uf->field_no];
 
 			if (!dfield_is_ext(field)) {
 				dfield_set_ext(field);

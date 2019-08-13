@@ -288,6 +288,11 @@ then
 elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
 then
   print_defaults="$dirname0/@bindir@/my_print_defaults"
+elif test -x "./extra/my_print_defaults"
+then
+  srcdir="."
+  builddir="."
+  print_defaults="./extra/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -300,7 +305,8 @@ fi
 
 # Now we can get arguments from the groups [mysqld] and [mysql_install_db]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
+parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db mariadb-install-db`
+
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mysqld"
@@ -467,7 +473,8 @@ done
 
 if test -n "$user"
 then
-  chown $user "$pamtooldir/auth_pam_tool_dir"
+  chown $user "$pamtooldir/auth_pam_tool_dir" && \
+  chmod 0700 "$pamtooldir/auth_pam_tool_dir"
   if test $? -ne 0
   then
       echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
@@ -476,7 +483,8 @@ then
   fi
   if test -z "$srcdir"
   then
-    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
+    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool" && \
+    chmod 04755 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
     if test $? -ne 0
     then
         echo "Couldn't set an owner to '$pamtooldir/auth_pam_tool_dir/auth_pam_tool'."

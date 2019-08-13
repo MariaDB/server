@@ -136,7 +136,8 @@ static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
-{ "mysqltest", "client", "client-server", "client-mariadb", 0 };
+{ "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
+  0 };
 static char line_buffer[MAX_DELIMITER_LENGTH], *line_buffer_pos= line_buffer;
 
 /* Info on properties that can be set with --enable_X and --disable_X */
@@ -4636,8 +4637,16 @@ void do_perl(struct st_command *command)
 
     str_to_file(temp_file_path, ds_script.str, ds_script.length);
 
+    /* Use the same perl executable as the one that runs mysql-test-run.pl */
+    const char *mtr_perl=getenv("MTR_PERL");
+    if (!mtr_perl)
+      mtr_perl="perl";
+
     /* Format the "perl <filename>" command */
-    my_snprintf(buf, sizeof(buf), "perl %s", temp_file_path);
+    if (strchr(mtr_perl, ' '))
+      my_snprintf(buf, sizeof(buf), "\"%s\" %s", mtr_perl, temp_file_path);
+    else
+      my_snprintf(buf, sizeof(buf), "%s %s", mtr_perl, temp_file_path);
 
     if (!(res_file= my_popen(buf, "r")))
     {

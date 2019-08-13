@@ -884,11 +884,14 @@ rocksdb_bulk_load_allow_sk	OFF
 rocksdb_bulk_load_allow_unsorted	OFF
 rocksdb_bulk_load_size	1000
 rocksdb_bytes_per_sync	0
+rocksdb_cache_dump	ON
+rocksdb_cache_high_pri_pool_ratio	0.000000
 rocksdb_cache_index_and_filter_blocks	ON
+rocksdb_cache_index_and_filter_with_high_priority	ON
 rocksdb_checksums_pct	100
 rocksdb_collect_sst_properties	ON
 rocksdb_commit_in_the_middle	OFF
-rocksdb_commit_time_batch_for_recovery	OFF
+rocksdb_commit_time_batch_for_recovery	ON
 rocksdb_compact_cf	
 rocksdb_compaction_readahead_size	0
 rocksdb_compaction_sequential_deletes	0
@@ -910,9 +913,11 @@ rocksdb_debug_ttl_rec_ts	0
 rocksdb_debug_ttl_snapshot_ts	0
 rocksdb_default_cf_options	
 rocksdb_delayed_write_rate	0
+rocksdb_delete_cf	
 rocksdb_delete_obsolete_files_period_micros	21600000000
 rocksdb_enable_2pc	ON
 rocksdb_enable_bulk_load_api	ON
+rocksdb_enable_insert_with_update_caching	ON
 rocksdb_enable_thread_tracking	ON
 rocksdb_enable_ttl	ON
 rocksdb_enable_ttl_read_filtering	ON
@@ -963,10 +968,10 @@ rocksdb_persistent_cache_size_mb	0
 rocksdb_pin_l0_filter_and_index_blocks_in_cache	ON
 rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
-rocksdb_read_free_rpl_tables	
 rocksdb_records_in_range	50
 rocksdb_remove_mariabackup_checkpoint	OFF
 rocksdb_reset_stats	OFF
+rocksdb_rollback_on_timeout	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF
 rocksdb_sim_cache_size	0
@@ -975,6 +980,7 @@ rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
+rocksdb_stats_level	0
 rocksdb_stats_recalc_rate	0
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
@@ -1359,7 +1365,7 @@ insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
-ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to max_num_locks limit' from ROCKSDB
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1463,8 +1469,9 @@ set autocommit=1;
 drop table t0, t1;
 #
 # Check status variables
+# NOTE: We exclude rocksdb_num_get_for_update_calls because it's a debug only status var
 #
-show status like 'rocksdb%';
+show status where variable_name like 'rocksdb%' and variable_name not like '%num_get_for_update%';
 Variable_name	Value
 Rocksdb_rows_deleted	#
 Rocksdb_rows_inserted	#
@@ -1575,7 +1582,7 @@ Rocksdb_write_other	#
 Rocksdb_write_self	#
 Rocksdb_write_timedout	#
 Rocksdb_write_wal	#
-select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%';
+select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED
 ROCKSDB_ROWS_INSERTED
@@ -1688,7 +1695,7 @@ ROCKSDB_WRITE_TIMEDOUT
 ROCKSDB_WRITE_WAL
 # RocksDB-SE's status variables are global internally 
 #  but they are shown as both session and global, like InnoDB's status vars.
-select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%';
+select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
 VARIABLE_NAME
 ROCKSDB_ROWS_DELETED
 ROCKSDB_ROWS_INSERTED

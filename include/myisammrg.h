@@ -106,7 +106,7 @@ extern int myrg_rrnd(MYRG_INFO *file,uchar *buf,ulonglong pos);
 extern int myrg_rsame(MYRG_INFO *file,uchar *record,int inx);
 extern int myrg_update(MYRG_INFO *file,const uchar *old,
                        const uchar *new_rec);
-extern int myrg_write(MYRG_INFO *info,uchar *rec);
+extern int myrg_write(MYRG_INFO *info,const uchar *rec);
 extern int myrg_status(MYRG_INFO *file,MYMERGE_INFO *x,int flag);
 extern int myrg_lock_database(MYRG_INFO *file,int lock_type);
 extern int myrg_create(const char *name, const char **table_names,

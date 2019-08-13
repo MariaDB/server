@@ -3241,6 +3241,7 @@ public:
     added to the list of audit plugins which are currently in use.
   */
   unsigned long audit_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
+  int audit_plugin_version;
 #endif
 
 #if defined(ENABLED_DEBUG_SYNC)
@@ -4838,7 +4839,6 @@ public:
   rpl_sid                   wsrep_po_sid;
 #endif /* GTID_SUPPORT */
   void                      *wsrep_apply_format;
-  bool                      wsrep_apply_toi; /* applier processing in TOI */
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
   //  wsrep_gtid_t              wsrep_last_written_gtid;

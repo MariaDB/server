@@ -128,6 +128,32 @@ HANDLER h READ `PRIMARY` PREV WHERE 0;
 pk	f1	f2	f3	f4	f5	f6	f7	f8	filler
 HANDLER h CLOSE;
 DROP TABLE t1;
+CREATE TABLE t1(f1 int not null, primary key(f1))engine=innodb;
+CREATE TABLE t2(f1 INT AUTO_INCREMENT NOT NULL, f2 INT NOT NULL,
+status ENUM ('a', 'b', 'c'), INDEX idx1(f2),
+PRIMARY KEY(f1),
+FOREIGN KEY (f2) REFERENCES t1(f1))ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE f1 f1_id INT NOT NULL, ADD f3 VARCHAR(255) DEFAULT NULL;
+ALTER TABLE t1 CHANGE f1_id f1 INT NOT NULL;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f3` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT,
+  `f2` int(11) NOT NULL,
+  `status` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`f1`),
+  KEY `idx1` (`f2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 CHANGE status status VARCHAR(20) DEFAULT NULL;
+DROP TABLE t2, t1;
 create table t (
 a varchar(9),
 b int,
@@ -202,4 +228,36 @@ ALTER TABLE t1 DROP INDEX ftidx;
 ALTER TABLE t1 MODIFY c TEXT NULL, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY c TEXT NULL;
+DROP TABLE t1;
+#
+# MDEV-20048 dtuple_get_nth_field(): Assertion 'n < tuple->n_fields'
+# failed on ROLLBACK after instant DROP COLUMN
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET @b = REPEAT('b', @@innodb_page_size / 2 + 1);
+INSERT INTO t1 VALUES(2, @b), (3, @b);
+BEGIN;
+DELETE FROM t1 WHERE a=2;
+connect  purge_control,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+COMMIT;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+BEGIN;
+INSERT INTO t1 VALUES (2);
+connection purge_control;
+SELECT * FROM t1;
+a
+1
+2
+3
+disconnect purge_control;
+connection default;
+ROLLBACK;
+SELECT * FROM t1;
+a
+1
+3
 DROP TABLE t1;

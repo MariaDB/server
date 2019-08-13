@@ -780,16 +780,9 @@ fts_drop_orphaned_tables(void);
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
-@param[in]	unlock_cache	whether unlock cache when write node
-@param[in]	wait		whether wait for existing sync to finish
-@param[in]      has_dict        whether has dict operation lock
+@param[in]	wait		whether to wait for existing sync to finish
 @return DB_SUCCESS on success, error code on failure. */
-dberr_t
-fts_sync_table(
-	dict_table_t*	table,
-	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict);
+dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
 
 /****************************************************************//**
 Free the query graph but check whether dict_sys.mutex is already

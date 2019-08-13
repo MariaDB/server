@@ -77,9 +77,8 @@ if(DEFINED GRN_EMBED)
 else()
   set(GRN_EMBED_DEFAULT OFF)
 endif()
-option(GRN_EMBED
-  "Build as a static library to embed into an application"
-  ${GRN_EMBED_DEFAULT})
+set(GRN_EMBED ${GRN_EMBED_DEFAULT} CACHE BOOL
+  "Build as a static library to embed into an application")
 
 set(BIN_DIR "bin")
 set(SBIN_DIR "sbin")
