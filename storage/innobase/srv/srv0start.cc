@@ -1856,7 +1856,7 @@ innobase_start_or_create_for_mysql()
 		/* Log group size is limited by the size of page number. Remove this
 		limitation when fil_io() is not used for recovery log io. */
 		ib::error() << "Combined size of log files must be < "
-			<< log_group_max_size << " GB";
+			<< log_group_max_size;
 
 		return(srv_init_abort(DB_ERROR));
 	}
