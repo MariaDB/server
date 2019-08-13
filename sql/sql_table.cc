@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2019, Oracle and/or its affiliates.
    Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -2563,8 +2563,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                          table->table ?  table->table->s :  NULL));
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
-  thd->thread_specific_used|= (trans_tmp_table_deleted ||
-                               non_trans_tmp_table_deleted);
+  thd->thread_specific_used= TRUE;
   error= 0;
 err:
   if (wrong_tables.length())
@@ -3774,6 +3773,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     {
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key->name.str);
       DBUG_RETURN(TRUE);
+    }
+    if (key->type == Key::PRIMARY && key->name.str &&
+        my_strcasecmp(system_charset_info, key->name.str, primary_key_name) != 0)
+    {
+      bool sav_abort_on_warning= thd->abort_on_warning;
+      thd->abort_on_warning= FALSE; /* Don't make an error out of this. */
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WRONG_NAME_FOR_INDEX,
+                          "Name '%-.100s' ignored for PRIMARY key.",
+                          key->name.str);
+      thd->abort_on_warning= sav_abort_on_warning;
     }
   }
   tmp=file->max_keys();

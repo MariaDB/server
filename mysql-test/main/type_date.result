@@ -1025,5 +1025,20 @@ INSERT INTO t1 SELECT * FROM t2;
 DROP TABLE t1,t2;
 SET sql_mode=DEFAULT;
 #
+# MDEV-19301 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+#
+SELECT NULLIF(CAST(1012.5 AS DATE), 1);
+NULLIF(CAST(1012.5 AS DATE), 1)
+2000-10-12
+Warnings:
+Note	1292	Truncated incorrect date value: '1012.5'
+Warning	1292	Truncated incorrect datetime value: '1'
+Note	1292	Truncated incorrect date value: '1012.5'
+SELECT CAST(1012.5 AS DATE) * 1.0;
+CAST(1012.5 AS DATE) * 1.0
+20001012.0
+Warnings:
+Note	1292	Truncated incorrect date value: '1012.5'
+#
 # End of 10.4 tests
 #

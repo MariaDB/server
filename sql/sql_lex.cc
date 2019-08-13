@@ -3075,14 +3075,13 @@ void st_select_lex::print_limit(THD *thd,
   if (item && unit->global_parameters() == this)
   {
     Item_subselect::subs_type subs_type= item->substype();
-    if (subs_type == Item_subselect::EXISTS_SUBS ||
-        subs_type == Item_subselect::IN_SUBS ||
+    if (subs_type == Item_subselect::IN_SUBS ||
         subs_type == Item_subselect::ALL_SUBS)
     {
       return;
     }
   }
-  if (explicit_limit)
+  if (explicit_limit && select_limit)
   {
     str->append(STRING_WITH_LEN(" limit "));
     if (offset_limit)
@@ -5519,6 +5518,19 @@ bool LEX::push_context(Name_resolution_context *context)
 }
 
 
+Name_resolution_context *LEX::pop_context()
+{
+  DBUG_ENTER("LEX::pop_context");
+  Name_resolution_context *context= context_stack.pop();
+  DBUG_PRINT("info", ("Context: %p Select: %p (%d)",
+                       context, context->select_lex,
+                       (context->select_lex ?
+                        context->select_lex->select_number:
+                        0)));
+  DBUG_RETURN(context);
+}
+
+
 SELECT_LEX *LEX::create_priority_nest(SELECT_LEX *first_in_nest)
 {
   DBUG_ENTER("LEX::create_priority_nest");
@@ -7894,8 +7906,9 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     Item *item= *ord->item;
     if (item->type() != Item::FIELD_ITEM &&
         !(item->type() == Item::REF_ITEM &&
-        ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
-        (((Item_ref *) item)->ref_type() == Item_ref::REF))))
+          item->real_type() == Item::FIELD_ITEM &&
+          ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
+           (((Item_ref *) item)->ref_type() == Item_ref::REF))))
       continue;
 
     Field_pair *grouping_tmp_field=

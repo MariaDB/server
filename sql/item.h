@@ -2360,6 +2360,9 @@ public:
     append(item->type_handler()->name().ptr());
     append(')');
     const_cast<Item*>(item)->print(this, QT_EXPLAIN);
+    /* Append end \0 to allow usage of c_ptr() */
+    append('\0');
+    str_length--;
   }
 };
 #endif
@@ -5559,6 +5562,7 @@ public:
   void update_used_tables();
   table_map not_null_tables() const;
   bool const_item() const { return used_tables() == 0; }
+  TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||

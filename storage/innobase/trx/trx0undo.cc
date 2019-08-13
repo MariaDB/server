@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -662,6 +662,10 @@ trx_undo_write_xid(
 	const XID*	xid,	/*!< in: X/Open XA Transaction Identification */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
+	DBUG_ASSERT(xid->gtrid_length >= 0);
+	DBUG_ASSERT(xid->bqual_length >= 0);
+	DBUG_ASSERT(xid->gtrid_length + xid->bqual_length < XIDDATASIZE);
+
 	mlog_write_ulint(log_hdr + TRX_UNDO_XA_FORMAT,
 			 static_cast<ulint>(xid->formatID),
 			 MLOG_4BYTES, mtr);
@@ -673,10 +677,15 @@ trx_undo_write_xid(
 	mlog_write_ulint(log_hdr + TRX_UNDO_XA_BQUAL_LEN,
 			 static_cast<ulint>(xid->bqual_length),
 			 MLOG_4BYTES, mtr);
-
+	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
+						    + xid->bqual_length);
 	mlog_write_string(log_hdr + TRX_UNDO_XA_XID,
 			  reinterpret_cast<const byte*>(xid->data),
-			  XIDDATASIZE, mtr);
+			  xid_length, mtr);
+	if (UNIV_LIKELY(xid_length < XIDDATASIZE)) {
+		mlog_memset(log_hdr + TRX_UNDO_XA_XID + xid_length,
+			    XIDDATASIZE - xid_length, 0, mtr);
+	}
 }
 
 /********************************************************************//**

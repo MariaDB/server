@@ -1812,7 +1812,6 @@ JOIN::optimize_inner()
       DBUG_RETURN(1); /* purecov: inspected */
     /* dump_TABLE_LIST_graph(select_lex, select_lex->leaf_tables); */
     select_lex->update_used_tables();
-
   }
   
   eval_select_list_used_tables();
@@ -1881,6 +1880,8 @@ JOIN::optimize_inner()
     sel->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
 
     sel->where= conds;
+
+    select_lex->update_used_tables();
 
     if (arena)
       thd->restore_active_arena(arena, &backup);
@@ -9386,6 +9387,11 @@ best_extension_by_limited_search(JOIN      *join,
                                           current_record_count /
                                           (double) TIME_FOR_COMPARE));
 
+      if (unlikely(thd->trace_started()))
+      {
+        trace_one_table.add("rows_for_plan", current_record_count);
+        trace_one_table.add("cost_for_plan", current_read_time);
+      }
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);
 
@@ -9444,6 +9450,10 @@ best_extension_by_limited_search(JOIN      *join,
 				                          remaining_tables &
                                                           ~real_table_bit);
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
+
+      if (unlikely(thd->trace_started()) && pushdown_cond_selectivity < 1.0)
+        trace_one_table.add("selectivity", pushdown_cond_selectivity);
+
       double partial_join_cardinality= current_record_count *
                                         pushdown_cond_selectivity;
       if ( (search_depth > 1) && (remaining_tables & ~real_table_bit) & allowed_tables )
@@ -14336,21 +14346,38 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
 {
   Item *orig_left_item= left_item;
   Item *orig_right_item= right_item;
-  if (left_item->type() == Item::REF_ITEM &&
-      (((Item_ref*)left_item)->ref_type() == Item_ref::VIEW_REF ||
-      ((Item_ref*)left_item)->ref_type() == Item_ref::REF))
+  if (left_item->type() == Item::REF_ITEM)
   {
-    if (((Item_ref*)left_item)->get_depended_from())
-      return FALSE;
-    left_item= left_item->real_item();
+    Item_ref::Ref_Type left_ref= ((Item_ref*)left_item)->ref_type();
+
+    if (left_ref == Item_ref::VIEW_REF ||
+        left_ref == Item_ref::REF)
+    {
+      if (((Item_ref*)left_item)->get_depended_from())
+        return FALSE;
+      if (left_ref == Item_ref::VIEW_REF &&
+          ((Item_direct_view_ref*)left_item)->get_null_ref_table() !=
+           NO_NULL_TABLE &&
+          !left_item->real_item()->used_tables())
+        return FALSE;
+      left_item= left_item->real_item();
+    }
   }
-  if (right_item->type() == Item::REF_ITEM &&
-      (((Item_ref*)right_item)->ref_type() == Item_ref::VIEW_REF ||
-      ((Item_ref*)right_item)->ref_type() == Item_ref::REF))
+  if (right_item->type() == Item::REF_ITEM)
   {
-    if (((Item_ref*)right_item)->get_depended_from())
-      return FALSE;
-    right_item= right_item->real_item();
+    Item_ref::Ref_Type right_ref= ((Item_ref*)right_item)->ref_type();
+    if (right_ref == Item_ref::VIEW_REF ||
+       (right_ref == Item_ref::REF))
+    {
+      if (((Item_ref*)right_item)->get_depended_from())
+        return FALSE;
+      if (right_ref == Item_ref::VIEW_REF &&
+          ((Item_direct_view_ref*)right_item)->get_null_ref_table() !=
+           NO_NULL_TABLE &&
+          !right_item->real_item()->used_tables())
+        return FALSE;
+      right_item= right_item->real_item();
+    }
   }
   if (left_item->type() == Item::FIELD_ITEM &&
       right_item->type() == Item::FIELD_ITEM &&

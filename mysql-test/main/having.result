@@ -864,4 +864,13 @@ x
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'x'
 DROP TABLE t1,t2;
+#
+# MDEV-20200: AddressSanitizer: use-after-poison in
+# Item_direct_view_ref::get_null_ref_table
+#
+CREATE TABLE t (f VARCHAR(512));
+INSERT INTO t VALUES ('a'),('b');
+SELECT * FROM t HAVING f = 'foo';
+f
+DROP TABLE t;
 # End of 10.4 tests

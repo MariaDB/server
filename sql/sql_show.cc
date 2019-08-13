@@ -2419,7 +2419,7 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
       packet->append(STRING_WITH_LEN(" USING BTREE"));
 
     if (key_info->algorithm == HA_KEY_ALG_HASH ||
-            key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+        key_info->algorithm == HA_KEY_ALG_LONG_HASH)
       packet->append(STRING_WITH_LEN(" USING HASH"));
 
     /* send USING only in non-default case: non-spatial rtree */
@@ -6531,6 +6531,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     {
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
+                             HA_STATUS_CONST |
                              HA_STATUS_TIME);
       set_statistics_for_table(thd, show_table);
     }
@@ -6565,18 +6566,23 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
                                     "D" : "A"), 1, cs);
             table->field[8]->set_notnull();
           }
-          KEY *key=show_table->key_info+i;
-          if (key->rec_per_key[j] && key->algorithm != HA_KEY_ALG_LONG_HASH)
-          {
-            ha_rows records= (ha_rows) ((double) show_table->stat_records() /
-                                        key->actual_rec_per_key(j));
-            table->field[9]->store((longlong) records, TRUE);
-            table->field[9]->set_notnull();
-          }
-          if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+          if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
             table->field[13]->store(STRING_WITH_LEN("HASH"), cs);
           else
           {
+            /*
+              We have to use table key information to get the key statistics
+              from table as key_info points to TABLE_SHARE which has no
+              statistics.
+            */
+            KEY *key_info= show_table->key_info + i;
+            if (key_info->rec_per_key[j])
+            {
+              ha_rows records= (ha_rows) ((double) show_table->stat_records() /
+                                          key_info->actual_rec_per_key(j));
+              table->field[9]->store((longlong) records, TRUE);
+              table->field[9]->set_notnull();
+            }
             const char *tmp= show_table->file->index_type(i);
             table->field[13]->store(tmp, strlen(tmp), cs);
           }

@@ -172,3 +172,16 @@ CREATE TABLE tbl SELECT * FROM t1 WHERE t1.c1 = (SELECT c2 FROM t2 WHERE pk = 6)
 ERROR 22007: Truncated incorrect datetime value: '0000-00-00 00:00:00'
 DROP TABLE t1,t2;
 SET sql_mode=DEFAULT;
+#
+# MDEV-19166 Assertion `!is_zero_datetime()' failed in Timestamp_or_zero_datetime::tv
+#
+CREATE TABLE t1 (f TIMESTAMP DEFAULT 0) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('2024-02-29');
+SELECT * FROM t1 WHERE SUBSTR(1 FROM BIT_LENGTH(f) FOR DEFAULT(f));
+f
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

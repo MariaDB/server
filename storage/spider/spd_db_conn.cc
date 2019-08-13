@@ -2781,7 +2781,7 @@ int spider_db_fetch_for_item_sum_func(
           thd->free_list = free_list;
         }
 
-        Item_sum_hybrid *item_hybrid = (Item_sum_hybrid *) item_sum;
+        Item_sum_min_max *item_sum_min_max = (Item_sum_min_max *) item_sum;
         Item_string *item =
           (Item_string *) spider->direct_aggregate_item_current->item;
         if (row->is_null())
@@ -2808,7 +2808,7 @@ int spider_db_fetch_for_item_sum_func(
 #endif
           item->null_value = FALSE;
         }
-        item_hybrid->direct_add(item);
+        item_sum_min_max->direct_add(item);
         row->next();
       }
       break;

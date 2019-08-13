@@ -9910,7 +9910,7 @@ Datetime Item_cache_timestamp::to_datetime(THD *thd)
     null_value= true;
     return Datetime();
   }
-  return Datetime(thd, Timestamp_or_zero_datetime(m_native).tv());
+  return m_native.to_datetime(thd);
 }
 
 
@@ -10378,11 +10378,14 @@ table_map Item_direct_view_ref::used_tables() const
 
 table_map Item_direct_view_ref::not_null_tables() const
 {
-  return get_depended_from() ?
-         0 :
-         ((view->is_merged_derived() || view->merged || !view->table) ?
-          (*ref)->not_null_tables() :
-          view->table->map);
+  if (get_depended_from())
+    return 0;
+  if  (!( view->merged || !view->table))
+    return view->table->map;
+  TABLE *tab= get_null_ref_table();
+  if (tab == NO_NULL_TABLE || (*ref)->used_tables())
+    return (*ref)->not_null_tables();
+   return get_null_ref_table()->map;
 }
 
 /*

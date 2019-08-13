@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
    Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -1350,6 +1350,8 @@ public:
   TABLE_LIST *end_nested_join(THD *thd);
   TABLE_LIST *nest_last_join(THD *thd);
   void add_joined_table(TABLE_LIST *table);
+  bool add_cross_joined_table(TABLE_LIST *left_op, TABLE_LIST *right_op,
+                              bool straight_fl);
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
   ulong get_table_join_options();
@@ -3586,22 +3588,7 @@ public:
 
   bool push_context(Name_resolution_context *context);
 
-  void pop_context()
-  {
-    DBUG_ENTER("LEX::pop_context");
-#ifndef DBUG_OFF
-    Name_resolution_context *context=
-#endif
-    context_stack.pop();
-
-    DBUG_PRINT("info", ("Pop context %p Select: %p (%d)",
-                         context, context->select_lex,
-                         (context->select_lex ?
-                          context->select_lex->select_number:
-                          0)));
-
-    DBUG_VOID_RETURN;
-  }
+  Name_resolution_context *pop_context();
 
   SELECT_LEX *select_stack_head()
   {
@@ -4592,15 +4579,18 @@ public:
 class Yacc_state
 {
 public:
-  Yacc_state()
-  {
-    reset();
-  }
+  Yacc_state() : yacc_yyss(NULL), yacc_yyvs(NULL) { reset(); }
 
   void reset()
   {
-    yacc_yyss= NULL;
-    yacc_yyvs= NULL;
+    if (yacc_yyss != NULL) {
+      my_free(yacc_yyss);
+      yacc_yyss = NULL;
+    }
+    if (yacc_yyvs != NULL) {
+      my_free(yacc_yyvs);
+      yacc_yyvs = NULL;
+    }
     m_set_signal_info.clear();
     m_lock_type= TL_READ_DEFAULT;
     m_mdl_type= MDL_SHARED_READ;

@@ -515,6 +515,8 @@ pk09,pk10,pk11,pk12,pk13,pk14,pk15,pk16),
 KEY pk(sk01,sk02,sk03,sk04,sk05,sk06,sk07,sk08,
 sk09,sk10,sk11,sk12,sk13,sk14,sk15,sk16))
 ROW_FORMAT=Redundant ENGINE=InnoDB;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
 SET @r = repeat('a', 48);
 INSERT INTO t1 VALUES(@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,
 @r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r);
@@ -546,6 +548,8 @@ pk09,pk10,pk11,pk12,pk13,pk14,pk15,pk16),
 KEY pk(sk01,sk02,sk03,sk04,sk05,sk06,sk07,sk08,
 sk09,sk10,sk11,sk12,sk13,sk14,sk15,sk16))
 ROW_FORMAT=Compressed KEY_BLOCK_SIZE=4 ENGINE=InnoDB;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
 SET @r = repeat('a', 48);
 INSERT INTO t1 VALUES(@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,
 @r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r);

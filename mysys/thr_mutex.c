@@ -237,6 +237,8 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
   int error;
   DBUG_PRINT("mutex", ("%s (0x%lx) locking", mp->name ? mp->name : "Null",
                        (ulong) mp));
+
+  pthread_mutex_lock(&mp->global);
   if (!mp->file)
   {
     fprintf(stderr,
@@ -245,8 +247,6 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
     fflush(stderr);
     abort();
   }
-
-  pthread_mutex_lock(&mp->global);
   if (mp->count > 0)
   {
     /*

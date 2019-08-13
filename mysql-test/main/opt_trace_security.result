@@ -99,7 +99,9 @@ select * from db1.t1	{
                       "chosen": true
                     }
                   ]
-                }
+                },
+                "rows_for_plan": 3,
+                "cost_for_plan": 2.6051
               }
             ]
           },
@@ -210,7 +212,9 @@ select * from db1.v1	{
                       "chosen": true
                     }
                   ]
-                }
+                },
+                "rows_for_plan": 3,
+                "cost_for_plan": 2.6051
               }
             ]
           },

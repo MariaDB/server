@@ -53,6 +53,10 @@ trx_rseg_write_wsrep_checkpoint(
 	const XID*	xid,
 	mtr_t*		mtr)
 {
+	DBUG_ASSERT(xid->gtrid_length >= 0);
+	DBUG_ASSERT(xid->bqual_length >= 0);
+	DBUG_ASSERT(xid->gtrid_length + xid->bqual_length < XIDDATASIZE);
+
 	mlog_write_ulint(TRX_RSEG_WSREP_XID_FORMAT + rseg_header,
 			 uint32_t(xid->formatID),
 			 MLOG_4BYTES, mtr);
@@ -65,9 +69,15 @@ trx_rseg_write_wsrep_checkpoint(
 			 uint32_t(xid->bqual_length),
 			 MLOG_4BYTES, mtr);
 
+	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
+						    + xid->bqual_length);
 	mlog_write_string(TRX_RSEG_WSREP_XID_DATA + rseg_header,
 			  reinterpret_cast<const byte*>(xid->data),
-			  XIDDATASIZE, mtr);
+			  xid_length, mtr);
+	if (UNIV_LIKELY(xid_length < XIDDATASIZE)) {
+		mlog_memset(TRX_RSEG_WSREP_XID_DATA + rseg_header + xid_length,
+			    XIDDATASIZE - xid_length, 0, mtr);
+	}
 }
 
 /** Update the WSREP XID information in rollback segment header.

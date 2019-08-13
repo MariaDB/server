@@ -2462,6 +2462,10 @@ public:
   }
   bool to_TIME(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) const;
   bool to_native(Native *to, uint decimals) const;
+  Datetime to_datetime(THD *thd) const
+  {
+    return Datetime(thd, *this);
+  }
   long fraction_remainder(uint dec) const
   {
     return my_time_fraction_remainder(tv_usec, dec);
@@ -2502,7 +2506,7 @@ public:
   - real TIMESTAMP (seconds and microseconds since epoch), or
   - zero datetime '0000-00-00 00:00:00.000000'
 */
-class Timestamp_or_zero_datetime: public Timestamp
+class Timestamp_or_zero_datetime: protected Timestamp
 {
   bool m_is_zero_datetime;
 public:
@@ -2519,14 +2523,11 @@ public:
   Timestamp_or_zero_datetime(THD *thd, const MYSQL_TIME *ltime, uint *err_code);
   Datetime to_datetime(THD *thd) const
   {
-    return Datetime(thd, *this);
+    if (is_zero_datetime())
+      return Datetime();
+    return Timestamp::to_datetime(thd);
   }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
-  const struct timeval &tv() const
-  {
-    DBUG_ASSERT(!is_zero_datetime());
-    return Timestamp::tv();
-  }
   void trunc(uint decimals)
   {
     if (!is_zero_datetime())
@@ -2572,7 +2573,7 @@ public:
   {
     return is_zero_datetime() ?
            Datetime() :
-           Datetime(thd, Timestamp_or_zero_datetime(*this).tv());
+           Datetime(thd, Timestamp(*this).tv());
   }
   bool is_zero_datetime() const
   {
@@ -4295,10 +4296,6 @@ public:
 */
 class Type_handler_numeric: public Type_handler
 {
-protected:
-  bool Item_sum_hybrid_fix_length_and_dec_numeric(Item_sum_hybrid *func,
-                                                  const Type_handler *handler)
-                                                  const;
 public:
   const Name &default_value() const override;
   String *print_item_value(THD *thd, Item *item, String *str) const override;
@@ -6809,10 +6806,6 @@ public:
   const Type_handler *set_handler_by_result_type(Item_result type)
   {
     return (m_type_handler= Type_handler::get_handler_by_result_type(type));
-  }
-  const Type_handler *set_handler_by_cmp_type(Item_result type)
-  {
-    return (m_type_handler= Type_handler::get_handler_by_cmp_type(type));
   }
   const Type_handler *set_handler_by_result_type(Item_result type,
                                                  uint max_octet_length,

@@ -40,10 +40,6 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl)
 IF(MSVC)
   # size_t to long truncation warning
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -wd4267 -wd4334")
-  IF(CMAKE_C_COMPILER_ID MATCHES Clang)
-    # Workaround a bug with clang-cl, see https://github.com/wolfSSL/wolfssl/pull/2090
-    ADD_DEFINITIONS(-DMP_16BIT)
-  ENDIF()
 ENDIF()
 
 ADD_CONVENIENCE_LIBRARY(wolfssl ${WOLFSSL_SOURCES})

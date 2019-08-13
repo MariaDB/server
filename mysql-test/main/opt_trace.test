@@ -508,4 +508,32 @@ SET optimizer_trace = 'enabled=on';
 DELETE FROM t1 WHERE f = 'x';
 DROP TABLE t1;
 
+--echo #
+--echo # Print cost_for_plan and rows_for_plan for join prefix
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int, b int, key(b));
+insert into one_k select A.a + B.a*10 + C.a*100, A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+
+analyze table t0, one_k persistent for all;
+
+set @tmp_jcl=@@join_cache_level;
+set join_cache_level=0;
+set optimizer_trace=1;
+
+--echo # Check cost/row numbers when multiple tables are joined
+--echo #  (cost_for_plan is the same as best_access_path.cost for single-table SELECTs
+--echo #   but for joins using condition selectivity it is not as trivial. So,
+--echo #   now we are printing it)
+explain select * from t0 A, one_k B where A.a<5 and B.a<800;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+set join_cache_level=@tmp_jcl;
+
+--echo # This shows post-join selectivity
+explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t0, one_k;
+
 set optimizer_trace='enabled=off';

@@ -8,6 +8,8 @@ m MEDIUMBLOB,
 l LONGBLOB,
 PRIMARY KEY b (b(32))
 ) ENGINE=rocksdb;
+Warnings:
+Warning	1280	Name 'b' ignored for PRIMARY key.
 SHOW INDEX IN t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	PRIMARY	1	b	A	1000	32	NULL		LSMTREE		
@@ -133,6 +135,8 @@ CREATE TABLE t1 (
 b BLOB,
 PRIMARY KEY b (b(32))
 ) ENGINE=rocksdb;
+Warnings:
+Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
 ('00000000000000000000000000000000'),
 ('00000000000000000000000000000001'),
@@ -147,6 +151,8 @@ CREATE TABLE t1 (
 b TINYBLOB,
 PRIMARY KEY b (b(32))
 ) ENGINE=rocksdb;
+Warnings:
+Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
 ('00000000000000000000000000000000'),
 ('00000000000000000000000000000001'),
@@ -161,6 +167,8 @@ CREATE TABLE t1 (
 b MEDIUMBLOB,
 PRIMARY KEY b (b(32))
 ) ENGINE=rocksdb;
+Warnings:
+Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
 ('00000000000000000000000000000000'),
 ('00000000000000000000000000000001'),
@@ -175,6 +183,8 @@ CREATE TABLE t1 (
 b LONGBLOB,
 PRIMARY KEY b (b(32))
 ) ENGINE=rocksdb;
+Warnings:
+Warning	1280	Name 'b' ignored for PRIMARY key.
 INSERT INTO t1 (b) VALUES
 ('00000000000000000000000000000000'),
 ('00000000000000000000000000000001'),

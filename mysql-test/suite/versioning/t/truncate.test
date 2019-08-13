@@ -145,5 +145,29 @@ truncate t2;
 
 unlock tables;
 
+--echo #
+--echo # MDEV-19814 Assertion `update->n_fields < ulint(table->n_cols + table->n_v_cols)' on DELETE HISTORY
+--echo #
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t1 (
+  f varchar(1),
+  row_start $sys_datatype_expl as row start,
+  row_end $sys_datatype_expl as row end,
+  period for system_time (row_start, row_end))
+with system versioning;
+insert into t1 (f) values ('a'), ('b'), ('c'), ('d'), ('e'), ('f'), ('g'), ('h');
+delete from t1;
+delete history from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-20186 Wrong result or Assertion on INSERT after DELETE HISTORY
+--echo #
+create or replace table t1 (a int check (a > 0)) with system versioning;
+delete history from t1;
+insert into t1 values (1);
+select * from t1;
+drop table t1;
+
 drop database test;
 create database test;

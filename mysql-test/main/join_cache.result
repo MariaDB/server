@@ -3108,6 +3108,8 @@ CREATE TABLE t2 (
 a2 int, b2 int, filler2 char(64) default ' ', 
 PRIMARY KEY idx(a2,b2,filler2)
 ) ;
+Warnings:
+Warning	1280	Name 'idx' ignored for PRIMARY key.
 CREATE TABLE t3 (b3 int, c3 int, INDEX idx(b3));
 INSERT INTO t1(a1) VALUES 
 (4), (7), (1), (9), (8), (5), (3), (6), (2);
