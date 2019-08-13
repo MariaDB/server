@@ -7,6 +7,16 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
+perl;
+open(OUT, ">$ENV{MYSQLTEST_VARDIR}/log/check.txt") || die;
+print OUT "--skip innodb_checksum_algorithm=crc32 needs little-endian\n"
+unless unpack("L","macs")==unpack("N","scam");
+close(OUT);
+EOF
+
+--source $MYSQLTEST_VARDIR/log/check.txt
+--remove_file $MYSQLTEST_VARDIR/log/check.txt
+
 let PAGE_SIZE=`select @@innodb_page_size`;
 
 CREATE TABLE t1(a INT) row_format=redundant engine=innoDB;
