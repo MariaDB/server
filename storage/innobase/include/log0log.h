@@ -40,6 +40,10 @@ Created 12/9/1995 Heikki Tuuri
 #include "os0event.h"
 #include "os0file.h"
 
+#ifndef UINT32_MAX
+#define UINT32_MAX             (4294967295U)
+#endif
+
 /** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
 #define SRV_N_LOG_FILES_MAX 100
 
@@ -492,6 +496,12 @@ Stored in LOG_HEADER_FORMAT. */
 					/* second checkpoint field in the log
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
+
+/* As long as fil_io() is used to handle log io, log group max size is limited
+by (maximum page number) * (minimum page size). Page number type is uint32_t.
+Remove this limitation if page number is no longer used for log file io. */
+static const ulonglong log_group_max_size =
+	((ulonglong(UINT32_MAX) + 1) * UNIV_PAGE_SIZE_MIN - 1);
 
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;

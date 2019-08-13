@@ -5219,7 +5219,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
 err:
   /* In RBR we don't need to log CREATE TEMPORARY TABLE */
-  if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
+  if (!result && thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
     DBUG_RETURN(result);
 
   if (create_info->tmp_table())
@@ -10131,6 +10131,7 @@ end_temporary:
 	      (ulong) (copied + deleted), (ulong) deleted,
 	      (ulong) thd->get_stmt_da()->current_statement_warn_count());
   my_ok(thd, copied + deleted, 0L, alter_ctx.tmp_buff);
+  DEBUG_SYNC(thd, "alter_table_inplace_trans_commit");
   DBUG_RETURN(false);
 
 err_new_table_cleanup:
@@ -10232,12 +10233,14 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
   uint save_unsafe_rollback_flags;
   DBUG_ENTER("mysql_trans_commit_alter_copy_data");
 
-  /* Save flags as transcommit_implicit_are_deleting_them */
+  /* Save flags as trans_commit_implicit are deleting them */
   save_unsafe_rollback_flags= thd->transaction.stmt.m_unsafe_rollback_flags;
+
+  DEBUG_SYNC(thd, "alter_table_copy_trans_commit");
 
   if (ha_enable_transaction(thd, TRUE))
     DBUG_RETURN(TRUE);
-  
+
   /*
     Ensure that the new table is saved properly to disk before installing
     the new .frm.

@@ -17,21 +17,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-SELECT * FROM t1 WHERE title = 'a10';
-class	id	title
-10	10	a10
-SELECT * FROM t1 WHERE title = 'a5000';
-class	id	title
-5000	5000	a5000
-SELECT * FROM t1 WHERE title = 'a10000';
-class	id	title
-10000	10000	a10000
-SELECT * FROM t1 WHERE title = 'a10010';
-class	id	title
-DROP TABLE t1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+RENAME TABLE t1 TO t0;
 # Test Blob
 CREATE TABLE t1(
 a INT PRIMARY KEY,
@@ -48,9 +36,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-ALTER TABLE t1 DROP COLUMN c;
-CHECK TABLE t1;
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+CHECK TABLE t0,t1;
 Table	Op	Msg_type	Msg_text
+test.t0	check	status	OK
 test.t1	check	status	OK
 SELECT CHAR_LENGTH(b) FROM t1;
 CHAR_LENGTH(b)
@@ -58,15 +49,34 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
+DROP TABLE t1;
+RENAME TABLE t0 to t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 WHERE title = 'a10';
+class	id	title
+10	10	a10
+SELECT * FROM t1 WHERE title = 'a5000';
+class	id	title
+5000	5000	a5000
+SELECT * FROM t1 WHERE title = 'a10000';
+class	id	title
+10000	10000	a10000
+SELECT * FROM t1 WHERE title = 'a10010';
+class	id	title
 DROP TABLE t1;
 CREATE TABLE t1(
 class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-SET debug_dbug='+d,crash_commit_before';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
 CREATE INDEX idx_title ON t1(title);
-ERROR HY000: Lost connection to MySQL server during query
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
@@ -104,9 +114,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET debug_dbug='+d,crash_commit_before';
-ALTER TABLE t1 DROP COLUMN c;
-ERROR HY000: Lost connection to MySQL server during query
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -137,21 +150,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-SELECT * FROM t1 WHERE title = 'a10';
-class	id	title
-10	10	a10
-SELECT * FROM t1 WHERE title = 'a5000';
-class	id	title
-5000	5000	a5000
-SELECT * FROM t1 WHERE title = 'a10000';
-class	id	title
-10000	10000	a10000
-SELECT * FROM t1 WHERE title = 'a10010';
-class	id	title
-DROP TABLE t1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+RENAME TABLE t1 TO t0;
 # Test Blob
 CREATE TABLE t1(
 a INT PRIMARY KEY,
@@ -168,9 +169,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-ALTER TABLE t1 DROP COLUMN c;
-CHECK TABLE t1;
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+CHECK TABLE t0,t1;
 Table	Op	Msg_type	Msg_text
+test.t0	check	status	OK
 test.t1	check	status	OK
 SELECT CHAR_LENGTH(b) FROM t1;
 CHAR_LENGTH(b)
@@ -179,14 +183,33 @@ CHAR_LENGTH(b)
 40000
 60000
 DROP TABLE t1;
+RENAME TABLE t0 to t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 WHERE title = 'a10';
+class	id	title
+10	10	a10
+SELECT * FROM t1 WHERE title = 'a5000';
+class	id	title
+5000	5000	a5000
+SELECT * FROM t1 WHERE title = 'a10000';
+class	id	title
+10000	10000	a10000
+SELECT * FROM t1 WHERE title = 'a10010';
+class	id	title
+DROP TABLE t1;
 CREATE TABLE t1(
 class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=COMPACT;
-SET debug_dbug='+d,crash_commit_before';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
 CREATE INDEX idx_title ON t1(title);
-ERROR HY000: Lost connection to MySQL server during query
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
@@ -224,9 +247,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET debug_dbug='+d,crash_commit_before';
-ALTER TABLE t1 DROP COLUMN c;
-ERROR HY000: Lost connection to MySQL server during query
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -257,21 +283,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-SELECT * FROM t1 WHERE title = 'a10';
-class	id	title
-10	10	a10
-SELECT * FROM t1 WHERE title = 'a5000';
-class	id	title
-5000	5000	a5000
-SELECT * FROM t1 WHERE title = 'a10000';
-class	id	title
-10000	10000	a10000
-SELECT * FROM t1 WHERE title = 'a10010';
-class	id	title
-DROP TABLE t1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+RENAME TABLE t1 TO t0;
 # Test Blob
 CREATE TABLE t1(
 a INT PRIMARY KEY,
@@ -288,9 +302,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-ALTER TABLE t1 DROP COLUMN c;
-CHECK TABLE t1;
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+CHECK TABLE t0,t1;
 Table	Op	Msg_type	Msg_text
+test.t0	check	status	OK
 test.t1	check	status	OK
 SELECT CHAR_LENGTH(b) FROM t1;
 CHAR_LENGTH(b)
@@ -299,14 +316,33 @@ CHAR_LENGTH(b)
 40000
 60000
 DROP TABLE t1;
+RENAME TABLE t0 to t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 WHERE title = 'a10';
+class	id	title
+10	10	a10
+SELECT * FROM t1 WHERE title = 'a5000';
+class	id	title
+5000	5000	a5000
+SELECT * FROM t1 WHERE title = 'a10000';
+class	id	title
+10000	10000	a10000
+SELECT * FROM t1 WHERE title = 'a10010';
+class	id	title
+DROP TABLE t1;
 CREATE TABLE t1(
 class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
-SET debug_dbug='+d,crash_commit_before';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
 CREATE INDEX idx_title ON t1(title);
-ERROR HY000: Lost connection to MySQL server during query
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
@@ -344,9 +380,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET debug_dbug='+d,crash_commit_before';
-ALTER TABLE t1 DROP COLUMN c;
-ERROR HY000: Lost connection to MySQL server during query
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -378,21 +417,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
 CREATE INDEX idx_title ON t1(title);
-CHECK TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
-SELECT * FROM t1 WHERE title = 'a10';
-class	id	title
-10	10	a10
-SELECT * FROM t1 WHERE title = 'a5000';
-class	id	title
-5000	5000	a5000
-SELECT * FROM t1 WHERE title = 'a10000';
-class	id	title
-10000	10000	a10000
-SELECT * FROM t1 WHERE title = 'a10010';
-class	id	title
-DROP TABLE t1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+RENAME TABLE t1 TO t0;
 # Test Blob
 SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t1(
@@ -410,9 +437,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-ALTER TABLE t1 DROP COLUMN c;
-CHECK TABLE t1;
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+CHECK TABLE t0,t1;
 Table	Op	Msg_type	Msg_text
+test.t0	check	status	OK
 test.t1	check	status	OK
 SELECT CHAR_LENGTH(b) FROM t1;
 CHAR_LENGTH(b)
@@ -421,15 +451,34 @@ CHAR_LENGTH(b)
 40000
 60000
 DROP TABLE t1;
+RENAME TABLE t0 to t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 WHERE title = 'a10';
+class	id	title
+10	10	a10
+SELECT * FROM t1 WHERE title = 'a5000';
+class	id	title
+5000	5000	a5000
+SELECT * FROM t1 WHERE title = 'a10000';
+class	id	title
+10000	10000	a10000
+SELECT * FROM t1 WHERE title = 'a10010';
+class	id	title
+DROP TABLE t1;
 SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t1(
 class   INT,
 id      INT,
 title   VARCHAR(100)
 ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
-SET debug_dbug='+d,crash_commit_before';
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
 CREATE INDEX idx_title ON t1(title);
-ERROR HY000: Lost connection to MySQL server during query
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 10000
@@ -468,9 +517,12 @@ CHAR_LENGTH(b)
 20000
 40000
 60000
-SET debug_dbug='+d,crash_commit_before';
-ALTER TABLE t1 DROP COLUMN c;
-ERROR HY000: Lost connection to MySQL server during query
+connect  hang,localhost,root;
+SET DEBUG_SYNC='alter_table_inplace_trans_commit SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t1 DROP COLUMN c, FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+disconnect hang;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -481,5 +533,4 @@ CHAR_LENGTH(b)
 40000
 60000
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table=default;
 DROP PROCEDURE populate_t1;

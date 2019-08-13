@@ -6072,7 +6072,7 @@ finish:
       trans_rollback_stmt(thd);
     }
 #ifdef WITH_WSREP
-    if (thd->spcont &&
+    else if (thd->spcont &&
              (thd->wsrep_conflict_state == MUST_ABORT ||
               thd->wsrep_conflict_state == ABORTED    ||
               thd->wsrep_conflict_state == CERT_FAILURE))

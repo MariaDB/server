@@ -7,7 +7,6 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 create table t1 (i int primary key, j int) engine=innodb;
 create table t2 (i int primary key, j int) engine=innodb;
