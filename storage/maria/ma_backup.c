@@ -80,6 +80,8 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
   cap->data_file_type= share.state.header.data_file_type;
   cap->s3_block_size=  share.base.s3_block_size;
   cap->compression=    share.base.compression_algorithm;
+  cap->encrypted=      MY_TEST(share.base.extra_options &
+                               MA_EXTRA_OPTIONS_ENCRYPTED);
 
   if (share.state.header.data_file_type == BLOCK_RECORD)
   {

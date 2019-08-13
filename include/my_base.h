@@ -368,6 +368,7 @@ enum ha_base_keytype {
 #define HA_CREATE_INTERNAL_TABLE 256U
 #define HA_PRESERVE_INSERT_ORDER 512U
 #define HA_CREATE_NO_ROLLBACK    1024U
+#define HA_CREATE_ENCRYPTED      2048U
 
 /* Flags used by start_bulk_insert */
 

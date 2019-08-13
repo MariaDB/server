@@ -3165,6 +3165,8 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   (void) translog_log_debug_info(0, LOGREC_DEBUG_INFO_QUERY,
                                  (uchar*) thd->query(), thd->query_length());
 
+  if (maria_encrypt_tables && ht == maria_hton)
+    create_flags|= HA_CREATE_ENCRYPTED;
   /* TODO: Check that the following fn_format is really needed */
   error=
     maria_create(fn_format(buff, name, "", "",

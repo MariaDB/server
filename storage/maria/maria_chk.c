@@ -1097,6 +1097,15 @@ static int maria_chk(HA_CHECK *param, char *filename)
       param->testflag|= T_REP_BY_SORT;
     }
   }
+  if ((share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED) &&
+      !(param->testflag & T_DESCRIPT))
+  {
+    _ma_check_print_warning(param,
+                            "Table %s is encrypted. Only --description (-d) "
+                            "option is supported", filename);
+    param->warning_printed= 0;
+    goto end2;
+  }
 
   /*
     Skip the checking of the file if:
@@ -1549,6 +1558,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
 
   if (param->testflag & T_VERBOSE)
   {
+    if (share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED)
+      printf("Encrypted:           yes\n");
     printf("File-version:        %d\n",
 	   (int) share->state.header.file_version[3]);
     if (share->state.create_time)

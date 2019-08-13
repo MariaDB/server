@@ -26,6 +26,7 @@ typedef struct st_aria_table_capabilities
   enum data_file_type data_file_type;
   my_bool checksum;
   my_bool transactional;
+  my_bool encrypted;
   /* This is true if the table can be copied without any locks */
   my_bool online_backup_safe;
   /* s3 capabilities */
