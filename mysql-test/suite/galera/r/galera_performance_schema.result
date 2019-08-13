@@ -1,0 +1,44 @@
+use performance_schema;
+SELECT name
+FROM threads
+WHERE name LIKE 'thread/sql/wsrep%'
+ORDER BY name;
+name	thread/sql/wsrep_applier_thread
+name	thread/sql/wsrep_rollbacker_thread
+use test;
+create table t1 (a int not null primary key) engine=innodb;
+insert into t1 values (1),(2);
+use performance_schema;
+select name from mutex_instances where name like 'wait/synch/mutex/sql/LOCK_wsrep%' order by name;
+name	wait/synch/mutex/sql/LOCK_wsrep_config_state
+name	wait/synch/mutex/sql/LOCK_wsrep_desync
+name	wait/synch/mutex/sql/LOCK_wsrep_ready
+name	wait/synch/mutex/sql/LOCK_wsrep_replaying
+name	wait/synch/mutex/sql/LOCK_wsrep_rollback
+name	wait/synch/mutex/sql/LOCK_wsrep_slave_threads
+name	wait/synch/mutex/sql/LOCK_wsrep_sst
+name	wait/synch/mutex/sql/LOCK_wsrep_sst_init
+select name from cond_instances where name like 'wait/synch/cond/sql/COND_wsrep%' order by name;
+name	wait/synch/cond/sql/COND_wsrep_ready
+name	wait/synch/cond/sql/COND_wsrep_replaying
+name	wait/synch/cond/sql/COND_wsrep_rollback
+name	wait/synch/cond/sql/COND_wsrep_sst
+name	wait/synch/cond/sql/COND_wsrep_sst_init
+connection node_2;
+use test;
+SET SESSION wsrep_on=OFF;
+CREATE TABLE t2 (f1 INTEGER) engine=innodb;
+connection node_1;
+use test;
+CREATE TABLE t2 (f1 INTEGER) engine=innodb;
+connection node_2;
+SET SESSION wsrep_on=ON;
+SELECT COUNT(*) FROM t1;
+COUNT(*)	2
+use performance_schema;
+select count(*)>=1 from file_instances where file_name like '%GRA_%.log';
+count(*)>=1	1
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't2' already exists' on query");
+use test;
+drop table t1;
+drop table t2;
