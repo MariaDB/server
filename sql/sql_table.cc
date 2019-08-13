@@ -8078,7 +8078,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   }
   else if (alter_info->flags & ALTER_DROP_PERIOD && vers_system_invisible)
   {
-    my_error(ER_VERS_NO_PERIOD, MYF(0), table->s->table_name.str);
+    my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), "PERIOD FOR SYSTEM_TIME on", table->s->table_name.str);
     goto err;
   }
   alter_info->flags &= ~(ALTER_DROP_PERIOD | ALTER_ADD_PERIOD);
