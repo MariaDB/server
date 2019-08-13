@@ -3180,7 +3180,7 @@ bool Item_func_pad::fix_length_and_dec()
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
   if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    fix_char_length(Repeat_count(args[1]).count());
+    fix_char_length_ulonglong(Repeat_count(args[1]).count());
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
