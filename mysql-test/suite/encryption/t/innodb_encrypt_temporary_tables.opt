@@ -1,3 +1,2 @@
 --innodb_buffer_pool_size=5M
 --innodb_encrypt_temporary_tables=1
---innodb-checksum-algorithm=crc32
