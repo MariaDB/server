@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
+--source include/innodb_checksum_algorithm.inc
 --echo # Set the environmental variables
 let MYSQLD_BASEDIR= `SELECT @@basedir`;
 let MYSQLD_DATADIR= `SELECT @@datadir`;
@@ -22,22 +23,32 @@ my $page_size = $ENV{INNODB_PAGE_SIZE};
 
 sysopen IBD_FILE, "$ENV{MYSQLD_DATADIR}/test/t1.ibd", O_RDWR
 || die "Cannot open t1.ibd\n";
-sysread(IBD_FILE, $_, 38) || die "Cannot read t1.ibd\n";
-my $space = unpack("x[34]N", $_);
+sysread(IBD_FILE, $_, 58) || die "Cannot read t1.ibd\n";
+my ($space,$flags) = unpack("x[34]Nx[16]N", $_);
+my $full_crc32 = $flags & 0x10;
 sysseek(IBD_FILE, $page_size * 3, SEEK_SET) || die "Cannot seek t1.ibd\n";
 
-my $head = pack("Nx[18]", 4); # better to have a valid page number
-my $body = chr(0) x ($page_size - 38 - 8);
+my $page= pack("NNx[18]NNN", 0, 4, 1, 0, $space).(chr(0) x ($page_size - 38));
 
-# Calculate innodb_checksum_algorithm=crc32 for the unencrypted page.
-# The following bytes are excluded:
-# bytes 0..3 (the checksum is stored there)
-# bytes 26..37 (encryption key version, post-encryption checksum, tablespace id)
-# bytes $page_size-8..$page_size-1 (checksum, LSB of FIL_PAGE_LSN)
+# Calculate innodb_checksum_algorithm=crc32 or full_crc32.
 my $polynomial = 0x82f63b78; # CRC-32C
-my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $page_size-4), 0, $polynomial);
+    substr($page, $page_size-4, 4) = pack("N", $ck);
+}
+else
+{
+    # The following bytes are excluded:
+    # 0..3 (the checksum is stored there)
+    # 26..37 (encryption key version, post-encryption checksum, tablespace id)
+    # $page_size-8..$page_size-1 (checksum, LSB of FIL_PAGE_LSN)
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $page_size-38-8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$page_size-8,4)=$ck;
+}
 
-my $page= pack("N",$ck).$head.pack("NNN",1,$ck,$space).$body.pack("Nx[4]",$ck);
 die unless syswrite(IBD_FILE, $page, $page_size) == $page_size;
 close IBD_FILE;
 EOF
