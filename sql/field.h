@@ -3781,12 +3781,7 @@ public:
                                     length_bytes : 0);
   }
   Copy_func *get_copy_func(const Field *from) const;
-  bool memcpy_field_possible(const Field *from) const
-  {
-    return Field_str::memcpy_field_possible(from) &&
-           !compression_method() == !from->compression_method() &&
-           length_bytes == ((Field_varstring*) from)->length_bytes;
-  }
+  bool memcpy_field_possible(const Field *from) const;
   void update_data_type_statistics(Data_type_statistics *st) const
   {
     st->m_variable_string_count++;
