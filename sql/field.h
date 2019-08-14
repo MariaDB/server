@@ -3463,12 +3463,7 @@ public:
                                     length_bytes : 0);
   }
   Copy_func *get_copy_func(const Field *from) const;
-  bool memcpy_field_possible(const Field *from) const
-  {
-    return Field_str::memcpy_field_possible(from) &&
-           !compression_method() == !from->compression_method() &&
-           length_bytes == ((Field_varstring*) from)->length_bytes;
-  }
+  bool memcpy_field_possible(const Field *from) const;
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   using Field_str::store;
 #ifdef HAVE_valgrind_or_MSAN
