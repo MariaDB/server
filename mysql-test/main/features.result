@@ -10,6 +10,7 @@ Feature_delay_key_write	0
 Feature_dynamic_columns	0
 Feature_fulltext	0
 Feature_gis	0
+Feature_insert_returning	0
 Feature_invisible_columns	0
 Feature_json	0
 Feature_locale	0
@@ -185,3 +186,4 @@ id1
 drop table t1;
 show status like "feature_insert_returning";
 Variable_name	Value
+Feature_insert_returning	1
