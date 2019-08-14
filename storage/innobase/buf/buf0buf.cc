@@ -484,7 +484,7 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 	}
 
 	/* read space & lsn */
-	uint header_len = FIL_PAGE_DATA;
+	uint header_len = FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
 
 	/* Copy FIL page header, it is not encrypted */
 	memcpy(tmp_frame, src_frame, header_len);
@@ -493,7 +493,7 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 	const byte* src = src_frame + header_len;
 	byte* dst = tmp_frame + header_len;
 	uint srclen = uint(srv_page_size)
-		- header_len - FIL_PAGE_DATA_END;
+		- (header_len + FIL_PAGE_FCRC32_CHECKSUM);
 	ulint offset = mach_read_from_4(src_frame + FIL_PAGE_OFFSET);
 
 	if (!log_tmp_block_decrypt(src, srclen, dst,
@@ -501,9 +501,9 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 		return false;
 	}
 
-	memcpy(tmp_frame + srv_page_size - FIL_PAGE_DATA_END,
-	       src_frame + srv_page_size - FIL_PAGE_DATA_END,
-	       FIL_PAGE_DATA_END);
+	memcpy(tmp_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
+	       src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
+	       FIL_PAGE_FCRC32_CHECKSUM);
 
 	memcpy(src_frame, tmp_frame, srv_page_size);
 	srv_stats.pages_decrypted.inc();
@@ -5976,13 +5976,15 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 		&& !bpage->encrypted
 		&& fil_space_verify_crypt_checksum(dst_frame,
 						   bpage->zip_size());
+	ut_ad(space->purpose != FIL_TYPE_TEMPORARY || space->full_crc32());
 
 	if (!still_encrypted) {
 		/* If traditional checksums match, we assume that page is
 		not anymore encrypted. */
 		if (space->full_crc32()
 		    && !buf_page_is_zeroes(dst_frame, space->physical_size())
-		    && (key_version || space->is_compressed())) {
+		    && (key_version || space->is_compressed()
+			|| space->purpose == FIL_TYPE_TEMPORARY)) {
 			corrupted = buf_page_full_crc32_is_corrupted(
 					space->id, dst_frame,
 					space->is_compressed());
@@ -7427,28 +7429,21 @@ static byte* buf_tmp_page_encrypt(
 	byte*	src_frame,
 	byte*	dst_frame)
 {
-	uint header_len = FIL_PAGE_DATA;
-	/* FIL page header is not encrypted */
-	memcpy(dst_frame, src_frame, header_len);
-
 	/* Calculate the start offset in a page */
-	uint unencrypted_bytes = header_len + FIL_PAGE_DATA_END;
-	uint srclen = srv_page_size - unencrypted_bytes;
-	const byte* src = src_frame + header_len;
-	byte* dst = dst_frame + header_len;
+	uint srclen = srv_page_size - (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+				       + FIL_PAGE_FCRC32_CHECKSUM);
+	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+	byte* dst = dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+
+	memcpy(dst_frame, src_frame, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
 	if (!log_tmp_block_encrypt(src, srclen, dst, (offset * srv_page_size),
 				   true)) {
 		return NULL;
 	}
 
-	memcpy(dst_frame + srv_page_size - FIL_PAGE_DATA_END,
-	       src_frame + srv_page_size - FIL_PAGE_DATA_END,
-	       FIL_PAGE_DATA_END);
-
-	/* Handle post encryption checksum */
-	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-			buf_calc_page_crc32(dst_frame));
+	const ulint payload = srv_page_size - FIL_PAGE_FCRC32_CHECKSUM;
+	mach_write_to_4(dst_frame + payload, ut_crc32(dst_frame, payload));
 
 	srv_stats.pages_encrypted.inc();
 	srv_stats.n_temp_blocks_encrypted.inc();

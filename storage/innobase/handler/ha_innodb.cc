@@ -3876,15 +3876,9 @@ static int innodb_init_params()
 	srv_tmp_space.set_name("innodb_temporary");
 	srv_tmp_space.set_path(srv_data_home);
 
-	switch (srv_checksum_algorithm) {
-	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
-		srv_tmp_space.set_flags(FSP_FLAGS_FCRC32_MASK_MARKER
-					| FSP_FLAGS_FCRC32_PAGE_SSIZE());
-		break;
-	default:
-		srv_tmp_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
-	}
+	/* Temporary tablespace is in full crc32 format. */
+	srv_tmp_space.set_flags(FSP_FLAGS_FCRC32_MASK_MARKER
+				| FSP_FLAGS_FCRC32_PAGE_SSIZE());
 
 	if (!srv_tmp_space.parse_params(innobase_temp_data_file_path, false)) {
 		ib::error() << "Unable to parse innodb_temp_data_file_path="
