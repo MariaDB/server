@@ -548,7 +548,8 @@ is_page_corrupted(
 
 		if (is_corrupted && log_file) {
 			fprintf(log_file,
-				"Page " ULINTPF ":%llu may be corrupted;"
+				"[page id: space=" ULINTPF
+				", page_number=%llu] may be corrupted;"
 				" key_version=%u\n",
 				space_id, cur_page_num, key_version);
 		}

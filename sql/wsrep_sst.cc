@@ -663,10 +663,10 @@ static ssize_t sst_prepare_other (const char*  method,
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env());
   mysql_mutex_lock (&arg.lock);
-  ret= pthread_create (&tmp, NULL, sst_joiner_thread, &arg);
+  ret = mysql_thread_create (key_wsrep_sst_joiner, &tmp, NULL, sst_joiner_thread, &arg);
   if (ret)
   {
-    WSREP_ERROR("sst_prepare_other(): pthread_create() failed: %d (%s)",
+    WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return -ret;
   }
@@ -1350,10 +1350,10 @@ static int sst_donate_other (const char*        method,
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env);
   mysql_mutex_lock (&arg.lock);
-  ret= pthread_create (&tmp, NULL, sst_donor_thread, &arg);
+  ret = mysql_thread_create (key_wsrep_sst_donor, &tmp, NULL, sst_donor_thread, &arg);
   if (ret)
   {
-    WSREP_ERROR("sst_donate_other(): pthread_create() failed: %d (%s)",
+    WSREP_ERROR("sst_donate_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return ret;
   }

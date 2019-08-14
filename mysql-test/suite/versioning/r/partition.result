@@ -554,6 +554,36 @@ t1	CREATE TABLE `t1` (
 #
 create or replace table t1 (f int) with system versioning partition by hash(f);
 insert delayed into t1 values (1);
+#
+# MDEV-17613 MIN/MAX Optimization (Select tables optimized away) does not work
+#
+create or replace table t1 (pk int primary key) with system versioning
+partition by system_time (
+partition p1 history,
+partition pn current);
+insert into t1 values (1), (2);
+explain select max(pk) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+#
+# MDEV-20068 History partition rotation is not done under LOCK TABLES
+#
+create or replace table t1 (x int) with system versioning partition by system_time limit 1
+(partition p1 history, partition pn current);
+lock tables t1 write;
+insert into t1 values (0), (1), (2), (3);
+delete from t1 where x < 3;
+delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+unlock tables;
+#
+# MDEV-20336 Assertion bitmap_is_set(read_partitions) upon SELECT FOR UPDATE from versioned table
+#
+create or replace table t1 (pk int primary key) with system versioning partition by system_time limit 100 (partition p1 history, partition pn current);
+execute immediate 'select * from t1 for update';
+pk
+drop table t1;
 # Test cleanup
 drop database test;
 create database test;

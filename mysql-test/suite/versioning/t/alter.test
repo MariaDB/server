@@ -503,5 +503,40 @@ alter table t1 modify a int with system versioning;
 select * from t1;
 --disable_info
 
+--echo #
+--echo # MDEV-19304 Segfault in ALTER TABLE after UPDATE for SIMULTANEOUS_ASSIGNMENT
+--echo #
+create or replace table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) engine=myisam with system versioning;
+insert into t1 values (null, null, null);
+insert into t1 values (null, null, null);
+set sql_mode= 'simultaneous_assignment';
+update t1 set e= 1;
+alter table t1 force;
+set sql_mode= default;
+
+--echo #
+--echo # MDEV-18862 Unfortunate error message upon attempt to drop system versioning
+--echo #
+set system_versioning_alter_history= keep;
+create or replace table t1 (x int) with system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_start`, drop column `row_end`, drop period for system_time, drop system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop period for system_time;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_start`, drop column `row_end`, drop system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_end`;
+
+--echo #
+--echo # MDEV-19127 Assertion `row_start_field' failed in vers_prepare_keys upon ALTER TABLE
+--echo #
+set system_versioning_alter_history=keep;
+create or replace table t1 (f1 int) with system versioning;
+alter table t1 add f2 int with system versioning, drop system versioning;
+create or replace table t1 (f1 int) with system versioning;
+--error ER_VERS_NOT_VERSIONED
+alter table t1 drop system versioning, add f2 int with system versioning;
+
 drop database test;
 create database test;

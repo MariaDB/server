@@ -44,7 +44,7 @@ i
 6
 explain partitions select * from t1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t1	pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	2	
 explain partitions select * from t1 for system_time as of '2001-02-04 10:20:30';
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p1_p1sp0,p1_p1sp1,p0_p0sp0,p0_p0sp1,p2_p2sp0,p2_p2sp1,pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	#	Using where

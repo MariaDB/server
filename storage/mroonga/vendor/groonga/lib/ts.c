@@ -683,7 +683,7 @@ static grn_rc
 grn_ts_select_output(grn_ctx *ctx, grn_obj *table, grn_ts_str str,
                      const grn_ts_record *in, size_t n_in, size_t n_hits)
 {
-  grn_ts_writer *writer;
+  grn_ts_writer *writer= 0;
   grn_rc rc = grn_ts_writer_open(ctx, table, str, &writer);
   if (rc != GRN_SUCCESS) {
     return rc;

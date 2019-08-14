@@ -14320,6 +14320,8 @@ static int rocksdb_validate_update_cf_options(
   // then there's no point to proceed.
   if (!Rdb_cf_options::parse_cf_options(str, &option_map)) {
     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "rocksdb_update_cf_options", str);
+    // Free what we've copied with my_strdup above.
+    my_free((void*)(*(const char **)save));
     return HA_EXIT_FAILURE;
   }
   // Loop through option_map and create missing column families

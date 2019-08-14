@@ -85,7 +85,6 @@ ins_node_create(
 	node->select = NULL;
 
 	node->trx_id = 0;
-	node->duplicate = NULL;
 
 	node->entry_sys_heap = mem_heap_create(128);
 
@@ -190,7 +189,6 @@ ins_node_set_new_row(
 	node->state = INS_NODE_SET_IX_LOCK;
 	node->index = NULL;
 	node->entry = NULL;
-	node->duplicate = NULL;
 
 	node->row = row;
 
@@ -2346,12 +2344,6 @@ row_ins_duplicate_error_in_clust(
 						  true,
 						  ULINT_UNDEFINED, &heap);
 
-			ulint lock_type =
-				trx->isolation_level <= TRX_ISO_READ_COMMITTED
-				|| (trx->mysql_thd
-				    && !thd_rpl_stmt_based(trx->mysql_thd))
-				? LOCK_REC_NOT_GAP : LOCK_ORDINARY;
-
 			/* We set a lock on the possible duplicate: this
 			is needed in logical logging of MySQL to make
 			sure that in roll-forward we get the same duplicate
@@ -2368,13 +2360,13 @@ row_ins_duplicate_error_in_clust(
 				INSERT ON DUPLICATE KEY UPDATE). */
 
 				err = row_ins_set_exclusive_rec_lock(
-					lock_type,
+					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
 					rec, cursor->index, offsets, thr);
 			} else {
 
 				err = row_ins_set_shared_rec_lock(
-					lock_type,
+					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor), rec,
 					cursor->index, offsets, thr);
 			}
@@ -2389,7 +2381,10 @@ row_ins_duplicate_error_in_clust(
 
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
-				goto duplicate;
+duplicate:
+				trx->error_info = cursor->index;
+				err = DB_DUPLICATE_KEY;
+				goto func_exit;
 			}
 		}
 	}
@@ -2432,10 +2427,7 @@ row_ins_duplicate_error_in_clust(
 
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
-duplicate:
-				trx->error_info = cursor->index;
-				err = DB_DUPLICATE_KEY;
-				goto func_exit;
+				goto duplicate;
 			}
 		}
 
@@ -3083,46 +3075,6 @@ row_ins_sec_index_entry_low(
 			&cursor, 0, __FILE__, __LINE__, &mtr);
 	}
 
-	if (!(flags & BTR_NO_LOCKING_FLAG)
-	    && dict_index_is_unique(index)
-	    && thr_get_trx(thr)->duplicates
-	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ
-	    && thd_rpl_stmt_based(thr_get_trx(thr)->mysql_thd)) {
-
-		/* In statement-based replication, when replicating a
-		REPLACE statement or ON DUPLICATE KEY UPDATE clause, a
-		gap lock is taken on the position of the to-be-inserted record,
-		to avoid other concurrent transactions from inserting the same
-		record. */
-
-		dberr_t	err;
-		const rec_t* rec = page_rec_get_next_const(
-			btr_cur_get_rec(&cursor));
-
-		ut_ad(!page_rec_is_infimum(rec));
-
-		offsets = rec_get_offsets(rec, index, offsets, true,
-					  ULINT_UNDEFINED, &offsets_heap);
-
-		err = row_ins_set_exclusive_rec_lock(
-			LOCK_GAP, btr_cur_get_block(&cursor), rec,
-			index, offsets, thr);
-
-		switch (err) {
-		case DB_SUCCESS:
-		case DB_SUCCESS_LOCKED_REC:
-			if (thr_get_trx(thr)->error_state != DB_DUPLICATE_KEY) {
-				break;
-			}
-			/* Fall through (skip actual insert) after we have
-			successfully acquired the gap lock. */
-		default:
-			goto func_exit;
-		}
-	}
-
-	ut_ad(thr_get_trx(thr)->error_state == DB_SUCCESS);
-
 	if (dup_chk_only) {
 		goto func_exit;
 	}
@@ -3682,13 +3634,6 @@ row_ins(
 
 	DBUG_PRINT("row_ins", ("table: %s", node->table->name.m_name));
 
-	trx_t* trx = thr_get_trx(thr);
-
-	if (node->duplicate) {
-		ut_ad(thd_rpl_stmt_based(trx->mysql_thd));
-		trx->error_state = DB_DUPLICATE_KEY;
-	}
-
 	if (node->state == INS_NODE_ALLOC_ROW_ID) {
 
 		row_ins_alloc_row_id_step(node);
@@ -3714,91 +3659,7 @@ row_ins(
 		if (node->index->type != DICT_FTS) {
 			dberr_t err = row_ins_index_entry_step(node, thr);
 
-			switch (err) {
-			case DB_SUCCESS:
-				break;
-			case DB_NO_REFERENCED_ROW:
-				if (!dict_index_is_unique(node->index)) {
-					DBUG_RETURN(err);
-				}
-				/* fall through */
-			case DB_DUPLICATE_KEY:
-				ut_ad(dict_index_is_unique(node->index));
-
-				if (trx->isolation_level
-				    >= TRX_ISO_REPEATABLE_READ
-				    && trx->duplicates
-				    && !node->table->is_temporary()
-				    && thd_rpl_stmt_based(trx->mysql_thd)) {
-
-					/* When we are in REPLACE statement or
-					INSERT ..  ON DUPLICATE UPDATE
-					statement, we process all the
-					unique secondary indexes, even after we
-					encounter a duplicate error. This is
-					done to take necessary gap locks in
-					secondary indexes to block concurrent
-					transactions from inserting the
-					searched records. */
-					if (err == DB_NO_REFERENCED_ROW
-					    && node->duplicate) {
-						/* A foreign key check on a
-						unique index may fail to
-						find the record.
-
-						Consider as a example
-						following:
-						create table child(a int not null
-						primary key, b int not null,
-						c int,
-						unique key (b),
-						foreign key (b) references
-						parent (id)) engine=innodb;
-
-						insert into child values
-						(1,1,2);
-
-						insert into child(a) values
-						(1) on duplicate key update
-						c = 3;
-
-						Now primary key value 1
-						naturally causes duplicate
-						key error that will be
-						stored on node->duplicate.
-						If there was no duplicate
-						key error, we should return
-						the actual no referenced
-						row error.
-
-						As value for
-						column b used in both unique
-						key and foreign key is not
-						provided, server uses 0 as a
-						search value. This is
-						naturally, not found leading
-						to DB_NO_REFERENCED_ROW.
-						But, we should update the
-						row with primay key value 1
-						anyway.
-
-						Return the
-						original  DB_DUPLICATE_KEY
-						error after
-						placing all gaplocks. */
-						err = DB_DUPLICATE_KEY;
-						break;
-					} else if (!node->duplicate) {
-						/* Save 1st dup error. Ignore
-						subsequent dup errors. */
-						node->duplicate = node->index;
-						trx->error_state
-							= DB_DUPLICATE_KEY;
-					}
-					break;
-				}
-				// fall through
-			default:
+			if (err != DB_SUCCESS) {
 				DBUG_RETURN(err);
 			}
 		}
@@ -3815,31 +3676,13 @@ row_ins(
 			node->index = dict_table_get_next_index(node->index);
 			node->entry = UT_LIST_GET_NEXT(tuple_list, node->entry);
 		}
-
-		/* After encountering a duplicate key error, we process
-		remaining indexes just to place gap locks and no actual
-		insertion will take place.  These gap locks are needed
-		only for unique indexes.  So skipping non-unique indexes. */
-		if (node->duplicate) {
-			ut_ad(thd_rpl_stmt_based(trx->mysql_thd));
-			while (node->index
-			       && !dict_index_is_unique(node->index)) {
-
-				node->index = dict_table_get_next_index(
-					node->index);
-				node->entry = UT_LIST_GET_NEXT(tuple_list,
-							       node->entry);
-			}
-			trx->error_state = DB_DUPLICATE_KEY;
-		}
 	}
 
 	ut_ad(node->entry == NULL);
 
-	trx->error_info = node->duplicate;
 	node->state = INS_NODE_ALLOC_ROW_ID;
 
-	DBUG_RETURN(node->duplicate ? DB_DUPLICATE_KEY : DB_SUCCESS);
+	DBUG_RETURN(DB_SUCCESS);
 }
 
 /***********************************************************//**

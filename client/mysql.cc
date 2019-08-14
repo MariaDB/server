@@ -1059,7 +1059,7 @@ extern "C" int write_history(const char *command);
 extern "C" HIST_ENTRY *history_get(int num);
 extern "C" int history_length;
 static int not_in_history(const char *line);
-static void initialize_readline (char *name);
+static void initialize_readline ();
 static void fix_history(String *final_command);
 #endif
 
@@ -1240,7 +1240,7 @@ int main(int argc,char *argv[])
   }
 
 #ifdef HAVE_READLINE
-  initialize_readline((char*) my_progname);
+  initialize_readline();
   if (!status.batch && !quick && !opt_html && !opt_xml)
   {
     /* read-history from file, default ~/.mysql_history*/
@@ -2665,10 +2665,11 @@ static int fake_magic_space(const char *, int)
 }
 
 
-static void initialize_readline (char *name)
+static void initialize_readline ()
 {
   /* Allow conditional parsing of the ~/.inputrc file. */
-  rl_readline_name = name;
+  rl_readline_name= "mysql";
+  rl_terminal_name= getenv("TERM");
 
   /* Tell the completer that we want a crack first. */
 #if defined(USE_NEW_READLINE_INTERFACE)

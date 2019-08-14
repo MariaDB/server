@@ -605,5 +605,40 @@ select * from t1;
 a	b
 1	0
 affected rows: 1
+#
+# MDEV-19304 Segfault in ALTER TABLE after UPDATE for SIMULTANEOUS_ASSIGNMENT
+#
+create or replace table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) engine=myisam with system versioning;
+insert into t1 values (null, null, null);
+insert into t1 values (null, null, null);
+set sql_mode= 'simultaneous_assignment';
+update t1 set e= 1;
+Warnings:
+Warning	1906	The value specified for generated column 'e' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't1' has been ignored
+alter table t1 force;
+set sql_mode= default;
+#
+# MDEV-18862 Unfortunate error message upon attempt to drop system versioning
+#
+set system_versioning_alter_history= keep;
+create or replace table t1 (x int) with system versioning;
+alter table t1 drop column `row_start`, drop column `row_end`, drop period for system_time, drop system versioning;
+ERROR 42000: Can't DROP PERIOD FOR SYSTEM_TIME on `t1`; check that it exists
+alter table t1 drop period for system_time;
+ERROR 42000: Can't DROP PERIOD FOR SYSTEM_TIME on `t1`; check that it exists
+alter table t1 drop column `row_start`, drop column `row_end`, drop system versioning;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t1 drop column `row_end`;
+ERROR 42000: Can't DROP COLUMN `row_end`; check that it exists
+#
+# MDEV-19127 Assertion `row_start_field' failed in vers_prepare_keys upon ALTER TABLE
+#
+set system_versioning_alter_history=keep;
+create or replace table t1 (f1 int) with system versioning;
+alter table t1 add f2 int with system versioning, drop system versioning;
+create or replace table t1 (f1 int) with system versioning;
+alter table t1 drop system versioning, add f2 int with system versioning;
+ERROR HY000: Table `t1` is not system-versioned
 drop database test;
 create database test;

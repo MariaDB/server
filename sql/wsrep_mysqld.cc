@@ -212,7 +212,19 @@ static PSI_file_info wsrep_files[]=
 {
   { &key_file_wsrep_gra_log, "wsrep_gra_log", 0}
 };
-#endif
+
+PSI_thread_key key_wsrep_sst_joiner, key_wsrep_sst_donor,
+  key_wsrep_rollbacker, key_wsrep_applier;
+
+static PSI_thread_info wsrep_threads[]=
+{
+ {&key_wsrep_sst_joiner, "wsrep_sst_joiner_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_sst_donor, "wsrep_sst_donor_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_rollbacker, "wsrep_rollbacker_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_applier, "wsrep_applier_thread", PSI_FLAG_GLOBAL}
+};
+
+#endif /* HAVE_PSI_INTERFACE */
 
 my_bool wsrep_inited= 0; // initialized ?
 
@@ -759,6 +771,7 @@ void wsrep_thr_init()
   mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
   mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
   mysql_file_register("sql", wsrep_files, array_elements(wsrep_files));
+  mysql_thread_register("sql", wsrep_threads, array_elements(wsrep_threads));
 #endif
 
   mysql_mutex_init(key_LOCK_wsrep_ready, &LOCK_wsrep_ready, MY_MUTEX_INIT_FAST);
