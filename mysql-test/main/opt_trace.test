@@ -534,5 +534,6 @@ set join_cache_level=@tmp_jcl;
 --echo # This shows post-join selectivity
 explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t0, one_k;
 
 set optimizer_trace='enabled=off';

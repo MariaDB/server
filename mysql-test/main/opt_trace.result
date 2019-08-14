@@ -6983,4 +6983,5 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
         }
     ]
 ]
+drop table t0, one_k;
 set optimizer_trace='enabled=off';
