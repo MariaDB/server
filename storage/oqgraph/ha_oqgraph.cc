@@ -335,13 +335,13 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 
     if (!badColumn) if (skel[i].coltype != MYSQL_TYPE_DOUBLE && (!isLatchColumn || !isStringLatch)) {
       /* Check Is UNSIGNED */
-      if ( (!((*field)->flags & UNSIGNED_FLAG ))) {
+      if (!(*field)->is_unsigned()) {
         badColumn = true;
         push_warning_printf( current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be UNSIGNED.", i);
       }
     }
     /* Check THAT  NOT NULL isn't set */
-    if (!badColumn) if ((*field)->flags & NOT_NULL_FLAG) {
+    if (!badColumn) if ((*field)->flags() & NOT_NULL_FLAG) {
       badColumn = true;
       push_warning_printf( current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be NULL.", i);
     }
@@ -658,7 +658,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if (strcmp(options->origid, (*field)->field_name.str))
       continue;
     if ((*field)->cmp_type() != INT_RESULT ||
-        !((*field)->flags & NOT_NULL_FLAG))
+        !((*field)->flags() & NOT_NULL_FLAG))
     {
       fprint_error("Column '%s.%s' (origid) is not a not-null integer type",
           options->table_name, options->origid);
@@ -683,7 +683,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if (strcmp(options->destid, (*field)->field_name.str))
       continue;
     if ((*field)->type() != origid->type() ||
-        !((*field)->flags & NOT_NULL_FLAG))
+        !((*field)->flags() & NOT_NULL_FLAG))
     {
       fprint_error("Column '%s.%s' (destid) is not a not-null integer type or is a different type to origid attribute.",
           options->table_name, options->destid);
@@ -715,7 +715,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if (strcmp(options->weight, (*field)->field_name.str))
       continue;
     if ((*field)->result_type() != REAL_RESULT ||
-        !((*field)->flags & NOT_NULL_FLAG))
+        !((*field)->flags() & NOT_NULL_FLAG))
     {
       fprint_error("Column '%s.%s' (weight) is not a not-null real type",
           options->table_name, options->weight);

@@ -1613,10 +1613,10 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     } // endswitch type
 
-  if (fp->flags & UNSIGNED_FLAG)
+  if (fp->is_unsigned())
     pcf->Flags |= U_UNSIGNED;
 
-  if (fp->flags & ZEROFILL_FLAG)
+  if (fp->is_zerofill())
     pcf->Flags |= U_ZEROFILL;
 
   // This is used to skip null bit
@@ -6497,14 +6497,14 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
 
-    if (fp->flags & AUTO_INCREMENT_FLAG) {
+    if (fp->flags() & AUTO_INCREMENT_FLAG) {
       strcpy(g->Message, "Auto_increment is not supported yet");
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       rc= HA_ERR_INTERNAL_ERROR;
       DBUG_RETURN(rc);
       } // endif flags
 
-    if (fp->flags & (BLOB_FLAG | ENUM_FLAG | SET_FLAG)) {
+    if (fp->flags() & (BLOB_FLAG | ENUM_FLAG | SET_FLAG)) {
       sprintf(g->Message, "Unsupported type for column %s",
                           fp->field_name.str);
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));

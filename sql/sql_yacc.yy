@@ -666,7 +666,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   if (!charset)
   {
     charset= cs;
-    last_field->flags|= bin ? BINCMP_FLAG : 0;
+    last_field->add_flags(bin ? BINCMP_FLAG : 0);
     return false;
   }
 
@@ -6648,9 +6648,9 @@ field_spec:
             lex->alter_info.create_list.push_back($$, thd->mem_root);
 
             $$->create_if_not_exists= Lex->check_exists;
-            if ($$->flags & PRI_KEY_FLAG)
+            if ($$->flags() & PRI_KEY_FLAG)
               lex->add_key_to_list(&$1, Key::PRIMARY, lex->check_exists);
-            else if ($$->flags & UNIQUE_KEY_FLAG)
+            else if ($$->flags() & UNIQUE_KEY_FLAG)
               lex->add_key_to_list(&$1, Key::UNIQUE, lex->check_exists);
           }
         ;
@@ -6661,8 +6661,8 @@ field_type_or_serial:
         | SERIAL_SYM
           {
             Lex->last_field->set_handler(&type_handler_longlong);
-            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
-                                     | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
+            Lex->last_field->add_flags(AUTO_INCREMENT_FLAG | NOT_NULL_FLAG |
+                                       UNSIGNED_FLAG | UNIQUE_KEY_FLAG);
           }
           opt_serial_attribute
         ;
@@ -6695,7 +6695,7 @@ field_def:
         | opt_generated_always AS virtual_column_func
          {
            Lex->last_field->vcol_info= $3;
-           Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
+           Lex->last_field->clear_flags(NOT_NULL_FLAG); // undo automatic NOT NULL for timestamps
          }
           vcol_opt_specifier vcol_opt_attribute
         | opt_generated_always AS ROW_SYM START_SYM opt_asrow_attribute
@@ -6748,13 +6748,13 @@ vcol_attribute:
           UNIQUE_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= UNIQUE_KEY_FLAG;
+            lex->last_field->add_flags(UNIQUE_KEY_FLAG);
             lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM KEY_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= UNIQUE_KEY_FLAG;
+            lex->last_field->add_flags(UNIQUE_KEY_FLAG);
             lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
@@ -6976,7 +6976,7 @@ field_type_temporal:
                 Unless --explicit-defaults-for-timestamp is given.
               */
               if (!opt_explicit_defaults_for_timestamp)
-                Lex->last_field->flags|= NOT_NULL_FLAG;
+                Lex->last_field->add_flags(NOT_NULL_FLAG);
               $$.set(opt_mysql56_temporal_format ?
                      static_cast<const Type_handler*>(&type_handler_timestamp2):
                      static_cast<const Type_handler*>(&type_handler_timestamp),
@@ -7121,10 +7121,10 @@ precision:
 field_options:
           /* empty */ {}
         | SIGNED_SYM {}
-        | UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG;}
-        | ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
-        | UNSIGNED ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
-        | ZEROFILL UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | UNSIGNED { Lex->last_field->add_flags(UNSIGNED_FLAG);}
+        | ZEROFILL { Lex->last_field->add_flags(UNSIGNED_FLAG | ZEROFILL_FLAG); }
+        | UNSIGNED ZEROFILL { Lex->last_field->add_flags(UNSIGNED_FLAG | ZEROFILL_FLAG); }
+        | ZEROFILL UNSIGNED { Lex->last_field->add_flags(UNSIGNED_FLAG | ZEROFILL_FLAG); }
         ;
 
 field_length:
@@ -7155,7 +7155,7 @@ attribute_list:
         ;
 
 attribute:
-          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
+          NULL_SYM { Lex->last_field->clear_flags(NOT_NULL_FLAG); }
         | DEFAULT column_default_expr { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
@@ -7164,11 +7164,11 @@ attribute:
               MYSQL_YYABORT;
             Lex->last_field->on_update= item;
           }
-        | AUTO_INC { Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG; }
+        | AUTO_INC { Lex->last_field->add_flags(AUTO_INCREMENT_FLAG | NOT_NULL_FLAG); }
         | SERIAL_SYM DEFAULT VALUE_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_KEY_FLAG;
+            lex->last_field->add_flags(AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_KEY_FLAG);
             lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | COLLATE_SYM collation_name
@@ -7219,12 +7219,12 @@ compressed_deprecated_column_attribute:
 asrow_attribute:
           not NULL_SYM
           {
-            Lex->last_field->flags|= NOT_NULL_FLAG;
+            Lex->last_field->add_flags(NOT_NULL_FLAG);
           }
         | opt_primary KEY_SYM
           {
             LEX *lex=Lex;
-            lex->last_field->flags|= PRI_KEY_FLAG | NOT_NULL_FLAG;
+            lex->last_field->add_flags(PRI_KEY_FLAG | NOT_NULL_FLAG);
             lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | vcol_attribute

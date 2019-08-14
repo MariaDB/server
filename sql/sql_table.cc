@@ -2926,8 +2926,8 @@ bool Column_definition::prepare_stage2_typelib(const char *type_name,
 uint Column_definition::pack_flag_numeric(uint dec) const
 {
   return (FIELDFLAG_NUMBER |
-          (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL)  |
-          (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
+          (is_unsigned() ? 0 : FIELDFLAG_DECIMAL)  |
+          (is_zerofill() ? FIELDFLAG_ZEROFILL : 0) |
           (dec << FIELDFLAG_DEC_SHIFT));
 }
 
@@ -2965,10 +2965,10 @@ bool Column_definition::prepare_stage2(handler *file,
   if (type_handler()->Column_definition_prepare_stage2(this, file, table_flags))
     DBUG_RETURN(true);
 
-  if (!(flags & NOT_NULL_FLAG) ||
+  if (!(flags() & NOT_NULL_FLAG) ||
       (vcol_info))  /* Make virtual columns allow NULL values */
     pack_flag|= FIELDFLAG_MAYBE_NULL;
-  if (flags & NO_DEFAULT_VALUE_FLAG)
+  if (flags() & NO_DEFAULT_VALUE_FLAG)
     pack_flag|= FIELDFLAG_NO_DEFAULT;
   DBUG_RETURN(false);
 }
@@ -3029,12 +3029,12 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
         column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
       DBUG_PRINT("info", ("field-ptr:%p", column_definition->field));
-      if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
+      if ((column_definition->flags() & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition->default_value == NULL &&   // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
           column_definition->vcol_info == NULL &&
           column_definition->period == NULL &&
-          !(column_definition->flags & VERS_SYSTEM_FIELD)) // column isn't generated
+          !(column_definition->flags() & VERS_SYSTEM_FIELD)) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -3176,7 +3176,7 @@ bool Column_definition::prepare_stage1_string(THD *thd,
     But not for blobs, as they will be stored as SQL expressions, not
     written down into the record image.
   */
-  if (!(flags & BLOB_FLAG) && default_value &&
+  if (!(flags() & BLOB_FLAG) && default_value &&
       default_value->expr->basic_const_item() &&
       charset != default_value->expr->collation.collation)
   {
@@ -3235,7 +3235,7 @@ bool Column_definition::prepare_stage1_check_typelib_default()
   bool not_found;
   if (def == NULL) /* SQL "NULL" maps to NULL */
   {
-    not_found= flags & NOT_NULL_FLAG;
+    not_found= flags() & NOT_NULL_FLAG;
   }
   else
   {
@@ -3332,7 +3332,7 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
 {
   List_iterator<Create_field> it(*create_list);
   Create_field *dup_field, *cf= new (thd->mem_root) Create_field();
-  cf->flags|= UNSIGNED_FLAG | LONG_UNIQUE_HASH_FIELD;
+  cf->add_flags(UNSIGNED_FLAG | LONG_UNIQUE_HASH_FIELD);
   cf->decimals= 0;
   cf->length= cf->char_length= cf->pack_length= HA_HASH_FIELD_LENGTH;
   cf->invisible= INVISIBLE_FULL;
@@ -3418,7 +3418,7 @@ key_add_part_check_null(const handler *file, KEY *key_info,
                         const Column_definition *sql_field,
                         const Key_part_spec *column)
 {
-  if (!(sql_field->flags & NOT_NULL_FLAG))
+  if (!(sql_field->flags() & NOT_NULL_FLAG))
   {
     key_info->flags|= HA_NULL_PART_KEY;
     if (!(file->ha_table_flags() & HA_NULL_IN_KEY))
@@ -3541,13 +3541,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->length= sql_field->char_length;
     /* Set field charset. */
     sql_field->charset= get_sql_field_charset(sql_field, create_info);
-    if ((sql_field->flags & BINCMP_FLAG) &&
+    if ((sql_field->flags() & BINCMP_FLAG) &&
         !(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(true);
 
     /* Virtual fields are always NULL */
     if (sql_field->vcol_info)
-      sql_field->flags&= ~NOT_NULL_FLAG;
+      sql_field->clear_flags(NOT_NULL_FLAG);
 
     if (sql_field->prepare_stage1(thd, thd->mem_root,
                                   file, file->ha_table_flags()))
@@ -3557,7 +3557,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         file->ha_table_flags() & HA_CAN_BIT_FIELD)
       total_uneven_bit_length+= sql_field->length & 7;
 
-    if (!(sql_field->flags & NOT_NULL_FLAG))
+    if (!(sql_field->flags() & NOT_NULL_FLAG))
       null_fields++;
 
     if (check_column_name(sql_field->field_name.str))
@@ -3600,7 +3600,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             dup_field->flags as flags. If we've incremented null_fields
             because of sql_field->flags, decrement it back.
           */
-          if (!(sql_field->flags & NOT_NULL_FLAG))
+          if (!(sql_field->flags() & NOT_NULL_FLAG))
             null_fields--;
 
           if (sql_field->redefine_stage1(dup_field, file, create_info))
@@ -3613,7 +3613,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       }
     }
     /* Don't pack rows in old tables if the user has requested this */
-    if ((sql_field->flags & BLOB_FLAG) ||
+    if ((sql_field->flags() & BLOB_FLAG) ||
 	(sql_field->real_field_type() == MYSQL_TYPE_VARCHAR &&
          create_info->row_type != ROW_TYPE_FIXED))
       (*db_options)|= HA_OPTION_PACK_RECORD;
@@ -3647,7 +3647,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
-    if (sql_field->flags & VERS_SYSTEM_FIELD)
+    if (sql_field->flags() & VERS_SYSTEM_FIELD)
       continue;
   }
   /* Update virtual fields' offset and give error if
@@ -3949,7 +3949,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	DBUG_RETURN(TRUE);
       }
       if (sql_field->invisible > INVISIBLE_USER &&
-          !(sql_field->flags & VERS_SYSTEM_FIELD) &&
+          !(sql_field->flags() & VERS_SYSTEM_FIELD) &&
           !key->invisible && DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
       {
         my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
@@ -3991,7 +3991,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                                                                   *sql_field) ||
             sql_field->check_vcol_for_key(thd))
           DBUG_RETURN(TRUE);
-        if (!(sql_field->flags & NOT_NULL_FLAG))
+        if (!(sql_field->flags() & NOT_NULL_FLAG))
         {
           my_message(ER_SPATIAL_CANT_HAVE_NULL,
                      ER_THD(thd, ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
@@ -4009,10 +4009,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	                                                          *sql_field,
 	                                                          file))
           DBUG_RETURN(TRUE);
-        if (!(sql_field->flags & NOT_NULL_FLAG))
+        if (!(sql_field->flags() & NOT_NULL_FLAG))
         {
           /* Implicitly set primary key fields to NOT NULL for ISO conf. */
-          sql_field->flags|= NOT_NULL_FLAG;
+          sql_field->add_flags(NOT_NULL_FLAG);
           sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
           null_fields--;
         }
@@ -4105,7 +4105,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
           key_part_length= column->length;
       }
-      else if (key_part_length == 0 && (sql_field->flags & NOT_NULL_FLAG) &&
+      else if (key_part_length == 0 && (sql_field->flags() & NOT_NULL_FLAG) &&
               !is_hash_field_needed)
       {
 	my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(),
@@ -4234,7 +4234,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         null_fields++;
       else
       {
-        hash_fld->flags|= NOT_NULL_FLAG;
+        hash_fld->add_flags(NOT_NULL_FLAG);
         hash_fld->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
       }
     }
@@ -4286,12 +4286,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (!sql_field->default_value &&
         !sql_field->has_default_function() &&
-        (sql_field->flags & NOT_NULL_FLAG) &&
+        (sql_field->flags() & NOT_NULL_FLAG) &&
         (!sql_field->is_timestamp_type() ||
          opt_explicit_defaults_for_timestamp)&&
         !sql_field->vers_sys_field())
     {
-      sql_field->flags|= NO_DEFAULT_VALUE_FLAG;
+      sql_field->add_flags(NO_DEFAULT_VALUE_FLAG);
       sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
     }
 
@@ -4299,7 +4299,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         !sql_field->default_value && !sql_field->vcol_info &&
         sql_field->is_timestamp_type() &&
         !opt_explicit_defaults_for_timestamp &&
-        (sql_field->flags & NOT_NULL_FLAG) &&
+        (sql_field->flags() & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
     {
       /*
@@ -4320,8 +4320,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
     }
     if (sql_field->invisible == INVISIBLE_USER &&
-        sql_field->flags & NOT_NULL_FLAG &&
-        sql_field->flags & NO_DEFAULT_VALUE_FLAG)
+        sql_field->flags() & NOT_NULL_FLAG &&
+        sql_field->flags() & NO_DEFAULT_VALUE_FLAG)
     {
       my_error(ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT, MYF(0),
                           sql_field->field_name.str);
@@ -4479,7 +4479,7 @@ bool Column_definition::prepare_blob_field(THD *thd)
 {
   DBUG_ENTER("Column_definition::prepare_blob_field");
 
-  if (length > MAX_FIELD_VARCHARLENGTH && !(flags & BLOB_FLAG))
+  if (length > MAX_FIELD_VARCHARLENGTH && !(flags() & BLOB_FLAG))
   {
     /* Convert long VARCHAR columns to TEXT or BLOB */
     char warn_buff[MYSQL_ERRMSG_SIZE];
@@ -4491,7 +4491,6 @@ bool Column_definition::prepare_blob_field(THD *thd)
       DBUG_RETURN(1);
     }
     set_handler(&type_handler_blob);
-    flags|= BLOB_FLAG;
     my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
                 field_name.str,
                 (charset == &my_charset_bin) ? "VARBINARY" : "VARCHAR",
@@ -4500,7 +4499,7 @@ bool Column_definition::prepare_blob_field(THD *thd)
                  warn_buff);
   }
 
-  if ((flags & BLOB_FLAG) && length)
+  if ((flags() & BLOB_FLAG) && length)
   {
     if (real_field_type() == FIELD_TYPE_BLOB ||
         real_field_type() == FIELD_TYPE_TINY_BLOB ||
@@ -6760,7 +6759,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
   {
     /* Clear marker for renamed or dropped field
     which we are going to set later. */
-    field->flags&= ~(FIELD_IS_RENAMED | FIELD_IS_DROPPED);
+    field->clear_flags(FIELD_IS_RENAMED | FIELD_IS_DROPPED);
 
     /* Use transformed info to evaluate flags for storage engine. */
     uint new_field_index= 0, new_field_stored_index= 0;
@@ -6860,7 +6859,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
           }
 
           if (field->vcol_info->is_in_partitioning_expr() ||
-              field->flags & PART_KEY_FLAG)
+              field->flags() & PART_KEY_FLAG)
           {
             if (value_changes)
               ha_alter_info->handler_flags|= ALTER_COLUMN_VCOL;
@@ -6876,17 +6875,17 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       if (lex_string_cmp(system_charset_info, &field->field_name,
                          &new_field->field_name))
       {
-        field->flags|= FIELD_IS_RENAMED;
+        field->add_flags(FIELD_IS_RENAMED);
         ha_alter_info->handler_flags|= ALTER_COLUMN_NAME;
         rename_column_in_stat_tables(thd, table, field,
                                      new_field->field_name.str);
       }
 
       /* Check that NULL behavior is same for old and new fields */
-      if ((new_field->flags & NOT_NULL_FLAG) !=
-          (uint) (field->flags & NOT_NULL_FLAG))
+      if ((new_field->flags() & NOT_NULL_FLAG) !=
+          (uint) (field->flags() & NOT_NULL_FLAG))
       {
-        if (new_field->flags & NOT_NULL_FLAG)
+        if (new_field->flags() & NOT_NULL_FLAG)
           ha_alter_info->handler_flags|= ALTER_COLUMN_NOT_NULLABLE;
         else
           ha_alter_info->handler_flags|= ALTER_COLUMN_NULLABLE;
@@ -6930,7 +6929,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
     else
     {
       // Field is not present in new version of table and therefore was dropped.
-      field->flags|= FIELD_IS_DROPPED;
+      field->add_flags(FIELD_IS_DROPPED);
       if (field->stored_in_db())
         ha_alter_info->handler_flags|= ALTER_DROP_STORED_COLUMN;
       else
@@ -7182,7 +7181,7 @@ static void update_altered_table(const Alter_inplace_info &ha_alter_info,
     for fields which participate in new indexes.
   */
   for (field_idx= 0; field_idx < altered_table->s->fields; ++field_idx)
-    altered_table->field[field_idx]->flags&= ~FIELD_IN_ADD_INDEX;
+    altered_table->field[field_idx]->clear_flags(FIELD_IN_ADD_INDEX);
 
   /*
     Go through array of newly added indexes and mark fields
@@ -7196,7 +7195,7 @@ static void update_altered_table(const Alter_inplace_info &ha_alter_info,
 
     end= key->key_part + key->user_defined_key_parts;
     for (key_part= key->key_part; key_part < end; key_part++)
-      altered_table->field[key_part->fieldnr]->flags|= FIELD_IN_ADD_INDEX;
+      altered_table->field[key_part->fieldnr]->add_flags(FIELD_IN_ADD_INDEX);
   }
 }
 
@@ -7268,8 +7267,8 @@ bool mysql_compare_tables(TABLE *table,
     Create_field *tmp_new_field= tmp_new_field_it++;
 
     /* Check that NULL behavior is the same. */
-    if ((tmp_new_field->flags & NOT_NULL_FLAG) !=
-	(uint) (field->flags & NOT_NULL_FLAG))
+    if ((tmp_new_field->flags() & NOT_NULL_FLAG) !=
+	(uint) (field->flags() & NOT_NULL_FLAG))
       DBUG_RETURN(false);
 
     /*
@@ -7281,7 +7280,7 @@ bool mysql_compare_tables(TABLE *table,
     */
     if (create_info->row_type == ROW_TYPE_DYNAMIC ||
         create_info->row_type == ROW_TYPE_PAGE ||
-	(tmp_new_field->flags & BLOB_FLAG) ||
+	(tmp_new_field->flags() & BLOB_FLAG) ||
 	(tmp_new_field->real_field_type() == MYSQL_TYPE_VARCHAR &&
 	create_info->row_type != ROW_TYPE_FIXED))
       create_info->table_options|= HA_OPTION_PACK_RECORD;
@@ -8052,7 +8051,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       3. unless it's a system versioning column (but see below).
     */
     if (drop && field->invisible < INVISIBLE_SYSTEM &&
-        !(field->flags & VERS_SYSTEM_FIELD &&
+        !(field->flags() & VERS_SYSTEM_FIELD &&
           !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)))
     {
       /* Reset auto_increment value if it was dropped */
@@ -8064,7 +8063,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
-      dropped_sys_vers_fields|= field->flags;
+      dropped_sys_vers_fields|= field->flags();
       drop_it.remove();
       dropped_fields= &table->tmp_set;
       bitmap_set_bit(dropped_fields, field->field_index);
@@ -8073,7 +8072,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
     /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
     if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
-        field->flags & VERS_SYSTEM_FIELD &&
+        field->flags() & VERS_SYSTEM_FIELD &&
         alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
@@ -8135,7 +8134,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
     }
     else if (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING &&
-             field->flags & VERS_SYSTEM_FIELD &&
+             field->flags() & VERS_SYSTEM_FIELD &&
              field->invisible < INVISIBLE_SYSTEM)
     {
       StringBuffer<NAME_LEN*3> tmp;
@@ -8144,19 +8143,19 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       goto err;
     }
     else if (drop && field->invisible < INVISIBLE_SYSTEM &&
-             field->flags & VERS_SYSTEM_FIELD &&
+             field->flags() & VERS_SYSTEM_FIELD &&
              !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
     {
       /* "dropping" a versioning field only hides it from the user */
       def= new (thd->mem_root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
       alter_info->flags|= ALTER_CHANGE_COLUMN;
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags() & VERS_SYS_START_FLAG)
         create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
       else
         create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
       new_create_list.push_back(def, thd->mem_root);
-      dropped_sys_vers_fields|= field->flags;
+      dropped_sys_vers_fields|= field->flags();
       drop_it.remove();
     }
     else
@@ -8178,9 +8177,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (alter)
       {
 	if ((def->default_value= alter->default_value))
-          def->flags&= ~NO_DEFAULT_VALUE_FLAG;
+          def->clear_flags(NO_DEFAULT_VALUE_FLAG);
         else
-          def->flags|= NO_DEFAULT_VALUE_FLAG;
+          def->add_flags(NO_DEFAULT_VALUE_FLAG);
 	alter_it.remove();
       }
     }
@@ -8233,13 +8232,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       flag to allow ALTER TABLE only if the table to be altered is empty.
     */
     if (!alter_ctx->implicit_default_value_error_field &&
-        !(~def->flags & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
+        !(~def->flags() & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
         def->type_handler()->validate_implicit_default_value(thd, *def))
     {
         alter_ctx->implicit_default_value_error_field= def;
         alter_ctx->error_if_not_empty= TRUE;
     }
-    if (def->flags & VERS_SYSTEM_FIELD &&
+    if (def->flags() & VERS_SYSTEM_FIELD &&
         !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
     {
       my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
@@ -8306,9 +8305,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (alter)
     {
       if ((def->default_value= alter->default_value)) // Use new default
-        def->flags&= ~NO_DEFAULT_VALUE_FLAG;
+        def->clear_flags(NO_DEFAULT_VALUE_FLAG);
       else
-        def->flags|= NO_DEFAULT_VALUE_FLAG;
+        def->add_flags(NO_DEFAULT_VALUE_FLAG);
       alter_it.remove();
     }
   }
@@ -8401,7 +8400,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (table->s->primary_key == i)
           modified_primary_key= TRUE;
         delete_index_stat= TRUE;
-        if (!(kfield->flags & VERS_SYSTEM_FIELD))
+        if (!(kfield->flags() & VERS_SYSTEM_FIELD))
           dropped_key_part= key_part_name;
 	continue;				// Field is removed
       }
@@ -8797,8 +8796,8 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
       }
 
       if ((old_field->is_equal(*new_field) == IS_EQUAL_NO) ||
-          ((new_field->flags & NOT_NULL_FLAG) &&
-           !(old_field->flags & NOT_NULL_FLAG)))
+          ((new_field->flags() & NOT_NULL_FLAG) &&
+           !(old_field->flags() & NOT_NULL_FLAG)))
       {
         if (!(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
         {
@@ -10812,7 +10811,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           {
             const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
             if (key_nr == 0 && to->s->keys > 0 &&
-                (to->key_info[0].key_part[0].field->flags &
+                (to->key_info[0].key_part[0].field->flags() &
                  AUTO_INCREMENT_FLAG))
               err_msg= ER_THD(thd, ER_DUP_ENTRY_AUTOINCREMENT_CASE);
             print_keydup_error(to,

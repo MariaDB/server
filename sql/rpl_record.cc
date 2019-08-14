@@ -482,7 +482,7 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
   for (Field **field_ptr= table->field+skip; *field_ptr; ++field_ptr)
   {
     Field *const f= *field_ptr;
-    if ((f->flags &  NO_DEFAULT_VALUE_FLAG) &&
+    if ((f->flags() &  NO_DEFAULT_VALUE_FLAG) &&
         (f->real_type() != MYSQL_TYPE_ENUM))
     {
       THD *thd= f->table->in_use;

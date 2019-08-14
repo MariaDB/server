@@ -39,7 +39,7 @@
 Cached_item *new_Cached_item(THD *thd, Item *item, bool pass_through_ref)
 {
   if (pass_through_ref && item->real_item()->type() == Item::FIELD_ITEM &&
-      !(((Item_field *) (item->real_item()))->field->flags & BLOB_FLAG))
+      !(((Item_field *) (item->real_item()))->field->flags() & BLOB_FLAG))
   {
     Item_field *real_item= (Item_field *) item->real_item();
     Field *cached_field= real_item->field;

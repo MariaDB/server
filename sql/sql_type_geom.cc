@@ -228,7 +228,6 @@ Field *Type_handler_geometry::make_conversion_table_field(MEM_ROOT *root,
 bool Type_handler_geometry::
        Column_definition_fix_attributes(Column_definition *def) const
 {
-  def->flags|= BLOB_FLAG;
   return false;
 }
 

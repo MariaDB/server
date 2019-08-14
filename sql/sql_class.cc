@@ -6708,7 +6708,7 @@ void THD::binlog_prepare_row_images(TABLE *table)
         {
           Field *field= (*ptr);
           if ((field->type() == MYSQL_TYPE_BLOB) &&
-              !(field->flags & PRI_KEY_FLAG))
+              !(field->flags() & PRI_KEY_FLAG))
             bitmap_clear_bit(&table->tmp_set, field->field_index);
         }
         break;

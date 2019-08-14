@@ -1180,7 +1180,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *field= *field_ptr;
-    if (field->flags & LONG_UNIQUE_HASH_FIELD)
+    if (field->flags() & LONG_UNIQUE_HASH_FIELD)
     {
       List<Item> *field_list= new (mem_root) List<Item>();
       Item *list_item;
@@ -2457,12 +2457,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
-    reg_field->flags|= flags;
+    reg_field->add_flags(flags);
     if (extra2.field_flags.str)
     {
       uchar flags= *extra2.field_flags.str++;
       if (flags & VERS_OPTIMIZED_UPDATE)
-        reg_field->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
+        reg_field->add_flags(VERS_UPDATE_UNVERSIONED_FLAG);
 
       reg_field->invisible= f_visibility(flags);
     }
@@ -2480,7 +2480,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         null_bit_pos-= 8;
       }
     }
-    if (!(reg_field->flags & NOT_NULL_FLAG))
+    if (!(reg_field->flags() & NOT_NULL_FLAG))
     {
       if (!(null_bit_pos= (null_bit_pos + 1) & 7))
         null_pos++;
@@ -2498,7 +2498,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
     if (f_no_default(attr.pack_flag))
-      reg_field->flags|= NO_DEFAULT_VALUE_FLAG;
+      reg_field->add_flags(NO_DEFAULT_VALUE_FLAG);
 
     if (reg_field->unireg_check == Field::NEXT_NUMBER)
       share->found_next_number_field= field_ptr;
@@ -2555,7 +2555,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->offset= offset;
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
-        hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
+        hash_field->add_flags(LONG_UNIQUE_HASH_FIELD);//Used in parse_vcol_defs
         keyinfo->flags|= HA_NOSAME;
         share->virtual_fields++;
         share->stored_fields--;
@@ -2773,14 +2773,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         keyinfo->key_length+= key_part_length_bytes;
 
         if (i == 0 && key != primary_key)
-          field->flags |= (((keyinfo->flags & HA_NOSAME ||
+          field->add_flags((((keyinfo->flags & HA_NOSAME ||
                             keyinfo->algorithm == HA_KEY_ALG_LONG_HASH) &&
                            (keyinfo->user_defined_key_parts == 1)) ?
-                           UNIQUE_KEY_FLAG : MULTIPLE_KEY_FLAG);
+                           UNIQUE_KEY_FLAG : MULTIPLE_KEY_FLAG));
         if (i == 0)
           field->key_start.set_bit(key);
         if (field->key_length() == key_part->length &&
-            !(field->flags & BLOB_FLAG) &&
+            !(field->flags() & BLOB_FLAG) &&
             keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
@@ -2796,10 +2796,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (!(key_part->key_part_flag & HA_REVERSE_SORT) &&
             usable_parts == i)
           usable_parts++;			// For FILESORT
-        field->flags|= PART_KEY_FLAG;
+        field->add_flags(PART_KEY_FLAG);
         if (key == primary_key)
         {
-          field->flags|= PRI_KEY_FLAG;
+          field->add_flags(PRI_KEY_FLAG);
           /*
             If this field is part of the primary key and all keys contains
             the primary key, then we can use any key to find this column
@@ -2807,7 +2807,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           if (ha_option & HA_PRIMARY_KEY_IN_READ_INDEX)
           {
             if (field->key_length() == key_part->length &&
-                !(field->flags & BLOB_FLAG))
+                !(field->flags() & BLOB_FLAG))
               field->part_of_key= share->keys_in_use;
             if (field->part_of_sortkey.is_set(key))
               field->part_of_sortkey= share->keys_in_use;
@@ -2964,7 +2964,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         share->stored_fields--;
-        if (reg_field->flags & BLOB_FLAG)
+        if (reg_field->flags() & BLOB_FLAG)
           share->virtual_not_stored_blob_fields++;
         /* Correct stored_rec_length as non stored fields are last */
         recpos= (uint) (reg_field->ptr - record);
@@ -3017,7 +3017,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 			    &share->next_number_key_offset,
                             &share->next_number_keypart)) < 0)
       goto err; // Wrong field definition
-    reg_field->flags |= AUTO_INCREMENT_FLAG;
+    reg_field->add_flags(AUTO_INCREMENT_FLAG);
   }
 
   if (share->blob_fields)
@@ -3032,7 +3032,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err;
     for (k=0, ptr= share->field ; *ptr ; ptr++, k++)
     {
-      if ((*ptr)->flags & BLOB_FLAG)
+      if ((*ptr)->flags() & BLOB_FLAG)
 	(*save++)= k;
     }
   }
@@ -3523,15 +3523,15 @@ static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol,
                                     bool check_constraint)
 {
   bool res;
-  uint32 flags= field->flags;
+  uint32 flags= field->cached_flags();
   if (check_constraint)
   {
     /* Check constraints can refer it itself */
-    field->flags|= NO_DEFAULT_VALUE_FLAG;
+    field->add_flags(NO_DEFAULT_VALUE_FLAG);
   }
   res= (vcol &&
         vcol->expr->walk(&Item::check_field_expression_processor, 0, field));
-  field->flags= flags;
+  field->set_flags(flags);
   return res;
 }
 
@@ -3813,7 +3813,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       {
         Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
         if (field->key_length() != key_part->length &&
-            !(field->flags & BLOB_FLAG))
+            !(field->flags() & BLOB_FLAG))
         {
           /*
             We are using only a prefix of the column as a key:
@@ -4029,8 +4029,8 @@ partititon_err:
     // copy PART_INDIRECT_KEY_FLAG that was set meanwhile by *some* thread
     for (uint i= 0 ; i < share->fields ; i++)
     {
-      if (share->field[i]->flags & PART_INDIRECT_KEY_FLAG)
-        outparam->field[i]->flags|= PART_INDIRECT_KEY_FLAG;
+      if (share->field[i]->flags() & PART_INDIRECT_KEY_FLAG)
+        outparam->field[i]->add_flags(PART_INDIRECT_KEY_FLAG);
     }
   }
 
@@ -6959,7 +6959,7 @@ void TABLE::mark_columns_needed_for_delete()
     Field **reg_field;
     for (reg_field= field ; *reg_field ; reg_field++)
     {
-      if ((*reg_field)->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG))
+      if ((*reg_field)->flags() & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG))
         mark_column_with_deps(*reg_field);
     }
     need_signal= true;
@@ -7212,7 +7212,7 @@ void TABLE::mark_columns_per_binlog_row_image()
             If set in the AI, then the blob is really needed, there is
             nothing we can do about it.
           */
-          if ((my_field->flags & PRI_KEY_FLAG) ||
+          if ((my_field->flags() & PRI_KEY_FLAG) ||
               (my_field->type() != MYSQL_TYPE_BLOB))
           {
             bitmap_set_bit(read_set, my_field->field_index);
@@ -7285,8 +7285,8 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
       bitmap_updated|= mark_virtual_column_with_deps(tmp_vfield);
     else if (tmp_vfield->vcol_info->stored_in_db ||
-             (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
-                                   PART_INDIRECT_KEY_FLAG)))
+             (tmp_vfield->flags() & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
+                                     PART_INDIRECT_KEY_FLAG)))
     {
       bitmap_set_bit(write_set, tmp_vfield->field_index);
       mark_virtual_column_with_deps(tmp_vfield);
@@ -7396,7 +7396,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
   {
     for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
     {
-      if ((*vfield_ptr)->flags & PART_KEY_FLAG)
+      if ((*vfield_ptr)->flags() & PART_KEY_FLAG)
         (*vfield_ptr)->vcol_info->expr->walk(&Item::add_field_to_set_processor,
                                              1, this);
     }
@@ -7404,7 +7404,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     {
       if (bitmap_is_set(&tmp_set, i))
       {
-        s->field[i]->flags|= PART_INDIRECT_KEY_FLAG;
+        s->field[i]->add_flags(PART_INDIRECT_KEY_FLAG);
         v_keys= TABLE_SHARE::V_KEYS;
       }
     }
@@ -7723,7 +7723,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
     (*reg_field)->part_of_key.set_bit(key);
     create_key_part_by_field(key_part_info, *reg_field, fld_idx+1);
     keyinfo->key_length += key_part_info->store_length;
-    (*reg_field)->flags|= PART_KEY_FLAG;
+    (*reg_field)->add_flags(PART_KEY_FLAG);
     key_start= FALSE;
     key_part_info++;
   }
@@ -8274,10 +8274,10 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       break;
     case VCOL_UPDATE_FOR_REPLACE:
       update= ((!vcol_info->stored_in_db &&
-                (vf->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
+                (vf->flags() & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
                 bitmap_is_set(read_set, vf->field_index)) ||
                update_all_columns);
-      if (update && (vf->flags & BLOB_FLAG))
+      if (update && (vf->flags() & BLOB_FLAG))
       {
         /*
           The row has been read into record[1] and Field_blob::value
@@ -8294,7 +8294,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     case VCOL_UPDATE_INDEXED_FOR_UPDATE:
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
       update= (!vcol_info->stored_in_db &&
-               (vf->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
+               (vf->flags() & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
                !bitmap_is_set(read_set, vf->field_index));
       swap_values= 1;
       break;
@@ -8310,7 +8310,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       DBUG_RESTORE_WRITE_SET(vf);
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name.str, field_error));
-      if (swap_values && (vf->flags & BLOB_FLAG))
+      if (swap_values && (vf->flags() & BLOB_FLAG))
       {
         /*
           Remember the read value to allow other update_virtual_field() calls
@@ -8393,7 +8393,7 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
       if (!update_command)
       {
         if (field->default_value &&
-            (field->default_value->flags || field->flags & BLOB_FLAG))
+            (field->default_value->flags || field->flags() & BLOB_FLAG))
           res|= (field->default_value->expr->save_in_field(field, 0) < 0);
       }
       else
@@ -8622,7 +8622,7 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
   for (Field **fld= field; *fld; fld++)
   {
     if (!bitmap_is_set(write_set, (*fld)->field_index) &&
-        !((*fld)->flags & NO_DEFAULT_VALUE_FLAG))
+        !((*fld)->flags() & NO_DEFAULT_VALUE_FLAG))
     {
       if (!(*fld)->is_null_in_record(s->default_values) &&
           (*fld)->validate_value_in_record_with_warn(thd, s->default_values) &&
@@ -9096,7 +9096,7 @@ int fields_in_hash_keyinfo(KEY *keyinfo)
 void setup_keyinfo_hash(KEY *key_info)
 {
   DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_LONG_HASH);
-  DBUG_ASSERT(key_info->key_part->field->flags & LONG_UNIQUE_HASH_FIELD);
+  DBUG_ASSERT(key_info->key_part->field->flags() & LONG_UNIQUE_HASH_FIELD);
   uint no_of_keyparts= fields_in_hash_keyinfo(key_info);
   key_info->key_part-= no_of_keyparts;
   key_info->user_defined_key_parts= key_info->usable_key_parts=
@@ -9111,8 +9111,8 @@ void setup_keyinfo_hash(KEY *key_info)
 void re_setup_keyinfo_hash(KEY *key_info)
 {
   DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_LONG_HASH);
-  DBUG_ASSERT(!(key_info->key_part->field->flags & LONG_UNIQUE_HASH_FIELD));
-  while(!(key_info->key_part->field->flags & LONG_UNIQUE_HASH_FIELD))
+  DBUG_ASSERT(!(key_info->key_part->field->flags() & LONG_UNIQUE_HASH_FIELD));
+  while(!(key_info->key_part->field->flags() & LONG_UNIQUE_HASH_FIELD))
     key_info->key_part++;
   key_info->user_defined_key_parts= key_info->usable_key_parts=
                key_info->ext_key_parts= 1;
@@ -9468,7 +9468,7 @@ bool TR_table::check(bool error)
   }
 
   if (table->field[FLD_ISO_LEVEL]->type() != MYSQL_TYPE_STRING ||
-      !(table->field[FLD_ISO_LEVEL]->flags & ENUM_FLAG))
+      !(table->field[FLD_ISO_LEVEL]->flags() & ENUM_FLAG))
   {
   wrong_enum:
     WARN_SCHEMA("Wrong field %d type (expected ENUM('READ-UNCOMMITTED', "
@@ -9615,7 +9615,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
     Spvar_definition *def= new (thd->mem_root) Spvar_definition(thd, *src);
     if (!def)
       return true;
-    def->flags&= (uint) ~NOT_NULL_FLAG;
+    def->clear_flags(NOT_NULL_FLAG);
     if ((def->sp_prepare_create_field(thd, thd->mem_root)) ||
         (defs->push_back(def, thd->mem_root)))
       return true;

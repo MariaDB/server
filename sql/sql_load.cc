@@ -283,7 +283,7 @@ static bool write_execute_load_query_log_event(THD *, const sql_exchange*, const
 
 bool Load_data_param::add_outvar_field(THD *thd, const Field *field)
 {
-  if (field->flags & BLOB_FLAG)
+  if (field->flags() & BLOB_FLAG)
   {
     m_use_blobs= true;
     m_fixed_length+= 256;  // Will be extended if needed

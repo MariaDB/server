@@ -1239,7 +1239,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
                                                   table == (*fld)->table)))
           return 1;
 
-        f->flags= (*fld)->flags;
+        f->set_flags((*fld)->cached_flags());
         f->invisible= (*fld)->invisible;
         f->null_ptr= null_ptr;
         f->null_bit= null_bit;

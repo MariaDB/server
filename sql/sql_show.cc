@@ -1686,7 +1686,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   enum enum_field_types field_type= field->type();
 
   has_default= (field->default_value ||
-                (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+                (!(field->flags() & NO_DEFAULT_VALUE_FLAG) &&
 		 !field->vers_sys_field() &&
                  field->unireg_check != Field::NEXT_NUMBER));
 
@@ -2107,7 +2107,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
 
-    uint flags = field->flags;
+    uint flags = field->flags();
 
     if (field->invisible > INVISIBLE_USER)
        continue;
@@ -2161,11 +2161,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     else
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags() & VERS_SYS_START_FLAG)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
       }
-      else if (field->flags & VERS_SYS_END_FLAG)
+      else if (field->flags() & VERS_SYS_END_FLAG)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
@@ -5901,13 +5901,13 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[5]->store(type.ptr(), type.length(), cs);
       table->field[5]->set_notnull();
     }
-    pos=(uchar*) ((field->flags & NOT_NULL_FLAG) ?  "NO" : "YES");
+    pos=(uchar*) ((field->flags() & NOT_NULL_FLAG) ?  "NO" : "YES");
     table->field[6]->store((const char*) pos,
                            strlen((const char*) pos), cs);
     store_column_type(table, field, cs, 7);
-    pos=(uchar*) ((field->flags & PRI_KEY_FLAG) ? "PRI" :
-                 (field->flags & UNIQUE_KEY_FLAG) ? "UNI" :
-                 (field->flags & MULTIPLE_KEY_FLAG) ? "MUL":"");
+    pos=(uchar*) ((field->flags() & PRI_KEY_FLAG) ? "PRI" :
+                 (field->flags() & UNIQUE_KEY_FLAG) ? "UNI" :
+                 (field->flags() & MULTIPLE_KEY_FLAG) ? "MUL":"");
     table->field[16]->store((const char*) pos,
                             strlen((const char*) pos), cs);
 
@@ -5930,9 +5930,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       else
         buf.set(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
     }
-    else if (field->flags & VERS_SYSTEM_FIELD)
+    else if (field->flags() & VERS_SYSTEM_FIELD)
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags() & VERS_SYS_START_FLAG)
       {
         table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
@@ -6596,7 +6596,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
                                   key_part->field->charset()->mbmaxlen, TRUE);
           table->field[10]->set_notnull();
         }
-        uint flags= key_part->field ? key_part->field->flags : 0;
+        uint flags= key_part->field ? key_part->field->flags() : 0;
         const char *pos=(char*) ((flags & NOT_NULL_FLAG) ? "" : "YES");
         table->field[12]->store(pos, strlen(pos), cs);
         if (!show_table->s->keys_in_use.is_set(i))

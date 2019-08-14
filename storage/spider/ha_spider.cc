@@ -10356,7 +10356,7 @@ int ha_spider::direct_update_rows_init()
         field = ((Item_field *)item)->field;
 
         if (field->type() == FIELD_TYPE_TIMESTAMP &&
-            field->flags & UNIQUE_KEY_FLAG)
+            field->flags() & UNIQUE_KEY_FLAG)
         {
           /*
             Spider cannot perform direct update on unique timestamp fields.

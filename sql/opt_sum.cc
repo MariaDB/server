@@ -904,7 +904,7 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
                                 Field* field, COND *cond,
                                 uint *range_fl, uint *prefix_len)
 {
-  if (!(field->flags & PART_KEY_FLAG))
+  if (!(field->flags() & PART_KEY_FLAG))
     return FALSE;                               // Not key field
 
   DBUG_ENTER("find_key_for_maxmin");
@@ -937,7 +937,7 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
 
       /* Check whether the index component is partial */
       Field *part_field= table->field[part->fieldnr-1];
-      if ((part_field->flags & BLOB_FLAG) ||
+      if ((part_field->flags() & BLOB_FLAG) ||
           part->length < part_field->key_length())
         break;
 

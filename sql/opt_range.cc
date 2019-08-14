@@ -3083,7 +3083,7 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
       uint16 max_key_part_length= (uint16) table->file->max_key_part_length();
       key_part->key= keys;
       key_part->part= 0;
-      if (field->flags & BLOB_FLAG)
+      if (field->flags() & BLOB_FLAG)
         key_part->length= max_key_part_length;
       else
       {
@@ -15815,7 +15815,7 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
   {
     field= key_part->field;
     store_length= key_part->store_length;
-    if (field->flags & BLOB_FLAG)
+    if (field->flags() & BLOB_FLAG)
     {
       // Byte 0 of a nullable key is the null-byte. If set, key is NULL.
       if (field->real_maybe_null() && *key)

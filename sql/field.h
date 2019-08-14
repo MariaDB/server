@@ -633,7 +633,95 @@ public:
   inline void print(String*);
 };
 
-class Field: public Value_source
+
+
+class Column_cached_flags
+{
+  uint32 m_flags;
+  static uint32 type_handler_implied_flags()
+  {
+    return ENUM_FLAG | SET_FLAG | BLOB_FLAG;
+  }
+  static bool is_valid(uint32 flags)
+  {
+    return (flags & type_handler_implied_flags()) == 0;
+  }
+public:
+  Column_cached_flags(uint32 flags)
+   :m_flags(flags)
+  {
+    DBUG_ASSERT(is_valid(m_flags));
+  }
+  void set_flags(uint32 flags)
+  {
+    m_flags= flags;
+    DBUG_ASSERT(is_valid(m_flags));
+  }
+  void add_flags(uint32 flags)
+  {
+    m_flags|= flags;
+    DBUG_ASSERT(is_valid(m_flags));
+  }
+  void clear_flags(uint32 flags) { m_flags&= ~flags; }
+  void mask_flags(uint32 flags) { m_flags&= flags; }
+  void swap_flags(Column_cached_flags *other)
+  {
+    DBUG_ASSERT(is_valid(m_flags));
+    DBUG_ASSERT(is_valid(other->m_flags));
+    swap_variables(uint32, m_flags, other->m_flags);
+  }
+
+  uint32 cached_flags() const { return m_flags; }
+
+  bool is_zerofill() const
+  {
+    return m_flags & ZEROFILL_FLAG;
+  }
+
+  bool has_update_default_function() const
+  {
+    return m_flags & ON_UPDATE_NOW_FLAG;
+  }
+
+  ha_storage_media field_storage_type() const
+  {
+    return (ha_storage_media)
+      ((m_flags >> FIELD_FLAGS_STORAGE_MEDIA) & 3);
+  }
+
+  void set_storage_type(ha_storage_media storage_type_arg)
+  {
+    DBUG_ASSERT(field_storage_type() == HA_SM_DEFAULT);
+    m_flags |= static_cast<uint32>(storage_type_arg) <<
+      FIELD_FLAGS_STORAGE_MEDIA;
+  }
+
+  column_format_type column_format() const
+  {
+    return (column_format_type)
+      ((m_flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
+  }
+
+  void set_column_format(column_format_type column_format_arg)
+  {
+    DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
+    m_flags |= static_cast<uint32>(column_format_arg) <<
+      FIELD_FLAGS_COLUMN_FORMAT;
+  }
+
+  bool vers_sys_field() const
+  {
+    return m_flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+  }
+
+  bool vers_update_unversioned() const
+  {
+    return m_flags & VERS_UPDATE_UNVERSIONED_FLAG;
+  }
+};
+
+
+class Field: public Value_source, public Column_cached_flags
 {
   Field(const Item &);				/* Prevent use of these */
   void operator=(Field &);
@@ -725,7 +813,6 @@ public:
 
   utype		unireg_check;
   uint32	field_length;		// Length of field
-  uint32	flags;
   uint16        field_index;            // field number in fields array
   uchar		null_bit;		// Bit used to test null bit
   /**
@@ -790,8 +877,15 @@ public:
     return Type_std_attributes(type_numeric_attributes(), dtcollation());
   }
 
-  bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
+  uint32 flags() const
+  {
+    return Column_cached_flags::cached_flags() | type_handler()->flags();
+  }
 
+  bool is_unsigned() const
+  {
+    return cached_flags() & UNSIGNED_FLAG;
+  }
   /**
     Convenience definition of a copy function returned by
     Field::get_copy_func()
@@ -1010,10 +1104,6 @@ public:
   }
   virtual int set_default();
 
-  bool has_update_default_function() const
-  {
-    return flags & ON_UPDATE_NOW_FLAG;
-  }
   bool has_default_now_unireg_check() const
   {
     return unireg_check == TIMESTAMP_DN_FIELD
@@ -1580,42 +1670,6 @@ public:
     return field_length / charset()->mbmaxlen;
   }
 
-  ha_storage_media field_storage_type() const
-  {
-    return (ha_storage_media)
-      ((flags >> FIELD_FLAGS_STORAGE_MEDIA) & 3);
-  }
-
-  void set_storage_type(ha_storage_media storage_type_arg)
-  {
-    DBUG_ASSERT(field_storage_type() == HA_SM_DEFAULT);
-    flags |= static_cast<uint32>(storage_type_arg) <<
-      FIELD_FLAGS_STORAGE_MEDIA;
-  }
-
-  column_format_type column_format() const
-  {
-    return (column_format_type)
-      ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
-  }
-
-  void set_column_format(column_format_type column_format_arg)
-  {
-    DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
-    flags |= static_cast<uint32>(column_format_arg) <<
-      FIELD_FLAGS_COLUMN_FORMAT;
-  }
-
-  bool vers_sys_field() const
-  {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
-  }
-
-  bool vers_update_unversioned() const
-  {
-    return flags & VERS_UPDATE_UNVERSIONED_FLAG;
-  }
-
   /*
     Validate a non-null field value stored in the given record
     according to the current thread settings, e.g. sql_mode.
@@ -1832,7 +1886,7 @@ public:
   }
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
-    return (flags & ZEROFILL_FLAG) ?
+    return is_zerofill() ?
            get_equal_zerofill_const_item(thd, ctx, const_item) :
            const_item;
   }
@@ -1850,7 +1904,7 @@ public:
   }
   int save_in_field(Field *to)
   {
-    return to->store(val_int(), MY_TEST(flags & UNSIGNED_FLAG));
+    return to->store(val_int(), is_unsigned());
   }
   bool is_equal(const Column_definition &new_field) const;
   uint row_pack_length() const { return pack_length(); }
@@ -1922,7 +1976,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
   virtual bool str_needs_quotes() { return TRUE; }
-  bool eq_cmp_as_binary() { return MY_TEST(flags & BINARY_FLAG); }
+  bool eq_cmp_as_binary() { return MY_TEST(flags() & BINARY_FLAG); }
   virtual uint length_size() const { return 0; }
   double pos_in_interval(Field *min, Field *max)
   {
@@ -2778,7 +2832,7 @@ public:
                  const LEX_CSTRING *field_name_arg)
     :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg)
-    { flags|= BINARY_FLAG; }
+    { add_flags(BINARY_FLAG); }
   int  store_hex_hybrid(const char *str, size_t length)
   {
     return store(str, length, &my_charset_bin);
@@ -3417,7 +3471,7 @@ public:
     {
       if (unireg_check == TIMESTAMP_UN_FIELD ||
           unireg_check == TIMESTAMP_DNUN_FIELD)
-        flags|= ON_UPDATE_NOW_FLAG;
+        add_flags(ON_UPDATE_NOW_FLAG);
     }
   const Type_handler *type_handler() const { return &type_handler_datetime; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
@@ -3955,16 +4009,13 @@ public:
     :Field_longstr((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
                    NONE, field_name_arg, collation),
     packlength(4)
-  {
-    flags|= BLOB_FLAG;
-  }
+  { }
   Field_blob(uint32 len_arg,bool maybe_null_arg,
              const LEX_CSTRING *field_name_arg,
              const DTCollation &collation, bool set_packlength)
     :Field_longstr((uchar*) 0,len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
                    NONE, field_name_arg, collation)
   {
-    flags|= BLOB_FLAG;
     packlength= set_packlength ? number_storage_requirement(len_arg) : 4;
   }
   Field_blob(uint32 packlength_arg)
@@ -4021,7 +4072,7 @@ public:
     if (from->type() == MYSQL_TYPE_BIT)
       return do_field_int;
     */
-    if (!(from->flags & BLOB_FLAG) || from->charset() != charset() ||
+    if (!(from->flags() & BLOB_FLAG) || from->charset() != charset() ||
         !from->compression_method() != !compression_method())
       return do_conv_blob;
     if (from->pack_length() != Field_blob::pack_length())
@@ -4260,9 +4311,7 @@ public:
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 	       unireg_check_arg, field_name_arg, collation),
     packlength(packlength_arg),typelib(typelib_arg)
-  {
-      flags|=ENUM_FLAG;
-  }
+  { }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   const Type_handler *type_handler() const { return &type_handler_enum; }
   enum ha_base_keytype key_type() const;
@@ -4298,7 +4347,7 @@ public:
   bool memcpy_field_possible(const Field *from) const { return false; }
   void make_empty_rec_reset(THD *thd)
   {
-    if (flags & NOT_NULL_FLAG)
+    if (flags() & NOT_NULL_FLAG)
     {
       set_notnull();
       store((longlong) 1, true);
@@ -4369,9 +4418,7 @@ public:
                 packlength_arg,
                 typelib_arg, collation),
       empty_set_string("", 0, collation.collation)
-    {
-      flags=(flags & ~ENUM_FLAG) | SET_FLAG;
-    }
+  { }
   void make_empty_rec_reset(THD *thd)
   {
     Field::make_empty_rec_reset(thd);
@@ -4661,6 +4708,7 @@ public:
 */
 class Column_definition: public Sql_alloc,
                          public Type_handler_hybrid_field_type,
+                         public Column_cached_flags,
                          public Column_definition_attributes
 {
   /**
@@ -4722,7 +4770,8 @@ public:
     for most of the types, or of bytes for BLOBs or numeric types.
   */
   uint32 char_length;
-  uint  decimals, flags, pack_length, key_length;
+  uint  decimals, pack_length, key_length;
+
   List<String> interval_list;
   engine_option_value *option_list;
 
@@ -4743,10 +4792,11 @@ public:
 
   Column_definition()
    :Type_handler_hybrid_field_type(&type_handler_null),
+    Column_cached_flags(0),
     compression_method_ptr(0),
     comment(null_clex_str),
     on_update(NULL), invisible(VISIBLE), char_length(0), decimals(0),
-    flags(0), pack_length(0), key_length(0),
+    pack_length(0), key_length(0),
     option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0),
     versioning(VERSIONING_NOT_SET), period(NULL)
@@ -4779,10 +4829,6 @@ public:
     /* Pack_length already calculated in sql_parse.cc */
     length*= charset->mbmaxlen;
     key_length= pack_length;
-  }
-  bool vers_sys_field() const
-  {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
   }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();
@@ -4847,7 +4893,15 @@ public:
   bool prepare_stage2_typelib(const char *type_name, uint field_flags,
                               uint *dup_val_count);
   uint pack_flag_numeric(uint dec) const;
-  uint sign_length() const { return flags & UNSIGNED_FLAG ? 0 : 1; }
+  uint32 flags() const
+  {
+    return cached_flags() | type_handler()->flags();
+  }
+  bool is_unsigned() const
+  {
+    return cached_flags() & UNSIGNED_FLAG;
+  }
+  uint sign_length() const { return is_unsigned() ? 0 : 1; }
   bool check_length(uint mysql_errno, uint max_allowed_length) const;
   bool fix_attributes_real(uint default_length);
   bool fix_attributes_int(uint default_length);
@@ -4860,18 +4914,6 @@ public:
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
 
-  ha_storage_media field_storage_type() const
-  {
-    return (ha_storage_media)
-      ((flags >> FIELD_FLAGS_STORAGE_MEDIA) & 3);
-  }
-
-  column_format_type column_format() const
-  {
-    return (column_format_type)
-      ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
-  }
-
   bool has_default_function() const
   {
     return unireg_check != Field::NONE;
@@ -4883,7 +4925,7 @@ public:
   {
     return Column_definition_attributes::make_field(share, mem_root, addr,
                                                     type_handler(),
-                                                    field_name_arg, flags);
+                                                    field_name_arg, flags());
   }
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const LEX_CSTRING *field_name_arg) const
@@ -4906,7 +4948,7 @@ public:
     length= other.length;
     char_length= other.char_length;
     decimals= other.decimals;
-    flags= other.flags;
+    set_flags(other.cached_flags());
     pack_length= other.pack_length;
     key_length= other.key_length;
     unireg_check= other.unireg_check;
@@ -5168,7 +5210,7 @@ public:
     org_col_name(field->field_name),
     length(field->field_length),
     flags(field->table->maybe_null ?
-          (field->flags & ~NOT_NULL_FLAG) : field->flags),
+          (field->flags() & ~NOT_NULL_FLAG) : field->flags()),
     decimals(field->decimals())
   {
     normalize();

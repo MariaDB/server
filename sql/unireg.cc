@@ -104,7 +104,7 @@ static uchar *extra2_write_field_properties(uchar *pos,
   while (Create_field *cf= it++)
   {
     uchar flags= cf->invisible;
-    if (cf->flags & VERS_UPDATE_UNVERSIONED_FLAG)
+    if (cf->flags() & VERS_UPDATE_UNVERSIONED_FLAG)
       flags|= VERS_OPTIMIZED_UPDATE;
     *pos++= flags;
   }
@@ -141,7 +141,7 @@ bool has_extra2_field_flags(List<Create_field> &create_fields)
   {
     if (f->invisible)
       return true;
-    if (f->flags & VERS_UPDATE_UNVERSIONED_FLAG)
+    if (f->flags() & VERS_UPDATE_UNVERSIONED_FLAG)
       return true;
   }
   return false;
@@ -1147,7 +1147,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     Field *regfield= tmp.make_field(&share, thd->mem_root, &addr,
                                     field->type_handler(),
                                     &field->field_name,
-                                    field->flags);
+                                    field->flags());
     if (!regfield)
     {
       error= true;
@@ -1157,7 +1157,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     /* save_in_field() will access regfield->table->in_use */
     regfield->init(&table);
 
-    if (!(field->flags & NOT_NULL_FLAG))
+    if (!(field->flags() & NOT_NULL_FLAG))
     {
       *regfield->null_ptr|= regfield->null_bit;
       null_count++;

@@ -1269,7 +1269,7 @@ bool ha_tokudb::has_auto_increment_flag(uint* index) {
     uint ai_index = 0;
     for (uint i = 0; i < table_share->fields; i++, ai_index++) {
         Field* field = table->field[i];
-        if (field->flags & AUTO_INCREMENT_FLAG) {
+        if (field->flags() & AUTO_INCREMENT_FLAG) {
             ai_found = true;
             *index = ai_index;
             break;
@@ -6933,7 +6933,7 @@ void ha_tokudb::trace_create_table_info(TABLE* form) {
                 i,
                 field->field_name.str,
                 field->type(),
-                field->flags);
+                field->flags());
         }
         for (i = 0; i < form->s->keys; i++) {
             KEY *key = &form->key_info[i];
@@ -6953,7 +6953,7 @@ void ha_tokudb::trace_create_table_info(TABLE* form) {
                     key_part->length,
                     field->field_name.str,
                     field->type(),
-                    field->flags);
+                    field->flags());
             }
         }
     }

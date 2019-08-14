@@ -2533,7 +2533,6 @@ bool Type_handler_string::
 bool Type_handler_blob_common::
        Column_definition_fix_attributes(Column_definition *def) const
 {
-  def->flags|= BLOB_FLAG;
   return def->check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_BLOBLENGTH);
 }
 
@@ -2543,7 +2542,7 @@ bool Type_handler_year::
 {
   if (!def->length || def->length != 2)
     def->length= 4; // Default length
-  def->flags|= ZEROFILL_FLAG | UNSIGNED_FLAG;
+  def->add_flags(ZEROFILL_FLAG | UNSIGNED_FLAG);
   return false;
 }
 
@@ -2563,7 +2562,7 @@ bool Type_handler_double::
 bool Type_handler_timestamp_common::
        Column_definition_fix_attributes(Column_definition *def) const
 {
-  def->flags|= UNSIGNED_FLAG;
+  def->add_flags(UNSIGNED_FLAG);
   return def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
 }
 
@@ -2624,7 +2623,7 @@ void Type_handler_typelib::
                                               Column_definition *def,
                                               const Field *field) const
 {
-  DBUG_ASSERT(def->flags & (ENUM_FLAG | SET_FLAG));
+  DBUG_ASSERT(def->flags() & (ENUM_FLAG | SET_FLAG));
   def->interval= field->get_typelib();
 }
 

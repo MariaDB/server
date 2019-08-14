@@ -5791,11 +5791,11 @@ add_key_field(JOIN *join,
         !(field->table->pos_in_table_list->is_materialized_derived() &&
           field->table->is_created())) ||
        (field->table->pos_in_table_list->is_materialized_derived() &&
-        !field->table->is_created() && !(field->flags & BLOB_FLAG))))
+        !field->table->is_created() && !(field->flags() & BLOB_FLAG))))
   {
     optimize= KEY_OPTIMIZE_EQ;
   }   
-  else if (!(field->flags & PART_KEY_FLAG))
+  else if (!(field->flags() & PART_KEY_FLAG))
   {
     // Don't remove column IS NULL on a LEFT JOIN table
     if (eq_func && (*value)->type() == Item::NULL_ITEM &&
@@ -5851,7 +5851,7 @@ add_key_field(JOIN *join,
          Field BETWEEN ...
          Field IN ...
       */
-      if (field->flags & PART_KEY_FLAG)
+      if (field->flags() & PART_KEY_FLAG)
         stat[0].key_dependent|=used_tables;
 
       bool is_const=1;
@@ -9523,7 +9523,7 @@ void JOIN_TAB::calc_used_field_length(bool max_fl)
   {
     if (bitmap_is_set(read_set, field->field_index))
     {
-      uint flags=field->flags;
+      uint flags= field->flags();
       fields++;
       rec_length+=field->pack_length();
       if (flags & BLOB_FLAG)
@@ -17257,7 +17257,7 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
   {
     Field *field= ((Item_field*) real_item)->field;
 
-    if ((field->flags & NOT_NULL_FLAG) &&
+    if ((field->flags() & NOT_NULL_FLAG) &&
         field->type_handler()->cond_notnull_field_isnull_to_field_eq_zero())
     {
       /* fix to replace 'NULL' dates with '0' (shreeve@uci.edu) */
@@ -17326,7 +17326,7 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
 
     if (top_level_arg) // "auto_increment_column IS NULL" is the only condition
     {
-      if (field->flags & AUTO_INCREMENT_FLAG && !field->table->maybe_null &&
+      if (field->flags() & AUTO_INCREMENT_FLAG && !field->table->maybe_null &&
           (thd->variables.option_bits & OPTION_AUTO_IS_NULL) &&
           (thd->first_successful_insert_id_in_prev_stmt > 0 &&
            thd->substitute_null_with_insert_id))
@@ -17886,17 +17886,17 @@ void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr, bool 
 
   if (force_not_null_cols)
   {
-    field->flags|= NOT_NULL_FLAG;
+    field->add_flags(NOT_NULL_FLAG);
     field->null_ptr= NULL;
   }
 
-  if (!(field->flags & NOT_NULL_FLAG))
+  if (!(field->flags() & NOT_NULL_FLAG))
     m_null_count++;
 
   table->s->reclength+= field->pack_length();
 
   // Assign it here, before update_data_type_statistics() changes m_blob_count
-  if (field->flags & BLOB_FLAG)
+  if (field->flags() & BLOB_FLAG)
     table->s->blob_field[m_blob_count]= fieldnr;
 
   table->field[fieldnr]= field;
@@ -18176,7 +18176,7 @@ bool Create_tmp_table::add_fields(THD *thd,
 
           add_field(table, new_field, fieldnr++, param->force_not_null_cols);
 
-	  if (!(new_field->flags & NOT_NULL_FLAG))
+	  if (!(new_field->flags() & NOT_NULL_FLAG))
           {
             /*
               new_field->maybe_null() is still false, it will be
@@ -18256,7 +18256,7 @@ bool Create_tmp_table::add_fields(THD *thd,
       if (item->marker == 4 && item->maybe_null)
       {
         m_group_null_items++;
-	new_field->flags|= GROUP_FLAG;
+	new_field->add_flags(GROUP_FLAG);
       }
     }
     if (!--m_hidden_field_count)
@@ -18412,7 +18412,7 @@ bool Create_tmp_table::finalize(THD *thd,
     uint length;
     bzero((uchar*) recinfo,sizeof(*recinfo));
 
-    if (!(field->flags & NOT_NULL_FLAG))
+    if (!(field->flags() & NOT_NULL_FLAG))
     {
       recinfo->null_bit= (uint8)1 << (m_null_count & 7);
       recinfo->null_pos= m_null_count/8;
@@ -18680,7 +18680,7 @@ bool Create_tmp_table::finalize(THD *thd,
          i++, reg_field++, m_key_part_info++)
     {
       m_key_part_info->field= *reg_field;
-      (*reg_field)->flags |= PART_KEY_FLAG;
+      (*reg_field)->add_flags(PART_KEY_FLAG);
       if (m_key_part_info == keyinfo->key_part)
         (*reg_field)->key_start.set_bit(0);
       m_key_part_info->null_bit= (*reg_field)->null_bit;
@@ -18898,7 +18898,7 @@ void Virtual_tmp_table::setup_field_pointers()
   for (Field **cur_ptr= field; *cur_ptr; ++cur_ptr)
   {
     Field *cur_field= *cur_ptr;
-    if ((cur_field->flags & NOT_NULL_FLAG))
+    if ((cur_field->flags() & NOT_NULL_FLAG))
       cur_field->move_field(field_pos);
     else
     {
@@ -19138,7 +19138,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       seg->language= field->charset()->number;
       seg->length=   keyinfo->key_part[i].length;
       seg->start=    keyinfo->key_part[i].offset;
-      if (field->flags & BLOB_FLAG)
+      if (field->flags() & BLOB_FLAG)
       {
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
@@ -19156,7 +19156,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	    keyinfo->key_part[i].length > 32)
 	  seg->flag|= HA_SPACE_PACK;
       }
-      if (!(field->flags & NOT_NULL_FLAG))
+      if (!(field->flags() & NOT_NULL_FLAG))
       {
 	seg->null_bit= field->null_bit;
 	seg->null_pos= (uint) (field->null_ptr - (uchar*) table->record[0]);
@@ -19333,7 +19333,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       seg->language= field->charset()->number;
       seg->length=   keyinfo->key_part[i].length;
       seg->start=    keyinfo->key_part[i].offset;
-      if (field->flags & BLOB_FLAG)
+      if (field->flags() & BLOB_FLAG)
       {
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
@@ -19350,7 +19350,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	    keyinfo->key_part[i].length > 4)
 	  seg->flag|= HA_SPACE_PACK;
       }
-      if (!(field->flags & NOT_NULL_FLAG))
+      if (!(field->flags() & NOT_NULL_FLAG))
       {
 	seg->null_bit= field->null_bit;
 	seg->null_pos= (uint) (field->null_ptr - (uchar*) table->record[0]);
@@ -23529,7 +23529,7 @@ static bool copy_blobs(Field **ptr)
 {
   for (; *ptr ; ptr++)
   {
-    if ((*ptr)->flags & BLOB_FLAG)
+    if ((*ptr)->flags() & BLOB_FLAG)
       if (((Field_blob *) (*ptr))->copy())
 	return 1;				// Error
   }
@@ -23540,7 +23540,7 @@ static void free_blobs(Field **ptr)
 {
   for (; *ptr ; ptr++)
   {
-    if ((*ptr)->flags & BLOB_FLAG)
+    if ((*ptr)->flags() & BLOB_FLAG)
       ((Field_blob *) (*ptr))->free();
   }
 }
@@ -24788,7 +24788,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
         item->name= ref->name;
       }
       pos= item;
-      if (item->field->flags & BLOB_FLAG)
+      if (item->field->flags() & BLOB_FLAG)
       {
 	if (!(pos= new (thd->mem_root) Item_copy_string(thd, pos)))
 	  goto err;

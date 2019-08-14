@@ -212,9 +212,9 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp = crp->Next;                       // Data_Type
     crp->Kdata->SetValue(type, i);
 
-    if (fp->flags & ZEROFILL_FLAG)
+    if (fp->is_zerofill())
       crp->Nulls[i] = 'Z';
-    else if (fp->flags & UNSIGNED_FLAG)
+    else if (fp->is_unsigned())
       crp->Nulls[i] = 'U';
     else                  // X means TEXT field
       crp->Nulls[i] = (v == 'X') ? 'V' : v;

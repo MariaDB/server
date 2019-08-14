@@ -6706,7 +6706,7 @@ get_innobase_type_from_mysql_type(
 	DBUG_ASSERT((ulint)MYSQL_TYPE_FLOAT < 256);
 	DBUG_ASSERT((ulint)MYSQL_TYPE_DECIMAL < 256);
 
-	if (field->flags & UNSIGNED_FLAG) {
+	if (field->is_unsigned()) {
 
 		*unsigned_flag = DATA_UNSIGNED;
 	} else {
@@ -10788,7 +10788,7 @@ create_table_info_t::create_table_def()
 				vers_row = DATA_VERS_START;
 			} else if (i == m_form->s->vers.end_fieldno) {
 				vers_row = DATA_VERS_END;
-			} else if (!(field->flags
+			} else if (!(field->flags()
 				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
 				vers_row = DATA_VERSIONED;
 			}

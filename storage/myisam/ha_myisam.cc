@@ -291,7 +291,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
           /* No blobs here */
           if (j == 0)
             keydef[i].flag|= HA_PACK_KEY;
-          if (!(field->flags & ZEROFILL_FLAG) &&
+          if (!field->is_zerofill() &&
               (field->type() == MYSQL_TYPE_STRING ||
                field->type() == MYSQL_TYPE_VAR_STRING ||
                ((int) (pos->key_part[j].length - field->decimals())) >= 4))
@@ -376,7 +376,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
     if (!found)
       break;
 
-    if (found->flags & BLOB_FLAG)
+    if (found->flags() & BLOB_FLAG)
       recinfo_pos->type= FIELD_BLOB;
     else if (found->real_type() == MYSQL_TYPE_TIMESTAMP)
     {
@@ -398,8 +398,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
     else if (found->zero_pack())
       recinfo_pos->type= FIELD_SKIP_ZERO;
     else
-      recinfo_pos->type= ((length <= 3 ||
-                           (found->flags & ZEROFILL_FLAG)) ?
+      recinfo_pos->type= ((length <= 3 || found->is_zerofill()) ?
                           FIELD_NORMAL :
                           found->type() == MYSQL_TYPE_STRING ||
                           found->type() == MYSQL_TYPE_VAR_STRING ?
@@ -964,7 +963,7 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
       {
         uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
         set_if_bigger(new_vreclength, vf_end);
-        indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+        indexed_vcols|= ((*vf)->flags() & PART_KEY_FLAG) != 0;
       }
     }
     if (!indexed_vcols)
@@ -2180,7 +2179,7 @@ int ha_myisam::create(const char *name, TABLE *table_arg,
   DBUG_ENTER("ha_myisam::create");
 
   for (i= 0; i < share->virtual_fields && !create_flags; i++)
-    if (table_arg->vfield[i]->flags & PART_KEY_FLAG)
+    if (table_arg->vfield[i]->flags() & PART_KEY_FLAG)
       create_flags|= HA_CREATE_RELIES_ON_SQL_LAYER;
   for (i= 0; i < share->keys && !create_flags; i++)
     if (table_arg->key_info[i].flags & HA_USES_PARSER)

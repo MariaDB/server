@@ -573,7 +573,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
           /* No blobs here */
           if (j == 0)
             keydef[i].flag|= HA_PACK_KEY;
-          if (!(field->flags & ZEROFILL_FLAG) &&
+          if (!(field->is_zerofill()) &&
               (field->type() == MYSQL_TYPE_STRING ||
                field->type() == MYSQL_TYPE_VAR_STRING ||
                ((int) (pos->key_part[j].length - field->decimals())) >= 4))
@@ -653,20 +653,19 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
     if (!found)
       break;
 
-    if (found->flags & BLOB_FLAG)
+    if (found->flags() & BLOB_FLAG)
       recinfo_pos->type= FIELD_BLOB;
     else if (found->type() == MYSQL_TYPE_TIMESTAMP)
       recinfo_pos->type= FIELD_NORMAL;
     else if (found->type() == MYSQL_TYPE_VARCHAR)
       recinfo_pos->type= FIELD_VARCHAR;
     else if (!(options & HA_OPTION_PACK_RECORD) ||
-             (found->zero_pack() && (found->flags & PRI_KEY_FLAG)))
+             (found->zero_pack() && (found->flags() & PRI_KEY_FLAG)))
       recinfo_pos->type= FIELD_NORMAL;
     else if (found->zero_pack())
       recinfo_pos->type= FIELD_SKIP_ZERO;
     else
-      recinfo_pos->type= ((length <= 3 ||
-                           (found->flags & ZEROFILL_FLAG)) ?
+      recinfo_pos->type= ((length <= 3 || found->is_zerofill()) ?
                           FIELD_NORMAL :
                           found->type() == MYSQL_TYPE_STRING ||
                           found->type() == MYSQL_TYPE_VAR_STRING ?

@@ -177,11 +177,11 @@ unpack_row_old(rpl_group_info *rgi,
     uint32 const mask= NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG;
 
     DBUG_PRINT("debug", ("flags = 0x%x, mask = 0x%x, flags & mask = 0x%x",
-                         (*field_ptr)->flags, mask,
-                         (*field_ptr)->flags & mask));
+                         (*field_ptr)->flags(), mask,
+                         (*field_ptr)->flags() & mask));
 
     if (event_type == WRITE_ROWS_EVENT &&
-        ((*field_ptr)->flags & mask) == mask)
+        ((*field_ptr)->flags() & mask) == mask)
     {
       rgi->rli->report(ERROR_LEVEL, ER_NO_DEFAULT_FOR_FIELD, NULL,
                   "Field `%s` of table `%s`.`%s` "

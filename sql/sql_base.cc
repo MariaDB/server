@@ -5723,7 +5723,7 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     table->used_fields++;
   }
   if (table->get_fields_in_item_tree)
-    field->flags|= GET_FIXED_FIELDS_FLAG;
+    field->add_flags(GET_FIXED_FIELDS_FLAG);
   DBUG_VOID_RETURN;
 }
 
@@ -8603,7 +8603,7 @@ static bool not_null_fields_have_null_values(TABLE *table)
       if (ff != of)
       {
         // copy after-update flags to of, copy before-update flags to ff
-        swap_variables(uint32, of->flags, ff->flags);
+        ff->swap_flags(of);
         if (ff->is_real_null())
         {
           ff->set_notnull(); // for next row WHERE condition in UPDATE

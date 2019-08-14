@@ -340,10 +340,10 @@ static bool set_up_field_array(THD *thd, TABLE *table,
   ptr= table->field;
   while ((field= *(ptr++))) 
   {
-    if (field->flags & GET_FIXED_FIELDS_FLAG)
+    if (field->flags() & GET_FIXED_FIELDS_FLAG)
     {
       if (table->versioned(VERS_TRX_ID)
-          && unlikely(field->flags & VERS_SYSTEM_FIELD))
+          && unlikely(field->flags() & VERS_SYSTEM_FIELD))
       {
         my_error(ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED, MYF(0));
         DBUG_RETURN(TRUE);
@@ -377,10 +377,10 @@ static bool set_up_field_array(THD *thd, TABLE *table,
   ptr= table->field;
   while ((field= *(ptr++))) 
   {
-    if (field->flags & GET_FIXED_FIELDS_FLAG)
+    if (field->flags() & GET_FIXED_FIELDS_FLAG)
     {
-      field->flags&= ~GET_FIXED_FIELDS_FLAG;
-      field->flags|= FIELD_IN_PART_FUNC_FLAG;
+      field->clear_flags(GET_FIXED_FIELDS_FLAG);
+      field->add_flags(FIELD_IN_PART_FUNC_FLAG);
       if (likely(!result))
       {
         if (!is_sub_part && part_info->column_list)
@@ -424,7 +424,7 @@ static bool set_up_field_array(THD *thd, TABLE *table,
             performance reasons.
         */
 
-        if (unlikely(field->flags & BLOB_FLAG))
+        if (unlikely(field->flags() & BLOB_FLAG))
         {
           my_error(ER_BLOB_FIELD_IN_PART_FUNC_ERROR, MYF(0));
           result= TRUE;
@@ -489,7 +489,7 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     ptr= table->field;
     while ((field= *(ptr++)))
     {
-      if (field->flags & FIELD_IN_PART_FUNC_FLAG)
+      if (field->flags() & FIELD_IN_PART_FUNC_FLAG)
         num_part_fields++;
     }
     size_field_array= (num_part_fields+1)*sizeof(Field*);
@@ -503,7 +503,7 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     ptr= table->field;
     while ((field= *(ptr++)))
     {
-      if (field->flags & FIELD_IN_PART_FUNC_FLAG)
+      if (field->flags() & FIELD_IN_PART_FUNC_FLAG)
         field_array[num_part_fields++]= field;
     }
     field_array[num_part_fields]=0;
@@ -571,7 +571,7 @@ static void clear_indicator_in_key_fields(KEY *key_info)
   KEY_PART_INFO *key_part;
   uint key_parts= key_info->user_defined_key_parts, i;
   for (i= 0, key_part=key_info->key_part; i < key_parts; i++, key_part++)
-    key_part->field->flags&= (~GET_FIXED_FIELDS_FLAG);
+    key_part->field->clear_flags(GET_FIXED_FIELDS_FLAG);
 }
 
 
@@ -591,7 +591,7 @@ static void set_indicator_in_key_fields(KEY *key_info)
   KEY_PART_INFO *key_part;
   uint key_parts= key_info->user_defined_key_parts, i;
   for (i= 0, key_part=key_info->key_part; i < key_parts; i++, key_part++)
-    key_part->field->flags|= GET_FIXED_FIELDS_FLAG;
+    key_part->field->add_flags(GET_FIXED_FIELDS_FLAG);
 }
 
 
@@ -624,7 +624,7 @@ static void check_fields_in_PF(Field **ptr, bool *all_fields,
   do
   {
   /* Check if the field of the PF is part of the current key investigated */
-    if ((*ptr)->flags & GET_FIXED_FIELDS_FLAG)
+    if ((*ptr)->flags() & GET_FIXED_FIELDS_FLAG)
       *some_fields= TRUE; 
     else
       *all_fields= FALSE;
@@ -651,7 +651,7 @@ static void clear_field_flag(TABLE *table)
   DBUG_ENTER("clear_field_flag");
 
   for (ptr= table->field; *ptr; ptr++)
-    (*ptr)->flags&= (~GET_FIXED_FIELDS_FLAG);
+    (*ptr)->clear_flags(GET_FIXED_FIELDS_FLAG);
   DBUG_VOID_RETURN;
 }
 
@@ -695,7 +695,7 @@ static bool handle_list_of_fields(THD *thd, List_iterator<const char> it,
     is_list_empty= FALSE;
     field= find_field_in_table_sef(table, field_name);
     if (likely(field != 0))
-      field->flags|= GET_FIXED_FIELDS_FLAG;
+      field->add_flags(GET_FIXED_FIELDS_FLAG);
     else
     {
       my_error(ER_FIELD_NOT_FOUND_PART_ERROR, MYF(0));
@@ -716,7 +716,7 @@ static bool handle_list_of_fields(THD *thd, List_iterator<const char> it,
       for (i= 0; i < num_key_parts; i++)
       {
         Field *field= table->key_info[primary_key].key_part[i].field;
-        field->flags|= GET_FIXED_FIELDS_FLAG;
+        field->add_flags(GET_FIXED_FIELDS_FLAG);
       }
     }
     else
@@ -3889,10 +3889,10 @@ static bool set_PF_fields_in_key(KEY *key_info, uint key_length)
     if (key_length < key_part->length)
       break;
     key_length-= key_part->length;
-    if (key_part->field->flags & FIELD_IN_PART_FUNC_FLAG)
+    if (key_part->field->flags() & FIELD_IN_PART_FUNC_FLAG)
     {
       found_part_field= TRUE;
-      key_part->field->flags|= GET_FIXED_FIELDS_FLAG;
+      key_part->field->add_flags(GET_FIXED_FIELDS_FLAG);
     }
   }
   DBUG_RETURN(found_part_field);
@@ -3919,7 +3919,7 @@ static bool check_part_func_bound(Field **ptr)
 
   for (; *ptr; ptr++)
   {
-    if (!((*ptr)->flags & GET_FIXED_FIELDS_FLAG))
+    if (!((*ptr)->flags() & GET_FIXED_FIELDS_FLAG))
     {
       result= FALSE;
       break;
@@ -8565,7 +8565,7 @@ static uint32 get_next_partition_via_walking(PARTITION_ITERATOR *part_iter)
   while (part_iter->field_vals.cur != part_iter->field_vals.end)
   {
     longlong dummy;
-    field->store(part_iter->field_vals.cur++, field->flags & UNSIGNED_FLAG);
+    field->store(part_iter->field_vals.cur++, field->is_unsigned());
     if ((part_iter->part_info->is_sub_partitioned() &&
          !part_iter->part_info->get_part_partition_id(part_iter->part_info,
                                                       &part_id, &dummy)) ||
@@ -8589,7 +8589,7 @@ static uint32 get_next_subpartition_via_walking(PARTITION_ITERATOR *part_iter)
     part_iter->field_vals.cur= part_iter->field_vals.start;
     return NOT_A_PARTITION_ID;
   }
-  field->store(part_iter->field_vals.cur++, field->flags & UNSIGNED_FLAG);
+  field->store(part_iter->field_vals.cur++, field->is_unsigned());
   if (part_iter->part_info->get_subpartition_id(part_iter->part_info,
                                                 &res))
     return NOT_A_PARTITION_ID;

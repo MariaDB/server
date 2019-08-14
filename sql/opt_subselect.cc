@@ -4392,7 +4392,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     field->part_of_key.clear_all();
     field->part_of_sortkey.clear_all();
     field->unireg_check= Field::NONE;
-    field->flags= (NOT_NULL_FLAG | BINARY_FLAG | NO_DEFAULT_VALUE_FLAG);
+    field->set_flags(NOT_NULL_FLAG | BINARY_FLAG | NO_DEFAULT_VALUE_FLAG);
     field->reset_fields();
     field->init(table);
     field->orig_table= NULL;

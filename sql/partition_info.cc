@@ -902,7 +902,7 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
     part_field_list.push_back(row_end->field_name.str, thd->mem_root);
     DBUG_ASSERT(part_field_list.elements == 1);
     // needed in handle_list_of_fields()
-    row_end->flags|= GET_FIXED_FIELDS_FLAG;
+    row_end->add_flags(GET_FIXED_FIELDS_FLAG);
   }
 
   if (alter_add)

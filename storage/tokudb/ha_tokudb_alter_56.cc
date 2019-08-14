@@ -1257,11 +1257,6 @@ int ha_tokudb::alter_table_expand_columns(
     return error;
 }
 
-// Return true if the field is an unsigned int
-static bool is_unsigned(Field *f) {
-    return (f->flags & UNSIGNED_FLAG) != 0;
-}
-
 // Return the starting offset in the value for a particular index (selected by
 // idx) of a particular field (selected by expand_field_num)
 // TODO: replace this?
@@ -1300,8 +1295,8 @@ int ha_tokudb::alter_table_expand_one_column(
     uchar pad_char;
     switch (old_field_type) {
     case toku_type_int:
-        assert_always(is_unsigned(old_field) == is_unsigned(new_field));
-        if (is_unsigned(old_field))
+        assert_always(old_field->is_unsigned() == new_field->is_unsigned());
+        if (old_field->is_unsigned())
             operation = UPDATE_OP_EXPAND_UINT;
         else
             operation = UPDATE_OP_EXPAND_INT;
@@ -1550,7 +1545,7 @@ static bool change_field_type_is_supported(Field* old_field,
     if (is_int_type(old_type)) {
         // int and unsigned int expansion
         if (is_int_type(new_type) &&
-            is_unsigned(old_field) == is_unsigned(new_field))
+            old_field->is_unsigned() == new_field->is_unsigned())
             return change_fixed_length_is_supported(old_field, new_field, ctx);
         else
             return false;

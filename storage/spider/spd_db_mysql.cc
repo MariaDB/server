@@ -401,7 +401,7 @@ int spider_db_mbase_row::store_to_field(
     field->reset();
   } else {
     field->set_notnull();
-    if (field->flags & BLOB_FLAG)
+    if (field->flags() & BLOB_FLAG)
     {
       DBUG_PRINT("info", ("spider blob field"));
       if (

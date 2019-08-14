@@ -834,7 +834,7 @@ int ha_tina::find_current_row(uchar *buf)
         if (!is_enum)
           goto err;
       }
-      if ((*field)->flags & BLOB_FLAG)
+      if ((*field)->flags() & BLOB_FLAG)
       {
         Field_blob *blob= *(Field_blob**) field;
         uchar *src, *tgt;

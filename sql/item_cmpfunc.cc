@@ -357,7 +357,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       if (0 == field_cmp)
       {
         Item *tmp= new (thd->mem_root) Item_int_with_ref(thd, field->val_int(), *item,
-                                         MY_TEST(field->flags & UNSIGNED_FLAG));
+                                                         field->is_unsigned());
         if (tmp)
           thd->change_item_tree(item, tmp);
         result= 1;					// Item was replaced
