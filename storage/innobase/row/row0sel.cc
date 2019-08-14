@@ -3240,14 +3240,29 @@ row_sel_build_prev_vers_for_mysql(
 	return(err);
 }
 
+/** Helper class to cache clust_rec and old_ver */
+class Row_sel_get_clust_rec_for_mysql
+{
+	const rec_t *cached_clust_rec;
+	rec_t *cached_old_vers;
+
+public:
+	Row_sel_get_clust_rec_for_mysql() :
+	cached_clust_rec(NULL), cached_old_vers(NULL) {}
+
+	dberr_t operator()(row_prebuilt_t *prebuilt, dict_index_t *sec_index,
+			const rec_t *rec, que_thr_t *thr, const rec_t **out_rec,
+			ulint **offsets, mem_heap_t **offset_heap,
+			dtuple_t **vrow, mtr_t *mtr);
+};
+
 /*********************************************************************//**
 Retrieves the clustered index record corresponding to a record in a
 non-clustered index. Does the necessary locking. Used in the MySQL
 interface.
 @return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, or error code */
-static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-row_sel_get_clust_rec_for_mysql(
+Row_sel_get_clust_rec_for_mysql::operator()(
 /*============================*/
 	row_prebuilt_t*	prebuilt,/*!< in: prebuilt struct in the handle */
 	dict_index_t*	sec_index,/*!< in: secondary index where rec resides */
@@ -3439,15 +3454,36 @@ row_sel_get_clust_rec_for_mysql(
 			    clust_rec, clust_index, *offsets,
 			    &trx->read_view)) {
 
-			/* The following call returns 'offsets' associated with
-			'old_vers' */
-			err = row_sel_build_prev_vers_for_mysql(
-				&trx->read_view, clust_index, prebuilt,
-				clust_rec, offsets, offset_heap, &old_vers,
-				vrow, mtr);
+			if (clust_rec != cached_clust_rec) {
+				/* The following call returns 'offsets' associated with
+				'old_vers' */
+				err = row_sel_build_prev_vers_for_mysql(
+					&trx->read_view, clust_index, prebuilt,
+					clust_rec, offsets, offset_heap, &old_vers,
+					vrow, mtr);
 
-			if (err != DB_SUCCESS || old_vers == NULL) {
+				if (err != DB_SUCCESS) {
 
+					goto err_exit;
+				}
+				cached_clust_rec = clust_rec;
+				cached_old_vers = old_vers;
+			} else {
+				err = DB_SUCCESS;
+				old_vers = cached_old_vers;
+
+				/* The offsets need not be same for the latest
+				version of clust_rec and its old version
+				old_vers. Re-calculate the offsets for old_vers. */
+
+				if (old_vers != NULL) {
+					*offsets = rec_get_offsets(
+						old_vers, clust_index, *offsets,
+						true, ULINT_UNDEFINED, offset_heap);
+				}
+			}
+
+			if (old_vers == NULL) {
 				goto err_exit;
 			}
 
@@ -4178,6 +4214,7 @@ row_search_mvcc(
 	dtuple_t*	vrow = NULL;
 	const rec_t*	result_rec = NULL;
 	const rec_t*	clust_rec;
+	Row_sel_get_clust_rec_for_mysql row_sel_get_clust_rec_for_mysql;
 	dberr_t		err				= DB_SUCCESS;
 	ibool		unique_search			= FALSE;
 	ibool		mtr_has_extra_clust_latch	= FALSE;

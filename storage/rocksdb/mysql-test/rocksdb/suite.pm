@@ -20,8 +20,8 @@ my $sst_dump=
 return "RocksDB is not compiled, no sst_dump" unless $sst_dump;
 $ENV{MARIAROCKS_SST_DUMP}="$sst_dump";
 
-# Temporarily disable testing under valgrind, due to MDEV-12439 
-return "RocksDB tests disabled under valgrind" if ($::opt_valgrind);
+## Temporarily disable testing under valgrind, due to MDEV-12439
+#return "RocksDB tests disabled under valgrind" if ($::opt_valgrind);
 
 
 bless { };
