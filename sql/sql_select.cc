@@ -816,7 +816,10 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         else
           vers_conditions.init(SYSTEM_TIME_ALL);
       }
-      else if (!vers_conditions.is_set())
+      else if (!vers_conditions.is_set() &&
+               /* We cannot optimize REPLACE .. SELECT because it may need
+                  to call vers_set_hist_part() to update history. */
+               thd->lex->sql_command != SQLCOM_REPLACE_SELECT)
       {
         table->partition_names= newx List<String>;
         String *s= newx String(vers_info->now_part->partition_name,
