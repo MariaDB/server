@@ -43,7 +43,6 @@ public:
 public:
   virtual ~Type_handler_geometry() {}
   const Name name() const override { return m_name_geometry; }
-  uint32 flags() const override { return BLOB_FLAG; }
   enum_field_types field_type() const override { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const override { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;

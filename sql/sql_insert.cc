@@ -317,8 +317,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
 static bool has_no_default_value(THD *thd, Field *field, TABLE_LIST *table_list)
 {
-  if ((field->flags() & NO_DEFAULT_VALUE_FLAG) &&
-      field->real_type() != MYSQL_TYPE_ENUM)
+  if ((field->flags & NO_DEFAULT_VALUE_FLAG) && field->real_type() != MYSQL_TYPE_ENUM)
   {
     bool view= false;
     if (table_list)
@@ -3228,7 +3227,7 @@ static void unlink_blobs(TABLE *table)
 {
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if ((*ptr)->flags() & BLOB_FLAG)
+    if ((*ptr)->flags & BLOB_FLAG)
       ((Field_blob *) (*ptr))->clear_temporary();
   }
 }
@@ -3239,7 +3238,7 @@ static void free_delayed_insert_blobs(TABLE *table)
 {
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if ((*ptr)->flags() & BLOB_FLAG)
+    if ((*ptr)->flags & BLOB_FLAG)
       ((Field_blob *) *ptr)->free();
   }
 }
@@ -3251,7 +3250,7 @@ static void set_delayed_insert_blobs(TABLE *table)
 {
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if ((*ptr)->flags() & BLOB_FLAG)
+    if ((*ptr)->flags & BLOB_FLAG)
     {
       Field_blob *blob= ((Field_blob *) *ptr);
       uchar *data= blob->get_ptr();
@@ -4238,7 +4237,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       DBUG_RETURN(NULL);
 
     if (item->maybe_null)
-      cr_field->clear_flags(NOT_NULL_FLAG);
+      cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 

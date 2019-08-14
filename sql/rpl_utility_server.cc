@@ -1044,7 +1044,7 @@ public:
                          " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
                          handler->name().ptr(), target_field->field_name.str,
                          tmp->field_length, tmp->decimals(), TRUE,
-                         tmp->flags(), tmp->pack_length()));
+                         tmp->flags, tmp->pack_length()));
     return false;
   }
 };

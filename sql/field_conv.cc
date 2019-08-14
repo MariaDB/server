@@ -400,7 +400,8 @@ static void do_field_varbinary_pre50(Copy_field *copy)
 void Field::do_field_int(Copy_field *copy)
 {
   longlong value= copy->from_field->val_int();
-  copy->to_field->store(value, copy->from_field->is_unsigned());
+  copy->to_field->store(value,
+                        MY_TEST(copy->from_field->flags & UNSIGNED_FLAG));
 }
 
 void Field::do_field_real(Copy_field *copy)
@@ -715,7 +716,7 @@ void Copy_field::set(Field *to,Field *from,bool save)
   else
    do_copy=0;
 
-  if ((to->flags() & BLOB_FLAG) && save)
+  if ((to->flags & BLOB_FLAG) && save)
     do_copy2= do_save_blob;
   else
     do_copy2= to->get_copy_func(from);

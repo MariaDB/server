@@ -1045,7 +1045,7 @@ static int create_toku_key_descriptor_for_key(KEY* key, uchar* buf) {
             assert_always (num_bytes_in_field < 256);
             *pos = (uchar)(num_bytes_in_field & 255);
             pos++;
-            *pos = field->is_unsigned() ? 1 : 0;
+            *pos = (field->flags & UNSIGNED_FLAG) ? 1 : 0;
             pos++;
             break;
         //
@@ -3057,8 +3057,8 @@ static bool fields_are_same_type(Field* a, Field* b) {
     case MYSQL_TYPE_LONGLONG:
         // length, unsigned, auto increment
         if (a->pack_length() != b->pack_length() ||
-            a->is_unsigned() != b->is_unsigned() ||
-            (a->flags() & AUTO_INCREMENT_FLAG) != (b->flags() & AUTO_INCREMENT_FLAG)) {
+            (a->flags & UNSIGNED_FLAG) != (b->flags & UNSIGNED_FLAG) ||
+            (a->flags & AUTO_INCREMENT_FLAG) != (b->flags & AUTO_INCREMENT_FLAG)) {
             retval = false;
             goto cleanup;
         }
@@ -3067,8 +3067,8 @@ static bool fields_are_same_type(Field* a, Field* b) {
     case MYSQL_TYPE_FLOAT:
         // length, unsigned, auto increment
         if (a->pack_length() != b->pack_length() ||
-            a->is_unsigned() != b->is_unsigned() ||
-            (a->flags() & AUTO_INCREMENT_FLAG) != (b->flags() & AUTO_INCREMENT_FLAG)) {
+            (a->flags & UNSIGNED_FLAG) != (b->flags & UNSIGNED_FLAG) ||
+            (a->flags & AUTO_INCREMENT_FLAG) != (b->flags & AUTO_INCREMENT_FLAG)) {
             retval = false;
             goto cleanup;
         }
@@ -3076,7 +3076,7 @@ static bool fields_are_same_type(Field* a, Field* b) {
     case MYSQL_TYPE_NEWDECIMAL:
         // length, unsigned
         if (a->pack_length() != b->pack_length() ||
-            a->is_unsigned() != b->is_unsigned()) {
+            (a->flags & UNSIGNED_FLAG) != (b->flags & UNSIGNED_FLAG)) {
             retval = false;
             goto cleanup;
         }

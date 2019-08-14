@@ -1303,7 +1303,7 @@ Field *Item_sum_min_max::create_tmp_field(MEM_ROOT *root,
     Field *field= ((Item_field*) args[0])->field;
     if ((field= field->create_tmp_field(root, table, true)))
     {
-      DBUG_ASSERT((field->flags() & NOT_NULL_FLAG) == 0);
+      DBUG_ASSERT((field->flags & NOT_NULL_FLAG) == 0);
       field->field_name= name;
     }
     DBUG_RETURN(field);

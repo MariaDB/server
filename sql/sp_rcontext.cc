@@ -256,7 +256,7 @@ bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
                                                 m_column.length, src)))
       {
         *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
-        def->clear_flags(NOT_NULL_FLAG);
+        def->flags&= (uint) ~NOT_NULL_FLAG;
         rc= def->sp_prepare_create_field(thd, thd->mem_root);
       }
     }
@@ -323,7 +323,7 @@ bool Table_ident::resolve_table_rowtype_ref(THD *thd,
           (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
         break;
       src[0]->field_name.str= tmp.str; // Restore field name, just in case.
-      def->clear_flags(NOT_NULL_FLAG);
+      def->flags&= (uint) ~NOT_NULL_FLAG;
       if ((rc= def->sp_prepare_create_field(thd, thd->mem_root)))
         break;
       defs.push_back(def, thd->mem_root);

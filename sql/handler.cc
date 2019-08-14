@@ -3259,7 +3259,7 @@ int handler::update_auto_increment()
       1).
       Ignore negative values.
     */
-    if ((longlong) nr > 0 || table->next_number_field->is_unsigned())
+    if ((longlong) nr > 0 || (table->next_number_field->flags & UNSIGNED_FLAG))
       adjust_next_insert_id_after_explicit_value(nr);
     insert_id_for_cur_row= 0; // didn't generate anything
     DBUG_RETURN(0);
@@ -7262,11 +7262,11 @@ bool Vers_parse_info::is_end(const char *name) const
 }
 bool Vers_parse_info::is_start(const Create_field &f) const
 {
-  return f.flags() & VERS_SYS_START_FLAG;
+  return f.flags & VERS_SYS_START_FLAG;
 }
 bool Vers_parse_info::is_end(const Create_field &f) const
 {
-  return f.flags() & VERS_SYS_END_FLAG;
+  return f.flags & VERS_SYS_END_FLAG;
 }
 
 static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int flags, bool integer)
@@ -7278,13 +7278,13 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
-  f->set_flags(flags | NOT_NULL_FLAG);
+  f->flags= flags | NOT_NULL_FLAG;
   if (integer)
   {
     DBUG_ASSERT(0); // Not implemented yet
     f->set_handler(&type_handler_vers_trx_id);
     f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
-    f->add_flags(UNSIGNED_FLAG);
+    f->flags|= UNSIGNED_FLAG;
   }
   else
   {
@@ -7370,7 +7370,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
          !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
-      f->add_flags(VERS_UPDATE_UNVERSIONED_FLAG);
+      f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
     }
   } // while (Create_field *f= it++)
 
@@ -7460,7 +7460,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
-      if (f->change.length && f->flags() & VERS_SYSTEM_FIELD)
+      if (f->change.length && f->flags & VERS_SYSTEM_FIELD)
       {
         my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->field_name.str);
         return true;
@@ -7502,7 +7502,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       while (Create_field *f= it++)
       {
         if (f->versioning == Column_definition::WITHOUT_VERSIONING)
-          f->add_flags(VERS_UPDATE_UNVERSIONED_FLAG);
+          f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
 
         if (f->change.str && (start.streq(f->change) || end.streq(f->change)))
         {
@@ -7545,7 +7545,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
     int remove= 2;
     while (remove && (f= it++))
     {
-      if (f->flags() & VERS_SYSTEM_FIELD)
+      if (f->flags & VERS_SYSTEM_FIELD)
       {
         it.remove();
         remove--;
@@ -7561,13 +7561,13 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
   while ((f= it++))
   {
-    if (f->flags() & VERS_SYS_START_FLAG)
+    if (f->flags & VERS_SYS_START_FLAG)
     {
       f_start= f;
       if (f_end)
         break;
     }
-    else if (f->flags() & VERS_SYS_END_FLAG)
+    else if (f->flags & VERS_SYS_END_FLAG)
     {
       f_end= f;
       if (f_start)
@@ -7643,7 +7643,7 @@ static bool is_some_bigint(const Create_field *f)
 
 static bool is_versioning_bigint(const Create_field *f)
 {
-  return is_some_bigint(f) && f->is_unsigned() &&
+  return is_some_bigint(f) && f->flags & UNSIGNED_FLAG &&
          f->length == MY_INT64_NUM_DECIMAL_DIGITS - 1;
 }
 
@@ -7674,9 +7674,9 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
   List_iterator<Create_field> it(alter_info->create_list);
   while (Create_field *f= it++)
   {
-    if (!row_start && f->flags() & VERS_SYS_START_FLAG)
+    if (!row_start && f->flags & VERS_SYS_START_FLAG)
       row_start= f;
-    else if (!row_end && f->flags() & VERS_SYS_END_FLAG)
+    else if (!row_end && f->flags & VERS_SYS_END_FLAG)
       row_end= f;
   }
 
@@ -7725,7 +7725,7 @@ bool Table_period_info::check_field(const Create_field* f,
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), f->field_name.str);
     res= true;
   }
-  else if (f->vcol_info || f->flags() & VERS_SYSTEM_FIELD)
+  else if (f->vcol_info || f->flags & VERS_SYSTEM_FIELD)
   {
     my_error(ER_PERIOD_FIELD_WRONG_ATTRIBUTES, MYF(0),
              f->field_name.str, "GENERATED ALWAYS AS");
@@ -7808,7 +7808,7 @@ Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
     if (period.start.streq(f->field_name) || period.end.streq(f->field_name))
     {
       f->period= &period_info;
-      f->add_flags(NOT_NULL_FLAG);
+      f->flags|= NOT_NULL_FLAG;
     }
   }
   return false;

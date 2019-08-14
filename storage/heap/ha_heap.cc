@@ -664,7 +664,7 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       seg->length=  (uint) key_part->length;
       seg->flag=    key_part->key_part_flag;
 
-      if (field->flags() & (ENUM_FLAG | SET_FLAG))
+      if (field->flags & (ENUM_FLAG | SET_FLAG))
         seg->charset= &my_charset_bin;
       else
         seg->charset= field->charset_for_protocol();
@@ -678,7 +678,7 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
 	seg->null_bit= 0;
 	seg->null_pos= 0;
       }
-      if (field->flags() & AUTO_INCREMENT_FLAG &&
+      if (field->flags & AUTO_INCREMENT_FLAG &&
           table_arg->found_next_number_field &&
           key == share->next_number_index)
       {

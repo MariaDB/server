@@ -209,7 +209,7 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     Field_definition *field_def= &sequence_structure[field_no];
     if (my_strcasecmp(system_charset_info, field_def->field_name,
                       field->field_name.str) ||
-        field->flags() != field_def->flags ||
+        field->flags != field_def->flags ||
         field->type_handler() != field_def->type_handler)
     {
       reason= field->field_name.str;
@@ -253,7 +253,7 @@ bool prepare_sequence_fields(THD *thd, List<Create_field> *fields)
     new_field->length=      field_info->length;
     new_field->char_length= field_info->length;
     new_field->comment=     field_info->comment;
-    new_field->set_flags(field_info->flags);
+    new_field->flags=       field_info->flags;
     if (unlikely(fields->push_back(new_field)))
       DBUG_RETURN(TRUE); /* purify inspected */
   }

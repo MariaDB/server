@@ -1258,11 +1258,11 @@ int Field::store_hex_hybrid(const char *str, size_t length)
 
   if (length > 8)
   {
-    nr= is_unsigned() ? ULONGLONG_MAX : LONGLONG_MAX;
+    nr= flags & UNSIGNED_FLAG ? ULONGLONG_MAX : LONGLONG_MAX;
     goto warn;
   }
   nr= (ulonglong) longlong_from_hex_hybrid(str, length);
-  if (length == 8 && !is_unsigned() && nr > LONGLONG_MAX)
+  if ((length == 8) && !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
   {
     nr= LONGLONG_MAX;
     goto warn;
@@ -1384,7 +1384,7 @@ error:
 
 bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
 {
-  DBUG_ASSERT(!(flags() & BLOB_FLAG));
+  DBUG_ASSERT(!(flags & BLOB_FLAG));
   int res= item->save_in_field(this, true);
   return res != 0 && res != 3;
 }
@@ -1402,9 +1402,9 @@ Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
   dec(dec_arg),zerofill(zero_arg),unsigned_flag(unsigned_arg)
 {
   if (zerofill)
-    add_flags(ZEROFILL_FLAG);
+    flags|=ZEROFILL_FLAG;
   if (unsigned_flag)
-    add_flags(UNSIGNED_FLAG);
+    flags|=UNSIGNED_FLAG;
 }
 
 
@@ -1725,8 +1725,7 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
- :Column_cached_flags(null_ptr_arg ? 0 : NOT_NULL_FLAG),
-  ptr(ptr_arg), invisible(VISIBLE),
+  :ptr(ptr_arg), invisible(VISIBLE),
   null_ptr(null_ptr_arg), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
@@ -1736,6 +1735,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
   default_value(0)
 {
+  flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
   comment.length=0;
   field_index= 0;   
@@ -1988,7 +1988,7 @@ void Field::make_send_field(Send_field *field)
   field->col_name= field_name;
   field->length=field_length;
   field->set_handler(type_handler());
-  field->flags= table->maybe_null ? (flags() & ~NOT_NULL_FLAG) : flags();
+  field->flags=table->maybe_null ? (flags & ~NOT_NULL_FLAG) : flags;
   field->decimals= 0;
 }
 
@@ -2086,7 +2086,7 @@ my_decimal* Field_int::val_decimal(my_decimal *decimal_value)
 bool Field_int::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
 {
   DBUG_ASSERT(marked_for_read());
-  Longlong_hybrid nr(val_int(), is_unsigned());
+  Longlong_hybrid nr(val_int(), (flags & UNSIGNED_FLAG));
   return int_to_datetime_with_warn(get_thd(), nr, ltime,
                                    fuzzydate, table->s, field_name.str);
 }
@@ -2143,7 +2143,7 @@ Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 {
   m_collation= collation;
   if (collation.collation->state & MY_CS_BINSORT)
-    add_flags(BINARY_FLAG);
+    flags|=BINARY_FLAG;
 }
 
 
@@ -2242,7 +2242,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
   copy->str= ptr;
   copy->length= pack_length_in_rec();
   copy->field= this;
-  if (flags() & BLOB_FLAG)
+  if (flags & BLOB_FLAG)
   {
     copy->type= CACHE_BLOB;
     copy->length-= portable_sizeof_char_ptr;
@@ -2311,7 +2311,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
     return 0;
 
   if (tmp->table->maybe_null)
-    tmp->clear_flags(NOT_NULL_FLAG);
+    tmp->flags&= ~NOT_NULL_FLAG;
   tmp->table= new_table;
   tmp->key_start.init(0);
   tmp->part_of_key.init(0);
@@ -2321,10 +2321,10 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
     Try not to reset it, or explain why it needs to be reset.
   */
   tmp->unireg_check= Field::NONE;
-  tmp->mask_flags(NOT_NULL_FLAG | UNSIGNED_FLAG |
-                  ZEROFILL_FLAG | BINARY_FLAG |
-                  VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
-                  VERS_UPDATE_UNVERSIONED_FLAG);
+  tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
+                ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG |
+                VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
+                VERS_UPDATE_UNVERSIONED_FLAG);
   tmp->reset_fields();
   tmp->invisible= VISIBLE;
   return tmp;
@@ -2368,9 +2368,9 @@ Field *Field::create_tmp_field(MEM_ROOT *mem_root, TABLE *new_table,
   if ((new_field= make_new_field(mem_root, new_table, new_table == table)))
   {
     new_field->init_for_tmp_table(this, new_table);
-    new_field->add_flags(cached_flags() & NO_DEFAULT_VALUE_FLAG);
+    new_field->flags|= flags & NO_DEFAULT_VALUE_FLAG;
     if (maybe_null_arg)
-      new_field->clear_flags(NOT_NULL_FLAG); // Because of outer join
+      new_field->flags&= ~NOT_NULL_FLAG; // Because of outer join
   }
   return new_field;
 }
@@ -3117,7 +3117,7 @@ Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
   Field *field= new (root) Field_new_decimal(NULL, field_length,
                                              maybe_null() ? (uchar*) "" : 0, 0,
                                              NONE, &field_name,
-                                             dec, is_zerofill(),
+                                             dec, flags & ZEROFILL_FLAG,
                                              unsigned_flag);
   if (field)
     field->init_for_make_new_field(new_table, orig_table);
@@ -3493,9 +3493,10 @@ bool Field_new_decimal::compatible_field_size(uint field_metadata,
 bool Field_new_decimal::is_equal(const Column_definition &new_field) const
 {
   return ((new_field.type_handler() == type_handler()) &&
-          (new_field.is_unsigned() == is_unsigned()) &&
-          ((new_field.flags() & AUTO_INCREMENT_FLAG) <=
-           (uint) (flags() & AUTO_INCREMENT_FLAG)) &&
+          ((new_field.flags & UNSIGNED_FLAG) ==
+           (uint) (flags & UNSIGNED_FLAG)) &&
+          ((new_field.flags & AUTO_INCREMENT_FLAG) <=
+           (uint) (flags & AUTO_INCREMENT_FLAG)) &&
           (new_field.length == max_display_length()) &&
           (new_field.decimals == dec));
 }
@@ -3560,7 +3561,7 @@ Field_new_decimal::unpack(uchar* to, const uchar *from, const uchar *from_end,
 Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
                                               Item *const_item)
 {
-  if (is_zerofill())
+  if (flags & ZEROFILL_FLAG)
     return Field_num::get_equal_zerofill_const_item(thd, ctx, const_item);
   switch (ctx.subst_constraint()) {
   case IDENTITY_SUBST:
@@ -4845,7 +4846,7 @@ bool Field_real::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
 Item *Field_real::get_equal_const_item(THD *thd, const Context &ctx,
                                        Item *const_item)
 {
-  if (is_zerofill())
+  if (flags & ZEROFILL_FLAG)
     return Field_num::get_equal_zerofill_const_item(thd, ctx, const_item);
   switch (ctx.subst_constraint()) {
   case IDENTITY_SUBST:
@@ -4999,16 +5000,16 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   unireg_check_arg, field_name_arg)
 {
   /* For 4.0 MYD and 4.0 InnoDB compatibility */
-  add_flags(UNSIGNED_FLAG);
+  flags|= UNSIGNED_FLAG;
   if (unireg_check != NONE)
   {
     /*
       We mark the flag with TIMESTAMP_FLAG to indicate to the client that
       this field will be automaticly updated on insert.
     */
-    add_flags(TIMESTAMP_FLAG);
+    flags|= TIMESTAMP_FLAG;
     if (unireg_check != TIMESTAMP_DN_FIELD)
-      add_flags(ON_UPDATE_NOW_FLAG);
+      flags|= ON_UPDATE_NOW_FLAG;
   }
 }
 
@@ -8168,6 +8169,7 @@ Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
    packlength(blob_pack_length)
 {
   DBUG_ASSERT(blob_pack_length <= 4); // Only pack lengths 1-4 supported currently
+  flags|= BLOB_FLAG;
   share->blob_fields++;
   /* TODO: why do not fill table->s->blob_field array here? */
 }
@@ -8235,7 +8237,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
 
   if (table && table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
   {
-    DBUG_ASSERT(!f_is_hex_escape(flags()));
+    DBUG_ASSERT(!f_is_hex_escape(flags));
     DBUG_ASSERT(field_charset() == cs);
     DBUG_ASSERT(length <= max_data_length());
     
@@ -8283,7 +8285,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     goto oom_error;
   tmp= const_cast<char*>(value.ptr());
 
-  if (f_is_hex_escape(flags()))
+  if (f_is_hex_escape(flags))
   {
     copy_length= my_copy_with_hex_escaping(field_charset(),
                                            tmp, new_length,
@@ -8687,7 +8689,7 @@ void Field_blob::make_send_field(Send_field *field)
 
 bool Field_blob::make_empty_rec_store_default_value(THD *thd, Item *item)
 {
-  DBUG_ASSERT(flags() & BLOB_FLAG);
+  DBUG_ASSERT(flags & BLOB_FLAG);
   int res= item->save_in_field(this, true);
   DBUG_ASSERT(res != 3); // Field_blob never returns 3
   if (res)
@@ -9226,9 +9228,8 @@ bool Field_num::eq_def(const Field *field) const
 
 bool Field_num::is_equal(const Column_definition &new_field) const
 {
-  if ((new_field.is_unsigned() != is_unsigned()) ||
-      ((new_field.flags() & AUTO_INCREMENT_FLAG) >
-       (flags() & AUTO_INCREMENT_FLAG)))
+  if (((new_field.flags & UNSIGNED_FLAG) != (flags & UNSIGNED_FLAG)) ||
+      ((new_field.flags & AUTO_INCREMENT_FLAG) > (flags & AUTO_INCREMENT_FLAG)))
     return false;
 
   const Type_handler *th= type_handler(), *new_th = new_field.type_handler();
@@ -9327,7 +9328,7 @@ Field_bit::Field_bit(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
   DBUG_ENTER("Field_bit::Field_bit");
   DBUG_PRINT("enter", ("ptr_arg: %p, null_ptr_arg: %p, len_arg: %u, bit_len: %u, bytes_in_rec: %u",
                        ptr_arg, null_ptr_arg, len_arg, bit_len, bytes_in_rec));
-  add_flags(UNSIGNED_FLAG);
+  flags|= UNSIGNED_FLAG;
   /*
     Ensure that Field::eq() can distinguish between two different bit fields.
     (two bit fields that are not null, may have same ptr and null_ptr)
@@ -9845,7 +9846,7 @@ Field_bit_as_char::Field_bit_as_char(uchar *ptr_arg, uint32 len_arg,
   :Field_bit(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, 0, 0,
              unireg_check_arg, field_name_arg)
 {
-  add_flags(UNSIGNED_FLAG);
+  flags|= UNSIGNED_FLAG;
   bit_len= 0;
   bytes_in_rec= (len_arg + 7) / 8;
 }
@@ -10070,7 +10071,7 @@ void Column_definition::create_length_to_internal_length_bit()
 void Column_definition::create_length_to_internal_length_newdecimal()
 {
   DBUG_ASSERT(length < UINT_MAX32);
-  uint prec= get_decimal_precision((uint)length, decimals, is_unsigned());
+  uint prec= get_decimal_precision((uint)length, decimals, flags & UNSIGNED_FLAG);
   key_length= pack_length= my_decimal_get_binary_size(prec, decimals);
 }
 
@@ -10177,7 +10178,7 @@ bool Column_definition::fix_attributes_decimal()
     return true;
   }
   length= my_decimal_precision_to_length((uint) length, decimals,
-                                         is_unsigned());
+                                         flags & UNSIGNED_FLAG);
   pack_length= my_decimal_get_binary_size((uint) length, decimals);
   return false;
 }
@@ -10241,7 +10242,7 @@ bool Column_definition::check(THD *thd)
       if (def_expr->type() == Item::NULL_ITEM)
       {
         default_value= 0;
-        if ((flags() & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) == NOT_NULL_FLAG)
+        if ((flags & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) == NOT_NULL_FLAG)
         {
           my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
           DBUG_RETURN(1);
@@ -10250,7 +10251,7 @@ bool Column_definition::check(THD *thd)
     }
   }
 
-  if (default_value && (flags() & AUTO_INCREMENT_FLAG))
+  if (default_value && (flags & AUTO_INCREMENT_FLAG))
   {
     my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
     DBUG_RETURN(1);
@@ -10284,7 +10285,7 @@ bool Column_definition::check(THD *thd)
     unireg_check= unireg_check == Field::NONE ? Field::TIMESTAMP_UN_FIELD
                                               : Field::TIMESTAMP_DNUN_FIELD;
   }
-  else if (flags() & AUTO_INCREMENT_FLAG)
+  else if (flags & AUTO_INCREMENT_FLAG)
     unireg_check= Field::NEXT_NUMBER;
 
   if (type_handler()->Column_definition_fix_attributes(this))
@@ -10299,7 +10300,7 @@ bool Column_definition::check(THD *thd)
     We need to do this check here and in mysql_create_prepare_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!default_value && unireg_check == Field::NONE && (flags() & NOT_NULL_FLAG))
+  if (!default_value && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
   {
     /*
       TIMESTAMP columns get implicit DEFAULT value when
@@ -10308,12 +10309,12 @@ bool Column_definition::check(THD *thd)
     if ((opt_explicit_defaults_for_timestamp ||
         !is_timestamp_type()) && !vers_sys_field())
     {
-      add_flags(NO_DEFAULT_VALUE_FLAG);
+      flags|= NO_DEFAULT_VALUE_FLAG;
     }
   }
 
 
-  if ((flags() & AUTO_INCREMENT_FLAG) &&
+  if ((flags & AUTO_INCREMENT_FLAG) &&
       !type_handler()->type_can_have_auto_increment_attribute())
   {
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name.str);
@@ -10417,11 +10418,11 @@ Column_definition_attributes::Column_definition_attributes(const Field *field)
 
 Column_definition::Column_definition(THD *thd, Field *old_field,
                                                Field *orig_field)
- :Column_cached_flags(*old_field),
-  Column_definition_attributes(old_field)
+ :Column_definition_attributes(old_field)
 {
   on_update=  NULL;
   field_name= old_field->field_name;
+  flags=      old_field->flags;
   pack_length=old_field->pack_length();
   key_length= old_field->key_length();
   set_handler(old_field->type_handler());
@@ -10469,7 +10470,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
 
     - The column didn't have a default expression
   */
-  if (!(flags() & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
+  if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
       old_field->ptr != NULL && orig_field != NULL)
   {
     if (orig_field->unireg_check != Field::NEXT_NUMBER)
@@ -10511,7 +10512,7 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
   key_length=   dup_field->key_length;
   decimals=     dup_field->decimals;
   unireg_check= dup_field->unireg_check;
-  set_flags(dup_field->cached_flags());
+  flags=        dup_field->flags;
   interval=     dup_field->interval;
   vcol_info=    dup_field->vcol_info;
   invisible=    dup_field->invisible;
@@ -10586,7 +10587,7 @@ bool Column_definition::has_default_expression()
 {
   return (default_value &&
           (!default_value->expr->basic_const_item() ||
-           (flags() & BLOB_FLAG)));
+           (flags & BLOB_FLAG)));
 }
 
 
@@ -10870,7 +10871,7 @@ bool Field::save_in_field_default_value(bool view_error_processing)
 {
   THD *thd= table->in_use;
 
-  if (unlikely(flags() & NO_DEFAULT_VALUE_FLAG &&
+  if (unlikely(flags & NO_DEFAULT_VALUE_FLAG &&
                real_type() != MYSQL_TYPE_ENUM))
   {
     if (reset())

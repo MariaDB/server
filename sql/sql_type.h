@@ -3313,7 +3313,6 @@ public:
   virtual const Name name() const= 0;
   virtual const Name version() const { return m_version_default; }
   virtual const Name &default_value() const= 0;
-  virtual uint32 flags() const { return 0; }
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
   /**
@@ -6443,7 +6442,6 @@ class Type_handler_blob_common: public Type_handler_longstr
 {
 public:
   virtual ~Type_handler_blob_common() { }
-  uint32 flags() const override { return BLOB_FLAG; }
   virtual uint length_bytes() const= 0;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
@@ -6650,7 +6648,6 @@ class Type_handler_enum: public Type_handler_typelib
 public:
   virtual ~Type_handler_enum() {}
   const Name name() const override { return m_name_enum; }
-  uint32 flags() const override { return ENUM_FLAG; }
   enum_field_types real_field_type() const override { return MYSQL_TYPE_ENUM; }
   enum_field_types traditional_merge_field_type() const override
   {
@@ -6691,7 +6688,6 @@ class Type_handler_set: public Type_handler_typelib
 public:
   virtual ~Type_handler_set() {}
   const Name name() const override { return m_name_set; }
-  uint32 flags() const override { return SET_FLAG; }
   enum_field_types real_field_type() const override { return MYSQL_TYPE_SET; }
   enum_field_types traditional_merge_field_type() const override
   {

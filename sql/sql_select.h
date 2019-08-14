@@ -2191,9 +2191,9 @@ public:
     new_field->init(this);
     field[s->fields]= new_field;
     s->reclength+= new_field->pack_length();
-    if (!(new_field->flags() & NOT_NULL_FLAG))
+    if (!(new_field->flags & NOT_NULL_FLAG))
       s->null_fields++;
-    if (new_field->flags() & BLOB_FLAG)
+    if (new_field->flags & BLOB_FLAG)
     {
       // Note, s->blob_fields was incremented in Field_blob::Field_blob
       DBUG_ASSERT(s->blob_fields);

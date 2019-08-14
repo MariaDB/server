@@ -2007,7 +2007,7 @@ bool filesort_use_addons(TABLE *table, uint sortlength,
   {
     if (!bitmap_is_set(table->read_set, field->field_index))
       continue;
-    if (field->flags() & BLOB_FLAG)
+    if (field->flags & BLOB_FLAG)
       return false;
     (*length)+= field->max_packed_col_length(field->pack_length());
     if (field->maybe_null())

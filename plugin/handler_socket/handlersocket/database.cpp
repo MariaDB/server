@@ -903,7 +903,7 @@ dbcontext::fill_filter_buf(TABLE *table, const prep_stmt& pst,
     }
     const uint32_t fn = pst.get_filter_fields()[f->ff_offset];
     Field *const fld = table->field[fn];
-    if ((fld->flags() & BLOB_FLAG) != 0) {
+    if ((fld->flags & BLOB_FLAG) != 0) {
       return false;
     }
     fld->store(f->val.begin(), f->val.size(), &my_charset_bin);

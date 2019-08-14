@@ -364,7 +364,7 @@ static bool check_decr_floor_expression(Field* lhs_field, Item* item) {
         return false;
     if (!check_x_minus_1(lhs_field->field_name.str, arguments[2]))
         return false;
-    if (!lhs_field->is_unsigned())
+    if (!(lhs_field->flags & UNSIGNED_FLAG))
         return false;
     return true;
 }

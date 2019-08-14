@@ -1431,7 +1431,7 @@ check_v_col_in_order(
 			continue;
 		}
 
-		if (field->flags() & FIELD_IS_DROPPED) {
+		if (field->flags & FIELD_IS_DROPPED) {
 			continue;
 		}
 
@@ -1857,7 +1857,7 @@ innobase_fts_check_doc_id_col(
 		} else if (field->type() != MYSQL_TYPE_LONGLONG
 			   || field->pack_length() != 8
 			   || field->real_maybe_null()
-			   || !field->is_unsigned()
+			   || !(field->flags & UNSIGNED_FLAG)
 			   || !field->stored_in_db()) {
 			err = ER_INNODB_FT_WRONG_DOCID_COLUMN;
 		} else {
@@ -2176,10 +2176,10 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			DBUG_ASSERT((MTYP_TYPENR(key_part->field->unireg_check)
 				     == Field::NEXT_NUMBER)
-				    == !!(key_part->field->flags()
+				    == !!(key_part->field->flags
 					  & AUTO_INCREMENT_FLAG));
 
-			if (key_part->field->flags() & AUTO_INCREMENT_FLAG) {
+			if (key_part->field->flags & AUTO_INCREMENT_FLAG) {
 				/* We cannot assign AUTO_INCREMENT values
 				during online or instant ALTER. */
 				DBUG_ASSERT(key_part->field == altered_table
@@ -2244,7 +2244,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		renaming the FTS_DOC_ID. */
 
 		for (Field** fp = table->field; *fp; fp++) {
-			if (!((*fp)->flags()
+			if (!((*fp)->flags
 			      & (FIELD_IS_RENAMED | FIELD_IS_DROPPED))) {
 				continue;
 			}
@@ -4232,7 +4232,7 @@ innobase_check_foreigns(
 		const Create_field* new_field;
 
 		ut_ad(!(*fp)->real_maybe_null()
-		      == !!((*fp)->flags() & NOT_NULL_FLAG));
+		      == !!((*fp)->flags & NOT_NULL_FLAG));
 
 		while ((new_field = cf_it++)) {
 			if (new_field->field == *fp) {
@@ -4240,7 +4240,7 @@ innobase_check_foreigns(
 			}
 		}
 
-		if (!new_field || (new_field->flags() & NOT_NULL_FLAG)) {
+		if (!new_field || (new_field->flags & NOT_NULL_FLAG)) {
 			if (innobase_check_foreigns_low(
 				    user_table, drop_fk, n_drop_fk,
 				    (*fp)->field_name.str, !new_field)) {
@@ -4991,7 +4991,7 @@ prepare_inplace_drop_virtual(
 	ctx->num_to_drop_vcol = 0;
 	for (i = 0; table->field[i]; i++) {
 		const Field* field = table->field[i];
-		if (field->flags() & FIELD_IS_DROPPED && !field->stored_in_db()) {
+		if (field->flags & FIELD_IS_DROPPED && !field->stored_in_db()) {
 			ctx->num_to_drop_vcol++;
 		}
 	}
@@ -5005,7 +5005,7 @@ prepare_inplace_drop_virtual(
 
 	for (i = 0; table->field[i]; i++) {
 		Field *field =  table->field[i];
-		if (!(field->flags() & FIELD_IS_DROPPED) || field->stored_in_db()) {
+		if (!(field->flags & FIELD_IS_DROPPED) || field->stored_in_db()) {
 			continue;
 		}
 
@@ -6378,7 +6378,7 @@ new_clustered_failed:
 				} else if (i ==
 					   altered_table->s->vers.end_fieldno) {
 					field_type |= DATA_VERS_END;
-				} else if (!(field->flags()
+				} else if (!(field->flags
 					     & VERS_UPDATE_UNVERSIONED_FLAG)) {
 					field_type |= DATA_VERSIONED;
 				}
@@ -7575,7 +7575,7 @@ err_exit_no_heap:
 			ha_alter_info->alter_info->create_list);
 
 		for (Field** fp = table->field; *fp; fp++) {
-			if (!((*fp)->flags() & FIELD_IS_RENAMED)) {
+			if (!((*fp)->flags & FIELD_IS_RENAMED)) {
 				continue;
 			}
 
@@ -8115,9 +8115,9 @@ err_exit:
 
 		DBUG_ASSERT((MTYP_TYPENR(field->unireg_check)
 			     == Field::NEXT_NUMBER)
-			    == !!(field->flags() & AUTO_INCREMENT_FLAG));
+			    == !!(field->flags & AUTO_INCREMENT_FLAG));
 
-		if (field->flags() & AUTO_INCREMENT_FLAG) {
+		if (field->flags & AUTO_INCREMENT_FLAG) {
 			if (add_autoinc_col_no != ULINT_UNDEFINED) {
 				/* This should have been blocked earlier. */
 				ut_ad(0);
@@ -9011,7 +9011,7 @@ innobase_rename_columns_try(
 
 	for (Field** fp = table->field; *fp; fp++, i++) {
 		const bool is_virtual = !(*fp)->stored_in_db();
-		if (!((*fp)->flags() & FIELD_IS_RENAMED)) {
+		if (!((*fp)->flags & FIELD_IS_RENAMED)) {
 			goto processed_field;
 		}
 
@@ -9061,7 +9061,7 @@ static void get_type(const Field& f, ulint& prtype, ulint& mtype, ulint& len)
 			prtype |= DATA_VERS_START;
 		} else if (&f == f.table->field[f.table->s->vers.end_fieldno]) {
 			prtype |= DATA_VERS_END;
-		} else if (!(f.flags() & VERS_UPDATE_UNVERSIONED_FLAG)) {
+		} else if (!(f.flags & VERS_UPDATE_UNVERSIONED_FLAG)) {
 			prtype |= DATA_VERSIONED;
 		}
 	}
@@ -9282,7 +9282,7 @@ innobase_rename_or_enlarge_columns_cache(
 			col->mbmaxlen = is_string
 				? (*af)->charset()->mbmaxlen : 0;
 
-			if ((*fp)->flags() & FIELD_IS_RENAMED) {
+			if ((*fp)->flags & FIELD_IS_RENAMED) {
 				dict_mem_table_col_rename(
 					user_table, col_n,
 					cf->field->field_name.str,

@@ -908,7 +908,7 @@ bool Item_field::register_field_in_write_map(void *arg)
 bool Item_field::check_field_expression_processor(void *arg)
 {
   Field *org_field= (Field*) arg;
-  if (field->flags() & NO_DEFAULT_VALUE_FLAG)
+  if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
@@ -9161,7 +9161,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
 
   field_arg= (Item_field *)real_arg;
-  if ((field_arg->field->flags() & NO_DEFAULT_VALUE_FLAG))
+  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG))
   {
     my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0),
              field_arg->field->field_name.str);
