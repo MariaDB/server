@@ -1772,12 +1772,24 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Check debug related options
   # --------------------------------------------------------------------------
+  $ENV{ASAN_OPTIONS}= "abort_on_error=1:" . ($ENV{ASAN_OPTIONS} || '');
+  $ENV{ASAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/asan.supp:" .
+    $ENV{ASAN_OPTIONS}
+    if -f "$glob_mysql_test_dir/asan.supp";
+  # The following can be useful when a test fails without any asan report
+  # on stderr like with openssl_1.test
+  # $ENV{ASAN_OPTIONS}= "log_path=${opt_vardir}/log/asan:" . $ENV{ASAN_OPTIONS};
+
+  # Add leak suppressions
+  $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp"
+    if -f "$glob_mysql_test_dir/lsan.supp";
+
   if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
        $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
-    $ENV{ASAN_OPTIONS}= 'abort_on_error=1:'.($ENV{ASAN_OPTIONS} || '');
+    $ENV{ASAN_OPTIONS}= 'disable_coredump=0:'. $ENV{ASAN_OPTIONS};
     if ( using_extern() )
     {
       mtr_error("Can't use --extern when using debugger");

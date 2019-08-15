@@ -4808,6 +4808,12 @@ static Sys_var_have Sys_have_rtree_keys(
        "are available, will be set to YES, otherwise will be set to NO.",
        READ_ONLY GLOBAL_VAR(have_rtree_keys), NO_CMD_LINE);
 
+static Sys_var_have Sys_have_santitizer(
+       "have_sanitizer",
+       "If the server is compiled with ASan (Address sanitizer) this will be "
+       "set to YES, otherwise will be set to NO",
+       READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE);
+
 static Sys_var_have Sys_have_ssl(
        "have_ssl", "If the server supports secure connections, will be set to YES, "
        "otherwise will be set to NO. If set to DISABLED, the server was compiled with "

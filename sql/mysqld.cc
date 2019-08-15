@@ -675,7 +675,7 @@ MY_LOCALE *my_default_lc_time_names;
 
 SHOW_COMP_OPTION have_ssl, have_symlink, have_dlopen, have_query_cache;
 SHOW_COMP_OPTION have_geometry, have_rtree_keys;
-SHOW_COMP_OPTION have_crypt, have_compress;
+SHOW_COMP_OPTION have_crypt, have_compress, have_sanitizer;
 SHOW_COMP_OPTION have_profiling;
 SHOW_COMP_OPTION have_openssl;
 
@@ -7956,6 +7956,14 @@ static int mysql_init_variables(void)
   ssl_acceptor_fd= 0;
 #endif /* ! EMBEDDED_LIBRARY */
 #endif /* HAVE_OPENSSL */
+
+have_sanitizer= SHOW_OPTION_NO;
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+  have_sanitizer= SHOW_OPTION_YES;
+#endif
+#endif
+
 
 #if defined(__WIN__)
   /* Allow Win32 users to move MySQL anywhere */

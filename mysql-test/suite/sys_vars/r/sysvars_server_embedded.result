@@ -11,6 +11,7 @@ variable_name not in (
 'in_predicate_conversion_threshold',
 'have_openssl',
 'have_symlink',
+'have_sanitizer',
 'hostname',
 'large_files_support', 'log_tc_size',
 'lower_case_file_system',
@@ -4654,6 +4655,7 @@ from information_schema.system_variables
 where variable_name in (
 'have_openssl',
 'have_symlink',
+'have_sanitizer',
 'hostname',
 'large_files_support',
 'lower_case_file_system',
@@ -4673,6 +4675,16 @@ VARIABLE_NAME	HAVE_OPENSSL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
 VARIABLE_COMMENT	Comparing have_openssl with have_ssl will indicate whether YaSSL or openssl was used. If YaSSL, have_ssl will be YES, but have_openssl will be NO.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	HAVE_SANITIZER
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	If the server is compiled with ASan (Address sanitizer) this will be set to YES, otherwise will be set to NO
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
