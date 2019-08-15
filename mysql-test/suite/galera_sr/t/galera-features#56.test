@@ -52,6 +52,7 @@ SET SESSION wsrep_trx_fragment_size = 1;
 --connection node_2
 --reap
 
+set session wsrep_sync_wait=15;
 SELECT COUNT(*) FROM t1;
 SELECT COUNT(DISTINCT f1) FROM t1;
 
