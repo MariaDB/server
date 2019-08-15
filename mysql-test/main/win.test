@@ -2359,6 +2359,29 @@ INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
 SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-20351 Window function BIT_OR() OVER (..) return a wrong data type
+--echo #
+CREATE TABLE t1 (pk INT, a INT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1, 0, 1), (2, 0, 18446744073709551615);
+
+CREATE TABLE t2 AS
+SELECT pk, a, bit_or(b) AS bit_or FROM t1 GROUP BY pk;
+SHOW CREATE TABLE t2;
+SELECT * FROM t1;
+DROP TABLE t2;
+
+CREATE OR REPLACE TABLE t2 AS
+SELECT pk, a, BIT_OR(b) OVER (PARTITION BY a ORDER BY pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS bit_or
+  FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.3 tests
 --echo #

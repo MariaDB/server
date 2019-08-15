@@ -1282,7 +1282,7 @@ public:
 
   bool fix_length_and_dec()
   {
-    decimals = window_func()->decimals;
+    Type_std_attributes::set(window_func());
     return FALSE;
   }
 
