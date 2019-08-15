@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -632,7 +632,6 @@ public:
 class Item: public Value_source,
             public Type_all_attributes
 {
-  void operator=(Item &);
   /**
     The index in the JOIN::join_tab array of the JOIN_TAB this Item is attached
     to. Items are attached (or 'pushed') to JOIN_TABs during optimization by the

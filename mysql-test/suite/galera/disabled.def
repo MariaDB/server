@@ -35,3 +35,4 @@ galera_var_slave_threads : MDEV-19746 Galera test failures because of wsrep_slav
 galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 partition : MDEV-19958 Galera test failure on galera.partition
+query_cache: MDEV-15805 Test failure on galera.query_cache

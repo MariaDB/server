@@ -1,6 +1,7 @@
 #ifndef INCLUDES_MYSQL_SQL_LIST_H
 #define INCLUDES_MYSQL_SQL_LIST_H
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -46,6 +47,14 @@ public:
     elements= tmp.elements;
     first= tmp.first;
     next= elements ? tmp.next : &first;
+  }
+
+  SQL_I_List& operator=(const SQL_I_List &tmp)
+  {
+    elements= tmp.elements;
+    first= tmp.first;
+    next= tmp.next;
+    return *this;
   }
 
   inline void empty()
@@ -488,7 +497,6 @@ template <class T> class List :public base_list
 {
 public:
   inline List() :base_list() {}
-  inline List(const List<T> &tmp) :base_list(tmp) {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
   inline bool push_back(T *a) { return base_list::push_back(a); }
