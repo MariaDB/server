@@ -1697,16 +1697,18 @@ struct dict_table_t {
 		return NULL;
 	}
 
-	/** Serialise metadata of dropped or reordered columns.
+	/** Serialise metadata BLOB, consisting of dropped or reordered columns,
+	and committed count.
 	@param[in,out]	heap	memory heap for allocation
 	@param[out]	field	data field with the metadata */
-	inline void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
+	inline void serialise_mblob(mem_heap_t* heap, dfield_t* field);
 
-	/** Reconstruct dropped or reordered columns.
-	@param[in]	metadata	data from serialise_columns()
+	/** Deserialise metadata BLOB and reconstruct dropped or reordered columns,
+	and committed count.
+	@param[in]	metadata	data from serialise_mblob()
 	@param[in]	len		length of the metadata, in bytes
 	@return whether parsing the metadata failed */
-	bool deserialise_columns(const byte* metadata, ulint len);
+	bool deserialise_mblob(const byte* metadata, ulint len);
 
 	/** Set is_instant() before instant_column().
 	@param[in]	old		previous table definition
@@ -1716,7 +1718,8 @@ struct dict_table_t {
 					1 + first changed column position */
 	inline void prepare_instant(const dict_table_t& old,
 				    const ulint* col_map,
-				    unsigned& first_alter_pos);
+				    unsigned& first_alter_pos,
+				    bool alter_persistent_count);
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	table	table on which prepare_instant() was invoked
@@ -2128,6 +2131,12 @@ public:
 	determine whether we can evict the table from the dictionary cache.
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
+
+	bool                           alter_persistent_count;
+	/** Mutex for committed_count_inited accesses.*/
+	ib_mutex_t				       committed_count_mutex;
+	bool                           committed_count_inited;
+	Atomic_counter<ib_uint64_t>    committed_count;
 
 private:
 	/** Count of how many handles are opened to this table. Dropping of the

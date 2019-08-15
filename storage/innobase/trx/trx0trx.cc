@@ -33,10 +33,12 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_thd_error_context.h>
 
 #include "btr0sea.h"
+#include "ha_innodb.h"
 #include "lock0lock.h"
 #include "log0log.h"
 #include "os0proc.h"
 #include "que0que.h"
+#include "row0mysql.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -1469,6 +1471,41 @@ trx_commit_in_memory(
 	}
 }
 
+/*************************************************************//**
+Update the persistent counts of all tables modified by a transaction. */
+void trx_update_persistent_counts(
+/*============*/
+    trx_t* trx)		/*!< in: transaction */
+{
+    dict_table_t* ib_table;
+    TABLE* table;
+    bool update_persistent_count;
+    for (trx_mod_tables_t::const_iterator t = trx->mod_tables.begin();
+         t != trx->mod_tables.end(); t++) {
+        ib_table = t->first;
+
+        table = thd_get_open_tables(current_thd);
+        for (; table; table = table->next) {
+            if (ib_table == ((ha_innobase *) table->file)->m_prebuilt->table) {
+                break;
+            }
+        }
+
+        if (table) {
+            mutex_enter(&ib_table->committed_count_mutex);
+            update_persistent_count = ib_table->committed_count_inited 
+                && !ib_table->alter_persistent_count;
+            mutex_exit(&ib_table->committed_count_mutex);
+
+            if (update_persistent_count) {
+                ib_table->committed_count += trx->uncommitted_count(ib_table);
+                innobase_update_persistent_count(ib_table, table, trx);
+            }
+            ib_table->alter_persistent_count = false;
+        }
+    }
+}
+
 /** Commit a transaction and a mini-transaction.
 @param[in,out]	trx	transaction
 @param[in,out]	mtr	mini-transaction (NULL if no modifications) */
@@ -1507,6 +1544,8 @@ void trx_commit_low(trx_t* trx, mtr_t* mtr)
 #ifndef DBUG_OFF
 	const bool debug_sync = trx->mysql_thd && trx->has_logged_persistent();
 #endif
+
+	trx_update_persistent_counts(trx);
 
 	if (mtr != NULL) {
 		trx_write_serialisation_history(trx, mtr);
@@ -2405,4 +2444,64 @@ trx_set_rw_mode(
 	if (trx->read_view.is_open()) {
 		trx->read_view.set_creator_trx_id(trx->id);
 	}
+}
+
+/*************************************************************//**
+Return difference in uncommitted count for a single undo record. */
+ib_int64_t get_diff_from_rec(
+/*============*/
+    trx_undo_rec_t* undo_rec,		/*!< in: undo record */
+    table_id_t table_id)           	/*!< in: table ID */
+{
+	ulint type, cmpl_info;
+	bool updated_extern;
+	undo_no_t undo;
+	table_id_t rec_table_id;
+
+	trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info, &updated_extern, &undo,
+		&rec_table_id);
+
+	if (rec_table_id != table_id)
+		return 0;
+
+	switch (type) {
+		case TRX_UNDO_INSERT_REC:
+			return 1;
+		case TRX_UNDO_UPD_DEL_REC:
+		case TRX_UNDO_DEL_MARK_REC:
+			return -1;
+		default:
+			return 0;
+	}
+}
+
+/*************************************************************//**
+Return number of uncommitted records for table within transaction
+@param[in]	table 	table to count uncommitted records for
+*/
+ib_int64_t trx_t::uncommitted_count(dict_table_t* table)
+{
+	trx_undo_t* undo;
+	trx_undo_rec_t* undo_rec;
+	mtr_t mtr;
+	ib_int64_t count = 0;
+
+	undo = rsegs.m_redo.undo;
+
+	if (undo) {
+		mtr_start(&mtr);
+
+		undo_rec = trx_undo_get_first_rec(
+			undo->rseg->space, undo->hdr_page_no, undo->hdr_offset,
+			RW_S_LATCH, &mtr);
+
+		while (undo_rec) {
+			count += get_diff_from_rec(undo_rec, table->id);
+			undo_rec = trx_undo_get_next_rec(undo_rec, undo->hdr_page_no,
+				undo->hdr_offset, &mtr);
+		}
+		mtr_commit(&mtr);
+	}
+
+	return count;
 }

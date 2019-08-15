@@ -1128,6 +1128,10 @@ public:
 	@param[in]	table_id	table identifier */
 	void evict_table(table_id_t table_id);
 
+	/** Return number of uncommitted records for table within transaction
+	@param[in]	table 	table to count uncommitted records for */
+	ib_int64_t uncommitted_count(dict_table_t* table);
+
 
   bool is_referenced()
   {
@@ -1226,6 +1230,7 @@ struct commit_node_t{
 			state;	/*!< node execution state */
 };
 
+extern "C" TABLE* thd_get_open_tables(THD* thd);
 
 /** Test if trx->mutex is owned. */
 #define trx_mutex_own(t) mutex_own(&t->mutex)

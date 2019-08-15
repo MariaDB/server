@@ -6235,6 +6235,12 @@ no_such_table:
 		ut_ad(table->versioned() == m_prebuilt->table->versioned());
 	}
 
+	/* Don't need to acquire ib_table->committed_count_mutex since
+	table is just being opened */
+	if (ib_table->committed_count_inited) {
+		m_int_table_flags |= HA_PERSISTENT_COUNT;
+	}
+
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
 	DBUG_RETURN(0);
 }
@@ -13306,6 +13312,86 @@ ha_innobase::rename_table(
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
+}
+/********************************************************************//**
+Initialize committed count within dict_table_t
+@return 0 or error code
+*/
+
+int
+ha_innobase::enable_persistent_count()
+{
+	dict_table_t* ib_table = m_prebuilt->table;
+	uchar* buf = m_prebuilt->m_mysql_table->record[0];
+	trx_t* trx = m_prebuilt->trx;
+	int err;
+
+	ib_table->alter_persistent_count = true;
+	mutex_enter(&ib_table->committed_count_mutex);
+
+	if (ib_table->committed_count_inited) {
+		mutex_exit(&ib_table->committed_count_mutex);
+		return -1;  /* Already initialized */
+	}
+
+	ib_table->committed_count = 0;
+	rnd_init(true);
+	do {
+		err = rnd_next(buf);
+		if (!err) {
+			ib_table->committed_count++;
+		}
+	} while (!err);
+	ib_table->committed_count -= trx->uncommitted_count(ib_table);
+	ib_table->committed_count_inited = true;
+	m_int_table_flags |= HA_PERSISTENT_COUNT;
+	cached_table_flags = table_flags();
+
+	mutex_exit(&ib_table->committed_count_mutex);
+
+	return 0;
+}
+/********************************************************************//**
+De-initialize committed count within dict_table_t
+@return 0 or error code
+*/
+
+int
+ha_innobase::disable_persistent_count()
+{
+	dict_table_t* ib_table = m_prebuilt->table;
+
+	mutex_enter(&ib_table->committed_count_mutex);
+	ib_table->committed_count_inited = false;
+	m_int_table_flags &= ~HA_PERSISTENT_COUNT;
+	cached_table_flags = table_flags();
+	mutex_exit(&ib_table->committed_count_mutex);
+
+	return 0;
+}
+/*********************************************************************//**
+If committed count is initialized and transaction is in READ COMMITTED mode,
+returns exact number of records; otherwise returns an estimate of index records
+@return number of rows */
+
+ha_rows
+ha_innobase::records()
+{	
+    trx_t* trx = m_prebuilt->trx;
+    if (trx->isolation_level == TRX_ISO_READ_COMMITTED) {
+        dict_table_t* ib_table = m_prebuilt->table;
+
+        mutex_enter(&ib_table->committed_count_mutex);
+        bool committed_count_inited = ib_table->committed_count_inited;
+        mutex_exit(&ib_table->committed_count_mutex);
+
+        if (committed_count_inited) {
+            return ib_table->committed_count
+                + trx->uncommitted_count(ib_table);
+        }
+    }
+
+    return stats.records;
 }
 
 /*********************************************************************//**

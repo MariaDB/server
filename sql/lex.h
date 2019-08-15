@@ -467,6 +467,7 @@ static SYMBOL symbols[] = {
   { "PARTITIONS",       SYM(PARTITIONS_SYM)},
   { "PASSWORD",		SYM(PASSWORD_SYM)},
   { "PERSISTENT",	SYM(PERSISTENT_SYM)},
+  { "PERSISTENT_COUNT", SYM(PERSISTENT_COUNT)},
   { "PHASE",            SYM(PHASE_SYM)},
   { "PLUGIN",           SYM(PLUGIN_SYM)},
   { "PLUGINS",          SYM(PLUGINS_SYM)},

@@ -4753,6 +4753,12 @@ extern "C" void thd_create_random_password(MYSQL_THD thd,
   *to= '\0';
 }
 
+extern "C" TABLE* thd_get_open_tables(MYSQL_THD thd) {
+    if (thd) {
+        return thd->open_tables;
+    }
+    return NULL;
+}
 
 #ifdef INNODB_COMPATIBILITY_HOOKS
 
