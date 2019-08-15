@@ -2076,7 +2076,8 @@ public:
 
   const Type_handler *type_handler_long_or_longlong() const
   {
-    return Type_handler::type_handler_long_or_longlong(max_char_length());
+    return Type_handler::type_handler_long_or_longlong(max_char_length(),
+                                                       unsigned_flag);
   }
 
   /**
@@ -3897,7 +3898,7 @@ public:
 
   bool set_limit_clause_param(longlong nr)
   {
-    value.set_handler(&type_handler_longlong);
+    value.set_handler(&type_handler_slonglong);
     set_int(nr, MY_INT64_NUM_DECIMAL_DIGITS);
     return !unsigned_flag && value.integer < 0;
   }
@@ -4476,7 +4477,9 @@ public:
   }
   const Type_handler *type_handler() const
   {
-    return Type_handler::get_handler_by_field_type(int_field_type);
+    const Type_handler *h=
+      Type_handler::get_handler_by_field_type(int_field_type);
+    return unsigned_flag ? h->type_handler_unsigned() : h;
   }
 };
 
@@ -6502,8 +6505,6 @@ class Item_cache_int: public Item_cache
 protected:
   longlong value;
 public:
-  Item_cache_int(THD *thd): Item_cache(thd, &type_handler_longlong),
-    value(0) {}
   Item_cache_int(THD *thd, const Type_handler *handler):
     Item_cache(thd, handler), value(0) {}
 

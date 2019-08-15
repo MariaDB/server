@@ -218,7 +218,7 @@ public:
 class ULonglong: public Type
 {
 public:
-  ULonglong(uint length) :Type(&type_handler_longlong, length, true) { }
+  ULonglong(uint length) :Type(&type_handler_ulonglong, length, true) { }
   ULonglong() :ULonglong(MY_INT64_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -226,7 +226,7 @@ public:
 class ULong: public Type
 {
 public:
-  ULong(uint length) :Type(&type_handler_long, length, true) { }
+  ULong(uint length) :Type(&type_handler_ulong, length, true) { }
   ULong() :ULong(MY_INT32_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -234,7 +234,7 @@ public:
 class SLonglong: public Type
 {
 public:
-  SLonglong(uint length) :Type(&type_handler_longlong, length, false) { }
+  SLonglong(uint length) :Type(&type_handler_slonglong, length, false) { }
   SLonglong() :SLonglong(MY_INT64_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -242,7 +242,7 @@ public:
 class SLong: public Type
 {
 public:
-  SLong(uint length) :Type(&type_handler_long, length, false) { }
+  SLong(uint length) :Type(&type_handler_slong, length, false) { }
   SLong() :SLong(MY_INT32_NUM_DECIMAL_DIGITS) { }
 };
 
@@ -250,14 +250,14 @@ public:
 class SShort: public Type
 {
 public:
-  SShort(uint length) :Type(&type_handler_short, length, false) { }
+  SShort(uint length) :Type(&type_handler_sshort, length, false) { }
 };
 
 
 class STiny: public Type
 {
 public:
-  STiny(uint length) :Type(&type_handler_tiny, length, false) { }
+  STiny(uint length) :Type(&type_handler_stiny, length, false) { }
 };
 
 

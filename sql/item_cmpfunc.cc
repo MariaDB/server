@@ -2119,7 +2119,7 @@ bool Item_func_between::fix_length_and_dec_numeric(THD *thd)
       if (cvt_arg1 && cvt_arg2)
       {
         // Works for all types
-        m_comparator.set_handler(&type_handler_longlong);
+        m_comparator.set_handler(&type_handler_slonglong);
       }
     }
   }
@@ -4461,7 +4461,7 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
            all_converted= false;
       }
       if (all_converted)
-        m_comparator.set_handler(&type_handler_longlong);
+        m_comparator.set_handler(&type_handler_slonglong);
     }
   }
   return thd->is_fatal_error; // Catch errrors in convert_const_to_int

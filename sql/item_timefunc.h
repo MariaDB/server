@@ -191,7 +191,7 @@ public:
     return get_date_from_int(thd, ltime, fuzzydate);
   }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const { return &type_handler_slong; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -467,7 +467,7 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const { return &type_handler_slong; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -980,8 +980,8 @@ class Item_extract :public Item_int_func,
                                                    uint32 threashold)
   {
     if (length >= threashold)
-      return &type_handler_longlong;
-    return &type_handler_long;
+      return &type_handler_slonglong;
+    return &type_handler_slong;
   }
   void set_date_length(uint32 length)
   {
@@ -1012,7 +1012,7 @@ class Item_extract :public Item_int_func,
   const interval_type int_type; // keep it public
   Item_extract(THD *thd, interval_type type_arg, Item *a):
     Item_int_func(thd, a),
-    Type_handler_hybrid_field_type(&type_handler_longlong),
+    Type_handler_hybrid_field_type(&type_handler_slonglong),
     m_date_mode(date_mode_t(0)),
     int_type(type_arg)
   { }

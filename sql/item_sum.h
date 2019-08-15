@@ -753,7 +753,6 @@ public:
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
   bool fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
 };
@@ -869,6 +868,7 @@ public:
     count=count_arg;
     Item_sum::make_const();
   }
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   longlong val_int();
   void reset_field();
   void update_field();
@@ -1052,11 +1052,11 @@ class Item_sum_hybrid: public Item_sum,
 public:
   Item_sum_hybrid(THD *thd, Item *item_par):
     Item_sum(thd, item_par),
-    Type_handler_hybrid_field_type(&type_handler_longlong)
+    Type_handler_hybrid_field_type(&type_handler_slonglong)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item *a, Item *b):
     Item_sum(thd, a, b),
-    Type_handler_hybrid_field_type(&type_handler_longlong)
+    Type_handler_hybrid_field_type(&type_handler_slonglong)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
     :Item_sum(thd, item),
@@ -1175,6 +1175,7 @@ public:
   longlong val_int();
   void reset_field();
   void update_field();
+  const Type_handler *type_handler() const { return &type_handler_ulonglong; }
   bool fix_length_and_dec()
   {
     decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
@@ -1644,7 +1645,11 @@ public:
     { DBUG_ASSERT(fixed == 1); return (double) Item_sum_udf_int::val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const
+  {
+    return unsigned_flag ? &type_handler_ulonglong :
+                           &type_handler_slonglong;
+  }
   bool fix_length_and_dec() { decimals=0; max_length=21; return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)

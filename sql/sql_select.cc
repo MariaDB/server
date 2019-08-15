@@ -17507,9 +17507,11 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
 Field *Item::create_tmp_field_int(MEM_ROOT *root, TABLE *table,
                                   uint convert_int_length)
 {
-  const Type_handler *h= &type_handler_long;
+  const Type_handler *h= &type_handler_slong;
   if (max_char_length() > convert_int_length)
-    h= &type_handler_longlong;
+    h= &type_handler_slonglong;
+  if (unsigned_flag)
+    h= h->type_handler_unsigned();
   return h->make_and_init_table_field(root, &name, Record_addr(maybe_null),
                                       *this, table);
 }
@@ -17601,7 +17603,8 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
   else if (param->table_cant_handle_bit_fields() &&
            field->type() == MYSQL_TYPE_BIT)
   {
-    const Type_handler *handler= type_handler_long_or_longlong();
+    const Type_handler *handler=
+      Type_handler::type_handler_long_or_longlong(max_char_length(), true);
     result= handler->make_and_init_table_field(root, &name,
                                                Record_addr(maybe_null),
                                                *this, new_table);

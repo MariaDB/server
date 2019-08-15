@@ -1337,6 +1337,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ws_level_flag_desc ws_level_flag_reverse ws_level_flags
         opt_ws_levels ws_level_list ws_level_list_item ws_level_number
         ws_level_range ws_level_list_or_range bool
+        field_options last_field_options
 
 %type <ulonglong_number>
         ulonglong_num real_ulonglong_num size_number
@@ -1534,7 +1535,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         procedure_list procedure_list2 procedure_item
         field_def handler opt_generated_always
         opt_ignore opt_column opt_restrict
-        grant revoke set lock unlock string_list field_options
+        grant revoke set lock unlock string_list
         opt_binary table_lock_list table_lock
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
@@ -6659,7 +6660,7 @@ field_type_or_serial:
           field_def
         | SERIAL_SYM
           {
-            Lex->last_field->set_handler(&type_handler_longlong);
+            Lex->last_field->set_handler(&type_handler_ulonglong);
             Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
                                      | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
           }
@@ -6851,9 +6852,12 @@ sp_param_field_type:
 
 
 field_type_numeric:
-          int_type opt_field_length field_options { $$.set($1, $2); }
-        | real_type opt_precision field_options   { $$.set($1, $2); }
-        | FLOAT_SYM float_options field_options
+          int_type opt_field_length last_field_options
+          {
+            $$.set_handler_length_flags($1, $2, (uint32) $3);
+          }
+        | real_type opt_precision last_field_options   { $$.set($1, $2); }
+        | FLOAT_SYM float_options last_field_options
           {
             $$.set(&type_handler_float, $2);
             if ($2.length() && !$2.dec())
@@ -6875,24 +6879,24 @@ field_type_numeric:
           }
         | BOOL_SYM
           {
-            $$.set(&type_handler_tiny, "1");
+            $$.set(&type_handler_stiny, "1");
           }
         | BOOLEAN_SYM
           {
-            $$.set(&type_handler_tiny, "1");
+            $$.set(&type_handler_stiny, "1");
           }
-        | DECIMAL_SYM float_options field_options
+        | DECIMAL_SYM float_options last_field_options
           { $$.set(&type_handler_newdecimal, $2);}
-        | NUMBER_ORACLE_SYM float_options field_options
+        | NUMBER_ORACLE_SYM float_options last_field_options
           {
             if ($2.length() != 0)
               $$.set(&type_handler_newdecimal, $2);
             else
               $$.set(&type_handler_double);
           }
-        | NUMERIC_SYM float_options field_options
+        | NUMERIC_SYM float_options last_field_options
           { $$.set(&type_handler_newdecimal, $2);}
-        | FIXED_SYM float_options field_options
+        | FIXED_SYM float_options last_field_options
           { $$.set(&type_handler_newdecimal, $2);}
         ;
 
@@ -6987,7 +6991,7 @@ sp_param_field_type_string:
 
 
 field_type_temporal:
-          YEAR_SYM opt_field_length field_options
+          YEAR_SYM opt_field_length last_field_options
           {
             if ($2)
             {
@@ -7131,11 +7135,11 @@ nvarchar:
         ;
 
 int_type:
-          INT_SYM   { $$= &type_handler_long; }
-        | TINYINT   { $$= &type_handler_tiny; }
-        | SMALLINT  { $$= &type_handler_short; }
-        | MEDIUMINT { $$= &type_handler_int24; }
-        | BIGINT    { $$= &type_handler_longlong; }
+          INT_SYM   { $$= &type_handler_slong; }
+        | TINYINT   { $$= &type_handler_stiny; }
+        | SMALLINT  { $$= &type_handler_sshort; }
+        | MEDIUMINT { $$= &type_handler_sint24; }
+        | BIGINT    { $$= &type_handler_slonglong; }
         ;
 
 real_type:
@@ -7170,12 +7174,16 @@ precision:
         ;
 
 field_options:
-          /* empty */ {}
-        | SIGNED_SYM {}
-        | UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG;}
-        | ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
-        | UNSIGNED ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
-        | ZEROFILL UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+          /* empty */       { $$= 0; }
+        | SIGNED_SYM        { $$= 0; }
+        | UNSIGNED          { $$= UNSIGNED_FLAG; }
+        | ZEROFILL          { $$= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | UNSIGNED ZEROFILL { $$= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | ZEROFILL UNSIGNED { $$= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        ;
+
+last_field_options:
+          field_options { Lex->last_field->flags|= ($$= $1); }
         ;
 
 field_length:
@@ -11817,9 +11825,9 @@ cast_type:
         ;
 
 cast_type_numeric:
-          INT_SYM                        { $$.set(&type_handler_longlong); }
-        | SIGNED_SYM                     { $$.set(&type_handler_longlong); }
-        | SIGNED_SYM INT_SYM             { $$.set(&type_handler_longlong); }
+          INT_SYM                        { $$.set(&type_handler_slonglong); }
+        | SIGNED_SYM                     { $$.set(&type_handler_slonglong); }
+        | SIGNED_SYM INT_SYM             { $$.set(&type_handler_slonglong); }
         | UNSIGNED                       { $$.set(&type_handler_ulonglong); }
         | UNSIGNED INT_SYM               { $$.set(&type_handler_ulonglong); }
         | DECIMAL_SYM float_options      { $$.set(&type_handler_newdecimal, $2); }

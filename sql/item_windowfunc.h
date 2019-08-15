@@ -118,6 +118,8 @@ public:
   Item_sum_row_number(THD *thd)
     : Item_sum_int(thd),  count(0) {}
 
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
+
   void clear()
   {
     count= 0;
@@ -178,6 +180,8 @@ protected:
 public:
 
   Item_sum_rank(THD *thd) : Item_sum_int(thd), peer_tracker(NULL) {}
+
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
 
   void clear()
   {
@@ -266,6 +270,7 @@ class Item_sum_dense_rank: public Item_sum_int
 
   Item_sum_dense_rank(THD *thd)
     : Item_sum_int(thd), dense_rank(0), first_add(true), peer_tracker(NULL) {}
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   enum Sumfunctype sum_func () const
   {
     return DENSE_RANK_FUNC;
@@ -690,7 +695,7 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   void update_field() {}
 
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_ntile>(thd, this); }
@@ -705,7 +710,7 @@ class Item_sum_percentile_disc : public Item_sum_cume_dist,
 {
 public:
   Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
-                           Type_handler_hybrid_field_type(&type_handler_longlong),
+                           Type_handler_hybrid_field_type(&type_handler_slonglong),
                            value(NULL), val_calculated(FALSE), first_call(TRUE),
                            prev_value(0), order_item(NULL){}
 
@@ -1294,7 +1299,7 @@ public:
 
   bool fix_length_and_dec()
   {
-    decimals = window_func()->decimals;
+    Type_std_attributes::set(window_func());
     return FALSE;
   }
 

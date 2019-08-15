@@ -1023,7 +1023,12 @@ public:
   Item_long_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
   Item_long_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_long_func(THD *thd, Item_long_func *item) :Item_int_func(thd, item) {}
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const
+  {
+    if (unsigned_flag)
+      return &type_handler_ulong;
+    return &type_handler_slong;
+  }
   bool fix_length_and_dec() { max_length= 11; return FALSE; }
 };
 
@@ -1035,7 +1040,7 @@ public:
   {}
   longlong val_int();
   bool fix_length_and_dec();
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const { return &type_handler_slong; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_hash>(thd, this); }
   const char *func_name() const { return "<hash>"; }
@@ -1052,7 +1057,12 @@ public:
     Item_int_func(thd, a, b, c, d) {}
   Item_longlong_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_longlong_func(THD *thd, Item_longlong_func *item) :Item_int_func(thd, item) {}
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const
+  {
+    if (unsigned_flag)
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
+  }
 };
 
 
@@ -1120,7 +1130,10 @@ public:
   }
   const char *func_name() const { return "cast_as_signed"; }
   const Type_handler *type_handler() const
-  { return type_handler_long_or_longlong(); }
+  {
+    return Type_handler::type_handler_long_or_longlong(max_char_length(),
+                                                       false);
+  }
   longlong val_int()
   {
     longlong value= args[0]->val_int_signed_typecast();
@@ -1179,8 +1192,8 @@ public:
   const Type_handler *type_handler() const
   {
     if (max_char_length() <= MY_INT32_NUM_DECIMAL_DIGITS - 1)
-      return &type_handler_long;
-    return &type_handler_longlong;
+      return &type_handler_ulong;
+    return &type_handler_ulonglong;
   }
   longlong val_int()
   {
@@ -2431,7 +2444,11 @@ public:
     return val_decimal_from_int(decimal_value);
   }
   String *val_str(String *str);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const
+  {
+    return unsigned_flag ? &type_handler_ulonglong :
+                           &type_handler_slonglong;
+  }
   bool fix_length_and_dec() { decimals= 0; max_length= 21; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_udf_int>(thd, this); }
@@ -2523,7 +2540,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -2535,7 +2552,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
 };
 

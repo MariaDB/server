@@ -3283,7 +3283,8 @@ public:
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *bit_and_int_mixture_handler(uint max_char_len);
-  static const Type_handler *type_handler_long_or_longlong(uint max_char_len);
+  static const Type_handler *type_handler_long_or_longlong(uint max_char_len,
+                                                           bool unsigned_flag);
   /**
     Return a string type handler for Item
     If too_big_for_varchar() returns a BLOB variant, according to length.
@@ -3296,15 +3297,6 @@ public:
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
   static const Type_handler *get_handler_by_cmp_type(Item_result type);
-  static const Type_handler *get_handler_by_result_type(Item_result type)
-  {
-    /*
-      As result_type() returns STRING_RESULT for temporal Items,
-      type should never be equal to TIME_RESULT here.
-    */
-    DBUG_ASSERT(type != TIME_RESULT);
-    return get_handler_by_cmp_type(type);
-  }
   virtual const Type_collection *type_collection() const;
   static const
   Type_handler *aggregate_for_result_traditional(const Type_handler *h1,
@@ -3313,6 +3305,8 @@ public:
   virtual const Name name() const= 0;
   virtual const Name version() const { return m_version_default; }
   virtual const Name &default_value() const= 0;
+  virtual uint32 flags() const { return 0; }
+  bool is_unsigned() const { return flags() & UNSIGNED_FLAG; }
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
   /**
@@ -3417,6 +3411,14 @@ public:
     return this;
   }
   virtual const Type_handler *type_handler_for_system_time() const
+  {
+    return this;
+  }
+  virtual const Type_handler *type_handler_unsigned() const
+  {
+    return this;
+  }
+  virtual const Type_handler *type_handler_signed() const
   {
     return this;
   }
@@ -4745,9 +4747,11 @@ class Type_handler_general_purpose_int: public Type_handler_int_result
 {
 public:
   bool type_can_have_auto_increment_attribute() const { return true; }
-  virtual const Type_limits_int *
-    type_limits_int_by_unsigned_flag(bool unsigned_flag) const= 0;
-  uint32 max_display_length(const Item *item) const;
+  virtual const Type_limits_int *type_limits_int() const= 0;
+  uint32 max_display_length(const Item *item) const
+  {
+    return type_limits_int()->char_length();
+  }
   bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 
@@ -5005,21 +5009,17 @@ public:
 class Type_handler_tiny: public Type_handler_general_purpose_int
 {
   static const Name m_name_tiny;
-  static const Type_limits_int m_limits_sint8;
-  static const Type_limits_int m_limits_uint8;
 public:
   virtual ~Type_handler_tiny() {}
   const Name name() const override { return m_name_tiny; }
   enum_field_types field_type() const override { return MYSQL_TYPE_TINY; }
+  const Type_handler *type_handler_unsigned() const override;
+  const Type_handler *type_handler_signed() const override;
   protocol_send_type_t protocol_send_type() const override
   {
     return PROTOCOL_SEND_TINY;
   }
-  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl)
-                                                          const override
-  {
-    return unsigned_fl ? &m_limits_uint8 : &m_limits_sint8;
-  }
+  const Type_limits_int *type_limits_int() const override;
   uint32 calc_pack_length(uint32 length) const override { return 1; }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 4; }
@@ -5057,15 +5057,24 @@ public:
 };
 
 
+class Type_handler_utiny: public Type_handler_tiny
+{
+public:
+  const Name name() const  override;
+  uint flags() const override { return UNSIGNED_FLAG; }
+  const Type_limits_int *type_limits_int() const override;
+};
+
+
 class Type_handler_short: public Type_handler_general_purpose_int
 {
   static const Name m_name_short;
-  static const Type_limits_int m_limits_sint16;
-  static const Type_limits_int m_limits_uint16;
 public:
   virtual ~Type_handler_short() {}
   const Name name() const override { return m_name_short; }
   enum_field_types field_type() const override { return MYSQL_TYPE_SHORT; }
+  const Type_handler *type_handler_unsigned() const override;
+  const Type_handler *type_handler_signed() const override;
   protocol_send_type_t protocol_send_type() const override
   {
     return PROTOCOL_SEND_SHORT;
@@ -5074,11 +5083,7 @@ public:
   {
     return Item_send_short(item, protocol, buf);
   }
-  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl)
-                                                          const override
-  {
-    return unsigned_fl ? &m_limits_uint16 : &m_limits_sint16;
-  }
+  const Type_limits_int *type_limits_int() const override;
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 6; }
   uint32 calc_pack_length(uint32 length) const  override{ return 2; }
@@ -5112,24 +5117,29 @@ public:
 };
 
 
+class Type_handler_ushort: public Type_handler_short
+{
+public:
+  const Name name() const  override;
+  uint flags() const override { return UNSIGNED_FLAG; }
+  const Type_limits_int *type_limits_int() const override;
+};
+
+
 class Type_handler_long: public Type_handler_general_purpose_int
 {
   static const Name m_name_int;
-  static const Type_limits_int m_limits_sint32;
-  static const Type_limits_int m_limits_uint32;
 public:
   virtual ~Type_handler_long() {}
   const Name name() const override { return m_name_int; }
   enum_field_types field_type() const override { return MYSQL_TYPE_LONG; }
+  const Type_handler *type_handler_unsigned() const override;
+  const Type_handler *type_handler_signed() const override;
   protocol_send_type_t protocol_send_type() const override
   {
     return PROTOCOL_SEND_LONG;
   }
-  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl)
-                                                          const override
-  {
-    return unsigned_fl ? &m_limits_uint32 : &m_limits_sint32;
-  }
+  const Type_limits_int *type_limits_int() const override;
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 11; }
   uint32 calc_pack_length(uint32 length) const override { return 4; }
@@ -5167,12 +5177,23 @@ public:
 };
 
 
+class Type_handler_ulong: public Type_handler_long
+{
+public:
+  const Name name() const  override;
+  uint flags() const override { return UNSIGNED_FLAG; }
+  const Type_limits_int *type_limits_int() const override;
+};
+
+
 class Type_handler_bool: public Type_handler_long
 {
   static const Name m_name_bool;
 public:
   const Name name() const override { return m_name_bool; }
   bool is_bool_type() const override { return true; }
+  const Type_handler *type_handler_unsigned() const override;
+  const Type_handler *type_handler_signed() const override;
   void Item_update_null_value(Item *item) const override;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override;
 };
@@ -5181,21 +5202,17 @@ public:
 class Type_handler_longlong: public Type_handler_general_purpose_int
 {
   static const Name m_name_longlong;
-  static const Type_limits_int m_limits_sint64;
-  static const Type_limits_int m_limits_uint64;
 public:
   virtual ~Type_handler_longlong() {}
   const Name name() const  override{ return m_name_longlong; }
   enum_field_types field_type() const  override{ return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler_unsigned() const override;
+  const Type_handler *type_handler_signed() const override;
   protocol_send_type_t protocol_send_type() const override
   {
     return PROTOCOL_SEND_LONGLONG;
   }
-  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl)
-                                                          const override
-  {
-    return unsigned_fl ? &m_limits_uint64 : &m_limits_sint64;
-  }
+  const Type_limits_int *type_limits_int() const override;
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 20; }
   uint32 calc_pack_length(uint32 length) const override { return 8; }
@@ -5237,7 +5254,16 @@ public:
 };
 
 
-class Type_handler_vers_trx_id: public Type_handler_longlong
+class Type_handler_ulonglong: public Type_handler_longlong
+{
+public:
+  const Name name() const  override;
+  uint flags() const override { return UNSIGNED_FLAG; }
+  const Type_limits_int *type_limits_int() const override;
+};
+
+
+class Type_handler_vers_trx_id: public Type_handler_ulonglong
 {
 public:
   virtual ~Type_handler_vers_trx_id() {}
@@ -5252,12 +5278,12 @@ public:
 class Type_handler_int24: public Type_handler_general_purpose_int
 {
   static const Name m_name_mediumint;
-  static const Type_limits_int m_limits_sint24;
-  static const Type_limits_int m_limits_uint24;
 public:
   virtual ~Type_handler_int24() {}
   const Name name() const override { return m_name_mediumint; }
   enum_field_types field_type() const override { return MYSQL_TYPE_INT24; }
+  const Type_handler *type_handler_unsigned() const override;
+  const Type_handler *type_handler_signed() const override;
   protocol_send_type_t protocol_send_type() const override
   {
     return PROTOCOL_SEND_LONG;
@@ -5266,11 +5292,7 @@ public:
   {
     return Item_send_long(item, protocol, buf);
   }
-  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl)
-                                                          const override
-  {
-    return unsigned_fl ? &m_limits_uint24 : &m_limits_sint24;
-  }
+  const Type_limits_int *type_limits_int() const override;
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 9; }
   uint32 calc_pack_length(uint32 length) const override { return 3; }
@@ -5294,6 +5316,15 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+};
+
+
+class Type_handler_uint24: public Type_handler_int24
+{
+public:
+  const Name name() const override;
+  uint flags() const override { return UNSIGNED_FLAG; }
+  const Type_limits_int *type_limits_int() const override;
 };
 
 
@@ -6803,19 +6834,6 @@ public:
   {
     m_type_handler= other;
   }
-  const Type_handler *set_handler_by_result_type(Item_result type)
-  {
-    return (m_type_handler= Type_handler::get_handler_by_result_type(type));
-  }
-  const Type_handler *set_handler_by_result_type(Item_result type,
-                                                 uint max_octet_length,
-                                                 CHARSET_INFO *cs)
-  {
-    m_type_handler= Type_handler::get_handler_by_result_type(type);
-    return m_type_handler=
-      m_type_handler->type_handler_adjusted_to_max_octet_length(max_octet_length,
-                                                                cs);
-  }
   const Type_handler *set_handler_by_field_type(enum_field_types type)
   {
     return (m_type_handler= Type_handler::get_handler_by_field_type(type));
@@ -6864,12 +6882,17 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_blob_compressed
                                                     type_handler_blob_compressed;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_bool        type_handler_bool;
-extern MYSQL_PLUGIN_IMPORT Type_handler_tiny        type_handler_tiny;
-extern MYSQL_PLUGIN_IMPORT Type_handler_short       type_handler_short;
-extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;
-extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_long;
-extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_longlong;
-extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_ulonglong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_tiny        type_handler_stiny;
+extern MYSQL_PLUGIN_IMPORT Type_handler_short       type_handler_sshort;
+extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_sint24;
+extern MYSQL_PLUGIN_IMPORT Type_handler_long        type_handler_slong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_longlong    type_handler_slonglong;
+
+extern MYSQL_PLUGIN_IMPORT Type_handler_utiny       type_handler_utiny;
+extern MYSQL_PLUGIN_IMPORT Type_handler_ushort      type_handler_ushort;
+extern MYSQL_PLUGIN_IMPORT Type_handler_uint24      type_handler_uint24;
+extern MYSQL_PLUGIN_IMPORT Type_handler_ulong       type_handler_ulong;
+extern MYSQL_PLUGIN_IMPORT Type_handler_ulonglong   type_handler_ulonglong;
 extern MYSQL_PLUGIN_IMPORT Type_handler_vers_trx_id type_handler_vers_trx_id;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;

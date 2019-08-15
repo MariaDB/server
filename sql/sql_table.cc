@@ -3356,7 +3356,7 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
     }
   }
   cf->field_name= field_name;
-  cf->set_handler(&type_handler_longlong);
+  cf->set_handler(&type_handler_slonglong);
   key_info->algorithm= HA_KEY_ALG_LONG_HASH;
   create_list->push_back(cf,thd->mem_root);
   return cf;
@@ -3481,12 +3481,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
   DBUG_EXECUTE_IF("test_pseudo_invisible",{
           mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible", &type_handler_long, INVISIBLE_SYSTEM,
+                      "invisible", &type_handler_slong, INVISIBLE_SYSTEM,
                       new (thd->mem_root)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_completely_invisible",{
           mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible", &type_handler_long, INVISIBLE_FULL,
+                      "invisible", &type_handler_slong, INVISIBLE_FULL,
                       new (thd->mem_root)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_invisible_index",{

@@ -37,12 +37,16 @@ Type_handler_row         type_handler_row;
 Type_handler_null        type_handler_null;
 
 Type_handler_bool        type_handler_bool;
-Type_handler_tiny        type_handler_tiny;
-Type_handler_short       type_handler_short;
-Type_handler_long        type_handler_long;
-Type_handler_int24       type_handler_int24;
-Type_handler_longlong    type_handler_longlong;
-Type_handler_longlong    type_handler_ulonglong; // Only used for CAST() for now
+Type_handler_tiny        type_handler_stiny;
+Type_handler_short       type_handler_sshort;
+Type_handler_long        type_handler_slong;
+Type_handler_int24       type_handler_sint24;
+Type_handler_longlong    type_handler_slonglong;
+Type_handler_utiny       type_handler_utiny;
+Type_handler_ushort      type_handler_ushort;
+Type_handler_ulong       type_handler_ulong;
+Type_handler_uint24      type_handler_uint24;
+Type_handler_ulonglong   type_handler_ulonglong;
 Type_handler_vers_trx_id type_handler_vers_trx_id;
 Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
@@ -1348,7 +1352,7 @@ Type_handler::get_handler_by_cmp_type(Item_result type)
 {
   switch (type) {
   case REAL_RESULT:       return &type_handler_double;
-  case INT_RESULT:        return &type_handler_longlong;
+  case INT_RESULT:        return &type_handler_slonglong;
   case DECIMAL_RESULT:    return &type_handler_newdecimal;
   case STRING_RESULT:     return &type_handler_long_blob;
   case TIME_RESULT:       return &type_handler_datetime;
@@ -1422,24 +1426,173 @@ const Name
   Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
   Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
 
+
+const Name Type_handler_utiny::name() const
+{
+  static Name tmp(STRING_WITH_LEN("tiny unsigned"));
+  return tmp;
+}
+
+
+const Name Type_handler_ushort::name() const
+{
+  static Name tmp(STRING_WITH_LEN("smallint unsigned"));
+  return tmp;
+}
+
+
+const Name Type_handler_uint24::name() const
+{
+  static Name tmp(STRING_WITH_LEN("mediumint unsigned"));
+  return tmp;
+}
+
+
+const Name Type_handler_ulong::name() const
+{
+  static Name tmp(STRING_WITH_LEN("int unsigned"));
+  return tmp;
+}
+
+
+const Name Type_handler_ulonglong::name() const
+{
+  static Name tmp(STRING_WITH_LEN("bigint unsigned"));
+  return tmp;
+}
+
+
+/***************************************************************************/
+
 const Name
   Type_handler::m_version_default(STRING_WITH_LEN("")),
   Type_handler::m_version_mariadb53(STRING_WITH_LEN("mariadb-5.3")),
   Type_handler::m_version_mysql56(STRING_WITH_LEN("mysql-5.6"));
 
 
-const Type_limits_int
-  Type_handler_tiny::m_limits_sint8=      Type_limits_sint8(),
-  Type_handler_tiny::m_limits_uint8=      Type_limits_uint8(),
-  Type_handler_short::m_limits_sint16=    Type_limits_sint16(),
-  Type_handler_short::m_limits_uint16=    Type_limits_uint16(),
-  Type_handler_int24::m_limits_sint24=    Type_limits_sint24(),
-  Type_handler_int24::m_limits_uint24=    Type_limits_uint24(),
-  Type_handler_long::m_limits_sint32=     Type_limits_sint32(),
-  Type_handler_long::m_limits_uint32=     Type_limits_uint32(),
-  Type_handler_longlong::m_limits_sint64= Type_limits_sint64(),
-  Type_handler_longlong::m_limits_uint64= Type_limits_uint64();
+/***************************************************************************/
 
+const Type_limits_int *Type_handler_tiny::type_limits_int() const
+{
+  static const Type_limits_sint8 limits_sint8;
+  return &limits_sint8;
+}
+
+const Type_limits_int *Type_handler_utiny::type_limits_int() const
+{
+  static const Type_limits_uint8 limits_uint8;
+  return &limits_uint8;
+}
+
+const Type_limits_int *Type_handler_short::type_limits_int() const
+{
+  static const Type_limits_sint16 limits_sint16;
+  return &limits_sint16;
+}
+
+const Type_limits_int *Type_handler_ushort::type_limits_int() const
+{
+  static const Type_limits_uint16 limits_uint16;
+  return &limits_uint16;
+}
+
+const Type_limits_int *Type_handler_int24::type_limits_int() const
+{
+  static const Type_limits_sint24 limits_sint24;
+  return &limits_sint24;
+}
+
+const Type_limits_int *Type_handler_uint24::type_limits_int() const
+{
+  static const Type_limits_uint24 limits_uint24;
+  return &limits_uint24;
+}
+
+const Type_limits_int *Type_handler_long::type_limits_int() const
+{
+  static const Type_limits_sint32 limits_sint32;
+  return &limits_sint32;
+}
+
+const Type_limits_int *Type_handler_ulong::type_limits_int() const
+{
+  static const Type_limits_uint32 limits_uint32;
+  return &limits_uint32;
+}
+
+const Type_limits_int *Type_handler_longlong::type_limits_int() const
+{
+  static const Type_limits_sint64 limits_sint64;
+  return &limits_sint64;
+}
+
+const Type_limits_int *Type_handler_ulonglong::type_limits_int() const
+{
+  static const Type_limits_uint64 limits_uint64;
+  return &limits_uint64;
+}
+
+
+/***************************************************************************/
+const Type_handler *Type_handler_bool::type_handler_signed() const
+{
+  return &type_handler_bool;
+}
+
+const Type_handler *Type_handler_bool::type_handler_unsigned() const
+{
+  return &type_handler_bool;
+}
+
+const Type_handler *Type_handler_tiny::type_handler_signed() const
+{
+  return &type_handler_stiny;
+}
+
+const Type_handler *Type_handler_tiny::type_handler_unsigned() const
+{
+  return &type_handler_utiny;
+}
+
+const Type_handler *Type_handler_short::type_handler_signed() const
+{
+  return &type_handler_sshort;
+}
+
+const Type_handler *Type_handler_short::type_handler_unsigned() const
+{
+  return &type_handler_ushort;
+}
+
+const Type_handler *Type_handler_int24::type_handler_signed() const
+{
+  return &type_handler_sint24;
+}
+
+const Type_handler *Type_handler_int24::type_handler_unsigned() const
+{
+  return &type_handler_uint24;
+}
+
+const Type_handler *Type_handler_long::type_handler_signed() const
+{
+  return &type_handler_slong;
+}
+
+const Type_handler *Type_handler_long::type_handler_unsigned() const
+{
+  return &type_handler_ulong;
+}
+
+const Type_handler *Type_handler_longlong::type_handler_signed() const
+{
+  return &type_handler_slonglong;
+}
+
+const Type_handler *Type_handler_longlong::type_handler_unsigned() const
+{
+  return &type_handler_ulonglong;
+}
 
 /***************************************************************************/
 
@@ -1451,7 +1604,7 @@ const Type_handler *Type_handler_null::type_handler_for_comparison() const
 
 const Type_handler *Type_handler_int_result::type_handler_for_comparison() const
 {
-  return &type_handler_longlong;
+  return &type_handler_slonglong;
 }
 
 
@@ -1520,7 +1673,7 @@ const Type_handler *Type_handler_typelib::type_handler_for_item_field() const
 
 const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 {
-  return &type_handler_longlong;
+  return &type_handler_slonglong;
 }
 
 
@@ -1543,12 +1696,20 @@ Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 
 
 const Type_handler *
-Type_handler::type_handler_long_or_longlong(uint max_char_length)
+Type_handler::type_handler_long_or_longlong(uint max_char_length,
+                                            bool unsigned_flag)
 {
+  if (unsigned_flag)
+  {
+    if (max_char_length <= MY_INT32_NUM_DECIMAL_DIGITS - 2)
+      return &type_handler_ulong;
+    return &type_handler_ulonglong;
+  }
   if (max_char_length <= MY_INT32_NUM_DECIMAL_DIGITS - 2)
-    return &type_handler_long;
-  return &type_handler_longlong;
+    return &type_handler_slong;
+  return &type_handler_slonglong;
 }
+
 
 /*
   This method is called for CASE (and its abbreviations) and LEAST/GREATEST
@@ -1560,8 +1721,8 @@ const Type_handler *
 Type_handler::bit_and_int_mixture_handler(uint max_char_length)
 {
   if (max_char_length <= MY_INT32_NUM_DECIMAL_DIGITS)
-    return &type_handler_long;
-  return &type_handler_longlong;
+    return &type_handler_slong;
+  return &type_handler_slonglong;
 }
 
 
@@ -1623,9 +1784,9 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
     {
       bit_and_non_bit_mixture_found= true;
       if (type_handler() == &type_handler_bit)
-        set_handler(&type_handler_longlong); // BIT + non-BIT
+        set_handler(&type_handler_slonglong); // BIT + non-BIT
       else
-        cur= &type_handler_longlong; // non-BIT + BIT
+        cur= &type_handler_slonglong; // non-BIT + BIT
     }
     if (aggregate_for_result(cur))
     {
@@ -1634,7 +1795,7 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
       return true;
     }
   }
-  if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_longlong)
+  if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_slonglong)
     set_handler(Type_handler::bit_and_int_mixture_handler(max_display_length));
   return false;
 }
@@ -1676,7 +1837,7 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
   if (a == STRING_RESULT && b == STRING_RESULT)
     return &type_handler_long_blob;
   if (a == INT_RESULT && b == INT_RESULT)
-    return &type_handler_longlong;
+    return &type_handler_slonglong;
   if (a == ROW_RESULT || b == ROW_RESULT)
     return &type_handler_row;
   if (a == TIME_RESULT || b == TIME_RESULT)
@@ -1774,9 +1935,9 @@ Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
     if (ha != hb)
     {
       if (ha == &type_handler_bit)
-        ha= &type_handler_longlong;
+        ha= &type_handler_slonglong;
       else if (hb == &type_handler_bit)
-        hb= &type_handler_longlong;
+        hb= &type_handler_slonglong;
     }
     return Type_collection_std::aggregate_for_result(ha, hb);
   }
@@ -1839,7 +2000,7 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
       return true;
     }
   }
-  if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_longlong)
+  if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_slonglong)
   {
     uint32 max_display_length= items[0]->max_display_length();
     for (uint i= 1; i < nitems; i++)
@@ -1868,7 +2029,7 @@ Type_collection_std::aggregate_for_num_op(const Type_handler *h0,
     return &type_handler_newdecimal;
 
   DBUG_ASSERT(r0 == INT_RESULT && r1 == INT_RESULT);
-  return &type_handler_longlong;
+  return &type_handler_slonglong;
 }
 
 
@@ -1913,11 +2074,11 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   switch (type) {
   case MYSQL_TYPE_DECIMAL:     return &type_handler_olddecimal;
   case MYSQL_TYPE_NEWDECIMAL:  return &type_handler_newdecimal;
-  case MYSQL_TYPE_TINY:        return &type_handler_tiny;
-  case MYSQL_TYPE_SHORT:       return &type_handler_short;
-  case MYSQL_TYPE_LONG:        return &type_handler_long;
-  case MYSQL_TYPE_LONGLONG:    return &type_handler_longlong;
-  case MYSQL_TYPE_INT24:       return &type_handler_int24;
+  case MYSQL_TYPE_TINY:        return &type_handler_stiny;
+  case MYSQL_TYPE_SHORT:       return &type_handler_sshort;
+  case MYSQL_TYPE_LONG:        return &type_handler_slong;
+  case MYSQL_TYPE_LONGLONG:    return &type_handler_slonglong;
+  case MYSQL_TYPE_INT24:       return &type_handler_sint24;
   case MYSQL_TYPE_YEAR:        return &type_handler_year;
   case MYSQL_TYPE_BIT:         return &type_handler_bit;
   case MYSQL_TYPE_FLOAT:       return &type_handler_float;
@@ -1968,11 +2129,11 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   switch (type) {
   case MYSQL_TYPE_DECIMAL:     return &type_handler_olddecimal;
   case MYSQL_TYPE_NEWDECIMAL:  return &type_handler_newdecimal;
-  case MYSQL_TYPE_TINY:        return &type_handler_tiny;
-  case MYSQL_TYPE_SHORT:       return &type_handler_short;
-  case MYSQL_TYPE_LONG:        return &type_handler_long;
-  case MYSQL_TYPE_LONGLONG:    return &type_handler_longlong;
-  case MYSQL_TYPE_INT24:       return &type_handler_int24;
+  case MYSQL_TYPE_TINY:        return &type_handler_stiny;
+  case MYSQL_TYPE_SHORT:       return &type_handler_sshort;
+  case MYSQL_TYPE_LONG:        return &type_handler_slong;
+  case MYSQL_TYPE_LONGLONG:    return &type_handler_slonglong;
+  case MYSQL_TYPE_INT24:       return &type_handler_sint24;
   case MYSQL_TYPE_YEAR:        return &type_handler_year;
   case MYSQL_TYPE_BIT:         return &type_handler_bit;
   case MYSQL_TYPE_FLOAT:       return &type_handler_float;
@@ -3117,6 +3278,7 @@ Field *Type_handler_tiny::make_table_field(MEM_ROOT *root,
                                            const Type_all_attributes &attr,
                                            TABLE *table) const
 {
+  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
          Field_tiny(addr.ptr(), attr.max_char_length(),
                     addr.null_ptr(), addr.null_bit(),
@@ -3131,6 +3293,7 @@ Field *Type_handler_short::make_table_field(MEM_ROOT *root,
                                             TABLE *table) const
 
 {
+  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
          Field_short(addr.ptr(), attr.max_char_length(),
                      addr.null_ptr(), addr.null_bit(),
@@ -3144,6 +3307,7 @@ Field *Type_handler_int24::make_table_field(MEM_ROOT *root,
                                             const Type_all_attributes &attr,
                                             TABLE *table) const
 {
+  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
          Field_medium(addr.ptr(), attr.max_char_length(),
                       addr.null_ptr(), addr.null_bit(),
@@ -3158,6 +3322,7 @@ Field *Type_handler_long::make_table_field(MEM_ROOT *root,
                                            const Type_all_attributes &attr,
                                            TABLE *table) const
 {
+  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
          Field_long(addr.ptr(), attr.max_char_length(),
                     addr.null_ptr(), addr.null_bit(),
@@ -3171,6 +3336,7 @@ Field *Type_handler_longlong::make_table_field(MEM_ROOT *root,
                                                const Type_all_attributes &attr,
                                                TABLE *table) const
 {
+  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
          Field_longlong(addr.ptr(), attr.max_char_length(),
                         addr.null_ptr(), addr.null_bit(),
@@ -3185,6 +3351,7 @@ Field *Type_handler_vers_trx_id::make_table_field(MEM_ROOT *root,
                                                const Type_all_attributes &attr,
                                                TABLE *table) const
 {
+  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
          Field_vers_trx_id(addr.ptr(), attr.max_char_length(),
                         addr.null_ptr(), addr.null_bit(),
@@ -3825,13 +3992,6 @@ uint32 Type_handler_bit::max_display_length(const Item *item) const
 }
 
 
-uint32 Type_handler_general_purpose_int::max_display_length(const Item *item)
-                                                            const
-{
-  return type_limits_int_by_unsigned_flag(item->unsigned_flag)->char_length();
-}
-
-
 /*************************************************************************/
 
 void Type_handler_row::Item_update_null_value(Item *item) const
@@ -4189,6 +4349,9 @@ bool Type_handler_int_result::
     }
   }
   func->aggregate_attributes_int(items, nitems);
+  handler->set_handler(func->unsigned_flag ?
+                       handler->type_handler()->type_handler_unsigned() :
+                       handler->type_handler()->type_handler_signed());
   return false;
 }
 
@@ -4461,7 +4624,15 @@ bool Type_handler_real_result::
 bool Type_handler_int_result::
        Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
 {
-  return func->fix_length_and_dec_numeric(&type_handler_longlong);
+  /*
+    "this" is equal func->args[0]->type_handler() here, e.g. for MIN()/MAX().
+    func->unsigned_flag is not reliably set yet.
+    It will be set by the call below (copied from args[0]).
+  */
+  const Type_handler *h= is_unsigned() ?
+                         &type_handler_ulonglong :
+                         &type_handler_slonglong;
+  return func->fix_length_and_dec_numeric(h);
 }
 
 
@@ -7960,14 +8131,14 @@ Type_handler_temporal_result::Item_const_eq(const Item_const *a,
 const Type_handler *
 Type_handler_hex_hybrid::cast_to_int_type_handler() const
 {
-  return &type_handler_longlong;
+  return &type_handler_ulonglong;
 }
 
 
 const Type_handler *
 Type_handler_hex_hybrid::type_handler_for_system_time() const
 {
-  return &type_handler_longlong;
+  return &type_handler_ulonglong;
 }
 
 

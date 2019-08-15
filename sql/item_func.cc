@@ -1188,7 +1188,10 @@ void Item_func_minus::fix_unsigned_flag()
 {
   if (unsigned_flag &&
       (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
+  {
     unsigned_flag=0;
+    set_handler(Item_func_minus::type_handler()->type_handler_signed());
+  }
 }
 
 
@@ -1807,7 +1810,7 @@ void Item_func_neg::fix_length_and_dec_int()
         Ensure that result is converted to DECIMAL, as longlong can't hold
         the negated number
       */
-      set_handler_by_result_type(DECIMAL_RESULT);
+      set_handler(&type_handler_newdecimal);
       DBUG_PRINT("info", ("Type changed: DECIMAL_RESULT"));
     }
   }
@@ -4391,7 +4394,8 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     set_handler(&type_handler_double);
     break;
   case INT_RESULT:
-    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length()));
+    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length(),
+                                                            unsigned_flag));
     break;
   case DECIMAL_RESULT:
     set_handler(&type_handler_newdecimal);
@@ -5292,21 +5296,25 @@ bool Item_func_get_user_var::fix_length_and_dec()
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
     collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
-    set_handler_by_result_type(m_var_entry->type);
-    switch (result_type()) {
+    switch (m_var_entry->type) {
     case REAL_RESULT:
       fix_char_length(DBL_DIG + 8);
+      set_handler(&type_handler_double);
       break;
     case INT_RESULT:
       fix_char_length(MAX_BIGINT_WIDTH);
       decimals=0;
+      set_handler(unsigned_flag ? &type_handler_ulonglong :
+                                  &type_handler_slonglong);
       break;
     case STRING_RESULT:
       max_length= MAX_BLOB_WIDTH - 1;
+      set_handler(&type_handler_long_blob);
       break;
     case DECIMAL_RESULT:
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
       decimals= DECIMAL_MAX_SCALE;
+      set_handler(&type_handler_newdecimal);
       break;
     case ROW_RESULT:                            // Keep compiler happy
     case TIME_RESULT:
@@ -5589,11 +5597,12 @@ const Type_handler *Item_func_get_system_var::type_handler() const
     case SHOW_SINT:
     case SHOW_SLONG:
     case SHOW_SLONGLONG:
+      return &type_handler_slonglong;
     case SHOW_UINT:
     case SHOW_ULONG:
     case SHOW_ULONGLONG:
     case SHOW_HA_ROWS:
-      return &type_handler_longlong;
+      return &type_handler_ulonglong;
     case SHOW_CHAR: 
     case SHOW_CHAR_PTR: 
     case SHOW_LEX_STRING:

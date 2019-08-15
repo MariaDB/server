@@ -472,11 +472,11 @@ Field_int::rpl_conv_type_from(const Conv_source &source,
     The length comparison check will do the correct job of comparing
     the field lengths (in bytes) of two integer types.
   */
-  if (source.type_handler() == &type_handler_tiny  ||
-      source.type_handler() == &type_handler_short ||
-      source.type_handler() == &type_handler_int24 ||
-      source.type_handler() == &type_handler_long  ||
-      source.type_handler() == &type_handler_longlong)
+  if (source.type_handler() == &type_handler_stiny  ||
+      source.type_handler() == &type_handler_sshort ||
+      source.type_handler() == &type_handler_sint24 ||
+      source.type_handler() == &type_handler_slong  ||
+      source.type_handler() == &type_handler_slonglong)
   {
     /*
       max_display_length_for_field() is not fully precise for the integer

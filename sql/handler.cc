@@ -7637,7 +7637,8 @@ static bool is_versioning_timestamp(const Create_field *f)
 
 static bool is_some_bigint(const Create_field *f)
 {
-  return f->type_handler() == &type_handler_longlong ||
+  return f->type_handler() == &type_handler_slonglong ||
+         f->type_handler() == &type_handler_ulonglong ||
          f->type_handler() == &type_handler_vers_trx_id;
 }
 

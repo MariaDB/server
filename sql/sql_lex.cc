@@ -5979,9 +5979,9 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
   sp_variable *spvar= spcont->add_variable(thd, name);
   spcont->declare_var_boundary(1);
   spvar->field_def.field_name= spvar->name;
-  spvar->field_def.set_handler(&type_handler_longlong);
-  type_handler_longlong.Column_definition_prepare_stage2(&spvar->field_def,
-                                                         NULL, HA_CAN_GEOMETRY);
+  spvar->field_def.set_handler(&type_handler_slonglong);
+  type_handler_slonglong.Column_definition_prepare_stage2(&spvar->field_def,
+                                                          NULL, HA_CAN_GEOMETRY);
   if (!value && unlikely(!(value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
@@ -10495,4 +10495,15 @@ Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
              ErrConvString(buf, length, system_charset_info).ptr());
   }
   return tmp;
+}
+
+
+void Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
+                                                 const char *length,
+                                                 uint32 flags)
+{
+  DBUG_ASSERT(!handler->is_unsigned());
+  if (flags & UNSIGNED_FLAG)
+    handler= handler->type_handler_unsigned();
+  set(handler, length, NULL);
 }

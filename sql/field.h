@@ -449,7 +449,7 @@ public:
   { // Use this when an item is [a part of] a boolean expression
   public:
     Context_boolean()
-      :Context(ANY_SUBST, &type_handler_longlong, &my_charset_bin) { }
+      :Context(ANY_SUBST, &type_handler_slonglong, &my_charset_bin) { }
   };
 };
 
@@ -2279,6 +2279,10 @@ public:
 
 class Field_tiny :public Field_int
 {
+  const Type_handler_general_purpose_int *type_handler_priv() const
+  {
+    return is_unsigned() ? &type_handler_utiny : &type_handler_stiny;
+  }
 public:
   Field_tiny(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	     uchar null_bit_arg,
@@ -2287,7 +2291,7 @@ public:
     :Field_int(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                unireg_check_arg, field_name_arg, zero_arg, unsigned_arg)
     {}
-  const Type_handler *type_handler() const { return &type_handler_tiny; }
+  const Type_handler *type_handler() const { return type_handler_priv(); }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_BINARY : HA_KEYTYPE_INT8; }
   int store(const char *to,size_t length,CHARSET_INFO *charset);
@@ -2304,7 +2308,7 @@ public:
   void sql_type(String &str) const;
   const Type_limits_int *type_limits_int() const
   {
-    return type_handler_tiny.type_limits_int_by_unsigned_flag(is_unsigned());
+    return type_handler_priv()->type_limits_int();
   }
 
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
@@ -2330,6 +2334,10 @@ public:
 
 class Field_short :public Field_int
 {
+  const Type_handler_general_purpose_int *type_handler_priv() const
+  {
+    return is_unsigned() ? &type_handler_ushort : &type_handler_sshort;
+  }
 public:
   Field_short(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
@@ -2344,7 +2352,7 @@ public:
     :Field_int((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
                NONE, field_name_arg, 0, unsigned_arg)
     {}
-  const Type_handler *type_handler() const { return &type_handler_short; }
+  const Type_handler *type_handler() const { return type_handler_priv(); }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_USHORT_INT : HA_KEYTYPE_SHORT_INT;}
   int store(const char *to,size_t length,CHARSET_INFO *charset);
@@ -2361,7 +2369,7 @@ public:
   void sql_type(String &str) const;
   const Type_limits_int *type_limits_int() const
   {
-    return type_handler_short.type_limits_int_by_unsigned_flag(is_unsigned());
+    return type_handler_priv()->type_limits_int();
   }
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   { return pack_int16(to, from); }
@@ -2377,6 +2385,10 @@ public:
 
 class Field_medium :public Field_int
 {
+  const Type_handler_general_purpose_int *type_handler_priv() const
+  {
+    return is_unsigned() ? &type_handler_uint24 : &type_handler_sint24;
+  }
 public:
   Field_medium(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
@@ -2385,7 +2397,7 @@ public:
     :Field_int(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                unireg_check_arg, field_name_arg, zero_arg, unsigned_arg)
     {}
-  const Type_handler *type_handler() const { return &type_handler_int24; }
+  const Type_handler *type_handler() const { return type_handler_priv(); }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_UINT24 : HA_KEYTYPE_INT24; }
   int store(const char *to,size_t length,CHARSET_INFO *charset);
@@ -2402,7 +2414,7 @@ public:
   void sql_type(String &str) const;
   const Type_limits_int *type_limits_int() const
   {
-    return type_handler_int24.type_limits_int_by_unsigned_flag(is_unsigned());
+    return type_handler_priv()->type_limits_int();
   }
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   {
@@ -2417,6 +2429,10 @@ public:
 
 class Field_long :public Field_int
 {
+  const Type_handler_general_purpose_int *type_handler_priv() const
+  {
+    return is_unsigned() ? &type_handler_ulong : &type_handler_slong;
+  }
 public:
   Field_long(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	     uchar null_bit_arg,
@@ -2431,7 +2447,7 @@ public:
     :Field_int((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
                NONE, field_name_arg, 0, unsigned_arg)
     {}
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const { return type_handler_priv(); }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_ULONG_INT : HA_KEYTYPE_LONG_INT; }
   int store(const char *to,size_t length,CHARSET_INFO *charset);
@@ -2448,7 +2464,7 @@ public:
   void sql_type(String &str) const;
   const Type_limits_int *type_limits_int() const
   {
-    return type_handler_long.type_limits_int_by_unsigned_flag(is_unsigned());
+    return type_handler_priv()->type_limits_int();
   }
   virtual uchar *pack(uchar* to, const uchar *from,
                       uint max_length __attribute__((unused)))
@@ -2470,6 +2486,10 @@ public:
 
 class Field_longlong :public Field_int
 {
+  const Type_handler_general_purpose_int *type_handler_priv() const
+  {
+    return is_unsigned() ? &type_handler_ulonglong : &type_handler_slonglong;
+  }
 public:
   Field_longlong(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
@@ -2484,7 +2504,7 @@ public:
     :Field_int((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
                 NONE, field_name_arg, 0, unsigned_arg)
     {}
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return type_handler_priv(); }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_ULONGLONG : HA_KEYTYPE_LONGLONG; }
   int store(const char *to,size_t length,CHARSET_INFO *charset);
@@ -2505,7 +2525,7 @@ public:
   void sql_type(String &str) const;
   const Type_limits_int *type_limits_int() const
   {
-    return type_handler_longlong.type_limits_int_by_unsigned_flag(is_unsigned());
+    return type_handler_priv()->type_limits_int();
   }
   virtual uchar *pack(uchar* to, const uchar *from,
                       uint max_length  __attribute__((unused)))
@@ -5209,11 +5229,26 @@ public:
   }
 
   // This should move to Type_handler eventually
-  bool is_sane() const
+  bool is_sane_float() const
   {
     return (decimals <= FLOATING_POINT_DECIMALS ||
             (type_handler()->field_type() != MYSQL_TYPE_FLOAT &&
              type_handler()->field_type() != MYSQL_TYPE_DOUBLE));
+  }
+  bool is_sane_signess() const
+  {
+    if (type_handler() == type_handler()->type_handler_signed() &&
+        type_handler() == type_handler()->type_handler_unsigned())
+      return true; // Any signess is allowed, e.g. DOUBLE, DECIMAL
+    /*
+      We are here e.g. in case of INT data type.
+      The UNSIGNED_FLAG bit must match in flags and in the type handler.
+    */
+    return ((bool) (flags & UNSIGNED_FLAG)) == type_handler()->is_unsigned();
+  }
+  bool is_sane() const
+  {
+    return is_sane_float() && is_sane_signess();
   }
 };
 
