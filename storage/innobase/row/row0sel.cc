@@ -5726,9 +5726,7 @@ lock_wait_or_error:
 
 	/*-------------------------------------------------------------*/
 	if (!dict_index_is_spatial(index)) {
-		if (rec) {
-			btr_pcur_store_position(pcur, &mtr);
-		}
+		btr_pcur_store_position(pcur, &mtr);
 	}
 
 lock_table_wait:
