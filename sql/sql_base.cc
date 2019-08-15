@@ -2488,9 +2488,16 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
     {
       if (!table_list->table || !table_list->table->needs_reopen())
         continue;
-      /* no need to remove the table from the TDC here, thus (TABLE*)1 */
-      close_all_tables_for_name(thd, table_list->table->s,
-                                HA_EXTRA_NOT_USED, (TABLE*)1);
+      for (TABLE **prev= &thd->open_tables; *prev; prev= &(*prev)->next)
+      {
+        if (*prev == table_list->table)
+        {
+          thd->locked_tables_list.unlink_from_list(thd, table_list, false);
+          mysql_lock_remove(thd, thd->lock, *prev);
+          close_thread_table(thd, prev);
+          break;
+        }
+      }
       DBUG_ASSERT(table_list->table == NULL);
     }
     else
