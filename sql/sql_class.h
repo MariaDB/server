@@ -274,8 +274,14 @@ class Key_part_spec :public Sql_alloc {
 public:
   LEX_CSTRING field_name;
   uint length;
+  // used to create hidden columns for indexes on expressions
+  Virtual_column_info *vfield;
   Key_part_spec(const LEX_CSTRING *name, uint len)
-    : field_name(*name), length(len)
+    : field_name(*name), length(len), vfield(NULL)
+  {}
+
+  Key_part_spec(Virtual_column_info *vfield_info)
+    : field_name{NULL, 0}, length(0), vfield(vfield_info)
   {}
   bool operator==(const Key_part_spec& other) const;
   /**
@@ -385,6 +391,7 @@ public:
   */
   virtual Key *clone(MEM_ROOT *mem_root) const
     { return new (mem_root) Key(*this, mem_root); }
+  bool has_index_on_hidden_fields();
 };
 
 

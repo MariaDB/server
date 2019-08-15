@@ -36,5 +36,48 @@ explain extended select * from t inner join t1 on a+b/2>50;
 
 explain extended (select * from t inner join t1 on a>sqrt(a1*a1+b1*b1)) union (select * from t2 inner join t on a+b/2 > 2);
 
+# test index on expression
+
+create or replace table t(a int, b int, index((a+b/2)));
+create or replace table t1(a1 int, b1 int, index((sqrt(a1*a1 + b1*b1))));
+create or replace table t2(a2 int, b2 int, index((abs(a2*a2 - b2*b2))));
+
+show create table t;
+show create table t1;
+show create table t2;
+
+insert into t values
+  (5, 10),
+  (7, 6),
+  (17, 60),
+  (1, 60);
+
+insert into t1 values
+  (5, 10),
+  (7, 6),
+  (17, 60),
+  (1, 60);
+
+insert into t2 values
+  (5, 10),
+  (7, 6),
+  (17, 60),
+  (1, 60);
+
+explain extended select * from t where a+b/2=10;
+
+explain extended select * from t where a = (select a from t1 where sqrt(a1*a1 + b1*b1) > 2);
+
+explain extended select * from t where a = (select a from t1 where sqrt(a1*a1 + b1*b1) = 2);
+
+explain extended (select * from t where a+b/2 > 10) UNION (select * from t1 where sqrt(a1*a1+b1*b1) > 50);
+
+explain extended select * from t inner join t1 on a+b/2>50;
+
+explain extended (select * from t inner join t1 on a>sqrt(a1*a1+b1*b1)) union (select * from t2 inner join t on a+b/2 > 2);
+
+# compound indexes
+create or replace table t(a int, b int, index((a+b/2), (a-b/2), a, b), index(b, a, (a-b/2)));
+show create table t;
 
 drop table t, t1, t2;

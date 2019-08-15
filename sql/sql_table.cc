@@ -3274,14 +3274,14 @@ bool Column_definition::prepare_stage1_check_typelib_default()
     RETURN VALUE
       Create_field pointer
 */
-int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
-        const char *field_name, Type_handler *type_handler,
+Create_field *mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
+        const char *field_name, const Type_handler *type_handler,
         field_visibility_t invisible, Item* default_value)
 {
   Create_field *fld= new(thd->mem_root)Create_field();
   const char *new_name= NULL;
   /* Get unique field name if invisible == INVISIBLE_FULL */
-  if (invisible == INVISIBLE_FULL)
+  if (invisible == INVISIBLE_FULL || (invisible == INVISIBLE_SYSTEM && !field_name))
   {
     if ((new_name= make_unique_invisible_field_name(thd, field_name,
                                                      field_list)))
@@ -3290,7 +3290,10 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
       fld->field_name.length= strlen(new_name);
     }
     else
-      return 1;  //Should not happen
+    {
+      MY_ASSERT_UNREACHABLE();
+      return NULL;  //Should not happen
+    }
   }
   else
   {
@@ -3306,8 +3309,8 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
     v->utf8= 0;
     fld->default_value= v;
   }
-  field_list->push_front(fld, thd->mem_root);
-  return 0;
+  field_list->push_back(fld, thd->mem_root);
+  return fld;
 }
 
 #define LONG_HASH_FIELD_NAME_LENGTH 30
@@ -3945,9 +3948,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
       }
+
+
       if (sql_field->invisible > INVISIBLE_USER &&
           !(sql_field->flags & VERS_SYSTEM_FIELD) &&
-          !key->invisible && DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
+          !key->invisible &&
+          !key->has_index_on_hidden_fields() &&
+          DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
+
       {
         my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);
@@ -4909,6 +4917,9 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
         unlikely(check_partition_dirs(thd->lex->part_info)))
       goto err;
   }
+
+  add_hidden_vfield_fields(thd, &alter_info->create_list, &alter_info->key_list,
+                           alter_info);
 
   alias= const_cast<LEX_CSTRING*>(table_case_name(create_info, &table_name));
 
@@ -8230,6 +8241,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
     }
   }
+
+  add_hidden_vfield_fields(thd, &new_create_list, &alter_info->key_list,
+                           alter_info);
+
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
   if ((dropped_sys_vers_fields ||
        alter_info->flags & ALTER_DROP_PERIOD) &&
@@ -11187,6 +11202,60 @@ bool check_engine(THD *thd, const char *db_name,
   }
 
   DBUG_RETURN(false);
+}
+
+bool add_hidden_vfield_fields(THD *thd, List<Create_field> *create_list,
+                              List<Key> *key_list, Alter_info *alter_info)
+{
+  if (alter_info->is_hidden_fields_processed)
+    return true;
+
+  List_iterator<Key> key_it(*key_list);
+  Key *key;
+  Key_part_spec *part;
+  Create_field *create_field;
+  while ((key = key_it++))
+  {
+    List_iterator<Key_part_spec> part_it(key->columns);
+    while ((part = part_it++))
+    {
+      if (!part->vfield)
+        continue;
+      // Check if we already have hidden virtual field on given expression.
+      List_iterator<Create_field> create_it(*create_list);
+
+      while ((create_field = create_it++))
+      {
+        if (create_field->vcol_info &&
+            create_field->invisible == INVISIBLE_FULL &&
+            create_field->vcol_info->expr->eq(part->vfield->expr, false))
+        {
+//          part->field_name = create_field->field_name;
+          part->field_name = create_field->field_name;
+          break;
+        }
+      }
+
+      // found above
+      if (part->field_name.str)
+        continue;
+
+      Create_field *fld = mysql_add_invisible_field(thd,
+                                                    create_list,
+                                                    "hidden_vfield_expr",
+                                                    part->vfield->expr
+                                                                ->type_handler(),
+                                                    INVISIBLE_FULL,
+                                                    NULL);
+      fld->type_handler()->Column_definition_fix_attributes(fld);
+      fld->vcol_info = part->vfield;
+      fld->vcol_info->set_stored_in_db_flag(FALSE);
+      part->field_name = fld->field_name;
+    }
+  }
+
+  alter_info->is_hidden_fields_processed = true;
+  return true;
 }
 
 
