@@ -32,7 +32,7 @@ connection node_2;
 UPDATE t1 SET j=2 WHERE i=1;
 connection node_1;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT * FROM t1;
 i	j
 1	2
