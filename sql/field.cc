@@ -7560,7 +7560,8 @@ bool Field_varstring::memcpy_field_possible(const Field *from) const
   return (Field_str::memcpy_field_possible(from) &&
           !compression_method() == !from->compression_method() &&
           length_bytes == ((Field_varstring*) from)->length_bytes &&
-          !(table->file->ha_table_flags() & HA_RECORD_MUST_BE_CLEAN_ON_WRITE));
+          (table->file && !(table->file->ha_table_flags() &
+                            HA_RECORD_MUST_BE_CLEAN_ON_WRITE)));
 }
 
 
