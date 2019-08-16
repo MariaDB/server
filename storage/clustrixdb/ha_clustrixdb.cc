@@ -528,6 +528,13 @@ int ha_clustrixdb::index_init(uint idx, bool sorted)
   add_current_table_to_rpl_table_list();
   scan_refid = 0;
 
+  /* Return all columns until there is a better understanding of
+     requirements. */
+  if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
+    return ER_OUTOFMEMORY;
+  bitmap_set_all(&scan_fields);
+  sorted_scan = sorted;
+
   return 0;
 
 }
@@ -542,7 +549,7 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   if (!trx)
     DBUG_RETURN(error_code);
 
-  is_scan = false;
+  is_scan = true;
   key_restore(table->record[0], key, &table->key_info[active_index], key_len);
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
@@ -550,92 +557,82 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   build_key_packed_row(active_index, table->record[0],
                        packed_key, &packed_key_len);
 
-  uchar *rowdata;
-  ulong rowdata_length;
-  if ((error_code = trx->key_read(clustrix_table_oid, active_index,
-                                  table->read_set, packed_key, packed_key_len,
-                                  &rowdata, &rowdata_length)))
-    goto err;
+  //bool exact = false;
+  clustrix_connection::scan_type st;
+  switch (find_flag) {
+    case HA_READ_KEY_EXACT:
+      //exact = true;
+      /* fall through */    
+      //DBUG_RETURN(ER_NOT_SUPPORTED_YET);
+    case HA_READ_KEY_OR_NEXT:           
+      st = clustrix_connection::READ_KEY_OR_NEXT;
+      break;
+    case HA_READ_KEY_OR_PREV:
+      st = clustrix_connection::READ_KEY_OR_PREV;
+      break;
+    case HA_READ_AFTER_KEY:
+      st = clustrix_connection::READ_AFTER_KEY;
+      break;
+    case HA_READ_BEFORE_KEY:
+      st = clustrix_connection::READ_BEFORE_KEY;
+      break;
+    case HA_READ_PREFIX:
+    case HA_READ_PREFIX_LAST:
+    case HA_READ_PREFIX_LAST_OR_PREV:
+    case HA_READ_MBR_CONTAIN:
+    case HA_READ_MBR_INTERSECT:
+    case HA_READ_MBR_WITHIN:
+    case HA_READ_MBR_DISJOINT:
+    case HA_READ_MBR_EQUAL:
+      DBUG_RETURN(ER_NOT_SUPPORTED_YET);
+  }
 
-  uchar const *current_row_end;
-  ulong master_reclength;
-  if ((error_code = unpack_row(rgi, table, table->s->fields, rowdata,
-                              table->read_set, &current_row_end,
-                              &master_reclength, rowdata + rowdata_length)))
-    goto err;
-
-err:
+  error_code = trx->scan_from_key(clustrix_table_oid, active_index, st,
+                                  sorted_scan, &scan_fields, packed_key,
+                                  packed_key_len, &scan_refid);
   if (packed_key)
     my_afree(packed_key);
 
-  DBUG_RETURN(error_code);
+  if (error_code)
+    DBUG_RETURN(error_code);
+
+  DBUG_RETURN(rnd_next(buf));
 }
 
 int ha_clustrixdb::index_first(uchar *buf)
 {
+  DBUG_ENTER("ha_clustrixdb::index_read");
   int error_code = 0;
   THD *thd = ha_thd();
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
-    return error_code;
+    DBUG_RETURN(error_code);
 
-  is_scan = true;
+  if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index,
+                                       clustrix_connection::READ_FROM_START, 
+                                       sorted_scan, &scan_fields, NULL, 0,
+                                       &scan_refid)))
+    DBUG_RETURN(error_code);
 
-  if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
-    return ER_OUTOFMEMORY;
-#if 0
-  if (table->s->keys)
-    table->mark_columns_used_by_index(table->s->primary_key, &scan_fields);
-  else
-    bitmap_clear_all(&scan_fields);
-
-  bitmap_union(&scan_fields, table->read_set);
-#else
-  /* Why is read_set not setup correctly? */
-  bitmap_set_all(&scan_fields);
-#endif
-
-  if ((error_code = trx->scan_table(clustrix_table_oid, active_index,
-                                    clustrix_connection::SORT_NONE,
-                                    &scan_fields, &scan_refid)))
-    return error_code;
-
-
-  return rnd_next(buf);
+  DBUG_RETURN(rnd_next(buf));
 }
 
 int ha_clustrixdb::index_last(uchar *buf)
 {
+  DBUG_ENTER("ha_clustrixdb::index_read");
   int error_code = 0;
   THD *thd = ha_thd();
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
-    return error_code;
+    DBUG_RETURN(error_code);
 
-  is_scan = true;
+  if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index,
+                                       clustrix_connection::READ_FROM_LAST, 
+                                       sorted_scan, &scan_fields, NULL, 0,
+                                       &scan_refid)))
+    DBUG_RETURN(error_code);
 
-  if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
-    return ER_OUTOFMEMORY;
-#if 0
-  if (table->s->keys)
-    table->mark_columns_used_by_index(table->s->primary_key, &scan_fields);
-  else
-    bitmap_clear_all(&scan_fields);
-
-  bitmap_union(&scan_fields, table->read_set);
-#else
-  /* Why is read_set not setup correctly? */
-  bitmap_set_all(&scan_fields);
-#endif
-
-  if ((error_code = trx->scan_table(clustrix_table_oid, active_index,
-                                    clustrix_connection::SORT_NONE,
-                                    &scan_fields, &scan_refid)))
-    return error_code;
-
-
-  return rnd_next(buf);
-
+  DBUG_RETURN(rnd_next(buf));
 }
 
 int ha_clustrixdb::index_next(uchar *buf)

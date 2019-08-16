@@ -29,7 +29,8 @@ enum clustrix_commands {
   CLUSTRIX_KEY_READ,
   CLUSTRIX_KEY_DELETE,
   CLUSTRIX_SCAN_QUERY,
-  CLUSTRIX_KEY_UPDATE
+  CLUSTRIX_KEY_UPDATE,
+  CLUSTRIX_SCAN_FROM_KEY
 };
 
 /****************************************************************************
@@ -38,6 +39,7 @@ enum clustrix_commands {
 
 void clustrix_connection::disconnect(bool is_destructor)
 {
+  DBUG_ENTER("clustrix_connection::disconnect");
   if (is_destructor)
   {
     /*
@@ -48,13 +50,14 @@ void clustrix_connection::disconnect(bool is_destructor)
     clustrix_net.net.thd = NULL;
   }
   mysql_close(&clustrix_net);
+  DBUG_VOID_RETURN;
 }
 
 int clustrix_connection::connect()
 {
   int error_code = 0;
   my_bool my_true = 1;
-  DBUG_ENTER("connect");
+  DBUG_ENTER("clustrix_connection::connect");
 
   /* Validate the connection parameters */
   if (!strcmp(clustrix_socket, ""))
@@ -440,6 +443,49 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
   return error_code;
 }
 
+int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
+                                       enum scan_type scan_dir,
+                                       bool sorted_scan, MY_BITMAP *read_set,
+                                       uchar *packed_key,
+                                       ulong packed_key_length,
+                                       ulonglong *scan_refid)
+{
+  int error_code;
+  command_length = 0;
+
+  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_FROM_KEY)))
+    return error_code;
+
+  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+    return error_code;
+
+  if ((error_code = add_command_operand_uint(index)))
+    return error_code;
+
+  if ((error_code = add_command_operand_uchar(scan_dir)))
+    return error_code;
+
+  if ((error_code = add_command_operand_uchar(sorted_scan)))
+    return error_code;
+
+  if ((error_code = add_command_operand_str(packed_key, packed_key_length)))
+    return error_code;
+
+  if ((error_code = add_command_operand_bitmap(read_set)))
+    return error_code;
+
+  if ((error_code = send_command()))
+    return error_code;
+
+  ulong packet_length = cli_safe_read(&clustrix_net);
+  if (packet_length == packet_error)
+    return mysql_errno(&clustrix_net);
+
+  unsigned char *pos = clustrix_net.net.read_pos;
+  *scan_refid = safe_net_field_length_ll(&pos, packet_length);
+  return error_code;
+}
+
 int clustrix_connection::scan_next(ulonglong scan_refid, uchar **rowdata,
                                    ulong *rowdata_length)
 {
@@ -692,6 +738,9 @@ int clustrix_connection::add_command_operand_str(const uchar *str,
   int error_code = add_command_operand_lcb(str_length);
   if (error_code)
     return error_code;
+
+  if (!str_length)
+      return 0;
 
   error_code = expand_command_buffer(str_length);
   if (error_code)

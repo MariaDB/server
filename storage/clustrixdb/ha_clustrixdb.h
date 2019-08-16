@@ -41,6 +41,7 @@ private:
   ulonglong scan_refid;
   bool is_scan;
   MY_BITMAP scan_fields;
+  bool sorted_scan;
 
 public:
   ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg);
