@@ -34,6 +34,7 @@ update t1 set c = 'MariaDB';
 update t1 set c = 'InnoDB';
 eval set global debug_dbug = '+d,$SEARCH_PATTERN';
 commit;
+drop table t1;
 call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated undo log tablespaces");
 # FIXME: remove this work-around, and generate less log!
 call mtr.add_suppression("InnoDB: The redo log transaction size ");
@@ -43,5 +44,3 @@ SET GLOBAL innodb_fast_shutdown=0;
 # FIXME: remove this work-around, and generate less log!
 --let $restart_parameters= --innodb-buffer-pool-size=16m --innodb-undo-tablespaces=1
 --source include/start_mysqld.inc
-
-drop table t1;
