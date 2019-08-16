@@ -5775,30 +5775,13 @@ key_def:
           }
           '(' key_list_fk ')' references
           {
-            LEX *lex=Lex;
-            Key *key= (new (thd->mem_root)
-                       Foreign_key($5.str ? &$5 : &$1,
-                                   &lex->last_key->columns,
-                                   &$10->db,
-                                   &$10->table,
-                                   &lex->ref_list,
-                                   lex->fk_ref_period,
-                                   lex->fk_delete_opt,
-                                   lex->fk_update_opt,
-                                   lex->fk_match_option,
-                                    $4));
-            if (unlikely(key == NULL))
+            auto *key_name= $5.str ? &$5 : &$1;
+            if (unlikely(add_foreign_key_to_list(Lex, key_name, $10, $4) != 0))
               MYSQL_YYABORT;
-            /*
-              handle_if_exists_options() expectes the two keys in this order:
-              the Foreign_key, followed by its auto-generated Key.
-            */
-            lex->alter_info.key_list.push_back(key, thd->mem_root);
-            lex->alter_info.key_list.push_back(Lex->last_key, thd->mem_root);
-            lex->option_list= NULL;
+            Lex->option_list= NULL;
 
             /* Only used for ALTER TABLE. Ignored otherwise. */
-            lex->alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
+            Lex->alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
           }
 	;
 

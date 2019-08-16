@@ -7949,3 +7949,7 @@ ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
         eng "Period WITHOUT OVERLAPS is not implemented for partitioned tables"
 ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE
         eng "Period WITHOUT OVERLAPS is only allowed for unique keys"
+ER_PERIOD_FK_TYPES_MISMATCH
+        eng "Fields of %`s and %`s.%`s.%`s have different types"
+ER_PERIOD_FK_NOT_FOUND
+        eng "Period %`s is not found in referenced table %`s.%`s"

@@ -150,5 +150,46 @@ foreign key(id, x, period no_such_p)
 references t(id, x, period p)
 on delete restrict);
 ERROR HY000: Period `no_such_p` is not found in table
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period fp)
+references t(id, x, period no_such_p)
+on delete restrict);
+ERROR HY000: Period `no_such_p` is not found in referenced table `test`.`t`
+create or replace table t1 (id int, x int, s timestamp, e timestamp, period for p(s,e),
+unique(id, x, p without overlaps));
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict);
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+create or replace table s (id int, x int, s timestamp(6), e timestamp(6),
+period for fp(s,e),
+foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict);
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+create or replace table s (id int, x int, s date, e date);
+alter table s add period for fp(s,e),
+add foreign key(id, x, period fp)
+references t1(id, x, period no_such_p)
+on delete restrict;
+ERROR HY000: Period `no_such_p` is not found in referenced table `test`.`t1`
+alter table s add period for fp(s,e),
+add foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict;
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+alter table s change s s timestamp(6), change e e timestamp(6),
+add period for fp(s, e),
+add foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict;
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+alter table s change s s timestamp(6), change e e timestamp(6),
+add period for fp(s, e);
+alter table s add foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict;
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
 drop database test;
 create database test;

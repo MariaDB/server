@@ -397,19 +397,22 @@ public:
 		      FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
   LEX_CSTRING ref_db;
   LEX_CSTRING ref_table;
+  TABLE_LIST *ref_table_list;
   List<Key_part_spec> ref_columns;
   Lex_ident ref_period;
   enum enum_fk_option delete_opt, update_opt;
   enum fk_match_opt match_opt;
   Foreign_key(const LEX_CSTRING *name_arg, List<Key_part_spec> *cols,
-	      const LEX_CSTRING *ref_db_arg, const LEX_CSTRING *ref_table_arg,
+              const LEX_CSTRING ref_db_arg, const LEX_CSTRING ref_table_arg,
+              TABLE_LIST *ref_table,
               List<Key_part_spec> *ref_cols, Lex_ident ref_period,
               enum_fk_option delete_opt_arg, enum_fk_option update_opt_arg,
               fk_match_opt match_opt_arg,
 	      DDL_options ddl_options)
     :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
          ddl_options),
-    ref_db(*ref_db_arg), ref_table(*ref_table_arg), ref_columns(*ref_cols),
+    ref_db(ref_db_arg), ref_table(ref_table_arg),
+    ref_table_list(ref_table), ref_columns(*ref_cols),
     ref_period(ref_period), delete_opt(delete_opt_arg),
     update_opt(update_opt_arg), match_opt(match_opt_arg)
    {

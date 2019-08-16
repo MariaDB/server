@@ -103,31 +103,31 @@ if (!$skip_spatial_index_check)
 --echo # FOREIGN KEY
 
 --echo # Rejected FK options.
---error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
+--error ER_NO_SUCH_TABLE
 create table t1 (a int, b int as (a+1) persistent,
                  foreign key (b) references t2(a) on update set null);
---error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
+--error ER_NO_SUCH_TABLE
 create table t1 (a int, b int as (a+1) persistent,
                  foreign key (b) references t2(a) on update cascade);
---error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
+--error ER_NO_SUCH_TABLE
 create table t1 (a int, b int as (a+1) persistent,
                  foreign key (b) references t2(a) on delete set null);
 
 create table t1 (a int, b int as (a+1) persistent);
---error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
+--error ER_NO_SUCH_TABLE
 alter table t1 add foreign key (b) references t2(a) on update set null;
---error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
+--error ER_NO_SUCH_TABLE
 alter table t1 add foreign key (b) references t2(a) on update cascade;
---error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
+--error ER_NO_SUCH_TABLE
 alter table t1 add foreign key (b) references t2(a) on delete set null;
 drop table t1;
 
 if ($with_foreign_keys) {
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 create table t1 (a int, b int as (a+1), foreign key (b) references t2(a));
 
 create table t1 (a int, b int as (a+1));
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 alter table t1 add foreign key (b) references t2(a);
 drop table t1;
 }

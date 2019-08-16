@@ -887,7 +887,9 @@ Warnings:
 Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
 SELECT CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
 CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$'
-1
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of 75 exceeded' from regexp
 SELECT CONCAT(REPEAT('100,',200),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
 CONCAT(REPEAT('100,',200),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$'
 0
@@ -895,7 +897,9 @@ Warnings:
 Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
 SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
 REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$')
-1
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of 75 exceeded' from regexp
 SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
 REGEXP_INSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$')
 0
@@ -903,7 +907,9 @@ Warnings:
 Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
 SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
 LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'))
-243
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of 75 exceeded' from regexp
 SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
 LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'))
 0
@@ -911,7 +917,9 @@ Warnings:
 Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
 SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
 LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''))
-0
+243
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of 75 exceeded' from regexp
 SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
 LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',200),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''))
 803

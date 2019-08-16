@@ -3702,6 +3702,38 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                  ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
 	DBUG_RETURN(TRUE);
       }
+
+      if (fk_key->ref_period)
+      {
+        auto *ref_table= fk_key->ref_table_list->table->s;
+        if (!fk_key->ref_period.streq(ref_table->period.name))
+        {
+          my_error(ER_PERIOD_FK_NOT_FOUND, MYF(0), fk_key->ref_period.str,
+                   ref_table->db.str, ref_table->table_name.str);
+        }
+
+        Create_field *period_start= NULL;
+        List_iterator_fast<Create_field> fit(alter_info->create_list);
+        while(auto *f= fit++)
+        {
+          if (create_info->period_info.period.start.streq(f->field_name))
+          {
+            period_start= f;
+            break;
+          }
+        }
+        DBUG_ASSERT(period_start);
+
+        auto *ref_period_start= ref_table->period.start_field(ref_table);
+
+        if (ref_period_start->type_handler() != period_start->type_handler()
+            || ref_period_start->pack_length() != period_start->pack_length)
+        {
+          my_error(ER_PERIOD_FK_TYPES_MISMATCH, MYF(0), fk_key->period.str,
+                   ref_table->db.str, ref_table->table_name.str,
+                   ref_table->period.name.str);
+        }
+      }
       continue;
     }
     (*key_count)++;
@@ -4579,6 +4611,9 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
     }
     else if (key->period)
     {
+      if (key->type == Key::FOREIGN_KEY)
+        continue; // there should be another key matching this foreign key.
+
       if (!create_info->period_info.is_set()
           || !key->period.streq(create_info->period_info.name))
       {

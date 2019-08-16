@@ -134,5 +134,55 @@ create or replace table s (id int, x int, s date, e date, period for fp(s,e),
                              references t(id, x, period p)
                              on delete restrict);
 
+--error ER_PERIOD_FK_NOT_FOUND
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t(id, x, period no_such_p)
+                             on delete restrict);
+
+
+create or replace table t1 (id int, x int, s timestamp, e timestamp, period for p(s,e),
+                           unique(id, x, p without overlaps));
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t1(id, x, period p)
+                             on delete restrict);
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+create or replace table s (id int, x int, s timestamp(6), e timestamp(6),
+                           period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t1(id, x, period p)
+                             on delete restrict);
+
+create or replace table s (id int, x int, s date, e date);
+--error ER_PERIOD_FK_NOT_FOUND
+alter table s add period for fp(s,e),
+              add foreign key(id, x, period fp)
+               references t1(id, x, period no_such_p)
+               on delete restrict;
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+alter table s add period for fp(s,e),
+              add foreign key(id, x, period fp)
+               references t1(id, x, period p)
+               on delete restrict;
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+alter table s change s s timestamp(6), change e e timestamp(6),
+              add period for fp(s, e),
+              add foreign key(id, x, period fp)
+               references t1(id, x, period p)
+               on delete restrict;
+
+alter table s change s s timestamp(6), change e e timestamp(6),
+              add period for fp(s, e);
+--error ER_PERIOD_FK_TYPES_MISMATCH
+alter table s add foreign key(id, x, period fp)
+               references t1(id, x, period p)
+               on delete restrict;
+
 drop database test;
 create database test;

@@ -11168,3 +11168,54 @@ sp_condition_value *LEX::stmt_signal_value(const Lex_ident_sys_st &ident)
   }
   return cond;
 }
+
+
+int add_foreign_key_to_list(LEX *lex, LEX_CSTRING *name,
+                            Table_ident *ref_table_name,
+                            DDL_options ddl_options)
+{
+  THD *thd= lex->thd;
+  if (ref_table_name->db.str == NULL)
+    ref_table_name->db= lex->query_tables->db;
+
+  if (ref_table_name->db.str == NULL)
+    lex->copy_db_to(&ref_table_name->db);
+  TABLE_LIST *table= find_table_in_list(lex->query_tables,
+                                        &TABLE_LIST::next_global,
+                                        &ref_table_name->db,
+                                        &ref_table_name->table);
+
+  if (!(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
+  {
+    if (table == NULL)
+      table= lex->first_select_lex()->add_table_to_list(thd,
+                                                        ref_table_name,
+                                                        NULL, 0, TL_READ,
+                                                        MDL_SHARED_READ);
+    if (unlikely(table == NULL))
+      return 1;
+  }
+  Key *key= new (thd->mem_root) Foreign_key(name,
+                                            &lex->last_key->columns,
+                                            ref_table_name->db,
+                                            ref_table_name->table,
+                                            table,
+                                            &lex->ref_list,
+                                            lex->fk_ref_period,
+                                            lex->fk_delete_opt,
+                                            lex->fk_update_opt,
+                                            lex->fk_match_option,
+                                            ddl_options);
+  if (unlikely(key == NULL))
+    return 1;
+
+  key->period= lex->last_key->period;
+  /*
+    handle_if_exists_options() expectes the two keys in this order:
+    the Foreign_key, followed by its auto-generated Key.
+  */
+  lex->alter_info.key_list.push_back(key, thd->mem_root);
+  lex->alter_info.key_list.push_back(lex->last_key, thd->mem_root);
+
+  return 0;
+}

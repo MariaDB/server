@@ -1,7 +1,7 @@
 # Create statement with FK on base column of stored column
 create table t1(f1 int, f2 int as(f1) stored,
 foreign key(f1) references t2(f1) on delete cascade)engine=innodb;
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'test.t2' doesn't exist
 # adding new stored column during alter table copy operation.
 create table t1(f1 int primary key) engine=innodb;
 create table t2(f1 int not null, f2 int as (f1) virtual,
