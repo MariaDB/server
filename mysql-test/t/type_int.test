@@ -1,4 +1,25 @@
 --echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-15955 Assertion `field_types == 0 || field_types[field_pos] == MYSQL_TYPE_LONGLONG' failed in Protocol_text::store_longlong
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT @a := 1 FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(@a:=1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(@a) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 
