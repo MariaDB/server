@@ -14762,6 +14762,28 @@ static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
   if (item->cmp_type() == TIME_RESULT ||
       item->field_type() == MYSQL_TYPE_GEOMETRY)
     new_field= item->tmp_table_field_from_field_type(table, 1);
+  else if (item->type() == Item::FUNC_ITEM &&
+      static_cast<Item_func*>(item)->functype() == Item_func::SUSERVAR_FUNC)
+  {
+    /*
+      A temporary solution for versions 5.5 .. 10.3.
+      This change should be null-merged to 10.4.
+
+      Item_func_set_user_var is special. It overrides make_field().
+      by adding a special branch `if (result_field)...`.
+      So it's important to preserve the exact data type here,
+      to avoid type mismatch in Protocol_text::store_longlong()
+      See MDEV-15955.
+
+      Other Item_func descendants are not affected by MDEV-15955.
+      They don't override make_field() so they don't use result_field
+      when initializing Send_field.
+
+      This is properly fixed in 10.4 in the method
+      Item_func_user_var::create_tmp_field_ex().
+    */
+    new_field= item->tmp_table_field_from_field_type(table, false);
+  }
   else
   switch (item->result_type()) {
   case REAL_RESULT:
