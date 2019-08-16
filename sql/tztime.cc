@@ -147,6 +147,7 @@ typedef struct st_time_zone_info
 
 static my_bool prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage);
 
+my_bool opt_leap, opt_verbose, opt_skip_write_binlog;
 
 #if defined(TZINFO2SQL) || defined(TESTTIME)
 
@@ -2428,6 +2429,14 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
     We are assuming that there are only one list of leap seconds
     For all timezones.
   */
+  if (!opt_skip_write_binlog)
+      printf("\\d |\n"
+        "IF (select count(*) from information_schema.global_variables where\n"
+        "variable_name='wsrep_on') = 1 THEN\n"
+        "ALTER TABLE time_zone_leap_second ENGINE=InnoDB;\n"
+        "END IF|\n"
+        "\\d ;\n");
+
   printf("TRUNCATE TABLE time_zone_leap_second;\n");
 
   if (sp->leapcnt)
@@ -2439,6 +2448,14 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
              sp->lsis[i].ls_trans, sp->lsis[i].ls_corr);
     printf(";\n");
   }
+
+  if (!opt_skip_write_binlog)
+      printf("\\d |\n"
+        "IF (select count(*) from information_schema.global_variables where\n"
+        "variable_name='wsrep_on') = 1 THEN\n"
+        "ALTER TABLE time_zone_leap_second ENGINE=Aria;\n"
+        "END IF|\n"
+        "\\d ;\n");
 
   printf("ALTER TABLE time_zone_leap_second ORDER BY Transition_time;\n");
 }
@@ -2597,8 +2614,6 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 }
 
 
-my_bool opt_leap, opt_verbose;
-
 static const char *load_default_groups[]=
 { "mysql_tzinfo_to_sql", 0};
 
@@ -2619,6 +2634,8 @@ static struct my_option my_long_options[] =
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to other nodes in a Galera cluster",
+   &opt_skip_write_binlog,&opt_skip_write_binlog, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -2687,17 +2704,35 @@ main(int argc, char **argv)
     return 1;
   }
 
-  // Replicate MyISAM DDL for this session, cf. lp:1161432
-  // timezone info unfixable in XtraDB Cluster
-  printf("set @prep=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET GLOBAL wsrep_replicate_myisam=?', 'do ?');\n"
-         "prepare set_wsrep_myisam from @prep;\n"
-         "set @toggle=1; execute set_wsrep_myisam using @toggle;\n");
+  if (opt_skip_write_binlog)
+    /* If skip_write_binlog is set and wsrep is compiled in we disable
+       sql_log_bin and wsrep_on to avoid Galera replicating below
+       truncate table clauses. This will allow user to set different
+       time zones to nodes in Galera cluster. */
+    printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
+           "prepare set_wsrep_write_binlog from @prep1;\n"
+           "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n");
 
   if (argc == 1 && !opt_leap)
   {
     /* Argument is timezonedir */
 
     root_name_end= strmake_buf(fullname, argv[0]);
+
+    if(!opt_skip_write_binlog)
+    {
+      // Alter time zone tables to InnoDB if wsrep_on is enabled
+      // to allow changes to them to replicate with Galera
+      printf("\\d |\n"
+        "IF (select count(*) from information_schema.global_variables where\n"
+        "variable_name='wsrep_on') = 1 THEN\n"
+        "ALTER TABLE time_zone ENGINE=InnoDB;\n"
+        "ALTER TABLE time_zone_name ENGINE=InnoDB;\n"
+        "ALTER TABLE time_zone_transition ENGINE=InnoDB;\n"
+        "ALTER TABLE time_zone_transition_type ENGINE=InnoDB;\n"
+        "END IF|\n"
+        "\\d ;\n");
+    }
 
     printf("TRUNCATE TABLE time_zone;\n");
     printf("TRUNCATE TABLE time_zone_name;\n");
@@ -2740,8 +2775,19 @@ main(int argc, char **argv)
     free_root(&tz_storage, MYF(0));
   }
 
-  // Reset wsrep_replicate_myisam. lp:1161432
-  printf("set @toggle=0; execute set_wsrep_myisam using @toggle;\n");
+  if(!opt_skip_write_binlog)
+  {
+      // Fall back to Aria
+      printf("\\d |\n"
+        "IF (select count(*) from information_schema.global_variables where\n"
+        "variable_name='wsrep_on') = 1 THEN\n"
+        "ALTER TABLE time_zone ENGINE=Aria;\n"
+        "ALTER TABLE time_zone_name ENGINE=Aria;\n"
+        "ALTER TABLE time_zone_transition ENGINE=Aria;\n"
+        "ALTER TABLE time_zone_transition_type ENGINE=Aria;\n"
+        "END IF|\n"
+        "\\d ;\n");
+  }
 
   free_defaults(default_argv);
   my_end(0);
