@@ -1204,6 +1204,8 @@ size_t convert_to_printable_required_length(uint len)
 
 bool String::append_semi_hex(const char *s, uint len, CHARSET_INFO *cs)
 {
+  if (!len)
+   return false;
   size_t dst_len= convert_to_printable_required_length(len);
   if (reserve(dst_len))
     return true;

@@ -536,4 +536,17 @@ explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t0, one_k;
 
+--echo #
+--echo # Assertion `to_len >= 8' failed in convert_to_printable
+--echo #
+
+CREATE TABLE t1 ( a blob, KEY (a(255)));
+insert into t1 values ('foo'), ('bar');
+
+EXPLAIN SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
 set optimizer_trace='enabled=off';

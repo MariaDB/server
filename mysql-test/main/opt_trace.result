@@ -6984,4 +6984,46 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
     ]
 ]
 drop table t0, one_k;
+#
+# Assertion `to_len >= 8' failed in convert_to_printable
+#
+CREATE TABLE t1 ( a blob, KEY (a(255)));
+insert into t1 values ('foo'), ('bar');
+EXPLAIN SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	258	const	1	Using where
+SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+a
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
+[
+    
+    {
+        "range_scan_alternatives": 
+        [
+            
+            {
+                "index": "a",
+                "ranges": 
+                [
+                    "() <= (a) <= ()"
+                ],
+                "rowid_ordered": false,
+                "using_mrr": false,
+                "index_only": false,
+                "rows": 1,
+                "cost": 2.4265,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [
+        ]
+    }
+]
+DROP TABLE t1;
 set optimizer_trace='enabled=off';
