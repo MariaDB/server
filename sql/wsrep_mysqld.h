@@ -341,7 +341,14 @@ extern PSI_mutex_key key_LOCK_wsrep_thd_queue;
 extern PSI_cond_key  key_COND_wsrep_thd_queue;
 
 extern PSI_file_key key_file_wsrep_gra_log;
+
+extern PSI_thread_key key_wsrep_sst_joiner;
+extern PSI_thread_key key_wsrep_sst_donor;
+extern PSI_thread_key key_wsrep_rollbacker;
+extern PSI_thread_key key_wsrep_applier;
 #endif /* HAVE_PSI_INTERFACE */
+
+
 struct TABLE_LIST;
 class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,

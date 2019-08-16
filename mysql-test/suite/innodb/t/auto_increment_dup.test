@@ -8,8 +8,6 @@
 --source include/have_debug_sync.inc
 --source include/innodb_binlog.inc
 
-let $stmt= `SELECT @@GLOBAL.log_bin`;
-
 set global transaction isolation level repeatable read;
 
 CREATE TABLE t1(
@@ -84,13 +82,7 @@ SET DEBUG_SYNC='ha_write_row_end SIGNAL write_row_done WAIT_FOR continue';
 --reap
 
 SET DEBUG_SYNC='execute_command_after_close_tables SIGNAL continue';
-if ($stmt) {
---error ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
-}
-if (!$stmt) {
-INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
-}
 
 --connection con1
 --echo #

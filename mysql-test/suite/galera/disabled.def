@@ -12,9 +12,6 @@
 
 MW-286 : MDEV-19992 Galera test failure on MW-286
 GCF-1081 : MDEV-18283 Galera test failure on galera.GCF-1081
-MW-328A : MDEV-17847 Galera test failure on MW-328[A|B|C]
-MW-328B : MDEV-17847 Galera test failure on MW-328[A|B|C]
-MW-328C : MDEV-17847 Galera test failure on MW-328[A|B|C]
 MW-329 : MDEV-19962 Galera test failure on MW-329
 MW-360 : needs rewrite to be MariaDB gtid compatible
 MW-388: MDEV-19803 Long semaphore wait error on galera.MW-388	
@@ -50,3 +47,4 @@ galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 partition : MDEV-19958 Galera test failure on galera.partition
+query_cache: MDEV-15805 Test failure on galera.query_cache

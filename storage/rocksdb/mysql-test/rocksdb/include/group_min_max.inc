@@ -266,6 +266,17 @@ select a1,  max(c)           from t2 where a1 in ('a','b','d') group by a1,a2,b;
 
 # B) Equalities only over the non-group 'B' attributes
 # plans
+--echo #
+--echo # MariaDB: we dont have the following patch:
+--echo #
+--echo #  commit 60a92a79a3b7fde3c6efe91799e344b977c8e5c3
+--echo #  Author: Manuel Ung <mung@fb.com>
+--echo #  Date:   Thu Apr 19 23:06:27 2018 -0700
+--echo #
+--echo #   Enhance group-by loose index scan
+--echo #
+--echo #  So the following results are not very meaningful, but are still kept here
+
 explain select a1,a2,b,max(c),min(c) from t1 where (a2 = 'a') and (b = 'b') group by a1;
 explain select a1,a2,b,max(c),min(c) from t1 where (a2 = 'a' or a2 = 'b') and (b = 'b') group by a1;
 explain select a1,a2,b,max(c),min(c) from t1 where (a2 = 'a') and (b = 'b' or b = 'a') group by a1;
@@ -730,9 +741,9 @@ explain extended select a1,a2,count(a2) from t1 where (a1 > 'a') group by a1,a2,
 explain extended select sum(ord(a1)) from t1 where (a1 > 'a') group by a1,a2,b;
 
 # test multi_range_groupby flag
-set optimizer_switch = 'multi_range_groupby=off';
+#MariaDB: no support: set optimizer_switch = 'multi_range_groupby=off';
 explain select a1,a2,b,max(c),min(c) from t2 where (a2 = 'a') and (b = 'a' or b = 'b') group by a1;
-set optimizer_switch = 'default';
+#set optimizer_switch = 'default';
 explain select a1,a2,b,max(c),min(c) from t2 where (a2 = 'a') and (b = 'a' or b = 'b') group by a1;
 
 
@@ -1361,41 +1372,41 @@ drop table t1;
 eval CREATE TABLE t (a INT, b INT, KEY(a,b)) engine=$engine;
 INSERT INTO t VALUES (1,1), (2,2), (3,3), (4,4), (1,0), (3,2), (4,5);
 ANALYZE TABLE t;
-let $DEFAULT_TRACE_MEM_SIZE=1048576; # 1MB
-eval set optimizer_trace_max_mem_size=$DEFAULT_TRACE_MEM_SIZE;
-set @@session.optimizer_trace='enabled=on';
-set end_markers_in_json=on;
+# MariaDB: 10.2 doesn't have trace, yet: let $DEFAULT_TRACE_MEM_SIZE=1048576; # 1MB
+# eval set optimizer_trace_max_mem_size=$DEFAULT_TRACE_MEM_SIZE;
+# set @@session.optimizer_trace='enabled=on';
+# set end_markers_in_json=on;
 
 ANALYZE TABLE t;
 
 SELECT a, SUM(DISTINCT a), MIN(b) FROM t GROUP BY a;
 EXPLAIN SELECT a, SUM(DISTINCT a), MIN(b) FROM t GROUP BY a;
-SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
-  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+#SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
+#  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 SELECT a, SUM(DISTINCT a), MAX(b) FROM t GROUP BY a;
 EXPLAIN SELECT a, SUM(DISTINCT a), MAX(b) FROM t GROUP BY a;
-SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
-  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+#SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
+#  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 SELECT a, MAX(b) FROM t GROUP BY a HAVING SUM(DISTINCT a);
 EXPLAIN SELECT a, MAX(b) FROM t GROUP BY a HAVING SUM(DISTINCT a);
-SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
-  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+#SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
+#  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 SELECT SUM(DISTINCT a), MIN(b), MAX(b) FROM t;
 EXPLAIN SELECT SUM(DISTINCT a), MIN(b), MAX(b) FROM t;
-SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
-  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+#SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
+#  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 SELECT a, SUM(DISTINCT a), MIN(b), MAX(b) FROM t GROUP BY a;
 EXPLAIN SELECT a, SUM(DISTINCT a), MIN(b), MAX(b) FROM t GROUP BY a;
-SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
-  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+#SELECT TRACE RLIKE 'have_both_agg_distinct_and_min_max' AS OK
+#  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
-SET optimizer_trace_max_mem_size=DEFAULT;
-SET optimizer_trace=DEFAULT;
-SET end_markers_in_json=DEFAULT;
+#SET optimizer_trace_max_mem_size=DEFAULT;
+#SET optimizer_trace=DEFAULT;
+#SET end_markers_in_json=DEFAULT;
 
 DROP TABLE t;
 

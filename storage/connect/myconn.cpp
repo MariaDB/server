@@ -879,7 +879,7 @@ MYSQL_FIELD *MYSQLC::GetNextField(void)
 PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   {
 	PCSZ         fmt;
-  char        *name, v;
+  char        *name, v= 0;
   int          n;
   bool         uns;
   PCOLRES     *pcrp, crp;

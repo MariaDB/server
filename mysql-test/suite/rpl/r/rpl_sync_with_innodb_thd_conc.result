@@ -1,0 +1,18 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET @old_innodb_thread_concurrency := @@innodb_thread_concurrency;
+SET @old_innodb_thread_sleep_delay := @@innodb_thread_sleep_delay;
+SET GLOBAL innodb_thread_concurrency = 100;
+connection master;
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+connection slave;
+include/diff_tables.inc [master:t, slave:t]
+"===== Clean up======="
+connection master;
+DROP TABLE t;
+connection slave;
+SET GLOBAL innodb_thread_concurrency = @old_innodb_thread_concurrency;
+SET GLOBAL innodb_thread_sleep_delay = @old_innodb_thread_sleep_delay;
+include/rpl_end.inc

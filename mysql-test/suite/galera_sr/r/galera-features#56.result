@@ -26,6 +26,7 @@ INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
 connection node_1;
 connection node_1a;
 connection node_2;
+set session wsrep_sync_wait=15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 30000

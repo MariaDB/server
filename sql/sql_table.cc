@@ -2392,35 +2392,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       /* remove .frm file and engine files */
       path_length= build_table_filename(path, sizeof(path) - 1, db.str, alias.str,
                                         reg_ext, 0);
-
-      /*
-        This handles the case where a "DROP" was executed and a regular
-        table "may be" dropped as drop_temporary is FALSE and error is
-        TRUE. If the error was FALSE a temporary table was dropped and
-        regardless of the status of drop_temporary a "DROP TEMPORARY"
-        must be used.
-      */
-      if (!dont_log_query)
-      {
-        /*
-          Note that unless if_exists is TRUE or a temporary table was deleted, 
-          there is no means to know if the statement should be written to the
-          binary log. See further information on this variable in what follows.
-        */
-        non_tmp_table_deleted= (if_exists ? TRUE : non_tmp_table_deleted);
-        /*
-          Don't write the database name if it is the current one (or if
-          thd->db is NULL).
-        */
-        if (thd->db.str == NULL || cmp(&db, &thd->db) != 0)
-        {
-          append_identifier(thd, &built_query, &db);
-          built_query.append(".");
-        }
-
-        append_identifier(thd, &built_query, &table->table_name);
-        built_query.append(",");
-      }
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
@@ -2500,9 +2471,16 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       // Remove extension for delete
       *(end= path + path_length - reg_ext_length)= '\0';
 
-      error= ha_delete_table(thd, table_type, path, &db, &table->table_name,
-                             !dont_log_query);
-      if (!error)
+      if ((error= ha_delete_table(thd, table_type, path, &db, &table->table_name,
+                                  !dont_log_query)))
+      {
+        if (thd->is_killed())
+        {
+          error= -1;
+          goto err;
+        }
+      }
+      else
       {
         /* Delete the table definition file */
         strmov(end,reg_ext);
@@ -2546,7 +2524,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     if (error)
     {
       if (wrong_tables.length())
-	wrong_tables.append(',');
+        wrong_tables.append(',');
       wrong_tables.append(&db);
       wrong_tables.append('.');
       wrong_tables.append(&table->table_name);
@@ -2559,6 +2537,22 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       mysql_audit_drop_table(thd, table);
     }
 
+    if (!dont_log_query && !drop_temporary)
+    {
+      non_tmp_table_deleted= (if_exists ? TRUE : non_tmp_table_deleted);
+      /*
+         Don't write the database name if it is the current one (or if
+         thd->db is NULL).
+       */
+      if (thd->db.str == NULL || cmp(&db, &thd->db) != 0)
+      {
+        append_identifier(thd, &built_query, &db);
+        built_query.append(".");
+      }
+
+      append_identifier(thd, &built_query, &table->table_name);
+      built_query.append(",");
+    }
     DBUG_PRINT("table", ("table: %p  s: %p", table->table,
                          table->table ?  table->table->s :  NULL));
   }
@@ -5293,7 +5287,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
 err:
   /* In RBR we don't need to log CREATE TEMPORARY TABLE */
-  if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
+  if (!result && thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
     DBUG_RETURN(result);
 
   if (create_info->tmp_table())
@@ -7961,9 +7955,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   KEY *key_info=table->key_info;
   bool rc= TRUE;
   bool modified_primary_key= FALSE;
+  bool vers_system_invisible= false;
   Create_field *def;
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
+  bool save_reopen= table->m_needs_reopen;
   bool drop_period= false;
   DBUG_ENTER("mysql_prepare_alter_table");
 
@@ -8070,7 +8066,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
-
+    if (field->invisible == INVISIBLE_SYSTEM &&
+        field->flags & VERS_SYSTEM_FIELD)
+    {
+      vers_system_invisible= true;
+    }
     /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
     if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
         field->flags & VERS_SYSTEM_FIELD &&
@@ -8188,7 +8188,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
   if ((dropped_sys_vers_fields ||
        alter_info->flags & ALTER_DROP_PERIOD) &&
-      dropped_sys_vers_fields != VERS_SYSTEM_FIELD)
+      dropped_sys_vers_fields != VERS_SYSTEM_FIELD &&
+      !vers_system_invisible)
   {
     StringBuffer<NAME_LEN*3> tmp;
     append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_START_FLAG,
@@ -8196,6 +8197,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_END_FLAG,
                        &tmp, table->vers_end_field());
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
+    goto err;
+  }
+  else if (alter_info->flags & ALTER_DROP_PERIOD && vers_system_invisible)
+  {
+    my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), "PERIOD FOR SYSTEM_TIME on", table->s->table_name.str);
     goto err;
   }
   alter_info->flags &= ~(ALTER_DROP_PERIOD | ALTER_ADD_PERIOD);
@@ -8701,7 +8707,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   alter_info->create_list.swap(new_create_list);
   alter_info->key_list.swap(new_key_list);
   alter_info->check_constraint_list.swap(new_constraint_list);
+  DBUG_RETURN(rc);
 err:
+  table->m_needs_reopen= save_reopen;
   DBUG_RETURN(rc);
 }
 
@@ -10412,6 +10420,7 @@ end_temporary:
 	      (ulong) (copied + deleted), (ulong) deleted,
 	      (ulong) thd->get_stmt_da()->current_statement_warn_count());
   my_ok(thd, copied + deleted, 0L, alter_ctx.tmp_buff);
+  DEBUG_SYNC(thd, "alter_table_inplace_trans_commit");
   DBUG_RETURN(false);
 
 err_new_table_cleanup:
@@ -10462,7 +10471,8 @@ err_with_mdl:
     tables and release the exclusive metadata lock.
   */
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-  thd->mdl_context.release_all_locks_for_name(mdl_ticket);
+  if (!table_list->table)
+    thd->mdl_context.release_all_locks_for_name(mdl_ticket);
   DBUG_RETURN(true);
 }
 
@@ -10495,12 +10505,14 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
   uint save_unsafe_rollback_flags;
   DBUG_ENTER("mysql_trans_commit_alter_copy_data");
 
-  /* Save flags as transcommit_implicit_are_deleting_them */
+  /* Save flags as trans_commit_implicit are deleting them */
   save_unsafe_rollback_flags= thd->transaction.stmt.m_unsafe_rollback_flags;
+
+  DEBUG_SYNC(thd, "alter_table_copy_trans_commit");
 
   if (ha_enable_transaction(thd, TRUE))
     DBUG_RETURN(TRUE);
-  
+
   /*
     Ensure that the new table is saved properly to disk before installing
     the new .frm.

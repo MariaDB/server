@@ -22,7 +22,7 @@ Got one of the listed errors
 connection node_1;
 DROP PROCEDURE proc_update;
 DROP TABLE t1, t2;
-CALL mtr.add_suppression("conflict state 3 after post commit");
+CALL mtr.add_suppression("conflict state ABORTED after post commit");
 connection node_1;
 CREATE TABLE t1 (i int primary key, j int) engine=innodb;
 INSERT INTO t1 values (1,0);

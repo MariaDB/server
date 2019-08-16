@@ -56,6 +56,9 @@ Smart ALTER TABLE
 #include "row0sel.h"
 #include "ha_innodb.h"
 #include "ut0stage.h"
+#include "span.h"
+
+using st_::span;
 
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
@@ -2682,20 +2685,22 @@ innobase_set_foreign_key_option(
 /*******************************************************************//**
 Check if a foreign key constraint can make use of an index
 that is being created.
+@param[in]	col_names	column names
+@param[in]	n_cols		number of columns
+@param[in]	keys		index information
+@param[in]	add		indexes being created
 @return useable index, or NULL if none found */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 const KEY*
 innobase_find_equiv_index(
-/*======================*/
 	const char*const*	col_names,
-					/*!< in: column names */
-	uint			n_cols,	/*!< in: number of columns */
-	const KEY*		keys,	/*!< in: index information */
-	const uint*		add,	/*!< in: indexes being created */
-	uint			n_add)	/*!< in: number of indexes to create */
+	uint			n_cols,
+	const KEY*		keys,
+	span<uint>		add)
 {
-	for (uint i = 0; i < n_add; i++) {
-		const KEY*	key = &keys[add[i]];
+	for (span<uint>::iterator it = add.begin(), end = add.end(); it != end;
+	     ++it) {
+		const KEY*	key = &keys[*it];
 
 		if (key->user_defined_key_parts < n_cols
 		    || key->flags & HA_SPATIAL) {
@@ -2746,7 +2751,7 @@ no_match:
 Find an index whose first fields are the columns in the array
 in the same order and is not marked for deletion
 @return matching index, NULL if not found */
-static MY_ATTRIBUTE((nonnull(1,5), warn_unused_result))
+static MY_ATTRIBUTE((nonnull(1,4), warn_unused_result))
 dict_index_t*
 innobase_find_fk_index(
 /*===================*/
@@ -2754,10 +2759,8 @@ innobase_find_fk_index(
 	const char**		col_names,
 					/*!< in: column names, or NULL
 					to use table->col_names */
-	dict_index_t**		drop_index,
+	span<dict_index_t*>	drop_index,
 					/*!< in: indexes to be dropped */
-	ulint			n_drop_index,
-					/*!< in: size of drop_index[] */
 	const char**		columns,/*!< in: array of column names */
 	ulint			n_cols) /*!< in: number of columns */
 {
@@ -2766,21 +2769,14 @@ innobase_find_fk_index(
 	index = dict_table_get_first_index(table);
 
 	while (index != NULL) {
-		if (dict_foreign_qualify_index(
-			    table, col_names, columns, n_cols,
-			    index, NULL, true, 0,
-			    NULL, NULL, NULL)) {
-			for (ulint i = 0; i < n_drop_index; i++) {
-				if (index == drop_index[i]) {
-					/* Skip to-be-dropped indexes. */
-					goto next_rec;
-				}
-			}
-
-			return(index);
+		if (dict_foreign_qualify_index(table, col_names, columns,
+					       n_cols, index, NULL, true, 0,
+					       NULL, NULL, NULL)
+		    && std::find(drop_index.begin(), drop_index.end(), index)
+			   == drop_index.end()) {
+			return index;
 		}
 
-next_rec:
 		index = dict_table_get_next_index(index);
 	}
 
@@ -2926,7 +2922,7 @@ innobase_get_foreign_key_info(
 
 			index = innobase_find_fk_index(
 				table, col_names,
-				drop_index, n_drop_index,
+				span<dict_index_t*>(drop_index, n_drop_index),
 				column_names, i);
 
 			/* MySQL would add a index in the creation
@@ -2941,8 +2937,8 @@ innobase_get_foreign_key_info(
 			if (!index && !innobase_find_equiv_index(
 				    column_names, static_cast<uint>(i),
 				    ha_alter_info->key_info_buffer,
-				    ha_alter_info->index_add_buffer,
-				    ha_alter_info->index_add_count)) {
+				    span<uint>(ha_alter_info->index_add_buffer,
+					       ha_alter_info->index_add_count))) {
 				my_error(
 					ER_FK_NO_INDEX_CHILD,
 					MYF(0),
@@ -7184,8 +7180,8 @@ innobase_check_foreign_key_index(
 			    foreign->referenced_col_names,
 			    foreign->n_fields,
 			    ha_alter_info->key_info_buffer,
-			    ha_alter_info->index_add_buffer,
-			    ha_alter_info->index_add_count)) {
+			    span<uint>(ha_alter_info->index_add_buffer,
+				       ha_alter_info->index_add_count))) {
 
 			/* Index cannot be dropped. */
 			trx->error_info = index;
@@ -7219,8 +7215,8 @@ innobase_check_foreign_key_index(
 			    foreign->foreign_col_names,
 			    foreign->n_fields,
 			    ha_alter_info->key_info_buffer,
-			    ha_alter_info->index_add_buffer,
-			    ha_alter_info->index_add_count)) {
+			    span<uint>(ha_alter_info->index_add_buffer,
+				       ha_alter_info->index_add_count))) {
 
 			/* Index cannot be dropped. */
 			trx->error_info = index;

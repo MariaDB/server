@@ -548,7 +548,8 @@ is_page_corrupted(
 
 		if (is_corrupted && log_file) {
 			fprintf(log_file,
-				"Page " ULINTPF ":%llu may be corrupted;"
+				"[page id: space=" ULINTPF
+				", page_number=%llu] may be corrupted;"
 				" key_version=%u\n",
 				space_id, cur_page_num, key_version);
 		}
@@ -1556,10 +1557,8 @@ int main(
 	byte*		xdes = NULL;
 	/* bytes read count */
 	ulint		bytes;
-	/* current time */
-	time_t		now;
 	/* last time */
-	time_t		lastt;
+	time_t		lastt = 0;
 	/* stat, to get file size. */
 #ifdef _WIN32
 	struct _stat64	st;
@@ -1902,7 +1901,6 @@ int main(
 		/* main checksumming loop */
 		cur_page_num = start_page ? start_page : cur_page_num + 1;
 
-		lastt = 0;
 		while (!feof(fil_in)) {
 
 			bytes = read_file(buf, partial_page_read,
@@ -1981,12 +1979,10 @@ first_non_zero:
 
 			if (verbose && !read_from_stdin) {
 				if ((cur_page_num % 64) == 0) {
-					now = time(0);
+					time_t now = time(0);
 					if (!lastt) {
 						lastt= now;
-					}
-					if (now - lastt >= 1
-					    && is_log_enabled) {
+					} else if (now - lastt >= 1 && is_log_enabled) {
 						fprintf(log_file, "page::%llu "
 							"okay: %.3f%% done\n",
 							(cur_page_num - 1),

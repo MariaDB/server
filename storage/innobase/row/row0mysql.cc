@@ -1480,7 +1480,6 @@ error_exit:
 			goto run_again;
 		}
 
-		node->duplicate = NULL;
 		trx->op_info = "";
 
 		if (blob_heap != NULL) {
@@ -1489,8 +1488,6 @@ error_exit:
 
 		return(err);
 	}
-
-	node->duplicate = NULL;
 
 	if (dict_table_has_fts_index(table)) {
 		doc_id_t	doc_id;
@@ -2145,7 +2142,9 @@ This is used in UPDATE CASCADE/SET NULL of a system versioning table.
 @return DB_SUCCESS or some error */
 static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 {
-	const trx_t* trx = thr_get_trx(thr);
+	trx_t* trx = thr_get_trx(thr);
+	dfield_t* row_end;
+	char row_end_data[8];
 	dict_table_t* table = node->table;
 	ut_ad(table->versioned());
 
@@ -2156,10 +2155,15 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	ins_node_t* insert_node =
 		ins_node_create(INS_DIRECT, table, node->historical_heap);
 
+	if (!insert_node) {
+		trx->error_state = DB_OUT_OF_MEMORY;
+		goto exit;
+	}
+
+	insert_node->common.parent = thr;
 	ins_node_set_new_row(insert_node, row);
 
-	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
-	char row_end_data[8];
+	row_end = dtuple_get_nth_field(row, table->vers_end);
 	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
 		mach_write_to_8(row_end_data, trx->id);
 		dfield_set_data(row_end, row_end_data, 8);
@@ -2197,6 +2201,7 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 		}
 	}
 exit:
+	que_graph_free_recursive(insert_node);
 	mem_heap_free(node->historical_heap);
 	node->historical_heap = NULL;
 	return trx->error_state;
