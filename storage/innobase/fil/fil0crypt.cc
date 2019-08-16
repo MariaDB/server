@@ -356,6 +356,33 @@ fil_space_destroy_crypt_data(
 	}
 }
 
+/** Fill crypt data information to the give page.
+It should be called during ibd file creation.
+@param[in]	flags	tablespace flags
+@param[in,out]	page	first page of the tablespace */
+void
+fil_space_crypt_t::fill_page0(
+	ulint	flags,
+	byte*	page)
+{
+	const uint len = sizeof(iv);
+	const ulint offset = FSP_HEADER_OFFSET
+		+ fsp_header_get_encryption_offset(page_size_t(flags));
+	page0_offset = offset;
+
+	memcpy(page + offset, CRYPT_MAGIC, MAGIC_SZ);
+	mach_write_to_1(page + offset + MAGIC_SZ, type);
+	mach_write_to_1(page + offset + MAGIC_SZ + 1, len);
+	memcpy(page + offset + MAGIC_SZ + 2, &iv, len);
+
+	mach_write_to_4(page + offset + MAGIC_SZ + 2 + len,
+			min_key_version);
+	mach_write_to_4(page + offset + MAGIC_SZ + 2 + len + 4,
+			key_id);
+	mach_write_to_1(page + offset + MAGIC_SZ + 2  + len + 8,
+			encryption);
+}
+
 /******************************************************************
 Write crypt data to a page (0)
 @param[in]	space	tablespace

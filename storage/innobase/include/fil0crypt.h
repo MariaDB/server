@@ -180,6 +180,12 @@ struct fil_space_crypt_t : st_encryption_scheme
 		return (encryption == FIL_ENCRYPTION_OFF);
 	}
 
+	/** Fill crypt data information to the give page.
+	It should be called during ibd file creation.
+	@param[in]	flags	tablespace flags
+	@param[in,out]	page	first page of the tablespace */
+	void fill_page0(ulint flags, byte* page);
+
 	/** Write crypt data to a page (0)
 	@param[in]	space	tablespace
 	@param[in,out]	page0	first page of the tablespace
