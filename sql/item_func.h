@@ -1939,9 +1939,7 @@ public:
   const Type_handler *type_handler() const { return args[0]->type_handler(); }
   bool fix_length_and_dec()
   {
-    collation= args[0]->collation;
-    max_length= args[0]->max_length;
-    decimals=args[0]->decimals;
+    Type_std_attributes::set(*args[0]);
     return FALSE;
   }
   Item *get_copy(THD *thd)
