@@ -44,18 +44,22 @@ public:
   clustrix_connection()
     : command_buffer(NULL), command_buffer_length(0), command_length(0)
   {
+    DBUG_ENTER("clustrix_connection::clustrix_connection");
     memset(&clustrix_net, 0, sizeof(MYSQL));
     has_statement_trans = FALSE;
     has_transaction = FALSE;
+    DBUG_VOID_RETURN;
   }
 
   ~clustrix_connection()
   {
+    DBUG_ENTER("clustrix_connection::~clustrix_connection");
     if (is_connected())
       disconnect(TRUE);
 
     if (command_buffer)
       my_free(command_buffer);
+    DBUG_VOID_RETURN;
   }
 
   inline bool is_connected()
@@ -97,6 +101,15 @@ public:
                uchar **rowdata, ulong *rowdata_length);
 
   enum sort_order {SORT_NONE = 0, SORT_ASC = 1, SORT_DESC = 2};
+  enum scan_type {
+    READ_KEY_OR_NEXT,  /* rows with key and greater */
+    READ_KEY_OR_PREV,  /* rows with key and less. */
+    READ_AFTER_KEY,    /* rows with keys greater than key */
+    READ_BEFORE_KEY,   /* rows with keys less than key */
+    READ_FROM_START,   /* rows with forwards from first key. */
+    READ_FROM_LAST,    /* rows with backwards from last key. */
+  };
+
   int scan_table(ulonglong clustrix_table_oid, uint index,
                  enum sort_order sort, MY_BITMAP *read_set,
                  ulonglong *scan_refid);
@@ -105,6 +118,10 @@ public:
   int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
                  uint null_bits_size, uchar *field_metadata,
                  uint field_metadata_size, ulonglong *scan_refid);
+  int scan_from_key(ulonglong clustrix_table_oid, uint index, 
+                    enum scan_type scan_dir, bool sorted_scan,
+                    MY_BITMAP *read_set, uchar *packed_key,
+                    ulong packed_key_length, ulonglong *scan_refid);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
