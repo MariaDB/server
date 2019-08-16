@@ -5282,7 +5282,7 @@ int spider_db_mbase_util::append_tables_top_down(
   int error_num;
   uint outer_join_backup;
   TABLE_LIST *cur_table_list, *prev_table_list = NULL, *cond_table_list = NULL;
-  bool first;
+  bool first = TRUE;
   DBUG_ENTER("spider_db_mbase_util::append_tables_top_down");
   DBUG_PRINT("info",("spider this=%p", this));
   if (
