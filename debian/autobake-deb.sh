@@ -106,6 +106,8 @@ then
   sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
 fi
 
+sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
+
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
