@@ -4725,7 +4725,7 @@ wait_table_again:
 
 		if (err != DB_SUCCESS) {
 			rec = NULL;
-			goto lock_wait_or_error;
+			goto page_read_error;
 		}
 
 		pcur->trx_if_known = trx;
@@ -4779,7 +4779,7 @@ wait_table_again:
 				index->table->file_unreadable = true;
 			}
 			rec = NULL;
-			goto lock_wait_or_error;
+			goto page_read_error;
 		}
 	}
 
@@ -4800,7 +4800,7 @@ rec_loop:
 
 	if (!index->table->is_readable()) {
 		err = DB_DECRYPTION_FAILED;
-		goto lock_wait_or_error;
+		goto page_read_error;
 	}
 
 	ut_ad(!!page_rec_is_comp(rec) == comp);
@@ -4895,7 +4895,7 @@ wrong_offs:
 			ut_ad(0);
 			err = DB_CORRUPTION;
 
-			goto lock_wait_or_error;
+			goto page_read_error;
 		} else {
 			/* The user may be dumping a corrupt table. Jump
 			over the corruption to recover as much as possible. */
@@ -5717,17 +5717,16 @@ not_moved:
 	goto normal_return;
 
 lock_wait_or_error:
+	if (!dict_index_is_spatial(index)) {
+		btr_pcur_store_position(pcur, &mtr);
+	}
+page_read_error:
 	/* Reset the old and new "did semi-consistent read" flags. */
 	if (UNIV_UNLIKELY(prebuilt->row_read_type
 			  == ROW_READ_DID_SEMI_CONSISTENT)) {
 		prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
 	}
 	did_semi_consistent_read = FALSE;
-
-	/*-------------------------------------------------------------*/
-	if (!dict_index_is_spatial(index)) {
-		btr_pcur_store_position(pcur, &mtr);
-	}
 
 lock_table_wait:
 	mtr.commit();
