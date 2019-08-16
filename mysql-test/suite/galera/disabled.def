@@ -47,3 +47,4 @@ galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
 mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.
 partition : MDEV-19958 Galera test failure on galera.partition
+query_cache: MDEV-15805 Test failure on galera.query_cache

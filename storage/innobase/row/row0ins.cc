@@ -71,7 +71,11 @@ ins_node_create(
 	ins_node_t*	node;
 
 	node = static_cast<ins_node_t*>(
-		mem_heap_alloc(heap, sizeof(ins_node_t)));
+		mem_heap_zalloc(heap, sizeof(ins_node_t)));
+
+	if (!node) {
+		return(NULL);
+	}
 
 	node->common.type = QUE_NODE_INSERT;
 
@@ -79,12 +83,6 @@ ins_node_create(
 
 	node->state = INS_NODE_SET_IX_LOCK;
 	node->table = table;
-	node->index = NULL;
-	node->entry = NULL;
-
-	node->select = NULL;
-
-	node->trx_id = 0;
 
 	node->entry_sys_heap = mem_heap_create(128);
 

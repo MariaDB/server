@@ -1005,7 +1005,7 @@ row_log_table_low(
 	extra_size = rec_extra_size + is_instant;
 
 	unsigned fake_extra_size = 0;
-	byte fake_extra_buf[2];
+	byte fake_extra_buf[3];
 	if (is_instant && UNIV_UNLIKELY(!index->is_instant())) {
 		/* The source table was emptied after ALTER TABLE
 		started, and it was converted to non-instant format.
@@ -1017,9 +1017,9 @@ row_log_table_low(
 		fake_extra_size = rec_get_n_add_field_len(n_add);
 		ut_ad(fake_extra_size == 1 || fake_extra_size == 2);
 		extra_size += fake_extra_size;
-		byte* fake_extra = fake_extra_buf + fake_extra_size - 1;
+		byte* fake_extra = fake_extra_buf + fake_extra_size;
 		rec_set_n_add_field(fake_extra, n_add);
-		ut_ad(fake_extra + 1 == fake_extra_buf);
+		ut_ad(fake_extra == fake_extra_buf);
 	}
 
 	mrec_size = ROW_LOG_HEADER_SIZE
@@ -1078,7 +1078,7 @@ row_log_table_low(
 
 		memcpy(b, rec - rec_extra_size - omit_size, rec_extra_size);
 		b += rec_extra_size;
-		memcpy(b, fake_extra_buf, fake_extra_size);
+		memcpy(b, fake_extra_buf + 1, fake_extra_size);
 		b += fake_extra_size;
 		ulint len;
 		ulint trx_id_offs = rec_get_nth_field_offs(
