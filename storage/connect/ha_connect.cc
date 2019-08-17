@@ -241,7 +241,9 @@ int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, PCSZ host, PCSZ db,
 	                                           PCSZ tab, PCSZ src, int port);
+#if defined(ZIP_SUPPORT)
 bool    ZipLoadFile(PGLOBAL, PCSZ, PCSZ, PCSZ, bool, bool);
+#endif   // ZIP_SUPPORT
 bool    ExactInfo(void);
 #if defined(CMGO_SUPPORT)
 //void    mongo_init(bool);
@@ -6730,6 +6732,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   if (trace(1))
     htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
 
+#if defined(ZIP_SUPPORT)
 	if (options->zipped) {
 		// Check whether the zip entry must be made from a file
 		PCSZ fn= GetListOption(g, "Load", options->oplist, NULL);
@@ -6759,6 +6762,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 		}	// endif fn
 
 	}	// endif zipped
+#endif   // ZIP_SUPPORT
 
   // To check whether indexes have to be made or remade
   if (!g->Xchk) {

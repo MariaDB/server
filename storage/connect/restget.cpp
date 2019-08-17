@@ -7,7 +7,8 @@
 #if defined(MARIADB)
 #include <my_global.h>
 #else
-#include "mini_global.h"
+#include "mini-global.h"
+#define _OS_H_INCLUDED     // Prevent os.h to be called
 #endif
 
 using namespace utility::conversions; // String conversions utilities
@@ -18,70 +19,71 @@ using namespace concurrency::streams; // Asynchronous streams
 
 #include "global.h"
 
+static uint xt = 0;    // Used by lamda expressions
 
 /***********************************************************************/
 /*  Make a local copy of the requested file.                           */
 /***********************************************************************/
 int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
 {
-  int  rc= 0;
-  auto fileStream= std::make_shared<ostream>();
+  int  rc = 0;
+  auto fileStream = std::make_shared<ostream>();
 
-	if (!http || !fn) {
-		strcpy(g->Message, "Missing http or filename");
-		return 2;
-	} // endif
+  if (!http || !fn) {
+    strcpy(g->Message, "Missing http or filename");
+    return 2;
+  } // endif
 
-  //std::string sfn(fn);
-  //auto wfn= to_string_t(sfn);
-  //rc= 0;
+	xt = GetTraceValue();
+	xtrc(515, "restGetFile: fn=%s\n", fn);
 
   // Open stream to output file.
-  pplx::task<void> requestTask=
-      fstream::open_ostream(to_string_t(fn))
-          .then([=](ostream outFile) {
-            *fileStream= outFile;
+  pplx::task<void> requestTask = fstream::open_ostream(to_string_t(fn))
+    .then([=](ostream outFile) {
+      *fileStream= outFile;
 
-            // Create http_client to send the request.
-            http_client client(to_string_t(http));
+			if (xt & 515)
+				htrc("Outfile isopen=%d\n", outFile.is_open());
 
-            if (uri)
-            {
-              // Build request URI and start the request.
-              uri_builder builder(to_string_t(uri));
-              return client.request(methods::GET, builder.to_string());
-            }
-            else
-              return client.request(methods::GET);
-          })
+      // Create http_client to send the request.
+      http_client client(to_string_t(http));
 
-          // Handle response headers arriving.
-          .then([=](http_response response) {
-#if defined(DEVELOPMENT)
-						fprintf(stderr, "Received response status code:%u\n",
-                    response.status_code());
-#endif   // DEVELOPMENT
+      if (uri) {
+        // Build request URI and start the request.
+        uri_builder builder(to_string_t(uri));
+        return client.request(methods::GET, builder.to_string());
+      } else
+        return client.request(methods::GET);
+    })
 
-            // Write response body into the file.
-            return response.body().read_to_end(fileStream->streambuf());
-          })
+    // Handle response headers arriving.
+    .then([=](http_response response) {
+			if (xt & 515)
+				htrc("Received response status code:%u\n",
+                       response.status_code());
 
-          // Close the file stream.
-          .then([=](size_t) { return fileStream->close(); });
+      // Write response body into the file.
+      return response.body().read_to_end(fileStream->streambuf());
+    })
+
+    // Close the file stream.
+    .then([=](size_t n) {
+			if (xt & 515)
+			  htrc("Return size=%u\n", n);
+
+      return fileStream->close();
+    });
 
   // Wait for all the outstanding I/O to complete and handle any exceptions
-  try
-  {
+  try {
     requestTask.wait();
-  }
-  catch (const std::exception &e)
-  {
-#if defined(DEVELOPMENT)
-		fprintf(stderr, "Error exception: %s\n", e.what());
-#endif   // DEVELOPMENT
-		sprintf(g->Message, "Error exception: %s", e.what());
+    xtrc(515, "In Wait\n");
+  } catch (const std::exception &e) {
+		xtrc(515, "Error exception: %s\n", e.what());
+    sprintf(g->Message, "Error exception: %s", e.what());
     rc= 1;
   } // end try/catch
 
+	xtrc(515, "restget done: rc=%d\n", rc);
   return rc;
 } // end of restGetFile

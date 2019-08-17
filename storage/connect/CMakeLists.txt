@@ -68,6 +68,10 @@ ELSE(NOT UNIX)
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+  SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+  SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
+  SET(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
   IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
     # Connect does not work with clang-cl
@@ -315,6 +319,12 @@ IF(CONNECT_WITH_REST)
   FIND_PACKAGE(cpprestsdk)
   IF (cpprestsdk_FOUND)
     MESSAGE(STATUS "=====> cpprestsdk found")
+	IF(UNIX)
+#     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
+#     Edit next line to set the path to libcpprest.so
+      SET(REST_LIBRARY  -L/usr/lib64 -lcpprest)
+      MESSAGE (STATUS ${REST_LIBRARY})
+	ENDIF(UNIX)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)
     add_definitions(-DREST_SUPPORT)
   ELSE(NOT cpprestsdk_FOUND)
@@ -341,7 +351,7 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY})
+    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY} ${REST_LIBRARY})
 
 IF(NOT TARGET connect)
   RETURN()
@@ -349,8 +359,8 @@ ENDIF()
 
 IF(WIN32)
   IF (libmongoc-1.0_FOUND)
-	  SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
-	    "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
+    SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
+      "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
   ENDIF(libmongoc-1.0_FOUND)
 ENDIF(WIN32)
 
@@ -377,3 +387,4 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF()
+

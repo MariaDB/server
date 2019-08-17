@@ -1,4 +1,3 @@
-
 # Copyright (c) 2006, 2018, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -146,3 +145,6 @@ elseif(UNIX)
      set_target_properties(zlib PROPERTIES LINK_FLAGS "-Wl,--version-script,\"${CMAKE_CURRENT_SOURCE_DIR}/zlib.map\"")
    endif()
 endif()
+
+
+RESTRICT_SYMBOL_EXPORTS(zlib)
