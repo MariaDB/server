@@ -1881,7 +1881,7 @@ before_trg_err:
 
 
 /******************************************************************************
-  Check that all fields with arn't null_fields are used
+  Check that there aren't any null_fields
 ******************************************************************************/
 
 int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
