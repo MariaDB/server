@@ -2782,3 +2782,54 @@ bool wsrep_consistency_check(THD *thd)
 {
   return thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
 }
+
+
+/*
+  Commit an empty transaction.
+
+  If the transaction is real and the wsrep transaction is still active,
+  the transaction did not generate any rows or keys and is committed
+  as empty. Here the wsrep transaction is rolled back and after statement
+  step is performed to leave the wsrep transaction in the state as it
+  never existed.
+
+  This should not be an inline functions as it requires a lot of stack space
+  because of WSREP_DBUG() usage.  It's also not a function that is
+  frequently called.
+*/
+
+void wsrep_commit_empty(THD* thd, bool all)
+{
+  DBUG_ENTER("wsrep_commit_empty");
+  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
+  if (wsrep_is_real(thd, all) &&
+      wsrep_thd_is_local(thd) &&
+      thd->wsrep_trx().active() &&
+      thd->wsrep_trx().state() != wsrep::transaction::s_committed)
+  {
+    /* @todo CTAS with STATEMENT binlog format and empty result set
+       seems to be committing empty. Figure out why and try to fix
+       elsewhere. */
+    DBUG_ASSERT(!wsrep_has_changes(thd) ||
+                (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+                 !thd->is_current_stmt_binlog_format_row()));
+    bool have_error= wsrep_current_error(thd);
+    int ret= wsrep_before_rollback(thd, all) ||
+      wsrep_after_rollback(thd, all) ||
+      wsrep_after_statement(thd);
+    /* The committing transaction was empty but it held some locks and
+       got BF aborted. As there were no certified changes in the
+       data, we ignore the deadlock error and rely on error reporting
+       by storage engine/server. */
+    if (!ret && !have_error && wsrep_current_error(thd))
+    {
+      DBUG_ASSERT(wsrep_current_error(thd) == wsrep::e_deadlock_error);
+      thd->wsrep_cs().reset_error();
+    }
+    if (ret)
+    {
+      WSREP_DEBUG("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
+    }
+  }
+  DBUG_VOID_RETURN;
+}
