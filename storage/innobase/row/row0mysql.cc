@@ -1418,11 +1418,13 @@ row_insert_for_mysql(
 					  &blob_heap);
 
 	if (ins_mode != ROW_INS_NORMAL) {
+#ifndef DBUG_OFF
 		ut_ad(table->vers_start != table->vers_end);
 		const mysql_row_templ_t* t
 		    = prebuilt->get_template_by_col(table->vers_end);
 		ut_ad(t);
 		ut_ad(t->mysql_col_len == 8);
+#endif
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
 			set_tuple_col_8(node->row, table->vers_end, trx->id,
@@ -1430,9 +1432,11 @@ row_insert_for_mysql(
 		} else /* ROW_INS_VERSIONED */ {
 			set_tuple_col_8(node->row, table->vers_end, TRX_ID_MAX,
 					node->vers_end_buf);
+#ifndef DBUG_OFF
 			t = prebuilt->get_template_by_col(table->vers_start);
 			ut_ad(t);
 			ut_ad(t->mysql_col_len == 8);
+#endif
 			set_tuple_col_8(node->row, table->vers_start, trx->id,
 					node->vers_start_buf);
 		}

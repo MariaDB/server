@@ -432,6 +432,7 @@ static bool create_wsrep_THD(wsrep_thread_args* args)
       break;
     default:
       assert(0);
+      key= 0;
       break;
   }
 #endif

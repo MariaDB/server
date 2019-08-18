@@ -866,7 +866,7 @@ public:
   void set_empty()
   {
     sjm_scan_need_tables= 0;
-    LINT_INIT_STRUCT(sjm_scan_last_inner);
+    sjm_scan_last_inner= 0;
     is_used= FALSE;
   }
   void set_from_prev(struct st_position *prev);

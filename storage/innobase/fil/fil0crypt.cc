@@ -2268,9 +2268,11 @@ static void fil_crypt_rotation_list_fill()
 			/* Protect the tablespace while we may
 			release fil_system.mutex. */
 			space->n_pending_ops++;
+#ifndef DBUG_OFF
 			fil_space_t* s= fil_system.read_page0(
 				space->id);
 			ut_ad(!s || s == space);
+#endif
 			space->n_pending_ops--;
 			if (!space->size) {
 				/* Page 0 was not loaded.
