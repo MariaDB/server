@@ -653,6 +653,10 @@ struct TABLE_SHARE
   {
     return !referenced_keys.is_empty();
   }
+  bool has_foreign_keys() const
+  {
+    return !foreign_keys.is_empty();
+  }
 
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
