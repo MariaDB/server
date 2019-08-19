@@ -850,6 +850,7 @@ set @optimizer_switch_saved=@@optimizer_switch;
 SET SESSION optimizer_switch='derived_merge=off';
 SET SESSION sort_buffer_size = 1024*36;
 
+--replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM
   (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
