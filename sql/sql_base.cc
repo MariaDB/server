@@ -4629,6 +4629,41 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
   DBUG_RETURN(FALSE);
 }
 
+static
+void prelock_fk_tables(THD *thd, TABLE_LIST *table_list,
+                       Query_tables_list *prelocking_ctx,
+                       List<FOREIGN_KEY_INFO> &fk_list,
+                       bool is_foreign)
+{
+  for (auto fk: fk_list)
+  {
+    uint8 op= table_list->trg_event_map;
+    bool del_modifies_child= fk_modifies_child(fk.delete_method);
+    bool upd_modifiels_child= fk_modifies_child(fk.update_method);
+
+    thr_lock_type lock_type= TL_READ;
+    if (!is_foreign
+        && ((op & (1u << TRG_EVENT_DELETE) && del_modifies_child)
+            || (op & (1u << TRG_EVENT_UPDATE) && upd_modifiels_child)))
+      lock_type= TL_WRITE_ALLOW_WRITE;
+
+    auto *db= is_foreign ? fk.referenced_db : fk.foreign_db;
+    auto *table_name= is_foreign ? fk.referenced_table : fk.foreign_table;
+
+    if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+                                   db, table_name, lock_type))
+      continue;
+
+    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    tl->init_one_table_for_prelocking(db, table_name,
+                                      NULL, lock_type,
+                                      TABLE_LIST::PRELOCK_FK,
+                                      table_list->belong_to_view,
+                                      table_list->trg_event_map,
+                                      &prelocking_ctx->query_tables_last,
+                                      table_list->for_insert_data);
+  }
+}
 
 
 /**
@@ -4674,54 +4709,22 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
         return TRUE;
     }
 
-    if (table->file->referenced_by_foreign_key())
-    {
-      List <FOREIGN_KEY_INFO> fk_list;
-      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
-      FOREIGN_KEY_INFO *fk;
-      Query_arena *arena, backup;
+    Query_arena_stmt stmt(thd);
+    List<FOREIGN_KEY_INFO> fk_list;
+    List<FOREIGN_KEY_INFO> ref_fk_list;
 
-      arena= thd->activate_stmt_arena_if_needed(&backup);
+    int result= table->file->get_foreign_key_list(thd, &fk_list);
+    DBUG_ASSERT(result == 0);
+    prelock_fk_tables(thd, table_list, prelocking_ctx,
+                      fk_list, true);
 
-      table->file->get_parent_foreign_key_list(thd, &fk_list);
-      if (unlikely(thd->is_error()))
-      {
-        if (arena)
-          thd->restore_active_arena(arena, &backup);
-        DBUG_RETURN(TRUE);
-      }
+    result= table->file->get_parent_foreign_key_list(thd, &ref_fk_list);
+    DBUG_ASSERT(result == 0);
+    prelock_fk_tables(thd, table_list, prelocking_ctx,
+                      ref_fk_list, false);
 
-      *need_prelocking= TRUE;
-
-      while ((fk= fk_list_it++))
-      {
-        // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
-        uint8 op= table_list->trg_event_map;
-        thr_lock_type lock_type;
-
-        if ((op & (1 << TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
-         || (op & (1 << TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
-          lock_type= TL_WRITE_ALLOW_WRITE;
-        else
-          lock_type= TL_READ;
-
-        if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-                                       fk->foreign_db, fk->foreign_table,
-                                       lock_type))
-          continue;
-
-        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-        tl->init_one_table_for_prelocking(fk->foreign_db,
-                                          fk->foreign_table,
-                                          NULL, lock_type,
-                                          TABLE_LIST::PRELOCK_FK,
-                                          table_list->belong_to_view, op,
-                                          &prelocking_ctx->query_tables_last,
-                                          table_list->for_insert_data);
-      }
-      if (arena)
-        thd->restore_active_arena(arena, &backup);
-    }
+    *need_prelocking= *need_prelocking || fk_list.elements != 0
+                                       || ref_fk_list.elements != 0;
   }
 
   /* Open any tables used by DEFAULT (like sequence tables) */

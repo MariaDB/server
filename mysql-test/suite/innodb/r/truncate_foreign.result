@@ -33,6 +33,7 @@ TRUNCATE TABLE child;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC='now SIGNAL go';
 connection dml;
+# Truncate will not start until delete will release prelocked child
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON UPDATE CASCADE)
 SELECT * FROM child;
 a
@@ -44,14 +45,18 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR fk';
 SET foreign_key_checks=0;
 TRUNCATE TABLE parent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC='now SIGNAL go';
 connection dml;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON UPDATE CASCADE)
+# The row will be successfully inserted before truncation during prelocking
 SELECT * FROM parent;
 a
+3
+5
 SELECT * FROM child;
 a
 3
+5
 disconnect dml;
 connection default;
 SET DEBUG_SYNC = RESET;

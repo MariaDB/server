@@ -42,6 +42,7 @@ TRUNCATE TABLE child;
 SET DEBUG_SYNC='now SIGNAL go';
 
 connection dml;
+--echo # Truncate will not start until delete will release prelocked child
 --error ER_ROW_IS_REFERENCED_2
 reap;
 SELECT * FROM child;
@@ -52,11 +53,12 @@ send INSERT INTO child SET a=5;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR fk';
 SET foreign_key_checks=0;
+--error ER_LOCK_WAIT_TIMEOUT
 TRUNCATE TABLE parent;
 SET DEBUG_SYNC='now SIGNAL go';
 
 connection dml;
---error ER_NO_REFERENCED_ROW_2
+--echo # The row will be successfully inserted before truncation during prelocking
 reap;
 SELECT * FROM parent;
 SELECT * FROM child;
