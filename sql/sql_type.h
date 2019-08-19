@@ -5335,6 +5335,7 @@ public:
   virtual ~Type_handler_year() {}
   const Name name() const override { return m_name_year; }
   enum_field_types field_type() const override { return MYSQL_TYPE_YEAR; }
+  uint flags() const override { return UNSIGNED_FLAG; }
   protocol_send_type_t protocol_send_type() const override
   {
     return PROTOCOL_SEND_SHORT;
