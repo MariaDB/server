@@ -321,8 +321,8 @@ IF(CONNECT_WITH_REST)
     MESSAGE(STATUS "=====> cpprestsdk found")
 	IF(UNIX)
 #     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
-#     Edit next line to set the path to libcpprest.so
-      SET(REST_LIBRARY  -L/usr/lib64 -lcpprest)
+#     If needed edit next line to set the path to libcpprest.so
+      SET(REST_LIBRARY -lcpprest)
       MESSAGE (STATUS ${REST_LIBRARY})
 	ENDIF(UNIX)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)

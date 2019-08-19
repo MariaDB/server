@@ -92,10 +92,10 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
   uri = GetStringTableOption(g, tp, "Uri", NULL);
   fn = GetStringTableOption(g, tp, "Filename", "rest.json");
 #if defined(MARIADB)
-	ftype = GetStringTableOption(g, tp, "Type", "JSON");
+  ftype = GetStringTableOption(g, tp, "Type", "JSON");
 #else   // !MARIADB
-	// OEM tables must specify the file type
-	ftype = GetStringTableOption(g, tp, "Ftype", "JSON");
+  // OEM tables must specify the file type
+  ftype = GetStringTableOption(g, tp, "Ftype", "JSON");
 #endif  // !MARIADB
 
   //  We used the file name relative to recorded datapath
@@ -126,21 +126,21 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
   char    filename[_MAX_PATH + 1];
   int     rc = 0, n;
-	LPCSTR  ftype;
+  LPCSTR  ftype;
 
 #if defined(MARIADB)
-	ftype = GetStringCatInfo(g, "Type", "JSON");
+  ftype = GetStringCatInfo(g, "Type", "JSON");
 #else   // !MARIADB
   // OEM tables must specify the file type
   ftype = GetStringCatInfo(g, "Ftype", "JSON");
 #endif  // !MARIADB
 
-	if (trace(1))
-		htrc("ftype = %s am = %s\n", ftype, SVP(am));
+  if (trace(515))
+    htrc("ftype = %s am = %s\n", ftype, SVP(am));
 
-	n = (!stricmp(ftype, "JSON")) ? 1
-		: (!stricmp(ftype, "XML"))  ? 2
-		: (!stricmp(ftype, "CSV"))  ? 3 : 0;
+  n = (!stricmp(ftype, "JSON")) ? 1
+    : (!stricmp(ftype, "XML"))  ? 2
+    : (!stricmp(ftype, "CSV"))  ? 3 : 0;
 
   if (n == 0) {
     htrc("DefineAM: Unsupported REST table type %s", am);
@@ -159,24 +159,24 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Retrieve the file from the web and copy it locally
   rc = restGetFile(g, Http, Uri, filename);
 
-	if (trace(1))
-		htrc("Return from restGetFile: rc=%d\n", rc);
+  if (trace(515))
+    htrc("Return from restGetFile: rc=%d\n", rc);
 
   if (rc)
     return true;
-	else switch (n) {
-		case 1: Tdp = new (g) JSONDEF; break;
-		case 2: Tdp = new (g) XMLDEF;  break;
-		case 3: Tdp = new (g) CSVDEF;  break;
-		default: Tdp = NULL;
-	} // endswitch n
+  else switch (n) {
+    case 1: Tdp = new (g) JSONDEF; break;
+    case 2: Tdp = new (g) XMLDEF;  break;
+    case 3: Tdp = new (g) CSVDEF;  break;
+    default: Tdp = NULL;
+  } // endswitch n
 
   // Do make the table/view definition
   if (Tdp && Tdp->Define(g, Cat, Name, Schema, "REST"))
     Tdp = NULL; // Error occured
 
-	if (trace(1))
-		htrc("Tdp defined\n", rc);
+  if (trace(515))
+    htrc("Tdp defined\n", rc);
 
   // Return true in case of error
   return (Tdp == NULL);
@@ -187,7 +187,8 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB RESTDEF::GetTable(PGLOBAL g, MODE m)
 {
-  xtrc(515, "REST GetTable mode=%d\n", m);
+  if (trace(515))
+    htrc("REST GetTable mode=%d\n", m);
 
   if (m != MODE_READ && m != MODE_READX) {
     strcpy(g->Message, "REST tables are currently read only");

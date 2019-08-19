@@ -19,14 +19,13 @@ using namespace concurrency::streams; // Asynchronous streams
 
 #include "global.h"
 
-static uint xt = 0;    // Used by lamda expressions
-
 /***********************************************************************/
 /*  Make a local copy of the requested file.                           */
 /***********************************************************************/
 int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
 {
   int  rc = 0;
+	bool xt = trace(515);
   auto fileStream = std::make_shared<ostream>();
 
   if (!http || !fn) {
@@ -34,15 +33,15 @@ int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
     return 2;
   } // endif
 
-	xt = GetTraceValue();
-	xtrc(515, "restGetFile: fn=%s\n", fn);
+	if (xt)
+	  htrc("restGetFile: fn=%s\n", fn);
 
   // Open stream to output file.
   pplx::task<void> requestTask = fstream::open_ostream(to_string_t(fn))
     .then([=](ostream outFile) {
       *fileStream= outFile;
 
-			if (xt & 515)
+			if (xt)
 				htrc("Outfile isopen=%d\n", outFile.is_open());
 
       // Create http_client to send the request.
@@ -58,7 +57,7 @@ int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
 
     // Handle response headers arriving.
     .then([=](http_response response) {
-			if (xt & 515)
+			if (xt)
 				htrc("Received response status code:%u\n",
                        response.status_code());
 
@@ -68,7 +67,7 @@ int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
 
     // Close the file stream.
     .then([=](size_t n) {
-			if (xt & 515)
+			if (xt)
 			  htrc("Return size=%u\n", n);
 
       return fileStream->close();
@@ -77,13 +76,19 @@ int restGetFile(PGLOBAL g, PCSZ http, PCSZ uri, PCSZ fn)
   // Wait for all the outstanding I/O to complete and handle any exceptions
   try {
     requestTask.wait();
-    xtrc(515, "In Wait\n");
+
+		if (xt)
+      htrc("In Wait\n");
+
   } catch (const std::exception &e) {
-		xtrc(515, "Error exception: %s\n", e.what());
+		if (xt)
+		  htrc("Error exception: %s\n", e.what());
     sprintf(g->Message, "Error exception: %s", e.what());
     rc= 1;
   } // end try/catch
 
-	xtrc(515, "restget done: rc=%d\n", rc);
+	if (xt)
+	  htrc("restget done: rc=%d\n", rc);
+
   return rc;
 } // end of restGetFile
