@@ -535,5 +535,23 @@ DROP TABLE t1,t2;
 SET time_zone=DEFAULT;
 
 --echo #
+--echo # MDEV-19961 MIN(timestamp_column) returns a wrong result in a GROUP BY query
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP);
+SET timestamp=1288477526  /* this is summer time */ ;
+INSERT INTO t1 VALUES (3,NULL);
+SET timestamp=1288477526+3599 /* this is winter time*/ ;
+INSERT INTO t1 VALUES (3,NULL);
+SELECT i, d, UNIX_TIMESTAMP(d) FROM t1 ORDER BY d;
+SELECT i, MIN(d) FROM t1 GROUP BY i;
+SELECT i, MAX(d) FROM t1 GROUP BY i;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

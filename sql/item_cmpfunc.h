@@ -132,6 +132,9 @@ public:
   int compare_e_json_str();
   int compare_e_str_json();
 
+  void min_max_update_field_native(THD *thd, Field *field, Item *item,
+                                   int cmp_sign);
+
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   const Type_handler *type);
   inline bool is_owner_equal_func()

@@ -3244,6 +3244,16 @@ public:
   {
     return MYSQL_TIMESTAMP_ERROR;
   }
+  /*
+    Return true if the native format is fully implemented for a data type:
+    - Field_xxx::val_native()
+    - Item_xxx::val_native() for all classes supporting this data type
+    - Type_handler_xxx::cmp_native()
+  */
+  virtual bool is_val_native_ready() const
+  {
+    return false;
+  }
   virtual bool is_timestamp_type() const
   {
     return false;
@@ -5581,6 +5591,10 @@ public:
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
     return MYSQL_TIMESTAMP_DATETIME;
+  }
+  bool is_val_native_ready() const
+  {
+    return true;
   }
   bool is_timestamp_type() const
   {
