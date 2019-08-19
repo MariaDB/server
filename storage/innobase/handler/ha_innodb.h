@@ -228,7 +228,7 @@ public:
 	bool can_switch_engines() override;
 
 	uint referenced_by_foreign_key() override;
-
+	bool has_foreign_keys() override;
 	void free_foreign_key_create_info(char* str) override;
 
 	uint lock_count(void) const override;

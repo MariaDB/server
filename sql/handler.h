@@ -3899,6 +3899,7 @@ public:
   virtual int
   get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
   { return 0; }
+  virtual bool has_foreign_keys(){ return 0; }
   /**
     Get the list of foreign keys referencing this table.
 

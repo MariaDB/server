@@ -15071,6 +15071,11 @@ ha_innobase::referenced_by_foreign_key(void)
 	return(0);
 }
 
+bool
+ha_innobase::has_foreign_keys(void)
+{
+	return !m_prebuilt->table->foreign_set.empty();
+}
 /*******************************************************************//**
 Frees the foreign key create info for a table stored in InnoDB, if it is
 non-NULL. */
