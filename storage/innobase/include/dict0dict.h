@@ -115,12 +115,7 @@ dict_table_open_on_id(
 /**********************************************************************//**
 Returns a table object based on table id.
 @return	table, NULL if does not exist */
-UNIV_INTERN
-dict_table_t*
-dict_table_open_on_index_id(
-/*==================*/
-	table_id_t	table_id,	/*!< in: table id */
-	bool		dict_locked)	/*!< in: TRUE=data dictionary locked */
+dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
 	__attribute__((warn_unused_result));
 /********************************************************************//**
 Decrements the count of open handles to a table. */
