@@ -706,7 +706,7 @@ static ssize_t sst_prepare_other (const char*  method,
   my_free(binlog_opt_val);
   my_free(binlog_index_opt_val);
 
-  if (ret < 0 || ret >= cmd_len)
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_prepare_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
@@ -1008,7 +1008,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      (long long)seqno, wsrep_gtid_domain_id,
                      bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
-  if (ret < 0 || ret >= cmd_len)
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_donate_mysqldump(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
@@ -1378,7 +1378,7 @@ static int sst_donate_other (const char*   method,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
   my_free(binlog_opt_val);
 
-  if (ret < 0 || ret >= cmd_len)
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_donate_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
