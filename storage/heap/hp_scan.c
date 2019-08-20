@@ -44,12 +44,6 @@ int heap_scan(register HP_INFO *info, uchar *record)
   DBUG_ENTER("heap_scan");
 
   pos= ++info->current_record;
-  if (pos >= share->records+share->deleted)
-  {
-    info->update= 0;                        /* No active row */
-    DBUG_RETURN(my_errno= HA_ERR_END_OF_FILE);
-  }
-
   if (pos < info->next_block)
   {
     info->current_ptr+=share->block.recbuffer;
@@ -57,6 +51,15 @@ int heap_scan(register HP_INFO *info, uchar *record)
   else
   {
     info->next_block+=share->block.records_in_block;
+    if (info->next_block >= share->records+share->deleted)
+    {
+      info->next_block= share->records+share->deleted;
+      if (pos >= info->next_block)
+      {
+	info->update= 0;
+	DBUG_RETURN(my_errno= HA_ERR_END_OF_FILE);
+      }
+    }
     hp_find_record(info, pos);
   }
   if (!info->current_ptr[share->visible])
