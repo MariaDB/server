@@ -10331,17 +10331,6 @@ next_record:
 }
 
 #ifdef WITH_WSREP
-extern dict_index_t*
-wsrep_dict_foreign_find_index(
-/*==========================*/
-	dict_table_t*	table,
-	const char**	col_names,
-	const char**	columns,
-	ulint		n_cols,
-	dict_index_t*	types_idx,
-	ibool		check_charsets,
-	ulint		check_null);
-
 inline
 const char*
 wsrep_key_type_to_str(wsrep_key_type type)
@@ -10404,7 +10393,7 @@ wsrep_append_foreign_key(
 					foreign->referenced_table_name_lookup);
 			if (foreign->referenced_table) {
 				foreign->referenced_index =
-					wsrep_dict_foreign_find_index(
+					dict_foreign_find_index(
 						foreign->referenced_table, NULL,
 						foreign->referenced_col_names,
 						foreign->n_fields,
@@ -10418,7 +10407,7 @@ wsrep_append_foreign_key(
 
 			if (foreign->foreign_table) {
 				foreign->foreign_index =
-					wsrep_dict_foreign_find_index(
+					dict_foreign_find_index(
 						foreign->foreign_table, NULL,
 						foreign->foreign_col_names,
 						foreign->n_fields,

@@ -527,6 +527,21 @@ dict_table_open_on_name(
 	dict_err_ignore_t	ignore_err)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Outcome of dict_foreign_find_index() or dict_foreign_qualify_index() */
+enum fkerr_t
+{
+  /** A backing index was found for a FOREIGN KEY constraint */
+  FK_SUCCESS = 0,
+  /** There is no index that covers the columns in the constraint. */
+  FK_INDEX_NOT_FOUND,
+  /** The index is for a prefix index, not a full column. */
+  FK_IS_PREFIX_INDEX,
+  /** A condition of SET NULL conflicts with a NOT NULL column. */
+  FK_COL_NOT_NULL,
+  /** The column types do not match */
+  FK_COLS_NOT_EQUAL
+};
+
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
 in the same order and is not marked for deletion and is not the same
@@ -553,11 +568,11 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
-	ulint*			err_col_no,
+	fkerr_t*		error = NULL,	/*!< out: error code */
+	ulint*			err_col_no = NULL,
 					/*!< out: column number where
 					error happened */
-	dict_index_t**		err_index)
+	dict_index_t**		err_index = NULL)
 					/*!< out: index where error
 					happened */
 
@@ -643,7 +658,7 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
+	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
