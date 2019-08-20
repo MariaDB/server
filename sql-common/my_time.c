@@ -184,7 +184,7 @@ static int get_date_time_separator(uint *number_of_fields, ulonglong flags,
   do
   {
     s++;
-  } while (my_isspace(&my_charset_latin1, *s));
+  } while (s < end && my_isspace(&my_charset_latin1, *s));
   *str= s;
   return 0;
 }
