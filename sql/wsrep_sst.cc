@@ -640,7 +640,7 @@ static ssize_t sst_prepare_other (const char*  method,
                                   const char** addr_out)
 {
   bool extra_args;
-  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  ssize_t const cmd_len= estimate_cmd_len(&extra_args);
   wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
@@ -953,7 +953,7 @@ static int sst_donate_mysqldump (const char*         addr,
   memcpy(host, address.get_address(), address.get_address_len());
   int port= address.get_port();
   bool extra_args;
-  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  ssize_t const cmd_len= estimate_cmd_len(&extra_args);
   wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
@@ -1350,7 +1350,7 @@ static int sst_donate_other (const char*        method,
                              char**             env) // carries auth info
 {
   bool extra_args;
-  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  ssize_t const cmd_len= estimate_cmd_len(&extra_args);
   wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())

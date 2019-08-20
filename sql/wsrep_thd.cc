@@ -86,7 +86,7 @@ static void wsrep_replication_process(THD *thd,
 static bool create_wsrep_THD(Wsrep_thd_args* args)
 {
   ulong old_wsrep_running_threads= wsrep_running_threads;
-  pthread_t unused;
+
 #ifdef HAVE_PSI_THREAD_INTERFACE
   PSI_thread_key key;
 
@@ -103,7 +103,7 @@ static bool create_wsrep_THD(Wsrep_thd_args* args)
       break;
   }
 #endif
-  bool res= mysql_thread_create(key, &unused, &connection_attrib,
+  bool res= mysql_thread_create(key, args->thread_id(), &connection_attrib,
                                 start_wsrep_THD, (void*)args);
   /*
     if starting a thread on server startup, wait until the this thread's THD
@@ -123,9 +123,9 @@ void wsrep_create_appliers(long threads)
   /*  Dont' start slave threads if wsrep-provider or wsrep-cluster-address
       is not set.
   */
-  if (!WSREP_PROVIDER_EXISTS) 
+  if (!WSREP_PROVIDER_EXISTS)
   {
-    return; 
+    return;
   }
 
   if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
@@ -135,11 +135,12 @@ void wsrep_create_appliers(long threads)
   }
 
   long wsrep_threads=0;
-  
+
   while (wsrep_threads++ < threads)
   {
-    Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_replication_process, 0,
-                                            WSREP_APPLIER_THREAD));
+    Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_replication_process,
+                                            WSREP_APPLIER_THREAD,
+                                            pthread_self()));
     if (create_wsrep_THD(args))
     {
       WSREP_WARN("Can't create thread to manage wsrep replication");
@@ -328,16 +329,19 @@ void wsrep_create_rollbacker()
 {
   if (wsrep_cluster_address && wsrep_cluster_address[0] != 0)
   {
-    Wsrep_thd_args* args= new Wsrep_thd_args(wsrep_rollback_process, 0,
-                                             WSREP_ROLLBACKER_THREAD);
+    Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_rollback_process,
+                                            WSREP_ROLLBACKER_THREAD,
+                                            pthread_self()));
 
     /* create rollbacker */
     if (create_wsrep_THD(args))
       WSREP_WARN("Can't create thread to manage wsrep rollback");
 
     /* create post_rollbacker */
-    args= new Wsrep_thd_args(wsrep_post_rollback_process, 0,
-                             WSREP_ROLLBACKER_THREAD);
+    args= new Wsrep_thd_args(wsrep_post_rollback_process,
+                             WSREP_ROLLBACKER_THREAD,
+                             pthread_self());
+
     if (create_wsrep_THD(args))
       WSREP_WARN("Can't create thread to manage wsrep post rollback");
    }

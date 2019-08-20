@@ -2696,7 +2696,7 @@ void* start_wsrep_THD(void *arg)
 
   WSREP_DEBUG("wsrep system thread %llu, %p starting",
               thd->thread_id, thd);
-  thd_args->fun()(thd, thd_args->args());
+  thd_args->fun()(thd, static_cast<void *>(thd_args));
 
   WSREP_DEBUG("wsrep system thread: %llu, %p closing",
               thd->thread_id, thd);
@@ -2706,8 +2706,6 @@ void* start_wsrep_THD(void *arg)
   thd->store_globals();
 
   close_connection(thd, 0);
-
-  delete thd_args;
 
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   DBUG_ASSERT(wsrep_running_threads > 0);
@@ -2727,6 +2725,7 @@ void* start_wsrep_THD(void *arg)
       break;
   }
 
+  delete thd_args;
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);

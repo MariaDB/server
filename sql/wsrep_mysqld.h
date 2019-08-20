@@ -411,18 +411,17 @@ typedef void (*wsrep_thd_processor_fun)(THD*, void *);
 class Wsrep_thd_args
 {
  public:
- Wsrep_thd_args(wsrep_thd_processor_fun fun, void* args,
-                wsrep_thread_type thread_type)
+ Wsrep_thd_args(wsrep_thd_processor_fun fun,
+                wsrep_thread_type thread_type,
+                pthread_t thread_id)
    :
   fun_ (fun),
-  args_ (args),
-  thread_type_ (thread_type)
+  thread_type_ (thread_type),
+  thread_id_ (thread_id)
   { }
 
   wsrep_thd_processor_fun fun() { return fun_; }
-
-  void* args() { return args_; }
-
+  pthread_t* thread_id() {return &thread_id_; }
   enum wsrep_thread_type thread_type() {return thread_type_;}
 
  private:
@@ -431,8 +430,8 @@ class Wsrep_thd_args
   Wsrep_thd_args& operator=(const Wsrep_thd_args&);
 
   wsrep_thd_processor_fun fun_;
-  void*                   args_;
   enum wsrep_thread_type  thread_type_;
+  pthread_t thread_id_;
 };
 
 void* start_wsrep_THD(void*);
