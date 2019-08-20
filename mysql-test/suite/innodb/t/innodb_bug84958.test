@@ -8,7 +8,6 @@
 --source include/have_innodb.inc
 SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency= 1;
---source include/wait_all_purged.inc
 
 DELIMITER ~~;
 CREATE PROCEDURE insert_n(start int, end int)
@@ -65,6 +64,8 @@ connection default;
 --echo # Connect to default and record how many pages were accessed
 --echo # when selecting the record using the secondary key.
 --echo #
+--let $wait_all_purged=3
+--source include/wait_all_purged.inc
 SET @num_pages_1 = num_pages_get();
 SELECT * FROM t1 force index (b);
 SET @num_pages_2= num_pages_get();
