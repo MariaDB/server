@@ -432,7 +432,7 @@ dict_table_try_drop_aborted(
 
 	if (table == NULL) {
 		table = dict_table_open_on_id_low(
-			table_id, DICT_ERR_IGNORE_NONE, FALSE);
+			table_id, DICT_ERR_IGNORE_FK_NOKEY, FALSE);
 	} else {
 		ut_ad(table->id == table_id);
 	}
@@ -1005,7 +1005,7 @@ dict_table_open_on_id(
 		table_id,
 		table_op == DICT_TABLE_OP_LOAD_TABLESPACE
 		? DICT_ERR_IGNORE_RECOVER_LOCK
-		: DICT_ERR_IGNORE_NONE,
+		: DICT_ERR_IGNORE_FK_NOKEY,
 		table_op == DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
 	if (table != NULL) {
@@ -1167,7 +1167,7 @@ dict_table_open_on_name(
 	if (table != NULL) {
 
 		/* If table is encrypted or corrupted */
-		if (ignore_err == DICT_ERR_IGNORE_NONE
+		if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY)
 		    && !table->is_readable()) {
 			/* Make life easy for drop table. */
 			dict_table_prevent_eviction(table);

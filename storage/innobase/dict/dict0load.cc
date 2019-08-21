@@ -3121,7 +3121,7 @@ func_exit:
 	mem_heap_free(heap);
 
 	ut_ad(!table
-	      || ignore_err != DICT_ERR_IGNORE_NONE
+	      || (ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY)
 	      || !table->is_readable()
 	      || !table->corrupted);
 
