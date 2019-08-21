@@ -193,7 +193,7 @@ case "$1" in
               if [ -z "$original_cmd" ]; then
                   original_cmd="$1"
               else
-                  original_cmd+=" $1"
+                  original_cmd="$original_cmd $1"
               fi
            fi
            shift
