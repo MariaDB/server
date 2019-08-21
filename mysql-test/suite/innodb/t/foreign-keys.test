@@ -204,3 +204,49 @@ connection default;
 select * from t2;
 drop table t2, t1;
 drop user foo;
+
+--echo #
+--echo # MDEV-17187 table doesn't exist in engine after ALTER other tables
+--echo # with CONSTRAINTs
+--echo #
+
+set foreign_key_checks=on;
+create table t1 (id int not null primary key) engine=innodb;
+create table t2 (id int not null primary key, fid int not null,
+CONSTRAINT fk_fid FOREIGN KEY (fid) REFERENCES t1 (id))engine=innodb;
+
+insert into t1 values (1), (2), (3);
+insert into t2 values (1, 1), (2, 1), (3, 2);
+
+set foreign_key_checks=off;
+alter table t2 drop index fk_fid;
+set foreign_key_checks=on;
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id=2;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values(4, 99);
+
+select * from t1;
+select * from t2;
+
+set foreign_key_checks=off;
+delete from t1 where id=2;
+insert into t2 values(4, 99);
+set foreign_key_checks=on;
+
+select * from t1;
+select * from t2;
+
+show create table t1;
+show create table t2;
+
+# Optional: test DROP TABLE without any prior ha_innobase::open().
+# This was tested manually, but it would cause --embedded to skip the test,
+# and the restart would significantly increase the running time.
+# --source include/restart_mysqld.inc
+
+--error ER_ROW_IS_REFERENCED_2
+drop table t1,t2;
+--error ER_BAD_TABLE_ERROR
+drop table t1,t2;

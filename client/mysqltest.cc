@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1694,6 +1694,7 @@ void abort_not_supported_test(const char *fmt, ...)
           cur_file->file_name, cur_file->lineno);
 
   char buff[DIE_BUFF_SIZE];
+  buff[0] = '\0';
   print_file_stack(buff, buff + sizeof(buff));
   fprintf(stderr, "%s", buff);
 

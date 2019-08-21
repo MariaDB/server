@@ -1,6 +1,6 @@
 # Copyright (c) 2009, 2018, Oracle and/or its affiliates.
-# Copyright (c) 2011, 2019, MariaDB Corporation
-# 
+# Copyright (c) 2011, 2019, MariaDB Corporation.
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 
 INCLUDE(CMakeParseArguments)
@@ -209,7 +209,7 @@ MACRO(MYSQL_ADD_PLUGIN)
       ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
         TARGET_LINK_LIBRARIES (${target} mysqld)
       ENDIF()
-    ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WITH_ASAN AND NOT WITH_TSAN AND NOT WITH_UBSAN)
+    ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WITH_ASAN AND NOT WITH_TSAN AND NOT WITH_UBSAN AND NOT WITH_MSAN)
       TARGET_LINK_LIBRARIES (${target} "-Wl,--no-undefined")
     ENDIF()
 
