@@ -9417,6 +9417,16 @@ DROP TABLE t1, t2;
 
 --echo # End of 5.5 test
 
+#MDEV-17610
+CREATE PROCEDURE sp() ALTER TABLE non_existing_table OPTIMIZE PARTITION p0;
+CALL sp;
+SELECT 1;
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() SHOW USER_STATISTICS;
+CALL sp;
+SELECT 1;
+DROP PROCEDURE sp;
+
 --echo #
 --echo #  MDEV-7040: Crash in field_conv, memcpy_field_possible, part#2
 --echo #

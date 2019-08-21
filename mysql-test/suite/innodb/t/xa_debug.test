@@ -1,0 +1,46 @@
+-- source include/have_innodb.inc
+-- source include/have_debug.inc
+-- source include/not_embedded.inc
+
+call mtr.add_suppression("Found 50 prepared XA transactions");
+create table t1 (a int) engine=innodb;
+insert into t1 values(1);
+
+let $trial = 50;
+while ($trial)
+{
+--connect (con$trial, localhost, root,,)
+let $st_pre = `select concat('test', $trial)`;
+eval xa start '$st_pre';
+insert into t1 values(1);
+eval xa end '$st_pre';
+eval xa prepare '$st_pre';
+dec $trial;
+}
+
+connection default;
+# Kill and restart the server.
+FLUSH TABLES;
+-- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- shutdown_server 0
+-- source include/wait_until_disconnected.inc
+
+-- exec echo "restart:--debug_dbug=+d,min_xa_len" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+-- disable_reconnect
+--sorted_result
+xa recover;
+--sorted_result
+xa recover;
+--disable_query_log
+let $trial = 50;
+while ($trial)
+{
+let $st_pre = `select concat('test', $trial)`;
+eval xa commit '$st_pre';
+dec $trial;
+}
+--enable_query_log
+xa recover;
+drop table t1;

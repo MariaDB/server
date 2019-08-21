@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4416,6 +4416,9 @@ dict_create_foreign_constraints_low(
 		}
 
 		goto loop;
+	} else {
+		strncpy(create_name, name, sizeof create_name);
+		create_name[(sizeof create_name) - 1] = '\0';
 	}
 
 	if (table == NULL) {
@@ -4443,11 +4446,19 @@ dict_create_foreign_constraints_low(
 	}
 
 	orig = ptr;
-	ptr = dict_accept(cs, ptr, "TABLE", &success);
-
-	if (!success) {
-
-		goto loop;
+	for (;;) {
+		ptr = dict_accept(cs, ptr, "TABLE", &success);
+		if (success) {
+			break;
+		}
+		ptr = dict_accept(cs, ptr, "ONLINE", &success);
+		if (success) {
+			continue;
+		}
+		ptr = dict_accept(cs, ptr, "IGNORE", &success);
+		if (!success) {
+			goto loop;
+		}
 	}
 
 	/* We are doing an ALTER TABLE: scan the table name we are altering */

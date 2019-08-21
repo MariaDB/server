@@ -435,7 +435,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   */
   if (lex->current_select->lock_type != TL_READ_DEFAULT)
   {
-    lex->current_select->set_lock_for_tables(TL_READ_DEFAULT);
+    lex->current_select->set_lock_for_tables(TL_READ_DEFAULT, false);
     view->mdl_request.set_type(MDL_EXCLUSIVE);
   }
 
@@ -1493,6 +1493,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
         tbl->lock_type= table->lock_type;
         tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
+        tbl->updating= table->updating;
       }
       /*
         If the view is mergeable, we might want to

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6990,7 +6990,8 @@ lock_trx_release_locks(
 {
 	assert_trx_in_list(trx);
 
-	if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
+	if (trx_state_eq(trx, TRX_STATE_PREPARED)
+	    || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) {
 		mutex_enter(&trx_sys->mutex);
 		ut_a(trx_sys->n_prepared_trx > 0);
 		trx_sys->n_prepared_trx--;

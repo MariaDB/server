@@ -475,6 +475,7 @@ trx_free_prepared(
 	trx_t*	trx)	/*!< in, own: trx object */
 {
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
+	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx->is_recovered
 		 && (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		     || trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY))
@@ -741,8 +742,7 @@ trx_resurrect_insert(
 
 	/* trx_start_low() is not called with resurrect, so need to initialize
 	start time here.*/
-	if (trx->state == TRX_STATE_ACTIVE
-	    || trx->state == TRX_STATE_PREPARED) {
+	if (trx->state != TRX_STATE_COMMITTED_IN_MEMORY) {
 		trx->start_time = ut_time();
 	}
 
@@ -1752,6 +1752,7 @@ trx_commit_or_rollback_prepare(
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		/* If the trx is in a lock wait state, moves the waiting
 		query thread to the suspended state */
 
@@ -1889,6 +1890,7 @@ trx_commit_for_mysql(
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		trx->op_info = "committing";
 		trx_commit(trx);
 		MONITOR_DEC(MONITOR_TRX_ACTIVE);
@@ -1945,6 +1947,7 @@ trx_mark_sql_stat_end(
 
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	case TRX_STATE_NOT_STARTED:
@@ -2003,6 +2006,7 @@ trx_print_low(
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		fprintf(f, ", ACTIVE (PREPARED) %lu sec",
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
@@ -2162,6 +2166,7 @@ trx_assert_started(
 
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		return(TRUE);
 
 	case TRX_STATE_ACTIVE:
@@ -2327,7 +2332,7 @@ trx_recover_for_mysql(
 	XID*	xid_list,	/*!< in/out: prepared transactions */
 	ulint	len)		/*!< in: number of slots in xid_list */
 {
-	const trx_t*	trx;
+	trx_t*		trx;
 	ulint		count = 0;
 
 	ut_ad(xid_list);
@@ -2349,6 +2354,7 @@ trx_recover_for_mysql(
 		trx_sys->mutex. It may change to PREPARED, but not if
 		trx->is_recovered. It may also change to COMMITTED. */
 		if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
+			trx->state = TRX_STATE_PREPARED_RECOVERED;
 			xid_list[count] = trx->xid;
 
 			if (count == 0) {
@@ -2373,11 +2379,22 @@ trx_recover_for_mysql(
 			count++;
 
 			if (count == len) {
-				break;
+				goto partial;
 			}
 		}
 	}
 
+	/* After returning the full list, reset the state, because
+	there will be a second call to recover the transactions. */
+	for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
+	     trx != NULL;
+	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
+		if (trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) {
+			trx->state = TRX_STATE_PREPARED;
+		}
+	}
+
+partial:
 	mutex_exit(&trx_sys->mutex);
 
 	if (count > 0){
@@ -2420,7 +2437,8 @@ trx_get_trx_by_xid_low(
 		the same */
 
 		if (trx->is_recovered
-		    && trx_state_eq(trx, TRX_STATE_PREPARED)
+		    && (trx_state_eq(trx, TRX_STATE_PREPARED)
+			|| trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED))
 		    && !trx->xid.is_null()
 		    && xid->gtrid_length == trx->xid.gtrid_length
 		    && xid->bqual_length == trx->xid.bqual_length
@@ -2494,6 +2512,7 @@ trx_start_if_not_started_xa_low(
 	case TRX_STATE_ACTIVE:
 		return;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}
@@ -2516,6 +2535,7 @@ trx_start_if_not_started_low(
 	case TRX_STATE_ACTIVE:
 		return;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}
@@ -2557,6 +2577,7 @@ trx_start_for_ddl_low(
 		ut_ad(trx->will_lock > 0);
 		return;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}

@@ -504,7 +504,7 @@ non-locking select */
 	ut_ad(!trx_is_autocommit_non_locking((t)));			\
 	switch ((t)->state) {						\
 	case TRX_STATE_PREPARED:					\
-		/* fall through */					\
+	case TRX_STATE_PREPARED_RECOVERED:				\
 	case TRX_STATE_ACTIVE:						\
 	case TRX_STATE_COMMITTED_IN_MEMORY:				\
 		continue;						\
@@ -689,6 +689,7 @@ struct trx_t{
 	TRX_STATE_NOT_STARTED
 	TRX_STATE_ACTIVE
 	TRX_STATE_PREPARED
+	TRX_STATE_PREPARED_RECOVERED (special case of TRX_STATE_PREPARED)
 	TRX_STATE_COMMITTED_IN_MEMORY (alias below COMMITTED)
 
 	Valid state transitions are:

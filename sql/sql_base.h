@@ -240,7 +240,8 @@ int init_ftfuncs(THD *thd, SELECT_LEX* select, bool no_order);
 bool lock_table_names(THD *thd, TABLE_LIST *table_list,
                       TABLE_LIST *table_list_end, ulong lock_wait_timeout,
                       uint flags);
-bool open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
+bool open_tables(THD *thd, TABLE_LIST **tables, uint *counter,
+                 Sroutine_hash_entry **sroutine_to_open, uint flags,
                  Prelocking_strategy *prelocking_strategy);
 /* open_and_lock_tables with optional derived handling */
 bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
@@ -471,6 +472,15 @@ public:
 
 
 inline bool
+open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
+            Prelocking_strategy *prelocking_strategy)
+{
+  return open_tables(thd, tables, counter, &thd->lex->sroutines_list.first,
+                     flags, prelocking_strategy);
+}
+
+
+inline bool
 open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags)
 {
   DML_prelocking_strategy prelocking_strategy;
@@ -498,6 +508,9 @@ inline bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
                               &prelocking_strategy);
 }
 
+bool extend_table_list(THD *thd, TABLE_LIST *tables,
+                       Prelocking_strategy *prelocking_strategy,
+                       bool has_prelocking_list);
 
 bool restart_trans_for_tables(THD *thd, TABLE_LIST *table);
 
