@@ -4681,7 +4681,7 @@ mysql_execute_command(THD *thd)
         if returning_list is not empty in INSERT...SELECT...RETURNING.
       */
 
-      TABLE_LIST *save_first= select_lex->table_list.first;
+      save_first= select_lex->table_list.first;
       select_lex->table_list.first= second_table;
       select_lex->context.saved_table_list= select_lex->context.table_list;
       select_lex->context.saved_name_resolution_table=

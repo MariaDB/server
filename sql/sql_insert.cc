@@ -722,7 +722,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
-  SELECT_LEX* select_lex= thd->lex->first_select_lex();
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
