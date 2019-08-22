@@ -1806,7 +1806,7 @@ class Grant_tables
   int open_and_lock(THD *thd, int which_tables, enum thr_lock_type lock_type)
   {
     DBUG_ENTER("Grant_tables::open_and_lock");
-    TABLE_LIST tables[USER_TABLE+1], *first= NULL;
+    TABLE_LIST tables[USER_TABLE+2], *first= NULL;
 
     DBUG_ASSERT(which_tables); /* At least one table must be opened. */
     /*
@@ -1819,49 +1819,67 @@ class Grant_tables
       DBUG_RETURN(-1);
     }
 
-    for (int i=USER_TABLE; i >=0; i--)
-    {
-      TABLE_LIST *tl= tables + i;
-      if (which_tables & (1 << i))
-      {
-        tl->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME[i],
-                           NULL, lock_type);
-        tl->open_type= OT_BASE_ONLY;
-        tl->i_s_requested_object= OPEN_TABLE_ONLY;
-        tl->updating= lock_type >= TL_WRITE_ALLOW_WRITE;
-        if (i >= FIRST_OPTIONAL_TABLE)
-          tl->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-        tl->next_global= tl->next_local= first;
-        first= tl;
-      }
-      else
-        tl->table= NULL;
-    }
+    /* Attempt to open all requested mysql tables, including mysql.global_priv
+       if the caller asked for the user table as well.
+       */
+    first = build_open_list(tables, which_tables, lock_type, true);
 
     uint counter;
-    int res= really_open(thd, first, &counter);
+    if (int rv= really_open(thd, first, &counter))
+      DBUG_RETURN(rv);
 
-    /* if User_table_json wasn't found, let's try User_table_tabular */
-    if (!res && (which_tables & Table_user) && !(tables[USER_TABLE].table))
+    TABLE *user_table= tables[USER_TABLE].table;
+    if ((which_tables & Table_user) && !user_table)
     {
       uint unused;
-      TABLE_LIST *tl= tables + USER_TABLE;
-      tl->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME_USER,
-                         NULL, lock_type);
-      tl->open_type= OT_BASE_ONLY;
-      tl->i_s_requested_object= OPEN_TABLE_ONLY;
-      tl->updating= lock_type >= TL_WRITE_ALLOW_WRITE;
+
+      /* If the user table was requested, but we were unable to find
+         mysql.global_priv, attempt to open tabular mysql.user instead.
+         If for some reason mysql.user is in a crashed state, part of the
+         underlying open_tables implementation is to close all opened tables
+         in thd->open_tables before attempting an auto-repair. After the
+         auto-repair, open_tables reopens only the tables passed as argument
+         (only mysql.user in our case), this means the rest of the tables we
+         opened in the really_open call above might get closed after this call
+         (MDEV-20257).
+
+         really_open does not return an error code in this case because the
+         auto-repair attempt was successful and all the tables passed as args
+         were reopened.
+
+         We still try to open only the tabular user table here because a
+         crashed mysql.user is rare and in most cases we avoid closing and
+         reopening of all requested tables.
+         */
+      TABLE_LIST *tl_user= tables + USER_TABLE, *head= NULL;
+      insert_tlnode(tl_user, MYSQL_TABLE_NAME_USER, lock_type, &head);
+      if (int rv= really_open(thd, head, &unused))
+        DBUG_RETURN(rv);
+
+      user_table= tables[USER_TABLE].table;
+      ++counter;
+
+      /* If the case above is met and mysql.user is indeed in a crashed state,
+         we need to close mysql.user and reopen all the requested tables.
+         This makes sense only if the caller requested other tables too apart
+         from mysql.user
+         */
+      if (which_tables != Table_user && !thd->open_tables->next)
+      {
+        close_thread_tables(thd);
+        first = build_open_list(tables, which_tables, lock_type, false);
+        if (int rv= really_open(thd, first, &counter))
+          DBUG_RETURN(rv);
+        user_table= tables[USER_TABLE + 1].table;
+      }
+
       p_user_table= &m_user_table_tabular;
-      counter++;
-      res= really_open(thd, tl, &unused);
     }
-    if (res)
-      DBUG_RETURN(res);
 
     if (lock_tables(thd, first, counter, MYSQL_LOCK_IGNORE_TIMEOUT))
       DBUG_RETURN(-1);
 
-    p_user_table->set_table(tables[USER_TABLE].table);
+    p_user_table->set_table(user_table);
     m_db_table.set_table(tables[DB_TABLE].table);
     m_tables_priv_table.set_table(tables[TABLES_PRIV_TABLE].table);
     m_columns_priv_table.set_table(tables[COLUMNS_PRIV_TABLE].table);
@@ -1897,6 +1915,45 @@ class Grant_tables
   { return m_roles_mapping_table; }
 
  private:
+
+  void insert_tlnode(TABLE_LIST *tl, const LEX_CSTRING &tname,
+                     enum thr_lock_type lock_type, TABLE_LIST **head)
+  {
+    tl->init_one_table(&MYSQL_SCHEMA_NAME, &tname, NULL, lock_type);
+    tl->open_type= OT_BASE_ONLY;
+    tl->i_s_requested_object= OPEN_TABLE_ONLY;
+    tl->updating= lock_type >= TL_WRITE_ALLOW_WRITE;
+    tl->next_global= tl->next_local= *head;
+    *head= tl;
+  }
+
+  TABLE_LIST* build_open_list(TABLE_LIST *tables, int which_tables,
+                              enum thr_lock_type lock_type, bool with_json)
+  {
+    TABLE_LIST *first= NULL;
+    int start= USER_TABLE - !with_json;
+
+    for (int i= start; i >= 0; i--)
+    {
+      TABLE_LIST *tl= tables + i;
+      if (which_tables & (1 << i))
+      {
+        insert_tlnode(tl, MYSQL_TABLE_NAME[i], lock_type, &first);
+        if (i >= FIRST_OPTIONAL_TABLE)
+          tl->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+      }
+      else
+        tl->table= NULL;
+    }
+
+    if ((which_tables & Table_user) && !with_json)
+    {
+      TABLE_LIST *user_table= &tables[USER_TABLE + 1];
+      insert_tlnode(user_table, MYSQL_TABLE_NAME_USER, lock_type, &first);
+    }
+
+    return first;
+  }
 
   /* Before any operation is possible on grant tables, they must be opened.
 

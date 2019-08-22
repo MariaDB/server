@@ -1,0 +1,55 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV 20257 Server crashes in Grant_table_base::init_read_record
+--echo # upon crash-upgrade
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+rename table mysql.global_priv to mysql.global_priv_bak;
+rename table mysql.user to mysql.user_bak;
+rename table mysql.proxies_priv to mysql.proxies_priv_bak;
+rename table mysql.roles_mapping to mysql.roles_mapping_bak;
+
+--copy_file std_data/mdev20257/user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mdev20257/user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+--copy_file std_data/mdev20257/user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+
+--echo #
+--echo # Server crashes in the Aria locking code
+--echo #
+--disable_warnings
+flush privileges;
+--enable_warnings
+
+--disable_warnings
+alter table mysql.db ENGINE=MyISAM;
+--enable_warnings
+
+drop table mysql.user;
+
+--copy_file std_data/mdev20257/user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mdev20257/user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+--copy_file std_data/mdev20257/user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+
+--echo #
+--echo # All tables are MyISAM
+--echo # Server crashes in Grant_tables::init_read_record
+--echo #
+--disable_warnings
+flush privileges;
+--enable_warnings
+
+call mtr.add_suppression("Table \'\..mysql\.user\' is marked as crashed and should be repaired");
+call mtr.add_suppression("Checking table:   \'\..mysql\.user\'");
+call mtr.add_suppression("mysql.user: 1 client is using or hasn't closed the table properly");
+call mtr.add_suppression("Missing system table mysql..*; please run mysql_upgrade to create it");
+
+# Cleanup
+drop table mysql.user;
+alter table mysql.db ENGINE=Aria;
+rename table mysql.global_priv_bak to mysql.global_priv;
+rename table mysql.user_bak to mysql.user;
+rename table mysql.proxies_priv_bak to mysql.proxies_priv;
+rename table mysql.roles_mapping_bak to mysql.roles_mapping;
+
