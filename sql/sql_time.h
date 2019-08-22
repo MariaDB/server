@@ -92,7 +92,7 @@ bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec);
 
 /* MYSQL_TIME operations */
 bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
-                       const INTERVAL &interval);
+                       const INTERVAL &interval, bool push_warn= true);
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int l_sign, ulonglong *seconds_out, ulong *microseconds_out);
 int append_interval(String *str, interval_type int_type,

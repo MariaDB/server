@@ -2338,6 +2338,42 @@ void Item_func_round::fix_arg_double()
 }
 
 
+void Item_func_round::fix_arg_temporal(const Type_handler *h,
+                                       uint int_part_length)
+{
+  set_handler(h);
+  if (args[1]->const_item() && !args[1]->is_expensive())
+  {
+    Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
+    fix_attributes_temporal(int_part_length,
+                            dec.is_null() ? args[0]->decimals :
+                            dec.to_uint(TIME_SECOND_PART_DIGITS));
+  }
+  else
+    fix_attributes_temporal(int_part_length, args[0]->decimals);
+}
+
+
+void Item_func_round::fix_arg_time()
+{
+  fix_arg_temporal(&type_handler_time2, MIN_TIME_WIDTH);
+}
+
+
+void Item_func_round::fix_arg_datetime()
+{
+  /*
+    Day increment operations are not supported for '0000-00-00',
+    see get_date_from_daynr() for details. Therefore, expressions like
+      ROUND('0000-00-00 23:59:59.999999')
+    return NULL.
+  */
+  if (!truncate)
+    maybe_null= true;
+  fix_arg_temporal(&type_handler_datetime2, MAX_DATETIME_WIDTH);
+}
+
+
 void Item_func_round::fix_arg_int()
 {
   if (args[1]->const_item())
@@ -2474,6 +2510,36 @@ my_decimal *Item_func_round::decimal_op(my_decimal *decimal_value)
                                     truncate ? TRUNCATE : HALF_UP) > 1)))
     return decimal_value;
   return 0;
+}
+
+
+bool Item_func_round::time_op(THD *thd, MYSQL_TIME *to)
+{
+  DBUG_ASSERT(args[0]->type_handler()->mysql_timestamp_type() ==
+              MYSQL_TIMESTAMP_TIME);
+  Time::Options opt(Time::default_flags_for_get_date(),
+                    truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND,
+                    Time::DATETIME_TO_TIME_DISALLOW);
+  Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
+  Time *tm= new (to) Time(thd, args[0], opt,
+                          dec.to_uint(TIME_SECOND_PART_DIGITS));
+  null_value= !tm->is_valid_time() || dec.is_null();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
+bool Item_func_round::date_op(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
+{
+  DBUG_ASSERT(args[0]->type_handler()->mysql_timestamp_type() ==
+              MYSQL_TIMESTAMP_DATETIME);
+  Datetime::Options opt(thd, truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND);
+  Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
+  Datetime *tm= new (to) Datetime(thd, args[0], opt,
+                                  dec.to_uint(TIME_SECOND_PART_DIGITS));
+  null_value= !tm->is_valid_datetime() || dec.is_null();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
 }
 
 

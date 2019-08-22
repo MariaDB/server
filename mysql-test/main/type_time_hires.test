@@ -10,3 +10,66 @@ select min(a - interval 1 hour), max(a - interval 1 hour) from t1 where a < 0;
 drop table t1;
 
 select cast(1e-6 as time(6));
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-20397 Support TIMESTAMP, DATETIME, TIME in ROUND() and TRUNCATE()
+--echo #
+
+CREATE TABLE t1 (a1 TIME(6), a2 TIME(6) NOT NULL);
+CREATE TABLE t2 AS SELECT
+  ROUND(a1) AS r1,
+  ROUND(a2) AS r2,
+  TRUNCATE(a1,0) AS t1,
+  TRUNCATE(a2,0) AS t2
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES
+('-838:59:59.999999'),
+('-837:59:59.999999'),
+('-23:59:59.999999'),
+('-00:59:59.999999'),
+('-00:00:59.999999'),
+('00:00:00.999999'),
+('00:00:59.999999'),
+('00:59:59.999999'),
+('23:59:59.999999'),
+('837:59:59.999999'),
+('838:59:59.999999');
+
+
+SELECT a, TRUNCATE(a,0) FROM t1;
+SELECT a, TRUNCATE(a,1) FROM t1;
+SELECT a, TRUNCATE(a,2) FROM t1;
+SELECT a, TRUNCATE(a,3) FROM t1;
+SELECT a, TRUNCATE(a,4) FROM t1;
+SELECT a, TRUNCATE(a,5) FROM t1;
+SELECT a, TRUNCATE(a,6) FROM t1;
+SELECT a, TRUNCATE(a,7) FROM t1;
+SELECT a, TRUNCATE(a,-1) FROM t1;
+SELECT a, TRUNCATE(a,-6) FROM t1;
+
+SELECT a, ROUND(a) FROM t1;
+SELECT a, ROUND(a,0) FROM t1;
+SELECT a, ROUND(a,1) FROM t1;
+SELECT a, ROUND(a,2) FROM t1;
+SELECT a, ROUND(a,3) FROM t1;
+SELECT a, ROUND(a,4) FROM t1;
+SELECT a, ROUND(a,5) FROM t1;
+SELECT a, ROUND(a,6) FROM t1;
+SELECT a, ROUND(a,7) FROM t1;
+SELECT a, ROUND(a,-1) FROM t1;
+SELECT a, ROUND(a,-6) FROM t1;
+
+DROP TABLE t1;
+
+SET time_zone=DEFAULT;

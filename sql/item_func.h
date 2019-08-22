@@ -1700,21 +1700,36 @@ public:
 
 /* This handles round and truncate */
 
-class Item_func_round :public Item_func_numhybrid
+class Item_func_round :public Item_func_hybrid_field_type
 {
   bool truncate;
   void fix_length_and_dec_decimal(uint decimals_to_set);
   void fix_length_and_dec_double(uint decimals_to_set);
 public:
   Item_func_round(THD *thd, Item *a, Item *b, bool trunc_arg)
-    :Item_func_numhybrid(thd, a, b), truncate(trunc_arg) {}
+    :Item_func_hybrid_field_type(thd, a, b), truncate(trunc_arg) {}
   const char *func_name() const { return truncate ? "truncate" : "round"; }
   double real_op();
   longlong int_op();
   my_decimal *decimal_op(my_decimal *);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  String *str_op(String *str)
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   void fix_arg_decimal();
   void fix_arg_int();
   void fix_arg_double();
+  void fix_arg_time();
+  void fix_arg_datetime();
+  void fix_arg_temporal(const Type_handler *h, uint int_part_length);
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->Item_func_round_fix_length_and_dec(this);

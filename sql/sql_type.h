@@ -5281,6 +5281,7 @@ public:
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
@@ -5507,6 +5508,7 @@ public:
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -5608,6 +5610,7 @@ public:
   bool Item_param_val_native(THD *thd, Item_param *item, Native *to) const;
   int cmp_native(const Native &a, const Native &b) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
