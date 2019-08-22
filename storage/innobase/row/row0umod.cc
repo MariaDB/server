@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,36 +181,6 @@ row_undo_mod_remove_clust_low(
 	}
 
 	btr_cur = btr_pcur_get_btr_cur(&node->pcur);
-
-	trx_id_offset = btr_cur_get_index(btr_cur)->trx_id_offset;
-
-	if (!trx_id_offset) {
-		mem_heap_t*	heap	= NULL;
-		ulint		trx_id_col;
-		const ulint*	offsets;
-		ulint		len;
-
-		trx_id_col = dict_index_get_sys_col_pos(
-			btr_cur_get_index(btr_cur), DATA_TRX_ID);
-		ut_ad(trx_id_col > 0);
-		ut_ad(trx_id_col != ULINT_UNDEFINED);
-
-		offsets = rec_get_offsets(
-			btr_cur_get_rec(btr_cur), btr_cur_get_index(btr_cur),
-			NULL, trx_id_col + 1, &heap);
-
-		trx_id_offset = rec_get_nth_field_offs(
-			offsets, trx_id_col, &len);
-		ut_ad(len == DATA_TRX_ID_LEN);
-		mem_heap_free(heap);
-	}
-
-	if (trx_read_trx_id(btr_cur_get_rec(btr_cur) + trx_id_offset)
-	    != node->new_trx_id) {
-		/* The record must have been purged and then replaced
-		with a different one. */
-		return(DB_SUCCESS);
-	}
 
 	trx_id_offset = btr_cur_get_index(btr_cur)->trx_id_offset;
 
