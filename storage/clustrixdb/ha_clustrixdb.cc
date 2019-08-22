@@ -373,30 +373,37 @@ err:
 
 int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
 {
+  DBUG_ENTER("ha_clustrixdb::update_row");
   int error_code;
   THD *thd = ha_thd();
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
-    return error_code;
+    DBUG_RETURN(error_code);
 
   assert(trx->has_stmt_trans());
 
   size_t row_size = estimate_row_size(table);
+  size_t packed_key_len;
+  uchar *packed_key = (uchar*) my_alloca(row_size);
+  build_key_packed_row(table->s->primary_key, old_data,
+                       packed_key, &packed_key_len);
+
   uchar *packed_new_row = (uchar*) my_alloca(row_size);
-  // Add checks for actual size of the packed data
-  /*size_t packed_new_size =*/ pack_row(table, table->write_set, packed_new_row, new_data);
-  uchar *packed_old_row = (uchar*) my_alloca(row_size);
-  /*size_t packed_old_size =*/ pack_row(table, table->write_set, packed_old_row, old_data);
+  size_t packed_new_size = pack_row(table, table->write_set, packed_new_row,
+                                    new_data);
 
   /* Send the packed rows to Clustrix */
+  error_code = trx->key_update(clustrix_table_oid, packed_key, packed_key_len,
+                               table->write_set,
+                               packed_new_row, packed_new_size);
+
+  if(packed_key)
+    my_afree(packed_key);
 
   if(packed_new_row)
     my_afree(packed_new_row);
 
-  if(packed_old_row)
-    my_afree(packed_old_row);
-
-  return error_code;
+  DBUG_RETURN(error_code);
 }
 
 int ha_clustrixdb::delete_row(const uchar *buf)
@@ -412,7 +419,8 @@ int ha_clustrixdb::delete_row(const uchar *buf)
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
-  build_key_packed_row(table->s->primary_key, packed_key, &packed_key_len);
+  build_key_packed_row(table->s->primary_key, table->record[0],
+                       packed_key, &packed_key_len);
 
   if ((error_code = trx->key_delete(clustrix_table_oid,
                                     packed_key, packed_key_len)))
@@ -539,7 +547,8 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
-  build_key_packed_row(active_index, packed_key, &packed_key_len);
+  build_key_packed_row(active_index, table->record[0],
+                       packed_key, &packed_key_len);
 
   uchar *rowdata;
   ulong rowdata_length;
@@ -753,7 +762,8 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
   // The estimate should consider only key fields widths.
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   size_t packed_key_len;
-  build_key_packed_row(table->s->primary_key, packed_key, &packed_key_len);
+  build_key_packed_row(table->s->primary_key, table->record[0],
+                       packed_key, &packed_key_len);
 
   uchar *rowdata;
   ulong rowdata_length;
@@ -908,7 +918,8 @@ void ha_clustrixdb::remove_current_table_from_rpl_table_list()
   delete rgi;
 }
 
-void ha_clustrixdb::build_key_packed_row(uint index, uchar *packed_key,
+void ha_clustrixdb::build_key_packed_row(uint index, const uchar *buf,
+                                         uchar *packed_key,
                                          size_t *packed_key_len)
 {
   if (index == table->s->primary_key && has_hidden_key) {
@@ -918,7 +929,7 @@ void ha_clustrixdb::build_key_packed_row(uint index, uchar *packed_key,
     // make a row from the table
     table->mark_columns_used_by_index(index, &table->tmp_set);
     *packed_key_len = pack_row(table, &table->tmp_set, packed_key,
-                               table->record[0]);
+                               buf);
   }
 }
 

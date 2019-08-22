@@ -86,6 +86,10 @@ public:
 
   int write_row(ulonglong clustrix_table_oid,
                 uchar *packed_row, size_t packed_size);
+  int key_update(ulonglong clustrix_table_oid,
+                 uchar *packed_key, size_t packed_key_length,
+                 MY_BITMAP *update_set,
+                 uchar *packed_new_data, size_t packed_new_length);
   int key_delete(ulonglong clustrix_table_oid,
                  uchar *packed_key, size_t packed_key_length);
   int key_read(ulonglong clustrix_table_oid, uint index, MY_BITMAP *read_set,
