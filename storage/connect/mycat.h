@@ -11,10 +11,10 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**************** MYCAT H Declares Source Code File (.H) ***************/
-/*  Name: MYCAT.H  Version 2.3                                         */
+/*  Name: MYCAT.H  Version 2.4                                         */
 /*  Author: Olivier Bertrand                                           */
 /*  This file contains the CONNECT plugin MYCAT class definitions.     */
 /***********************************************************************/
@@ -50,9 +50,9 @@ struct ha_table_option_struct {
 	const char *filter;
   const char *oplist;
   const char *data_charset;
-	const char *http;
-	const char *uri;
-	ulonglong lrecl;
+  const char *http;
+  const char *uri;
+  ulonglong lrecl;
   ulonglong elements;
 //ulonglong estimate;
   ulonglong multiple;

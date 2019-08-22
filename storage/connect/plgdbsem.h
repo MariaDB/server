@@ -1,7 +1,7 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
-/*  Name: PLGDBSEM.H  Version 3.7                                      */
+/*  Name: PLGDBSEM.H  Version 3.8                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2019    */
 /*                                                                     */
 /*  This file contains the CONNECT storage engine definitions.         */
 /***********************************************************************/
@@ -82,8 +82,8 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
 							TAB_JDBC  = 26,   /* Table accessed via JDBC             */
 							TAB_ZIP   = 27,   /* ZIP file info table                 */
 							TAB_MONGO = 28,   /* Table retrieved from MongoDB        */
-							TAB_REST  = 29,   /* Table retrieved from Rest query     */
-							TAB_NIY   = 30};  /* Table not implemented yet           */
+							TAB_REST  = 29,   /* Table retrieved from Rest           */
+              TAB_NIY   = 30};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */
