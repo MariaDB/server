@@ -40,6 +40,7 @@ INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 SELECT * FROM tbl_a ORDER BY pkey;
 
 --connection child2_1
+--replace_regex /-[0-9a-f]{12}-[0-9a-f]+-/-xxxxxxxxxxxx-xxxxx-/
 eval $CHILD2_1_SELECT_ARGUMENT1;
 eval $CHILD2_1_SELECT_TABLES;
 

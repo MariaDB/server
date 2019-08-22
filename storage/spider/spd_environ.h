@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
    Copyright (C) 2017-2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify

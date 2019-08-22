@@ -266,7 +266,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           270
+#define SPIDER_MEM_CALC_LIST_NUM           277
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -610,7 +610,15 @@ typedef struct st_spider_conn
 
   pthread_mutex_t    loop_check_mutex;
   HASH               loop_checked;
+  uint               loop_checked_id;
+  const char         *loop_checked_func_name;
+  const char         *loop_checked_file_name;
+  ulong              loop_checked_line_no;
   HASH               loop_check_queue;
+  uint               loop_check_queue_id;
+  const char         *loop_check_queue_func_name;
+  const char         *loop_check_queue_file_name;
+  ulong              loop_check_queue_line_no;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share
@@ -695,6 +703,7 @@ typedef struct st_spider_wide_handler
 #endif
   TABLE              *top_table;
   Field              **top_table_field;
+  TABLE_SHARE        *top_share;
   enum thr_lock_type lock_type;
   uchar              lock_table_type;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)

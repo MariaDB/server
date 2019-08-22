@@ -97,6 +97,8 @@ typedef st_spider_result SPIDER_RESULT;
 
 #define SPIDER_SQL_DOT_STR "."
 #define SPIDER_SQL_DOT_LEN (sizeof(SPIDER_SQL_DOT_STR) - 1)
+#define SPIDER_SQL_HYPHEN_STR "-"
+#define SPIDER_SQL_HYPHEN_LEN (sizeof(SPIDER_SQL_HYPHEN_STR) - 1)
 
 #define SPIDER_SQL_EQUAL_STR " = "
 #define SPIDER_SQL_EQUAL_LEN (sizeof(SPIDER_SQL_EQUAL_STR) - 1)
@@ -231,8 +233,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_SUBPARTITION_STR " subpartition "
 #define SPIDER_SQL_SUBPARTITION_LEN (sizeof(SPIDER_SQL_SUBPARTITION_STR) - 1)
 
-#define SPIDER_SQL_LOP_CHK_PRM_PRF_STR "spider_loop_"
-#define SPIDER_SQL_LOP_CHK_PRM_PRF_LEN (sizeof(SPIDER_SQL_LOOP_CHK_PRM_PRF_STR) - 1)
+#define SPIDER_SQL_LOP_CHK_PRM_PRF_STR "spider_lc_"
+#define SPIDER_SQL_LOP_CHK_PRM_PRF_LEN (sizeof(SPIDER_SQL_LOP_CHK_PRM_PRF_STR) - 1)
 
 #define SPIDER_CONN_KIND_MYSQL (1 << 0)
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -894,6 +896,10 @@ public:
     spider_string *str,
     Time_zone *time_zone
   ) = 0;
+  virtual int append_loop_check(
+    spider_string *str,
+    SPIDER_CONN *conn
+  );
   virtual int append_start_transaction(
     spider_string *str
   ) = 0;
@@ -1300,6 +1306,11 @@ public:
     Time_zone *time_zone,
     int *need_mon
   ) = 0;
+  virtual bool set_loop_check_in_bulk_sql();
+  virtual int set_loop_check(
+    int *need_mon
+  );
+  virtual int fin_loop_check();
   virtual int show_master_status(
     SPIDER_TRX *trx,
     SPIDER_SHARE *share,
