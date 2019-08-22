@@ -126,10 +126,7 @@ void maria_chk_init(HA_CHECK *param)
   param->pagecache_block_size= KEY_CACHE_BLOCK_SIZE;
   param->stats_method= MI_STATS_METHOD_NULLS_NOT_EQUAL;
   param->max_stage= 1;
-  init_stack_alloc(&param->stack_alloc,
-                   STACK_ALLOC_BIG_BLOCK,
-                   STACK_ALLOC_SMALL_BLOCK,
-                   4096);
+  param->stack_end_ptr= &my_thread_var->stack_ends_here;
 }
 
 
@@ -876,15 +873,12 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   if (keyinfo->flag & (HA_SPATIAL | HA_RTREE_INDEX))
     DBUG_RETURN(0);
 
+  alloc_on_stack(*param->stack_end_ptr, temp_buff, temp_buff_alloced,
+                 (keyinfo->block_length + keyinfo->max_store_length));
+  if (!temp_buff)
   {
-    void *res;
-    alloc_on_stack(&param->stack_alloc, res, temp_buff_alloced,
-                   (keyinfo->block_length + keyinfo->max_store_length));
-    if (!(temp_buff= res))
-    {
-      _ma_check_print_error(param,"Not enough memory for keyblock");
-      DBUG_RETURN(-1);
-    }
+    _ma_check_print_error(param,"Not enough memory for keyblock");
+    DBUG_RETURN(-1);
   }
   tmp_key_buff= temp_buff+ keyinfo->block_length;
 
@@ -3246,15 +3240,12 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
   param->new_file_pos+=keyinfo->block_length;
   key.keyinfo= keyinfo;
 
+  alloc_on_stack(*param->stack_end_ptr, buff, buff_alloced,
+                 keyinfo->block_length + keyinfo->max_store_length);
+  if (!buff)
   {
-    void *res;
-    alloc_on_stack(&param->stack_alloc, res, buff_alloced,
-                   keyinfo->block_length + keyinfo->max_store_length);
-    if (!(buff= res))
-    {
-      _ma_check_print_error(param,"Not enough memory for keyblock");
-      DBUG_RETURN(-1);
-    }
+    _ma_check_print_error(param,"Not enough memory for keyblock");
+    DBUG_RETURN(-1);
   }
   key.data= buff + keyinfo->block_length;
 

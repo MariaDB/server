@@ -68,15 +68,12 @@ static int maria_rtree_find_req(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   MARIA_PAGE page;
   my_bool buff_alloced;
 
+  alloc_on_stack(*info->stack_end_ptr, page_buf, buff_alloced,
+                 keyinfo->block_length);
+  if (!page_buf)
   {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->block_length);
-    if (!(page_buf= res))
-    {
-      my_errno= HA_ERR_OUT_OF_MEM;
-      return(-1);
-    }
+    my_errno= HA_ERR_OUT_OF_MEM;
+    return(-1);
   }
 
   if (_ma_fetch_keypage(&page, info, keyinfo, page_pos,
@@ -339,15 +336,12 @@ static int maria_rtree_get_req(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   my_bool buff_alloced;
   MARIA_PAGE page;
 
+  alloc_on_stack(*info->stack_end_ptr, page_buf, buff_alloced,
+                 keyinfo->block_length);
+  if (!page_buf)
   {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->block_length);
-    if (!(page_buf= res))
-    {
-      my_errno= HA_ERR_OUT_OF_MEM;
-      return(-1);
-    }
+    my_errno= HA_ERR_OUT_OF_MEM;
+    return(-1);
   }
 
   if (_ma_fetch_keypage(&page, info, keyinfo, page_pos,
@@ -627,15 +621,12 @@ static int maria_rtree_insert_req(MARIA_HA *info, MARIA_KEY *key,
   MARIA_PAGE page;
   DBUG_ENTER("maria_rtree_insert_req");
 
+  alloc_on_stack(*info->stack_end_ptr, page_buf, buff_alloced,
+                 keyinfo->block_length + keyinfo->max_store_length);
+  if (!page_buf)
   {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->block_length + keyinfo->max_store_length);
-    if (!(page_buf= res))
-    {
-      my_errno= HA_ERR_OUT_OF_MEM;
-      DBUG_RETURN(-1); /* purecov: inspected */
-    }
+    my_errno= HA_ERR_OUT_OF_MEM;
+    DBUG_RETURN(-1); /* purecov: inspected */
   }
 
   if (_ma_fetch_keypage(&page, info, keyinfo, page_pos, PAGECACHE_LOCK_WRITE,
@@ -798,15 +789,12 @@ int maria_rtree_insert_level(MARIA_HA *info, MARIA_KEY *key, int ins_level,
 
       DBUG_PRINT("rtree", ("root was split, grow a new root"));
 
+      alloc_on_stack(*info->stack_end_ptr, new_root_buf, new_root_buf_alloced,
+                     keyinfo->block_length + keyinfo->max_store_length);
+      if (!new_root_buf)
       {
-        void *res;
-        alloc_on_stack(&info->stack_alloc, res, new_root_buf_alloced,
-                       keyinfo->block_length + keyinfo->max_store_length);
-        if (!(new_root_buf= res))
-        {
-          my_errno= HA_ERR_OUT_OF_MEM;
-          DBUG_RETURN(-1); /* purecov: inspected */
-        }
+        my_errno= HA_ERR_OUT_OF_MEM;
+        DBUG_RETURN(-1); /* purecov: inspected */
       }
 
       bzero(new_root_buf, keyinfo->block_length);
@@ -956,15 +944,12 @@ static int maria_rtree_delete_req(MARIA_HA *info, const MARIA_KEY *key,
   MARIA_PAGE page;
   DBUG_ENTER("maria_rtree_delete_req");
 
+  alloc_on_stack(*info->stack_end_ptr, page_buf, buff_alloced,
+                 keyinfo->block_length);
+  if (!page_buf)
   {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->block_length);
-    if (!(page_buf= res))
-    {
-      my_errno= HA_ERR_OUT_OF_MEM;
-      DBUG_RETURN(-1);
-    }
+    my_errno= HA_ERR_OUT_OF_MEM;
+    DBUG_RETURN(-1);
   }
 
   if (_ma_fetch_keypage(&page, info, keyinfo, page_pos, PAGECACHE_LOCK_WRITE,
@@ -1193,15 +1178,12 @@ my_bool maria_rtree_real_delete(MARIA_HA *info, MARIA_KEY *key,
 
     if (ReinsertList.n_pages)
     {
+      alloc_on_stack(*info->stack_end_ptr, page_buf, buff_alloced,
+                     keyinfo->block_length);
+      if (!page_buf)
       {
-        void *res;
-        alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                       keyinfo->block_length);
-        if (!(page_buf= res))
-        {
-          my_errno= HA_ERR_OUT_OF_MEM;
-          goto err;
-        }
+        my_errno= HA_ERR_OUT_OF_MEM;
+        goto err;
       }
 
       for (i= 0; i < ReinsertList.n_pages; ++i)
@@ -1313,13 +1295,10 @@ ha_rows maria_rtree_estimate(MARIA_HA *info, MARIA_KEY *key, uint32 flag)
   if ((root= share->state.key_root[key->keyinfo->key_nr]) == HA_OFFSET_ERROR)
     return HA_POS_ERROR;
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->block_length);
-    if (!(page_buf= res))
-      return(HA_POS_ERROR);
-  }
+  alloc_on_stack(*info->stack_end_ptr, page_buf, buff_alloced,
+                 keyinfo->block_length);
+  if (!page_buf)
+    return(HA_POS_ERROR);
 
   if (_ma_fetch_keypage(&page, info, keyinfo, root,
                         PAGECACHE_LOCK_LEFT_UNLOCKED, DFLT_INIT_HITS, page_buf,

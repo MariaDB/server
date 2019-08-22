@@ -396,15 +396,11 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
 
   n_dim= keyinfo->keysegs / 2;
 
-  {
-    void *res;
-    size_t length= (n_dim * 2 * sizeof(double) *
-                    (max_keys + 1 + 4) +
-                    sizeof(SplitStruct) * (max_keys + 1));
-    alloc_on_stack(&info->stack_alloc, res, coord_buf_alloced, length);
-    if (!(coord_buf= res))
-      DBUG_RETURN(-1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, coord_buf, coord_buf_alloced,
+                 (n_dim * 2 * sizeof(double) * (max_keys + 1 + 4) +
+                  sizeof(SplitStruct) * (max_keys + 1)));
+  if (!coord_buf)
+    DBUG_RETURN(-1);
 
   task= (SplitStruct *)(coord_buf + n_dim * 2 * (max_keys + 1 + 4));
 
@@ -439,17 +435,13 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
   }
 
   /* Allocate buffer for new page and piece of log record */
+  alloc_on_stack(*info->stack_end_ptr, new_page_buff, new_page_buff_alloced,
+                  (keyinfo->block_length +
+                    (transactional ? max_keys * (2 + 2) + 1 + 2 + 1 + 2 : 0)));
+  if (!new_page_buff)
   {
-    void *res;
-    size_t len= (keyinfo->block_length +
-                 (transactional ? (max_keys * (2 + 2) + 1 + 2 + 1 + 2) : 0));
-
-    alloc_on_stack(&info->stack_alloc, res, new_page_buff_alloced, len);
-    if (!(new_page_buff= res))
-    {
-      err_code= -1;
-      goto split_err;
-    }
+    err_code= -1;
+    goto split_err;
   }
 
   log_internal_copy= log_internal_copy_ptr= new_page_buff +

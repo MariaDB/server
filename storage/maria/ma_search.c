@@ -138,13 +138,10 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
     DBUG_RETURN(1);                             /* Search at upper levels */
   }
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->max_store_length);
-    if (!(lastkey= res))
-      DBUG_RETURN(1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, lastkey, buff_alloced,
+                 keyinfo->max_store_length);
+  if (!lastkey)
+    DBUG_RETURN(1);
 
   if (_ma_fetch_keypage(&page, info, keyinfo, pos,
                         PAGECACHE_LOCK_READ, DFLT_INIT_HITS, 0, 0))

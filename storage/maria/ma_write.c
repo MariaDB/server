@@ -629,13 +629,11 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
   DBUG_ENTER("w_search");
   DBUG_PRINT("enter", ("page: %lu", (ulong) (page_pos/keyinfo->block_length)));
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   (keyinfo->block_length + keyinfo->max_store_length*3));
-    if (!(temp_buff= res))
-      DBUG_RETURN(1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, temp_buff, buff_alloced,
+                 (keyinfo->block_length + keyinfo->max_store_length*3));
+  if (!temp_buff)
+    DBUG_RETURN(1);
+
   keybuff= temp_buff + (keyinfo->block_length + keyinfo->max_store_length*2);
 
   if (_ma_fetch_keypage(&page, info, keyinfo, page_pos, PAGECACHE_LOCK_WRITE,
@@ -1257,13 +1255,10 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   MARIA_PAGE next_page, extra_page, *left_page, *right_page;
   DBUG_ENTER("_ma_balance_page");
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->max_store_length);
-    if (!(tmp_part_key= res))
-      DBUG_RETURN(-1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, tmp_part_key, buff_alloced,
+                 keyinfo->max_store_length);
+  if (!tmp_part_key)
+    DBUG_RETURN(-1);
 
   k_length= keyinfo->keylength;
   father_length= father_page->size;

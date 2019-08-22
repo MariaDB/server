@@ -2804,7 +2804,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
     file->state= &file->s->state.state;         // Restore state if clone
 
   /* Remember stack end for this thread */
-  aria_init_stack_alloc(file);
+  file->stack_end_ptr= &ha_thd()->mysys_var->stack_ends_here;
   DBUG_RETURN(result);
 }
 

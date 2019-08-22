@@ -166,13 +166,11 @@ my_bool _ma_ck_delete(MARIA_HA *info, MARIA_KEY *key)
   DBUG_ENTER("_ma_ck_delete");
 
   LINT_INIT_STRUCT(org_key);
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   key->keyinfo->max_store_length);
-    if (!(key_buff= res))
-      DBUG_RETURN(1);
-  }
+
+  alloc_on_stack(*info->stack_end_ptr, key_buff, buff_alloced,
+                 key->keyinfo->max_store_length);
+  if (!key_buff)
+    DBUG_RETURN(1);
 
   save_key_data= key->data;
   if (share->now_transactional)
@@ -221,13 +219,10 @@ my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
     DBUG_RETURN(1);
   }
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   (keyinfo->block_length + keyinfo->max_store_length*2));
-    if (!(root_buff= res))
-      DBUG_RETURN(1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, root_buff, buff_alloced,
+                 (keyinfo->block_length + keyinfo->max_store_length*2));
+  if (!root_buff)
+    DBUG_RETURN(1);
 
   DBUG_PRINT("info",("root_page: %lu",
                      (ulong) (old_root / keyinfo->block_length)));
@@ -305,13 +300,10 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
   DBUG_ENTER("d_search");
   DBUG_DUMP("page", anc_page->buff, anc_page->size);
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, lastkey_alloced,
-                   keyinfo->max_store_length);
-    if (!(lastkey= res))
-      DBUG_RETURN(1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, lastkey, lastkey_alloced,
+                 keyinfo->max_store_length);
+  if (!lastkey)
+    DBUG_RETURN(1);
 
   flag=(*keyinfo->bin_search)(key, anc_page, comp_flag, &keypos, lastkey,
                               &last_key);
@@ -406,13 +398,11 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
     /* Read left child page */
     leaf_page.pos= _ma_kpos(nod_flag,keypos);
 
-    {
-      void *res;
-      alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                     (keyinfo->block_length + keyinfo->max_store_length*2));
-      if (!(leaf_buff= res))
-        goto err;
-    }
+    alloc_on_stack(*info->stack_end_ptr, leaf_buff, buff_alloced,
+                   (keyinfo->block_length + keyinfo->max_store_length*2));
+    if (!leaf_buff)
+      goto err;
+
     if (_ma_fetch_keypage(&leaf_page, info,keyinfo, leaf_page.pos,
                           PAGECACHE_LOCK_WRITE, DFLT_INIT_HITS, leaf_buff,
                           0))
@@ -590,13 +580,10 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
 		      keypos));
   DBUG_DUMP("leaf_buff", leaf_page->buff, leaf_page->size);
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, keybuff_alloced,
-                   keyinfo->max_store_length);
-    if (!(keybuff= res))
-      DBUG_RETURN(1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, keybuff, keybuff_alloced,
+                 keyinfo->max_store_length);
+  if (!keybuff)
+    DBUG_RETURN(1);
 
   page_flag=   leaf_page->flag;
   leaf_length= leaf_page->size;
@@ -614,13 +601,10 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
   {
     next_page.pos= _ma_kpos(nod_flag,endpos);
 
-    {
-      void *res;
-      alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                     (keyinfo->block_length + keyinfo->max_store_length*2));
-      if (!(next_buff= res))
-        goto err;
-    }
+    alloc_on_stack(*info->stack_end_ptr, next_buff, buff_alloced,
+                   (keyinfo->block_length + keyinfo->max_store_length*2));
+    if (!next_buff)
+      goto err;
 
     if (_ma_fetch_keypage(&next_page, info, keyinfo, next_page.pos,
                           PAGECACHE_LOCK_WRITE, DFLT_INIT_HITS, next_buff, 0))
@@ -820,14 +804,12 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   DBUG_DUMP("anc_buff", anc_page->buff,  anc_page->size);
   DBUG_DUMP("leaf_buff", leaf_page->buff, leaf_page->size);
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   keyinfo->max_store_length*2);
-    if (!(anc_key_buff= res))
-      DBUG_RETURN(1);
-    leaf_key_buff= anc_key_buff+ keyinfo->max_store_length;
-  }
+  alloc_on_stack(*info->stack_end_ptr, anc_key_buff, buff_alloced,
+                 keyinfo->max_store_length*2);
+  if (!anc_key_buff)
+    DBUG_RETURN(1);
+
+  leaf_key_buff= anc_key_buff+ keyinfo->max_store_length;
 
   anc_page_flag= anc_page->flag;
   anc_buff= anc_page->buff;

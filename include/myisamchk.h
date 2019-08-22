@@ -104,7 +104,7 @@ typedef struct st_handler_check_param
   my_bool retry_repair, force_sort, calc_checksum, static_row_size;
   char temp_filename[FN_REFLEN];
   IO_CACHE read_cache;
-  STACK_ALLOC stack_alloc;
+  void **stack_end_ptr;
   enum_handler_stats_method stats_method;
   /* For reporting progress */
   uint stage, max_stage;

@@ -1176,7 +1176,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     mysql_mutex_unlock(&THR_LOCK_maria);
 
   m_info->open_flags= open_flags;
-  aria_init_stack_alloc(m_info);
+  m_info->stack_end_ptr= &my_thread_var->stack_ends_here;
   DBUG_PRINT("exit", ("table: %p  name: %s",m_info, name));
   DBUG_RETURN(m_info);
 

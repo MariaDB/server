@@ -256,14 +256,11 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
   reclength= (info->s->base.pack_reclength +
 	      _ma_calc_total_blob_length(info,record)+ extra);
 
+  alloc_on_stack(*info->stack_end_ptr, rec_buff, buff_alloced, reclength);
+  if (!rec_buff)
   {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced, reclength);
-    if (!(rec_buff= res))
-    {
-      my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
-      return(1);
-    }
+    my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
+    return(1);
   }
 
   reclength2= _ma_rec_pack(info,
@@ -308,15 +305,13 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
   }
 #endif
 
+  alloc_on_stack(*info->stack_end_ptr, rec_buff, buff_alloced, reclength);
+  if (!rec_buff)
   {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced, reclength);
-    if (!(rec_buff= res))
-    {
-      my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
-      return(1);
-    }
+    my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
+    return(1);
   }
+
   reclength2= _ma_rec_pack(info, rec_buff+
                            ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
                            record);
@@ -1595,13 +1590,10 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
   my_bool error, buff_alloced;
   DBUG_ENTER("_ma_cmp_dynamic_unique");
 
-  {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   info->s->base.reclength);
-    if (!(old_record= res))
-      DBUG_RETURN(1);
-  }
+  alloc_on_stack(*info->stack_end_ptr, old_record, buff_alloced,
+                 info->s->base.reclength);
+  if (!old_record)
+    DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
   old_rec_buff=      info->rec_buff;
@@ -1657,12 +1649,9 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
       buffer_length= (info->s->base.pack_reclength +
                       _ma_calc_total_blob_length(info,record));
 
-      {
-        void *res;
-        alloc_on_stack(&info->stack_alloc, res, buff_alloced, buffer_length);
-        if (!(buffer= res))
-          DBUG_RETURN(1);
-      }
+      alloc_on_stack(*info->stack_end_ptr, buffer, buff_alloced, buffer_length);
+      if (!buffer)
+        DBUG_RETURN(1);
     }
     if (!(reclength= _ma_rec_pack(info,buffer,record)))
       goto err;

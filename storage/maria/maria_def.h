@@ -623,7 +623,7 @@ struct st_maria_handler
   MARIA_STATUS_INFO *state_start;       /* State at start of transaction */
   MARIA_USED_TABLES *used_tables;
   struct ms3_st *s3;
-  STACK_ALLOC stack_alloc;
+  void **stack_end_ptr;
   MARIA_ROW cur_row;                    /* The active row that we just read */
   MARIA_ROW new_row;			/* Storage for a row during update */
   MARIA_KEY last_key;                   /* Last found key */
@@ -1467,19 +1467,4 @@ static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
   if (info->s->file_map)
     _ma_unmap_file(info);
 #endif
-}
-
-static inline void aria_init_stack_alloc(MARIA_HA *info)
-{
-#ifndef DEBUG_STACK_ALLOC
-  init_stack_alloc(&info->stack_alloc,
-                   STACK_ALLOC_BIG_BLOCK,
-                   STACK_ALLOC_SMALL_BLOCK,
-                   4096);
-#else
-  /*
-    Force all allocation to go trough malloc to more easily find corruptions
-  */
-  init_stack_alloc(&info->stack_alloc, 10000000, 10000000, 4096);
-#endif /* DEBUG_STACK_ALLOC */
 }

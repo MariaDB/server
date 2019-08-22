@@ -2028,19 +2028,16 @@ static int sort_record_index(MARIA_SORT_PARAM *sort_param,
   nod_flag=  ma_page->node;
   tmp_key.keyinfo= (MARIA_KEYDEF*) keyinfo;
 
+  alloc_on_stack(*info->stack_end_ptr, lastkey, buff_alloced,
+                 (nod_flag ? keyinfo->block_length  : 0) +
+                 ALIGN_SIZE(keyinfo->max_store_length));
+  if (!lastkey)
   {
-    void *res;
-    alloc_on_stack(&info->stack_alloc, res, buff_alloced,
-                   (nod_flag ? keyinfo->block_length  : 0) +
-                   ALIGN_SIZE(keyinfo->max_store_length));
-    if (!(lastkey= res))
-    {
-      _ma_check_print_error(param,"Not Enough memory");
-      DBUG_RETURN(-1);
-    }
-    if (nod_flag)
-      temp_buff= lastkey + ALIGN_SIZE(keyinfo->max_store_length);
+    _ma_check_print_error(param,"Not Enough memory");
+    DBUG_RETURN(-1);
   }
+  if (nod_flag)
+    temp_buff= lastkey + ALIGN_SIZE(keyinfo->max_store_length);
 
   tmp_key.data=    lastkey;
 
