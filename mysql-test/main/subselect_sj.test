@@ -2940,5 +2940,30 @@ drop table t1,t2;
 
 --echo # End of 5.5 test
 
+--echo # 
+--echo # MDEV-20109: Optimizer ignores distinct key created for materialized 
+--echo #             semi-join subquery when searching for best execution plan
+--echo # 
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+ 
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
+ 
+create table t3 (a int);
+create table t4 (a int);
+insert into t3 select A.a +1000*B.a from t2 A, t1 B;
+insert into t4 select floor(rand()*1000) from t2 limit 500;
+
+--echo # The following must not use this query plan that does a cross join:
+--echo # |    1 | PRIMARY      | <subquery2> | ALL  | distinct_key  | ... | 500   |                                                 |
+--echo # |    1 | PRIMARY      | t3          | ALL  | NULL          | ... | 10000 | Using where; Using join buffer (flat, BNL join) |
+--echo #
+--echo # Instead, it should use eq_ref on the materialized table.
+
+explain select * from t3 where a in (select a from t4 group by a);
+
+drop table t1, t2, t3, t4;
+
 # The following command must be the last one the file 
 set optimizer_switch=@subselect_sj_tmp;

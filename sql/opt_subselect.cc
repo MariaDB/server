@@ -3082,11 +3082,14 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
       prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
       prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
+      prefix_cost= COST_ADD(prefix_cost,
+                            prefix_rec_count / (double) TIME_FOR_COMPARE);
+      //TODO: take into account join condition selectivity here
     }
 
     *strategy= SJ_OPT_MATERIALIZE_SCAN;
     *read_time=    prefix_cost;
-    *record_count= prefix_rec_count;
+    *record_count= prefix_rec_count / mat_info->rows;
     *handled_fanout= mat_nest->sj_inner_tables;
     return TRUE;
   }

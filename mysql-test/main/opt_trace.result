@@ -4308,11 +4308,11 @@ explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_
 t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t_outer_1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	t_inner_1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t_inner_2	ALL	NULL	NULL	NULL	NULL	9	FirstMatch(t_outer_1); Using join buffer (incremental, BNL join)
+1	PRIMARY	t_inner_1	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t_inner_2	ALL	NULL	NULL	NULL	NULL	9	End temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t_inner_4	ALL	NULL	NULL	NULL	NULL	3	Start temporary; Using join buffer (incremental, BNL join)
 1	PRIMARY	t_outer_2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (incremental, BNL join)
-1	PRIMARY	t_inner_4	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (incremental, BNL join)
-1	PRIMARY	t_inner_3	ALL	NULL	NULL	NULL	NULL	9	Using where; FirstMatch(t_outer_2); Using join buffer (incremental, BNL join)
+1	PRIMARY	t_inner_3	ALL	NULL	NULL	NULL	NULL	9	Using where; End temporary; Using join buffer (incremental, BNL join)
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
@@ -4580,7 +4580,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ]
                             },
                             "rows_for_plan": 27,
-                            "cost_for_plan": 34.174,
+                            "cost_for_plan": 44.641,
                             "rest_of_plan": [
                               {
                                 "plan_prefix": [
@@ -4601,7 +4601,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ]
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 52.379,
+                                "cost_for_plan": 62.846,
                                 "rest_of_plan": [
                                   {
                                     "plan_prefix": [
@@ -4623,7 +4623,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       ]
                                     },
                                     "rows_for_plan": 729,
-                                    "cost_for_plan": 200.19
+                                    "cost_for_plan": 210.66
                                   }
                                 ]
                               },
@@ -4646,7 +4646,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ]
                                 },
                                 "rows_for_plan": 243,
-                                "cost_for_plan": 84.79,
+                                "cost_for_plan": 95.256,
                                 "pruned_by_heuristic": true
                               }
                             ]
@@ -4665,7 +4665,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ]
                             },
                             "rows_for_plan": 9,
-                            "cost_for_plan": 30.564,
+                            "cost_for_plan": 41.031,
                             "rest_of_plan": [
                               {
                                 "plan_prefix": [
@@ -4686,7 +4686,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ]
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 48.779,
+                                "cost_for_plan": 59.246,
                                 "rest_of_plan": [
                                   {
                                     "plan_prefix": [
@@ -4708,8 +4708,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       ]
                                     },
                                     "rows_for_plan": 729,
-                                    "cost_for_plan": 196.59,
-                                    "pruned_by_cost": true
+                                    "cost_for_plan": 207.06
                                   }
                                 ]
                               },
@@ -4732,7 +4731,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                   ]
                                 },
                                 "rows_for_plan": 81,
-                                "cost_for_plan": 48.779,
+                                "cost_for_plan": 59.246,
                                 "pruned_by_heuristic": true
                               }
                             ]
@@ -4751,7 +4750,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               ]
                             },
                             "rows_for_plan": 27,
-                            "cost_for_plan": 34.174,
+                            "cost_for_plan": 44.641,
                             "pruned_by_heuristic": true
                           }
                         ]
@@ -4787,7 +4786,76 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             },
                             "rows_for_plan": 729,
                             "cost_for_plan": 172.44,
-                            "pruned_by_cost": true
+                            "rest_of_plan": [
+                              {
+                                "plan_prefix": [
+                                  "t_outer_1",
+                                  "t_inner_1",
+                                  "t_outer_2",
+                                  "t_inner_2"
+                                ],
+                                "table": "t_inner_4",
+                                "best_access_path": {
+                                  "considered_access_paths": [
+                                    {
+                                      "access_type": "scan",
+                                      "resulting_rows": 3,
+                                      "cost": 2.0051,
+                                      "chosen": true
+                                    }
+                                  ]
+                                },
+                                "rows_for_plan": 81,
+                                "cost_for_plan": 304.05,
+                                "rest_of_plan": [
+                                  {
+                                    "plan_prefix": [
+                                      "t_outer_1",
+                                      "t_inner_1",
+                                      "t_outer_2",
+                                      "t_inner_2",
+                                      "t_inner_4"
+                                    ],
+                                    "table": "t_inner_3",
+                                    "best_access_path": {
+                                      "considered_access_paths": [
+                                        {
+                                          "access_type": "scan",
+                                          "resulting_rows": 9,
+                                          "cost": 2.0154,
+                                          "chosen": true
+                                        }
+                                      ]
+                                    },
+                                    "rows_for_plan": 729,
+                                    "cost_for_plan": 451.86,
+                                    "pruned_by_cost": true
+                                  }
+                                ]
+                              },
+                              {
+                                "plan_prefix": [
+                                  "t_outer_1",
+                                  "t_inner_1",
+                                  "t_outer_2",
+                                  "t_inner_2"
+                                ],
+                                "table": "t_inner_3",
+                                "best_access_path": {
+                                  "considered_access_paths": [
+                                    {
+                                      "access_type": "scan",
+                                      "resulting_rows": 9,
+                                      "cost": 2.0154,
+                                      "chosen": true
+                                    }
+                                  ]
+                                },
+                                "rows_for_plan": 243,
+                                "cost_for_plan": 336.46,
+                                "pruned_by_cost": true
+                              }
+                            ]
                           },
                           {
                             "plan_prefix": ["t_outer_1", "t_inner_1", "t_outer_2"],
@@ -4866,7 +4934,52 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             },
                             "rows_for_plan": 729,
                             "cost_for_plan": 172.44,
-                            "pruned_by_heuristic": true
+                            "rest_of_plan": [
+                              {
+                                "plan_prefix": [
+                                  "t_outer_1",
+                                  "t_inner_1",
+                                  "t_outer_2",
+                                  "t_inner_3"
+                                ],
+                                "table": "t_inner_4",
+                                "best_access_path": {
+                                  "considered_access_paths": [
+                                    {
+                                      "access_type": "scan",
+                                      "resulting_rows": 3,
+                                      "cost": 2.0051,
+                                      "chosen": true
+                                    }
+                                  ]
+                                },
+                                "rows_for_plan": 2187,
+                                "cost_for_plan": 611.85,
+                                "pruned_by_cost": true
+                              },
+                              {
+                                "plan_prefix": [
+                                  "t_outer_1",
+                                  "t_inner_1",
+                                  "t_outer_2",
+                                  "t_inner_3"
+                                ],
+                                "table": "t_inner_2",
+                                "best_access_path": {
+                                  "considered_access_paths": [
+                                    {
+                                      "access_type": "scan",
+                                      "resulting_rows": 9,
+                                      "cost": 2.0154,
+                                      "chosen": true
+                                    }
+                                  ]
+                                },
+                                "rows_for_plan": 6561,
+                                "cost_for_plan": 1486.7,
+                                "pruned_by_cost": true
+                              }
+                            ]
                           }
                         ]
                       },
@@ -5303,70 +5416,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             ]
           },
           {
-            "fix_semijoin_strategies_for_picked_join_order": [
-              {
-                "semi_join_strategy": "firstmatch",
-                "join_order": [
-                  {
-                    "table": "t_inner_4"
-                  },
-                  "best_access_path": {
-                    "considered_access_paths": [
-                      {
-                        "access_type": "scan",
-                        "resulting_rows": 3,
-                        "cost": 162.42,
-                        "chosen": true
-                      }
-                    ]
-                  },
-                  {
-                    "table": "t_inner_3"
-                  },
-                  "best_access_path": {
-                    "considered_access_paths": [
-                      {
-                        "access_type": "scan",
-                        "resulting_rows": 9,
-                        "cost": 489.74,
-                        "chosen": true
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "semi_join_strategy": "firstmatch",
-                "join_order": [
-                  {
-                    "table": "t_inner_1"
-                  },
-                  "best_access_path": {
-                    "considered_access_paths": [
-                      {
-                        "access_type": "scan",
-                        "resulting_rows": 3,
-                        "cost": 18.046,
-                        "chosen": true
-                      }
-                    ]
-                  },
-                  {
-                    "table": "t_inner_2"
-                  },
-                  "best_access_path": {
-                    "considered_access_paths": [
-                      {
-                        "access_type": "scan",
-                        "resulting_rows": 9,
-                        "cost": 54.415,
-                        "chosen": true
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
+            "fix_semijoin_strategies_for_picked_join_order": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -5386,11 +5436,11 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   "attached": null
                 },
                 {
-                  "table": "t_outer_2",
+                  "table": "t_inner_4",
                   "attached": null
                 },
                 {
-                  "table": "t_inner_4",
+                  "table": "t_outer_2",
                   "attached": null
                 },
                 {

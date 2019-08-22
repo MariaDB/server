@@ -16703,7 +16703,8 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
     reopt_remaining_tables &= ~rs->table->map;
     rec_count= COST_MULT(rec_count, pos.records_read);
     cost= COST_ADD(cost, pos.read_time);
-
+    cost= COST_ADD(cost, rec_count / (double) TIME_FOR_COMPARE);
+    //TODO: take into account join condition selectivity here
 
     if (!rs->emb_sj_nest)
       *outer_rec_count= COST_MULT(*outer_rec_count, pos.records_read);
