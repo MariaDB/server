@@ -103,8 +103,8 @@ public:
 private:
   void add_current_table_to_rpl_table_list();
   void remove_current_table_from_rpl_table_list();
-  void build_key_packed_row(uint index, uchar *packed_key,
-                            size_t *packed_key_len);
+  void build_key_packed_row(uint index, const uchar *buf,
+                            uchar *packed_key, size_t *packed_key_len);
 };
 
 bool select_handler_setting(THD* thd);

@@ -28,7 +28,8 @@ enum clustrix_commands {
   CLUSTRIX_SCAN_STOP,
   CLUSTRIX_KEY_READ,
   CLUSTRIX_KEY_DELETE,
-  CLUSTRIX_SCAN_QUERY
+  CLUSTRIX_SCAN_QUERY,
+  CLUSTRIX_KEY_UPDATE
 };
 
 /****************************************************************************
@@ -254,6 +255,41 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
 
   last_insert_id = clustrix_net.insert_id;
   return error_code;
+}
+
+int clustrix_connection::key_update(ulonglong clustrix_table_oid,
+                                    uchar *packed_key, size_t packed_key_length,
+                                    MY_BITMAP *update_set,
+                                    uchar *packed_new_data,
+                                    size_t packed_new_length)
+{
+  int error_code;
+  command_length = 0;
+
+  if ((error_code = add_command_operand_uchar(CLUSTRIX_KEY_UPDATE)))
+    return error_code;
+
+  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+    return error_code;
+
+  if ((error_code = add_command_operand_str(packed_key, packed_key_length)))
+    return error_code;
+
+  if ((error_code = add_command_operand_bitmap(update_set)))
+    return error_code;
+
+  if ((error_code = add_command_operand_str(packed_new_data,
+                                            packed_new_length)))
+    return error_code;
+
+  if ((error_code = send_command()))
+    return error_code;
+
+  if ((error_code = read_query_response()))
+    return mysql_errno(&clustrix_net);
+
+  return error_code;
+
 }
 
 int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
