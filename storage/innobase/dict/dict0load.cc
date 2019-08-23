@@ -3082,7 +3082,7 @@ func_exit:
 	mem_heap_free(heap);
 
 	ut_ad(!table
-	      || ignore_err != DICT_ERR_IGNORE_NONE
+	      || (ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY)
 	      || !table->is_readable()
 	      || !table->corrupted);
 
@@ -3771,29 +3771,14 @@ dict_load_table_id_on_index_id(
 	return(found);
 }
 
-UNIV_INTERN
-dict_table_t*
-dict_table_open_on_index_id(
-/*========================*/
-	index_id_t index_id,	/*!< in: index id */
-	bool dict_locked)	/*!< in: dict locked */
+dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
 {
-	if (!dict_locked) {
-		mutex_enter(&dict_sys.mutex);
-	}
-
-	ut_ad(mutex_own(&dict_sys.mutex));
 	table_id_t table_id;
 	dict_table_t * table = NULL;
 	if (dict_load_table_id_on_index_id(index_id, &table_id)) {
-		bool local_dict_locked = true;
-		table = dict_table_open_on_id(table_id,
-					      local_dict_locked,
+		table = dict_table_open_on_id(table_id, true,
 					      DICT_TABLE_OP_LOAD_TABLESPACE);
 	}
 
-	if (!dict_locked) {
-		mutex_exit(&dict_sys.mutex);
-	}
 	return table;
 }

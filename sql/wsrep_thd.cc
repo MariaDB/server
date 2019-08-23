@@ -100,6 +100,7 @@ static bool create_wsrep_THD(Wsrep_thd_args* args)
       break;
     default:
       assert(0);
+      key= 0;
       break;
   }
 #endif

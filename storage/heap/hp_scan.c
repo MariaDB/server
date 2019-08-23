@@ -50,7 +50,9 @@ int heap_scan(register HP_INFO *info, uchar *record)
   }
   else
   {
-    info->next_block+=share->block.records_in_block;
+    /* increase next_block to the next records_in_block boundary */
+    ulong rem= info->next_block % share->block.records_in_block;
+    info->next_block+=share->block.records_in_block - rem;
     if (info->next_block >= share->records+share->deleted)
     {
       info->next_block= share->records+share->deleted;

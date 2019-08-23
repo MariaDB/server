@@ -916,19 +916,6 @@ Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
   DBUG_RETURN(result);
 }
 
-/**
-  Setup System Versioning conditions
-
-  Add WHERE condition according to FOR SYSTEM_TIME clause.
-
-  If the table is partitioned by SYSTEM_TIME and there is no FOR SYSTEM_TIME
-  clause, then select now-partition instead of modifying WHERE condition.
-
-  @retval
-    -1    on error
-  @retval
-    0     on success
-*/
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_conds");
@@ -986,13 +973,12 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     vers_select_conds_t &vers_conditions= table->vers_conditions;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    Vers_part_info *vers_info;
-    if (table->table->part_info && (vers_info= table->table->part_info->vers_info))
-    {
-      if (table->partition_names)
+      /*
+        if the history is stored in partitions, then partitions
+        themselves are not versioned
+      */
+      if (table->partition_names && table->table->part_info->vers_info)
       {
-        /* If the history is stored in partitions, then partitions
-            themselves are not versioned. */
         if (vers_conditions.is_set())
         {
           my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
@@ -1001,19 +987,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         else
           vers_conditions.init(SYSTEM_TIME_ALL);
       }
-      else if (!vers_conditions.is_set() &&
-               /* We cannot optimize REPLACE .. SELECT because it may need
-                  to call vers_set_hist_part() to update history. */
-               thd->lex->sql_command != SQLCOM_REPLACE_SELECT)
-      {
-        table->partition_names= newx List<String>;
-        String *s= newx String(vers_info->now_part->partition_name,
-                               system_charset_info);
-        table->partition_names->push_back(s);
-        table->table->file->change_partitions_to_open(table->partition_names);
-        vers_conditions.init(SYSTEM_TIME_ALL);
-      }
-    }
 #endif
 
     if (outer_table && !vers_conditions.is_set())
@@ -1068,7 +1041,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
   DBUG_RETURN(0);
 }
-#undef newx
 
 /*****************************************************************************
   Check fields, find best join, do the select and output fields.
@@ -9056,6 +9028,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     KEYUSE *keyuse= pos->key;
     KEYUSE *prev_ref_keyuse= keyuse;
     uint key= keyuse->key;
+    bool used_range_selectivity= false;
     
     /*
       Check if we have a prefix of key=const that matches a quick select.
@@ -9081,6 +9054,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           keyparts++;
         }
         sel /= (double)table->quick_rows[key] / (double) table->stat_records();
+        used_range_selectivity= true;
       }
     }
     
@@ -9116,13 +9090,14 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           if (keyparts > keyuse->keypart)
 	  {
             /* Ok this is the keyuse that will be used for ref access */
-            uint fldno;
-            if (is_hash_join_key_no(key))
-	      fldno= keyuse->keypart;
-            else
-              fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
-            if (keyuse->val->const_item())
+            if (!used_range_selectivity && keyuse->val->const_item())
             { 
+              uint fldno;
+              if (is_hash_join_key_no(key))
+                fldno= keyuse->keypart;
+              else
+                fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
+
               if (table->field[fldno]->cond_selectivity > 0)
 	      {            
                 sel /= table->field[fldno]->cond_selectivity;

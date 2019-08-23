@@ -1,0 +1,41 @@
+--source include/have_innodb.inc
+--source include/have_example_key_management_plugin.inc
+let $restart_noprint=2;
+# embedded does not support restart
+-- source include/not_embedded.inc
+
+#
+# MDEV-19348 MariaBackup prepare fails with InnoDB: Database page corruption
+#		on disk or a failed file read
+#
+
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_encryption_threads = 1;
+SET GLOBAL innodb_max_dirty_pages_pct = 99;
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(255), f3 CHAR(255),
+                f4 CHAR(255), f5 CHAR(255))ENGINE=INNODB;
+
+INSERT INTO t1 VALUES(1, "mysql", "mariadb", "batman", "superman");
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+OPTIMIZE TABLE t1;
+
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+ALTER TABLE t1 FORCE;
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE t1;
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+
+--source include/start_mysqld.inc
+DROP TABLE t1;

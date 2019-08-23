@@ -7941,7 +7941,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   Create_field *def;
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
-  bool save_reopen= table->m_needs_reopen;
   bool drop_period= false;
   DBUG_ENTER("mysql_prepare_alter_table");
 
@@ -8693,9 +8692,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   alter_info->create_list.swap(new_create_list);
   alter_info->key_list.swap(new_key_list);
   alter_info->check_constraint_list.swap(new_constraint_list);
-  DBUG_RETURN(rc);
 err:
-  table->m_needs_reopen= save_reopen;
   DBUG_RETURN(rc);
 }
 
@@ -11104,10 +11101,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 {
   DBUG_ENTER("Sql_cmd_create_table::execute");
   LEX *lex= thd->lex;
-  TABLE_LIST *all_tables= lex->query_tables;
   SELECT_LEX *select_lex= lex->first_select_lex();
   TABLE_LIST *first_table= select_lex->table_list.first;
-  DBUG_ASSERT(first_table == all_tables && first_table != 0);
+  DBUG_ASSERT(first_table == lex->query_tables && first_table != 0);
   bool link_to_local;
   TABLE_LIST *create_table= first_table;
   TABLE_LIST *select_tables= lex->create_last_non_select_table->next_global;

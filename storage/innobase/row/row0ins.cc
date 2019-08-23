@@ -871,8 +871,12 @@ row_ins_foreign_report_add_err(
 	fk_str = dict_print_info_on_foreign_key_in_create_format(trx, foreign,
 							TRUE);
 	fputs(fk_str.c_str(), ef);
-	fprintf(ef, " in parent table, in index %s",
-		foreign->foreign_index->name());
+	if (foreign->foreign_index) {
+		fprintf(ef, " in parent table, in index %s",
+			foreign->foreign_index->name());
+	} else {
+		fputs(" in parent table", ef);
+	}
 	if (entry) {
 		fputs(" tuple:\n", ef);
 		/* TODO: DB_TRX_ID and DB_ROLL_PTR may be uninitialized.
@@ -1656,34 +1660,51 @@ row_ins_check_foreign_constraint(
 	    || !check_table->is_readable()
 	    || check_index == NULL) {
 
-		if (!srv_read_only_mode && check_ref) {
-			FILE*	ef = dict_foreign_err_file;
-			std::string fk_str;
+		FILE*	ef = dict_foreign_err_file;
+		std::string fk_str;
 
-			row_ins_set_detailed(trx, foreign);
+		row_ins_set_detailed(trx, foreign);
+		row_ins_foreign_trx_print(trx);
 
-			row_ins_foreign_trx_print(trx);
-
-			fputs("Foreign key constraint fails for table ", ef);
-			ut_print_name(ef, trx,
-				      foreign->foreign_table_name);
-			fputs(":\n", ef);
-			fk_str = dict_print_info_on_foreign_key_in_create_format(
-				trx, foreign, TRUE);
-			fputs(fk_str.c_str(), ef);
-			fprintf(ef, "\nTrying to add to index %s tuple:\n",
-				foreign->foreign_index->name());
+		fputs("Foreign key constraint fails for table ", ef);
+		ut_print_name(ef, trx, check_ref
+			      ? foreign->foreign_table_name
+			      : foreign->referenced_table_name);
+		fputs(":\n", ef);
+		fk_str = dict_print_info_on_foreign_key_in_create_format(
+			trx, foreign, TRUE);
+		fputs(fk_str.c_str(), ef);
+		if (check_ref) {
+			if (foreign->foreign_index) {
+				fprintf(ef, "\nTrying to add to index %s"
+					" tuple:\n",
+					foreign->foreign_index->name());
+			} else {
+				fputs("\nTrying to add tuple:\n", ef);
+			}
 			dtuple_print(ef, entry);
 			fputs("\nBut the parent table ", ef);
-			ut_print_name(ef, trx,
-				      foreign->referenced_table_name);
-			fputs("\nor its .ibd file does"
+			ut_print_name(ef, trx, foreign->referenced_table_name);
+			fputs("\nor its .ibd file or the required index does"
 			      " not currently exist!\n", ef);
-			mutex_exit(&dict_foreign_err_mutex);
-
 			err = DB_NO_REFERENCED_ROW;
+		} else {
+			if (foreign->referenced_index) {
+				fprintf(ef, "\nTrying to modify index %s"
+					" tuple:\n",
+					foreign->referenced_index->name());
+			} else {
+				fputs("\nTrying to modify tuple:\n", ef);
+			}
+			dtuple_print(ef, entry);
+			fputs("\nBut the referencing table ", ef);
+			ut_print_name(ef, trx, foreign->foreign_table_name);
+			fputs("\nor its .ibd file or the required index does"
+			      " not currently exist!\n", ef);
+			err = DB_ROW_IS_REFERENCED;
 		}
 
+		mutex_exit(&dict_foreign_err_mutex);
 		goto exit_func;
 	}
 
@@ -1949,6 +1970,7 @@ row_ins_check_foreign_constraints(
 /*==============================*/
 	dict_table_t*	table,	/*!< in: table */
 	dict_index_t*	index,	/*!< in: index */
+	bool		pk,	/*!< in: index->is_primary() */
 	dtuple_t*	entry,	/*!< in: index entry for index */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
@@ -1956,6 +1978,8 @@ row_ins_check_foreign_constraints(
 	dberr_t		err;
 	trx_t*		trx;
 	ibool		got_s_lock	= FALSE;
+
+	DBUG_ASSERT(index->is_primary() == pk);
 
 	trx = thr_get_trx(thr);
 
@@ -1968,7 +1992,8 @@ row_ins_check_foreign_constraints(
 
 		foreign = *it;
 
-		if (foreign->foreign_index == index) {
+		if (foreign->foreign_index == index
+		    || (pk && !foreign->foreign_index)) {
 			dict_table_t*	ref_table = NULL;
 			dict_table_t*	referenced_table
 						= foreign->referenced_table;
@@ -3177,7 +3202,7 @@ row_ins_clust_index_entry(
 
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(
-			index->table, index, entry, thr);
+			index->table, index, true, entry, thr);
 		if (err != DB_SUCCESS) {
 
 			DBUG_RETURN(err);
@@ -3276,7 +3301,7 @@ row_ins_sec_index_entry(
 
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
-							entry, thr);
+							false, entry, thr);
 		if (err != DB_SUCCESS) {
 
 			return(err);

@@ -9007,10 +9007,12 @@ bool ha_mroonga::is_foreign_key_field(const char *table_name,
 
   grn_obj *range = grn_ctx_at(ctx, grn_obj_get_range(ctx, column));
   if (!range) {
+    grn_obj_unlink(ctx, column);
     DBUG_RETURN(false);
   }
 
   if (!mrn::grn::is_table(range)) {
+    grn_obj_unlink(ctx, column);
     DBUG_RETURN(false);
   }
 
@@ -9024,6 +9026,7 @@ bool ha_mroonga::is_foreign_key_field(const char *table_name,
     DBUG_RETURN(true);
   }
 
+  grn_obj_unlink(ctx, column);
   DBUG_RETURN(false);
 }
 

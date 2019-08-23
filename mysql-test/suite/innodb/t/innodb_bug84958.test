@@ -6,15 +6,19 @@
 --echo #
 
 --source include/have_innodb.inc
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency= 1;
 
 DELIMITER ~~;
 CREATE PROCEDURE insert_n(start int, end int)
 BEGIN
     DECLARE i INT DEFAULT start;
+    START TRANSACTION;
     WHILE i <= end do
         INSERT INTO t1 VALUES (1, 2, 3) ON DUPLICATE KEY UPDATE c = i;
         SET i = i + 1;
     END WHILE;
+    COMMIT;
 END~~
 
 CREATE FUNCTION num_pages_get()
@@ -60,11 +64,13 @@ connection default;
 --echo # Connect to default and record how many pages were accessed
 --echo # when selecting the record using the secondary key.
 --echo #
+--let $wait_all_purged=4
+--source include/wait_all_purged.inc
 SET @num_pages_1 = num_pages_get();
 SELECT * FROM t1 force index (b);
 SET @num_pages_2= num_pages_get();
 
-SELECT @num_pages_2 - @num_pages_1 < 500;
+SELECT IF(@num_pages_2 - @num_pages_1 < 5000, 'OK', @num_pages_2 - @num_pages_1) num_pages_diff;
 
 --echo #
 --echo # Commit and show the final record.
@@ -81,6 +87,7 @@ CHECK TABLE t1;
 --echo #
 disconnect con2;
 disconnect con3;
+SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
 DROP TABLE t1;
 DROP PROCEDURE insert_n;
 DROP FUNCTION num_pages_get;
