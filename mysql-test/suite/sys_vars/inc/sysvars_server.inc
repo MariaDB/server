@@ -49,7 +49,6 @@ select VARIABLE_NAME, VARIABLE_SCOPE, VARIABLE_TYPE, VARIABLE_COMMENT,
   where variable_name in (
           'have_openssl',
           'have_symlink',
-          'have_sanitizer',
           'hostname',
           'large_files_support',
           'lower_case_file_system',
