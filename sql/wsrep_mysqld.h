@@ -251,14 +251,14 @@ extern wsrep_seqno_t wsrep_locked_seqno;
     } while(0)
 
 #define WSREP_DEBUG(...)                                                \
-    if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
-#define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
-#define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
-#define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
+    if (wsrep_debug)     sql_print_information( "WSREP: " __VA_ARGS__)
+#define WSREP_INFO(...)  sql_print_information( "WSREP: " __VA_ARGS__)
+#define WSREP_WARN(...)  sql_print_warning(     "WSREP: " __VA_ARGS__)
+#define WSREP_ERROR(...) sql_print_error(       "WSREP: " __VA_ARGS__)
 
 #define WSREP_LOG_CONFLICT_THD(thd, role)                               \
-  WSREP_LOG(sql_print_information,                                      \
-            "%s: \n "                                                   \
+  sql_print_information(                                                \
+            "WSREP: %s: \n "                                            \
             "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
             "  SQL: %s",                                                \
             role,                                                       \
@@ -273,12 +273,12 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_LOG_CONFLICT(bf_thd, victim_thd, bf_abort)                \
   if (wsrep_debug || wsrep_log_conflicts)                               \
   {                                                                     \
-    WSREP_LOG(sql_print_information, "cluster conflict due to %s for threads:", \
+    sql_print_information( "WSREP: cluster conflict due to %s for threads:", \
               (bf_abort) ? "high priority abort" : "certification failure" \
               );                                                        \
     if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");   \
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread"); \
-    WSREP_LOG(sql_print_information, "context: %s:%d", __FILE__, __LINE__); \
+    sql_print_information("WSREP: context: %s:%d", __FILE__, __LINE__); \
   }
 
 #define WSREP_PROVIDER_EXISTS                                                  \
