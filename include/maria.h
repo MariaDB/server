@@ -152,7 +152,7 @@ typedef struct st_maria_create_info
   uint compression_algorithm;
   enum data_file_type org_data_file_type;
   uint16 language;
-  my_bool with_auto_increment, transactional;
+  my_bool with_auto_increment, transactional, encrypted;
 } MARIA_CREATE_INFO;
 
 struct st_maria_share;
