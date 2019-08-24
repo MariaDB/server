@@ -1880,7 +1880,7 @@ void XMULCOL::ReadColumn(PGLOBAL g)
 
       if (N > Tdbp->Limit) {
         N = Tdbp->Limit;
-        sprintf(g->Message, "Mutiple values limited to %d", Tdbp->Limit);
+        sprintf(g->Message, "Multiple values limited to %d", Tdbp->Limit);
         PushWarning(g, Tdbp);
         } // endif N
 

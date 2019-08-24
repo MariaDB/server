@@ -38,9 +38,7 @@ typedef class BLOCK *PBLOCK;
 class DllExport BLOCK {
  public:
   void * operator new(size_t size, PGLOBAL g, void *p = NULL) {
-	  if (trace(256))
-	    htrc("New BLOCK: size=%d g=%p p=%p\n", size, g, p);
-
+	  xtrc(256, "New BLOCK: size=%d g=%p p=%p\n", size, g, p);
     return (PlugSubAlloc(g, p, size));
     } // end of new
 
