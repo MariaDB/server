@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -224,6 +224,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_field= with_field || item->with_field;
       used_tables_cache|=     item->used_tables();
       const_item_cache&=      item->const_item();
+      not_null_tables_cache|= item->not_null_tables();
       with_subselect|=        item->has_subquery();
     }
   }

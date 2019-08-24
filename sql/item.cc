@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -3643,10 +3643,10 @@ double Item_param::val_real()
   case STRING_VALUE:
   case LONG_DATA_VALUE:
   {
-    int dummy_err;
-    char *end_not_used;
-    return my_strntod(str_value.charset(), (char*) str_value.ptr(),
-                      str_value.length(), &end_not_used, &dummy_err);
+    return double_from_string_with_check(str_value.charset(),
+                                         str_value.ptr(),
+                                         str_value.ptr() +
+                                         str_value.length());
   }
   case TIME_VALUE:
     /*
@@ -3681,11 +3681,10 @@ longlong Item_param::val_int()
   }
   case STRING_VALUE:
   case LONG_DATA_VALUE:
-    {
-      int dummy_err;
-      return my_strntoll(str_value.charset(), str_value.ptr(),
-                         str_value.length(), 10, (char**) 0, &dummy_err);
-    }
+    return longlong_from_string_with_check(str_value.charset(),
+                                           str_value.ptr(),
+                                           str_value.ptr() +
+                                           str_value.length());
   case TIME_VALUE:
     return (longlong) TIME_to_ulonglong(&value.time);
   case NULL_VALUE:
@@ -3710,8 +3709,7 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
     return dec;
   case STRING_VALUE:
   case LONG_DATA_VALUE:
-    string2my_decimal(E_DEC_FATAL_ERROR, &str_value, dec);
-    return dec;
+    return val_decimal_from_string(dec);
   case TIME_VALUE:
   {
     return TIME_to_my_decimal(&value.time, dec);
@@ -9808,11 +9806,14 @@ table_map Item_direct_view_ref::used_tables() const
 
 table_map Item_direct_view_ref::not_null_tables() const
 {
-  return get_depended_from() ?
-         0 :
-         ((view->is_merged_derived() || view->merged || !view->table) ?
-          (*ref)->not_null_tables() :
-          view->table->map);
+  if (get_depended_from())
+    return 0;
+  if  (!( view->merged || !view->table))
+    return view->table->map;
+  TABLE *tab= get_null_ref_table();
+  if (tab == NO_NULL_TABLE || (*ref)->used_tables())
+    return (*ref)->not_null_tables();
+   return get_null_ref_table()->map;
 }
 
 /*

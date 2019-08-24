@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* Basic functions needed by many modules */
@@ -4475,8 +4475,7 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
   @retval  TRUE   Error, reported.
 */
 
-bool open_tables(THD *thd, TABLE_LIST **start, uint *counter,
-                 Sroutine_hash_entry **sroutine_to_open_list, uint flags,
+bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                  Prelocking_strategy *prelocking_strategy)
 {
   /*
@@ -4527,9 +4526,10 @@ restart:
 
   has_prelocking_list= thd->lex->requires_prelocking();
   table_to_open= start;
-  sroutine_to_open= sroutine_to_open_list;
+  sroutine_to_open= &thd->lex->sroutines_list.first;
   *counter= 0;
   THD_STAGE_INFO(thd, stage_opening_tables);
+  prelocking_strategy->reset(thd);
 
   /*
     If we are executing LOCK TABLES statement or a DDL statement
@@ -4586,8 +4586,7 @@ restart:
     elements in prelocking list/set.
   */
   while (*table_to_open  ||
-         (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-          *sroutine_to_open))
+         (thd->locked_tables_mode <= LTM_LOCK_TABLES && *sroutine_to_open))
   {
     /*
       For every table in the list of tables to open, try to find or open
@@ -4707,6 +4706,8 @@ restart:
         }
       }
     }
+    if ((error= prelocking_strategy->handle_end(thd)))
+      goto err;
   }
 
   /*
@@ -9066,8 +9067,7 @@ my_bool mysql_rm_tmp_tables(void)
     {
       file=dirp->dir_entry+idx;
 
-      if (!memcmp(file->name, tmp_file_prefix,
-                  tmp_file_prefix_length))
+      if (!strncmp(file->name, tmp_file_prefix, tmp_file_prefix_length))
       {
         char *ext= fn_ext(file->name);
         uint ext_len= strlen(ext);

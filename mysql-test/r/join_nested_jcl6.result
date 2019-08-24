@@ -1977,6 +1977,39 @@ Note	1003	select 1 AS `K1`,'T1Row1' AS `Name`,`t2a`.`K2` AS `K2`,`t2a`.`K1r` AS 
 DROP VIEW v1;
 DROP TABLE t1,t2;
 set optimizer_search_depth= @tmp_mdev621;
+#
+# MDEV-19588: Nested left joins using optimized join cache
+#
+set optimizer_switch='optimize_join_buffer_size=on';
+set @save_join_cache_level= @@join_cache_level;
+set join_cache_level=2;
+CREATE TABLE t1 (i1 int, c1 varchar(20), pk int) engine=myisam;
+CREATE TABLE t2 (pk int, c1 varchar(20), i1 int) engine=myisam;
+INSERT INTO t2 VALUES (7,'a',-912),(8,'a',5);
+CREATE TABLE t3 (pk int, c1 varchar(20), i1 int) engine=myisam;
+INSERT INTO t3 VALUES
+(1,'a',-145),(2,'a',6),(3,'a',1),(7,'a',NULL),(8,'a',889),(9,'a',146),
+(10,'a',177),(16,'a',-433),(17,'a',NULL),(18,'a',2),(19,'a',3),(20,'a',5),
+(21,'a',-484),(22,'a',369),(23,'a',-192),(24,'a',-163),(25,'a',5),(26,'a',NULL);
+SELECT t3.*
+FROM t3 LEFT JOIN t1 LEFT JOIN t2 ON t1.i1 = t2.i1 ON t3.i1 = t1.i1
+WHERE t2.pk < 13 OR t3.i1 IS NULL;
+pk	c1	i1
+7	a	NULL
+17	a	NULL
+26	a	NULL
+explain extended SELECT t3.*
+FROM t3 LEFT JOIN t1 LEFT JOIN t2 ON t1.i1 = t2.i1 ON t3.i1 = t1.i1
+WHERE t2.pk < 13 OR t3.i1 IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	18	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	0.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select `test`.`t3`.`pk` AS `pk`,`test`.`t3`.`c1` AS `c1`,`test`.`t3`.`i1` AS `i1` from `test`.`t3` left join (`test`.`t1` left join `test`.`t2` on((`test`.`t2`.`i1` = `test`.`t3`.`i1`))) on((`test`.`t1`.`i1` = `test`.`t3`.`i1`)) where ((`test`.`t2`.`pk` < 13) or isnull(`test`.`t3`.`i1`))
+DROP TABLE t1,t2,t3;
+set join_cache_level= @save_join_cache_level;
+set optimizer_switch=@save_optimizer_switch;
 CREATE TABLE t5 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));
 CREATE TABLE t6 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));
 CREATE TABLE t7 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));

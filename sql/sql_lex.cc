@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* A lexical scanner on a temporary buffer with a yacc interface */
@@ -2452,14 +2452,13 @@ void st_select_lex::print_limit(THD *thd,
   if (item && unit->global_parameters == this)
   {
     Item_subselect::subs_type subs_type= item->substype();
-    if (subs_type == Item_subselect::EXISTS_SUBS ||
-        subs_type == Item_subselect::IN_SUBS ||
+    if (subs_type == Item_subselect::IN_SUBS ||
         subs_type == Item_subselect::ALL_SUBS)
     {
       return;
     }
   }
-  if (explicit_limit)
+  if (explicit_limit && select_limit)
   {
     str->append(STRING_WITH_LEN(" limit "));
     if (offset_limit)
@@ -4129,7 +4128,10 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
   DBUG_ASSERT(unit->derived);
 
   select_union *result= (select_union*)unit->result;
-  result->records+= records;
+  if (HA_ROWS_MAX - records > result->records)
+    result->records+= records;
+  else
+    result->records= HA_ROWS_MAX;
 }
 
 

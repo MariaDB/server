@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* compare and test functions */
@@ -188,6 +188,8 @@ public:
   Item_func_isnottrue(Item *a) : Item_func_truth(a, true, false) {}
   ~Item_func_isnottrue() {}
   virtual const char* func_name() const { return "isnottrue"; }
+  bool eval_not_null_tables(uchar *opt_arg)
+  { not_null_tables_cache= 0; return false; }
 };
 
 
@@ -214,6 +216,8 @@ public:
   Item_func_isnotfalse(Item *a) : Item_func_truth(a, false, false) {}
   ~Item_func_isnotfalse() {}
   virtual const char* func_name() const { return "isnotfalse"; }
+  bool eval_not_null_tables(uchar *opt_arg)
+  { not_null_tables_cache= 0; return false; }
 };
 
 

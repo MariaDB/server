@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_INTERFACE
@@ -3800,6 +3800,7 @@ public:
   void update_used_tables();
   table_map not_null_tables() const;
   bool const_item() const { return used_tables() == 0; }
+  TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||

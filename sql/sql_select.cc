@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /**
   @file
@@ -205,7 +205,8 @@ static COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
                                            table_map used_table,
                                            int join_tab_idx_arg,
                                            bool exclude_expensive_cond,
-                                           bool retain_ref_cond);
+                                           bool retain_ref_cond,
+                                           bool is_top_and_level);
 
 static Item* part_of_refkey(TABLE *form,Field *field);
 uint find_shortest_key(TABLE *table, const key_map *usable_keys);
@@ -1138,7 +1139,6 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
       DBUG_RETURN(1); /* purecov: inspected */
     /* dump_TABLE_LIST_graph(select_lex, select_lex->leaf_tables); */
     select_lex->update_used_tables();
-
   }
   
   eval_select_list_used_tables();
@@ -1199,6 +1199,8 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     sel->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
 
     sel->where= conds;
+
+    select_lex->update_used_tables();
 
     if (arena)
       thd->restore_active_arena(arena, &backup);
@@ -4069,7 +4071,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(TRUE); /* purecov: inspected */
 
   {
-    ha_rows records= 1;
+    double records= 1;
     SELECT_LEX_UNIT *unit= join->select_lex->master_unit();
 
     /* Find an optimal join order of the non-constant tables. */
@@ -4094,10 +4096,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         table/view.
       */
       for (i= 0; i < join->table_count ; i++)
-        records*= join->best_positions[i].records_read ?
-                  (ha_rows)join->best_positions[i].records_read : 1;
-      set_if_smaller(records, unit->select_limit_cnt);
-      join->select_lex->increase_derived_records(records);
+        if (double rr= join->best_positions[i].records_read)
+          records= COST_MULT(records, rr);
+      ha_rows rows= records > HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
+      set_if_smaller(rows, unit->select_limit_cnt);
+      join->select_lex->increase_derived_records(rows);
     }
   }
 
@@ -5988,7 +5991,7 @@ best_access_path(JOIN      *join,
             else
               tmp= table->file->read_time(key, 1,
                                           (ha_rows) MY_MIN(tmp,s->worst_seeks));
-            tmp*= record_count;
+            tmp= COST_MULT(tmp, record_count);
           }
         }
         else
@@ -6153,18 +6156,18 @@ best_access_path(JOIN      *join,
             else
               tmp= table->file->read_time(key, 1,
                                           (ha_rows) MY_MIN(tmp,s->worst_seeks));
-            tmp*= record_count;
+            tmp= COST_MULT(tmp, record_count);
           }
           else
-            tmp= best_time;                    // Do nothing
+            tmp= best_time;                     // Do nothing
         }
 
-        tmp += s->startup_cost;
+        tmp= COST_ADD(tmp, s->startup_cost);
         loose_scan_opt.check_ref_access_part2(key, start_key, records, tmp);
       } /* not ft_key */
       if (tmp + 0.0001 < best_time - records/(double) TIME_FOR_COMPARE)
       {
-        best_time= tmp + records/(double) TIME_FOR_COMPARE;
+        best_time= COST_ADD(tmp, records/(double) TIME_FOR_COMPARE);
         best= tmp;
         best_records= records;
         best_key= start_key;
@@ -6198,14 +6201,18 @@ best_access_path(JOIN      *join,
                                                      use_cond_selectivity);
 
     tmp= s->quick ? s->quick->read_time : s->scan_time();
-    tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+    double cmp_time= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+    tmp= COST_ADD(tmp, cmp_time);
 
     /* We read the table as many times as join buffer becomes full. */
-    tmp*= (1.0 + floor((double) cache_record_length(join,idx) *
-                          record_count /
-                          (double) thd->variables.join_buff_size));
-    best_time= tmp + 
-               (record_count*join_sel) / TIME_FOR_COMPARE * rnd_records;
+
+    double refills= (1.0 + floor((double) cache_record_length(join,idx) *
+                           record_count /
+			   (double) thd->variables.join_buff_size));
+    tmp= COST_MULT(tmp, refills);
+    best_time= COST_ADD(tmp,
+                        COST_MULT((record_count*join_sel) / TIME_FOR_COMPARE,
+                                  rnd_records));
     best= tmp;
     records= rnd_records;
     best_key= hj_start_key;
@@ -6274,9 +6281,9 @@ best_access_path(JOIN      *join,
         access (see first else-branch below), but we don't take it into 
         account here for range/index_merge access. Find out why this is so.
       */
-      tmp= record_count *
-        (s->quick->read_time +
-         (s->found_records - rnd_records)/(double) TIME_FOR_COMPARE);
+      double cmp_time= (s->found_records - rnd_records)/(double) TIME_FOR_COMPARE;
+      tmp= COST_MULT(record_count,
+                     COST_ADD(s->quick->read_time, cmp_time));
 
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
@@ -6295,16 +6302,15 @@ best_access_path(JOIN      *join,
           - read the whole table record 
           - skip rows which does not satisfy join condition
         */
-        tmp= record_count *
-          (tmp +
-           (s->records - rnd_records)/(double) TIME_FOR_COMPARE);
+        double cmp_time= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+        tmp= COST_MULT(record_count, COST_ADD(tmp,cmp_time));
       }
       else
       {
-        /* We read the table as many times as join buffer becomes full. */
-        tmp*= (1.0 + floor((double) cache_record_length(join,idx) *
-                           record_count /
-                           (double) thd->variables.join_buff_size));
+        double refills= (1.0 + floor((double) cache_record_length(join,idx) *
+                        (record_count /
+                         (double) thd->variables.join_buff_size)));
+        tmp= COST_MULT(tmp, refills);
         /* 
             We don't make full cartesian product between rows in the scanned
            table and existing records because we skip all rows from the
@@ -6312,7 +6318,8 @@ best_access_path(JOIN      *join,
            we read the table (see flush_cached_records for details). Here we
            take into account cost to read and skip these records.
         */
-        tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+        double cmp_time= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
+        tmp= COST_ADD(tmp, cmp_time);
       }
     }
 
@@ -6323,9 +6330,9 @@ best_access_path(JOIN      *join,
       tmp give us total cost of using TABLE SCAN
     */
     if (best == DBL_MAX ||
-        (tmp  + record_count/(double) TIME_FOR_COMPARE*rnd_records <
+        COST_ADD(tmp, record_count/(double) TIME_FOR_COMPARE*rnd_records) <
          (best_key->is_for_hash_join() ? best_time :
-          best + record_count/(double) TIME_FOR_COMPARE*records)))
+          COST_ADD(best, record_count/(double) TIME_FOR_COMPARE*records)))
     {
       /*
         If the table has a range (s->quick is set) make_join_select()
@@ -6854,9 +6861,10 @@ optimize_straight_join(JOIN *join, table_map join_tables)
                      join->positions + idx, &loose_scan_pos);
 
     /* compute the cost of the new plan extended with 's' */
-    record_count*= join->positions[idx].records_read;
-    read_time+= join->positions[idx].read_time +
-                record_count / (double) TIME_FOR_COMPARE;
+    record_count= COST_MULT(record_count, join->positions[idx].records_read);
+    read_time= COST_ADD(read_time,
+                        COST_ADD(join->positions[idx].read_time,
+                                 record_count / (double) TIME_FOR_COMPARE));
     advance_sj_state(join, join_tables, idx, &record_count, &read_time,
                      &loose_scan_pos);
 
@@ -7046,9 +7054,10 @@ greedy_search(JOIN      *join,
     swap_variables(JOIN_TAB*, join->best_ref[idx], join->best_ref[best_idx]);
 
     /* compute the cost of the new plan extended with 'best_table' */
-    record_count*= join->positions[idx].records_read;
-    read_time+= join->positions[idx].read_time + 
-                record_count / (double) TIME_FOR_COMPARE;
+    record_count= COST_MULT(record_count, join->positions[idx].records_read);
+    read_time= COST_ADD(read_time,
+                         COST_ADD(join->positions[idx].read_time,
+                                  record_count / (double) TIME_FOR_COMPARE));
 
     remaining_tables&= ~(best_table->table->map);
     --size_remain;
@@ -7155,11 +7164,13 @@ void JOIN::get_partial_cost_and_fanout(int end_tab_idx,
     }
     if (tab->records_read && (cur_table_map & filter_map))
     {
-      record_count *= tab->records_read;
-      read_time += tab->read_time + record_count / (double) TIME_FOR_COMPARE;
+      record_count= COST_MULT(record_count, tab->records_read);
+      read_time= COST_ADD(read_time,
+                          COST_ADD(tab->read_time,
+                                   record_count / (double) TIME_FOR_COMPARE));
       if (tab->emb_sj_nest)
-        sj_inner_fanout *= tab->records_read;
-    }
+        sj_inner_fanout= COST_MULT(sj_inner_fanout, tab->records_read);
+				     }
 
     if (i == last_sj_table)
     {
@@ -7197,8 +7208,8 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
   {
     if (best_positions[i].records_read)
     {
-      record_count *= best_positions[i].records_read;
-      read_time += best_positions[i].read_time;
+      record_count= COST_MULT(record_count, best_positions[i].records_read);
+      read_time= COST_ADD(read_time, best_positions[i].read_time);
     }
   }
   *read_time_arg= read_time;// + record_count / TIME_FOR_COMPARE;
@@ -7217,17 +7228,22 @@ double JOIN::get_examined_rows()
 {
   double examined_rows;
   double prev_fanout= 1;
+  double records;
   JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
   JOIN_TAB *prev_tab= tab;
 
-  examined_rows= tab->get_examined_rows();
+  records= tab->get_examined_rows();
 
   while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
   {
-    prev_fanout *= prev_tab->records_read;
-    examined_rows+= tab->get_examined_rows() * prev_fanout;
+    prev_fanout= COST_MULT(prev_fanout, prev_tab->records_read);
+    records=
+      COST_ADD(records,
+               COST_MULT((double) (tab->get_examined_rows()), prev_fanout));
     prev_tab= tab;
   }
+  examined_rows=
+    records > (double) HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
   return examined_rows;
 }
 
@@ -7759,13 +7775,12 @@ best_extension_by_limited_search(JOIN      *join,
       best_access_path(join, s, remaining_tables, idx, disable_jbuf,
                        record_count, join->positions + idx, &loose_scan_pos);
 
-      /* Compute the cost of extending the plan with 's', avoid overflow */
-      if (position->records_read < DBL_MAX / record_count)
-        current_record_count= record_count * position->records_read;
-      else
-        current_record_count= DBL_MAX;
-      current_read_time=read_time + position->read_time +
-                        current_record_count / (double) TIME_FOR_COMPARE;
+      /* Compute the cost of extending the plan with 's' */
+      current_record_count= COST_MULT(record_count, position->records_read);
+      current_read_time=COST_ADD(read_time,
+                                 COST_ADD(position->read_time,
+                                          current_record_count /
+                                          (double) TIME_FOR_COMPARE));
 
       advance_sj_state(join, remaining_tables, idx, &current_record_count,
                        &current_read_time, &loose_scan_pos);
@@ -7852,7 +7867,7 @@ best_extension_by_limited_search(JOIN      *join,
              heuristic since we cannot know for sure at this point. 
              Hence it may be wrong.
           */
-          current_read_time+= current_record_count;
+          current_read_time= COST_ADD(current_read_time, current_record_count);
         if (current_read_time < join->best_read)
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
@@ -7896,11 +7911,11 @@ find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
     DBUG_PRINT("best",("read_time: %g  record_count: %g",read_time,
 		       record_count));
 
-    read_time+=record_count/(double) TIME_FOR_COMPARE;
+    read_time= COST_ADD(read_time, record_count/(double) TIME_FOR_COMPARE);
     if (join->sort_by_table &&
 	join->sort_by_table !=
 	join->positions[join->const_tables].table->table)
-      read_time+=record_count;			// We have to make a temp table
+      read_time= COST_ADD(read_time, record_count);	// We have to make a temp table
     if (read_time < join->best_read)
     {
       memcpy((uchar*) join->best_positions,(uchar*) join->positions,
@@ -7909,7 +7924,8 @@ find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
     }
     DBUG_RETURN(FALSE);
   }
-  if (read_time+record_count/(double) TIME_FOR_COMPARE >= join->best_read)
+  if (COST_ADD(read_time, record_count/(double) TIME_FOR_COMPARE)
+      >= join->best_read)
     DBUG_RETURN(FALSE);					/* Found better before */
 
   JOIN_TAB *s;
@@ -7931,8 +7947,8 @@ find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
 	Go to the next level only if there hasn't been a better key on
 	this level! This will cut down the search for a lot simple cases!
       */
-      double current_record_count=record_count*records;
-      double current_read_time=read_time+best;
+      double current_record_count= COST_MULT(record_count, records);
+      double current_read_time= COST_ADD(read_time, best);
       advance_sj_state(join, rest_tables, idx, &current_record_count, 
                        &current_read_time, &loose_scan_pos);
 
@@ -8269,8 +8285,8 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
           #max_nested_outer_joins=64-1) will not make it any more precise.
       */
       if (pos->records_read)
-        found*= pos->records_read;
-    }
+        found= COST_MULT(found, pos->records_read);
+     }
   }
   return found;
 }
@@ -9636,12 +9652,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                      RAND_TABLE_BIT;
       }
 
-      /*
-	Following force including random expression in last table condition.
-	It solve problem with select like SELECT * FROM t1 WHERE rand() > 0.5
-      */
-      if (tab == join->join_tab + last_top_base_tab_idx)
-        current_map|= RAND_TABLE_BIT;
       used_tables|=current_map;
 
       if (tab->type == JT_REF && tab->quick &&
@@ -9682,6 +9692,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           tmp= make_cond_for_table(thd, cond, used_tables, current_map, i,
                                    FALSE, FALSE);
+          if (tab == join->join_tab + last_top_base_tab_idx)
+          {
+            /*
+              This pushes conjunctive conditions of WHERE condition such that:
+              - their used_tables() contain RAND_TABLE_BIT
+              - the conditions does not refer to any fields
+              (such like rand() > 0.5)
+            */
+            table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
+            COND *rand_cond= make_cond_for_table(thd, cond, used_tables,
+                                                 rand_table_bit, -1,
+                                                 FALSE, FALSE);
+            add_cond_and_fix(thd, &tmp, rand_cond);
+          }
         }
         /* Add conditions added by add_not_null_conds(). */
         if (tab->select_cond)
@@ -9998,8 +10022,24 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             psergey: have put the -1 below. It's bad, will need to fix it.
           */
           COND *tmp_cond= make_cond_for_table(thd, on_expr, used_tables2,
-                                              current_map, /*(tab - first_tab)*/ -1,
-					      FALSE, FALSE);
+                                              current_map,
+                                              /*(tab - first_tab)*/ -1,
+                                              FALSE, FALSE);
+          if (tab == last_tab)
+          {
+            /*
+              This pushes conjunctive conditions of ON expression of an outer
+              join such that:
+              - their used_tables() contain RAND_TABLE_BIT
+              - the conditions does not refer to any fields
+              (such like rand() > 0.5)
+            */
+            table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
+            COND *rand_cond= make_cond_for_table(thd, on_expr, used_tables2,
+                                                 rand_table_bit, -1,
+                                                 FALSE, FALSE);
+            add_cond_and_fix(thd, &tmp_cond, rand_cond);
+          }
           bool is_sjm_lookup_tab= FALSE;
           if (tab->bush_children)
           {
@@ -12546,12 +12586,18 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
   {
     if (((Item_ref*)left_item)->get_depended_from())
       return FALSE;
+    if (((Item_direct_view_ref*)left_item)->get_null_ref_table() !=
+        NO_NULL_TABLE && !left_item->real_item()->used_tables())
+      return FALSE;
     left_item= left_item->real_item();
   }
   if (right_item->type() == Item::REF_ITEM &&
       ((Item_ref*)right_item)->ref_type() == Item_ref::VIEW_REF)
   {
     if (((Item_ref*)right_item)->get_depended_from())
+      return FALSE;
+    if (((Item_direct_view_ref*)right_item)->get_null_ref_table() !=
+        NO_NULL_TABLE && !right_item->real_item()->used_tables())
       return FALSE;
     right_item= right_item->real_item();
   }
@@ -14729,11 +14775,12 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
       pos= loose_scan_pos;
 
     reopt_remaining_tables &= ~rs->table->map;
-    rec_count *= pos.records_read;
-    cost += pos.read_time;
+    rec_count= COST_MULT(rec_count, pos.records_read);
+    cost= COST_ADD(cost, pos.read_time);
+
 
     if (!rs->emb_sj_nest)
-      *outer_rec_count *= pos.records_read;
+      *outer_rec_count= COST_MULT(*outer_rec_count, pos.records_read);
   }
   join->cur_sj_inner_tables= save_cur_sj_inner_tables;
 
@@ -19735,7 +19782,7 @@ make_cond_for_table(THD *thd, Item *cond, table_map tables,
   return make_cond_for_table_from_pred(thd, cond, cond, tables, used_table,
                                        join_tab_idx_arg,
                                        exclude_expensive_cond,
-                                       retain_ref_cond);
+                                       retain_ref_cond, true);
 }
 
 
@@ -19745,9 +19792,12 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                               int join_tab_idx_arg,
                               bool exclude_expensive_cond __attribute__
                               ((unused)),
-                              bool retain_ref_cond)
+                              bool retain_ref_cond,
+                              bool is_top_and_level)
 
 {
+  table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
+
   if (used_table && !(cond->used_tables() & used_table))
     return (COND*) 0;				// Already checked
 
@@ -19763,11 +19813,28 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
       Item *item;
       while ((item=li++))
       {
+        /*
+          Special handling of top level conjuncts with RAND_TABLE_BIT:
+          if such a conjunct contains a reference to a field that is not
+          an outer field then it is pushed to the corresponding table by
+          the same rule as all other conjuncts. Otherwise, if the conjunct
+          is used in WHERE is is pushed to the last joined table, if is it
+          is used in ON condition of an outer join it is pushed into the
+          last inner table of the outer join. Such conjuncts are pushed in
+          a call of make_cond_for_table_from_pred() with the
+          parameter 'used_table' equal to PSEUDO_TABLE_BITS.
+        */
+        if (is_top_and_level && used_table == rand_table_bit &&
+            (item->used_tables() & ~OUTER_REF_TABLE_BIT) != rand_table_bit)
+        {
+          /* The conjunct with RAND_TABLE_BIT has been allready pushed */
+          continue;
+        }
 	Item *fix=make_cond_for_table_from_pred(thd, root_cond, item, 
                                                 tables, used_table,
-						join_tab_idx_arg,
+                                                join_tab_idx_arg,
                                                 exclude_expensive_cond,
-                                                retain_ref_cond);
+                                                retain_ref_cond, false);
 	if (fix)
 	  new_cond->argument_list()->push_back(fix);
       }
@@ -19791,6 +19858,13 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     }
     else
     {						// Or list
+      if (is_top_and_level && used_table == rand_table_bit &&
+          (cond->used_tables() & ~OUTER_REF_TABLE_BIT) != rand_table_bit)
+      {
+        /* This top level formula with RAND_TABLE_BIT has been already pushed */
+        return (COND*) 0;
+      }
+
       Item_cond_or *new_cond=new Item_cond_or;
       if (!new_cond)
 	return (COND*) 0;			// OOM /* purecov: inspected */
@@ -19802,7 +19876,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                                                 tables, 0L,
                                                 join_tab_idx_arg,
                                                 exclude_expensive_cond,
-                                                retain_ref_cond);
+                                                retain_ref_cond, false);
 	if (!fix)
 	  return (COND*) 0;			// Always true
 	new_cond->argument_list()->push_back(fix);
@@ -19817,6 +19891,13 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
       new_cond->top_level_item();
       return new_cond;
     }
+  }
+
+  if (is_top_and_level && used_table == rand_table_bit &&
+      (cond->used_tables() & ~OUTER_REF_TABLE_BIT) != rand_table_bit)
+  {
+    /* This top level formula with RAND_TABLE_BIT has been already pushed */
+    return (COND*) 0;
   }
 
   /*

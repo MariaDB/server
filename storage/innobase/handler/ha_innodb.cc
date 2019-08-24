@@ -1,10 +1,10 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2010, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -29,7 +29,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2222,11 +2222,10 @@ innobase_next_autoinc(
 	if (next_value == 0) {
 		ulonglong	next;
 
-		if (current >= offset) {
+		if (current > offset) {
 			next = (current - offset) / step;
 		} else {
-			next = 0;
-			block -= step;
+			next = (offset - current) / step;
 		}
 
 		ut_a(max_value > next);
@@ -14005,18 +14004,6 @@ ha_innobase::get_auto_increment(
 		ulonglong	next_value;
 
 		current = *first_value;
-
-		if (prebuilt->autoinc_increment != increment) {
-
-			current = autoinc - prebuilt->autoinc_increment;
-
-			current = innobase_next_autoinc(
-				current, 1, increment, offset, col_max_value);
-
-			dict_table_autoinc_initialize(prebuilt->table, current);
-
-			*first_value = current;
-		}
 
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(

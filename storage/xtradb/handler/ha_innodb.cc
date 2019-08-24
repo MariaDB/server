@@ -2559,11 +2559,10 @@ innobase_next_autoinc(
 	if (next_value == 0) {
 		ulonglong	next;
 
-		if (current >= offset) {
+		if (current > offset) {
 			next = (current - offset) / step;
 		} else {
-			next = 0;
-			block -= step;
+			next = (offset - current) / step;
 		}
 
 		ut_a(max_value > next);
@@ -14953,18 +14952,6 @@ ha_innobase::get_auto_increment(
 		ulonglong	next_value;
 
 		current = *first_value;
-
-		if (prebuilt->autoinc_increment != increment) {
-
-			current = autoinc - prebuilt->autoinc_increment;
-
-			current = innobase_next_autoinc(
-				current, 1, increment, offset, col_max_value);
-
-			dict_table_autoinc_initialize(prebuilt->table, current);
-
-			*first_value = current;
-		}
 
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(

@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Delete of records tables.
@@ -1278,6 +1277,7 @@ bool multi_delete::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
+      thd->thread_specific_used= TRUE;
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
                             transactional_tables, FALSE, FALSE, errcode) &&

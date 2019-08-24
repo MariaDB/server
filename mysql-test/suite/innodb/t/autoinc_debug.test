@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/not_embedded.inc
 
 # Two parallel connection with autoinc column after restart.
@@ -27,12 +28,14 @@ SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'ib_after_row_insert_step SIGNAL flushed1 WAIT_FOR opened1';
 send insert into t1 values(NULL);
 
+--echo # CONNECTION default
 connection default;
 reap;
 SELECT * FROM t1;
 SHOW CREATE TABLE t1;
 SET DEBUG_SYNC= 'now SIGNAL opened1';
 
+--echo # CONNECTION con1
 connection con1;
 reap;
 SELECT * FROM t1;
@@ -63,6 +66,7 @@ SET DEBUG_SYNC= 'ib_after_row_insert SIGNAL opened WAIT_FOR flushed1';
 
 send INSERT INTO t1 values(NULL);
 
+--echo # CONNECTION DEFAULT
 connection default;
 
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
@@ -70,16 +74,18 @@ SET DEBUG_SYNC= 'ib_after_row_insert_step SIGNAL flushed1 WAIT_FOR opened1';
 
 send INSERT INTO t1 VALUES(NULL);
 
+--echo # CONNECTION con1
 connection con1;
 reap;
 SELECT * FROM t1;
 SHOW CREATE TABLE t1;
 SET DEBUG_SYNC= 'now SIGNAL opened1';
-disconnect con1;
 
+--echo # CONNECTION default
 connection default;
 reap;
 SELECT * FROM t1;
 SHOW CREATE TABLE t1;
+disconnect con1;
+SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
-SET DEBUG_SYNC='RESET';
