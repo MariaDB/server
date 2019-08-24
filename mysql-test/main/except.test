@@ -67,7 +67,6 @@ select 1 from dual ORDER BY 1 except select 1 from dual;
 
 select 1 as a from dual union all select 1 from dual;
 --error ER_PARSE_ERROR
-select 1 from dual except all select 1 from dual;
 
 
 create table t1 (a int, b blob, a1 int, b1 blob) engine=MyISAM;

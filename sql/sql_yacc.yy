@@ -17577,10 +17577,10 @@ release:
 unit_type_decl:
           UNION_SYM union_option
           { $$.unit_type= UNION_TYPE; $$.distinct= $2; }
-        | INTERSECT_SYM
-          { $$.unit_type= INTERSECT_TYPE; $$.distinct= 1; }
-        | EXCEPT_SYM
-          { $$.unit_type= EXCEPT_TYPE; $$.distinct= 1; }
+        | INTERSECT_SYM union_option
+          { $$.unit_type= INTERSECT_TYPE; $$.distinct= $2; }
+        | EXCEPT_SYM union_option
+          { $$.unit_type= EXCEPT_TYPE; $$.distinct= $2; }
         ;
 
 /*

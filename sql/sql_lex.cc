@@ -2354,6 +2354,7 @@ void st_select_lex_unit::init_query()
   offset_limit_cnt= 0;
   union_distinct= 0;
   prepared= optimized= optimized_2= executed= 0;
+  bag_set_op_optimized= 0;
   optimize_started= 0;
   item= 0;
   union_result= 0;
@@ -2369,8 +2370,8 @@ void st_select_lex_unit::init_query()
   with_clause= 0;
   with_element= 0;
   columns_are_renamed= false;
-  intersect_mark= NULL;
   with_wrapped_tvc= false;
+  have_except_all_or_intersect_all= false;
 }
 
 void st_select_lex::init_query()
@@ -2468,6 +2469,7 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   in_tvc= false;
   versioned_tables= 0;
+  nest_flags= 0;
 }
 
 /*
@@ -2986,7 +2988,6 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
-  bool union_all= !union_distinct;
   if (with_clause)
     with_clause->print(str, query_type);
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
@@ -2999,8 +3000,6 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         DBUG_ASSERT(0);
       case UNION_TYPE:
         str->append(STRING_WITH_LEN(" union "));
-        if (union_all)
-          str->append(STRING_WITH_LEN("all "));
         break;
       case INTERSECT_TYPE:
         str->append(STRING_WITH_LEN(" intersect "));
@@ -3009,8 +3008,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" except "));
         break;
       }
-      if (sl == union_distinct)
-        union_all= TRUE;
+      if (!sl->distinct)
+        str->append(STRING_WITH_LEN("all "));
     }
     if (sl->braces)
       str->append('(');
@@ -3523,6 +3522,8 @@ bool st_select_lex_unit::union_needs_tmp_table()
         with_wrapped_tvc= true;
         break;
       }
+      if (sl != first_select() && sl->linkage != UNION_TYPE)
+        return true;
     }
   }
   if (with_wrapped_tvc)
@@ -5394,7 +5395,7 @@ LEX::wrap_unit_into_derived(SELECT_LEX_UNIT *unit)
   Name_resolution_context *context= &wrapping_sel->context;
   context->init();
   wrapping_sel->automatic_brackets= FALSE;
-
+  wrapping_sel->mark_as_unit_nest();
   wrapping_sel->register_unit(unit, context);
 
   /* stuff dummy SELECT * FROM (...) */
