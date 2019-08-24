@@ -45,6 +45,8 @@ Pushdown_select::Pushdown_select(SELECT_LEX *sel, select_handler *h)
 
 Pushdown_select::~Pushdown_select()
 {
+  if (handler->table)
+    free_tmp_table(handler->thd, handler->table);
   delete handler;
   select->select_h= NULL;
 }

@@ -28526,7 +28526,7 @@ select_handler *SELECT_LEX::find_select_handler(THD *thd)
       return 0;
   if (master_unit()->outer_select())
     return 0;
-  for (TABLE_LIST *tbl= join->tables_list; tbl; tbl= tbl->next_local)
+  for (TABLE_LIST *tbl= join->tables_list; tbl; tbl= tbl->next_global)
   {
     if (!tbl->table)
       continue;
