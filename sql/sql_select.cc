@@ -17833,6 +17833,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   KEY *keyinfo;
   KEY_PART_INFO *key_part_info;
   Item **copy_func;
+  bool is_returning = !thd->lex->first_select_lex()->ret_item_list.is_empty();
   TMP_ENGINE_COLUMNDEF *recinfo;
   /*
     total_uneven_bit_length is uneven bit length for visible fields
@@ -18098,7 +18099,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                          tmp_from_field, &default_field[fieldnr],
                          group != 0,
                          !force_copy_fields &&
-                           (not_all_columns || group !=0),
+                           (not_all_columns || group !=0 || is_returning),
                          /*
                            If item->marker == 4 then we force create_tmp_field
                            to create a 64-bit longs for BIT fields because HEAP

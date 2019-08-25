@@ -7452,17 +7452,14 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   /*
    Will set TRUE if we're expanding '*' in ret_item_list
    */
-  bool is_returning = false;
+  bool is_returning = thd->lex->current_select->ret_item_list == fields;
   DBUG_ENTER("setup_wild");
 
   /*
     Don't use arena if we are not in prepared statements or stored procedures
     For PS/SP we have to use arena to remember the changes
   */
-  if ((arena= thd->activate_stmt_arena_if_needed(&backup)) &&
-      thd->lex->current_select->ret_item_list == fields){
-    is_returning = true;
-  }
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   thd->lex->current_select->cur_pos_in_select_list= 0;
   while (wild_num && (item= it++))
@@ -7507,6 +7504,14 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
     }
     else
       thd->lex->current_select->cur_pos_in_select_list++;
+  }
+  /*
+    Exclude RETURNING item list's wildcards count from with_wild
+    to avoid passing it with normal item_list further.
+    (just for safety)
+  */
+  if (is_returning) {
+    thd->lex->current_select->with_wild = wild_num;
   }
   thd->lex->current_select->cur_pos_in_select_list= UNDEF_POS;
   if (arena)

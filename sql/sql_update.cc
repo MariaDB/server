@@ -1675,6 +1675,7 @@ int mysql_multi_update_prepare(THD *thd)
   LEX *lex= thd->lex;
   TABLE_LIST *table_list= lex->query_tables;
   TABLE_LIST *tl;
+  SELECT_LEX *select_lex= lex->first_select_lex();
   List<Item> *fields= &lex->first_select_lex()->item_list;
   table_map tables_for_update;
   bool update_view= 0;
@@ -1741,6 +1742,18 @@ int mysql_multi_update_prepare(THD *thd)
 
   if (lex->first_select_lex()->handle_derived(thd->lex, DT_MERGE))
     DBUG_RETURN(TRUE);
+
+  if ((select_lex->with_wild && setup_wild(thd, table_list, select_lex->ret_item_list,
+                                           NULL, select_lex->with_wild,
+                                           &select_lex->hidden_bit_fields)) ||
+      (!select_lex->ret_item_list.is_empty() && setup_fields(thd, Ref_ptr_array(),
+                                                             select_lex->ret_item_list,
+                                                             MARK_COLUMNS_READ, NULL,
+                                                             NULL, 0)))
+  {
+    DBUG_RETURN(TRUE);
+  }
+
 
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
                                 *fields, MARK_COLUMNS_WRITE, 0, 0))
@@ -1929,7 +1942,8 @@ bool mysql_multi_update(THD *thd,
                         bool ignore,
                         SELECT_LEX_UNIT *unit,
                         SELECT_LEX *select_lex,
-                        multi_update **result)
+                        multi_update **result,
+                        select_result *ret_sel_result)
 {
   bool res;
   DBUG_ENTER("mysql_multi_update");
@@ -1937,7 +1951,7 @@ bool mysql_multi_update(THD *thd,
   if (!(*result= new (thd->mem_root) multi_update(thd, table_list,
                                  &thd->lex->first_select_lex()->leaf_tables,
                                  fields, values,
-                                 handle_duplicates, ignore)))
+                                 handle_duplicates, ignore, ret_sel_result)))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1957,11 +1971,6 @@ bool mysql_multi_update(THD *thd,
   res|= thd->is_error();
   if (unlikely(res))
     (*result)->abort_result_set();
-  else
-  {
-    if (thd->lex->describe || thd->lex->analyze_stmt)
-      res= thd->lex->explain->send_explain(thd);
-  }
   thd->abort_on_warning= 0;
   DBUG_RETURN(res);
 }
@@ -1971,14 +1980,19 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
                            List<TABLE_LIST> *leaves_list,
 			   List<Item> *field_list, List<Item> *value_list,
 			   enum enum_duplicates handle_duplicates_arg,
-                           bool ignore_arg):
+                           bool ignore_arg,
+                           select_result *ret_sel_result):
    select_result_interceptor(thd_arg),
+   ret_tmp_table(0),
+   ret_sel_result(ret_sel_result),
+   ret_item_list(&thd_arg->lex->first_select_lex()->ret_item_list),
    all_tables(table_list), leaves(leaves_list), update_tables(0),
    tmp_tables(0), updated(0), found(0), fields(field_list),
    values(value_list), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
    transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0),
-   updated_sys_ver(0)
+   updated_sys_ver(0),
+   is_returning(!thd_arg->lex->first_select_lex()->ret_item_list.is_empty())
 {
 }
 
@@ -2016,6 +2030,37 @@ int multi_update::prepare(List<Item> &not_used_values,
   {
     my_message(ER_NO_TABLES_USED, ER_THD(thd, ER_NO_TABLES_USED), MYF(0));
     DBUG_RETURN(1);
+  }
+
+  if (is_returning)
+  {
+    if (unlikely(ret_sel_result->prepare(*ret_item_list, NULL)))
+    {
+      DBUG_RETURN(1);
+    }
+
+    /* Create TABLE_LIST that contains tables used in RETURNING */
+    update.empty();
+    ti.rewind();
+    table_map returning_tables = get_table_map(ret_item_list);
+    uint offset = 0;
+
+    while ((table_ref= ti++))
+    {
+      if (table_ref->is_jtbm())
+        continue;
+      if (returning_tables & table_ref->table->map)
+      {
+        TABLE_LIST *table_list= (TABLE_LIST*) thd->memdup(table_ref,
+                                                       sizeof(*table_list));
+        if (!table_list)
+          DBUG_RETURN(1);
+        update.link_in_list(table_list, &table_list->next_local);
+        table_list->shared= offset++;
+      }
+    }
+
+    ret_tables= update.first;
   }
 
   /*
@@ -2138,6 +2183,20 @@ int multi_update::prepare(List<Item> &not_used_values,
   }
   copy_field= new (thd->mem_root) Copy_field[max_fields];
   DBUG_RETURN(thd->is_fatal_error != 0);
+}
+
+bool multi_update::send_result_set_metadata(List<Item> &list, uint flags)
+{
+  if (is_returning)
+  {
+    return ret_sel_result->send_result_set_metadata(*ret_item_list,
+                                                    Protocol::SEND_NUM_ROWS |
+                                                    Protocol::SEND_EOF);
+  }
+  else
+  {
+    return 0;
+  }
 }
 
 void multi_update::update_used_tables()
@@ -2391,6 +2450,47 @@ loop_end:
       DBUG_RETURN(1);
     tmp_tables[cnt]->file->extra(HA_EXTRA_WRITE_CACHE);
   }
+
+  /*
+    Here we create temptable that stores rowids of tables used in RETURNING clause.
+    One field per table.
+    It's required for positioning tables in same positions as they would be in
+    equivalent SELECT query for sending rows after updates done.
+  */
+  if (is_returning)
+  {
+    List<Item> ret_tmp_fields;
+    ret_tmp_param = (TMP_TABLE_PARAM*) thd->calloc(sizeof(TMP_TABLE_PARAM));
+
+    TABLE_LIST *cur_table;
+    for (cur_table = ret_tables; cur_table; cur_table = cur_table->next_local)
+    {
+      TABLE *table = cur_table->table;
+      table->prepare_for_position();
+      join->map2table[table->tablenr]->keep_current_rowid= true;
+
+      Item_temptable_rowid *ret_item=
+          new (thd->mem_root) Item_temptable_rowid(table);
+      if (!ret_item)
+        DBUG_RETURN(1);
+      ret_item->fix_fields(thd, 0);
+      if (ret_tmp_fields.push_back(ret_item, thd->mem_root))
+        DBUG_RETURN(1);
+      ret_tmp_param->func_count++;
+    }
+
+    my_bool save_big_tables = thd->variables.big_tables;
+    thd->variables.big_tables = FALSE;
+    ret_tmp_table = create_tmp_table(thd, ret_tmp_param, ret_tmp_fields,
+                                     0, 0, 0,
+                                     TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str, 0, 1);
+
+    thd->variables.big_tables = save_big_tables;
+    if (!ret_tmp_table)
+      DBUG_RETURN(1);
+    ret_tmp_table->file->extra(HA_EXTRA_WRITE_CACHE);
+  }
+
   join->tmp_table_keep_current_rowid= TRUE;
   DBUG_RETURN(0);
 }
@@ -2446,6 +2546,20 @@ int multi_update::prepare2(JOIN *join)
         *it2= fld;
       }
     }
+    if (is_returning)
+    {
+      for (Item **it2= ret_tmp_param->items_to_copy; *it2; it2++)
+      {
+        if (item_rowid_table(*it2) != tbl)
+          continue;
+        Item_field *fld= new (thd->mem_root)
+            Item_field(thd, (*it)->get_tmp_table_field());
+        if (!fld)
+          return 1;
+        fld->result_field= (*it2)->get_tmp_table_field();
+        *it2= fld;
+      }
+    }
   }
   return 0;
 }
@@ -2461,6 +2575,11 @@ multi_update::~multi_update()
       table->table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   }
 
+  if (ret_tmp_table)
+  {
+    free_tmp_table(thd, ret_tmp_table);
+    ret_tmp_param->cleanup();
+  }
   if (tmp_tables)
   {
     for (uint cnt = 0; cnt < table_count; cnt++)
@@ -2484,6 +2603,24 @@ int multi_update::send_data(List<Item> &not_used_values)
 {
   TABLE_LIST *cur_table;
   DBUG_ENTER("multi_update::send_data");
+  int error;
+
+  if (is_returning)
+  {
+    if (copy_funcs(ret_tmp_param->items_to_copy, thd))
+      DBUG_RETURN(1);
+
+    error= ret_tmp_table->file->ha_write_tmp_row(ret_tmp_table->record[0]);
+
+    if (unlikely(error) && create_internal_tmp_table_from_heap(thd, ret_tmp_table,
+                               ret_tmp_param->start_recinfo,
+                               &ret_tmp_param->recinfo,
+                               error, 1, NULL))
+    {
+      do_update= 0;
+      DBUG_RETURN(1);			// Not a table_is_full error
+    }
+  }
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
@@ -2535,7 +2672,6 @@ int multi_update::send_data(List<Item> &not_used_values)
       found++;
       if (!can_compare_record || compare_record(table))
       {
-	int error;
 
         if (table->default_field &&
             unlikely(table->update_default_fields(1, ignore)))
@@ -2621,7 +2757,6 @@ int multi_update::send_data(List<Item> &not_used_values)
     }
     else
     {
-      int error;
       TABLE *tmp_table= tmp_tables[offset];
       if (copy_funcs(tmp_table_param[offset].items_to_copy, thd))
         DBUG_RETURN(1);
@@ -2660,6 +2795,9 @@ int multi_update::send_data(List<Item> &not_used_values)
 
 void multi_update::abort_result_set()
 {
+  if (is_returning)
+    ret_sel_result->abort_result_set();
+
   /* the error was handled or nothing deleted and no side effects return */
   if (unlikely(error_handled ||
                (!thd->transaction.stmt.modified_non_trans_table && !updated)))
@@ -2937,6 +3075,68 @@ int multi_update::do_updates()
         tbl->file->ha_rnd_end();
 
   }
+
+  if (is_returning)
+  {
+    ret_tmp_table->file->extra(HA_EXTRA_CACHE);
+    if (unlikely((local_error= ret_tmp_table->file->ha_rnd_init(1))))
+    {
+      err_table= ret_tmp_table;
+      goto err;
+    }
+
+    bool first = true; /* rnd_init tables only once */
+    while(1)
+    {
+      if (unlikely((local_error =
+          ret_tmp_table->file->ha_rnd_next(ret_tmp_table->record[0]))))
+      {
+        if (local_error == HA_ERR_END_OF_FILE)
+        {
+          break;
+        }
+        err_table = ret_tmp_table;
+        goto err;
+      }
+
+      for (cur_table = ret_tables; cur_table; cur_table = cur_table->next_local)
+      {
+        table = cur_table->table;
+        if (first)
+        {
+          if (unlikely((local_error= table->file->ha_rnd_init(0))))
+          {
+            err_table= table;
+            goto err;
+          }
+          table->file->extra(HA_EXTRA_NO_CACHE);
+        }
+
+
+        String rowid;
+        ret_tmp_table->field[cur_table->shared]->val_str(&rowid);
+        if (unlikely((local_error= table->file->ha_rnd_pos(table->record[0],
+                                                         (uchar*)rowid.ptr()))))
+        {
+          err_table= table;
+          goto err;
+        }
+
+      }
+      
+      ret_sel_result->send_data(*ret_item_list);
+      first = false;
+    }
+
+    for (cur_table = ret_tables; cur_table; cur_table = cur_table->next_local)
+    {
+      table = cur_table->table;
+      (void) table->file->ha_rnd_end();
+    }
+    (void) ret_tmp_table->file->ha_rnd_end();
+
+  }
+
   DBUG_RETURN(0);
 
 err:
@@ -3068,8 +3268,15 @@ bool multi_update::send_eof()
     thd->first_successful_insert_id_in_prev_stmt : 0;
     my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO),
                 (ulong) found, (ulong) updated, (ulong) thd->cuted_fields);
-    ::my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
-            id, buff);
+    if (is_returning)
+    {
+      ret_sel_result->send_eof();
+    }
+    else
+    {
+      ::my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
+              id, buff);
+    }
   }
   DBUG_RETURN(FALSE);
 }

@@ -39,7 +39,7 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list,
                         COND *conds, ulonglong options,
                         enum enum_duplicates handle_duplicates, bool ignore,
                         SELECT_LEX_UNIT *unit, SELECT_LEX *select_lex,
-                        multi_update **result);
+                        multi_update **result, select_result *ret_sel_result);
 bool records_are_comparable(const TABLE *table);
 bool compare_record(const TABLE *table);
 

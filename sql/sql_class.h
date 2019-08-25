@@ -6188,6 +6188,11 @@ public:
 
 class multi_update :public select_result_interceptor
 {
+  TABLE *ret_tmp_table; /* table containing rowids of tables used in RETURNING */
+  select_result *ret_sel_result; /* select result for RETURNING clause */
+  TMP_TABLE_PARAM *ret_tmp_param;   /* RETURNING Tmp table info */
+  List<Item> *ret_item_list; /* columns used in RETURNING */
+  TABLE_LIST *ret_tables; /* tables used in RETURNING */
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leves of join table tree */
   TABLE_LIST *update_tables;
@@ -6221,13 +6226,17 @@ class multi_update :public select_result_interceptor
   ha_rows updated_sys_ver;
 
   bool has_vers_fields;
+  /* ret_item_list is not empty */
+  bool is_returning;
 
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,
-	       enum_duplicates handle_duplicates, bool ignore);
+	       enum_duplicates handle_duplicates, bool ignore,
+	       select_result *ret_sel_result);
   ~multi_update();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+  bool send_result_set_metadata(List<Item> &list, uint flags);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
   int prepare2(JOIN *join);

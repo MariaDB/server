@@ -4685,6 +4685,11 @@ end_with_restore_list:
   /* fall through */
   case SQLCOM_UPDATE_MULTI:
   {
+    /* RETURNING clause select result */
+    select_result *ret_sel_result= NULL;
+    Protocol * UNINIT_VAR(save_protocol);
+    bool replaced_protocol= false;
+
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     /* if we switched from normal update, rights are checked */
     if (up_result != 2)
@@ -4743,6 +4748,26 @@ end_with_restore_list:
     }  /* unlikely */
 #endif
     {
+      if (!select_lex->ret_item_list.is_empty())
+      {
+        /* This is UPDATE ... RETURNING.  It will return output to the client */
+        if (thd->lex->analyze_stmt)
+        {
+          /*
+            Actually, it is ANALYZE .. UPDATE .. RETURNING. We need to produce
+            output and then discard it.
+          */
+          ret_sel_result= new (thd->mem_root) select_send_analyze(thd);
+          replaced_protocol= true;
+          save_protocol= thd->protocol;
+          thd->protocol= new Protocol_discard(thd);
+        }
+        else
+        {
+          if (!(ret_sel_result= new (thd->mem_root) select_send(thd)))
+            goto error;
+        }
+      }
       multi_update *result_obj;
       MYSQL_MULTI_UPDATE_START(thd->query());
       res= mysql_multi_update(thd, all_tables,
@@ -4754,7 +4779,19 @@ end_with_restore_list:
                               lex->ignore,
                               unit,
                               select_lex,
-                              &result_obj);
+                              &result_obj,
+                              ret_sel_result);
+      if (replaced_protocol)
+      {
+        delete thd->protocol;
+        thd->protocol= save_protocol;
+      }
+      if (thd->lex->analyze_stmt || thd->lex->describe)
+      {
+        if (!res)
+          res= thd->lex->explain->send_explain(thd);
+      }
+      delete ret_sel_result;
       if (result_obj)
       {
         MYSQL_MULTI_UPDATE_DONE(res, result_obj->num_found(),
