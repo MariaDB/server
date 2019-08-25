@@ -11615,12 +11615,11 @@ double JOIN_TAB::scan_time()
 
 ha_rows JOIN_TAB::get_examined_rows()
 {
-  double examined_rows;
-
   if (select && select->quick && use_quick != 2)
-    examined_rows= select->quick->records;
-  else if (type == JT_NEXT || type == JT_ALL ||
-           type == JT_HASH || type ==JT_HASH_NEXT)
+    return select->quick->records;
+
+  if (type == JT_NEXT || type == JT_ALL ||
+      type == JT_HASH || type ==JT_HASH_NEXT)
   {
     if (limit)
     {
@@ -11628,26 +11627,20 @@ ha_rows JOIN_TAB::get_examined_rows()
         @todo This estimate is wrong, a LIMIT query may examine much more rows
         than the LIMIT itself.
       */
-      examined_rows= limit;
+      return limit;
     }
-    else
-    {
-      if (table->is_filled_at_execution())
-        examined_rows= records;
-      else
-      {
-        /*
-          handler->info(HA_STATUS_VARIABLE) has been called in
-          make_join_statistics()
-        */
-        examined_rows= table->stat_records();
-      }
-    }
-  }
-  else
-    examined_rows= records_read;
 
-  return (ha_rows) examined_rows;
+    if (table->is_filled_at_execution())
+      return records;
+
+    /*
+      handler->info(HA_STATUS_VARIABLE) has been called in
+      make_join_statistics()
+    */
+    return table->stat_records();
+  }
+
+  return (ha_rows) records_read;
 }
 
 
@@ -24023,10 +24016,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       }
       else
       {
-        double examined_rows= tab->get_examined_rows();
-
+        double examined_rows= eta->rows= tab->get_examined_rows();
         eta->rows_set= true;
-        eta->rows= (ha_rows) examined_rows;
 
         /* "filtered"  */
         float f= 0.0; 

@@ -508,7 +508,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   /* `rows` */
   if (rows_set)
   {
-    item_list.push_back(new Item_int((longlong) (ulonglong) rows, 
+    item_list.push_back(new Item_int((ulonglong) rows,
                          MY_INT64_NUM_DECIMAL_DIGITS));
   }
   else
