@@ -4477,7 +4477,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 
   (void) pthread_attr_init(&thr_attr);
   (void) pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
-  (void) my_setstacksize(&thr_attr, my_thread_stack_size);
+  (void) my_setstacksize(&thr_attr, (size_t)my_thread_stack_size);
 
   for (i=0 ; i < sort_info.total_keys ; i++)
   {
