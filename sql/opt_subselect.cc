@@ -2192,12 +2192,15 @@ int pull_out_semijoin_tables(JOIN *join)
   TABLE_LIST *sj_nest;
   DBUG_ENTER("pull_out_semijoin_tables");
   List_iterator<TABLE_LIST> sj_list_it(join->select_lex->sj_nests);
-   
+
   /* Try pulling out of the each of the semi-joins */
   while ((sj_nest= sj_list_it++))
   {
     List_iterator<TABLE_LIST> child_li(sj_nest->nested_join->join_list);
     TABLE_LIST *tbl;
+    Json_writer_object trace_wrapper(join->thd);
+    Json_writer_object trace(join->thd, "semijoin_table_pullout");
+    Json_writer_array trace_arr(join->thd, "pulled_out_tables");
 
     /*
       Don't do table pull-out for nested joins (if we get nested joins here, it
@@ -2296,7 +2299,8 @@ int pull_out_semijoin_tables(JOIN *join)
             pulled_a_table= TRUE;
             pulled_tables |= tbl->table->map;
             DBUG_PRINT("info", ("Table %s pulled out (reason: func dep)",
-                                tbl->table->alias.c_ptr()));
+                                tbl->table->alias.c_ptr_safe()));
+            trace_arr.add(tbl->table->alias.c_ptr_safe());
             /*
               Pulling a table out of uncorrelated subquery in general makes
               makes it correlated. See the NOTE to this funtion. 
@@ -2778,6 +2782,21 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
 {
   POSITION *pos= join->positions + idx;
   const JOIN_TAB *new_join_tab= pos->table; 
+  if (join->emb_sjm_nest || //(1)
+      !join->select_lex->have_merged_subqueries) //(2)
+  {
+    /* 
+      (1): We're performing optimization inside SJ-Materialization nest:
+       - there are no other semi-joins inside semi-join nests
+       - attempts to build semi-join strategies here will confuse
+         the optimizer, so bail out.
+      (2): Don't waste time on semi-join optimizations if we don't have any
+           semi-joins
+    */
+    pos->sj_strategy= SJ_OPT_NONE;
+    return;
+  }
+
   Semi_join_strategy_picker *pickers[]=
   {
     &pos->firstmatch_picker,
@@ -2786,19 +2805,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     &pos->dups_weedout_picker,
     NULL,
   };
-
-  if (join->emb_sjm_nest)
-  {
-    /* 
-      We're performing optimization inside SJ-Materialization nest:
-       - there are no other semi-joins inside semi-join nests
-       - attempts to build semi-join strategies here will confuse
-         the optimizer, so bail out.
-    */
-    pos->sj_strategy= SJ_OPT_NONE;
-    return;
-  }
-
+  Json_writer_array trace_steps(join->thd, "semijoin_strategy_choice");
   /* 
     Update join->cur_sj_inner_tables (Used by FirstMatch in this function and
     LooseScan detector in best_access_path)
@@ -2897,6 +2904,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
             *current_read_time= read_time;
             *current_record_count= rec_count;
             dups_producing_tables &= ~handled_fanout;
+
             //TODO: update bitmap of semi-joins that were handled together with
             // others.
             if (is_multiple_semi_joins(join, join->positions, idx,
@@ -2923,6 +2931,30 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
           (*strategy)->set_empty();
         }
       }
+    }
+
+    if (unlikely(join->thd->trace_started() && pos->sj_strategy != SJ_OPT_NONE))
+    {
+      Json_writer_object tr(join->thd);
+      const char *sname;
+      switch (pos->sj_strategy) {
+        case SJ_OPT_MATERIALIZE:
+          sname= "SJ-Materialize";
+          break;
+        case SJ_OPT_MATERIALIZE_SCAN:
+          sname= "SJ-Materialize-Scan";
+          break;
+        case SJ_OPT_FIRST_MATCH:
+          sname= "FirstMatch";
+          break;
+        case SJ_OPT_DUPS_WEEDOUT:
+          sname= "DuplicateWeedout";
+          break;
+        default:
+          DBUG_ASSERT(0);
+          sname="Invalid";
+      }
+      tr.add("chosen_strategy", sname);
     }
   }
 
@@ -3000,6 +3032,8 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     }
     else
     {
+      Json_writer_object trace(join->thd);
+      trace.add("strategy", "SJ-Materialization");
       /* This is SJ-Materialization with lookups */
       Cost_estimate prefix_cost; 
       signed int first_tab= (int)idx - mat_info->tables;
@@ -3032,6 +3066,11 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       *record_count= prefix_rec_count;
       *handled_fanout= new_join_tab->emb_sj_nest->sj_inner_tables;
       *strategy= SJ_OPT_MATERIALIZE;
+      if (unlikely(join->thd->trace_started()))
+      {
+        trace.add("records", *record_count);
+        trace.add("read_time", *read_time);
+      }
       return TRUE;
     }
   }
@@ -3040,6 +3079,8 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
   if (sjm_scan_need_tables && /* Have SJM-Scan prefix */
       !(sjm_scan_need_tables & remaining_tables))
   {
+    Json_writer_object trace(join->thd);
+    trace.add("strategy", "SJ-Materialization-Scan");
     TABLE_LIST *mat_nest= 
       join->positions[sjm_scan_last_inner].table->emb_sj_nest;
     SJ_MATERIALIZATION_INFO *mat_info= mat_nest->sj_mat_info;
@@ -3088,6 +3129,11 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     *read_time=    prefix_cost;
     *record_count= prefix_rec_count;
     *handled_fanout= mat_nest->sj_inner_tables;
+    if (unlikely(join->thd->trace_started()))
+    {
+      trace.add("records", *record_count);
+      trace.add("read_time", *read_time);
+    }
     return TRUE;
   }
   return FALSE;
@@ -3151,6 +3197,8 @@ bool LooseScan_picker::check_qep(JOIN *join,
       !(remaining_tables & loosescan_need_tables) &&
       (new_join_tab->table->map & loosescan_need_tables))
   {
+    Json_writer_object trace(join->thd);
+    trace.add("strategy", "SJ-Materialization-Scan");
     /* 
       Ok we have LooseScan plan and also have all LooseScan sj-nest's
       inner tables and outer correlated tables into the prefix.
@@ -3181,6 +3229,11 @@ bool LooseScan_picker::check_qep(JOIN *join,
     */
     *strategy= SJ_OPT_LOOSE_SCAN;
     *handled_fanout= first->table->emb_sj_nest->sj_inner_tables;
+    if (unlikely(join->thd->trace_started()))
+    {
+      trace.add("records", *record_count);
+      trace.add("read_time", *read_time);
+    }
     return TRUE;
   }
   return FALSE;
@@ -3260,6 +3313,8 @@ bool Firstmatch_picker::check_qep(JOIN *join,
       if (in_firstmatch_prefix() && 
           !(firstmatch_need_tables & remaining_tables))
       {
+        Json_writer_object trace(join->thd);
+        trace.add("strategy", "FirstMatch");
         /*
           Got a complete FirstMatch range. Calculate correct costs and fanout
         */
@@ -3292,6 +3347,11 @@ bool Firstmatch_picker::check_qep(JOIN *join,
         *handled_fanout= firstmatch_need_tables;
         /* *record_count and *read_time were set by the above call */
         *strategy= SJ_OPT_FIRST_MATCH;
+        if (unlikely(join->thd->trace_started()))
+        {
+          trace.add("records", *record_count);
+          trace.add("read_time", *read_time);
+        }
         return TRUE;
       }
     }
@@ -3370,6 +3430,8 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     double sj_inner_fanout= 1.0;
     double sj_outer_fanout= 1.0;
     uint temptable_rec_size;
+    Json_writer_object trace(join->thd);
+    trace.add("strategy", "DuplicateWeedout");
     if (first_tab == join->const_tables)
     {
       prefix_rec_count= 1.0;
@@ -3430,6 +3492,11 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     *record_count= prefix_rec_count * sj_outer_fanout;
     *handled_fanout= dups_removed_fanout;
     *strategy= SJ_OPT_DUPS_WEEDOUT;
+    if (unlikely(join->thd->trace_started()))
+    {
+      trace.add("records", *record_count);
+      trace.add("read_time", *read_time);
+    }
     return TRUE;
   }
   return FALSE;
@@ -3660,7 +3727,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
       Json_writer_object semijoin_strategy(thd);
-      semijoin_strategy.add("semi_join_strategy","sj_materialize");
+      semijoin_strategy.add("semi_join_strategy","SJ-Materialization");
       Json_writer_array semijoin_plan(thd, "join_order");
       for (uint i= first; i < first+ sjm->tables; i++)
       {
@@ -3709,7 +3776,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       POSITION dummy;
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
-      semijoin_strategy.add("semi_join_strategy","sj_materialize_scan");
+      semijoin_strategy.add("semi_join_strategy","SJ-Materialization-Scan");
       Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
@@ -3747,7 +3814,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       */ 
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
-      semijoin_strategy.add("semi_join_strategy","firstmatch");
+      semijoin_strategy.add("semi_join_strategy","FirstMatch");
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
@@ -3785,7 +3852,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       */ 
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
-      semijoin_strategy.add("semi_join_strategy","sj_materialize");
+      semijoin_strategy.add("semi_join_strategy","LooseScan");
       Json_writer_array semijoin_plan(thd, "join_order");      
       for (idx= first; idx <= tablenr; idx++)
       {
