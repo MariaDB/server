@@ -697,6 +697,7 @@ protected:
     val_str(&result);
     return to->store(result.ptr(), result.length(), charset());
   }
+  void error_generated_column_function_is_not_allowed(THD *thd) const;
   static void do_field_int(Copy_field *copy);
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
@@ -1174,6 +1175,16 @@ public:
   }
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
+  bool check_vcol_sql_mode_dependency(THD *) const;
+
+  virtual sql_mode_t value_depends_on_sql_mode() const
+  {
+    return 0;
+  }
+  virtual sql_mode_t can_handle_sql_mode_dependency_on_store() const
+  {
+    return 0;
+  }
 
   inline THD *get_thd() const
   { return likely(table) ? table->in_use : current_thd; }
@@ -1653,6 +1664,7 @@ public:
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
     return (flags & ZEROFILL_FLAG) ?
@@ -2389,6 +2401,7 @@ public:
                field_name_arg)
     { flags|= BINARY_FLAG; }
   Item_result result_type () const { return STRING_RESULT; }   
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   int  store_hex_hybrid(const char *str, uint length)
   {
     return store(str, length, &my_charset_bin);
@@ -3190,6 +3203,8 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
+  sql_mode_t value_depends_on_sql_mode() const;
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
 private:
   int do_save_field_metadata(uchar *first_byte);
 };
@@ -3599,6 +3614,7 @@ public:
   enum_field_types type() const { return MYSQL_TYPE_STRING; }
   enum Item_result cmp_type () const { return INT_RESULT; }
   enum ha_base_keytype key_type() const;
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))

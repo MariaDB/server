@@ -1428,6 +1428,43 @@ void Field::load_data_set_value(const char *pos, uint length,
 }
 
 
+void Field::error_generated_column_function_is_not_allowed(THD *thd) const
+{
+  StringBuffer<64> tmp;
+  vcol_info->expr->print(&tmp, (enum_query_type)
+                               (QT_TO_SYSTEM_CHARSET |
+                                QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                QT_ITEM_IDENT_SKIP_TABLE_NAMES));
+  my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+           tmp.c_ptr(), vcol_info->get_vcol_type_name(),
+           const_cast<const char*>(field_name));
+}
+
+
+/*
+  Check if an indexed or a persistent virtual column depends on sql_mode flags
+  that it cannot handle.
+  See sql_mode.h for details.
+*/
+bool Field::check_vcol_sql_mode_dependency(THD *thd) const
+{
+  DBUG_ASSERT(vcol_info);
+  if ((flags & PART_KEY_FLAG) != 0 || stored_in_db())
+  {
+    Sql_mode_dependency dep=
+        vcol_info->expr->value_depends_on_sql_mode() &
+        Sql_mode_dependency(~0, ~can_handle_sql_mode_dependency_on_store());
+    if (dep)
+    {
+      error_generated_column_function_is_not_allowed(thd);
+      dep.push_dependency_warnings(thd);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 /**
   Numeric fields base class constructor.
 */
@@ -1461,6 +1498,12 @@ void Field_num::prepend_zeros(String *value) const
       value->length(field_length);
     }
   }
+}
+
+
+sql_mode_t Field_num::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
 }
 
 
@@ -5654,6 +5697,12 @@ my_time_t Field_timestampf::get_timestamp(const uchar *pos,
 
 
 /*************************************************************/
+sql_mode_t Field_temporal::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
+}
+
+
 uint Field_temporal::is_equal(Create_field *new_field)
 {
   return new_field->sql_type == real_type() &&
@@ -7271,6 +7320,18 @@ longlong Field_string::val_int(void)
 }
 
 
+sql_mode_t Field_string::value_depends_on_sql_mode() const
+{
+  return has_charset() ? MODE_PAD_CHAR_TO_FULL_LENGTH : sql_mode_t(0);
+};
+
+
+sql_mode_t Field_string::can_handle_sql_mode_dependency_on_store() const
+{
+  return has_charset() ? MODE_PAD_CHAR_TO_FULL_LENGTH : sql_mode_t(0);
+}
+
+
 String *Field_string::val_str(String *val_buffer __attribute__((unused)),
 			      String *val_ptr)
 {
@@ -8880,6 +8941,12 @@ bool Field_geom::load_data_set_null(THD *thd)
 ** This is a string which only can have a selection of different values.
 ** If one uses this string in a number context one gets the type number.
 ****************************************************************************/
+
+sql_mode_t Field_enum::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
+}
+
 
 enum ha_base_keytype Field_enum::key_type() const
 {

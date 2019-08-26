@@ -1073,6 +1073,12 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
+      if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd))
+      {
+        DBUG_ASSERT(thd->is_error());
+        *error_reported= true;
+        goto end;
+      }
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,

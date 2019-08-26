@@ -2103,6 +2103,41 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
 }
 
 
+/*
+  RTRIM(expr)
+  TRIM(TRAILING ' ' FROM expr)
+  remove argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH:
+*/
+Sql_mode_dependency Item_func_trim::value_depends_on_sql_mode() const
+{
+  DBUG_ASSERT(fixed);
+  if (arg_count == 1) // RTRIM(expr)
+    return (args[0]->value_depends_on_sql_mode() &
+            Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+           soft_to_hard();
+  // TRIM(... FROM expr)
+  DBUG_ASSERT(arg_count == 2);
+  if (!args[1]->value_depends_on_sql_mode_const_item())
+    return Item_func::value_depends_on_sql_mode();
+  StringBuffer<64> trimstrbuf;
+  String *trimstr= args[1]->val_str(&trimstrbuf);
+  if (!trimstr)
+    return Sql_mode_dependency();                  // will return NULL
+  if (trimstr->length() == 0)
+    return Item_func::value_depends_on_sql_mode(); // will trim nothing
+  if (trimstr->lengthsp() != 0)
+    return Item_func::value_depends_on_sql_mode(); // will trim not only spaces
+  if (trimstr->length() > trimstr->charset()->mbminlen ||
+      trimstr->numchars() > 1)
+    return Item_func::value_depends_on_sql_mode(); // more than one space
+  // TRIM(TRAILING ' ' FROM expr)
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
+}
+
+
 /* Item_func_password */
 
 bool Item_func_password::fix_fields(THD *thd, Item **ref)
@@ -3114,6 +3149,38 @@ bool Item_func_pad::fix_length_and_dec()
   }
   return FALSE;
 }
+
+
+/*
+  PAD(expr,length,' ')
+  removes argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH if the result
+  is longer than the argument's maximim possible length.
+*/
+Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
+{
+  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(arg_count == 3);
+  if (!args[1]->value_depends_on_sql_mode_const_item() ||
+      !args[2]->value_depends_on_sql_mode_const_item())
+    return Item_func::value_depends_on_sql_mode();
+  Longlong_hybrid len= args[1]->to_longlong_hybrid();
+  if (args[1]->null_value || len.neg())
+    return Sql_mode_dependency();                  // will return NULL
+  if (len.abs() > 0 && len.abs() < args[0]->max_char_length())
+    return Item_func::value_depends_on_sql_mode();
+  StringBuffer<64> padstrbuf;
+  String *padstr= args[2]->val_str(&padstrbuf);
+  if (!padstr || !padstr->length())
+    return Sql_mode_dependency();                  // will return NULL
+  if (padstr->lengthsp() != 0)
+    return Item_func::value_depends_on_sql_mode(); // will pad not only spaces
+  // RPAD(expr, length, ' ')  -- with a long enough length
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
+}
+
 
 
 String *Item_func_rpad::val_str(String *str)

@@ -422,6 +422,15 @@ void Item_args::propagate_equal_fields(THD *thd,
 }
 
 
+Sql_mode_dependency Item_args::value_depends_on_sql_mode_bit_or() const
+{
+  Sql_mode_dependency res;
+  for (uint i= 0; i < arg_count; i++)
+    res|= args[i]->value_depends_on_sql_mode();
+  return res;
+}
+
+
 /**
   See comments in Item_cond::split_sum_func()
 */
@@ -1414,9 +1423,13 @@ bool Item_func_minus::fix_length_and_dec()
 {
   if (Item_num_op::fix_length_and_dec())
     return TRUE;
-  if (unsigned_flag &&
-      (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
-    unsigned_flag=0;
+  m_sql_mode_dependency= Item_func::value_depends_on_sql_mode();
+  if (unsigned_flag)
+  {
+    m_sql_mode_dependency|= Sql_mode_dependency(0,MODE_NO_UNSIGNED_SUBTRACTION);
+    if (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION)
+      unsigned_flag= false;
+  }
   return FALSE;
 }
 

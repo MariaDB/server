@@ -3160,6 +3160,14 @@ static const char *sql_mode_names[]=
   0
 };
 
+
+const char *sql_mode_string_representation(uint bit_number)
+{
+  DBUG_ASSERT(bit_number < array_elements(sql_mode_names));
+  return sql_mode_names[bit_number];
+}
+
+
 export bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                            LEX_STRING *ls)
 {

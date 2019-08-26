@@ -19,6 +19,7 @@
 
 #include <my_global.h> /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
 #include "sql_basic_types.h"			/* query_id_t */
+#include "sql_mode.h"                           /* Sql_mode_dependency */
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */

@@ -489,6 +489,7 @@ protected:
 public:
   Item_func_trim(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
   Item_func_trim(THD *thd, Item *a): Item_str_func(thd, a) {}
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   String *val_str(String *);
   bool fix_length_and_dec();
   const char *func_name() const { return "trim"; }
@@ -504,6 +505,10 @@ class Item_func_ltrim :public Item_func_trim
 public:
   Item_func_ltrim(THD *thd, Item *a, Item *b): Item_func_trim(thd, a, b) {}
   Item_func_ltrim(THD *thd, Item *a): Item_func_trim(thd, a) {}
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Item_func::value_depends_on_sql_mode();
+  }
   String *val_str(String *);
   const char *func_name() const { return "ltrim"; }
   const char *mode_name() const { return "leading"; }
@@ -950,6 +955,7 @@ public:
     Item_func_pad(thd, arg1, arg2, arg3) {}
   String *val_str(String *);
   const char *func_name() const { return "rpad"; }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_rpad>(thd, mem_root, this); }
 };

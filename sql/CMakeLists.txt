@@ -135,7 +135,7 @@ SET (SQL_SOURCE
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc
                rpl_gtid.cc rpl_parallel.cc
-               sql_type.cc
+               sql_type.cc sql_mode.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
 	       ${WSREP_SOURCES}
