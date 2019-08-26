@@ -99,10 +99,10 @@ DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t1;
 RESET MASTER;
 # Test case for DROP query.
-CREATE TABLE t1 (a INT) ENGINE=INNODB;
-CREATE TEMPORARY TABLE t1 (b BLOB) ENGINE=INNODB;
-DROP TABLE t1;
-DROP TABLE t1;
+CREATE TABLE t2 (a INT) ENGINE=INNODB;
+CREATE TEMPORARY TABLE t2 (b BLOB) ENGINE=INNODB;
+DROP TABLE t2;
+DROP TABLE t2;
 # DROP table query fails with unknown table error without patch.
 # Clean up
 SET @@session.binlog_format= @save_binlog_format;
