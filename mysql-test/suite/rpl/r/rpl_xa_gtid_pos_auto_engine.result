@@ -35,6 +35,7 @@ xa start 's';
 insert into t2 values (0);
 xa end 's';
 xa prepare 's';
+include/save_master_gtid.inc
 connection slave;
 include/sync_with_master_gtid.inc
 SELECT @@global.gtid_slave_pos = CONCAT(domain_id,"-",server_id,"-",seq_no) FROM mysql.gtid_slave_pos WHERE seq_no = (SELECT DISTINCT max(seq_no) FROM mysql.gtid_slave_pos);

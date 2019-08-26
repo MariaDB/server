@@ -2234,10 +2234,10 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       It could be done only after necessarily closing tables which dictates
       the following placement.
     */
-    XID_STATE *xid_state= &thd->transaction.xid_state;
-    if (xid_state->is_explicit_XA())
+    if (thd->transaction.xid_state.is_explicit_XA())
     {
       xa_trans_force_rollback(thd);
+      attach_native_trx(thd);
     }
 
     thd->mdl_context.release_transactional_locks();

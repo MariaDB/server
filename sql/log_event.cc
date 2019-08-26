@@ -9006,7 +9006,8 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   rpl_gtid gtid;
 
   /*
-    XID_EVENT works like a COMMIT statement. And it also updates the
+    An instance of this class such as XID_EVENT works like a COMMIT
+    statement. As well as XA_PREPARE_LOG_EVENT it also updates
     mysql.gtid_slave_pos table with the GTID of the current transaction.
 
     Therefore, it acts much like a normal SQL statement, so we need to do

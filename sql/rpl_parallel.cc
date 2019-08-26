@@ -648,7 +648,7 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
 static int
 is_group_ending(Log_event *ev, Log_event_type event_type)
 {
-  if (event_type == XID_EVENT)
+  if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT)
     return 1;
   if (event_type == QUERY_EVENT)  // COMMIT/ROLLBACK are never compressed
   {
@@ -2615,7 +2615,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       else
       {
         DBUG_ASSERT(rli->gtid_skip_flag == GTID_SKIP_TRANSACTION);
-        if (typ == XID_EVENT ||
+        if (typ == XID_EVENT || typ == XA_PREPARE_LOG_EVENT ||
             (typ == QUERY_EVENT &&  // COMMIT/ROLLBACK are never compressed
              (((Query_log_event *)ev)->is_commit() ||
               ((Query_log_event *)ev)->is_rollback())))

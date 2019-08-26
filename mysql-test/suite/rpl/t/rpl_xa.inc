@@ -11,7 +11,25 @@ xa start 't';
 insert into t1 values(1, 2);
 xa end 't';
 xa prepare 't';
+# Debug with SLEEP
+#
+--disable_query_log
+--disable_result_log
+#select sleep(10000);
+--enable_result_log
+--enable_query_log
+#
+# End of Debug
 xa commit 't';
+# Debug with SLEEP
+#
+--disable_query_log
+--disable_result_log
+#select sleep(10000);
+--enable_result_log
+--enable_query_log
+#
+# End of Debug
 
 sync_slave_with_master;
 let $diff_tables= master:t1, slave:t1;
