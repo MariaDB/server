@@ -220,9 +220,6 @@ ENDIF()
 
 OPTION(WITH_TSAN "Enable thread sanitizer" OFF)
 IF (WITH_TSAN)
-  IF(SECURITY_HARDENED)
-    MESSAGE(FATAL_ERROR "WITH_TSAN and SECURITY_HARDENED are mutually exclusive")
-  ENDIF()
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=thread" DEBUG RELWITHDEBINFO)
 ENDIF()
 
@@ -236,25 +233,15 @@ IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
 
-IF(NOT WITH_TSAN)
-  # enable security hardening features, like most distributions do
-  # in our benchmarks that costs about ~1% of performance, depending on the load
-  IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6" OR WITH_ASAN OR WITH_UBSAN)
-    SET(security_default OFF)
-  ELSE()
-    SET(security_default ON)
-  ENDIF()
-  OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ${security_default})
-  IF(SECURITY_HARDENED)
-    IF(WITH_ASAN OR WITH_UBSAN)
-      MESSAGE(FATAL_ERROR "WITH_ASAN/WITH_UBSAN and SECURITY_HARDENED are mutually exclusive")
-    ENDIF()
-    # security-enhancing flags
-    MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
-  ENDIF()
+# enable security hardening features, like most distributions do
+# in our benchmarks that costs about ~1% of performance, depending on the load
+OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN)
+  # security-enhancing flags
+  MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
 ENDIF()
 
 # Always enable debug sync for debug builds.
