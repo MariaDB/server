@@ -2439,7 +2439,7 @@ public:
   Datetime to_datetime(THD *thd) const
   {
     if (is_zero_datetime())
-      return Datetime();
+      return Datetime::zero();
     return Timestamp::to_datetime(thd);
   }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
@@ -2487,7 +2487,7 @@ public:
   Datetime to_datetime(THD *thd) const
   {
     return is_zero_datetime() ?
-           Datetime() :
+           Datetime::zero() :
            Datetime(thd, Timestamp(*this).tv());
   }
   bool is_zero_datetime() const
