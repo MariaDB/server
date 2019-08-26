@@ -56,7 +56,7 @@ rebuild=0
 rebuildcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
-pvopts="-f  -i 10 -N $WSREP_SST_OPT_ROLE "
+pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
 STATDIR=""
 uextra=0
 disver=""
@@ -675,7 +675,7 @@ check_extra()
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
                 wsrep_log_info "SST through extra_port $eport"
-                INNOEXTRA+=" --host=127.0.0.1 --port=$eport "
+                INNOEXTRA+=" --host=127.0.0.1 --port=$eport"
                 use_socket=0
             else 
                 wsrep_log_error "Extra port $eport null, failing"
@@ -685,8 +685,8 @@ check_extra()
             wsrep_log_info "Thread pool not set, ignore the option use_extra"
         fi
     fi
-    if [[ $use_socket -eq 1 ]] && [[ -n "${WSREP_SST_OPT_SOCKET}" ]];then
-        INNOEXTRA+=" --socket=${WSREP_SST_OPT_SOCKET}"
+    if [[ $use_socket -eq 1 ]] && [[ -n "$WSREP_SST_OPT_SOCKET" ]];then
+        INNOEXTRA+=" --socket=$WSREP_SST_OPT_SOCKET"
     fi
 }
 

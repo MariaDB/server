@@ -23,7 +23,7 @@ RSYNC_CONF=                                     # rsync configuration file
 RSYNC_REAL_PID=                                 # rsync process id
 
 OS=$(uname)
-[ "$OS" == "Darwin" ] && export -n LD_LIBRARY_PATH
+[ "$OS" = "Darwin" ] && export -n LD_LIBRARY_PATH
 
 # Setting the path for lsof on CentOS
 export PATH="/usr/sbin:/sbin:$PATH"
@@ -67,11 +67,6 @@ check_pid_and_port()
     if ! which lsof > /dev/null; then
       wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
       exit 2 # ENOENT
-    fi
-
-    if ! which lsof > /dev/null; then
-        wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
-        exit 2 # ENOENT
     fi
 
     local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
@@ -318,8 +313,8 @@ EOF
         cd $WSREP_SST_OPT_DATA
 
         count=1
-        [ "$OS" == "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
-        [ "$OS" == "Darwin" -o "$OS" == "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
+        [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
+        [ "$OS" = "Darwin" -o "$OS" = "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
 
         find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" \
              -print0 | xargs -I{} -0 -P $count \
@@ -439,7 +434,7 @@ EOF
         RSYNC_PID=$STUNNEL_PID
     fi
 
-    until check_pid_and_port $RSYNC_PID $RSYNC_REAL_PID $RSYNC_PORT
+    until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_PORT"
     do
         sleep 0.2
     done

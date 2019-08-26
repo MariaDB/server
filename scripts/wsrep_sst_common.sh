@@ -166,7 +166,11 @@ case "$1" in
         shift
         while [ $# -gt 0 ]; do
            option=${1%%=*}
-           if [ "$option" != "--defaults-file" ]; then
+           if [[ "$option" != "--defaults-file" && \
+                 "$option" != "--defaults-extra-file" && \
+                 "$option" != "--defaults-group-suffix" && \
+                 "$option" != "--port" && \
+                 "$option" != "--socket" ]]; then
               value=${1#*=}
               case "$option" in
                   '--innodb-data-home-dir')
@@ -249,7 +253,15 @@ else
     MY_PRINT_DEFAULTS=$(which my_print_defaults)
 fi
 
-readonly WSREP_SST_OPT_CONF="$WSREP_SST_OPT_DEFAULT $WSREP_SST_OPT_EXTRA_DEFAULT $WSREP_SST_OPT_SUFFIX_DEFAULT"
+wsrep_defaults="$WSREP_SST_OPT_DEFAULT"
+if [ -n "$wsrep_defaults" ]; then
+   wsrep_defaults="$wsrep_defaults "
+fi
+wsrep_defaults="$wsrep_defaults$WSREP_SST_OPT_EXTRA_DEFAULT"
+if [ -n "$wsrep_defaults" ]; then
+   wsrep_defaults="$wsrep_defaults "
+fi
+readonly WSREP_SST_OPT_CONF="$wsrep_defaults$WSREP_SST_OPT_SUFFIX_DEFAULT"
 readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 
 wsrep_auth_not_set()

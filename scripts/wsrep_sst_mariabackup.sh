@@ -60,7 +60,7 @@ rebuild=0
 rebuildcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
-pvopts="-f  -i 10 -N $WSREP_SST_OPT_ROLE "
+pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
 STATDIR=""
 uextra=0
 disver=""
@@ -130,7 +130,7 @@ get_keys()
 
     if [[ $encrypt -eq 0 ]];then 
         if $MY_PRINT_DEFAULTS xtrabackup | grep -q encrypt;then
-            wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
+            wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html"
         fi
         return
     fi
@@ -465,7 +465,7 @@ cleanup_donor()
     if [[ -n ${XTRABACKUP_PID:-} ]];then 
         if check_pid $XTRABACKUP_PID
         then
-            wsrep_log_error "xtrabackup process is still running. Killing... "
+            wsrep_log_error "xtrabackup process is still running. Killing..."
             kill_xtrabackup
         fi
 
@@ -567,7 +567,7 @@ check_extra()
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
                 wsrep_log_info "SST through extra_port $eport"
-                INNOEXTRA+=" --host=127.0.0.1 --port=$eport "
+                INNOEXTRA+=" --host=127.0.0.1 --port=$eport"
                 use_socket=0
             else 
                 wsrep_log_error "Extra port $eport null, failing"
@@ -577,8 +577,8 @@ check_extra()
             wsrep_log_info "Thread pool not set, ignore the option use_extra"
         fi
     fi
-    if [[ $use_socket -eq 1 ]] && [[ -n "${WSREP_SST_OPT_SOCKET}" ]];then
-        INNOEXTRA+=" --socket=${WSREP_SST_OPT_SOCKET}"
+    if [[ $use_socket -eq 1 ]] && [[ -n "$WSREP_SST_OPT_SOCKET" ]];then
+        INNOEXTRA+=" --socket=$WSREP_SST_OPT_SOCKET"
     fi
 }
 
@@ -745,8 +745,8 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
         }
 
-        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} 2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
-        INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
+        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
+        INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
         INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
@@ -856,12 +856,11 @@ then
         get_keys
         if [[ $encrypt -eq 1 ]];then
             if [[ -n $ekey ]];then
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey "
+                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey"
             else 
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile "
+                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile"
             fi
         fi
-
 
         check_extra
 
@@ -882,7 +881,6 @@ then
         elif [[ -n $scomp ]];then 
             tcmd=" $scomp | $tcmd "
         fi
-
 
         send_donor $DATA "${stagemsg}-gtid"
 
