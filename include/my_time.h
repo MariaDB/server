@@ -118,7 +118,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
 static inline
 longlong double_to_datetime(double nr, MYSQL_TIME *ltime, uint flags, int *cut)
 {
-  if (nr < 0 || nr > LONGLONG_MAX)
+  if (nr < 0 || nr > (double)LONGLONG_MAX)
     nr= (double)LONGLONG_MAX;
   return number_to_datetime((longlong) floor(nr),
                             (ulong)((nr-floor(nr))*TIME_SECOND_PART_FACTOR),
