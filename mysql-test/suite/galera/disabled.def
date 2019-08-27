@@ -33,7 +33,6 @@ galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
 galera_migrate : MariaDB does not support START SLAVE USER
 galera_pc_ignore_sb : MDEV-17357 Test failure on galera.galera_pc_ignore_sb
 galera_ssl_upgrade : MDEV-13549 Galera test failures
-galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
 galera_var_node_address : MDEV-17151 Galera test failure
 galera_var_notify_cmd : MDEV-13549 Galera test failures
 galera_wan : MDEV-17259: Test failure on galera.galera_wan
