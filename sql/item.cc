@@ -3131,6 +3131,20 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 }
 
 
+longlong Item_null::val_datetime_packed()
+{
+  null_value= true;
+  return 0;
+}
+
+
+longlong Item_null::val_time_packed()
+{
+  null_value= true;
+  return 0;
+}
+
+
 bool Item_null::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   // following assert is redundant, because fixed=1 assigned in constructor
@@ -7293,6 +7307,24 @@ bool Item_ref::is_null()
 bool Item_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 {
   return (null_value=(*ref)->get_date_result(ltime,fuzzydate));
+}
+
+
+longlong Item_ref::val_datetime_packed()
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_datetime_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_ref::val_time_packed()
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_time_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
 }
 
 

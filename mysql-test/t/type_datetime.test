@@ -725,5 +725,28 @@ SET SQL_MODE=DEFAULT;
 
 
 --echo #
+--echo # MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table
+--echo #
+
+CREATE TABLE t1 (d DATETIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1999-11-04');
+SELECT d FROM t1 GROUP BY d WITH ROLLUP HAVING d > '1990-01-01';
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20431 GREATEST(int_col,date_col) returns wrong results in a view
+--echo #
+
+CREATE TABLE t1 (pk INT NOT NULL, d DATETIME NOT NULL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'2018-06-22 00:00:00'),(2,'2018-07-11 00:00:00');
+SELECT GREATEST(pk, d) FROM t1;
+SELECT GREATEST(pk, d) FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

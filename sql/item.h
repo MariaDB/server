@@ -2627,6 +2627,8 @@ public:
   String *val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  longlong val_datetime_packed();
+  longlong val_time_packed();
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, String *str);
@@ -3971,6 +3973,8 @@ public:
   String *val_str(String* tmp);
   bool is_null();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  longlong val_datetime_packed();
+  longlong val_time_packed();
   double val_result();
   longlong val_int_result();
   String *str_result(String* tmp);
