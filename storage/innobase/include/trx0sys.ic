@@ -364,8 +364,13 @@ trx_rw_is_active(
 
 	trx_t* trx = trx_rw_is_active_low(trx_id, corrupt);
 
-	if (trx) {
-		trx = trx_reference(do_ref_count ? trx_id : 0, trx);
+	if (trx && do_ref_count) {
+		trx_mutex_enter(trx);
+		ut_ad(!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
+		ut_ad(trx->id == trx_id);
+		ut_ad(trx->n_ref >= 0);
+		++trx->n_ref;
+		trx_mutex_exit(trx);
 	}
 
 	trx_sys_mutex_exit();

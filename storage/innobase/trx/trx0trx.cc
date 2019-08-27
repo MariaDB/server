@@ -557,6 +557,7 @@ trx_free_prepared(
 	transaction was never committed and therefore lock_trx_release()
 	was not called. */
 	trx->lock.table_locks.clear();
+	trx->id = 0;
 
 	trx_free(trx);
 }
@@ -1660,10 +1661,8 @@ trx_commit_in_memory(
 			trx_erase_lists(trx, serialised);
 		}
 
-		/* trx->id will be cleared in lock_trx_release_locks(trx). */
-		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
 		lock_trx_release_locks(trx);
-		ut_ad(trx->id == 0);
+		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
 
 		/* Remove the transaction from the list of active
 		transactions now that it no longer holds any user locks. */
@@ -1682,6 +1681,8 @@ trx_commit_in_memory(
 		} else {
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
 		}
+
+		trx->id = 0;
 	}
 
 	ut_ad(!trx->rsegs.m_redo.update_undo);

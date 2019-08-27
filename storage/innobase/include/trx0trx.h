@@ -1270,32 +1270,6 @@ struct commit_node_t{
 	mutex_exit(&t->mutex);			\
 } while (0)
 
-/**
-Increase the reference count. If the transaction is in state
-TRX_STATE_COMMITTED_IN_MEMORY then the transaction is considered
-committed and the reference count is not incremented.
-@param id the transaction ID; 0 if not to increment the reference count
-@param trx Transaction that is being referenced
-@return trx
-@retval	NULL	if the transaction is no longer active */
-inline trx_t* trx_reference(trx_id_t id, trx_t* trx)
-{
-	trx_mutex_enter(trx);
-
-	if (trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
-		trx = NULL;
-	} else if (!id) {
-	} else if (trx->id != id) {
-		trx = NULL;
-	} else {
-		ut_ad(trx->n_ref >= 0);
-		++trx->n_ref;
-	}
-
-	trx_mutex_exit(trx);
-	return(trx);
-}
-
 #include "trx0trx.ic"
 
 #endif
