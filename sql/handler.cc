@@ -1537,8 +1537,9 @@ int ha_commit_trans(THD *thd, bool all)
 #endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
 #ifdef WITH_WSREP
-    if (run_wsrep_hooks)
-      error= error || wsrep_after_commit(thd, all);
+    // Here in case of error we must return 2 for inconsistency
+    if (run_wsrep_hooks && !error)
+      error= wsrep_after_commit(thd, all) ? 2 : 0;
 #endif /* WITH_WSREP */
     goto done;
   }
@@ -1607,8 +1608,10 @@ int ha_commit_trans(THD *thd, bool all)
 
   error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;
 #ifdef WITH_WSREP
-  if (run_wsrep_hooks && (error || (error = wsrep_after_commit(thd, all))))
+  if (run_wsrep_hooks &&
+      (error || (error = wsrep_after_commit(thd, all))))
   {
+    error = 2;
     mysql_mutex_lock(&thd->LOCK_thd_data);
     if (wsrep_must_abort(thd))
     {

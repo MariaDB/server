@@ -1,0 +1,93 @@
+#
+# Test that mysqldump SST is possible after a vote without a cluster restart
+#
+
+--source include/galera_cluster.inc
+--source suite/galera/include/galera_sst_set_mysqldump.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+# Introduce inconsistency on node #2
+
+--connection node_2
+--let $wsrep_cluster_address_node2 = `SELECT @@wsrep_cluster_address`
+SET SESSION wsrep_on=OFF;
+ALTER TABLE t1 ADD PRIMARY KEY (f1);
+SET SESSION wsrep_on=ON;
+
+# Run DDL that will fail on nodes #1 and #3 but succeed on node #2
+
+--connection node_1
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 LOCK=SHARED, DROP PRIMARY KEY;
+
+# Nodes #1 and #3 remain in the cluster
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE AS expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+
+--connection node_3
+SELECT VARIABLE_VALUE AS expect_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE AS expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+
+# Node #2 is kicked out
+
+--connection node_2
+SET SESSION wsrep_on=OFF;
+SELECT VARIABLE_VALUE AS expect_Disconnected FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SET SESSION wsrep_on=ON;
+
+# Restore cluster
+
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node2'
+--enable_query_log
+--enable_reconnect
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE AS expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+
+# Confirm that the table is now identical throughout
+
+--connection node_1
+SHOW CREATE TABLE t1;
+
+--connection node_2
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+--source include/galera_wait_ready.inc
+SET SESSION wsrep_on=ON;
+
+# restart node so we don't fail on WSREP_START_POSITION internal check
+--source include/restart_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) AS expect_0 FROM t1;
+CALL mtr.add_suppression("is inconsistent with group");
+
+--connection node_3
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'PRIMARY'; check that column/key exists'");
+
+--connection node_1
+--source suite/galera/include/galera_sst_restore.inc
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -7735,7 +7735,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
       Release commit order and if leader, wait for prior commit to
       complete. This establishes total order for group leaders.
     */
-    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
+    if (wsrep_ordered_commit(entry->thd, entry->all))
     {
       entry->thd->wakeup_subsequent_commits(1);
       return 1;

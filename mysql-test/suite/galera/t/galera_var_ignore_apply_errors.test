@@ -5,7 +5,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-
 #
 # Ignore reconciling DDL errors on node_2
 #
@@ -20,34 +19,53 @@ CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = ON;
 DROP TABLE t1;
 
+--connection node_2
+SHOW TABLES;
+
 # Drop schema that does not exist
+--connection node_1
 SET GLOBAL wsrep_on = OFF;
 CREATE SCHEMA s1;
 SET GLOBAL wsrep_on = ON;
 DROP SCHEMA s1;
 
+--connection node_2
+SHOW SCHEMAS;
+
 # Drop index that does not exist using DROP INDEX
+--connection node_1
 CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = OFF;
 CREATE INDEX idx1 ON t1 (f1);
 SET GLOBAL wsrep_on = ON;
 DROP INDEX idx1 ON t1;
+
+--connection node_2
+SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 # Drop index that does not exist using ALTER TABLE
+--connection node_1
 CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = OFF;
 CREATE INDEX idx1 ON t1 (f1);
 SET GLOBAL wsrep_on = ON;
 ALTER TABLE t1 DROP INDEX idx1;
+
+--connection node_2
+SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 # Drop column that does not exist
+--connection node_1
 CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = OFF;
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 SET GLOBAL wsrep_on = ON;
 ALTER TABLE t1 DROP COLUMN f2;
+
+--connection node_2
+SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 
@@ -65,12 +83,10 @@ SET GLOBAL wsrep_on = OFF;
 INSERT INTO t1 VALUES (1);
 SET GLOBAL wsrep_on = ON;
 DELETE FROM t1 WHERE f1 = 1;
+SELECT COUNT(*) AS expect_0 FROM t1;
 
---connection node_1
-SELECT COUNT(*) = 0 FROM t1;
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1;
-
+SELECT COUNT(*) AS expect_0 FROM t1;
 DROP TABLE t1;
 
 # Delete row that does not exist in a multi statement transaction
@@ -85,12 +101,10 @@ INSERT INTO t1 VALUES (3);
 DELETE FROM t1 WHERE f1 = 1;
 DELETE FROM t1 WHERE f1 = 2;
 COMMIT;
+SELECT COUNT(*) AS expect_1 FROM t1;
 
---connection node_1
-SELECT COUNT(*) = 1 FROM t1;
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
-
+SELECT COUNT(*) AS expect_1 FROM t1;
 DROP TABLE t1;
 
 #
@@ -107,13 +121,16 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 SET SESSION wsrep_on = OFF;
 DELETE FROM t1 WHERE f1 = 3;
 SET SESSION wsrep_on = ON;
+
 --connection node_1
 DELETE FROM t1;
+SELECT COUNT(*) AS expect_0 FROM t1;
 
-SELECT COUNT(*) = 0 FROM t1;
 --connection node_2
-SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT COUNT(*) AS expect_0 FROM t1;
 DROP TABLE t1;
 
 #
@@ -130,8 +147,8 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 SET SESSION wsrep_on = OFF;
 DELETE FROM t1 WHERE f1 = 3;
 SET SESSION wsrep_on = ON;
---connection node_1
 
+--connection node_1
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 DELETE FROM t1 WHERE f1 = 1;
@@ -141,11 +158,13 @@ DELETE FROM t1 WHERE f1 = 4;
 DELETE FROM t1 WHERE f1 = 5;
 COMMIT;
 SET AUTOCOMMIT=ON;
+SELECT COUNT(*) AS expect_0 FROM t1;
 
-SELECT COUNT(*) = 0 FROM t1;
 --connection node_2
-SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT COUNT(*) AS expect_0 FROM t1;
 DROP TABLE t1;
 
 #
@@ -169,11 +188,13 @@ SET SESSION wsrep_on = ON;
 
 --connection node_1
 DELETE t1, t2 FROM t1 JOIN t2 WHERE t1.f1 = t2.f1;
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) expect_0 FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) expect_0 FROM t1;
 DROP TABLE t1,t2;
 
 #
@@ -196,13 +217,15 @@ SET SESSION wsrep_on = ON;
 
 --connection node_1
 DELETE FROM parent;
-SELECT COUNT(*) = 0 FROM parent;
-SELECT COUNT(*) = 0 FROM child;
+SELECT COUNT(*) AS expect_0 FROM parent;
+SELECT COUNT(*) AS expect_0 FROM child;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM child;
+--source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM parent;
-SELECT COUNT(*) = 0 FROM child;
+SELECT COUNT(*) AS expect_0 FROM parent;
+SELECT COUNT(*) AS expect_0 FROM child;
 DROP TABLE child, parent;
 
 #
@@ -217,12 +240,14 @@ SET GLOBAL wsrep_ignore_apply_errors = 4;
 SET GLOBAL wsrep_on = OFF;
 CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = ON;
+
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER, f2 INTEGER);
 DROP TABLE t1;
 
-
 --connection node_2
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t1;
 SET GLOBAL wsrep_ignore_apply_errors = 7;
 
 CALL mtr.add_suppression("Can't find record in 't.*'");

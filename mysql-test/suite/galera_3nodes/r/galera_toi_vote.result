@@ -1,0 +1,22 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_3;
+SET SESSION wsrep_on=OFF;
+DROP SCHEMA test;
+connection node_1;
+CREATE SCHEMA test;
+ERROR HY000: Can't create database 'test'; database exists
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+connection node_3;
+SET SESSION wsrep_sync_wait=0;
+disconnect node_3;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+Killing server ...
+# restart
+CALL mtr.add_suppression("WSREP: Vote 0 \\\(success\\\) on (.*) is inconsistent with group. Leaving cluster.");

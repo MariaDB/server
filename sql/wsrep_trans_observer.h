@@ -292,9 +292,7 @@ static inline int wsrep_before_commit(THD* thd, bool all)
 
   Return zero on succes, non-zero on failure.
  */
-static inline int wsrep_ordered_commit(THD* thd,
-                                      bool all,
-                                      const wsrep_apply_error&)
+static inline int wsrep_ordered_commit(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_ordered_commit");
   WSREP_DEBUG("wsrep_ordered_commit: %d", wsrep_is_real(thd, all));
