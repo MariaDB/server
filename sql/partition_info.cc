@@ -1473,15 +1473,8 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
     FALSE                     Success
 */
 
-bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
-                                   char *end_token, bool is_subpart)
+bool partition_info::set_part_expr(THD *thd, Item *item_ptr, bool is_subpart)
 {
-  size_t expr_len= end_token - start_token;
-  char *func_string= (char*) thd->memdup(start_token, expr_len);
-
-  if (unlikely(!func_string))
-    return TRUE;
-
   if (is_subpart)
   {
     list_of_subpart_fields= FALSE;
