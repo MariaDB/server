@@ -1563,7 +1563,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     return 0;
 
   part_info->range_int_array=
-    (longlong*) thd->alloc(hist_parts * sizeof(longlong));
+    (longlong*) thd->alloc(part_info->num_parts * sizeof(longlong));
 
   MYSQL_TIME ltime;
   List_iterator<partition_element> it(part_info->partitions);
@@ -1582,6 +1582,9 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     if (vers_info->hist_part->range_value <= thd->query_start())
       vers_info->hist_part= el;
   }
+  DBUG_ASSERT(el == vers_info->now_part);
+  el->max_value= true;
+  part_info->range_int_array[el->id]= el->range_value= LONGLONG_MAX;
   return 0;
 err:
   my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "TIMESTAMP", "INTERVAL");
@@ -7671,6 +7674,11 @@ static void set_up_range_analysis_info(partition_info *part_info)
     partitioning
   */
   switch (part_info->part_type) {
+  case VERSIONING_PARTITION:
+    if (!part_info->vers_info->interval.is_set())
+    {
+      break;
+    }
   case RANGE_PARTITION:
   case LIST_PARTITION:
     if (!part_info->column_list)
@@ -8107,7 +8115,8 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
   part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
 
-  if (part_info->part_type == RANGE_PARTITION)
+  if (part_info->part_type == RANGE_PARTITION ||
+      part_info->part_type == VERSIONING_PARTITION)
   {
     if (part_info->part_charset_field_array)
       get_endpoint=        get_partition_id_range_for_endpoint_charset;
