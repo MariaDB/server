@@ -5708,7 +5708,7 @@ public:
 
 class select_unit :public select_result_interceptor
 {
-public:
+protected:
   uint curr_step, prev_step, curr_sel;
   enum sub_select_type step;
 public:
@@ -5870,7 +5870,7 @@ public:
   };
   int send_data(List<Item> &items);
   void change_select();
-  int unfold_record(int cnt);
+  int unfold_record(longlong cnt);
   bool send_eof();
   bool force_enable_index_if_needed()
   {

@@ -65,7 +65,6 @@ select 1 as a from dual intersect select 1 from dual;
 select 1 from dual ORDER BY 1 intersect select 1 from dual;
 
 select 1 as a from dual union all select 1 from dual;
---error ER_PARSE_ERROR
 
 
 

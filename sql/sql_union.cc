@@ -499,7 +499,7 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
     -1  conversion happened
 */
 
-int select_unit_ext::unfold_record(int cnt)
+int select_unit_ext::unfold_record(longlong cnt)
 {
 
   DBUG_ASSERT(cnt > 0);
