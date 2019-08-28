@@ -270,3 +270,13 @@ extern "C" void wsrep_commit_ordered(THD *thd)
     thd->wsrep_cs().ordered_commit();
   }
 }
+
+extern "C" my_bool wsrep_thd_has_ignored_error(const THD *thd)
+{
+  return thd->wsrep_has_ignored_error;
+}
+
+extern "C" void wsrep_thd_set_ignored_error(THD *thd, my_bool val)
+{
+  thd->wsrep_has_ignored_error= val;
+}
