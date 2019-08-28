@@ -834,7 +834,7 @@ then
               -z $(parse_cnf --mysqld tmpdir "") && \
               -z $(parse_cnf xtrabackup tmpdir "") ]]; then
             xtmpdir=$(mktemp -d)
-            tmpopts=" --tmpdir=$xtmpdir "
+            tmpopts=" --tmpdir=$xtmpdir"
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
         fi
 
@@ -1049,7 +1049,7 @@ then
 
         tempdir=$LOG_BIN_ARG
         if [ -z "$tempdir" ]; then
-           tempdir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE log-bin "")
+            tempdir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE log-bin "")
         fi
         if [ -z "$tempdir" ]; then
             tempdir=$(parse_cnf --mysqld log-bin "")
