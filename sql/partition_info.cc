@@ -894,15 +894,16 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
   DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
-  DBUG_ASSERT(num_columns == 1);
 
   if (!alter_add)
   {
     Field *row_end= table->vers_end_field();
-    part_field_list.push_back(row_end->field_name.str, thd->mem_root);
-    DBUG_ASSERT(part_field_list.elements == 1);
     // needed in handle_list_of_fields()
     row_end->flags|= GET_FIXED_FIELDS_FLAG;
+    Name_resolution_context *context= &thd->lex->current_select->context;
+    Item *row_end_item= new (thd->mem_root) Item_field(thd, context, row_end);
+    Item *row_end_ts= new (thd->mem_root) Item_func_unix_timestamp(thd, row_end_item);
+    set_part_expr(thd, row_end_ts, false);
   }
 
   if (alter_add)
@@ -911,12 +912,12 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
     partition_element *el;
     for(uint32 id= 0; ((el= it++)); id++)
     {
-      DBUG_ASSERT(el->type() != partition_element::CONVENTIONAL);
+      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
       /* Newly added element is inserted before AS_OF_NOW. */
-      if (el->id == UINT_MAX32 || el->type() == partition_element::CURRENT)
+      if (el->id == UINT_MAX32 || el->type == partition_element::CURRENT)
       {
         el->id= id;
-        if (el->type() == partition_element::CURRENT)
+        if (el->type == partition_element::CURRENT)
           break;
       }
     }
@@ -1343,13 +1344,13 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
       }
       if (part_type == VERSIONING_PARTITION)
       {
-        if (part_elem->type() == partition_element::HISTORY)
+        if (part_elem->type == partition_element::HISTORY)
         {
           hist_parts++;
         }
         else
         {
-          DBUG_ASSERT(part_elem->type() == partition_element::CURRENT);
+          DBUG_ASSERT(part_elem->type == partition_element::CURRENT);
           now_parts++;
         }
       }
@@ -2690,9 +2691,8 @@ bool check_partition_dirs(partition_info *part_info)
 bool partition_info::vers_init_info(THD * thd)
 {
   part_type= VERSIONING_PARTITION;
-  list_of_part_fields= TRUE;
-  column_list= TRUE;
-  num_columns= 1;
+  list_of_part_fields= true;
+  column_list= false;
   vers_info= new (thd->mem_root) Vers_part_info;
   if (unlikely(!vers_info))
     return true;

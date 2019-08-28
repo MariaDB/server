@@ -1975,7 +1975,6 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
     }
   }
   DBUG_ASSERT(part_info->part_type != NOT_A_PARTITION);
-  DBUG_ASSERT(part_info->part_type != VERSIONING_PARTITION || part_info->column_list);
   /*
     Partition is defined. We need to verify that partitioning
     function is correct.
@@ -2008,15 +2007,15 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
   {
     if (part_info->column_list)
     {
-      if (part_info->part_type == VERSIONING_PARTITION &&
-        part_info->vers_setup_expression(thd))
-        goto end;
       List_iterator<const char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
         goto end;
     }
     else
     {
+      if (part_info->part_type == VERSIONING_PARTITION &&
+        part_info->vers_setup_expression(thd))
+        goto end;
       if (unlikely(fix_fields_part_func(thd, part_info->part_expr,
                                         table, FALSE, is_create_table_ind)))
         goto end;
@@ -2032,7 +2031,8 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
       goto end;
     }
     if (unlikely(!part_info->column_list &&
-                  part_info->part_expr->result_type() != INT_RESULT))
+                  part_info->part_expr->result_type() != INT_RESULT &&
+                  part_info->part_expr->result_type() != DECIMAL_RESULT))
     {
       part_info->report_part_expr_error(FALSE);
       goto end;
@@ -2541,7 +2541,7 @@ static int add_partition_values(String *str, partition_info *part_info,
   }
   else if (part_info->part_type == VERSIONING_PARTITION)
   {
-    switch (p_elem->type())
+    switch (p_elem->type)
     {
     case partition_element::CURRENT:
       err+= str->append(STRING_WITH_LEN(" CURRENT"));
@@ -5321,7 +5321,7 @@ that are reorganised.
           partition_element *el;
           while ((el= it++))
           {
-            if (el->type() == partition_element::CURRENT)
+            if (el->type == partition_element::CURRENT)
             {
               it.remove();
               now_part= el;
@@ -5417,7 +5417,7 @@ that are reorganised.
         {
           if (tab_part_info->part_type == VERSIONING_PARTITION)
           {
-            if (part_elem->type() == partition_element::CURRENT)
+            if (part_elem->type == partition_element::CURRENT)
             {
               my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
               goto err;
