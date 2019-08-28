@@ -1265,7 +1265,6 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   char dirbuffer[FN_REFLEN];
   size_t dirlen;
   const char *normalized_filename;
-  int normalized_length;
 
   dirlen= dirname_length(safe_filename);
   if (dirlen == 0)
@@ -1296,7 +1295,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   *buf_end= '\0';
 
   normalized_filename= buffer;
-  normalized_length= strlen(normalized_filename);
+  size_t normalized_length= strlen(normalized_filename);
 
   PFS_file **entry;
   uint retry_count= 0;
@@ -1345,7 +1344,7 @@ search:
         pfs->m_class= klass;
         pfs->m_enabled= klass->m_enabled && flag_global_instrumentation;
         pfs->m_timed= klass->m_timed;
-        strncpy(pfs->m_filename, normalized_filename, normalized_length);
+        strncpy(pfs->m_filename, normalized_filename, normalized_length + 1);
         pfs->m_filename[normalized_length]= '\0';
         pfs->m_filename_length= normalized_length;
         pfs->m_file_stat.m_open_count= 1;

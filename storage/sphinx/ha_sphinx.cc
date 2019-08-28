@@ -2291,7 +2291,8 @@ int ha_sphinx::HandleMysqlError ( MYSQL * pConn, int iErrCode )
 	CSphSEThreadTable * pTable = GetTls ();
 	if ( pTable )
 	{
-		strncpy ( pTable->m_tStats.m_sLastMessage, mysql_error ( pConn ), sizeof ( pTable->m_tStats.m_sLastMessage ) );
+		strncpy ( pTable->m_tStats.m_sLastMessage, mysql_error ( pConn ), sizeof pTable->m_tStats.m_sLastMessage - 1 );
+		pTable->m_tStats.m_sLastMessage[sizeof pTable->m_tStats.m_sLastMessage - 1] = '\0';
 		pTable->m_tStats.m_bLastError = true;
 	}
 
@@ -2558,7 +2559,8 @@ bool ha_sphinx::UnpackSchema ()
 		CSphSEThreadTable * pTable = GetTls ();
 		if ( pTable )
 		{
-			strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof(pTable->m_tStats.m_sLastMessage) );
+			strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof pTable->m_tStats.m_sLastMessage - 1 );
+			pTable->m_tStats.m_sLastMessage[sizeof pTable->m_tStats.m_sLastMessage - 1] = '\0';
 			pTable->m_tStats.m_bLastError = ( uStatus==SEARCHD_ERROR );
 		}
 
@@ -2982,7 +2984,8 @@ int ha_sphinx::index_read ( byte * buf, const byte * key, uint key_len, enum ha_
 			SPH_RET ( HA_ERR_END_OF_FILE );
 		}
 
-		strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof(pTable->m_tStats.m_sLastMessage) );
+		strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof pTable->m_tStats.m_sLastMessage - 1 );
+		pTable->m_tStats.m_sLastMessage[sizeof pTable->m_tStats.m_sLastMessage - 1] = '\0';
 		SafeDeleteArray ( sMessage );
 
 		if ( uRespStatus!=SEARCHD_WARNING )

@@ -150,16 +150,16 @@ RESET MASTER;
 --echo # Test case for DROP query.
 
 --connection default
-CREATE TABLE t1 (a INT) ENGINE=INNODB;
+CREATE TABLE t2 (a INT) ENGINE=INNODB;
 
 --connection con1
-CREATE TEMPORARY TABLE t1 (b BLOB) ENGINE=INNODB;
+CREATE TEMPORARY TABLE t2 (b BLOB) ENGINE=INNODB;
 
 --connection default
-DROP TABLE t1;
+DROP TABLE t2;
 
 --connection con1
-DROP TABLE t1;
+DROP TABLE t2;
 
 --connection default
 --exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/bug28642318.sql
