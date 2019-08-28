@@ -1140,6 +1140,7 @@ public:
     in str and restore it with set() if needed
   */
   virtual void sql_type(String &str) const =0;
+  virtual void sql_rpl_type(String *str) const { sql_type(*str); }
   virtual uint size_of() const =0;		// For new field
   inline bool is_null(my_ptrdiff_t row_offset= 0) const
   {
@@ -3362,6 +3363,7 @@ public:
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   void sql_type(String &str) const;
+  void sql_rpl_type(String*) const;
   virtual uchar *pack(uchar *to, const uchar *from,
                       uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
@@ -3472,6 +3474,7 @@ public:
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
   void sql_type(String &str) const;
+  void sql_rpl_type(String*) const;
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end, uint param_data);

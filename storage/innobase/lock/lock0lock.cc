@@ -6291,9 +6291,6 @@ lock_trx_release_locks(
 	/*--------------------------------------*/
 	trx_mutex_enter(trx);
 	trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
-	/* Ensure that rw_trx_hash_t::find() will no longer find
-	this transaction. */
-	trx->id = 0;
 	trx_mutex_exit(trx);
 	/*--------------------------------------*/
 
