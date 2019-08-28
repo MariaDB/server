@@ -2453,8 +2453,7 @@ row_create_index_for_mysql(
 		index_id_t index_id = index->id;
 
 		/* add index to dictionary cache and also free index object. */
-		err = dict_index_add_to_cache(
-			table, index, FIL_NULL, trx_is_strict(trx));
+		err = dict_index_add_to_cache(table, index, FIL_NULL);
 
 		if (err != DB_SUCCESS) {
 			goto error_handling;

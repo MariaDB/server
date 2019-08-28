@@ -9,7 +9,7 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_16k.inc
 
-call mtr.add_suppression("InnoDB: Cannot add field `c1` in table `test`\\.`tab0`");
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 
 # Check some default settings
 SELECT @@innodb_strict_mode;

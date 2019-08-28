@@ -5,7 +5,7 @@
 SET default_storage_engine=InnoDB;
 
 --disable_query_log
-call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 --enable_query_log
 
 let $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
@@ -146,13 +146,13 @@ set global innodb_large_prefix=1;
 create index idx2 on worklog5743_1(a2(4000));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
-create index idx3 on worklog5743_1(a2(436));
+create index idx3 on worklog5743_1(a2(438));
 show warnings;
 # Bug#13391353 Limit is one byte less on on 32bit-Linux only
 create index idx4 on worklog5743_1(a2(434));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
-create index idx5 on worklog5743_1(a1, a2(430));
+create index idx5 on worklog5743_1(a1, a2(432));
 show warnings;
 # Bug#13391353 Limit is one byte less on on 32bit-Linux only
 create index idx6 on worklog5743_1(a1, a2(428));
@@ -169,13 +169,13 @@ set global innodb_large_prefix=1;
 create index idx2 on worklog5743_2(a2(4000));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
-create index idx3 on worklog5743_2(a2(948));
+create index idx3 on worklog5743_2(a2(950));
 show warnings;
 # Bug#13391353 Limit is one byte less on on 32bit-Linux only
 create index idx4 on worklog5743_2(a2(946));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
-create index idx5 on worklog5743_2(a1, a2(942));
+create index idx5 on worklog5743_2(a1, a2(944));
 show warnings;
 # Bug#13391353 Limit is one byte less on on 32bit-Linux only
 create index idx6 on worklog5743_2(a1, a2(940));
@@ -190,13 +190,13 @@ set global innodb_large_prefix=1;
 create index idx2 on worklog5743_4(a2(4000));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
-create index idx3 on worklog5743_4(a2(1972));
+create index idx3 on worklog5743_4(a2(1974));
 show warnings;
 # Bug#13391353 Limit is one byte less on on 32bit-Linux only
 create index idx4 on worklog5743_4(a2(1970));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
-create index idx5 on worklog5743_4(a1, a2(1966));
+create index idx5 on worklog5743_4(a1, a2(1968));
 show warnings;
 # Bug#13391353 Limit is one byte less on on 32bit-Linux only
 create index idx6 on worklog5743_4(a1, a2(1964));

@@ -1,4 +1,4 @@
-call mtr.add_suppression("InnoDB: Cannot add field `c1` in table `test`\\.`tab0`");
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 SELECT @@innodb_strict_mode;
 @@innodb_strict_mode
 1
@@ -21,7 +21,7 @@ tab0	CREATE TABLE `tab0` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
 DROP TABLE tab0;
 CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB KEY_BLOCK_SIZE=2;
-ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+ERROR 42000: Row size is greater than 1924. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 SET GLOBAL innodb_file_format=Antelope;
 Warnings:
 Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/

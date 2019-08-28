@@ -1029,13 +1029,52 @@ struct dict_index_t{
 		}
 	}
 
-	/** If a record of this index might not fit on a single B-tree page,
-	  return true.
-	@param[in]	candidate_table	where we're goint to attach this index
-	@param[in]	strict	issue error or warning
-	@return true if the index record could become too big */
-	bool rec_potentially_too_big(const dict_table_t* candidate_table,
-				     bool strict) const;
+	class record_size_info_t {
+	public:
+		record_size_info_t()
+		    : max_leaf_size(0), shortest_size(0), too_big(false),
+		      first_overrun_field_index(INT_MAX), overrun_size(0)
+		{
+		}
+
+		void set_too_big(int field_index = INT_MAX)
+		{
+			too_big = true;
+			if (first_overrun_field_index > field_index) {
+				first_overrun_field_index = field_index;
+				overrun_size = shortest_size;
+			}
+		}
+
+		int get_first_overrun_field_index() const
+		{
+			ut_ad(row_too_big());
+			return first_overrun_field_index;
+		}
+
+		size_t get_overrun_size() const {
+			ut_ad(too_big);
+			return overrun_size;
+		}
+
+		bool row_too_big() const {
+			return too_big;
+		}
+
+		size_t max_leaf_size;
+		size_t shortest_size; // shortest because it counts everything
+				      // as in overflow pages
+
+	private:
+		bool too_big;
+		int first_overrun_field_index;
+		size_t overrun_size; // row size with one first overrun field
+	};
+
+	/** Returns max possibly record size for that index, size of a shortest
+	everything in overflow) size of the longest possible row and index
+	of a field which made index records too big to fit on a page.*/
+	record_size_info_t record_size_info() const;
 };
 
 /** Detach a column from an index.
@@ -1953,6 +1992,21 @@ inline void dict_stats_empty_defrag_stats(dict_index_t* index)
 {
 	index->stat_defrag_modified_counter = 0;
 	index->stat_defrag_n_page_split = 0;
+}
+
+/** Returns max allowed row/record size for a leaf page */
+size_t get_max_record_size_leaf_page(bool comp, page_size_t page_size,
+				     size_t n_fields);
+/** Returns max allowed row/record size for a non-leaf page */
+inline size_t get_max_record_size_non_leaf_page(bool comp,
+						page_size_t page_size,
+						size_t n_fields)
+{
+	size_t size = get_max_record_size_leaf_page(comp, page_size, n_fields);
+	if (page_size.is_compressed()) {
+		size /= 2;
+	}
+	return size;
 }
 
 #include "dict0mem.ic"

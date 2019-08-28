@@ -2616,7 +2616,7 @@ corrupted:
 			dict_load_fields(index, heap);
 
 			error = dict_index_add_to_cache(
-				table, index, index->page, FALSE);
+				table, index, index->page);
 
 			/* The data dictionary tables should never contain
 			invalid index definitions.  If we ignored this error

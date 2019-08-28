@@ -1,11 +1,11 @@
---- max_record_size.result	2019-07-03 11:54:44.591421526 +0300
-+++ max_record_size.reject	2019-07-03 13:01:51.215756779 +0300
+--- max_record_size.result	2019-09-15 18:41:29.302021718 +0300
++++ max_record_size.reject	2019-09-15 18:53:54.965731613 +0300
 @@ -12,7 +12,7 @@
  c9 CHAR(255), c10 CHAR(255), c11 CHAR(255), c12 CHAR(255),
  c13 CHAR(255), c14 CHAR(255), c15 CHAR(255), c16 CHAR(255)
  ) ENGINE=INNODB;
--ERROR 42000: Row size too large (> 4027). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
-+ERROR 42000: Row size too large (> 4030). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+-ERROR 42000: Row size is greater than 4026. Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
++ERROR 42000: Row size is greater than 4029. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
  CREATE TABLE t1 (
  c1 VARCHAR(255), c2 VARCHAR(255), c3 VARCHAR(255), c4 VARCHAR(255),
  c5 VARCHAR(255), c6 VARCHAR(255), c7 VARCHAR(255), c8 VARCHAR(255),
@@ -13,8 +13,8 @@
  c9 VARCHAR(255), c10 VARCHAR(255), c11 VARCHAR(255), c12 VARCHAR(255),
  c13 VARCHAR(255), c14 VARCHAR(255), c15 VARCHAR(255), c16 VARCHAR(255)
  ) ENGINE=INNODB;
--ERROR 42000: Row size too large (> 4027). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
-+ERROR 42000: Row size too large (> 4030). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+-ERROR 42000: Row size is greater than 4026. Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
++ERROR 42000: Row size is greater than 4029. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
  CREATE TABLE t1 (
  c1 VARCHAR(788), c2 VARCHAR(788), c3 VARCHAR(788), c4 VARCHAR(788),
 -c5 VARCHAR(788)
@@ -44,7 +44,7 @@
  c1 VARCHAR(788), c2 VARCHAR(788), c3 VARCHAR(788), c4 VARCHAR(788),
 -c5 VARCHAR(788), c6 VARCHAR(788)
 -) ENGINE=INNODB;
--ERROR 42000: Row size too large (> 4027). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+-ERROR 42000: Row size is greater than 4026. Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 -CREATE TABLE t1 (
 -c1 TEXT, c2 TEXT, c3 TEXT, c4 TEXT, c5 TEXT
 +c5 VARCHAR(788), c6 VARCHAR(788), c7 VARCHAR(788), c8 VARCHAR(788),
@@ -130,5 +130,5 @@
 +c183 TEXT, c184 TEXT, c185 TEXT, c186 TEXT, c187 TEXT, c188 TEXT, c189 TEXT,
 +c190 TEXT
  ) ENGINE=INNODB;
--ERROR 42000: Row size too large (> 4027). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
-+ERROR 42000: Row size too large (> 4030). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+-ERROR 42000: Row size is greater than 4026. Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
++ERROR 42000: Row size is greater than 4029. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.

@@ -5,7 +5,7 @@ SET default_storage_engine=InnoDB;
 let $MYSQLD_DATADIR = `select @@datadir`;
 let $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 
-call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 --enable_query_log
 
 --echo # Test 1) Show the page size from Information Schema
@@ -59,33 +59,6 @@ DROP TABLE t1, t2, t3, t4;
 SET SESSION innodb_strict_mode = ON;
 
 if ($INNODB_PAGE_SIZE == 4096) {
-# Redundant table; 1927 bytes with 10 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(127)
-) ROW_FORMAT=redundant;
-DROP TABLE t1;
---replace_regex /> [0-9]*/> max_row_size/
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(128)
-) ROW_FORMAT=redundant;
-
-# Compact table; 1955 bytes with 10 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(155)
-) ROW_FORMAT=compact;
-DROP TABLE t1;
---replace_regex /> [0-9]*/> max_row_size/
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(156)
-) ROW_FORMAT=compact;
-
-# Compressed table; 1878 bytes with 10 CHAR fields
 # Bug#13391353 Limit is 1876 on 32-Linux only
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
@@ -96,21 +69,8 @@ DROP TABLE t1;
 --error ER_TOO_BIG_ROWSIZE
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(79)
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(85)
 ) ROW_FORMAT=compressed;
-
-# Dynamic table; 1955 bytes with 10 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(155)
-) ROW_FORMAT=dynamic;
-DROP TABLE t1;
---replace_regex /> [0-9]*/> max_row_size/
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(156)
-) ROW_FORMAT=dynamic;
 
 #
 # Test the maximum key length
@@ -151,40 +111,6 @@ CREATE TABLE t1 (a varchar(98) character set utf8,
 		 ENGINE=innodb;
 }
 if ($INNODB_PAGE_SIZE == 8192) {
-# Redundant table; 3955 bytes with 20 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(155)
-) ROW_FORMAT=redundant;
-DROP TABLE t1;
---replace_regex /> [0-9]*/> max_row_size/
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(156)
-) ROW_FORMAT=redundant;
-
-# Compact table; 4002 bytes with 20 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(202)
-) ROW_FORMAT=compact;
-DROP TABLE t1;
---replace_regex /> [0-9]*/> max_row_size/
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(203)
-) ROW_FORMAT=compact;
-
 # Compressed table; 3905 bytes with 20 CHAR fields
 # Bug#13391353 Limit is 3903 on 32-Linux only
 CREATE TABLE t1 (
@@ -200,25 +126,8 @@ CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
 c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
 c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(106)
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(110)
 ) ROW_FORMAT=compressed;
-
-# Dynamic table; 4002 bytes with 20 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(202)
-) ROW_FORMAT=dynamic;
-DROP TABLE t1;
---replace_regex /> [0-9]*/> max_row_size/
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(203)
-) ROW_FORMAT=dynamic;
 
 #
 # Test the maximum key length
@@ -259,68 +168,7 @@ CREATE TABLE t1 (a varchar(128) character set utf8,
                  ENGINE=innodb;
 }
 if ($INNODB_PAGE_SIZE == 16384) {
-# Redundant table; 8011 bytes with 40 char fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(211)
-) ROW_FORMAT=redundant;
-DROP TABLE t1;
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(212)
-) ROW_FORMAT=redundant;
-
-# Compact table; 8096 bytes with 40 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(250), c40 char(246)
-) ROW_FORMAT=compact;
-DROP TABLE t1;
---error ER_TOO_BIG_ROWSIZE
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(250), c40 char(247)
-) ROW_FORMAT=compact;
-
-# Compressed table; 7959 bytes with 40 CHAR fields
 # Bug#13391353 Limit is 7957 on 32-Linux only
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(157)
-) ROW_FORMAT=compressed;
-DROP TABLE t1;
---error ER_TOO_BIG_ROWSIZE
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
 c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
@@ -331,18 +179,6 @@ c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
 c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
 c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(160)
 ) ROW_FORMAT=compressed;
-
-# Dynamic table; 8096 bytes with 40 CHAR fields
-CREATE TABLE t1 (
-c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
-c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
-c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
-c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
-c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(250), c40 char(246)
-) ROW_FORMAT=dynamic;
 DROP TABLE t1;
 --error ER_TOO_BIG_ROWSIZE
 CREATE TABLE t1 (
@@ -353,8 +189,8 @@ c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
 c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
 c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
 c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(250), c40 char(247)
-) ROW_FORMAT=dynamic;
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(161)
+) ROW_FORMAT=compressed;
 
 #
 # Test the maximum key length

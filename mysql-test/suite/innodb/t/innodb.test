@@ -20,7 +20,7 @@ set optimizer_switch = 'mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 # the test to be run multiple times without restarting the mysqld server.
 # See Bug#43309 Test main.innodb can't be run twice
 -- disable_query_log
-call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
+call mtr.add_suppression("After adding field .* in table .* row size occupies .* bytes, which is greater");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: in ALTER TABLE `test`.`t1`");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: in RENAME TABLE table `test`.`t1`");
 
@@ -2370,7 +2370,6 @@ DROP TABLE t1,t2;
 # Bug #21101 (Prints wrong error message if max row size is too large)
 #
 SET innodb_strict_mode=ON;
---replace_result 8126 {checked_valid} 4030 {checked_valid} 1982 {checked_valid}
 --error ER_TOO_BIG_ROWSIZE
 CREATE TABLE t1 (
 	c01 CHAR(255), c02 CHAR(255), c03 CHAR(255), c04 CHAR(255),

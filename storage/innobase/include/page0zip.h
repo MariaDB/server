@@ -99,20 +99,17 @@ page_zip_set_size(
 
 /** Determine if a record is so big that it needs to be stored externally.
 @param[in]	rec_size	length of the record in bytes
-@param[in]	comp		nonzero=compact format
+@param[in]	comp		true=compact format
 @param[in]	n_fields	number of fields in the record; ignored if
 tablespace is not compressed
 @param[in]	page_size	page size
 @return FALSE if the entire record can be stored locally on the page */
-UNIV_INLINE
-ibool
-page_zip_rec_needs_ext(
-	ulint			rec_size,
-	ulint			comp,
-	ulint			n_fields,
+bool page_zip_rec_needs_ext(
+	size_t			rec_size,
+	bool			comp,
+	size_t			n_fields,
 	const page_size_t&	page_size)
 	MY_ATTRIBUTE((warn_unused_result));
-
 /**********************************************************************//**
 Determine the guaranteed free space on an empty page.
 @return minimum payload size on the page */

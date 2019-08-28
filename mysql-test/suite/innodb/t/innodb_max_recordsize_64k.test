@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_64k.inc
 
-call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 
 # Check page size 64k
 SELECT @@innodb_page_size;
@@ -71,7 +71,6 @@ ccol60 CHAR(255),ccol61 CHAR(255),ccol62 CHAR(255),ccol63 CHAR(255),ccol64  CHAR
 )
 ENGINE = innodb ROW_FORMAT=COMPACT;
 
-# row size 32936 : should fail
 --error ER_TOO_BIG_ROWSIZE
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
@@ -113,22 +112,10 @@ col36 VARCHAR(255),col37 VARCHAR(255),col38 VARCHAR(255),col39 VARCHAR(255),col4
 col42 VARCHAR(255),col43 VARCHAR(255),col44 VARCHAR(255),col45 VARCHAR(255),col46  VARCHAR(255), col47 VARCHAR(255),
 col48 VARCHAR(255),col49 VARCHAR(255),col50 VARCHAR(255),col51 VARCHAR(255),col52  VARCHAR(255), col53 VARCHAR(255),
 col54 VARCHAR(255),col55 VARCHAR(255),col56 VARCHAR(255),col57 VARCHAR(255),col58  VARCHAR(255), col59 VARCHAR(255),
-col60 VARCHAR(255),col61 VARCHAR(255),col62 VARCHAR(255),col63 VARCHAR(255),col64  VARCHAR(255), col65  VARCHAR(255),
-ccol1  VARCHAR(255),ccol2  VARCHAR(255),ccol3  VARCHAR(255),ccol4  VARCHAR(255),ccol5   VARCHAR(255),
-ccol6  VARCHAR(255),ccol7  VARCHAR(255),ccol8  VARCHAR(255),ccol9  VARCHAR(255),ccol10  VARCHAR(255), ccol11 VARCHAR(255),
-ccol12 VARCHAR(255),ccol13 VARCHAR(255),ccol14 VARCHAR(255),ccol15 VARCHAR(255),ccol16  VARCHAR(255), ccol17 VARCHAR(255),
-ccol18 VARCHAR(255),ccol19 VARCHAR(255),ccol20 VARCHAR(255),ccol21 VARCHAR(255),ccol22  VARCHAR(255), ccol23 VARCHAR(255),
-ccol24 VARCHAR(255),ccol25 VARCHAR(255),ccol26 VARCHAR(255),ccol27 VARCHAR(255),ccol28  VARCHAR(255), ccol29 VARCHAR(255),
-ccol30 VARCHAR(255),ccol31 VARCHAR(255),ccol32 VARCHAR(255),ccol33 VARCHAR(255),ccol34  VARCHAR(255), ccol35 VARCHAR(255),
-ccol36 VARCHAR(255),ccol37 VARCHAR(255),ccol38 VARCHAR(255),ccol39 VARCHAR(255),ccol40  VARCHAR(255), ccol41 VARCHAR(255),
-ccol42 VARCHAR(255),ccol43 VARCHAR(255),ccol44 VARCHAR(255),ccol45 VARCHAR(255),ccol46  VARCHAR(255), ccol47 VARCHAR(255),
-ccol48 VARCHAR(255),ccol49 VARCHAR(255),ccol50 VARCHAR(255),ccol51 VARCHAR(255),ccol52  VARCHAR(255), ccol53 VARCHAR(255),
-ccol54 VARCHAR(255),ccol55 VARCHAR(255),ccol56 VARCHAR(255),ccol57 VARCHAR(255),ccol58  VARCHAR(255), ccol59 VARCHAR(255),
-ccol60 VARCHAR(255),ccol61 VARCHAR(255),ccol62 VARCHAR(255),ccol63 VARCHAR(255),ccol64  VARCHAR(255), ccol65 VARCHAR(255)
+col60 VARCHAR(255),col61 VARCHAR(255),col62 VARCHAR(255),col63 VARCHAR(255),col64  VARCHAR(255)
 )
 ENGINE = innodb ROW_FORMAT=COMPACT;
 
-# row size 16384 >= 16K : expected to fail
 --error ER_TOO_BIG_ROWSIZE
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
@@ -142,23 +129,9 @@ repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
-repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',214),NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',223)
 );
 
-# row size 16383 < 16K : expected to pass
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
@@ -171,20 +144,7 @@ repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
-repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',213),NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL,
-NULL,NULL,NULL,NULL,NULL
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',222)
 );
 
 SELECT * FROM tab5;
@@ -245,7 +205,6 @@ ccol60 VARCHAR(255),ccol61 VARCHAR(255),ccol62 VARCHAR(255),ccol63 VARCHAR(255),
 )
 ENGINE = innodb ROW_FORMAT=DYNAMIC;
 
-# row size 16384 >= 16K : expected to fail
 --error ER_TOO_BIG_ROWSIZE
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
@@ -275,7 +234,6 @@ NULL,NULL,NULL,NULL,NULL,
 NULL,NULL,NULL,NULL,NULL
 );
 
-# row size 16383 < 16K : expected to pass
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
@@ -334,7 +292,6 @@ ccol60 CHAR(255),ccol61 CHAR(255),ccol62 CHAR(255),ccol63 CHAR(255),ccol64  CHAR
 )
 ENGINE = innodb ROW_FORMAT=REDUNDANT;
 
-# 65 * 255 = 16575
 --error ER_TOO_BIG_ROWSIZE
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
@@ -394,7 +351,6 @@ ccol60 VARCHAR(255),ccol61 VARCHAR(255),ccol62 VARCHAR(255),ccol63 VARCHAR(255),
 )
 ENGINE = innodb ROW_FORMAT=REDUNDANT;
 
-# row size 16383 >= 16K-1 : expected to fail
 --error ER_TOO_BIG_ROWSIZE
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
@@ -424,7 +380,6 @@ NULL,NULL,NULL,NULL,NULL,
 NULL,NULL,NULL,NULL,NULL
 );
 
-# row size 16382 < 16K-1 : expected to pass
 INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
 repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),

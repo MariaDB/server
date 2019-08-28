@@ -1945,7 +1945,7 @@ convert_error_code_to_mysql(
 /*========================*/
 	dberr_t	error,	/*!< in: InnoDB error code */
 	ulint	flags,  /*!< in: InnoDB table flags, or 0 */
-	THD*	thd)	/*!< in: user thread handle or NULL */
+	THD*	thd, size_t n_fields = 0)	/*!< in: user thread handle or NULL */
 {
 	switch (error) {
 	case DB_SUCCESS:
@@ -2065,33 +2065,11 @@ convert_error_code_to_mysql(
 		return(HA_ERR_TABLESPACE_MISSING);
 
 	case DB_TOO_BIG_RECORD: {
-		/* If prefix is true then a 768-byte prefix is stored
-		locally for BLOB fields. Refer to dict_table_get_format().
-		We limit max record size to 16k for 64k page size. */
-		bool prefix = (dict_tf_get_format(flags) == UNIV_FORMAT_A);
-		bool comp = !!(flags & DICT_TF_COMPACT);
-		ulint free_space = page_get_free_space_of_empty(comp) / 2;
-
-		if (free_space >= ulint(comp ? COMPRESSED_REC_MAX_DATA_SIZE :
-				          REDUNDANT_REC_MAX_DATA_SIZE)) {
-			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
-				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
-		}
-
-		my_printf_error(ER_TOO_BIG_ROWSIZE,
-			"Row size too large (> " ULINTPF "). Changing some columns "
-			"to TEXT or BLOB %smay help. In current row "
-			"format, BLOB prefix of %d bytes is stored inline.",
-			MYF(0),
-			free_space,
-			prefix
-			? "or using ROW_FORMAT=DYNAMIC or"
-			  " ROW_FORMAT=COMPRESSED "
-			: "",
-			prefix
-			? DICT_MAX_FIXED_COL_LEN
-			: 0);
-		return(HA_ERR_TO_BIG_ROW);
+		ut_ad(n_fields != 0);
+		std::string err_msg
+		    = format_too_big_row_error_message(flags, n_fields);
+		my_printf_error(ER_TOO_BIG_ROWSIZE, err_msg.c_str(), MYF(0));
+		return (HA_ERR_TO_BIG_ROW);
 	}
 
 	case DB_TOO_BIG_INDEX_COL:
@@ -5579,7 +5557,7 @@ normalize_table_name_c_low(
 
 create_table_info_t::create_table_info_t(
 	THD*		thd,
-	TABLE*		form,
+	const TABLE*	form,
 	HA_CREATE_INFO*	create_info,
 	char*		table_name,
 	char*		remote_path,
@@ -8379,8 +8357,17 @@ report_error:
 			table->s->table_name.str);
 	}
 
-	error_result = convert_error_code_to_mysql(
-		error, m_prebuilt->table->flags, m_user_thd);
+	if (error == DB_TOO_BIG_RECORD) {
+		// Let's hope that we failed to insert a record into a clustered
+		// index. Otherwise n_fields and thus error message returnted to
+		// user will be incorrect.
+		error_result = convert_error_code_to_mysql(
+		    error, m_prebuilt->table->flags, m_user_thd,
+		    dict_table_get_first_index(m_prebuilt->table)->n_fields);
+	} else {
+		error_result = convert_error_code_to_mysql(
+		    error, m_prebuilt->table->flags, m_user_thd);
+	}
 
 #ifdef WITH_WSREP
 	if (!error_result
@@ -12741,12 +12728,88 @@ int create_table_info_t::create_table(bool create_fk)
 
 	innobase_table = dict_table_open_on_name(
 		m_table_name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+	ut_ad(innobase_table);
 
-	if (innobase_table != NULL) {
-		dict_table_close(innobase_table, TRUE, FALSE);
+	for (dict_index_t* index = dict_table_get_first_index(innobase_table);
+	     index; index = dict_table_get_next_index(index)) {
+
+		if (!row_size_is_acceptable(index)) {
+			std::string err_msg = format_too_big_row_error_message(
+			    m_flags, index->n_fields);
+			my_printf_error(ER_TOO_BIG_ROWSIZE, err_msg.c_str(),
+					MYF(0));
+			dict_table_close(innobase_table, true, false);
+			DBUG_RETURN(HA_ERR_TO_BIG_ROW);
+		}
 	}
 
+	dict_table_close(innobase_table, TRUE, FALSE);
+
 	DBUG_RETURN(0);
+}
+
+bool create_table_info_t::row_size_is_acceptable(
+    const dict_table_t* table) const
+{
+	ut_ad(table);
+
+	for (dict_index_t* index = dict_table_get_first_index(table); index;
+	     index = dict_table_get_next_index(index)) {
+
+		if (!row_size_is_acceptable(index)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool create_table_info_t::row_size_is_acceptable(
+    const dict_index_t* index) const
+{
+	if (index->type & DICT_FTS) {
+		return true;
+	}
+	// Not always system tables have sane maximux size. But user don't have
+	// to know about that.
+	if (index->table->is_system_db) {
+		return true;
+	}
+
+	bool strict = THDVAR(m_thd, strict_mode);
+
+	dict_index_t::record_size_info_t info = index->record_size_info();
+
+	if (info.row_too_big()) {
+		int idx = info.get_first_overrun_field_index();
+		if (idx != INT_MAX) {
+			ut_ad(info.get_overrun_size() != 0);
+			ut_ad(info.max_leaf_size != 0);
+
+			const dict_field_t* field
+			    = dict_index_get_nth_field(index, idx);
+
+			ib::error_or_warn(strict)
+			    << "After adding field " << field->name
+			    << " in table " << index->table->name
+			    << " row size occupies " << info.get_overrun_size()
+			    << " bytes, which is greater than maximum "
+			       "allowed size ("
+			    << info.max_leaf_size
+			    << " bytes) for a record on index leaf page.";
+		}
+
+		if (strict) {
+			return false;
+		}
+
+		std::string err_msg = format_too_big_row_error_message(
+		    index->table->flags, index->n_fields);
+		push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_TO_BIG_ROW, err_msg.c_str());
+	}
+
+	return true;
 }
 
 /** Update a new table in an InnoDB database.
@@ -22142,30 +22205,23 @@ innobase_convert_to_system_charset(
 				cs2, to, static_cast<uint>(len), errors)));
 }
 
-/**********************************************************************
-Issue a warning that the row is too big. */
-void
-ib_warn_row_too_big(const dict_table_t*	table)
+std::string format_too_big_row_error_message(unsigned flags, size_t n_fields)
 {
 	/* If prefix is true then a 768-byte prefix is stored
 	locally for BLOB fields. Refer to dict_table_get_format() */
-	const bool prefix = (dict_tf_get_format(table->flags)
-			     == UNIV_FORMAT_A);
+	const bool prefix = (dict_tf_get_format(flags) == UNIV_FORMAT_A);
+	const size_t prefix_len = prefix ? DICT_MAX_FIXED_COL_LEN : 0;
+	const size_t max_record_size = get_max_record_size_leaf_page(
+	    flags & DICT_TF_COMPACT, dict_tf_get_page_size(flags), n_fields);
 
-	const ulint	free_space = page_get_free_space_of_empty(
-		table->flags & DICT_TF_COMPACT) / 2;
-
-	THD*	thd = current_thd;
-
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_TO_BIG_ROW,
-		"Row size too large (> " ULINTPF ")."
-		" Changing some columns to TEXT"
-		" or BLOB %smay help. In current row format, BLOB prefix of"
-		" %d bytes is stored inline.", free_space
-		, prefix ? "or using ROW_FORMAT=DYNAMIC or"
-		" ROW_FORMAT=COMPRESSED ": ""
-		, prefix ? DICT_MAX_FIXED_COL_LEN : 0);
+	std::stringstream ss;
+	ss << "Row size is greater than " << max_record_size
+	   << ". Changing some columns to TEXT or BLOB "
+	   << (prefix ? "or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED "
+		      : "")
+	   << "may help. In current row format, BLOB prefix of " << prefix_len
+	   << " bytes is stored inline.";
+	return ss.str();
 }
 
 /** Validate the requested buffer pool size.  Also, reserve the necessary

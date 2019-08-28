@@ -5,7 +5,7 @@
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-call mtr.add_suppression("Cannot add field `pa` in table `test`.`t2` because after adding it, the row size is");
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 
 CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
                 h blob,i blob,j blob,k blob,l blob,m blob,n blob,

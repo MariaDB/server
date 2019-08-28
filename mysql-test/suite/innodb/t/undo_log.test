@@ -1,6 +1,6 @@
 --source include/have_innodb.inc
 
-call mtr.add_suppression("Cannot add field `b_str_20` in table `test`.`test_tab` because after adding it, the row size is");
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 
 SET innodb_strict_mode=OFF;
 CREATE TABLE test_tab (

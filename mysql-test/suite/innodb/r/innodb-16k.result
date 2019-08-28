@@ -1,4 +1,4 @@
-call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
+call mtr.add_suppression('After adding field .* which is greater than maximum allowed size');
 SET GLOBAL innodb_large_prefix = OFF;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
@@ -8,8 +8,6 @@ WHERE LOWER(variable_name) = 'innodb_page_size';
 variable_value
 16384
 # Test 4) The maximum row size is dependent upon the page size.
-#         Redundant: 8123, Compact: 8126.
-#         Compressed: 8126, Dynamic: 8126.
 #         Each row format has its own amount of overhead that
 #         varies depending on number of fields and other overhead.
 SET SESSION innodb_strict_mode = ON;
@@ -21,7 +19,7 @@ c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
 c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
 c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
 c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(157)
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(160)
 ) ROW_FORMAT=compressed;
 DROP TABLE t1;
 CREATE TABLE t1 (
@@ -32,9 +30,9 @@ c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
 c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
 c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
 c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(160)
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(161)
 ) ROW_FORMAT=compressed;
-ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+ERROR 42000: Row size is greater than 7986. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 CREATE TABLE t1 (a varchar(255) character set utf8,
 b varchar(255) character set utf8,
 c varchar(255) character set utf8,
@@ -484,20 +482,20 @@ CREATE TABLE t1(
 c text NOT NULL, d text NOT NULL,
 PRIMARY KEY (c(767),d(767)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
-ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+ERROR 42000: Row size is greater than 892. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 CREATE TABLE t1(
 c text NOT NULL, d text NOT NULL,
 PRIMARY KEY (c(767),d(767)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2 CHARSET=ASCII;
-ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+ERROR 42000: Row size is greater than 1916. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 CREATE TABLE t1(
 c text NOT NULL, d text NOT NULL,
 PRIMARY KEY (c(767),d(767)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4 CHARSET=ASCII;
 drop table t1;
-CREATE TABLE t1(c text, PRIMARY KEY (c(440)))
+CREATE TABLE t1(c text, PRIMARY KEY (c(445)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
-ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+ERROR 42000: Row size is greater than 896. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 CREATE TABLE t1(c text, PRIMARY KEY (c(438)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));

@@ -1185,3 +1185,26 @@ dict_mem_table_is_system(
 		return true;
 	}
 }
+
+size_t get_max_record_size_leaf_page(bool comp, page_size_t page_size,
+				     size_t n_fields)
+{
+#if UNIV_PAGE_SIZE_MAX <= COMPRESSED_REC_MAX_DATA_SIZE
+#error
+#endif
+	size_t result
+	    = comp ? COMPRESSED_REC_MAX_DATA_SIZE : REDUNDANT_REC_MAX_DATA_SIZE;
+
+	if (page_size.is_compressed()) {
+		result = std::min(
+		    result, page_zip_empty_size(n_fields, page_size.physical())
+				+ (REC_N_NEW_EXTRA_BYTES - 2 - 1));
+	}
+
+	result = std::min(result, page_get_free_space_of_empty(comp) / 2);
+
+	// Why this is needed?
+	result -=1;
+
+	return result;
+}

@@ -32,7 +32,11 @@ ALTER TABLE worklog5743 ROW_FORMAT=REDUNDANT;
 ERROR HY000: Index column size too large. The maximum column size is 767 bytes
 ALTER TABLE worklog5743 ROW_FORMAT=COMPACT;
 ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+SET innodb_strict_mode=OFF;
 ALTER TABLE worklog5743 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
+Warnings:
+Warning	139	Row size is greater than 8125. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+SET innodb_strict_mode=ON;
 DROP TABLE worklog5743;
 CREATE TABLE worklog5743 (
 col_1_text TEXT (4000) , col_2_text TEXT (4000) ,
@@ -1344,7 +1348,7 @@ AND col_2_text = REPEAT("o", 4000);
 col_1_text = REPEAT("c", 4000)
 ALTER TABLE worklog5743 DROP PRIMARY KEY;
 ALTER TABLE worklog5743 ADD PRIMARY KEY (col_1_text (950));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+ERROR 42000: Row size is greater than 1918. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
 SELECT col_1_text = REPEAT("a", 4000) FROM worklog5743;
 col_1_text = REPEAT("a", 4000)

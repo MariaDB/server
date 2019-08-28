@@ -147,6 +147,20 @@ page_zip_fail_func(
 # define page_zip_fail(fmt_args) /* empty */
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 
+bool page_zip_rec_needs_ext(
+	size_t			rec_size,
+	bool			comp,
+	size_t			n_fields,
+	const page_size_t&	page_size)
+{
+	ut_ad(rec_size
+	      > ulint(comp ? REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES));
+	ut_ad(comp || !page_size.is_compressed());
+
+	return rec_size
+	       > get_max_record_size_leaf_page(comp, page_size, n_fields);
+}
+
 /**********************************************************************//**
 Determine the guaranteed free space on an empty page.
 @return minimum payload size on the page */

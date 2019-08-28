@@ -364,8 +364,7 @@ dict_boot(void)
 	error = dict_index_add_to_cache(table, index,
 					mtr_read_ulint(dict_hdr
 						       + DICT_HDR_TABLES,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+						       MLOG_4BYTES, &mtr));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -377,8 +376,7 @@ dict_boot(void)
 	error = dict_index_add_to_cache(table, index,
 					mtr_read_ulint(dict_hdr
 						       + DICT_HDR_TABLE_IDS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+						       MLOG_4BYTES, &mtr));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -410,8 +408,7 @@ dict_boot(void)
 	error = dict_index_add_to_cache(table, index,
 					mtr_read_ulint(dict_hdr
 						       + DICT_HDR_COLUMNS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+						       MLOG_4BYTES, &mtr));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -444,8 +441,7 @@ dict_boot(void)
 	error = dict_index_add_to_cache(table, index,
 					mtr_read_ulint(dict_hdr
 						       + DICT_HDR_INDEXES,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+						       MLOG_4BYTES, &mtr));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -472,8 +468,7 @@ dict_boot(void)
 	error = dict_index_add_to_cache(table, index,
 					mtr_read_ulint(dict_hdr
 						       + DICT_HDR_FIELDS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+						       MLOG_4BYTES, &mtr));
 	ut_a(error == DB_SUCCESS);
 
 	mtr_commit(&mtr);

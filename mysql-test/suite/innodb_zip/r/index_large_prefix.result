@@ -102,7 +102,7 @@ Got one of the listed errors
 show warnings;
 Level	Code	Message
 Note	1071	Specified key was too long; max key length is 767 bytes
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 900. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 set global innodb_large_prefix=1;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
@@ -111,20 +111,20 @@ Got one of the listed errors
 show warnings;
 Level	Code	Message
 Note	1071	Specified key was too long; max key length is 3072 bytes
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx3 on worklog5743_1(a2(436));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 900. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+create index idx3 on worklog5743_1(a2(438));
+ERROR 42000: Row size is greater than 900. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 900. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 create index idx4 on worklog5743_1(a2(434));
 show warnings;
 Level	Code	Message
-create index idx5 on worklog5743_1(a1, a2(430));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+create index idx5 on worklog5743_1(a1, a2(432));
+ERROR 42000: Row size is greater than 898. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 898. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 create index idx6 on worklog5743_1(a1, a2(428));
 show warnings;
 Level	Code	Message
@@ -142,24 +142,24 @@ set global innodb_large_prefix=1;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 create index idx2 on worklog5743_2(a2(4000));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+ERROR 42000: Row size is greater than 1924. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
 Note	1071	Specified key was too long; max key length is 3072 bytes
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx3 on worklog5743_2(a2(948));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 1924. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+create index idx3 on worklog5743_2(a2(950));
+ERROR 42000: Row size is greater than 1924. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 1924. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 create index idx4 on worklog5743_2(a2(946));
 show warnings;
 Level	Code	Message
-create index idx5 on worklog5743_2(a1, a2(942));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+create index idx5 on worklog5743_2(a1, a2(944));
+ERROR 42000: Row size is greater than 1922. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 1922. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 create index idx6 on worklog5743_2(a1, a2(940));
 show warnings;
 Level	Code	Message
@@ -176,24 +176,24 @@ set global innodb_large_prefix=1;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 create index idx2 on worklog5743_4(a2(4000));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+ERROR 42000: Row size is greater than 3972. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
 Note	1071	Specified key was too long; max key length is 3072 bytes
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-create index idx3 on worklog5743_4(a2(1972));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 3972. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+create index idx3 on worklog5743_4(a2(1974));
+ERROR 42000: Row size is greater than 3972. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 3972. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 create index idx4 on worklog5743_4(a2(1970));
 show warnings;
 Level	Code	Message
-create index idx5 on worklog5743_4(a1, a2(1966));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+create index idx5 on worklog5743_4(a1, a2(1968));
+ERROR 42000: Row size is greater than 3970. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 show warnings;
 Level	Code	Message
-Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Error	1118	Row size is greater than 3970. Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 create index idx6 on worklog5743_4(a1, a2(1964));
 show warnings;
 Level	Code	Message

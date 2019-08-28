@@ -336,22 +336,6 @@ my_error_innodb(
 	case DB_CORRUPTION:
 		my_error(ER_NOT_KEYFILE, MYF(0), table);
 		break;
-	case DB_TOO_BIG_RECORD: {
-		/* Note that in page0zip.ic page_zip_rec_needs_ext() rec_size
-		is limited to COMPRESSED_REC_MAX_DATA_SIZE (16K) or
-		REDUNDANT_REC_MAX_DATA_SIZE (16K-1). */
-		bool comp = !!(flags & DICT_TF_COMPACT);
-		ulint free_space = page_get_free_space_of_empty(comp) / 2;
-
-		if (free_space >= ulint(comp ? COMPRESSED_REC_MAX_DATA_SIZE :
-					  REDUNDANT_REC_MAX_DATA_SIZE)) {
-			free_space = (comp ? COMPRESSED_REC_MAX_DATA_SIZE :
-				REDUNDANT_REC_MAX_DATA_SIZE) - 1;
-		}
-
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0), free_space);
-		break;
-	}
 	case DB_INVALID_NULL:
 		/* TODO: report the row, as we do for DB_DUPLICATE_KEY */
 		my_error(ER_INVALID_USE_OF_NULL, MYF(0));
@@ -367,6 +351,7 @@ my_error_innodb(
 	case DB_SUCCESS:
 	case DB_DUPLICATE_KEY:
 	case DB_ONLINE_LOG_TOO_BIG:
+	case DB_TOO_BIG_RECORD:
 		/* These codes should not be passed here. */
 		ut_error;
 #endif /* UNIV_DEBUG */
@@ -4311,6 +4296,7 @@ prepare_inplace_alter_table_dict(
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
 	ha_innobase_inplace_ctx*ctx;
+	const dict_index_t*	too_big_new_index = NULL;
 
 	DBUG_ENTER("prepare_inplace_alter_table_dict");
 
@@ -4399,6 +4385,10 @@ prepare_inplace_alter_table_dict(
 		old_table);
 
 	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
+
+	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
+				 ha_alter_info->create_info, NULL, NULL,
+				 srv_file_per_table);
 
 	if (num_fts_index > 1) {
 		my_error(ER_INNODB_FT_LIMIT, MYF(0));
@@ -4840,6 +4830,12 @@ index_created:
 			goto error_handling;
 		}
 
+		if (!info.row_size_is_acceptable(ctx->add_index[a])) {
+			error = DB_TOO_BIG_RECORD;
+			too_big_new_index = ctx->add_index[a];
+			goto error_handling;
+		}
+
 		DBUG_ASSERT(ctx->add_index[a]->is_committed()
 			    == !!new_clustered);
 
@@ -5055,6 +5051,14 @@ error_handling:
 	case DB_UNSUPPORTED:
 		my_error(ER_TABLE_CANT_HANDLE_SPKEYS, MYF(0), "SYS_COLUMNS");
 		break;
+	case DB_TOO_BIG_RECORD: {
+		ut_ad(too_big_new_index);
+		const size_t n_fields = too_big_new_index->n_fields;
+		std::string err_msg
+		    = format_too_big_row_error_message(flags, n_fields);
+		my_printf_error(ER_TOO_BIG_ROWSIZE, err_msg.c_str(), MYF(0));
+		break;
+	}
 	default:
 		my_error_innodb(error, table_name, user_table->flags);
 	}
@@ -6330,6 +6334,16 @@ oom:
 		const char* engine= table_type();
 		get_error_message(HA_ERR_DECRYPTION_FAILED, &str);
 		my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
+		break;
+	}
+	case DB_TOO_BIG_RECORD: {
+		// We hope that error was produced by clustered index. Otherwise
+		// reported error might contain incorrect maximum size.
+		const size_t n_fields
+		    = dict_table_get_first_index(m_prebuilt->table)->n_fields;
+		std::string err_msg = format_too_big_row_error_message(
+		    m_prebuilt->table->flags, n_fields);
+		my_printf_error(ER_TOO_BIG_ROWSIZE, err_msg.c_str(), MYF(0));
 		break;
 	}
 	default:
