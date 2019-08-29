@@ -180,12 +180,11 @@ Item* Item_row::build_clone(THD *thd)
 }
 
 
-bool Item_row::excl_func_dep_on_grouping_fields(st_select_lex *sl,
-                                                List<Item> *gb_items,
+bool Item_row::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
                                                 bool in_where,
                                                 Item **err_item)
 {
-  if (Item_args::excl_func_dep_on_grouping_fields(sl, gb_items,
+  if (Item_args::excl_func_dep_on_grouping_fields(gb_items,
                                                   in_where, err_item))
     return true;
   if (!gb_items || gb_items->is_empty())

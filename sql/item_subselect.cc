@@ -6806,11 +6806,3 @@ void Item_subselect::init_expr_cache_tracker(THD *thd)
   DBUG_ASSERT(expr_cache->type() == Item::EXPR_CACHE_ITEM);
   node->cache_tracker= ((Item_cache_wrapper *)expr_cache)->init_tracker(qw->mem_root);
 }
-
-
-bool Item_subselect::set_subquery_ctx_processor(void *arg)
-{
-  enum_parsing_place *ctx= (enum_parsing_place *)arg;
-  unit->first_select()->context_analysis_place= *ctx;
-  return false;
-}

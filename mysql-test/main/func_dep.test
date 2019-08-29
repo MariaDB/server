@@ -285,7 +285,8 @@ DROP TABLE t3;
 
 --echo # Unique keys
 
-CREATE TABLE t3 (a INT, b INT, c CHAR(5), d INT, e INT,
+CREATE TABLE t3 (a INT NOT NULL, b INT NOT NULL,
+                 c CHAR(5), d INT, e INT,
                  UNIQUE idx1 (a,b), UNIQUE idx2 (c));
 INSERT INTO t3 VALUES (1,2,'ccc',4,1), (2,2,'aaa',4,3), (2,3,'ex',1,5);
 
@@ -293,10 +294,12 @@ SELECT t3.a,t3.b,t3.d
 FROM t3
 GROUP BY t3.a,t3.b;
 
+--error ER_NON_GROUPING_FIELD_USED
 SELECT t3.a,t3.b,t3.d
 FROM t3
 GROUP BY t3.c;
 
+--error ER_NON_GROUPING_FIELD_USED
 SELECT *
 FROM t3
 GROUP BY t3.c;
@@ -4233,7 +4236,7 @@ GROUP BY t3.pk WITH ROLLUP;
 DROP TABLE t3;
 
 --echo #
---echo # ON expression: special cases
+--echo # ON expression: interesting cases
 --echo #
 
 CREATE TABLE t1(a INT, b INT);
@@ -4311,7 +4314,7 @@ SELECT t2.d,t3.c,t3.d
 FROM t1 LEFT JOIN (
                    t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
                                             (t2.d = 1) AND
-                                            (t3.d=t2.d)
+                                            (t3.d = t2.d)
                   ) ON (t1.a = t2.d)
 GROUP BY t2.d;
 
@@ -4323,14 +4326,16 @@ FROM t1 LEFT JOIN (
                   ) ON (t1.a = t2.d)
 GROUP BY t1.a;
 
+--error ER_NON_GROUPING_FIELD_USED
 SELECT t3.c,t3.d
 FROM t1 LEFT JOIN (
                    t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
                                             (t2.d = 1) AND
-                                            (t3.d=t2.d)
+                                            (t3.d = t2.d)
                   ) ON (t1.a = t2.d)
 GROUP BY t3.d;
 
+--error ER_NON_GROUPING_FIELD_USED
 SELECT t3.c,t3.d
 FROM t1 LEFT JOIN (
                    t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
@@ -4387,6 +4392,7 @@ FROM t1 LEFT JOIN (
                   ) ON 1
 GROUP BY "";
 
+--error ER_NON_GROUPING_FIELD_USED
 SELECT t3.d,t3.c
 FROM t1 LEFT JOIN (
                    t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
@@ -4473,8 +4479,8 @@ FROM t1 LEFT JOIN (
                                  LEFT JOIN t1 AS t4 ON (t4.a = 1) AND
                                                        (t3.c = t3.c)
                                 ) ON (t2.c = t3.c)
-                  ) ON (t1.a = t2.d)
-GROUP BY t2.c;
+                  ) ON (t1.a = t2.c)
+GROUP BY t1.a;
 
 SELECT t3.c
 FROM t1 LEFT JOIN (
@@ -4506,6 +4512,7 @@ FROM t1 LEFT JOIN (
                   ) ON (t1.a = 1)
 GROUP BY "";
 
+--error ER_NON_GROUPING_FIELD_USED
 SELECT t3.c
 FROM t1 LEFT JOIN (
                    t2 JOIN
@@ -4572,7 +4579,7 @@ FROM t1 LEFT JOIN (
                                  t1 AS t3
                                  LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
                                                        (t3.a > 1)
-                                ) ON t2.d = t3.a
+                                ) ON (t2.d = t3.a)
                   ) ON 1
 GROUP BY t2.d;
 
@@ -4698,6 +4705,65 @@ FROM t1 LEFT JOIN (
                    t2
                    LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
                   ) ON (t1.a = t2.c)
+GROUP BY t1.a;
+
+--echo # Non-determenistic functions used
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+                  ) ON (t1.a + 'aa' = t2.c)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+                  ) ON (t1.a + 'aaa' = t2.c)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c + 'bbb' = t3.a)
+                  ) ON (t1.a = t2.c)
+GROUP BY t1.a;
+
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+                  ) ON (t1.a = t2.c)
+WHERE (t1.a + 'aaa' = t1.b)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a,t1.b
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+                  ) ON (t1.a = t2.c)
+WHERE (t1.a + 'aaa' = t1.b)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b
+FROM t1
+WHERE (t1.b = 'aaa')
+GROUP BY t1.a;
+
+SELECT t1.b
+FROM t1
+WHERE (t1.b = 'aaa') AND (t1.a = t1.b)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b
+FROM t1
+WHERE (t1.b = 'aaa') AND (t1.a + 'aa' = t1.b)
 GROUP BY t1.a;
 
 DROP TABLE t1,t2;

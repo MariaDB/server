@@ -7824,7 +7824,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (from_field != not_found_field)
       {
         Item_field* fld;
-        if (!(fld= new (thd->mem_root) Item_field(thd, from_field)))
+        if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,
@@ -9060,41 +9060,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
-bool Item_field::has_outer_nogb_field_processor(void *arg)
-{
-  table_map curr_level_tabs= *((table_map *)arg);
-  return !(field->table->map & curr_level_tabs) &&
-         !bitmap_is_set(&field->table->tmp_set, field->field_index);
-}
-
-
-bool Item_field::check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                                    List<Field> *fields,
-                                                    Item **err_item)
-{
-  if (field->cmp_type() == STRING_RESULT &&
-      (!((field->charset()->state & MY_CS_BINSORT) &&
-      (field->charset()->state & MY_CS_NOPAD))))
-  {
-    fields->empty();
-    return false;
-  }
-  if (fields->push_back(field, sl->join->thd->mem_root))
-    return false;
-
-  if (!field->check_usage_in_fd_field_extraction(sl, fields, err_item))
-  {
-    if (field->is_outer_select_field(sl))
-    {
-      *err_item= this;
-      fields->empty();
-    }
-    return false;
-  }
-  return true;
-}
-
-
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
@@ -9135,6 +9100,152 @@ bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
       return false;
   }
   return true;
+}
+
+
+bool Item_field::check_reject_fd_extraction_processor(void *arg)
+{
+  table_map curr_level_tabs= *((table_map *)arg);
+  return !(field->table->map & curr_level_tabs) &&
+         !bitmap_is_set(&field->table->tmp_set, field->field_index);
+}
+
+
+bool Item_ident::item_subquery_is_in_where()
+{
+  DBUG_ASSERT(type() == Item::FIELD_ITEM || type() == Item::REF_ITEM);
+  if (real_item()->type() != Item::FIELD_ITEM ||
+      !context || !context->outer_context)
+    return false;
+
+  Name_resolution_context *last_checked_context= context;
+  Name_resolution_context *outer_context= context->outer_context;
+
+  TABLE_LIST *table_list=
+    ((Item_field *) real_item())->field->table->pos_in_table_list;
+  enum_parsing_place place= NO_MATTER;
+
+  for (;
+       outer_context;
+       outer_context= outer_context->outer_context)
+  {
+    Item_subselect *prev_subselect_item=
+        last_checked_context->select_lex->master_unit()->item;
+    last_checked_context= outer_context;
+
+    if (outer_context->select_lex != table_list->select_lex)
+      continue;
+    place= prev_subselect_item->parsing_place;
+    if (place == IN_WHERE || place == IN_ON)
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_field::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
+                                                  bool in_where,
+                                                  Item **err_item)
+{
+  if (item_subquery_is_in_where() ||
+      (in_where && (!context || !context->outer_context)))
+    return true;
+  if (field->excl_func_dep_on_grouping_fields(gb_items, in_where,
+                                              err_item))
+    return true;
+  *err_item= this;
+  return false;
+}
+
+
+bool Item_ident::is_in_outer_select()
+{
+  DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
+  return (context && context->outer_context &&
+          (context->select_lex !=
+     ((Item_field *) real_item())->field->table->pos_in_table_list->select_lex));
+}
+
+
+bool Item_field::check_usage_in_fd_field_extraction(THD *thd,
+                                                    List<Item> *fields,
+                                                    Item **err_item)
+{
+  if (field->cmp_type() == STRING_RESULT &&
+      (!((field->charset()->state & MY_CS_BINSORT) &&
+      (field->charset()->state & MY_CS_NOPAD))))
+  {
+    fields->empty();
+    return false;
+  }
+  if (fields->push_back(this, thd->mem_root))
+    return false;
+
+  if (item_subquery_is_in_where() ||
+      field->check_usage_in_fd_field_extraction(thd, fields, err_item))
+    return true;
+  if (is_in_outer_select())
+  {
+    *err_item= this;
+    fields->empty();
+  }
+  return false;
+}
+
+
+bool Item_ref::check_usage_in_fd_field_extraction(THD *thd,
+                                                  List<Item> *fields,
+                                                  Item **err_item)
+{
+  if (real_item()->type() != Item::FIELD_ITEM)
+  {
+    if ((*ref)->check_usage_in_fd_field_extraction(thd, fields, err_item))
+      return true;
+    return false;
+  }
+
+  Item_field *real_it= (Item_field *)real_item();
+  if (real_it->field->cmp_type() == STRING_RESULT &&
+      (!((real_it->field->charset()->state & MY_CS_BINSORT) &&
+      (real_it->field->charset()->state & MY_CS_NOPAD))))
+  {
+    fields->empty();
+    return false;
+  }
+  if (fields->push_back(this, thd->mem_root))
+    return false;
+  if (item_subquery_is_in_where() ||
+      real_it->field->check_usage_in_fd_field_extraction(thd, fields,
+                                                         err_item))
+    return true;
+  if (is_in_outer_select())
+  {
+    *err_item= this;
+    fields->empty();
+  }
+  return false;
+}
+
+
+
+bool Item_ref::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
+                                                bool in_where,
+                                                Item **err_item)
+{
+  if (item_subquery_is_in_where() ||
+      (in_where && (!context || !context->outer_context)))
+    return true;
+  if ((*ref)->excl_func_dep_on_grouping_fields(gb_items, in_where,
+                                               err_item))
+    return true;
+  if (!gb_items || gb_items->is_empty())
+    return false;
+  List_iterator<Item> it(*gb_items);
+  Item *item_arg;
+  while ((item_arg= it++))
+    if (this->eq(item_arg, 0))
+      return true;
+  return false;
 }
 
 

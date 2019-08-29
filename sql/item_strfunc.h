@@ -1675,8 +1675,8 @@ public:
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
   bool const_item() const { return true; }
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Field> *fields,
+  bool check_usage_in_fd_field_extraction(THD *thd,
+                                          List<Item> *fields,
                                           Item **err_item)
   {
     fields->empty();
@@ -1742,8 +1742,8 @@ public:
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_weight_string>(thd, this); }
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Field> *fields,
+  bool check_usage_in_fd_field_extraction(THD *thd,
+                                          List<Item> *fields,
                                           Item **err_item)
   {
     fields->empty();

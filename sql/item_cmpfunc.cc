@@ -3368,8 +3368,8 @@ void Item_func_case_simple::print(String *str, enum_query_type query_type)
 
 
 bool
-Item_func_case_simple::check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                                          List<Field> *fields,
+Item_func_case_simple::check_usage_in_fd_field_extraction(THD *thd,
+                                                          List<Item> *fields,
                                                           Item **err_item)
 {
   const Type_handler *first_expr_cmp_handler;
@@ -3380,7 +3380,7 @@ Item_func_case_simple::check_usage_in_fd_field_extraction(st_select_lex *sl,
     fields->empty();
     return false;
   }
-  return Item_args::check_usage_in_fd_field_extraction(sl, fields, err_item);
+  return Item_args::check_usage_in_fd_field_extraction(thd, fields, err_item);
 }
 
 
@@ -4894,6 +4894,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   }
   if (fix_length_and_dec())
     return TRUE;
+  set_deterministic();
   fixed= 1;
   return FALSE;
 }
@@ -5258,8 +5259,7 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
-bool Item_cond::excl_func_dep_on_grouping_fields(st_select_lex *sl,
-                                                 List<Item> *gb_items,
+bool Item_cond::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
                                                  bool in_where,
                                                  Item **err_item)
 {
@@ -5267,7 +5267,7 @@ bool Item_cond::excl_func_dep_on_grouping_fields(st_select_lex *sl,
   Item *item_it;
   while ((item_it= li++))
   {
-    if (item_it->excl_func_dep_on_grouping_fields(sl, gb_items,
+    if (item_it->excl_func_dep_on_grouping_fields(gb_items,
                                                   in_where, err_item))
       continue;
 
@@ -5279,6 +5279,20 @@ bool Item_cond::excl_func_dep_on_grouping_fields(st_select_lex *sl,
       if (this->eq(item_arg, 0))
         return true;
     return false;
+  }
+  return true;
+}
+
+
+bool Item_cond::are_args_deterministic()
+{
+  List_iterator_fast<Item> li(*argument_list());
+  Item *item;
+  while ((item=li++))
+  {
+    if (item->type() == Item::FUNC_ITEM &&
+        !((Item_func *)item)->is_deterministic)
+      return false;
   }
   return true;
 }

@@ -333,7 +333,8 @@ a	b	c
 1	2	1
 DROP TABLE t3;
 # Unique keys
-CREATE TABLE t3 (a INT, b INT, c CHAR(5), d INT, e INT,
+CREATE TABLE t3 (a INT NOT NULL, b INT NOT NULL,
+c CHAR(5), d INT, e INT,
 UNIQUE idx1 (a,b), UNIQUE idx2 (c));
 INSERT INTO t3 VALUES (1,2,'ccc',4,1), (2,2,'aaa',4,3), (2,3,'ex',1,5);
 SELECT t3.a,t3.b,t3.d
@@ -346,17 +347,11 @@ a	b	d
 SELECT t3.a,t3.b,t3.d
 FROM t3
 GROUP BY t3.c;
-a	b	d
-2	2	4
-1	2	4
-2	3	1
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
 SELECT *
 FROM t3
 GROUP BY t3.c;
-a	b	c	d	e
-2	2	aaa	4	3
-1	2	ccc	4	1
-2	3	ex	1	5
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
 SELECT *
 FROM t3
 GROUP BY t3.a,t3.b;
@@ -4679,7 +4674,7 @@ GROUP BY t3.pk WITH ROLLUP;
 ERROR 42000: Non-grouping field 'test.t3.b' is used in SELECT list
 DROP TABLE t3;
 #
-# ON expression: special cases
+# ON expression: interesting cases
 #
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1,2), (2,3);
@@ -4767,7 +4762,7 @@ SELECT t2.d,t3.c,t3.d
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
 (t2.d = 1) AND
-(t3.d=t2.d)
+(t3.d = t2.d)
 ) ON (t1.a = t2.d)
 GROUP BY t2.d;
 d	c	d
@@ -4788,12 +4783,10 @@ SELECT t3.c,t3.d
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
 (t2.d = 1) AND
-(t3.d=t2.d)
+(t3.d = t2.d)
 ) ON (t1.a = t2.d)
 GROUP BY t3.d;
-c	d
-NULL	NULL
-2	1
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
 SELECT t3.c,t3.d
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
@@ -4801,8 +4794,7 @@ t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
 (t3.d = t2.c)
 ) ON (t1.a = t2.c)
 GROUP BY t3.d;
-c	d
-NULL	NULL
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
 SELECT t2.d,t3.c
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
@@ -4850,9 +4842,7 @@ FROM t1 LEFT JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
 ) ON 1
 GROUP BY t3.d;
-d	c
-1	2
-3	2
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
 SELECT t3.c
 FROM t1 JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t2.c = t3.d) AND (t3.c = 2)
@@ -4937,9 +4927,10 @@ t2 AS t3
 LEFT JOIN t1 AS t4 ON (t4.a = 1) AND
 (t3.c = t3.c)
 ) ON (t2.c = t3.c)
-) ON (t1.a = t2.d)
-GROUP BY t2.c;
+) ON (t1.a = t2.c)
+GROUP BY t1.a;
 a
+NULL
 NULL
 1
 SELECT t3.c
@@ -4982,8 +4973,7 @@ t2 JOIN
 t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
 ) ON 1
 GROUP BY "";
-c
-2
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
 SELECT t4.c
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN (
@@ -5042,7 +5032,7 @@ t2 LEFT JOIN (
 t1 AS t3
 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
 (t3.a > 1)
-) ON t2.d = t3.a
+) ON (t2.d = t3.a)
 ) ON 1
 GROUP BY t2.d;
 c
@@ -5195,5 +5185,62 @@ LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
 ) ON (t1.a = t2.c)
 GROUP BY t1.a;
 ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
+# Non-determenistic functions used
+SELECT t2.c
+FROM t1 LEFT JOIN (
+t2
+LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+) ON (t1.a + 'aa' = t2.c)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
+SELECT t3.a
+FROM t1 LEFT JOIN (
+t2
+LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+) ON (t1.a + 'aaa' = t2.c)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
+SELECT t3.a
+FROM t1 LEFT JOIN (
+t2
+LEFT JOIN t1 AS t3 ON (t2.c + 'bbb' = t3.a)
+) ON (t1.a = t2.c)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
+SELECT t3.a
+FROM t1 LEFT JOIN (
+t2
+LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+) ON (t1.a = t2.c)
+WHERE (t1.a + 'aaa' = t1.b)
+GROUP BY t1.a;
+a
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'aaa'
+Warning	1292	Truncated incorrect DOUBLE value: 'aaa'
+Warning	1292	Truncated incorrect DOUBLE value: 'aaa'
+SELECT t3.a,t1.b
+FROM t1 LEFT JOIN (
+t2
+LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
+) ON (t1.a = t2.c)
+WHERE (t1.a + 'aaa' = t1.b)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
+SELECT t1.b
+FROM t1
+WHERE (t1.b = 'aaa')
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
+SELECT t1.b
+FROM t1
+WHERE (t1.b = 'aaa') AND (t1.a = t1.b)
+GROUP BY t1.a;
+b
+SELECT t1.b
+FROM t1
+WHERE (t1.b = 'aaa') AND (t1.a + 'aa' = t1.b)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
 DROP TABLE t1,t2;
 SET SQL_MODE=' ';

@@ -1681,12 +1681,11 @@ public:
   }
   virtual bool sp_prepare_and_store_item(THD *thd, Item **value);
   bool is_outer_select_field(st_select_lex *sl);
-  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
-                                        List<Item> *gb_items,
+  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
                                         bool in_where,
                                         Item **err_item);
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Field> *fields,
+  bool check_usage_in_fd_field_extraction(THD *thd,
+                                          List<Item> *fields,
                                           Item **err_item);
 
   friend int cre_myisam(char * name, TABLE *form, uint options,

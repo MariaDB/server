@@ -150,8 +150,7 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
-  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
-                                        List<Item> *gb_items,
+  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
                                         bool in_where,
                                         Item **err_item);
 

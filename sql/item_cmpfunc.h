@@ -1048,13 +1048,12 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_coalesce>(thd, this); }
   void set_deterministic() { }
-  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
-                                        List<Item> *gb_items,
+  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
                                         bool in_where,
                                         Item **err_item)
   {
     if (in_where)
-      return Item_args::excl_func_dep_on_grouping_fields(sl, gb_items,
+      return Item_args::excl_func_dep_on_grouping_fields(gb_items,
                                                          in_where, err_item);
     *err_item= this;
     return false;
@@ -2311,8 +2310,8 @@ public:
   } 
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_case_simple>(thd, this); }
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Field> *fields,
+  bool check_usage_in_fd_field_extraction(THD *thd,
+                                          List<Item> *fields,
                                           Item **err_item);
   void set_deterministic()
   {
@@ -2832,8 +2831,8 @@ public:
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_like>(thd, this); }
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Field> *fields,
+  bool check_usage_in_fd_field_extraction(THD *thd,
+                                          List<Item> *fields,
                                           Item **err_item)
   {
     uint flags= Item_func_like::compare_collation()->state;
@@ -2842,7 +2841,7 @@ public:
       fields->empty();
       return false;
     }
-    return Item_args::check_usage_in_fd_field_extraction(sl, fields, err_item);
+    return Item_args::check_usage_in_fd_field_extraction(thd, fields, err_item);
   }
 };
 
@@ -3074,21 +3073,17 @@ public:
   Item *build_clone(THD *thd);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Item> *gb_items,
-                                          bool in_where,
-                                          Item **err_item);
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Field> *fields,
+  bool check_usage_in_fd_field_extraction(THD *thd,
+                                          List<Item> *fields,
                                           Item **err_item)
   {
     fields->empty();
     return false;
   }
-  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
-                                        List<Item> *gb_items,
+  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
                                         bool in_where,
                                         Item **err_item);
+  bool are_args_deterministic();
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;

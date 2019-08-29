@@ -362,12 +362,11 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
-  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
-                                        List<Item> *gb_items,
+  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
                                         bool in_where,
                                         Item **err_item)
   {
-    if (Item_args::excl_func_dep_on_grouping_fields(sl, gb_items,
+    if (Item_args::excl_func_dep_on_grouping_fields(gb_items,
                                                     in_where, err_item))
       return true;
     if (!gb_items || gb_items->is_empty())
@@ -379,11 +378,11 @@ public:
         return true;
     return false;
   }
-  bool check_usage_in_fd_field_extraction(st_select_lex *sl,
-                                          List<Field> *fields,
+  bool check_usage_in_fd_field_extraction(THD *thd,
+                                          List<Item> *fields,
                                           Item **err_item)
   {
-    return Item_args::check_usage_in_fd_field_extraction(sl, fields, err_item);
+    return Item_args::check_usage_in_fd_field_extraction(thd, fields, err_item);
   }
 
   /*
