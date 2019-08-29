@@ -1428,14 +1428,16 @@ void Field::load_data_set_value(const char *pos, uint length,
 }
 
 
-void Field::error_generated_column_function_is_not_allowed(THD *thd) const
+void Field::error_generated_column_function_is_not_allowed(THD *thd,
+                                                           bool error) const
 {
   StringBuffer<64> tmp;
   vcol_info->expr->print(&tmp, (enum_query_type)
                                (QT_TO_SYSTEM_CHARSET |
                                 QT_ITEM_IDENT_SKIP_DB_NAMES |
                                 QT_ITEM_IDENT_SKIP_TABLE_NAMES));
-  my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+  my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED,
+           MYF(error ? 0 : ME_JUST_WARNING),
            tmp.c_ptr(), vcol_info->get_vcol_type_name(),
            const_cast<const char*>(field_name));
 }
@@ -1446,7 +1448,7 @@ void Field::error_generated_column_function_is_not_allowed(THD *thd) const
   that it cannot handle.
   See sql_mode.h for details.
 */
-bool Field::check_vcol_sql_mode_dependency(THD *thd) const
+bool Field::check_vcol_sql_mode_dependency(THD *thd, vcol_init_mode mode) const
 {
   DBUG_ASSERT(vcol_info);
   if ((flags & PART_KEY_FLAG) != 0 || stored_in_db())
@@ -1456,9 +1458,10 @@ bool Field::check_vcol_sql_mode_dependency(THD *thd) const
         Sql_mode_dependency(~0, ~can_handle_sql_mode_dependency_on_store());
     if (dep)
     {
-      error_generated_column_function_is_not_allowed(thd);
+      bool error= (mode & VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR) != 0;
+      error_generated_column_function_is_not_allowed(thd, error);
       dep.push_dependency_warnings(thd);
-      return true;
+      return error;
     }
   }
   return false;

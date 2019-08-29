@@ -697,7 +697,8 @@ protected:
     val_str(&result);
     return to->store(result.ptr(), result.length(), charset());
   }
-  void error_generated_column_function_is_not_allowed(THD *thd) const;
+  void error_generated_column_function_is_not_allowed(THD *thd, bool error)
+                                                      const;
   static void do_field_int(Copy_field *copy);
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
@@ -1175,7 +1176,7 @@ public:
   }
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
-  bool check_vcol_sql_mode_dependency(THD *) const;
+  bool check_vcol_sql_mode_dependency(THD *, vcol_init_mode mode) const;
 
   virtual sql_mode_t value_depends_on_sql_mode() const
   {

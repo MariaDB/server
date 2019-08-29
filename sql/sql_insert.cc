@@ -2529,7 +2529,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                                       sizeof(MY_BITMAP))))
       goto error;
 
-    if (parse_vcol_defs(client_thd, client_thd->mem_root, copy, &error_reported))
+    if (parse_vcol_defs(client_thd, client_thd->mem_root, copy, &error_reported,
+                        VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING))
       goto error;
   }
 

@@ -989,7 +989,7 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
     expression
 */
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported)
+                     bool *error_reported, vcol_init_mode mode)
 {
   CHARSET_INFO *save_character_set_client= thd->variables.character_set_client;
   CHARSET_INFO *save_collation= thd->variables.collation_connection;
@@ -1073,7 +1073,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
-      if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd))
+      if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode))
       {
         DBUG_ASSERT(thd->is_error());
         *error_reported= true;
@@ -3223,7 +3223,23 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (share->table_check_constraints || share->field_check_constraints)
       outparam->check_constraints= check_constraint_ptr;
 
-    if (parse_vcol_defs(thd, &outparam->mem_root, outparam, &error_reported))
+    vcol_init_mode mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING;
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_CREATE_TABLE:
+      mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    case SQLCOM_ALTER_TABLE:
+    case SQLCOM_CREATE_INDEX:
+    case SQLCOM_DROP_INDEX:
+      if ((ha_open_flags & HA_OPEN_FOR_ALTER) == 0)
+        mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    default:
+      break;
+    }
+    if (parse_vcol_defs(thd, &outparam->mem_root, outparam,
+                        &error_reported, mode))
     {
       error= OPEN_FRM_CORRUPTED;
       goto err;

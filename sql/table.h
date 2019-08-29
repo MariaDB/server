@@ -325,6 +325,20 @@ enum tmp_table_type
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 
+
+enum vcol_init_mode
+{
+  VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING= 1,
+  VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR= 2
+  /*
+    There may be new flags here.
+    e.g. to automatically remove sql_mode dependency:
+      GENERATED ALWAYS AS (char_col) ->
+      GENERATED ALWAYS AS (RTRIM(char_col))
+  */
+};
+
+
 enum enum_vcol_update_mode
 {
   VCOL_UPDATE_FOR_READ= 0,
@@ -2736,7 +2750,7 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
                                     Virtual_column_info *vcol);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported);
+                     bool *error_reported, vcol_init_mode expr);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,

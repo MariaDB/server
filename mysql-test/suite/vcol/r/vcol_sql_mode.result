@@ -400,6 +400,12 @@ SHOW WARNINGS;
 Level	Code	Message
 Error	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
 Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+CREATE INDEX v ON t1 (v);
+ERROR HY000: Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+SHOW WARNINGS;
+Level	Code	Message
+Error	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
 DROP TABLE t1;
 # A virtual column on the second position in an index - cannot depend on sql_mode
 CREATE TABLE t1 (id int, a CHAR(5), v TEXT AS (a) VIRTUAL, KEY(id, v(100)));
