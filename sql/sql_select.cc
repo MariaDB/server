@@ -8244,6 +8244,7 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
       record_count= COST_MULT(record_count, best_positions[i].records_read);
       read_time= COST_ADD(read_time, best_positions[i].read_time);
     }
+    /* TODO: Take into account condition selectivities here */
   }
   *read_time_arg= read_time;// + record_count / TIME_FOR_COMPARE;
   *record_count_arg= record_count;
@@ -15975,10 +15976,20 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
     reopt_remaining_tables &= ~rs->table->map;
     rec_count= COST_MULT(rec_count, pos.records_read);
     cost= COST_ADD(cost, pos.read_time);
-
-
+    cost= COST_ADD(cost, rec_count / (double) TIME_FOR_COMPARE);
+    //TODO: take into account join condition selectivity here
+    double pushdown_cond_selectivity= 1.0;
+    table_map real_table_bit= rs->table->map;
+    if (join->thd->variables.optimizer_use_condition_selectivity > 1)
+    {
+      pushdown_cond_selectivity= table_cond_selectivity(join, i, rs,
+                                                        reopt_remaining_tables &
+                                                        ~real_table_bit);
+    }
+    (*outer_rec_count) *= pushdown_cond_selectivity;
     if (!rs->emb_sj_nest)
       *outer_rec_count= COST_MULT(*outer_rec_count, pos.records_read);
+
   }
   join->cur_sj_inner_tables= save_cur_sj_inner_tables;
 
