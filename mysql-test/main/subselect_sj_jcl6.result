@@ -3286,7 +3286,7 @@ insert into t4 select floor(rand()*1000) from t2 limit 500;
 # |    1 | PRIMARY      | t3          | ALL  | NULL          | ... | 10000 | Using where; Using join buffer (flat, BNL join) |
 #
 # Instead, it should use eq_ref on the materialized table.
-explain select * from t3 where a in (select a from t4 group by a);
+explain select * from t3 where a in (select a from t4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10000	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
