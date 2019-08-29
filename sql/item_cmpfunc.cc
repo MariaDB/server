@@ -5359,6 +5359,27 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
   return true;
 }
 
+int Item_cond::substitute_expr_with_vcol(Subst_expr_prm *prm)
+{
+  // check if can replace whole current item
+  if (int repl = Item::substitute_expr_with_vcol(prm))
+    return repl;
+
+  List_iterator<Item> it(list);
+  Item *item;
+  // save item_ptr to restore it later
+  Item **tmp_item_ptr = prm->item_ptr;
+  int count = 0;
+  while ((item = it++))
+  {
+    prm->item_ptr = &item;
+    count += item->substitute_expr_with_vcol(prm);
+  }
+
+  prm->item_ptr = tmp_item_ptr;
+  return count;
+}
+
 
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {

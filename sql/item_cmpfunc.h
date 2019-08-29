@@ -3027,6 +3027,7 @@ public:
   Item *build_clone(THD *thd, const Build_clone_prm &prm);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
+  int substitute_expr_with_vcol(Subst_expr_prm *prm);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;

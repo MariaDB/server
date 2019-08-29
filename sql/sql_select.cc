@@ -27720,26 +27720,34 @@ void JOIN::cache_const_exprs()
 
 void JOIN::optimize_vfields_expressions()
 {
-  for (SELECT_LEX *cur_select_lex = select_lex; cur_select_lex; cur_select_lex = cur_select_lex->next_select())
-  {
-    for (TABLE_LIST *cur_table = cur_select_lex->table_list.first; cur_table; cur_table = cur_table->next_local)
-    {
-      if (!cur_table->on_expr)
-        continue;
-      // subselects in joins
-      cur_table->on_expr->walk(&Item::rewrite_subselects_with_vfields_processor, true, NULL);
-      rewrite_expr_with_vfieds(thd, &(cur_select_lex->context), &cur_table->on_expr);
-    }
+  Query_arena backup;
+  Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
 
-    Item *select_where = cur_select_lex->where;
+//  for (SELECT_LEX *cur_select_lex = select_lex; cur_select_lex; cur_select_lex = cur_select_lex->next_select())
+//  {
+//    for (TABLE_LIST *cur_table = select_lex->table_list.first; cur_table; cur_table = cur_table->next_local)
+//    {
+//      if (!cur_table->on_expr)
+//        continue;
+//  //    // subselects in joins
+//  //     cur_table->on_expr->walk(&Item::rewrite_subselects_with_vfields_processor, true, NULL);
+//      rewrite_expr_with_vfieds(thd, &(select_lex->context), &cur_table->on_expr);
+//    }
+
+  //  Item *select_where = select_lex->where;
     // no where or no tables
-    if (!select_where)
-      continue;
+    if (!conds)
+      return;
+  //    continue;
 
     // perform rewrites in all subselects
-    select_where->walk(&Item::rewrite_subselects_with_vfields_processor, true, NULL);
-    rewrite_expr_with_vfieds(thd, &(cur_select_lex->context), &select_where);
-  }
+  //  conds->walk(&Item::rewrite_subselects_with_vfields_processor, true, NULL);
+    rewrite_expr_with_vfieds(thd, &(select_lex->context),
+                             &conds);
+//  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
 }
 
 void rewrite_expr_with_vfieds(THD *thd, Name_resolution_context *context, Item **select_where)
@@ -27752,18 +27760,22 @@ void rewrite_expr_with_vfieds(THD *thd, Name_resolution_context *context, Item *
   Item::Build_clone_prm build_clone_prm;
   build_clone_prm.return_this_on_subselects = true;
 
-  while (Field **vfield = it++) {
+  while (Field **vfield = it++)
+  {
     Item* clone = (*select_where)->build_clone(thd, build_clone_prm);
+
     if (!clone)
       break;
 
     Item::Subst_expr_prm prm = {thd, &clone, *vfield};
-    int replaced = (*select_where)->substitute_expr_with_vcol(&prm);
+    int replaced = clone->substitute_expr_with_vcol(&prm);
+//    int replaced = (*select_where)->substitute_expr_with_vcol(&prm);
     if (replaced)
     {
       Item *new_where = new (thd->mem_root) Item_cond_and(thd, *select_where, clone);
       new_where->fix_fields(thd, &new_where);
-      *select_where = new_where;
+      thd->change_item_tree(select_where, new_where);
+//      *select_where = new_where;
     }
   }
 }
