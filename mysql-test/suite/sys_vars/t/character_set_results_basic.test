@@ -30,7 +30,7 @@
 --source include/have_utf8mb4.inc
 --source include/have_utf16.inc
 --source include/have_utf32.inc
-
+--source include/default_charset.inc
 --source include/load_sysvars.inc
 ################################################
 ##       START OF character_set_results TESTS ##
@@ -40,7 +40,8 @@
 #                 Save initial value                        #
 #############################################################
 SET @global_start_value = @@global.character_set_results;
-SELECT @global_start_value;
+SET @@global.character_set_results=@@character_set_client;
+SELECT @@global.character_set_results;
 # Save initial session value
 SET @session_start_value = @@character_set_results;
 SELECT @session_start_value;
@@ -80,11 +81,11 @@ SELECT global character_set_results;
 ###############################################################################
 SET @@character_set_results = latin5;
 SET @@character_set_results = DEFAULT;
-SELECT @@character_set_results AS DEFAULT_VALUE;
+SELECT @@character_set_results = @@global.character_set_results;
 
 SET @@global.character_set_results = latin5;
 SET @@global.character_set_results = DEFAULT;
-SELECT @@global.character_set_results;
+SELECT @@global.character_set_results= @global_start_value;
 
 --echo '#--------------------FN_DYNVARS_013_03-------------------------#'
 ###############################################################################
@@ -265,9 +266,7 @@ SELECT @@session.character_set_results =
 #     Restore initial value        #
 ####################################
 SET @@global.character_set_results = @global_start_value;
-SELECT @@global.character_set_results;
 SET @@session.character_set_results = @session_start_value;
-SELECT @@session.character_set_results;
 
 #############################################################
 #                 END OF character_set_results TESTS        #

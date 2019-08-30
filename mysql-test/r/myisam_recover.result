@@ -1,4 +1,5 @@
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
+set @save_table_definition_cache=@@table_definition_cache;
 #
 # Tests for corrupted MyISAM tables and MyISAMMRG tables with corrupted
 # children..
@@ -98,10 +99,10 @@ unlock tables;
 prepare stmt from @drop_table_stmt;
 execute stmt;
 deallocate prepare stmt;
-set @@global.table_definition_cache=default;
 set @@global.table_open_cache=@save_table_open_cache;
 disconnect con1;
 connection default;
+set @@global.table_definition_cache=@save_table_definition_cache;
 #
 # 18075170 - sql node restart required to avoid deadlock after
 #            restore

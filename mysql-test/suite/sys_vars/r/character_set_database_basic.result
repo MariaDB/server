@@ -1,6 +1,7 @@
 SET @global_start_value = @@global.character_set_database;
-SELECT @global_start_value;
-@global_start_value
+SET @@global.character_set_database=@@character_set_client;
+SELECT @@global.character_set_database;
+@@global.character_set_database
 latin1
 SET @session_start_value = @@character_set_database;
 SELECT @session_start_value;
@@ -496,10 +497,4 @@ WHERE VARIABLE_NAME='character_set_database') AS res;
 res
 1
 SET @@global.character_set_database = @global_start_value;
-SELECT @@global.character_set_database;
-@@global.character_set_database
-latin1
 SET @@session.character_set_database = @session_start_value;
-SELECT @@session.character_set_database;
-@@session.character_set_database
-latin1

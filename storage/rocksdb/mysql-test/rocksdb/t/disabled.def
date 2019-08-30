@@ -92,4 +92,4 @@ information_schema: MDEV-14372: unstable testcase
 ##
 
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
-
+add_index_inplace: not stable result

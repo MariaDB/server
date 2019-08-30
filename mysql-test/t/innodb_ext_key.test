@@ -784,6 +784,8 @@ drop table t0,t1,t2;
 --echo # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
 --echo # was corrupted, server crashes in opt_sum_query
 
+SET @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@@optimizer_use_condition_selectivity=1;
+
 CREATE TABLE t1 (
   pk INT,
   f1 VARCHAR(3),
@@ -822,3 +824,4 @@ INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
 explain format= json
 select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
 drop table t1;
+SET optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;

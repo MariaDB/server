@@ -1,4 +1,9 @@
 # Initialize
+--source include/default_optimizer_switch.inc
+
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
 
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
@@ -106,6 +111,7 @@ create user mysqltest_1;
 create table t1 select 1 as a;
 connect (con1,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK);
 connection con1;
+--source include/default_optimizer_switch.inc
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 --error 1046
 select 2 as a from (select * from t1) b;

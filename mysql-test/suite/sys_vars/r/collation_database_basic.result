@@ -1,6 +1,7 @@
 SET @global_start_value = @@global.collation_database;
-SELECT @global_start_value;
-@global_start_value
+SET @@global.collation_database=@@collation_server;
+SELECT @@global.collation_database;
+@@global.collation_database
 latin1_swedish_ci
 SET @session_start_value = @@collation_database;
 SELECT @session_start_value;
@@ -27,6 +28,7 @@ SET session collation_database=utf8_unicode_ci;
 SELECT session collation_database;
 ERROR 42S22: Unknown column 'session' in 'field list'
 SET global collation_database=utf8_unicode_ci;
+set global collation_database=@@collation_server;
 SELECT global collation_database;
 ERROR 42S22: Unknown column 'global' in 'field list'
 '#--------------------FN_DYNVARS_016_02-------------------------#'
@@ -35,14 +37,14 @@ SET @@collation_database = DEFAULT;
 SELECT DEFAULT_COLLATION_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=DATABASE();
 DEFAULT_COLLATION_NAME
 latin1_swedish_ci
-SELECT @@collation_database AS DEFAULT_VALUE;
-DEFAULT_VALUE
-latin1_swedish_ci
+SELECT @@collation_database = @@global.collation_database;
+@@collation_database = @@global.collation_database
+1
 SET @@global.collation_database = latin1_bin;
 SET @@global.collation_database = DEFAULT;
-SELECT @@global.collation_database;
-@@global.collation_database
-latin1_swedish_ci
+SELECT length(@@global.collation_database) > 0;
+length(@@global.collation_database) > 0
+1
 '#--------------------FN_DYNVARS_016_03-------------------------#'
 SET @@session.collation_database = utf8_polish_ci;
 SELECT @@session.collation_database;
@@ -1226,10 +1228,4 @@ WHERE VARIABLE_NAME='collation_database') AS res;
 res
 1
 SET @@global.collation_database = @global_start_value;
-SELECT @@global.collation_database;
-@@global.collation_database
-latin1_swedish_ci
 SET @@session.collation_database = @session_start_value;
-SELECT @@session.collation_database;
-@@session.collation_database
-latin1_swedish_ci

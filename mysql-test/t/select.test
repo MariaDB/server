@@ -13,7 +13,8 @@ drop table if exists t1_1,t1_2,t9_1,t9_2,t1aa,t2aa;
 drop view if exists v1;
 --enable_warnings
 
-SET @save_optimizer_switch=@@optimizer_switch;
+--source include/default_optimizer_switch.inc
+
 SET optimizer_switch=ifnull(@optimizer_switch_for_select_test,'outer_join_with_cache=off');
 if (`select @join_cache_level_for_select_test is null`)
 {
@@ -4174,13 +4175,13 @@ INSERT INTO t5 VALUES (20),(5);
 CREATE TABLE t6(f1 int);
 INSERT INTO t6 VALUES (9),(7);
 
-SET SESSION join_buffer_size = 2176;
+SET @save_join_buffer_size=@@join_buffer_size,@@join_buffer_size = 2176;
 
 EXPLAIN
 SELECT STRAIGHT_JOIN * FROM t2, (t1 LEFT JOIN (t3,t4) ON t1.f1 = t4.f1), t5, t6;
 SELECT STRAIGHT_JOIN * FROM t2, (t1 LEFT JOIN (t3,t4) ON t1.f1 = t4.f1), t5, t6;
 
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_buffer_size = @save_join_buffer_size;
 
 DROP TABLE t1,t2,t3,t4,t5,t6;
 
@@ -4478,7 +4479,7 @@ CREATE TABLE t1 (a TINYBLOB NOT NULL);
 SELECT a, COUNT(*) FROM t1 WHERE 0;
 DROP TABLE t1;
 
-SET optimizer_switch=@save_optimizer_switch;
+SET @@optimizer_switch=@save_optimizer_switch;
 
 --echo #
 --echo # LP bug#994275 Assertion `real->type() == Item::FIELD_ITEM' failed

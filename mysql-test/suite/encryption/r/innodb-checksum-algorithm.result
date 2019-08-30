@@ -44,6 +44,7 @@ backup: te_crc32
 backup: t_crc32
 backup: tpe_crc32
 backup: tp_crc32
+db.opt
 t_crc32.cfg
 t_crc32.frm
 t_crc32.ibd
@@ -184,6 +185,7 @@ backup: te_innodb
 backup: t_innodb
 backup: tpe_innodb
 backup: tp_innodb
+db.opt
 t_innodb.cfg
 t_innodb.frm
 t_innodb.ibd
@@ -324,6 +326,7 @@ backup: te_none
 backup: t_none
 backup: tpe_none
 backup: tp_none
+db.opt
 t_none.cfg
 t_none.frm
 t_none.ibd

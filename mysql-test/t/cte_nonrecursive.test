@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 create table t1 (a int, b  varchar(32));
 insert into t1 values
   (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');  

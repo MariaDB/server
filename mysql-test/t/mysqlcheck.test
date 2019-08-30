@@ -2,8 +2,11 @@ call mtr.add_suppression("Invalid .old.. table or database name");
 
 # Embedded server doesn't support external clients
 --source include/not_embedded.inc
-
 --source include/have_innodb.inc
+--source include/default_charset.inc
+
+set @save_character_set_client=@@character_set_client;
+set @save_collation_connection=@@collation_connection;
 
 # check that CSV engine was compiled in, as the result of the test
 # depends on the presence of the log tables (which are CSV-based).
@@ -136,7 +139,10 @@ drop table t1;
 SET NAMES utf8;
 CREATE TABLE `#mysql50#@` (a INT) engine=myisam;
 SHOW TABLES;
-SET NAMES DEFAULT;
+# Safer version of SET NAMES DEFAULT:
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
+set @@collation_connection=@save_collation_connection;
 --echo mysqlcheck --fix-table-names --databases test
 --exec $MYSQL_CHECK --fix-table-names --databases test
 SET NAMES utf8;
@@ -144,7 +150,10 @@ SHOW TABLES;
 DROP TABLE `@`;
 
 CREATE TABLE `я` (a INT) engine=myisam;
-SET NAMES DEFAULT;
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
+set @@collation_connection=@save_collation_connection;
+
 call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
 --echo mysqlcheck --default-character-set="latin1" --databases test
 # Error returned depends on platform, replace it with "Table doesn't exist"
@@ -155,7 +164,9 @@ call mtr.add_suppression("Can't find file: '..test.@003f.frm'");
 --exec $MYSQL_CHECK --default-character-set="utf8" --databases test
 SET NAMES utf8;
 DROP TABLE `я`;
-SET NAMES DEFAULT;
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
+set @@collation_connection=@save_collation_connection;
 
 CREATE DATABASE `#mysql50#a@b`;
 USE `#mysql50#a@b`;
@@ -405,5 +416,6 @@ create table t1(a int);
 insert into t1 (a) values (1), (2), (3);
 select * from mysql.column_stats;
 --exec $MYSQL_CHECK --analyze test t1 --persistent
+--replace_column 9 # 10 # 11 #
 select * from mysql.column_stats where db_name = 'test' and table_name = 't1';
 drop table t1;

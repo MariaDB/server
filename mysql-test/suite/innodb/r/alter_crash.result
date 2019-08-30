@@ -51,6 +51,7 @@ SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	FILE_FORMAT	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 # Files in datadir after manual recovery.
+db.opt
 t1.frm
 t1.ibd
 SHOW TABLES;
@@ -108,6 +109,7 @@ DROP TABLE t2;
 CREATE TABLE t2 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=InnoDB;
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
 DROP TABLE t2;
+db.opt
 # -------------------------
 # End of Testing Scenario 2
 # -------------------------
@@ -126,6 +128,7 @@ SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	FILE_FORMAT	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 # Files in datadir after manual recovery.
+db.opt
 t1.frm
 t1.ibd
 SHOW TABLES;

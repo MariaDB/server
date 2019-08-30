@@ -8,7 +8,9 @@ insert into t1 values (i, Point(i, i));
 set i = i + 1;
 end while;
 end|
+begin;
 CALL insert_t1(70000);
+commit;
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

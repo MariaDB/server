@@ -1,7 +1,7 @@
 drop table if exists t0, t1, t2, t3, t4, t5, t11, t12, t21, t22;
-set @subselect3_tmp= @@optimizer_switch;
-set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on';
 set join_cache_level=1;
+drop table if exists t0, t1, t2, t3, t4, t5, t11, t12, t21, t22;
+set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on';
 create table t1 (oref int, grp int, ie int) ;
 insert into t1 (oref, grp, ie) values
 (1, 1, 1),
@@ -1544,4 +1544,4 @@ Note	1276	Field or reference 'test.t2.v' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t2`.`i` AS `i`,`test`.`t2`.`v` AS `v`,<expr_cache><`test`.`t2`.`v`>((select count(distinct `test`.`t1`.`i`) from `test`.`t1` where `test`.`t1`.`v` = `test`.`t2`.`v`)) AS `subsel` from `test`.`t2`
 DROP TABLE t1,t2;
 End of 5.6 tests
-set @@optimizer_switch=@subselect3_tmp;
+# end of 10.2 test

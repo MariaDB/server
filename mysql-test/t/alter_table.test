@@ -10,6 +10,7 @@ if (`select plugin_auth_version < "5.6.26" from information_schema.plugins where
 drop table if exists t1,t2;
 drop database if exists mysqltest;
 --enable_warnings
+set @save_max_allowed_packet=@@global.max_allowed_packet;
 
 create table t1 (
 col1 int not null auto_increment primary key,
@@ -1344,7 +1345,7 @@ SELECT LENGTH(my_t3_fld1) FROM t3;
 DROP TABLE t1, t2, t3;
 
 SET SQL_MODE=default;
-SET GLOBAL max_allowed_packet=default;
+SET GLOBAL max_allowed_packet=@save_max_allowed_packet;
 
 #
 # Test of ALTER TABLE IF [NOT] EXISTS

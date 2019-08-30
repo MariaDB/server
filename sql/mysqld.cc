@@ -9133,14 +9133,13 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       return 1;
 #endif
 
-    SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
-    /* PID file */
-    strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
-    strmov(fn_ext(pidfile_name),".pid");
-
-    /* check for errors */
-    if (!pidfile_name_ptr)
-      return 1;                                 // out of memory error
+    if (IS_SYSVAR_AUTOSIZE(&pidfile_name_ptr))
+    {
+      SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
+      /* PID file */
+      strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
+      strmov(fn_ext(pidfile_name),".pid");
+    }
     break;
   }
 #ifdef HAVE_REPLICATION

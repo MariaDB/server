@@ -11,10 +11,12 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `ENCRYPTED`=YES
 # Wait max 10 min for key encryption threads to encrypt all spaces
+db.opt
 t1.frm
 t1.ibd
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
+db.opt
 t1.cfg
 t1.frm
 t1.ibd

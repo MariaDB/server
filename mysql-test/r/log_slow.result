@@ -1,3 +1,4 @@
+set @@log_slow_verbosity="";
 select @@log_slow_filter;
 @@log_slow_filter
 admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk

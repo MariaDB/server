@@ -77,6 +77,7 @@ FTSBEING_DELETED_CACHE.ibd
 FTSCONFIG.ibd
 FTSDELETED.ibd
 FTSDELETED_CACHE.ibd
+db.opt
 t.frm
 t.ibd
 t1.frm
@@ -144,6 +145,7 @@ FTSBEING_DELETED_CACHE.ibd
 FTSCONFIG.ibd
 FTSDELETED.ibd
 FTSDELETED_CACHE.ibd
+db.opt
 t.frm
 t.ibd
 t1.frm
@@ -210,6 +212,7 @@ FTSBEING_DELETED_CACHE.ibd
 FTSCONFIG.ibd
 FTSDELETED.ibd
 FTSDELETED_CACHE.ibd
+db.opt
 t.frm
 t.ibd
 t1.frm

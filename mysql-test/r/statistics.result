@@ -1,5 +1,7 @@
 drop table if exists t1,t2;
 set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
 DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
@@ -1771,3 +1773,4 @@ DROP TABLE t1;
 #
 # End of 10.2 tests
 #
+set @@global.histogram_size=@save_histogram_size;

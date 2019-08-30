@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/default_charset.inc
 
 #
 # MDEV-10083: Orphan ibd file when playing with foreign keys

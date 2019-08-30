@@ -2,6 +2,7 @@
 # MDEV-4520: Assertion `0' fails in Query_cache::end_of_result on
 # concurrent drop event and event execution
 #
+set @save_query_cache_size=@@query_cache_size;
 set GLOBAL query_cache_size=1355776;
 create user mysqltest1@localhost;
 grant SELECT on test.* to mysqltest1@localhost;
@@ -20,4 +21,4 @@ disconnect con1;
 revoke all privileges, grant option from mysqltest1@localhost;
 drop user mysqltest1@localhost;
 drop table t1;
-set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_size=@save_query_cache_size;

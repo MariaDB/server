@@ -1,4 +1,3 @@
-SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
 create view v1 (c,d) as select a,b from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -3773,76 +3772,76 @@ a
 2
 CREATE VIEW v2 AS SELECT t1.a FROM t1, v1 AS a;
 REPLACE INTO v2(a) SELECT 1 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 a
 1
-2
+1
+1
 1
 2
-1
 2
-1
+2
 2
 REPLACE INTO v2(a) SELECT 3 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 a
 1
-2
-3
+1
+1
+1
+1
+1
+1
+1
 1
 2
-3
-1
+2
+2
+2
+2
+2
+2
+2
 2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
+3
+3
 3
 INSERT INTO v2(a) SELECT 1 FROM t1,t1 AS c
 ON DUPLICATE KEY UPDATE `v2`.`a`= 1;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 a
 1
-2
-3
+1
+1
+1
+1
+1
+1
+1
 1
 2
-3
-1
+2
+2
+2
+2
+2
+2
+2
 2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
 3
-1
-2
+3
+3
 3
 DROP VIEW v1;
 DROP VIEW v2;

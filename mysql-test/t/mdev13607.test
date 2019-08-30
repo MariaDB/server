@@ -3,6 +3,7 @@
 --echo #
 
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 CREATE TABLE t1 (id INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES 

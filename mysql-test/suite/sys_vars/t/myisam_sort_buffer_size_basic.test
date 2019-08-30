@@ -35,10 +35,9 @@
 #############################################################
 
 SET @start_global_value = @@global.myisam_sort_buffer_size ;
-SELECT @start_global_value;
-SET @start_session_value = @@session.myisam_sort_buffer_size ;
-SELECT @start_session_value;
-
+SELECT @@session.myisam_sort_buffer_size = @@global.myisam_sort_buffer_size;
+SET @@global.myisam_sort_buffer_size= default;
+SET @default_myisam_sort_buffer_size= @@global.myisam_sort_buffer_size;
 
 --echo '#--------------------FN_DYNVARS_005_01-------------------------#'
 ########################################################################
@@ -47,23 +46,11 @@ SELECT @start_session_value;
 
 SET @@global.myisam_sort_buffer_size   = 100;
 SET @@global.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@global.myisam_sort_buffer_size  ;
+SELECT @@global.myisam_sort_buffer_size = @default_myisam_sort_buffer_size;
 
 SET @@session.myisam_sort_buffer_size   = 200;
 SET @@session.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@session.myisam_sort_buffer_size  ;
-
-
---echo '#--------------------FN_DYNVARS_005_02-------------------------#'
-########################################################################
-#     Check the DEFAULT value of myisam_sort_buffer_size                #
-########################################################################
-
-SET @@global.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@global.myisam_sort_buffer_size   = 134216704;
-
-SET @@session.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@session.myisam_sort_buffer_size   = 134216704;
+SELECT @@session.myisam_sort_buffer_size = @default_myisam_sort_buffer_size;
 
 
 --echo '#--------------------FN_DYNVARS_005_03-------------------------#'
@@ -94,9 +81,6 @@ SELECT @@session.myisam_sort_buffer_size  ;
 
 SET @@session.myisam_sort_buffer_size   = 655345;
 SELECT @@session.myisam_sort_buffer_size  ;
-
-
-
 
 --echo '#------------------FN_DYNVARS_005_05-----------------------#'
 ####################################################################
@@ -236,12 +220,7 @@ SELECT myisam_sort_buffer_size   = @@session.myisam_sort_buffer_size  ;
 ####################################
 
 SET @@global.myisam_sort_buffer_size   = @start_global_value;
-SELECT @@global.myisam_sort_buffer_size  ;
-SET @@session.myisam_sort_buffer_size   = @start_session_value;
-SELECT @@session.myisam_sort_buffer_size  ;
-
 
 #############################################################
 #                 END OF myisam_sort_buffer_size   TESTS     #
 #############################################################
-

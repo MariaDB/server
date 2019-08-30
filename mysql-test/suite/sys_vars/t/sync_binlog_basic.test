@@ -36,27 +36,6 @@
 ##################################################################
 
 SET @start_value = @@global.sync_binlog;
-SELECT @start_value;
-
-
---echo '#--------------------FN_DYNVARS_168_01------------------------#'
-##################################################################
-#              Display the DEFAULT value of sync_binlog          #
-################################################################## 
-
-SET @@global.sync_binlog = 99;
-SET @@global.sync_binlog = DEFAULT;
-SELECT @@global.sync_binlog;
-
-
---echo '#---------------------FN_DYNVARS_168_02-------------------------#'
-############################################### 
-#     Verify default value of variable        #
-############################################### 
-
-SET @@global.sync_binlog = @start_value;
-SELECT @@global.sync_binlog = 0;
-
 
 --echo '#--------------------FN_DYNVARS_168_03------------------------#'
 ###################################################################
@@ -121,8 +100,6 @@ SELECT @@global.sync_binlog = VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
 WHERE VARIABLE_NAME='sync_binlog';
 
-
-
 --echo '#---------------------FN_DYNVARS_168_07----------------------#'
 ##########################################################################  
 #   Check if sync_binlog can be accessed with and without @@ sign   #
@@ -148,9 +125,7 @@ SELECT sync_binlog = @@session.sync_binlog;
 ##############################
 
 SET @@global.sync_binlog = @start_value;
-SELECT @@global.sync_binlog;
-
 
 ######################################################################## 
-#              END OF sync_binlog TESTS                           #
+#                END OF sync_binlog TESTS                              #
 ######################################################################## 

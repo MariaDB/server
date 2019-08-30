@@ -1,4 +1,5 @@
 drop table if exists t1,t2;
+set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect  conn1,localhost,root,,;
 connection conn1;
@@ -4622,7 +4623,7 @@ COLLATION(space(2))
 latin2_general_ci
 disconnect conn1;
 connection default;
-set global max_allowed_packet=default;
+set global max_allowed_packet=@save_max_allowed_packet;
 #
 # End of 5.6 tests
 #

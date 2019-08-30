@@ -8,6 +8,9 @@ select @@session.use_stat_tables;
 @@session.use_stat_tables
 COMPLEMENTARY
 set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set optimizer_use_condition_selectivity=1;
 set use_stat_tables='preferably';
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
@@ -776,7 +779,6 @@ set names utf8;
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set optimizer_use_condition_selectivity=4;
 set use_stat_tables=preferably;
-set @save_histogram_size= @@histogram_size;
 set histogram_size=255;
 create table t1 ( a varchar(255) character set utf8);
 insert into t1 values (REPEAT('ӥ',255)), (REPEAT('ç',255));
@@ -827,5 +829,6 @@ set @@sql_mode= @save_sql_mode;
 set use_stat_tables=@save_use_stat_tables;
 set @@histogram_size= @save_histogram_size;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set @@global.histogram_size=@save_histogram_size;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;

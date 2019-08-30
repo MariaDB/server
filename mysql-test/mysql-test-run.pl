@@ -3407,6 +3407,10 @@ sub mysql_install_db {
       mtr_appendfile_to_file("$sql_dir/fill_help_tables.sql",
            $bootstrap_sql_file);
 
+      # Create test database
+      mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
+                            $bootstrap_sql_file);
+
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to MyISAM now
       mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
@@ -3442,9 +3446,8 @@ sub mysql_install_db {
   mtr_tofile($path_bootstrap_log,
 	     "$exe_mysqld_bootstrap " . join(" ", @$args) . "\n");
 
-  # Create directories mysql and test
+  # Create directories mysql
   mkpath("$install_datadir/mysql");
-  mkpath("$install_datadir/test");
 
   if ( My::SafeProcess->run
        (
@@ -4609,6 +4612,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
      qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
+     qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,

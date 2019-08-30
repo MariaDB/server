@@ -62,7 +62,6 @@ affected rows: 0
 # Cleanup.
 #
 # reset variable value to pass testcase checks
-SET @@global.max_allowed_packet = 16777216;
 affected rows: 0
 DROP TABLE t1;
 affected rows: 0

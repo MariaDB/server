@@ -32,6 +32,8 @@ EOF
 
 --exec bash $MYSQL_TMP_DIR/concurrent_alter.sh
 
+let $server_charset=`select @@character_set_server`;
+--replace_result $server_charset DEFAULT_CHARSET
 SHOW CREATE TABLE a1;
 
 DROP DATABASE mysqlslap;

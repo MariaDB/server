@@ -1,3 +1,4 @@
+set @save_query_cache_size=@@global.query_cache_size;
 set global query_cache_type=ON;
 set local query_cache_type=ON;
 set global query_cache_size=1355776;
@@ -41,3 +42,4 @@ show query_cache_info;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'query_cache_info' at line 1
 flush query_cache_info;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'query_cache_info' at line 1
+set @@global.query_cache_size=@save_query_cache_size;

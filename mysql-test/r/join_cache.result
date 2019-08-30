@@ -1,12 +1,16 @@
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
 DROP DATABASE IF EXISTS world;
-set @save_optimizer_switch=@@optimizer_switch;
+set @org_optimizer_switch=@@optimizer_switch;
+set @save_join_cache_level=@@join_cache_level;
+set @save_join_buffer_space_limit=@@join_buffer_space_limit;
+set @save_join_buffer_size=@@join_buffer_size;
+set @save_expensive_subquery_limit=@@expensive_subquery_limit;
 set @@optimizer_switch='optimize_join_buffer_size=on';
-set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on';
+set @@optimizer_switch='semijoin=on,firstmatch=on,loosescan=on';
 set @@optimizer_switch='semijoin_with_cache=on';
 set @@optimizer_switch='outer_join_with_cache=on';
-set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
-set @local_join_cache_test_optimizer_switch_default=@@optimizer_switch;
+set @@optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+set @local_optimizer_switch=@@optimizer_switch;
 set names utf8;
 CREATE DATABASE world;
 use world;
@@ -770,14 +774,8 @@ Long Beach	United States	English
 Lexington-Fayette	United States	English
 Louisville	United States	English
 Little Rock	United States	English
-set join_cache_level=default;
-set join_buffer_size=default;
-show variables like 'join_buffer_size';
-Variable_name	Value
-join_buffer_size	262144
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 DROP DATABASE world;
 CREATE DATABASE world;
 use world;
@@ -2684,14 +2682,8 @@ Kaunas
 Klaipeda
 ?iauliai
 Panevezys
-set join_cache_level=default;
-set join_buffer_size=default;
-show variables like 'join_buffer_size';
-Variable_name	Value
-join_buffer_size	262144
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 set join_cache_level=1;
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND City.Population > 3000000;
@@ -2799,7 +2791,7 @@ Teheran	Iran
 Tianjin	China
 Tokyo	Japan
 Wuhan	China
-set join_buffer_size=default;
+set join_buffer_size=@save_join_buffer_size;
 set join_cache_level=6;
 ALTER TABLE Country MODIFY Name varchar(52) NOT NULL default '';
 SELECT City.Name, Country.Name FROM City,Country
@@ -2883,8 +2875,8 @@ Kaunas	Lithuania	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Klaipeda	Lithuania	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ?iauliai	Lithuania	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Panevezys	Lithuania	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-set join_cache_level=default;
-set join_buffer_size=default;
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 #
 # MDEV-17752: Plan changes from hash_index_merge to index_merge with new optimizer defaults
 #
@@ -2915,7 +2907,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	hash_index_merge	Population,Country,City_Name	#hash#Country:Population,City_Name	3:4,35	world.Country.Code	96	Using sort_union(Population,City_Name); Using where; Using join buffer (flat, BNLH join)
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set @@use_stat_tables=@save_use_stat_tables;
-set join_cache_level=default;
+set @@join_cache_level=@save_join_cache_level;
 DROP DATABASE world;
 use test;
 CREATE TABLE t1(
@@ -3204,8 +3196,8 @@ DROP TABLE t1,t2;
 #
 # Bug #40134: outer join with not exists optimization and join buffer
 #
-set join_cache_level=default;
-set join_buffer_size=default;
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 CREATE TABLE t1 (a int NOT NULL);
 INSERT INTO t1 VALUES (2), (4), (3), (5), (1);
 CREATE TABLE t2 (a int NOT NULL, b int NOT NULL, INDEX i_a(a));
@@ -3233,8 +3225,8 @@ a	a	b
 5	NULL	NULL
 1	NULL	NULL
 DROP TABLE t1, t2;
-set join_cache_level=default;
-set join_buffer_size=default;
+set join_cache_level=@save_join_cache_level;
+set join_buffer_size=@save_join_buffer_size;
 #
 # BUG#40136: Group by is ignored when join buffer is used for an outer join
 #
@@ -3286,7 +3278,7 @@ a	b	a	b	a	b
 4	2	1	2	4	2
 3	3	NULL	NULL	NULL	NULL
 5	3	NULL	NULL	NULL	NULL
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t2, t3, t4;
 #
 # Bug #40192: outer join with where clause when using BNL 
@@ -3310,7 +3302,7 @@ select * from t1 left join t2 on t1.a=t2.a where t2.c=102 or t2.c is null;
 a	b	a	c
 3	30	3	102
 2	20	NULL	NULL
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 drop table t1, t2;
 #
 # Bug #40317: outer join with with constant on expression equal to FALSE
@@ -3337,7 +3329,7 @@ explain select * from t1 left join t2 on (1=0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 drop table t1, t2;
 #
 # Bug #41204: small buffer with big rec_per_key for ref access
@@ -3376,8 +3368,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT AVG(c) FROM t1,t2 WHERE t1.a=t2.b;
 AVG(c)
 5.0000
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1, t2;
 #
 # Bug #41894: big join buffer of level 7 used to join records
@@ -3419,8 +3411,8 @@ WHERE t1.a=t2.a AND t2.a=t3.a AND
 t1.b IS NULL AND t2.b IS NULL AND t3.b IS NULL;
 COUNT(*)
 16384
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3;
 #
 # Bug #42020: join buffer is used  for outer join with fields of 
@@ -3519,8 +3511,8 @@ a	a	a	b	b	val
 2	2	2	60	60	0
 2	2	2	70	70	0
 2	2	2	80	80	0
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3;
 create table t1(f1 int, f2 int);
 insert into t1 values (1,1),(2,2),(3,3);
@@ -3607,7 +3599,7 @@ Variable_name	Value
 Handler_icp_attempts	80
 Handler_icp_match	16
 drop table t1,t2;
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 #
 # Bug #42955: join with GROUP BY/ORDER BY and when BKA is enabled 
 #             
@@ -3651,7 +3643,7 @@ id1
 20
 30
 30
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 drop table t1,t2;
 #
 # Bug #44019: star-like multi-join query executed join_cache_level=6 
@@ -3715,7 +3707,7 @@ select t1.a, t1.b, t1.c, t1.d, t2.e, t3.f, t4.g from t1,t2,t3,t4
 where t2.b=t1.b and t3.d=t1.d and t4.c=t1.c;
 a	b	c	d	e	f	g
 3	30	300	3000	bbb	ddd	ccc
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 drop table t1,t2,t3,t4;
 #
 # Bug #44250: Corruption of linked join buffers when using BKA 
@@ -3799,8 +3791,8 @@ id1	num3	text1	id4	id3	dummy
 228808822	3	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	28	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	62	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
-set join_buffer_size=default;
-set join_cache_level=default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4,t5;
 #
 # Bug#45267: Incomplete check caused wrong result.
@@ -3862,7 +3854,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	NULL	int_key	4	NULL	2	Using index; Using join buffer (flat, BNL join)
 
 DROP TABLE t1,t2;
-SET join_cache_level=default;
+SET join_cache_level=@save_join_cache_level;
 #
 # Regression test for
 # Bug#46733 - NULL value not returned for aggregate on empty result 
@@ -3915,7 +3907,7 @@ SELECT t1.*, t2.*, LENGTH(t2.c1), LENGTH(t2.c2) FROM t1,t2
 WHERE t1.c2=LENGTH(t2.c2) and t1.c1=LENGTH(t2.c1);
 c1	c2	c1	c2	LENGTH(t2.c1)	LENGTH(t2.c2)
 2	2	tt	uu	2	2
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #51092: linked join buffer is used for a 3-way cross join query 
@@ -3959,7 +3951,7 @@ a	b
 2	2
 1	1
 2	2
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 drop table t1,t2,t3;
 #
 # Bug #52394:  using join buffer for 3 table join with ref access 
@@ -3988,7 +3980,7 @@ a
 27
 27
 DROP TABLE t1,t2,t3;
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 #
 # Bug #51084: Batched key access crashes for SELECT with
 #             derived table and LEFT JOIN 
@@ -4028,7 +4020,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.carrier	1	Using where
 1	SIMPLE	t4	ref	carrier_id	carrier_id	5	test.t3.id	2	Using index
-SET join_cache_level=default;
+SET join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
 # Bug #52636: allowing JOINs on NULL values w/ join_cache_level = 5-8
@@ -4092,7 +4084,7 @@ SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 a
 NULL
 NULL
-set join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #54359: Extra rows with join_cache_level=7,8 and two joins
@@ -4119,7 +4111,7 @@ WHERE s.pk AND s.a  >= t.pk AND  s.b  = t.c;
 a
 9
 9
-set join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1;
 #
 # Bug #54235: Extra rows with join_cache_level=6,8 and two LEFT JOINs
@@ -4159,7 +4151,7 @@ WHERE t1.a OR t4.a;
 a
 2
 1
-set join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
 # Bug #663840: Memory overwrite causing crash with hash join
@@ -4294,8 +4286,8 @@ i	d	v	i	d	t	v
 8	2009-01-13	z	5	1900-01-01	22:45:53	a
 8	2009-01-13	z	5	1900-01-01	22:45:53	a
 DROP TABLE t1,t2,t3;
-SET SESSION join_cache_level=DEFAULT;
-SET SESSION join_buffer_size=DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 #
 # Bug #664508: 'Simple' GROUP BY + ORDER BY 
 #              when join buffers are used
@@ -4440,7 +4432,7 @@ n
 v
 p
 DROP TABLE t1,t2,t3;
-SET SESSION join_cache_level=DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 #
 # Bug #668290: hash join with non-binary collations 
 #
@@ -4486,7 +4478,7 @@ SELECT t2.i FROM t1,t2 WHERE t1.cu = t2.cl ;
 i
 6
 6
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #669382: hash join using a ref with constant key parts 
@@ -4511,8 +4503,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	hash_ALL	NULL	#hash#$hj	5	test.t2.a	36	Using where; Using join buffer (flat, BNLH join)
 SELECT t1.a, t2.c FROM t1,t2 WHERE t1.a=t2.a AND t2.b=99;
 a	c
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 DROP TABLE t1,t2;
 #
 # Bug #671901: hash join using a ref to a varchar field
@@ -4580,7 +4572,7 @@ SELECT t1.v,t2.i FROM t1,t2 WHERE t2.v = concat(t1.v, t1.v);
 v	i
 f	5
 f	5
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 # Bug #672497: 3 way join with tiny incremental join buffer with
 #              and a ref access from the first table 
@@ -4649,8 +4641,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT t3.i FROM t1,t2,t3
 WHERE t1.v = t2.v AND t3.v = t1.v AND t2.i <> 0;
 i
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 DROP TABLE t1,t2,t3;
 #
 # Bug #672551: hash join over a long varchar field
@@ -4704,7 +4696,7 @@ pk	a	pk	a
 2	aa	131	aa
 3	bb	132	bb
 2	aa	142	aa
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #674431: nested outer join when join_cache_level is set to 7
@@ -4725,8 +4717,8 @@ a
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'h'
 Warning	1292	Truncated incorrect INTEGER value: 'j'
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3;
 #
 # Bug #52540: nested outer join when join_cache_level is set to 3
@@ -4746,8 +4738,8 @@ FROM t2 LEFT JOIN
 a	a	pk	a
 f	2	2	NULL
 x	2	2	NULL
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
 # Bug #674423: outer join with ON expression over only outer tables 
@@ -4775,8 +4767,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT * FROM t2 LEFT JOIN t1 ON t2.a <> 0 WHERE t1.a <> 0 OR t2.pk < 9;
 pk	a	a
 1	NULL	NULL
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #675095: nested outer join using join buffer 
@@ -4861,8 +4853,8 @@ pk	a1	pk	a2	c2	d2	pk	a3	c3	d3	pk	a4	pk	a5
 2	NULL	9	0	0	2	9	0	0	2	NULL	NULL	8	0
 2	NULL	9	0	0	2	1	0	0	7	NULL	NULL	8	0
 8	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	8	0	NULL	NULL
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4,t5;
 #
 # Bug #675516: nested outer join with 3 tables in the nest
@@ -4909,8 +4901,8 @@ t1 LEFT JOIN
 ((t2 JOIN t3 ON t2.a2 = t3.b3) JOIN t4 ON t4.b4 <> 0) ON t1.c1 = t3.c3
 WHERE t3.a3 IS NULL;
 a1	b1	c1	a2	a3	b3	c3	a4	b4	c4
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
 # Bug #660963: nested outer join with join_cache_level set to 5
@@ -4944,8 +4936,8 @@ SELECT * FROM t1 LEFT JOIN t2 JOIN t3 ON t3.a3 = t2.a2 ON t3.b3 <> 0;
 a1	a2	b2	a3	b3
 0	2	1	2	1
 0	2	1	2	1
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3;
 #
 # Bug #675922: incremental buffer for BKA with access from previous
@@ -4996,8 +4988,8 @@ LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
 a4	b5
 9	0
 9	NULL
-SET SESSION optimizer_switch = 'outer_join_with_cache=off';
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION optimizer_switch=@local_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4,t5;
 #
 # Bug #670380: hash join for non-binary collation
@@ -5041,7 +5033,7 @@ pk	a	pk	a
 40	DD	112	dd
 50	ee	113	EE
 50	ee	114	ee
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #694092: incorrect detection of index only pushdown conditions
@@ -5075,8 +5067,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT * FROM t1,t2
 WHERE t1.f1 = t2.f4 AND (t1.f3 = 1 AND t2.f3 = 4 OR t1.f3 = 2 AND t2.f3 = 6);
 f1	f3	f3	f2	f4
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION optimizer_switch = @local_join_cache_test_optimizer_switch_default;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (f1 int, f2 varchar(10), KEY (f1), KEY (f2)) ;
 INSERT INTO t1 VALUES
@@ -5098,7 +5090,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT * FROM t1,t2 
 WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
 f1	f2	f3
-SET SESSION optimizer_switch = @local_join_cache_test_optimizer_switch_default;
+SET SESSION optimizer_switch=@local_optimizer_switch;
 SET SESSION optimizer_switch = 'index_condition_pushdown=on';
 EXPLAIN SELECT * FROM t1,t2 
 WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
@@ -5108,7 +5100,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT * FROM t1,t2 
 WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
 f1	f2	f3
-SET SESSION optimizer_switch = @local_join_cache_test_optimizer_switch_default;
+SET SESSION optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2;
 #
 # Bug #694443: hash join using IS NULL the an equi-join condition
@@ -5154,7 +5146,7 @@ a	a	b
 2	NULL	41
 1	NULL	42
 2	NULL	42
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #697557: hash join on a varchar field 
@@ -5176,7 +5168,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	hash_ALL	f1	#hash#f1	13	test.t1.f1	20	Using join buffer (flat, BNLH join)
 SELECT * FROM t1,t2 WHERE t2.f1 = t1.f1;
 f1	f2	f1	f2
-SET SESSION join_cache_level = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # Bug #707827: hash join on varchar column with NULLs 
@@ -5210,8 +5202,8 @@ SELECT a FROM t1,t2 WHERE t2.v = t1.v ;
 a
 11
 18
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level=@save_join_cache_level;
+SET SESSION join_buffer_size=@save_join_buffer_size;
 DROP TABLE t1,t2;
 #
 # Bug #802860: crash on join cache + derived + duplicate_weedout 
@@ -5246,8 +5238,8 @@ SELECT * FROM (SELECT DISTINCT * FROM t1) t
 WHERE t.a  IN (SELECT t2.a FROM t2);
 a
 0
-SET SESSION join_cache_level = DEFAULT;
 DROP TABLE t1, t2;
+SET SESSION join_cache_level=@save_join_cache_level;
 #
 # Bug #887479: join_cache_level=3 + semijoin=on 
 #
@@ -5255,7 +5247,7 @@ CREATE TABLE t1 (a int, b int);
 INSERT INTO t1 VALUES (3914,17), (3710,5), (3888,20);
 CREATE TABLE t2 (c int, KEY (c));
 INSERT INTO t2 VALUES (27), (17), (33), (20), (3), (7), (18), (2);
-SET @tmp887479_optimizer_switch=@@optimizer_switch;
+SET @tmp_optimizer_switch=@@optimizer_switch;
 SET SESSION optimizer_switch='semijoin=on';
 SET SESSION optimizer_switch='semijoin_with_cache=on';
 SET SESSION join_cache_level=1;
@@ -5278,8 +5270,8 @@ SELECT * FROM t1 WHERE (t1.b) IN (SELECT c FROM t2);
 a	b
 3914	17
 3888	20
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp887479_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2;
 #
 # Bug #899777: join_cache_level=4 + semijoin=on 
@@ -5325,8 +5317,8 @@ WHERE (t1.b,t2.b) IN (SELECT t3.b,t4.b FROM t3,t4 WHERE t4.c=t3.b)
 AND t1.a = 1;
 a	b	c
 1	8	6
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2,t3,t4;
 #
 # Bug #899509: an attempt to use hash join with join_cache_level=0 
@@ -5337,11 +5329,9 @@ CREATE TABLE t2 (a int);
 INSERT INTO t2 VALUES (8), (7);
 CREATE TABLE t3 (a int);
 INSERT INTO t3 VALUES (8), (7);
-SET @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch=default;
 set @@optimizer_switch='semijoin_with_cache=off';
 set @@optimizer_switch='outer_join_with_cache=off';
-SET optimizer_switch='derived_merge=off,derived_with_keys=off';
+set @@optimizer_switch='derived_merge=off,derived_with_keys=off';
 SET join_cache_level=0;
 EXPLAIN
 SELECT * FROM (SELECT t1.* FROM t1, t2) t WHERE t.a IN (SELECT * FROM t3);
@@ -5363,8 +5353,8 @@ a
 8
 7
 7
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2,t3;
 #
 # Bug #900469: semijoin + BNLH + ORDER BY 
@@ -5377,8 +5367,8 @@ INSERT INTO t2 VALUES (9,11);
 CREATE TABLE t3 (c int, d int);
 INSERT INTO t3 VALUES (8,10);
 INSERT INTO t3 VALUES (9,11);
-SET @tmp_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='semijoin_with_cache=on';
+set @@optimizer_switch='firstmatch=off';
 SET join_cache_level=1;
 EXPLAIN
 SELECT * FROM t1,t2 WHERE b IN (SELECT d FROM t3 WHERE c <= t2.c) ORDER BY a,d;
@@ -5412,8 +5402,8 @@ SELECT * FROM t1,t2 WHERE b IN (SELECT d FROM t3 WHERE c <= t2.c) ORDER BY a,d;
 a	b	c	d
 8	10	8	10
 8	10	9	11
-SET SESSION join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+SET SESSION join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2,t3;
 #
 # Bug #901478: semijoin + ORDER BY + join_cache_level=4|6 
@@ -5431,7 +5421,6 @@ INSERT INTO t4 VALUES
 INSERT INTO t4 VALUES
 (19,11,10), (17,12,18), (12,13,15), (14,12,19),
 (18,13,18), (13,14,11), (15,15,14);
-SET @tmp_optimizer_switch=@@optimizer_switch;
 SET @@optimizer_switch='semijoin=on';
 SET @@optimizer_switch='firstmatch=off';
 SET @@optimizer_switch='mrr=off';
@@ -5491,8 +5480,8 @@ ORDER BY t2.b;
 a	a	b	c
 x	4	2	9
 x	5	5	4
-SET join_cache_level = DEFAULT;
-SET optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2,t3,t4;
 #
 # Bug#53305 Duplicate weedout + join buffer (join cache --level=7,8)
@@ -5511,11 +5500,10 @@ insert into t3 values
 (1,1), (1,2), (1,3),(1,4),
 (2,5), (2,6), (2,7), (2,8),
 (3,1), (3,2), (3,9);
-set @tmp_optimizer_switch=@@optimizer_switch;
-set  @@optimizer_switch='semijoin=on';
-set optimizer_switch='materialization=off';
-set optimizer_switch='loosescan=off,firstmatch=off';
-set optimizer_switch='mrr_sort_keys=off';
+set @@optimizer_switch='semijoin=on';
+set @@optimizer_switch='materialization=off';
+set @@optimizer_switch='loosescan=off,firstmatch=off';
+set @@optimizer_switch='mrr_sort_keys=off';
 set join_cache_level=7;
 create table t4 (uid int primary key, name varchar(128), index(name));
 insert into t4 values 
@@ -5544,8 +5532,8 @@ F
 G
 H
 I
-set join_cache_level = default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 drop table t1,t2,t3,t4;
 #
 # Bug#50358 - semijoin execution of subquery with outerjoin
@@ -5557,9 +5545,8 @@ CREATE TABLE t3 (i int);
 INSERT INTO t1 VALUES (1), (2);
 INSERT INTO t2 VALUES (6);
 INSERT INTO t3 VALUES (1), (2);
-set @tmp_optimizer_switch=@@optimizer_switch;
-set  @@optimizer_switch='semijoin=on';
-set optimizer_switch='materialization=on';
+set @@optimizer_switch='semijoin=on';
+set @@optimizer_switch='materialization=on';
 set join_cache_level=0;
 EXPLAIN
 SELECT * FROM t1 WHERE t1.i IN 
@@ -5588,8 +5575,8 @@ SELECT * FROM t1 WHERE t1.i IN
 i
 1
 2
-set join_cache_level = default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2,t3;
 #
 # Bug #12546542: missing row with semijoin=off + join cache
@@ -5603,9 +5590,8 @@ a varchar(1024) CHARACTER SET utf8 DEFAULT NULL, b int, c int
 INSERT INTO t2 VALUES ('we',4,NULL), ('v',1305673728,6);
 CREATE TABLE t3 (b int, c int);
 INSERT INTO t3 VALUES (4,4);
-set @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch='semijoin=off';
-set optimizer_switch='materialization=off';
+set @@optimizer_switch='semijoin=off';
+set @@optimizer_switch='materialization=off';
 set join_cache_level=0;
 EXPLAIN
 SELECT * FROM t1
@@ -5636,8 +5622,8 @@ WHERE t2.c < 10 OR t3.c > 1);
 a
 v
 we
-set join_cache_level = default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2,t3;
 #
 # lp:925985 LEFT JOIN with optimize_join_buffer_size=off +
@@ -5652,12 +5638,11 @@ INSERT INTO t2 VALUES
 (3,32), (1,12), (7,72), (2,22);
 CREATE TABLE t3 (b int, c int);
 INSERT INTO t3 VALUES (32, 302), (42,400), (30,300);
-set @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch='optimize_join_buffer_size=off';
+set @@optimizer_switch='optimize_join_buffer_size=off';
+set @@optimizer_switch='outer_join_with_cache=on';
 set join_buffer_space_limit=4096;
 set join_buffer_size=4096*2;
 set join_cache_level=2;
-set optimizer_switch='outer_join_with_cache=on';
 EXPLAIN
 SELECT * FROM t1, t2 LEFT JOIN t3 ON t2.b=t3.b WHERE t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -5669,10 +5654,10 @@ a	a	b	b	c
 3	3	30	30	300
 3	3	31	NULL	NULL
 3	3	32	32	302
-set join_buffer_space_limit=default;
-set join_buffer_size=default;
-set join_cache_level=default;
-set optimizer_switch=@tmp_optimizer_switch;
+set join_buffer_space_limit=@save_join_buffer_space_limit;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t2,t3;
 #
 # Bug #1058071: LEFT JOIN using blobs 
@@ -5705,8 +5690,7 @@ CREATE TABLE t2 (b int) ENGINE=Aria;
 INSERT INTO t2 VALUES (NULL);
 CREATE TABLE t3 (c int) ENGINE=Aria;
 INSERT INTO t3 VALUES (NULL);
-set @tmp_optimizer_switch=@@optimizer_switch;
-set optimizer_switch = 'outer_join_with_cache=on,join_cache_incremental=on';
+set @@optimizer_switch = 'outer_join_with_cache=on,join_cache_incremental=on';
 set join_buffer_size=128;
 EXPLAIN
 SELECT 1 AS c FROM t1 NATURAL LEFT JOIN t2 LEFT OUTER JOIN t3 ON 1
@@ -5719,11 +5703,9 @@ SELECT 1 AS c FROM t1 NATURAL LEFT JOIN t2 LEFT OUTER JOIN t3 ON 1
 GROUP BY elt(t1.col282,1,t1.col280);
 c
 1
-set join_buffer_size=default;
-set optimizer_switch=@tmp_optimizer_switch;
 DROP table t1,t2,t3;
-set join_buffer_size= default;
-set @@optimizer_switch=@save_optimizer_switch;
+set join_buffer_size=@save_join_buffer_size;
+set @@optimizer_switch=@org_optimizer_switch,@local_optimizer_switch= @org_optimizer_switch;
 #
 # MDEV-5293: outer join, join buffering, and order by - invalid query plan
 #
@@ -5894,8 +5876,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	c25	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	c26	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	c27	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
-set join_buffer_size=default;
-set join_cache_level = default;
+set join_buffer_size=@save_join_buffer_size;
+set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2;
 #
 # MDEV-14960: BNLH used for materialized semi-join
@@ -5913,11 +5895,10 @@ INSERT INTO t1 SELECT i1+64 FROM t1;
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t4 SELECT * FROM t1;
 INSERT INTO t5 SELECT * FROM t1;
-set @save_optimizer_switch= @@optimizer_switch;
 SET join_cache_level = 6;
 SET join_buffer_size=4096;
 SET join_buffer_space_limit=4096;
-SET optimizer_switch = 'join_cache_hashed=on,optimize_join_buffer_size=on';
+set @@optimizer_switch = 'join_cache_hashed=on,optimize_join_buffer_size=on';
 EXPLAIN SELECT * FROM t1
 WHERE
 i1 < 10 AND
@@ -5950,10 +5931,10 @@ i1
 7
 8
 9
-SET join_cache_level = default;
-SET join_buffer_size = default;
-SET join_buffer_space_limit= default;
-set optimizer_switch=@save_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+SET join_buffer_size=@save_join_buffer_size;
+SET join_buffer_space_limit=@save_join_buffer_space_limit;
+set @@optimizer_switch=@local_optimizer_switch;
 DROP TABLE t1,t4,t5,t2;
 #
 # MDEV-16603: BNLH for query with materialized semi-join
@@ -5987,11 +5968,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`temp`.`f1` AS `f1`,`test`.`temp`.`f2` AS `f2` from `test`.`temp` semi join (`test`.`t2` join `test`.`t1`) where `test`.`temp`.`f1` = `test`.`t1`.`i1` and `test`.`t2`.`v1` = `test`.`t1`.`v1` and `test`.`temp`.`f2` = `test`.`t1`.`v1`
 DROP TABLE t1,t2,temp;
-SET join_cache_level = default;
+set join_cache_level=@save_join_cache_level;
 #
 # MDEV-5123 Remove duplicated conditions pushed both to join_tab->select_cond and join_tab->cache_select->cond for blocked joins.
 #
-set join_cache_level=default;
 set expensive_subquery_limit=0;
 create table t1 (c1 int);
 create table t2 (c2 int);
@@ -6034,7 +6014,7 @@ select @counter;
 @counter
 2
 drop table t1,t2,t3;
-set expensive_subquery_limit=default;
+set expensive_subquery_limit=@save_expensive_subquery_limit;
 # 
 # MDEV-6071: EXPLAIN chooses to use join buffer while execution turns it down
 # 
@@ -6046,17 +6026,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	11	Using where; Using join buffer (flat, BNL join)
 set join_buffer_space_limit=1024*8;
-select @@join_buffer_space_limit;
-@@join_buffer_space_limit
-8192
-select @@join_buffer_size;
-@@join_buffer_size
-262144
 explain select count(*) from t1, t1 t2 where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	11	Using where
-set join_buffer_space_limit=default;
+set join_buffer_space_limit=@save_join_buffer_space_limit;
 drop table t1;
 #
 # MDEV-6687: Assertion `0' failed in Protocol::end_statement on query
@@ -6070,7 +6044,7 @@ SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user WHERE password_expired = 
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	Using where
 1	SIMPLE	user	hash_ALL	NULL	#hash#$hj	1	information_schema.PROFILING.PAGE_FAULTS_MINOR	4	Using where; Using join buffer (flat, BNLH join)
-set join_cache_level=default;
+set join_cache_level=@save_join_cache_level;
 create table t1 (c1 date not null, key (c1)) engine=innodb;
 insert t1 values ('2017-12-27');
 create table t2 (pk int, f1 int, f2 int);
@@ -6079,5 +6053,5 @@ set join_buffer_size = 222222208;
 select f2 from t2,t1 where f2 = 0;
 f2
 drop table t1, t2;
-set join_buffer_size = default;
+set join_buffer_size=@save_join_buffer_size;
 set @@optimizer_switch=@save_optimizer_switch;

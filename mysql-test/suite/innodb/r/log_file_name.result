@@ -98,5 +98,6 @@ FOUND 1 /InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace.*/
 FOUND 1 /\[Warning\] InnoDB: Tablespace \d+ was not found at .*u[1-5].ibd, and innodb_force_recovery was set. All redo log for this tablespace will be ignored!.*/ in mysqld.1.err
 DROP TABLE u1,u2,u3,u6;
 # List of files:
+db.opt
 SHOW TABLES;
 Tables_in_test

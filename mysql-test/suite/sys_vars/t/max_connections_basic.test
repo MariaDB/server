@@ -35,7 +35,7 @@
 ###################################################################
 
 SET @start_value = @@global.max_connections;
-SELECT @start_value;
+SELECT @start_value > 0;
 
 
 --echo '#--------------------FN_DYNVARS_074_01------------------------#'
@@ -43,9 +43,9 @@ SELECT @start_value;
 #           Display the DEFAULT value of max_connections         #
 ##################################################################
 
-SET @@global.max_connections = 5000;
+SET @@global.max_connections = @start_value+1;
 SET @@global.max_connections = DEFAULT;
-SELECT @@global.max_connections;
+SELECT @@global.max_connections <> @start_value+1;
 
 --echo '#---------------------FN_DYNVARS_074_02-------------------------#'
 ############################################### 
@@ -53,7 +53,7 @@ SELECT @@global.max_connections;
 ############################################### 
 
 SET @@global.max_connections = @start_value;
-SELECT @@global.max_connections = 151;
+SELECT @@global.max_connections = @start_value;
 
 
 --echo '#--------------------FN_DYNVARS_074_03------------------------#'
@@ -170,10 +170,8 @@ SELECT max_connections = @@session.max_connections;
 ##############################
 
 SET @@global.max_connections = @start_value;
-SELECT @@global.max_connections;
 
 
 ##################################################################
 #              END OF max_connections TESTS                      #
 ##################################################################
-

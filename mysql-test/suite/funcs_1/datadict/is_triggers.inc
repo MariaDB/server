@@ -19,6 +19,9 @@
 # 2008-06-11 mleich Move t/is_triggers.test to this file and
 #                   create variants for embedded/non embedded server.
 #
+
+--source include/default_charset.inc
+set @save_sql_mode=@@global.sql_mode;
 set global sql_mode="";
 
 let $engine_type       = MEMORY;
@@ -264,4 +267,5 @@ ALTER TABLE information_schema.triggers RENAME information_schema.xtriggers;
 # Cleanup
 DROP DATABASE db_datadict;
 
-set global sql_mode=default;
+set global sql_mode=@save_sql_mode;
+

@@ -26,6 +26,7 @@ start transaction with consistent snapshot;
 select VALUE > 0 as 'Has opened snapshots' from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
 Has opened snapshots
 1
+connection default;
 SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS=
 'cf1={write_buffer_size=8m;target_file_size_base=1m};';
 set rocksdb_bulk_load=1;

@@ -1,3 +1,5 @@
+--source include/default_charset.inc
+
 call mtr.add_suppression("table or database name 't-1'");
 #
 # Check some special create statements.
@@ -977,6 +979,8 @@ SHOW CREATE DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 #
 # Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
 #
+set @save_character_set_client=@@character_set_client;
+set @save_collation_connection=@@collation_connection;
 set names utf8;
 
 create database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
@@ -1052,7 +1056,9 @@ return 0;
 
 drop view имя_вью_кодировке_утф8_длиной_больше_чем_42;
 drop table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-set names default;
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
+set @@session.collation_connection=@save_collation_connection;
 
 #
 # Bug#21136 CREATE TABLE SELECT within CREATE TABLE SELECT causes server crash

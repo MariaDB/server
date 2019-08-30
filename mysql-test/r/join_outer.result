@@ -1,5 +1,5 @@
 drop table if exists t0,t1,t2,t3,t4,t5;
-SET @save_optimizer_switch=@@optimizer_switch;
+SET @org_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_join_outer_test,'outer_join_with_cache=off');
 set join_cache_level=1;
 CREATE TABLE t1 (
@@ -2018,7 +2018,7 @@ EXECUTE stmt;
 b	b	a	b
 10	10	0	10
 DEALLOCATE PREPARE stmt;
-SET SESSION join_cache_level=default;
+SET SESSION join_cache_level=2;
 DROP TABLE t1,t2,t3;
 #
 # LP bug #943543: LEFT JOIN converted to JOIN with 
@@ -2682,4 +2682,4 @@ id	timestamp	modifiedBy	id	REV	REVTYPE	profile_id	id	REV	person_id	id	REV
 12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	117548	300006	300006	97697
 DROP TABLE t1,t2,t3,t4;
 # end of 10.1 tests
-SET optimizer_switch=@save_optimizer_switch;
+SET optimizer_switch=@org_optimizer_switch;

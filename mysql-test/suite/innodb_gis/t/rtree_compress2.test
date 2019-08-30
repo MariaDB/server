@@ -27,7 +27,9 @@ end|
 delimiter ;|
 
 # Test level 3 rtree.
+begin;
 CALL insert_t1(70000);
+commit;
 
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc

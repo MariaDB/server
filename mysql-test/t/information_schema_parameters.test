@@ -7,6 +7,8 @@
 # Last modified:  2007-12-03
 #------------------------------------------------------------------------------
 
+--source include/default_charset.inc
+
 ###############################################################################
 # Testcase parameters.1: Verify INFORMATION_SCHEMA.PARAMETERS view has the
 #                    following structure:

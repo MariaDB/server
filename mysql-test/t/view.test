@@ -1,8 +1,8 @@
 --source include/have_partition.inc
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
+--source include/default_optimizer_switch.inc
 
-SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
 
 #
@@ -3724,12 +3724,12 @@ SELECT * FROM v1;
 CREATE VIEW v2 AS SELECT t1.a FROM t1, v1 AS a;
 
 REPLACE INTO v2(a) SELECT 1 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 REPLACE INTO v2(a) SELECT 3 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 INSERT INTO v2(a) SELECT 1 FROM t1,t1 AS c
 ON DUPLICATE KEY UPDATE `v2`.`a`= 1;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 
 DROP VIEW v1;
 DROP VIEW v2;

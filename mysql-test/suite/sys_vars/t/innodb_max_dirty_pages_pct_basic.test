@@ -26,6 +26,10 @@
 --source include/have_innodb.inc
 --source include/load_sysvars.inc
 
+# set default value for test
+SET @save_innodb_max_dirty_pages_pct=@@global.innodb_max_dirty_pages_pct;
+set @@global.innodb_max_dirty_pages_pct=75;
+
 ######################################################################
 #                    START OF innodb_max_dirty_pages_pct TESTS       #
 ######################################################################
@@ -183,6 +187,8 @@ SELECT @@global.innodb_max_dirty_pages_pct;
 
 SET @@global.innodb_max_dirty_pages_pct_lwm = @global_start_max_dirty_lwm_value;
 SELECT @@global.innodb_max_dirty_pages_pct_lwm;
+
+SET @@global.innodb_max_dirty_pages_pct=@save_innodb_max_dirty_pages_pct;
 
 ###############################################################
 #                    END OF innodb_max_dirty_pages_pct TESTS  #

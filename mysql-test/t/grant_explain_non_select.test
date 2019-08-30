@@ -7,6 +7,7 @@
 
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
+--source include/default_optimizer_switch.inc
 
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
@@ -22,6 +23,7 @@ GRANT SELECT ON privtest_db.t2 TO 'privtest'@'localhost';
 
 connect(con1,localhost,privtest,,);
 connection con1;
+--source include/default_optimizer_switch.inc
 
 USE privtest_db;
 

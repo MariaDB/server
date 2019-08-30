@@ -38,6 +38,7 @@ connection conn2;
 set debug_sync='now WAIT_FOR parked';
 
 # display "Rows Examined" before returning from call
+--replace_result Execute Query
 --replace_column 1 ### 2 ### 3 ### 4 ### 6 ### 10 ### 11 ### 12 ###
 --sorted_result
 SHOW PROCESSLIST;

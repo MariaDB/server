@@ -27,7 +27,7 @@
 --source include/have_sjis.inc
 --source include/have_utf8.inc
 --source include/have_ucs2.inc
-
+--source include/default_charset.inc
 --source include/load_sysvars.inc
 
 ###################################################
@@ -38,7 +38,7 @@
 #                 Save initial value                        #
 #############################################################
 SET @global_start_value = @@global.collation_server;
-SELECT @global_start_value;
+SET @@global.collation_server= @@collation_server;
 # Save initial session value
 SET @session_start_value = @@collation_server;
 SELECT @session_start_value;
@@ -78,11 +78,11 @@ SELECT global collation_server;
 ###############################################################################
 SET @@collation_server = latin1_bin;
 SET @@collation_server = DEFAULT;
-SELECT @@collation_server AS DEFAULT_VALUE;
+SELECT @@collation_server= @@global.collation_server;
 
 SET @@global.collation_server = latin1_bin;
 SET @@global.collation_server = DEFAULT;
-SELECT @@global.collation_server;
+SELECT @@global.collation_server = @global_start_value;
 
 --echo '#--------------------FN_DYNVARS_014_03-------------------------#'
 ###########################################################################
@@ -257,9 +257,7 @@ SELECT @@session.collation_server =
 #     Restore initial value        #
 ####################################
 SET @@global.collation_server = @global_start_value;
-SELECT @@global.collation_server;
 SET @@session.collation_server = @session_start_value;
-SELECT @@session.collation_server;
 
 #####################################################
 #                 END OF collation_server TESTS     #

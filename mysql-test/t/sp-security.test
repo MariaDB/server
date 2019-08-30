@@ -3,7 +3,9 @@
 #
 
 # Can't test with embedded server that doesn't support grants
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/default_charset.inc
+set @@global.character_set_server=@@session.character_set_server;
 
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
@@ -1080,3 +1082,5 @@ disconnect u1;
 connection default;
 DROP DATABASE u1;
 DROP USER u1@localhost;
+
+set @@global.character_set_server=@save_character_set_server;

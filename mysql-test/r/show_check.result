@@ -1,3 +1,5 @@
+SET @@global.character_set_server= @@session.character_set_server;
+set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
 drop table if exists t1,t2;
 drop table if exists t1aa,t2aa;
 drop database if exists mysqltest;
@@ -438,9 +440,7 @@ table	CREATE TABLE `table` (
 DROP TABLE `table`;
 SET sql_quote_show_create= @old_sql_quote_show_create;
 SET sql_mode= @old_sql_mode;
-select @@max_heap_table_size;
-@@max_heap_table_size
-1048576
+set @@max_heap_table_size=1048576;
 CREATE TABLE t1 (
 a int(11) default NULL,
 KEY a USING BTREE (a)
@@ -1597,3 +1597,4 @@ Level	Code	Message
 SHOW CONTRIBUTORS;
 SHOW WARNINGS;
 Level	Code	Message
+SET @@global.character_set_server=@save_character_set_server;

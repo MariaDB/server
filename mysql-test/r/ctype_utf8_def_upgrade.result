@@ -7,7 +7,7 @@
 # Test with a saved table from 3.23
 SELECT @@character_set_database;
 @@character_set_database
-utf8
+latin1
 SET @@character_set_database="latin1";
 SELECT COUNT(*) FROM t1;
 ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM

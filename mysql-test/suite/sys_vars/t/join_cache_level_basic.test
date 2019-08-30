@@ -5,11 +5,13 @@ SET @start_global_value = @@global.join_cache_level;
 #
 # exists as global only
 #
-select @@global.join_cache_level;
-select @@session.join_cache_level;
+--replace_column 2 #
 show global variables like 'join_cache_level';
+--replace_column 2 #
 show session variables like 'join_cache_level';
+--replace_column 2 #
 select * from information_schema.global_variables where variable_name='join_cache_level';
+--replace_column 2 #
 select * from information_schema.session_variables where variable_name='join_cache_level';
 
 #
@@ -39,4 +41,3 @@ set session join_cache_level=cast(-1 as unsigned int);
 select @@session.join_cache_level;
 
 SET @@global.join_cache_level = @start_global_value;
-

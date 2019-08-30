@@ -2,6 +2,7 @@
 --source include/have_partition.inc
 # Test causes OS error printout
 --source include/not_windows.inc
+--source include/default_charset.inc
 
 --disable_query_log
 --disable_result_log
@@ -30,7 +31,10 @@ RENAME TABLE t1 TO `t2_new..............................................end`;
 show warnings;
 drop table t1;
 
-DROP DATABASE test;CREATE DATABASE test;USE test;
+drop database test;
+create database test;
+use test;
+
 SET @@session.storage_engine=MYISAM;
 --error 0,1,1103
 CREATE TABLE t1(id INT,purchased DATE)PARTITION BY RANGE(YEAR(purchased)) SUBPARTITION BY HASH(TO_DAYS(purchased)) SUBPARTITIONS 2 (PARTITION p0 VALUES LESS THAN MAXVALUE (SUBPARTITION sp0 DATA DIRECTORY='/tmp/not-existing' INDEX DIRECTORY='/tmp/not-existing',SUBPARTITION sp1));
@@ -40,12 +44,12 @@ ALTER TABLE t1 ENGINE=InnoDB;
 
 drop table t1;
 
-let $datadir=`select @@datadir`;
---remove_file $datadir/test/db.opt
+drop database test;
+create database test;
+use test;
 
 --enable_query_log
 --enable_result_log
 --enable_warnings
 
-# make sure that we have at least some ouput to avoid mtr warning
---echo 1
+show create database test;

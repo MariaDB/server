@@ -1,3 +1,4 @@
+set @save_query_cache_size=@@query_cache_size;
 SET GLOBAL query_cache_type= Off;
 SET LOCAL query_cache_type= Off;
 SET LOCAL query_cache_type= 0;
@@ -1634,7 +1635,7 @@ show status like 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	0
 drop database db2;
-set global query_cache_size=default;
+set global query_cache_size=@save_query_cache_size;
 drop database if exists db1;
 drop database if exists db3;
 set GLOBAL query_cache_size=15*1024*1024;
@@ -1669,7 +1670,7 @@ drop database db3;
 set GLOBAL query_cache_type=default;
 set GLOBAL query_cache_limit=default;
 set GLOBAL query_cache_min_res_unit=default;
-set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_size=@save_query_cache_size;
 set local query_cache_type=default;
 set GLOBAL query_cache_type=on;
 set local query_cache_type=on;
@@ -1949,6 +1950,7 @@ select @@query_cache_size, @@global.query_cache_type, @@local.query_cache_type;
 # MDEV-4981: Account for queries handled by query-cache in
 # USER_STATISTICS (and in HOST_STATISTICS)
 #
+set @save_userstat=@@global.userstat;
 SET GLOBAL userstat=1;
 set GLOBAL query_cache_size=1355776;
 FLUSH USER_STATISTICS;
@@ -2089,7 +2091,7 @@ Qcache_hits	0
 drop procedure p1;
 drop table t1;
 set GLOBAL query_cache_size=1355776;
-SET GLOBAL userstat=default;
+SET GLOBAL userstat=@save_userstat;
 End of 5.5 tests
 #
 # Bug#12977203: SERVER CRASH ON A DERIVED TABLE WITH QUERY CACHE ENABLED
@@ -2189,5 +2191,4 @@ DROP FUNCTION foo;
 drop table t1;
 restore defaults
 SET GLOBAL query_cache_type= default;
-SET GLOBAL query_cache_size= default;
-SET LOCAL query_cache_type= default;
+SET GLOBAL query_cache_size=@save_query_cache_size;

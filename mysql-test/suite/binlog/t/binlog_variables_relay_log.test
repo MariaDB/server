@@ -1,4 +1,5 @@
 --source include/not_embedded.inc
 
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+let $relay_log_index=`select substring_index(@@relay_log_index,'/',-1)`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $relay_log_index mysqld-relay-bin.index
 --query_vertical SHOW VARIABLES LIKE 'relay_log%'

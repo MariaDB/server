@@ -127,4 +127,3 @@ local-infile
 # tables.  Let's enable it in the [server] group, because this group
 # is read after [mysqld] and [embedded]
 loose-aria
-

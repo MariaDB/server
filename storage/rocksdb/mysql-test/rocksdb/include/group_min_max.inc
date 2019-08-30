@@ -10,6 +10,8 @@
 # - C IS NOT NULL
 # - HAVING clause
 
+--source include/default_optimizer_switch.inc
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings

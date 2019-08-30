@@ -28,6 +28,7 @@ CREATE TABLE t1 (
 ) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.*';
 # "size>0" to skip directory names on Windows
 --replace_result $MYSQLD_DATADIR DATADIR/
+--sorted_result
 SELECT fname, ftype, size FROM t1 WHERE size>0;
 
 --connection user

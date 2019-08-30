@@ -632,7 +632,7 @@ set @save_join_buffer_size=@@join_buffer_size;
 set join_buffer_size=1;
 select * from t2 where filler1 in ( select a from t1);
 a	b	c	filler1
-set join_buffer_size=default;
+set join_buffer_size=@save_join_buffer_size;
 drop table t1, t2;
 create table t1 (a int not null);
 drop procedure if exists p1;
@@ -1436,10 +1436,6 @@ v	v
 set optimizer_switch=@tmp_optimizer_switch;
 set join_cache_level=default;
 DROP TABLE t1,t2;
-set join_cache_level=default;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
 set @@optimizer_switch=@save_optimizer_switch_jcl6;
 set @optimizer_switch_for_subselect_sj2_test=NULL;
 set @join_cache_level_subselect_sj2_test=NULL;

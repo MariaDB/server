@@ -10,6 +10,8 @@ set use_stat_tables='preferably';
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set @save_histogram_size=@@histogram_size;
 set @save_histogram_type=@@histogram_type;
+set join_cache_level=2;
+set @@global.histogram_size=0,@@local.histogram_size=0;
 set optimizer_use_condition_selectivity=3;
 create table t1 (a int);
 insert into t1 values
@@ -1640,6 +1642,8 @@ drop function f1;
 #
 set @@optimizer_use_condition_selectivity=4;
 set @@use_stat_tables='preferably';
+set @save_histogram_size=@@histogram_size;
+set @@histogram_size=0;
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
 select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
@@ -1667,5 +1671,7 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
 drop table t1;
 set use_stat_tables= @save_use_stat_tables;
+set @@histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 # End of 10.1 tests
+set @@global.histogram_size=@save_histogram_size;

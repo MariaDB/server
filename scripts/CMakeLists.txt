@@ -96,6 +96,7 @@ INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql 
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_data.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_db.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_to_mariadb.sql

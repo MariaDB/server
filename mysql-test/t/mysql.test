@@ -694,7 +694,7 @@ select count(*) from t1; truncate table t1;
 --exec $MYSQL --disable-local-infile -e "$ldli"
 select count(*) from t1; truncate table t1;
 --error 1
---exec $MYSQL -e "/*q*/$ldli"
+--exec $MYSQL --local-infile=0 -e "/*q*/$ldli"
 select count(*) from t1; truncate table t1;
 --exec $MYSQL --enable-local-infile -e "/*q*/$ldli"
 select count(*) from t1; truncate table t1;

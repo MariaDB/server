@@ -1,3 +1,5 @@
+set @save_query_cache_size=@@global.query_cache_size;
+--source include/default_charset.inc
 --source qc_info_init.inc
 
 drop table t1;
@@ -15,3 +17,4 @@ show query_cache_info;
 --error ER_PARSE_ERROR
 flush query_cache_info;
 
+set @@global.query_cache_size=@save_query_cache_size;

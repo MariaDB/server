@@ -1,7 +1,5 @@
 SET @global_start_value = @@global.collation_server;
-SELECT @global_start_value;
-@global_start_value
-latin1_swedish_ci
+SET @@global.collation_server= @@collation_server;
 SET @session_start_value = @@collation_server;
 SELECT @session_start_value;
 @session_start_value
@@ -32,14 +30,14 @@ ERROR 42S22: Unknown column 'global' in 'field list'
 '#--------------------FN_DYNVARS_014_02-------------------------#'
 SET @@collation_server = latin1_bin;
 SET @@collation_server = DEFAULT;
-SELECT @@collation_server AS DEFAULT_VALUE;
-DEFAULT_VALUE
-utf8_unicode_ci
+SELECT @@collation_server= @@global.collation_server;
+@@collation_server= @@global.collation_server
+1
 SET @@global.collation_server = latin1_bin;
 SET @@global.collation_server = DEFAULT;
-SELECT @@global.collation_server;
-@@global.collation_server
-latin1_swedish_ci
+SELECT @@global.collation_server = @global_start_value;
+@@global.collation_server = @global_start_value
+1
 '#--------------------FN_DYNVARS_014_03-------------------------#'
 SET @@session.collation_server = utf8_polish_ci;
 SELECT @@session.collation_server;
@@ -1223,10 +1221,4 @@ WHERE VARIABLE_NAME='collation_server') AS res;
 res
 1
 SET @@global.collation_server = @global_start_value;
-SELECT @@global.collation_server;
-@@global.collation_server
-latin1_swedish_ci
 SET @@session.collation_server = @session_start_value;
-SELECT @@session.collation_server;
-@@session.collation_server
-latin1_swedish_ci

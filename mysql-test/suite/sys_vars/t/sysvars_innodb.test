@@ -10,7 +10,7 @@ if (`select plugin_auth_version <= "5.6.34-79.1" from information_schema.plugins
 
 --vertical_results
 --replace_regex /^\/\S+/PATH/ /\.\//PATH/
-select * from information_schema.system_variables
+select VARIABLE_NAME, SESSION_VALUE, DEFAULT_VALUE, VARIABLE_SCOPE, VARIABLE_TYPE, VARIABLE_COMMENT, NUMERIC_MIN_VALUE, NUMERIC_MAX_VALUE, NUMERIC_BLOCK_SIZE, ENUM_VALUE_LIST, READ_ONLY, COMMAND_LINE_ARGUMENT from information_schema.system_variables
   where variable_name like 'innodb%' and
   variable_name not in (
     'innodb_disallow_writes',           # only available WITH_WSREP

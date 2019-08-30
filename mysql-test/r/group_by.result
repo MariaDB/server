@@ -523,6 +523,8 @@ NULL	9
 b	1
 drop table t1;
 set big_tables=0;
+SET @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=1;
 create table t1 (a int not null, b int not null);
 insert into t1 values (1,1),(1,2),(3,1),(3,2),(2,2),(2,1);
 create table t2 (a int not null, b int not null, key(a));
@@ -535,10 +537,10 @@ a	b
 3	1
 select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 a	b
-1	3
-3	1
-2	2
 1	1
+1	3
+2	2
+3	1
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
@@ -548,6 +550,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
 drop table t1,t2;
+SET @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
 create table t1 (a int, b int);
 insert into t1 values (1, 4),(10, 40),(1, 4),(10, 43),(1, 4),(10, 41),(1, 4),(10, 43),(1, 4);
 select a, MAX(b), INTERVAL (MAX(b), 1,3,10,30,39,40,50,60,100,1000) from t1 group by a;

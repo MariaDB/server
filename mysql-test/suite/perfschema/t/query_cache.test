@@ -7,6 +7,8 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 
+set @save_query_cache_size=@@query_cache_size;
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -50,7 +52,7 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
 show status like "Qcache_hits";
 
-SET GLOBAL query_cache_size= default;
+SET GLOBAL query_cache_size=@save_query_cache_size;
 
 drop table t1;
 flush status;

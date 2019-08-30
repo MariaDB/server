@@ -27,7 +27,7 @@
 --source include/have_sjis.inc
 --source include/have_utf8.inc
 --source include/have_ucs2.inc
-
+--source include/default_charset.inc
 --source include/load_sysvars.inc
 
 ###################################################
@@ -38,7 +38,8 @@
 #                 Save initial value                        #
 #############################################################
 SET @global_start_value = @@global.collation_connection;
-SELECT @global_start_value;
+SET @@global.collation_connection=@@collation_connection;
+SELECT @@global.collation_connection;
 # Save initial session value
 SET @session_start_value = @@collation_connection;
 SELECT @session_start_value;
@@ -78,11 +79,11 @@ SELECT global collation_connection;
 ###############################################################################
 SET @@collation_connection = latin1_bin;
 SET @@collation_connection = DEFAULT;
-SELECT @@collation_connection AS DEFAULT_VALUE;
+SELECT @@collation_connection = @@global.collation_connection;
 
 SET @@global.collation_connection = latin1_bin;
 SET @@global.collation_connection = DEFAULT;
-SELECT @@global.collation_connection;
+SELECT @@global.collation_connection = @global_start_value;
 
 --echo '#--------------------FN_DYNVARS_015_03-------------------------#'
 ##############################################################################
@@ -256,9 +257,7 @@ SELECT @@session.collation_connection =
 #     Restore initial value        #
 ####################################
 SET @@global.collation_connection = @global_start_value;
-SELECT @@global.collation_connection;
 SET @@session.collation_connection = @session_start_value;
-SELECT @@session.collation_connection;
 
 #############################################################
 #                 END OF collation_connection TESTS         #
