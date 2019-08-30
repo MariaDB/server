@@ -1592,7 +1592,7 @@ static my_bool kill_thread_phase_2(THD *thd, void *)
 /* associated with the kill thread phase 1 */
 static my_bool warn_threads_active_after_phase_1(THD *thd, void *)
 {
-  if (!thd->is_binlog_dump_thread())
+  if (!thd->is_binlog_dump_thread() && thd->vio_ok())
     sql_print_warning("%s: Thread %llu (user : '%s') did not exit\n", my_progname,
                       (ulonglong) thd->thread_id,
                       (thd->main_security_ctx.user ?
