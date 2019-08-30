@@ -330,11 +330,6 @@ select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
   tmp_table_param.bit_fields_as_long= bit_fields_as_long;
   tmp_table_param.hidden_field_count= hidden;
 
-  /*
-    At least one of `duplicate_cnt` and `intersect_cnt` are used.
-    in this case table can keep unique actually.
-  */
-  if (hidden > 0) is_union_distinct= true;
   if (! (table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                  (ORDER*) 0, is_union_distinct, 1,
                                  options, HA_POS_ERROR, alias,
@@ -499,7 +494,7 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
     -1  conversion happened
 */
 
-int select_unit_ext::unfold_record(longlong cnt)
+int select_unit_ext::unfold_record(ha_rows cnt)
 {
 
   DBUG_ASSERT(cnt > 0);
@@ -840,7 +835,7 @@ bool select_unit_ext::send_eof()
   else if (need_unfold)
   {
     /* unfold if is ALL operation */
-    longlong dup_cnt;
+    ha_rows dup_cnt;
     if (unlikely(table->file->ha_rnd_init_with_error(1)))
       return 1;
     do
@@ -854,7 +849,7 @@ bool select_unit_ext::send_eof()
         }
         break;
       }
-      dup_cnt= duplicate_cnt->val_int();
+      dup_cnt= (ha_rows)duplicate_cnt->val_int();
       /* delete record if not exist in the second operand */
       if (dup_cnt == 0)
       {
@@ -865,7 +860,7 @@ bool select_unit_ext::send_eof()
       {
         longlong add_cnt= additional_cnt->val_int();
         if (dup_cnt > add_cnt && add_cnt > 0)
-          dup_cnt= add_cnt;
+          dup_cnt= (ha_rows)add_cnt;
       }
 
       if (dup_cnt == 1)
@@ -1576,9 +1571,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
         if (join_union_item_types(thd, types, union_part_count + 1))
           goto err;
         if (union_result->create_result_table(thd, &types,
-                                              MY_TEST(union_distinct) ||
-                                                have_except_all_or_intersect_all ||
-                                                have_intersect,
+                                              MY_TEST(union_distinct),
                                               create_options,
                                               &derived_arg->alias, false,
                                               instantiate_tmp_table, false,
@@ -1698,7 +1691,9 @@ cont:
       }
       bool error=
         union_result->create_result_table(thd, &types,
-                                          MY_TEST(union_distinct),
+                                          MY_TEST(union_distinct) ||
+                                            have_except_all_or_intersect_all ||
+                                            have_intersect,
                                           create_options, &empty_clex_str, false,
                                           instantiate_tmp_table, false,
                                           hidden);
