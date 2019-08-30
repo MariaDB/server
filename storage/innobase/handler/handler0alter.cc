@@ -2135,7 +2135,7 @@ innobase_col_to_mysql(
 	case DATA_SYS:
 		/* These column types should never be shipped to MySQL. */
 		ut_ad(0);
-
+		/* fall through */
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:

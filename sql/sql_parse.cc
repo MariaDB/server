@@ -3579,6 +3579,7 @@ mysql_execute_command(THD *thd)
         case GET_NO_ARG:
         case GET_DISABLED:
           DBUG_ASSERT(0);
+          /* fall through */
         case 0:
         case GET_FLAGSET:
         case GET_ENUM:
