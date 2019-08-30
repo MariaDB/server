@@ -1188,6 +1188,16 @@ void end_connection(THD *thd)
 {
   NET *net= &thd->net;
 
+#ifdef WITH_WSREP
+  if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
+  {
+    /* Error happened after the thread acquired ownership to wsrep
+       client state, but before command was processed. Clean up the
+       state before wsrep_close(). */
+    wsrep_after_command_ignore_result(thd);
+  }
+  wsrep_close(thd);
+#endif /* WITH_WSREP */
   if (thd->user_connect)
   {
     /*
@@ -1321,6 +1331,7 @@ bool thd_prepare_connection(THD *thd)
   prepare_new_connection_state(thd);
 #ifdef WITH_WSREP
   thd->wsrep_client_thread= true;
+  wsrep_open(thd);
 #endif /* WITH_WSREP */
   return FALSE;
 }
@@ -1393,9 +1404,6 @@ void do_handle_one_connection(CONNECT *connect)
       create_user= FALSE;
       goto end_thread;
     }      
-#ifdef WITH_WSREP
-    wsrep_open(thd);
-#endif /* WITH_WSREP */
 
     while (thd_is_connection_alive(thd))
     {
@@ -1405,10 +1413,6 @@ void do_handle_one_connection(CONNECT *connect)
 	break;
     }
     end_connection(thd);
-
-#ifdef WITH_WSREP
-    wsrep_close(thd);
-#endif /* WITH_WSREP */
 
 end_thread:
     close_connection(thd);

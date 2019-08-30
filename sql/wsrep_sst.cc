@@ -27,6 +27,8 @@
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
 #include "wsrep_xid.h"
+#include "wsrep_thd.h"
+
 #include <cstdio>
 #include <cstdlib>
 
@@ -237,7 +239,7 @@ void wsrep_sst_received (THD*                thd,
       wsrep thread pool. Restore original thd context before returning.
     */
     if (thd) {
-      thd->store_globals();
+      wsrep_store_threadvars(thd);
     }
     else {
       my_pthread_setspecific_ptr(THR_THD, NULL);
@@ -509,7 +511,8 @@ err:
     thd->system_thread= SYSTEM_THREAD_GENERIC;
     thd->real_id= pthread_self();
 
-    thd->store_globals();
+    wsrep_assign_from_threadvars(thd);
+    wsrep_store_threadvars(thd);
 
     /* */
     thd->variables.wsrep_on    = 0;

@@ -23,7 +23,9 @@
 #include <sql_audit.h>
 #include <debug_sync.h>
 #include <threadpool.h>
-
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /* Threadpool parameters */
 
@@ -137,6 +139,11 @@ static inline void set_thd_idle(THD *thd)
 */
 static void thread_attach(THD* thd)
 {
+#ifdef WITH_WSREP
+  /* Wait until possible background rollback has finished before
+     attaching the thd. */
+  wsrep_wait_rollback_complete_and_acquire_ownership(thd);
+#endif /* WITH_WSREP */
   pthread_setspecific(THR_KEY_mysys,thd->mysys_var);
   thd->thread_stack=(char*)&thd;
   thd->store_globals();

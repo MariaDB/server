@@ -77,5 +77,14 @@ private:
   Wsrep_server_state& m_server_state;
 };
 
+/**
+   Helper method to create new streaming applier.
+
+   @param orig_thd Original thd context to copy operation context from.
+   @param ctx Context string for debug logging.
+ */
+class Wsrep_applier_service;
+Wsrep_applier_service*
+wsrep_create_streaming_applier(THD *orig_thd, const char *ctx);
 
 #endif /* WSREP_SERVER_SERVICE */
