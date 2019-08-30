@@ -8324,9 +8324,9 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   DBUG_ENTER("nest_last_join");
 
   TABLE_LIST *head= join_list->head();
-  if (head->nested_join && head->nested_join->nest_type & REBALANCED_NEST)
+  if (head->nested_join && (head->nested_join->nest_type & REBALANCED_NEST))
   {
-    join_list->empty();
+    head= join_list->pop();
     DBUG_RETURN(head);
   }
 
@@ -8410,13 +8410,13 @@ void st_select_lex::add_joined_table(TABLE_LIST *table)
     context and right-associative in another context.
 
     In this query
-       SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a  (Q1)
+      SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a  (Q1)
     JOIN is left-associative and the query Q1 is interpreted as
-       SELECT * FROM (t1 JOIN t2) LEFT JOIN t3 ON t2.a=t3.a.
+      SELECT * FROM (t1 JOIN t2) LEFT JOIN t3 ON t2.a=t3.a.
     While in this query
-       SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a ON t1.b=t2.b (Q2)
+      SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a ON t1.b=t2.b (Q2)
     JOIN is right-associative and the query Q2 is interpreted as
-       SELECT * FROM t1 JOIN (t2 LEFT JOIN t3 ON t2.a=t3.a) ON t1.b=t2.b
+      SELECT * FROM t1 JOIN (t2 LEFT JOIN t3 ON t2.a=t3.a) ON t1.b=t2.b
 
     JOIN is right-associative if it is used with ON clause or with USING clause.
     Otherwise it is left-associative.
@@ -8462,9 +8462,9 @@ void st_select_lex::add_joined_table(TABLE_LIST *table)
 
              J                               LJ - ON
             / \                             /  \
-          t1   LJ - ON    (TQ3*)    =>     J    t2
-              /  \                        / \
-            t3    t2                    t1   t3
+          t1   LJ - ON    (TQ3*)    =>    t3    J
+              /  \                             / \
+            t3    t2                         t1   t2
 
     With several left associative JOINs
       SELECT * FROM t1 JOIN t2 JOIN t3 LEFT JOIN t4 ON t3.a=t4.a (Q4)
@@ -8472,15 +8472,15 @@ void st_select_lex::add_joined_table(TABLE_LIST *table)
 
           J1                         LJ - ON
          /  \                       /  \
-       t1    LJ - ON               J2   t4
+       t1    J2                    J2   t4
             /  \          =>      /  \
-           J2   t4              J1    t3
-          /  \                 /  \
-        t2    t3             t1    t2
+           t2  LJ - ON          J1    t3
+              /  \             /  \
+            t3   t4          t1    t2
 
-     Here's another example:
-       SELECT *
-       FROM t1 JOIN t2 LEFT JOIN t3 JOIN t4 ON t3.a=t4.a ON t2.b=t3.b (Q5)
+    Here's another example:
+      SELECT *
+      FROM t1 JOIN t2 LEFT JOIN t3 JOIN t4 ON t3.a=t4.a ON t2.b=t3.b (Q5)
 
           J                       LJ - ON
          / \                     /   \
@@ -8490,15 +8490,58 @@ void st_select_lex::add_joined_table(TABLE_LIST *table)
               / \
             t3   t4
 
-     If the transformed nested join node node is a natural join node like in
-     the following query
-       SELECT * FROM t1 JOIN t2 LEFT JOIN t3 USING(a)  (Q6)
-     the transformation additionally has to take care about setting proper
-     references in the field natural_join for both operands of the natural
-     join operation.
-     The function also has to change the name resolution context for ON
-     expressions used in the transformed join expression to take into
-     account the tables of the left_op node.
+    If the transformed nested join node node is a natural join node like in
+    the following query
+      SELECT * FROM t1 JOIN t2 LEFT JOIN t3 USING(a)  (Q6)
+    the transformation additionally has to take care about setting proper
+    references in the field natural_join for both operands of the natural
+    join operation.
+
+    The queries that combine comma syntax for join operation with
+    JOIN expression require a special care. Consider the query
+      SELECT * FROM t1, t2 JOIN t3 LEFT JOIN t4 ON t3.a=t4.a (Q7)
+    This query is equivalent to the query
+      SELECT * FROM (t1, t2) JOIN t3 LEFT JOIN t4 ON t3.a=t4.a
+    The latter is transformed in the same way as query Q1
+
+             J                               LJ - ON
+            / \                             /  \
+      (t1,t2)  LJ - ON      =>             J    t4
+              /  \                        / \
+            t3    t4                (t1,t2)   t3
+
+    A transformation similar to the transformation for Q3 is done for
+    the following query with RIGHT JOIN
+      SELECT * FROM t1, t2 JOIN t3 RIGHT JOIN t4 ON t3.a=t4.a (Q8)
+
+             J                               LJ - ON
+            / \                             /  \
+          t3   LJ - ON      =>            t4    J
+              /  \                             / \
+            t4   (t1,t2)                 (t1,t2)  t3
+
+    The function also has to change the name resolution context for ON
+    expressions used in the transformed join expression to take into
+    account the tables of the left_op node.
+
+  TODO:
+    A more elegant solution would be to implement the transformation that
+    eliminates nests for cross join operations. For Q7 it would work like this:
+
+             J                               LJ - ON
+            / \                             /  \
+      (t1,t2)  LJ - ON      =>     (t1,t2,t3)   t4
+              /  \
+            t3    t4
+
+    For Q8 with RIGHT JOIN the transformation would work similarly:
+
+             J                               LJ - ON
+            / \                             /  \
+          t3   LJ - ON      =>            t4   (t1,t2,t3)
+              /  \
+            t4   (t1,t2)
+
 */
 
 bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
@@ -8523,10 +8566,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
   }
 
   TABLE_LIST *tbl;
-  List<TABLE_LIST> *jl= &right_op->nested_join->join_list;
+  List<TABLE_LIST> *right_op_jl= right_op->join_list;
   TABLE_LIST *cj_nest;
-
-  add_joined_table(right_op);
 
   /*
     Create the node NJ for a new nested join for the future inclusion
@@ -8542,6 +8583,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
   List<TABLE_LIST> *cjl=  &cj_nest->nested_join->join_list;
   cjl->empty();
 
+  List<TABLE_LIST> *jl= &right_op->nested_join->join_list;
+  DBUG_ASSERT(jl->elements == 2);
   /* Look for the left most node tbl of the right_op tree */
   for ( ; ; )
   {
@@ -8614,6 +8657,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
     create a new top level nested join node.
   */
   right_op->nested_join->nest_type|= REBALANCED_NEST;
+  if (unlikely(right_op_jl->push_front(right_op)))
+    DBUG_RETURN(true);
   DBUG_RETURN(false);
 }
 
