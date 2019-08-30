@@ -1,6 +1,6 @@
 /****************** jsonudf C++ Program Source Code File (.CPP) ******************/
-/*  PROGRAM NAME: jsonudf     Version 1.7                                        */
-/*  (C) Copyright to the author Olivier BERTRAND          2015-2018              */
+/*  PROGRAM NAME: jsonudf     Version 1.8                                        */
+/*  (C) Copyright to the author Olivier BERTRAND          2015-2019              */
 /*  This program are the JSON User Defined Functions     .                       */
 /*********************************************************************************/
 
@@ -1686,7 +1686,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 			} // endif *s
 
 			if (n < 1)
-				return "Key";
+        return (PCSZ) "Key";
 
 			if (!b) {
 				if ((p = (PSZ)PlgDBSubAlloc(g, NULL, n + 1))) {
@@ -1703,7 +1703,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 		return s;
 	} // endif count
 
-  return "Key";
+  return (PCSZ) "Key";
 } // end of MakeKey
 
 /*********************************************************************************/

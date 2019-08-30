@@ -224,6 +224,7 @@ DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void   *MakePtr(void *, OFFSET);
 DllExport void    htrc(char const *fmt, ...);
+DllExport void    xtrc(uint, char const* fmt, ...);
 DllExport uint    GetTraceValue(void);
 
 #if defined(__cplusplus)
