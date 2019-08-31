@@ -5167,6 +5167,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
+  notnull_cond= 0;
+
   DBUG_ASSERT(!file->keyread_enabled());
 
   restore_record(this, s->default_values);

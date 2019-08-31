@@ -3336,6 +3336,16 @@ table_map Item_field::all_used_tables() const
 }
 
 
+bool Item_field::find_not_null_fields(table_map allowed)
+{
+  if (field->table->const_table)
+    return false;
+  if (!get_depended_from() && field->real_maybe_null())
+    bitmap_set_bit(&field->table->tmp_set, field->field_index);
+  return false;
+}
+
+
 /*
   @Note  thd->fatal_error can be set in case of OOM
 */

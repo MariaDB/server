@@ -305,6 +305,14 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 
 static Item **get_sargable_cond(JOIN *join, TABLE *table);
 
+static
+bool build_notnull_conds_for_range_scans(JOIN *join, COND *cond,
+                                         table_map allowed);
+static
+void build_notnull_conds_for_inner_nest_of_outer_join(JOIN *join,
+                                                      TABLE_LIST *nest_tbl);
+
+
 #ifndef DBUG_OFF
 
 /*
@@ -5308,6 +5316,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
     }
   }
+
+  join->join_tab= stat;
+  join->make_notnull_conds_for_range_scans();
 
   /* Calc how many (possible) matched records in each table */
 
@@ -28676,6 +28687,279 @@ select_handler *SELECT_LEX::find_select_handler(THD *thd)
     return sh;
   }
   return 0;
+}
+
+
+/**
+  @brief
+  Construct not null conditions for provingly not nullable fields
+
+  @details
+    For each non-constant joined table the function creates a conjunction
+    of IS NOT NULL predicates containing a predicate for each field used
+    in the WHERE clause or an OR expression such that
+      - is declared as nullable
+      - for which it can proved be that it is null-rejected
+      - is a part of some index.
+    This conjunction could be anded with either the WHERE condition or with
+    an ON expression and the modified join query would produce the same
+    result set as the original one.
+    If a conjunction of IS NOT NULL predicates is constructed for an inner
+    table of an outer join OJ that is not an inner table of embedded outer
+    joins then it is to be anded with the ON expression of OJ.
+    The constructed conjunctions of IS NOT NULL predicates  are attached
+    to the corresponding tables. They used for range analysis complementary
+    to other sargable range conditions.
+
+  @note
+    Let f be a field of the joined table t. In the context of the upper
+    paragraph field f is called null-rejected if any the following holds:
+
+    - t is a table of a top inner join and a conjunctive formula that rejects
+      rows with null values for f can be extracted from the WHERE condition
+
+    - t is an outer table of a top outer join operation and a conjunctive
+      formula over the outer tables of the outer join that rejects rows with
+      null values for can be extracted from the WHERE condition
+
+    - t is an outer table of a non-top outer join operation and a conjunctive
+      formula over the outer tables of the outer join that rejects rows with
+      null values for f can be extracted from the ON expression of the
+      embedding outer join
+
+    - the joined table is an inner table of a outer join operation and
+      a conjunctive formula over inner tables of the outer join that rejects
+      rows with null values for f can be extracted from the ON expression of
+      the outer join operation.
+
+    It is assumed above that all inner join nests have been eliminated and
+    that all possible conversions of outer joins into inner joins have been
+    already done.
+*/
+
+void JOIN::make_notnull_conds_for_range_scans()
+{
+  DBUG_ENTER("JOIN::make_notnull_conds_for_range_scans");
+
+
+  if (impossible_where ||
+      !optimizer_flag(thd, OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN))
+  {
+    /* Complementary range analysis is not needed */
+    DBUG_VOID_RETURN;
+  }
+
+  if (conds && build_notnull_conds_for_range_scans(this, conds,
+                                                   conds->used_tables()))
+  {
+    Item *false_cond= new (thd->mem_root) Item_int(thd, (longlong) 0, 1);
+    if (false_cond)
+    {
+      /*
+        Found a IS NULL conjunctive predicate for a null-rejected field
+        in the WHERE clause
+      */
+      conds= false_cond;
+      cond_equal= 0;
+      impossible_where= true;
+    }
+    DBUG_VOID_RETURN;
+  }
+
+  List_iterator<TABLE_LIST> li(*join_list);
+  TABLE_LIST *tbl;
+  while ((tbl= li++))
+  {
+    if (tbl->on_expr)
+    {
+      if (tbl->nested_join)
+      {
+        build_notnull_conds_for_inner_nest_of_outer_join(this, tbl);
+      }
+      else if (build_notnull_conds_for_range_scans(this, tbl->on_expr,
+                                                   tbl->table->map))
+      {
+        /*
+          Found a IS NULL conjunctive predicate for a null-rejected field
+          of the inner table of an outer join with ON expression tbl->on_expr
+        */
+        Item *false_cond= new (thd->mem_root) Item_int(thd, (longlong) 0, 1);
+        if (false_cond)
+          tbl->on_expr= false_cond;
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  @brief
+  Build not null conditions for range scans of given join tables
+
+  @param join    the join for whose tables not null conditions are to be built
+  @param cond    the condition from which not null predicates are to be inferred
+  @param allowed the bit map of join tables to be taken into account
+
+  @details
+    For each join table t from the 'allowed' set of tables the function finds
+    all fields whose null-rejectedness can be inferred from null-rejectedness
+    of the condition cond. For each found field f from table t such that it
+    participates at least in one index on table t a NOT NULL predicate is
+    constructed and a conjunction of all such predicates is attached to t.
+    If when looking for null-rejecting fields of t it is discovered one of its
+    fields has to be null-rejected and there is IS NULL conjunctive top level
+    predicate for this field then the function immediately returns true.
+    The function uses the bitmap TABLE::tmp_set to mark found null-rejected
+    fields of table t.
+
+  @note
+    Currently only top level conjuncts without disjunctive sub-formulas are
+    are taken into account when looking for null-rejected fields.
+
+  @retval
+    true    if a contradiction is inferred
+    false   otherwise
+*/
+
+static
+bool build_notnull_conds_for_range_scans(JOIN *join, Item *cond,
+                                         table_map allowed)
+{
+  THD *thd= join->thd;
+
+  DBUG_ENTER("build_notnull_conds_for_range_scans");
+
+  for (JOIN_TAB *s= join->join_tab + join->const_tables ;
+       s < join->join_tab + join->table_count ; s++)
+  {
+    /* Clear all needed bitmaps to mark found fields */
+    if (allowed & s->table->map)
+      bitmap_clear_all(&s->table->tmp_set);
+  }
+
+  /*
+    Find all null-rejected fields assuming that cond is null-rejected and
+    only  formulas over tables from 'allowed' are to be taken into account
+  */
+  if (cond->find_not_null_fields(allowed))
+    DBUG_RETURN(true);
+
+  /*
+    For each table t from 'allowed' build a conjunction of NOT NULL predicates
+    constructed for all found fields if they are included in some indexes.
+    If the construction of the conjunction succeeds attach the formula to
+    t->table->notnull_cond. The condition will be used to look for complementary
+    range scans.
+  */
+  for (JOIN_TAB *s= join->join_tab + join->const_tables ;
+       s < join->join_tab + join->table_count ; s++)
+  {
+    TABLE *tab= s->table;
+    List<Item> notnull_list;
+    Item *notnull_cond= 0;
+
+    if (!(allowed & tab->map))
+      continue;
+
+    for (Field** field_ptr= tab->field; *field_ptr; field_ptr++)
+    {
+      Field *field= *field_ptr;
+      if (field->part_of_key.is_clear_all())
+        continue;
+      if (!bitmap_is_set(&tab->tmp_set, field->field_index))
+        continue;
+      Item_field *field_item= new (thd->mem_root) Item_field(thd, field);
+      if (!field_item)
+        continue;
+      Item *isnotnull_item=
+         new (thd->mem_root) Item_func_isnotnull(thd, field_item);
+      if (!isnotnull_item)
+        continue;
+      if (notnull_list.push_back(isnotnull_item, thd->mem_root))
+        continue;
+      s->const_keys.merge(field->part_of_key);
+    }
+
+    switch (notnull_list.elements) {
+    case 0:
+      break;
+    case 1:
+      notnull_cond= notnull_list.head();
+      break;
+    default:
+      notnull_cond=
+        new (thd->mem_root) Item_cond_and(thd, notnull_list);
+    }
+    if (notnull_cond && !notnull_cond->fix_fields(thd, 0))
+    {
+      tab->notnull_cond= notnull_cond;
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+/**
+  @brief
+  Build not null conditions for inner nest tables of an outer join
+
+  @param join  the join for whose table nest not null conditions are to be built
+  @param nest_tbl the nest of the inner tables of an outer join
+
+  @details
+    The function assumes that nest_tbl is the nest of the inner tables of an
+    outer join and so an ON expression for this outer join is attached to
+    nest_tbl.
+    The function selects the tables of the nest_tbl that are not inner tables of
+    embedded outer joins and then it calls build_notnull_conds_for_range_scans()
+    for nest_tbl->on_expr and the bitmap for the selected tables. This call
+    finds all fields belonging to the selected tables whose null-rejectedness
+    can be inferred from the null-rejectedness of nest_tbl->on_expr. After this
+    the function recursively finds all null_rejected fields for the remaining
+    tables from the nest of nest_tbl.
+*/
+
+static
+void build_notnull_conds_for_inner_nest_of_outer_join(JOIN *join,
+                                                      TABLE_LIST *nest_tbl)
+{
+  TABLE_LIST *tbl;
+  table_map used_tables= 0;
+  THD *thd= join->thd;
+  List_iterator<TABLE_LIST> li(nest_tbl->nested_join->join_list);
+
+  while ((tbl= li++))
+  {
+    if (!tbl->on_expr)
+      used_tables|= tbl->table->map;
+  }
+  if (used_tables &&
+      build_notnull_conds_for_range_scans(join, nest_tbl->on_expr, used_tables))
+  {
+    Item *false_cond= new (thd->mem_root) Item_int(thd, (longlong) 0, 1);
+    if (false_cond)
+      nest_tbl->on_expr= false_cond;
+  }
+
+  li.rewind();
+  while ((tbl= li++))
+  {
+    if (tbl->on_expr)
+    {
+      if (tbl->nested_join)
+      {
+        build_notnull_conds_for_inner_nest_of_outer_join(join, tbl);
+      }
+      else if (build_notnull_conds_for_range_scans(join, tbl->on_expr,
+                                                   tbl->table->map))
+      {
+        Item *false_cond= new (thd->mem_root) Item_int(thd, (longlong) 0, 1);
+        if (false_cond)
+          tbl->on_expr= false_cond;
+      }
+    }
+  }
 }
 
 

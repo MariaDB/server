@@ -1395,6 +1395,13 @@ public:
   SplM_opt_info *spl_opt_info;
   key_map keys_usable_for_splitting;
 
+  /*
+    Conjunction of the predicates of the form IS NOT NULL(f) where f refers to
+    a column of this TABLE such that they can be inferred from the condition
+    of the  WHERE clause or from some ON expression of the processed select
+    and can be useful for range optimizer.
+  */
+  Item *notnull_cond;
 
   inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);

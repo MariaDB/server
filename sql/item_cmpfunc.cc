@@ -1215,6 +1215,15 @@ bool Item_in_optimizer::eval_not_null_tables(void *opt_arg)
 }
 
 
+bool Item_in_optimizer::find_not_null_fields(table_map allowed)
+{
+  if (!(~allowed & used_tables()) && is_top_level_item())
+  {
+    return args[0]->find_not_null_fields(allowed);
+  }
+  return false;
+}
+
 void Item_in_optimizer::print(String *str, enum_query_type query_type)
 {
   if (query_type & QT_PARSABLE)
@@ -2061,7 +2070,17 @@ bool Item_func_between::eval_not_null_tables(void *opt_arg)
                           (args[1]->not_null_tables() &
                            args[2]->not_null_tables()));
   return 0;
-}  
+}
+
+
+bool Item_func_between::find_not_null_fields(table_map allowed)
+{
+  if (negated || !is_top_level_item() || (~allowed & used_tables()))
+    return false;
+  return args[0]->find_not_null_fields(allowed) ||
+         args[1]->find_not_null_fields(allowed) ||
+         args[3]->find_not_null_fields(allowed);
+}
 
 
 bool Item_func_between::count_sargable_conds(void *arg)
@@ -4327,6 +4346,15 @@ Item_func_in::eval_not_null_tables(void *opt_arg)
 }
 
 
+bool
+Item_func_in::find_not_null_fields(table_map allowed)
+{
+  if (negated || !is_top_level_item() || (~allowed & used_tables()))
+    return 0;
+  return  args[0]->find_not_null_fields(allowed);
+}
+
+
 void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                      bool merge)
 {
@@ -4930,6 +4958,82 @@ Item_cond::eval_not_null_tables(void *opt_arg)
 }
 
 
+/**
+   @note
+     This implementation of the virtual function find_not_null_fields()
+     infers null-rejectedness if fields from tables marked in 'allowed' from
+     this condition.
+     Currently only top level AND conjuncts that  are not disjunctions are used
+     for the inference. Usage of any top level and-or formula with l OR levels
+     would require a stack of bitmaps for fields of the height h=2*l+1 So we
+     would have to allocate h-1 additional field bitmaps for each table marked
+     in 'allowed'.
+*/
+
+bool
+Item_cond::find_not_null_fields(table_map allowed)
+{
+  Item *item;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  if (!is_and_cond)
+  {
+    /* Now only fields of top AND level conjuncts are taken into account */
+    return false;
+  }
+  uint isnull_func_cnt= 0;
+  List_iterator<Item> li(list);
+  while ((item=li++))
+  {
+    bool is_mult_eq= item->type() == Item::FUNC_ITEM &&
+         ((Item_func *) item)->functype() == Item_func::MULT_EQUAL_FUNC;
+    if (is_mult_eq)
+    {
+      if (!item->find_not_null_fields(allowed))
+        continue;
+    }
+
+    if (~allowed & item->used_tables())
+      continue;
+
+    /* It is assumed that all constant conjuncts are already eliminated */
+
+    /*
+      First infer null-rejectedness of fields from all conjuncts but
+      IS NULL predicates
+    */
+    bool isnull_func= item->type() == Item::FUNC_ITEM &&
+         ((Item_func *) item)->functype() == Item_func::ISNULL_FUNC;
+    if (isnull_func)
+    {
+      isnull_func_cnt++;
+      continue;
+    }
+    if (!item->find_not_null_fields(allowed))
+      continue;
+  }
+
+  /* Now try no get contradictions using IS NULL conjuncts */
+  if (isnull_func_cnt)
+  {
+    li.rewind();
+    while ((item=li++) && isnull_func_cnt)
+    {
+      if (~allowed & item->used_tables())
+        continue;
+
+      bool isnull_func= item->type() == Item::FUNC_ITEM &&
+           ((Item_func *) item)->functype() == Item_func::ISNULL_FUNC;
+      if (isnull_func)
+      {
+        if  (item->find_not_null_fields(allowed))
+          return true;
+        isnull_func_cnt--;
+      }
+    }
+  }
+  return false;
+}
+
 void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                   bool merge)
 {
@@ -5372,6 +5476,19 @@ longlong Item_func_isnull::val_int()
   if (const_item() && !args[0]->maybe_null)
     return 0;
   return args[0]->is_null() ? 1: 0;
+}
+
+
+bool Item_func_isnull::find_not_null_fields(table_map allowed)
+{
+  if (!(~allowed & used_tables()) &&
+      args[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Field *field= ((Item_field *)(args[0]->real_item()))->field;
+    if (bitmap_is_set(&field->table->tmp_set, field->field_index))
+      return true;
+  }
+  return false;
 }
 
 
@@ -6936,6 +7053,48 @@ void Item_equal::update_used_tables()
     const_item_cache&= item->const_item() && !item->is_outer_field();
   }
 }
+
+
+/**
+  @note
+    This multiple equality can contains elements belonging not to tables {T}
+    marked in 'allowed' . So we can ascertain null-rejectedness of field f
+    belonging to table t from {T} only if one of the following equality
+    predicate can be  extracted from this multiple equality:
+    - f=const
+    - f=f' where f' is a field of some table from {T}
+*/
+
+bool Item_equal::find_not_null_fields(table_map allowed)
+{
+  if (!(allowed & used_tables()))
+    return false;
+  bool checked= false;
+  Item_equal_fields_iterator it(*this);
+  Item *item;
+  while ((item= it++))
+  {
+    if (~allowed & item->used_tables())
+      continue;
+    if ((with_const || checked) && !item->find_not_null_fields(allowed))
+      continue;
+    Item_equal_fields_iterator it1(*this);
+    Item *item1;
+    while ((item1= it1++) && item1 != item)
+    {
+      if (~allowed & item1->used_tables())
+        continue;
+      if (!item->find_not_null_fields(allowed) &&
+          !item1->find_not_null_fields(allowed))
+      {
+        checked= true;
+        break;
+      }
+    }
+  }
+  return false;
+}
+
 
 
 bool Item_equal::count_sargable_conds(void *arg)

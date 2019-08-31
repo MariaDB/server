@@ -2011,6 +2011,44 @@ public:
   virtual bool check_index_dependence(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
+  /*
+    Given a condition P from the WHERE clause or from an ON expression of
+    the processed SELECT S and a set of join tables from S marked in the
+    parameter 'allowed'={T} a call of P->find_not_null_fields({T}) has to
+    find the set fields {F} of the tables from 'allowed' such that:
+    - each field from {F} is declared as nullable
+    - each record of table t from {T} that contains NULL as the value for at
+      at least one field from {F} can be ignored when building the result set
+      for S
+    It is assumed here that the condition P is conjunctive and all its column
+    references belong to T.
+
+    Examples:
+      CREATE TABLE t1 (a int, b int);
+      CREATE TABLE t2 (a int, b int);
+
+      SELECT * FROM t1,t2 WHERE t1.a=t2.a and t1.b > 5;
+      A call of find_not_null_fields() for the whole WHERE condition and {t1,t2}
+      should find {t1.a,t1.b,t2.a}
+
+      SELECT * FROM t1 LEFT JOIN ON (t1.a=t2.a and t2.a > t2.b);
+      A call of find_not_null_fields() for the ON expression and {t2}
+      should find {t2.a,t2.b}
+
+    The function returns TRUE if it succeeds to prove that all records of
+    a table from {T} can be ignored. Otherwise it always returns FALSE.
+
+    Example:
+      SELECT * FROM t1,t2 WHERE t1.a=t2.a AND t2.a IS NULL;
+    A call of find_not_null_fields() for the WHERE condition and {t1,t2}
+    will return TRUE.
+
+    It is assumed that the implementation of this virtual function saves
+    the info on the found set of fields in the structures associates with
+    tables from {T}.
+  */
+  virtual bool find_not_null_fields(table_map allowed) { return false; }
+
   virtual Item *get_copy(THD *thd)=0;
 
   bool cache_const_expr_analyzer(uchar **arg);
@@ -3356,6 +3394,7 @@ public:
   bool is_result_field() { return false; }
   void save_in_result_field(bool no_conversions);
   Item *get_tmp_table_item(THD *thd);
+  bool find_not_null_fields(table_map allowed);
   bool collect_item_field_processor(void * arg);
   bool add_field_to_set_processor(void * arg);
   bool find_item_in_field_list_processor(void *arg);
@@ -5150,6 +5189,10 @@ public:
   table_map not_null_tables() const 
   { 
     return depended_from ? 0 : (*ref)->not_null_tables();
+  }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return depended_from ? false : (*ref)->find_not_null_fields(allowed);
   }
   void save_in_result_field(bool no_conversions)
   {

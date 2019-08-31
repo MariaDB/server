@@ -210,6 +210,7 @@ public:
   void traverse_cond(Cond_traverser traverser,
                      void * arg, traverse_order order);
   bool eval_not_null_tables(void *opt_arg);
+  bool find_not_null_fields(table_map allowed);
  // bool is_expensive_processor(void *arg);
  // virtual bool is_expensive() { return 0; }
   inline void raise_numeric_overflow(const char *type_name)
@@ -873,6 +874,7 @@ public:
   Item_func_case_expression(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
+  bool find_not_null_fields(table_map allowed) { return false; }
 };
 
 
@@ -2009,6 +2011,10 @@ public:
     not_null_tables_cache= 0;
     return false;
   }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
+  }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
   bool const_item() const { return true; }
@@ -2380,6 +2386,10 @@ public:
   {
     not_null_tables_cache= 0;
     return 0;
+  }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
   }
   bool is_expensive() { return 1; }
   virtual void print(String *str, enum_query_type query_type);
@@ -3000,6 +3010,10 @@ public:
     not_null_tables_cache= 0;
     return 0;
   }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
+  }
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;
   /* The following should be safe, even if we compare doubles */
@@ -3303,6 +3317,10 @@ public:
   }
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return false; }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
+  }
 };
 
 
@@ -3406,6 +3424,10 @@ public:
   {
     not_null_tables_cache= 0;
     return 0;
+  }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
   }
   bool const_item() const { return 0; }
   void evaluate_sideeffects();

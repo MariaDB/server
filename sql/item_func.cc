@@ -404,6 +404,25 @@ Item_func::eval_not_null_tables(void *opt_arg)
 }
 
 
+bool
+Item_func::find_not_null_fields(table_map allowed)
+{
+  if (~allowed & used_tables())
+    return false;
+
+  Item **arg,**arg_end;
+  if (arg_count)
+  {
+    for (arg=args, arg_end=args+arg_count; arg != arg_end ; arg++)
+    {
+      if (!(*arg)->find_not_null_fields(allowed))
+        continue;
+    }
+  }
+  return false;
+}
+
+
 void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                   bool merge)
 {
