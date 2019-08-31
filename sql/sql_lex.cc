@@ -2993,6 +2993,7 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
       {
       default:
         DBUG_ASSERT(0);
+        /* fall through */
       case UNION_TYPE:
         str->append(STRING_WITH_LEN(" union "));
         if (union_all)

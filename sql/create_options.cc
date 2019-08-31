@@ -1,4 +1,4 @@
-/* Copyright (C) 2010, 2017, MariaDB Corporation Ab
+/* Copyright (C) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -132,7 +132,8 @@ static bool set_one_value(ha_create_table_option *opt,
   switch (opt->type)
   {
   case HA_OPTION_TYPE_SYSVAR:
-    DBUG_ASSERT(0); // HA_OPTION_TYPE_SYSVAR's are replaced in resolve_sysvars()
+    // HA_OPTION_TYPE_SYSVAR's are replaced in resolve_sysvars()
+    break; // to DBUG_ASSERT(0)
   case HA_OPTION_TYPE_ULL:
     {
       ulonglong *val= (ulonglong*)value_ptr(base, opt);

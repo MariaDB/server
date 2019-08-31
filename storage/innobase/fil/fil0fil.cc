@@ -725,6 +725,7 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 		switch (space->purpose) {
 		case FIL_TYPE_TEMPORARY:
 			ut_ad(0); // we already checked for this
+			/* fall through */
 		case FIL_TYPE_TABLESPACE:
 		case FIL_TYPE_IMPORT:
 			fil_n_pending_tablespace_flushes++;

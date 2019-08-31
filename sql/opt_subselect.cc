@@ -2460,7 +2460,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
                                          &subjoin_out_rows);
 
         sjm->materialization_cost.convert_from_cost(subjoin_read_time);
-        sjm->rows= subjoin_out_rows;
+        sjm->rows_with_duplicates= sjm->rows= subjoin_out_rows;
         
         // Don't use the following list because it has "stale" items. use
         // ref_pointer_array instead:
@@ -3123,11 +3123,14 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
       prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
       prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
+      prefix_cost= COST_ADD(prefix_cost,
+                            prefix_rec_count / (double) TIME_FOR_COMPARE);
+      //TODO: take into account join condition selectivity here
     }
 
     *strategy= SJ_OPT_MATERIALIZE_SCAN;
     *read_time=    prefix_cost;
-    *record_count= prefix_rec_count;
+    *record_count= prefix_rec_count / mat_info->rows_with_duplicates;
     *handled_fanout= mat_nest->sj_inner_tables;
     if (unlikely(join->thd->trace_started()))
     {

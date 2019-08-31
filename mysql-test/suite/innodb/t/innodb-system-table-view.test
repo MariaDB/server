@@ -4,6 +4,8 @@
 
 --source include/innodb_page_size_small.inc
 
+SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 
@@ -70,6 +72,8 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 # INNODB_SYS_TABLESTATS
 INSERT INTO parent VALUES(1);
 
+--source include/wait_all_purged.inc
+
 --sorted_result
 SELECT name, num_rows, ref_count
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
@@ -126,6 +130,8 @@ INSERT INTO parent VALUES(1, 9);
 --sorted_result
 SELECT * FROM parent WHERE id IN (SELECT id FROM parent);
 
+--source include/wait_all_purged.inc
+
 --sorted_result
 SELECT name, num_rows, ref_count
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
@@ -134,3 +140,4 @@ WHERE name LIKE "%parent";
 DROP TABLE child;
 
 DROP TABLE parent;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

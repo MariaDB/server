@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -540,6 +540,7 @@ public:
   /* Flag indicating  that the field is physically stored in the database */
   bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
+  bool automatic_name;
   Item *expr;
   Lex_ident name;                               /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */
@@ -549,7 +550,7 @@ public:
    :Type_handler_hybrid_field_type(&type_handler_null),
     vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
-    utf8(TRUE), expr(NULL), flags(0)
+    utf8(TRUE), automatic_name(FALSE), expr(NULL), flags(0)
   {
     name.str= NULL;
     name.length= 0;
@@ -1148,6 +1149,7 @@ public:
     in str and restore it with set() if needed
   */
   virtual void sql_type(String &str) const =0;
+  virtual void sql_rpl_type(String *str) const { sql_type(*str); }
   virtual uint size_of() const =0;		// For new field
   inline bool is_null(my_ptrdiff_t row_offset= 0) const
   {
@@ -3576,6 +3578,7 @@ public:
   int cmp(const uchar *,const uchar *);
   void sort_string(uchar *buff,uint length);
   void sql_type(String &str) const;
+  void sql_rpl_type(String*) const;
   bool is_equal(const Column_definition &new_field) const;
   bool can_be_converted_by_engine(const Column_definition &new_type) const
   {
@@ -3692,6 +3695,7 @@ public:
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
   void sql_type(String &str) const;
+  void sql_rpl_type(String*) const;
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end, uint param_data);

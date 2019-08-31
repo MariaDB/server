@@ -2593,6 +2593,7 @@ static const LEX_CSTRING *view_algorithm(TABLE_LIST *table)
     return &merge;
   default:
     DBUG_ASSERT(0); // never should happen
+    /* fall through */
   case VIEW_ALGORITHM_UNDEFINED:
     return &undefined;
   }

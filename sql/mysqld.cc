@@ -6719,6 +6719,10 @@ struct my_option my_long_options[]=
    0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
 #ifndef DBUG_OFF
+  {"debug-assert", 0,
+   "Allow DBUG_ASSERT() to invoke assert()",
+   &my_assert, &my_assert,
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
   {"debug-assert-on-error", 0,
    "Do an assert in various functions if we get a fatal error",
    &my_assert_on_error, &my_assert_on_error,

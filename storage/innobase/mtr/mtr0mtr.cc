@@ -753,7 +753,7 @@ mtr_t::Command::prepare_write()
 	switch (m_impl->m_log_mode) {
 	case MTR_LOG_SHORT_INSERTS:
 		ut_ad(0);
-		/* fall through (write no redo log) */
+		/* fall through */
 	case MTR_LOG_NO_REDO:
 	case MTR_LOG_NONE:
 		ut_ad(m_impl->m_log.size() == 0);

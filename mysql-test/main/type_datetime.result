@@ -1167,6 +1167,37 @@ INSERT INTO t2 SELECT * FROM t1;
 DROP TABLE t1, t2;
 SET SQL_MODE=DEFAULT;
 #
+# MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table
+#
+CREATE TABLE t1 (d DATETIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1999-11-04');
+SELECT d FROM t1 GROUP BY d WITH ROLLUP HAVING d > '1990-01-01';
+d
+1999-11-04 00:00:00
+DROP TABLE t1;
+#
+# MDEV-20431 GREATEST(int_col,date_col) returns wrong results in a view
+#
+CREATE TABLE t1 (pk INT NOT NULL, d DATETIME NOT NULL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'2018-06-22 00:00:00'),(2,'2018-07-11 00:00:00');
+SELECT GREATEST(pk, d) FROM t1;
+GREATEST(pk, d)
+2018-06-22 00:00:00
+2018-07-11 00:00:00
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`pk` at row 2
+SELECT GREATEST(pk, d) FROM v1;
+GREATEST(pk, d)
+2018-06-22 00:00:00
+2018-07-11 00:00:00
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`pk` at row 2
+DROP VIEW v1;
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 #
