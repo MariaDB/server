@@ -7676,9 +7676,8 @@ static void set_up_range_analysis_info(partition_info *part_info)
   switch (part_info->part_type) {
   case VERSIONING_PARTITION:
     if (!part_info->vers_info->interval.is_set())
-    {
       break;
-    }
+    /* Fall through */
   case RANGE_PARTITION:
   case LIST_PARTITION:
     if (!part_info->column_list)
