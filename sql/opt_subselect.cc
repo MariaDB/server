@@ -2950,6 +2950,9 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
         case SJ_OPT_DUPS_WEEDOUT:
           sname= "DuplicateWeedout";
           break;
+        case SJ_OPT_LOOSE_SCAN:
+          sname= "LosseScan";
+          break;
         default:
           DBUG_ASSERT(0);
           sname="Invalid";
