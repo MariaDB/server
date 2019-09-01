@@ -9,8 +9,7 @@ where variable_name not like 'debug%' and
 variable_name not like 'wsrep%' and
 variable_name not like 's3%' and
 variable_name not in (
-'log_tc_size',
-'in_predicate_conversion_threshold'
+'log_tc_size'
         )
 order by variable_name;
 VARIABLE_NAME	ALTER_ALGORITHM
@@ -1379,6 +1378,16 @@ VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The number of seconds the server waits for activity on an interactive connection before closing it
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	IN_PREDICATE_CONVERSION_THRESHOLD
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	The minimum number of scalar elements in the value list of IN predicate that triggers its conversion to IN subquery. Set to 0 to disable the conversion.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO

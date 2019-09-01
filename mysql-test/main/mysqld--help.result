@@ -346,6 +346,10 @@ The following specify which files/extra groups are read (specified before remain
  Specifies a directory to add to the ignore list when
  collecting database names from the datadir. Put a blank
  argument to reset the list accumulated so far.
+ --in-predicate-conversion-threshold=# 
+ The minimum number of scalar elements in the value list
+ of IN predicate that triggers its conversion to IN
+ subquery. Set to 0 to disable the conversion.
  --init-connect=name Command(s) that are executed for each new connection
  (unless the user has SUPER privilege)
  --init-file=name    Read SQL commands from this file at startup
@@ -1442,6 +1446,7 @@ idle-transaction-timeout 0
 idle-write-transaction-timeout 0
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
+in-predicate-conversion-threshold 1000
 init-connect 
 init-file (No default value)
 init-rpl-role MASTER

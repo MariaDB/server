@@ -6192,14 +6192,13 @@ static Sys_var_mybool Sys_session_track_state_change(
 
 #endif //EMBEDDED_LIBRARY
 
-#ifndef DBUG_OFF
 static Sys_var_uint Sys_in_subquery_conversion_threshold(
        "in_predicate_conversion_threshold",
        "The minimum number of scalar elements in the value list of "
-       "IN predicate that triggers its conversion to IN subquery",
-       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(OPT_ARG),
+       "IN predicate that triggers its conversion to IN subquery. Set to "
+       "0 to disable the conversion.",
+       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
-#endif
 
 static Sys_var_enum Sys_secure_timestamp(
        "secure_timestamp", "Restricts direct setting of a session "
