@@ -751,6 +751,7 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
   {
     wrapper_sl->master_unit()->union_distinct= wrapper_sl;
   }
+  wrapper_sl->distinct= tvc_sl->distinct;
   thd->lex->current_select= wrapper_sl;
   return wrapper_sl;
 }

@@ -207,6 +207,14 @@ enum sub_select_type
   GLOBAL_OPTIONS_TYPE, DERIVED_TABLE_TYPE, OLAP_TYPE
 };
 
+enum set_op_type
+{
+  UNSPECIFIED,
+  UNION_DISTINCT, UNION_ALL,
+  EXCEPT_DISTINCT, EXCEPT_ALL,
+  INTERSECT_DISTINCT, INTERSECT_ALL
+};
+
 inline int cmp_unit_op(enum sub_select_type op1, enum sub_select_type op2)
 {
   DBUG_ASSERT(op1 >= UNION_TYPE && op1 <= EXCEPT_TYPE);
@@ -841,8 +849,8 @@ public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
     : union_result(NULL), table(NULL), result(NULL),
-      cleaned(false),
-      fake_select_lex(NULL)
+      cleaned(false), bag_set_op_optimized(false),
+      have_except_all_or_intersect_all(false), fake_select_lex(NULL)
   {
   }
 
@@ -853,9 +861,11 @@ public:
     optimized, // optimize phase already performed for UNION (unit)
     optimized_2,
     executed, // already executed
-    cleaned;
+    cleaned,
+    bag_set_op_optimized;
 
   bool optimize_started;
+  bool have_except_all_or_intersect_all;
 
   // list of fields which points to temporary table for union
   List<Item> item_list;
@@ -867,11 +877,6 @@ public:
     any SELECT of this unit execution
   */
   List<Item> types;
-  /**
-    There is INTERSECT and it is item used in creating temporary
-    table for it
-  */
-  Item_int *intersect_mark;
   /**
      TRUE if the unit contained TVC at the top level that has been wrapped
      into SELECT:
@@ -928,8 +933,9 @@ public:
     fake_select_lex is used.
   */
   st_select_lex *saved_fake_select_lex;
-
-  st_select_lex *union_distinct; /* pointer to the last UNION DISTINCT */
+  
+  /* pointer to the last node before last subsequence of UNION ALL */
+  st_select_lex *union_distinct;
   bool describe; /* union exec() called for EXPLAIN */
   Procedure *last_procedure;     /* Pointer to procedure, if such exists */
 
@@ -955,6 +961,7 @@ public:
   bool prepare(TABLE_LIST *derived_arg, select_result *sel_result,
                ulong additional_options);
   bool optimize();
+  void optimize_bag_operation(bool is_outer_distinct);
   bool exec();
   bool exec_recursive();
   bool cleanup();
@@ -1025,7 +1032,7 @@ Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 #define TOUCHED_SEL_COND 1/* WHERE/HAVING/ON should be reinited before use */
 #define TOUCHED_SEL_DERIVED (1<<1)/* derived should be reinited before use */
 
-
+#define UNIT_NEST_FL        1
 /*
   SELECT_LEX - store information of parsed SELECT statment
 */
@@ -1048,7 +1055,7 @@ public:
     select1->first_nested points to select1.
   */
   st_select_lex *first_nested;
-
+  uint8 nest_flags; 
   Name_resolution_context context;
   LEX_CSTRING db;
   Item *where, *having;                         /* WHERE & HAVING clauses */
@@ -1524,6 +1531,13 @@ public:
 
   select_handler *find_select_handler(THD *thd);
 
+  bool is_set_op()
+  {
+    return linkage == UNION_TYPE || 
+           linkage == EXCEPT_TYPE || 
+           linkage == INTERSECT_TYPE;
+  }
+
 private:
   bool m_non_agg_field_used;
   bool m_agg_func_used;
@@ -1570,6 +1584,8 @@ public:
   void add_statistics(SELECT_LEX_UNIT *unit);
   bool make_unique_derived_name(THD *thd, LEX_CSTRING *alias);
   void lex_start(LEX *plex);
+  bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
+  void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
 };
 typedef class st_select_lex SELECT_LEX;
 
