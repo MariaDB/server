@@ -2407,7 +2407,7 @@ handle_option(int letter, int options)
 switch(letter)
   {
   case N_FOFFSETS: file_offsets = TRUE; break;
-  case N_HELP: help(); pcregrep_exit(0);
+  case N_HELP: help(); pcregrep_exit(0); break;
   case N_LBUFFER: line_buffered = TRUE; break;
   case N_LOFFSETS: line_offsets = number = TRUE; break;
   case N_NOJIT: study_options &= ~PCRE_STUDY_JIT_COMPILE; break;
