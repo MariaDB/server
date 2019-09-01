@@ -426,7 +426,12 @@ int ha_spider::open(
     if (table_share->tmp_table == NO_TMP_TABLE)
     {
       TABLE_LIST *top = spider_get_parent_table_list(this);
-      wide_handler->top_share = top->table->s;
+      if (top->intention_table)
+      {
+        wide_handler->top_share = top->intention_table->s;
+      } else {
+        wide_handler->top_share = top->table->s;
+      }
     }
     owner->wide_handler_owner = TRUE;
     memset(wide_handler->ft_discard_bitmap, 0xFF,

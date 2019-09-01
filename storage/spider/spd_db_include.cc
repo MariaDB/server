@@ -3864,23 +3864,34 @@ int spider_db_conn::set_loop_check(
 
 int spider_db_conn::fin_loop_check()
 {
-  SPIDER_CONN_LOOP_CHECK *lcptr;
-  SPIDER_CONN_LOOP_CHECK_ROUTE_TO *to;
+  st_spider_conn_loop_check *lcptr;
   DBUG_ENTER("spider_db_conn::fin_loop_check");
   DBUG_PRINT("info",("spider this=%p", this));
-  uint l = 0;
-  while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
-    &conn->loop_check_queue, l)))
+  if (conn->loop_check_queue.records)
   {
-    uint t = 0;
-    while ((to = (SPIDER_CONN_LOOP_CHECK_ROUTE_TO *) my_hash_element(
-      &lcptr->to, t)))
+    uint l = 0;
+    while ((lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_element(
+      &conn->loop_check_queue, l)))
     {
-      to->flag |= SPIDER_CONN_LOOP_CHECK_ROUTE_TO_FLG_SENT;
-      ++t;
+      lcptr->flag = 0;
+      ++l;
     }
-    ++l;
+    my_hash_reset(&conn->loop_check_queue);
   }
+  lcptr = conn->loop_check_ignored_first;
+  while (lcptr)
+  {
+    lcptr->flag = 0;
+    lcptr = lcptr->next;
+  }
+  conn->loop_check_ignored_first = NULL;
+  lcptr = conn->loop_check_meraged_first;
+  while (lcptr)
+  {
+    lcptr->flag = 0;
+    lcptr = lcptr->next;
+  }
+  conn->loop_check_meraged_first = NULL;
   DBUG_RETURN(0);
 }
 

@@ -26,42 +26,24 @@
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
 #endif
 
-#define SPIDER_CONN_LOOP_CHECK_ROUTE_TO_FLG_SENT (1 << 0)
-
-typedef struct st_spider_conn_loop_check_route_to
-{
-  LEX_CSTRING        name;
-  uchar              flag;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  my_hash_value_type hash_value;
-#endif
-} SPIDER_CONN_LOOP_CHECK_ROUTE_TO;
-
-typedef struct st_spider_conn_loop_check_route_from
-{
-  LEX_CSTRING        name;
-  LEX_CSTRING        value;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  my_hash_value_type hash_value;
-#endif
-} SPIDER_CONN_LOOP_CHECK_ROUTE_FROM;
+#define SPIDER_LOP_CHK_QUEUED             (1 << 0)
+#define SPIDER_LOP_CHK_MERAGED            (1 << 1)
+#define SPIDER_LOP_CHK_IGNORED            (1 << 2)
 
 typedef struct st_spider_conn_loop_check
 {
-  LEX_CSTRING        lex_str;
+  uint               flag;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  my_hash_value_type hash_value;
+  my_hash_value_type hash_value_to;
+  my_hash_value_type hash_value_full;
 #endif
-  HASH               from;
-  uint               from_id;
-  const char         *from_func_name;
-  const char         *from_file_name;
-  ulong              from_line_no;
-  HASH               to;
-  uint               to_id;
-  const char         *to_func_name;
-  const char         *to_file_name;
-  ulong              to_line_no;
+  LEX_CSTRING        from_name;
+  LEX_CSTRING        cur_name;
+  LEX_CSTRING        to_name;
+  LEX_CSTRING        full_name;
+  LEX_CSTRING        from_value;
+  LEX_CSTRING        merged_value;
+  st_spider_conn_loop_check *next;
 } SPIDER_CONN_LOOP_CHECK;
 
 uchar *spider_conn_get_key(
@@ -198,6 +180,15 @@ void spider_conn_queue_time_zone(
 );
 
 void spider_conn_queue_UTC_time_zone(
+  SPIDER_CONN *conn
+);
+
+int spider_conn_queue_and_merge_loop_check(
+  SPIDER_CONN *conn,
+  SPIDER_CONN_LOOP_CHECK *lcptr
+);
+
+int spider_conn_reset_queue_loop_check(
   SPIDER_CONN *conn
 );
 

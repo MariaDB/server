@@ -266,7 +266,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           277
+#define SPIDER_MEM_CALC_LIST_NUM           273
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -416,6 +416,8 @@ typedef struct st_spider_alter_table
   uint               tmp_monitoring_binlog_pos_at_failing_length;
   uint               tmp_link_statuses_length;
 } SPIDER_ALTER_TABLE;
+
+typedef struct st_spider_conn_loop_check SPIDER_CONN_LOOP_CHECK;
 
 /* database connection */
 typedef struct st_spider_conn
@@ -619,6 +621,10 @@ typedef struct st_spider_conn
   const char         *loop_check_queue_func_name;
   const char         *loop_check_queue_file_name;
   ulong              loop_check_queue_line_no;
+  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_first;
+  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_last;
+  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_first;
+  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_last;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share

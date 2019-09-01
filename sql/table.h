@@ -2133,6 +2133,9 @@ struct TABLE_LIST
   /* Index names in a "... JOIN ... USE/IGNORE INDEX ..." clause. */
   List<Index_hint> *index_hints;
   TABLE        *table;                          /* opened table */
+  /* This is same as table, but it is set as soon as possible when
+     TABLE is allocated */
+  TABLE        *intention_table;
   ulonglong         table_id; /* table id (from binlog) for opened table */
   /*
     select_result for derived table to pass it from table creation to table

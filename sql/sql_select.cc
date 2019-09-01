@@ -3094,6 +3094,9 @@ bool JOIN::make_aggr_tables_info()
     distinct in the engine, so we do this for all queries, not only
     GROUP BY queries.
   */
+  DBUG_PRINT("info",("tables_list:%p", tables_list));
+  DBUG_PRINT("info",("procedure:%p", procedure));
+  DBUG_PRINT("info",("join_tab:%p", join_tab));
   if (tables_list && !procedure && join_tab)
   {
     /*
