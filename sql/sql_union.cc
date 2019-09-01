@@ -858,7 +858,7 @@ bool select_unit_ext::send_eof()
       }
       if (curr_op_type == INTERSECT_ALL)
       {
-        longlong add_cnt= additional_cnt->val_int();
+        ha_rows add_cnt= (ha_rows)additional_cnt->val_int();
         if (dup_cnt > add_cnt && add_cnt > 0)
           dup_cnt= (ha_rows)add_cnt;
       }
@@ -2171,7 +2171,8 @@ bool st_select_lex_unit::exec()
 	  sl->tvc->exec(sl);
 	else
 	  sl->join->exec();
-        if (sl == union_distinct && !have_except_all_or_intersect_all)
+        if (sl == union_distinct && !have_except_all_or_intersect_all &&
+            !(with_element && with_element->is_recursive))
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
