@@ -1,0 +1,5 @@
+select * from t1 order by a;
+a	b
+1	1
+2	2
+drop table t1;

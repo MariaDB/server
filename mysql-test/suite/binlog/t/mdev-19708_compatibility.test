@@ -1,0 +1,13 @@
+--source include/have_binlog_format_row.inc
+--exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/rpl/19708-compatibility.binlog > $MYSQLTEST_VARDIR/tmp/19708.binlog
+
+# data in binlog
+#CREATE TABLE t1(a INT UNSIGNED,  b char);
+#SET GLOBAL binlog_row_metadata = MINIMAL;
+#INSERT INTO t1 VALUES(1, 1);
+#SET GLOBAL binlog_row_metadata = FULL;
+#INSERT INTO t1 VALUES(2, 2);
+--exec $MYSQL test <  $MYSQLTEST_VARDIR/tmp/19708.binlog;
+select * from t1 order by a;
+drop table t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/19708.binlog
