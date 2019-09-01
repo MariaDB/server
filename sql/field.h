@@ -634,6 +634,91 @@ public:
   inline void print(String*);
 };
 
+class Binlog_type_info
+{
+public:
+   enum binlog_signess_t
+   {
+     SIGNED,
+     UNSIGNED,
+     SIGNESS_NOT_RELEVANT // for non-numeric types
+   };
+   uchar m_type_code;     // according to Field::binlog_type()
+  /**
+     Retrieve the field metadata for fields.
+  */
+   uint16 m_metadata;
+   uint8 m_metadata_size;
+   binlog_signess_t m_signess;
+   CHARSET_INFO *m_cs; // NULL if not relevant
+   TYPELIB *m_enum_typelib; // NULL if not relevant
+   TYPELIB *m_set_typelib; // NULL if not relevant
+   uchar m_geom_type; // Non-geometry fields can return 0
+   Binlog_type_info(uchar type_code,
+                    uint16 metadata,
+                    uint8 metadata_size)
+    :m_type_code(type_code),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_signess(SIGNESS_NOT_RELEVANT),
+     m_cs(NULL),
+     m_enum_typelib(NULL),
+     m_set_typelib(NULL),
+     m_geom_type(0)
+    {};
+   Binlog_type_info(uchar type_code, uint16 metadata,
+                   uint8 metadata_size,
+                   binlog_signess_t signess)
+    :m_type_code(type_code),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_signess(signess),
+     m_cs(NULL),
+     m_enum_typelib(NULL),
+     m_set_typelib(NULL),
+     m_geom_type(0)
+    {};
+   Binlog_type_info(uchar type_code, uint16 metadata,
+                   uint8 metadata_size,
+                   CHARSET_INFO *cs)
+    :m_type_code(type_code),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_signess(SIGNESS_NOT_RELEVANT),
+     m_cs(cs),
+     m_enum_typelib(NULL),
+     m_set_typelib(NULL),
+     m_geom_type(0)
+    {};
+   Binlog_type_info(uchar type_code, uint16 metadata,
+                   uint8 metadata_size,
+                   CHARSET_INFO *cs,
+                   TYPELIB *t_enum, TYPELIB *t_set)
+    :m_type_code(type_code),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_signess(SIGNESS_NOT_RELEVANT),
+     m_cs(cs),
+     m_enum_typelib(t_enum),
+     m_set_typelib(t_set),
+     m_geom_type(0)
+    {};
+   Binlog_type_info(uchar type_code, uint16 metadata,
+                   uint8 metadata_size, CHARSET_INFO *cs,
+                   uchar geom_type)
+    :m_type_code(type_code),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_signess(SIGNESS_NOT_RELEVANT),
+     m_cs(cs),
+     m_enum_typelib(NULL),
+     m_set_typelib(NULL),
+     m_geom_type(geom_type)
+    {};
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
+};
+
 class Field: public Value_source
 {
   Field(const Item &);				/* Prevent use of these */
@@ -953,21 +1038,6 @@ public:
   }
   virtual uint row_pack_length() const { return 0; }
 
-
-  /**
-     Retrieve the field metadata for fields.
-
-     This default implementation returns 0 and saves 0 in the first_byte value.
-
-     @param   first_byte   First byte of field metadata
-
-     @returns 0 no bytes written.
-  */
-
-  virtual int save_field_metadata(uchar *first_byte)
-  { return 0; }
-
-
   /*
     data_length() return the "real size" of the data in memory.
   */
@@ -1109,6 +1179,11 @@ public:
       real_type() instead of type() for all column types.
     */
     return type();
+  }
+  virtual Binlog_type_info binlog_type_info()  const
+  {
+    DBUG_ASSERT(Field::type() == binlog_type());
+    return Binlog_type_info(Field::type(), 0, 0);
   }
   virtual en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
   {
@@ -1820,6 +1895,11 @@ protected:
   void prepend_zeros(String *value) const;
   Item *get_equal_zerofill_const_item(THD *thd, const Context &ctx,
                                       Item *const_item);
+  Binlog_type_info::binlog_signess_t binlog_signess() const
+  {
+    return (flags & UNSIGNED_FLAG) ? Binlog_type_info::UNSIGNED :
+                                     Binlog_type_info::SIGNED;
+  }
 public:
   const uint8 dec;
   bool zerofill,unsigned_flag;	// Purify cannot handle bit fields
@@ -1874,6 +1954,11 @@ public:
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value);
+  Binlog_type_info binlog_type_info() const
+  {
+    DBUG_ASSERT(Field_num::type() == binlog_type());
+    return Binlog_type_info(Field_num::type(), 0, 0, binlog_signess());
+  }
 };
 
 
@@ -1938,6 +2023,11 @@ public:
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value);
+  Binlog_type_info binlog_type_info() const
+  {
+    DBUG_ASSERT(Field_str::type() == binlog_type());
+    return Binlog_type_info(Field_str::type(), 0, 0, charset());
+  }
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */
@@ -2114,8 +2204,6 @@ public:
 
 /* New decimal/numeric field which use fixed point arithmetic */
 class Field_new_decimal :public Field_num {
-private:
-  int save_field_metadata(uchar *first_byte);
 public:
   /* The maximum number of decimal digits can be stored */
   uint precision;
@@ -2212,6 +2300,7 @@ public:
   bool is_equal(const Column_definition &new_field) const;
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -2638,8 +2727,7 @@ public:
     */
     return 0x1000000ULL;
   }
-private:
-  int save_field_metadata(uchar *first_byte);
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -2703,8 +2791,7 @@ public:
     */
     return 0x20000000000000ULL;
   }
-private:
-  int save_field_metadata(uchar *first_byte);
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -3048,11 +3135,6 @@ public:
   TIMESTAMP(0..6) - MySQL56 version
 */
 class Field_timestampf :public Field_timestamp_with_dec {
-  int save_field_metadata(uchar *metadata_ptr)
-  {
-    *metadata_ptr= (uchar) decimals();
-    return 1;
-  }
   void store_TIMEVAL(const timeval &tv);
 public:
   Field_timestampf(uchar *ptr_arg,
@@ -3092,6 +3174,7 @@ public:
   }
   bool val_native(Native *to);
   uint size_of() const { return sizeof(*this); }
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -3376,11 +3459,6 @@ public:
 */
 class Field_timef :public Field_time_with_dec {
   void store_TIME(const MYSQL_TIME *ltime);
-  int save_field_metadata(uchar *metadata_ptr)
-  {
-    *metadata_ptr= (uchar) decimals();
-    return 1;
-  }
 public:
   Field_timef(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
@@ -3419,6 +3497,7 @@ public:
   int reset();
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   uint size_of() const { return sizeof(*this); }
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -3545,11 +3624,6 @@ public:
 class Field_datetimef :public Field_datetime_with_dec {
   void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate) const;
-  int save_field_metadata(uchar *metadata_ptr)
-  {
-    *metadata_ptr= (uchar) decimals();
-    return 1;
-  }
 public:
   Field_datetimef(uchar *ptr_arg, uchar *null_ptr_arg,
                   uchar null_bit_arg, enum utype unireg_check_arg,
@@ -3581,6 +3655,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetimef::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -3726,8 +3801,7 @@ public:
   sql_mode_t value_depends_on_sql_mode() const;
   sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   void print_key_value(String *out, uint32 length);
-private:
-  int save_field_metadata(uchar *first_byte);
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -3843,8 +3917,7 @@ public:
   void hash(ulong *nr, ulong *nr2);
   uint length_size() const { return length_bytes; }
   void print_key_value(String *out, uint32 length);
-private:
-  int save_field_metadata(uchar *first_byte);
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -3893,6 +3966,7 @@ private:
   int key_cmp(const uchar *str, uint length) const
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -4200,12 +4274,10 @@ public:
     return table->file->can_convert_blob(this, new_type);
   }
   void print_key_value(String *out, uint32 length);
+  Binlog_type_info binlog_type_info()  const;
 
   friend void TABLE::remember_blob_values(String *blob_storage);
   friend void TABLE::restore_blob_values(String *blob_storage);
-
-private:
-  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -4253,6 +4325,7 @@ private:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit)
   { DBUG_ASSERT(0); return 0; }
+  Binlog_type_info binlog_type_info()  const;
 };
 
 
@@ -4364,8 +4437,8 @@ public:
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
                           bool is_eq_func) const;
+  Binlog_type_info binlog_type_info()  const;
 private:
-  int save_field_metadata(uchar *first_byte);
   bool is_equal(const Column_definition &new_field) const;
 };
 
@@ -4401,6 +4474,7 @@ public:
   uint size_of() const { return sizeof(*this); }
   const Type_handler *type_handler() const { return &type_handler_set; }
   bool has_charset(void) const { return TRUE; }
+  Binlog_type_info binlog_type_info()  const;
 private:
   const String empty_set_string;
 };
@@ -4573,10 +4647,31 @@ public:
   {
     val_int_as_str(out, 1);
   }
+  /**
+     Save the field metadata for bit fields.
+     Saves the bit length in the first byte and bytes in record in the
+     second byte of the field metadata array at index of *metadata_ptr and
+     *(metadata_ptr + 1).
+
+     @param   metadata_ptr   First byte of field metadata
+
+     @returns number of bytes written to metadata_ptr
+  */
+  Binlog_type_info binlog_type_info()  const
+  {
+    DBUG_PRINT("debug", ("bit_len: %d, bytes_in_rec: %d",
+                       bit_len, bytes_in_rec));
+    /*
+      Since this class and Field_bit_as_char have different ideas of
+      what should be stored here, we compute the values of the metadata
+      explicitly using the field_length.
+    */
+    return Binlog_type_info(type(),
+            field_length % 8 + ((field_length / 8) << 8), 2);
+  }
 
 private:
   virtual size_t do_last_null_byte() const;
-  int save_field_metadata(uchar *first_byte);
 };
 
 

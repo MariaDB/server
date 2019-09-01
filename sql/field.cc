@@ -3493,11 +3493,12 @@ void Field_new_decimal::sql_type(String &str) const
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_new_decimal::save_field_metadata(uchar *metadata_ptr)
+
+Binlog_type_info Field_new_decimal::binlog_type_info() const
 {
-  *metadata_ptr= precision;
-  *(metadata_ptr + 1)= decimals();
-  return 2;
+  DBUG_ASSERT(Field_new_decimal::type() == binlog_type());
+  return Binlog_type_info(Field_new_decimal::type(), precision +
+                          (decimals() << 8), 2, binlog_signess());
 }
 
 
@@ -4665,10 +4666,11 @@ bool Field_float::send_binary(Protocol *protocol)
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_float::save_field_metadata(uchar *metadata_ptr)
+Binlog_type_info Field_float::binlog_type_info() const
 {
-  *metadata_ptr= pack_length();
-  return 1;
+  DBUG_ASSERT(Field_float::type() == binlog_type());
+  return Binlog_type_info(Field_float::type(), pack_length(), 1,
+                          binlog_signess());
 }
 
 
@@ -4976,10 +4978,11 @@ void Field_double::sort_string(uchar *to,uint length __attribute__((unused)))
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_double::save_field_metadata(uchar *metadata_ptr)
+Binlog_type_info Field_double::binlog_type_info() const
 {
-  *metadata_ptr= pack_length();
-  return 1;
+  DBUG_ASSERT(Field_double::type() == binlog_type());
+  return Binlog_type_info(Field_double::type(), pack_length(), 1,
+                          binlog_signess());
 }
 
 
@@ -5627,6 +5630,11 @@ bool Field_timestampf::val_native(Native *to)
   return Field::val_native(to);
 }
 
+Binlog_type_info Field_timestampf::binlog_type_info() const
+{
+  return Binlog_type_info(Field_timestampf::binlog_type(), decimals(), 1);
+}
+
 
 /*************************************************************/
 sql_mode_t Field_temporal::can_handle_sql_mode_dependency_on_store() const
@@ -6243,6 +6251,10 @@ bool Field_timef::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   longlong tmp= my_time_packed_from_binary(ptr, dec);
   TIME_from_longlong_time_packed(ltime, tmp);
   return false;
+}
+Binlog_type_info Field_timef::binlog_type_info() const
+{
+  return Binlog_type_info(Field_timef::binlog_type(), decimals(), 1);
 }
 
 /****************************************************************************
@@ -6955,6 +6967,10 @@ bool Field_datetimef::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
   TIME_from_longlong_datetime_packed(ltime, tmp);
   return validate_MMDD(tmp, ltime->month, ltime->day, fuzzydate);
 }
+Binlog_type_info Field_datetimef::binlog_type_info() const
+{
+  return Binlog_type_info(Field_datetimef::binlog_type(), decimals(), 1);
+}
 
 /****************************************************************************
 ** string type
@@ -7536,15 +7552,16 @@ Field_string::unpack(uchar *to, const uchar *from, const uchar *from_end,
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_string::save_field_metadata(uchar *metadata_ptr)
+Binlog_type_info Field_string::binlog_type_info() const
 {
+  uint16 a;
   DBUG_ASSERT(field_length < 1024);
   DBUG_ASSERT((real_type() & 0xF0) == 0xF0);
   DBUG_PRINT("debug", ("field_length: %u, real_type: %u",
-                       field_length, real_type()));
-  *metadata_ptr= (real_type() ^ ((field_length & 0x300) >> 4));
-  *(metadata_ptr + 1)= field_length & 0xFF;
-  return 2;
+                     field_length, real_type()));
+  a= (real_type() ^ ((field_length & 0x300) >> 4)) + (((uint)(field_length & 0xFF)) << 8);
+  DBUG_ASSERT(Field_string::type() == binlog_type());
+  return Binlog_type_info(Field_string::type(), a, 2, charset());
 }
 
 
@@ -7633,11 +7650,10 @@ const uint Field_varstring::MAX_SIZE= UINT_MAX16;
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_varstring::save_field_metadata(uchar *metadata_ptr)
+Binlog_type_info Field_varstring::binlog_type_info() const
 {
-  DBUG_ASSERT(field_length <= 65535);
-  int2store((char*)metadata_ptr, field_length);
-  return 2;
+  DBUG_ASSERT(Field_varstring::type() == binlog_type());
+  return Binlog_type_info(Field_varstring::type(), field_length, 2, charset());
 }
 
 
@@ -8270,6 +8286,11 @@ int Field_varstring_compressed::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
 
   return sortcmp(&a, &b, field_charset());
 }
+Binlog_type_info Field_varstring_compressed::binlog_type_info() const
+{
+  return Binlog_type_info(Field_varstring_compressed::binlog_type(),
+                          field_length, 2, charset());
+}
 
 
 /****************************************************************************
@@ -8614,12 +8635,11 @@ Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_blob::save_field_metadata(uchar *metadata_ptr)
+Binlog_type_info Field_blob::binlog_type_info() const
 {
-  DBUG_ENTER("Field_blob::save_field_metadata");
-  *metadata_ptr= pack_length_no_ptr();
-  DBUG_PRINT("debug", ("metadata: %u (pack_length_no_ptr)", *metadata_ptr));
-  DBUG_RETURN(1);
+  DBUG_ASSERT(Field_blob::type() == binlog_type());
+  return Binlog_type_info(Field_blob::type(), pack_length_no_ptr(), 1,
+                          charset());
 }
 
 
@@ -8874,6 +8894,11 @@ longlong Field_blob_compressed::val_int(void)
                                       buf.ptr(), buf.length()).result();
 }
 
+Binlog_type_info Field_blob_compressed::binlog_type_info() const
+{
+  return Binlog_type_info(Field_blob_compressed::binlog_type(),
+                          pack_length_no_ptr(), 1, charset());
+}
 
 /****************************************************************************
 ** enum type.
@@ -9008,11 +9033,11 @@ longlong Field_enum::val_int(const uchar *real_ptr) const
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_enum::save_field_metadata(uchar *metadata_ptr)
+Binlog_type_info Field_enum::binlog_type_info() const
 {
-  *metadata_ptr= real_type();
-  *(metadata_ptr + 1)= pack_length();
-  return 2;
+  DBUG_ASSERT(Field_enum::type() == binlog_type());
+  return Binlog_type_info(Field_enum::type(), real_type() + (pack_length() << 8),
+                          2, charset(), (TYPELIB *)get_typelib(), NULL);
 }
 
 
@@ -9213,6 +9238,13 @@ void Field_set::sql_type(String &res) const
     flag= 1;
   }
   res.append(')');
+}
+
+Binlog_type_info Field_set::binlog_type_info() const
+{
+  DBUG_ASSERT(Field_set::type() == binlog_type());
+  return Binlog_type_info(Field_set::type(), real_type()
+           + (pack_length() << 8), 2, charset(), NULL, (TYPELIB *)get_typelib());
 }
 
 /**
@@ -9739,33 +9771,6 @@ uint Field_bit::get_key_image(uchar *buff, uint length, imagetype type_arg)
   uint tmp_data_length = MY_MIN(length, bytes_in_rec);
   memcpy(buff, ptr, tmp_data_length);
   return tmp_data_length + 1;
-}
-
-
-/**
-   Save the field metadata for bit fields.
-
-   Saves the bit length in the first byte and bytes in record in the
-   second byte of the field metadata array at index of *metadata_ptr and
-   *(metadata_ptr + 1).
-
-   @param   metadata_ptr   First byte of field metadata
-
-   @returns number of bytes written to metadata_ptr
-*/
-int Field_bit::save_field_metadata(uchar *metadata_ptr)
-{
-  DBUG_ENTER("Field_bit::save_field_metadata");
-  DBUG_PRINT("debug", ("bit_len: %d, bytes_in_rec: %d",
-                       bit_len, bytes_in_rec));
-  /*
-    Since this class and Field_bit_as_char have different ideas of
-    what should be stored here, we compute the values of the metadata
-    explicitly using the field_length.
-   */
-  metadata_ptr[0]= field_length % 8;
-  metadata_ptr[1]= field_length / 8;
-  DBUG_RETURN(2);
 }
 
 

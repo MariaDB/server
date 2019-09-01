@@ -435,6 +435,7 @@ public:
   {
     out->append(STRING_WITH_LEN("unprintable_geometry_value"));
   }
+  Binlog_type_info binlog_type_info()  const;
 };
 
 #endif // HAVE_SPATIAL

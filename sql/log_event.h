@@ -35,6 +35,11 @@
 
 #include <my_bitmap.h>
 #include "rpl_constants.h"
+#include <vector>
+#include <string>
+#include <functional>
+#include <memory>
+#include <map>
 
 #ifdef MYSQL_CLIENT
 #include "sql_const.h"
@@ -791,7 +796,6 @@ enum Int_event_type
   INVALID_INT_EVENT = 0, LAST_INSERT_ID_EVENT = 1, INSERT_ID_EVENT = 2
 };
 
-
 #ifdef MYSQL_SERVER
 class String;
 class MYSQL_BIN_LOG;
@@ -881,6 +885,7 @@ typedef struct st_print_event_info
     statement for it.
   */
   bool skip_replication;
+  bool print_table_metadata;
 
   /*
      These two caches are used by the row-based replication events to
@@ -4063,6 +4068,18 @@ private:
     ninth is in the least significant bit of the second byte, and so
     on.  </td>
   </tr>
+  <tr>
+    <td>optional metadata fields</td>
+    <td>optional metadata fields are stored in Type, Length, Value(TLV) format.
+    Type takes 1 byte. Length is a packed integer value. Values takes
+    Length bytes.
+    </td>
+    <td>There are some optional metadata defined. They are listed in the table
+    @ref Table_table_map_event_optional_metadata. Optional metadata fields
+    follow null_bits. Whether binlogging an optional metadata is decided by the
+    server. The order is not defined, so they can be binlogged in any order.
+    </td>
+  </tr>
 
   </table>
 
@@ -4268,6 +4285,123 @@ private:
   </tr>
 
   </table>
+  The table below lists all optional metadata types, along with the numerical
+  identifier for it and the size and interpretation of meta-data used
+  to describe the type.
+
+  @anchor Table_table_map_event_optional_metadata
+  <table>
+  <caption>Table_map_event optional metadata types: numerical identifier and
+  metadata. Optional metadata fields are stored in TLV fields.
+  Format of values are described in this table. </caption>
+  <tr>
+    <th>Type</th>
+    <th>Description</th>
+    <th>Format</th>
+  </tr>
+  <tr>
+    <td>SIGNEDNESS</td>
+    <td>signedness of numeric colums. This is included for all values of
+    binlog_row_metadata.</td>
+    <td>For each numeric column, a bit indicates whether the numeric
+    colunm has unsigned flag. 1 means it is unsigned. The number of
+    bytes needed for this is int((column_count + 7) / 8). The order is
+    the same as the order of column_type field.</td>
+  </tr>
+  <tr>
+    <td>DEFAULT_CHARSET</td>
+    <td>Charsets of character columns. It has a default charset for
+    the case that most of character columns have same charset and the
+    most used charset is binlogged as default charset.Collation
+    numbers are binlogged for identifying charsets. They are stored in
+    packed length format.  Either DEFAULT_CHARSET or COLUMN_CHARSET is
+    included for all values of binlog_row_metadata.</td>
+    <td>Default charset's collation is logged first. The charsets which are not
+    same to default charset are logged following default charset. They are
+    logged as column index and charset collation number pair sequence. The
+    column index is counted only in all character columns. The order is same to
+    the order of column_type
+    field. </td>
+  </tr>
+  <tr>
+    <td>COLUMN_CHARSET</td>
+    <td>Charsets of character columns. For the case that most of columns have
+    different charsets, this field is logged. It is never logged with
+    DEFAULT_CHARSET together.  Either DEFAULT_CHARSET or COLUMN_CHARSET is
+    included for all values of binlog_row_metadata.</td>
+    <td>It is a collation number sequence for all character columns.</td>
+  </tr>
+  <tr>
+    <td>COLUMN_NAME</td>
+    <td>Names of columns. This is only included if
+    binlog_row_metadata=FULL.</td>
+    <td>A sequence of column names. For each column name, 1 byte for
+    the string length in bytes is followed by a string without null
+    terminator.</td>
+  </tr>
+  <tr>
+    <td>SET_STR_VALUE</td>
+    <td>The string values of SET columns. This is only included if
+    binlog_row_metadata=FULL.</td>
+    <td>For each SET column, a pack_length representing the value
+    count is followed by a sequence of length and string pairs. length
+    is the byte count in pack_length format. The string has no null
+    terminator.</td>
+  </tr>
+  <tr>
+    <td>ENUM_STR_VALUE</td>
+    <td>The string values is ENUM columns. This is only included
+    if binlog_row_metadata=FULL.</td>
+    <td>The format is the same as SET_STR_VALUE.</td>
+  </tr>
+  <tr>
+    <td>GEOMETRY_TYPE</td>
+    <td>The real type of geometry columns. This is only included
+    if binlog_row_metadata=FULL.</td>
+    <td>A sequence of real type of geometry columns are stored in pack_length
+    format. </td>
+  </tr>
+  <tr>
+    <td>SIMPLE_PRIMARY_KEY</td>
+    <td>The primary key without any prefix. This is only included
+    if binlog_row_metadata=FULL and there is a primary key where every
+    key part covers an entire column.</td>
+    <td>A sequence of column indexes. The indexes are stored in pack_length
+    format.</td>
+  </tr>
+  <tr>
+    <td>PRIMARY_KEY_WITH_PREFIX</td>
+    <td>The primary key with some prefix. It doesn't appear together with
+    SIMPLE_PRIMARY_KEY. This is only included if
+    binlog_row_metadata=FULL and there is a primary key where some key
+    part covers a prefix of the column.</td>
+    <td>A sequence of column index and prefix length pairs. Both
+    column index and prefix length are in pack_length format. Prefix length
+    0 means that the whole column value is used.</td>
+  </tr>
+  <tr>
+    <td>ENUM_AND_SET_DEFAULT_CHARSET</td>
+    <td>Charsets of ENUM and SET columns. It has the same layout as
+    DEFAULT_CHARSET.  If there are SET or ENUM columns and
+    binlog_row_metadata=FULL, exactly one of
+    ENUM_AND_SET_DEFAULT_CHARSET and ENUM_AND_SET_COLUMN_CHARSET
+    appears (the encoder chooses the representation that uses the
+    least amount of space).  Otherwise, none of them appears.</td>
+    <td>The same format as for DEFAULT_CHARSET, except it counts ENUM
+    and SET columns rather than character columns.</td>
+  </tr>
+  <tr>
+    <td>ENUM_AND_SET_COLUMN_CHARSET</td>
+    <td>Charsets of ENUM and SET columns. It has the same layout as
+    COLUMN_CHARSET.  If there are SET or ENUM columns and
+    binlog_row_metadata=FULL, exactly one of
+    ENUM_AND_SET_DEFAULT_CHARSET and ENUM_AND_SET_COLUMN_CHARSET
+    appears (the encoder chooses the representation that uses the
+    least amount of space).  Otherwise, none of them appears.</td>
+    <td>The same format as for COLUMN_CHARSET, except it counts ENUM
+    and SET columns rather than character columns.</td>
+  </tr>
+  </table>
 */
 class Table_map_log_event : public Log_event
 {
@@ -4303,6 +4437,124 @@ public:
   };
 
   typedef uint16 flag_set;
+  /**
+    DEFAULT_CHARSET and COLUMN_CHARSET don't appear together, and
+    ENUM_AND_SET_DEFAULT_CHARSET and ENUM_AND_SET_COLUMN_CHARSET don't
+    appear together. They are just alternative ways to pack character
+    set information. When binlogging, it logs character sets in the
+    way that occupies least storage.
+
+    SIMPLE_PRIMARY_KEY and PRIMARY_KEY_WITH_PREFIX don't appear together.
+    SIMPLE_PRIMARY_KEY is for the primary keys which only use whole values of
+    pk columns. PRIMARY_KEY_WITH_PREFIX is
+    for the primary keys which just use part value of pk columns.
+   */
+  enum Optional_metadata_field_type
+  {
+    SIGNEDNESS = 1,  // UNSIGNED flag of numeric columns
+    DEFAULT_CHARSET, /* Character set of string columns, optimized to
+                        minimize space when many columns have the
+                        same charset. */
+    COLUMN_CHARSET,  /* Character set of string columns, optimized to
+                        minimize space when columns have many
+                        different charsets. */
+    COLUMN_NAME,
+    SET_STR_VALUE,                // String value of SET columns
+    ENUM_STR_VALUE,               // String value of ENUM columns
+    GEOMETRY_TYPE,                // Real type of geometry columns
+    SIMPLE_PRIMARY_KEY,           // Primary key without prefix
+    PRIMARY_KEY_WITH_PREFIX,      // Primary key with prefix
+    ENUM_AND_SET_DEFAULT_CHARSET, /* Character set of enum and set
+                                     columns, optimized to minimize
+                                     space when many columns have the
+                                     same charset. */
+    ENUM_AND_SET_COLUMN_CHARSET,  /* Character set of enum and set
+                                     columns, optimized to minimize
+                                     space when many columns have the
+                                     same charset. */
+  };
+  /**
+    Metadata_fields organizes m_optional_metadata into a structured format which
+    is easy to access.
+  */
+  // Values for binlog_row_metadata sysvar
+  enum enum_binlog_row_metadata
+  {
+    BINLOG_ROW_METADATA_NO_LOG= 0,
+    BINLOG_ROW_METADATA_MINIMAL= 1,
+    BINLOG_ROW_METADATA_FULL= 2
+  };
+  struct Optional_metadata_fields
+  {
+    typedef std::pair<unsigned int, unsigned int> uint_pair;
+    typedef std::vector<std::string> str_vector;
+
+    struct Default_charset
+    {
+      Default_charset() : default_charset(0) {}
+      bool empty() const { return default_charset == 0; }
+
+      // Default charset for the columns which are not in charset_pairs.
+      unsigned int default_charset;
+
+      /* The uint_pair means <column index, column charset number>. */
+      std::vector<uint_pair> charset_pairs;
+    };
+
+    // Contents of DEFAULT_CHARSET field is converted into Default_charset.
+    Default_charset m_default_charset;
+    // Contents of ENUM_AND_SET_DEFAULT_CHARSET are converted into
+    // Default_charset.
+    Default_charset m_enum_and_set_default_charset;
+    std::vector<bool> m_signedness;
+    // Character set number of every string column
+    std::vector<unsigned int> m_column_charset;
+    // Character set number of every ENUM or SET column.
+    std::vector<unsigned int> m_enum_and_set_column_charset;
+    std::vector<std::string> m_column_name;
+    // each str_vector stores values of one enum/set column
+    std::vector<str_vector> m_enum_str_value;
+    std::vector<str_vector> m_set_str_value;
+    std::vector<unsigned int> m_geometry_type;
+    /*
+      The uint_pair means <column index, prefix length>.  Prefix length is 0 if
+      whole column value is used.
+    */
+    std::vector<uint_pair> m_primary_key;
+
+    /*
+      It parses m_optional_metadata and populates into above variables.
+
+      @param[in] optional_metadata points to the begin of optional metadata
+                                   fields in table_map_event.
+      @param[in] optional_metadata_len length of optional_metadata field.
+     */
+    Optional_metadata_fields(unsigned char* optional_metadata,
+                             unsigned int optional_metadata_len);
+  };
+
+  /**
+    Print column metadata. Its format looks like:
+    # Columns(colume_name type, colume_name type, ...)
+    if colume_name field is not logged into table_map_log_event, then
+    only type is printed.
+
+    @@param[out] file the place where colume metadata is printed
+    @@param[in]  The metadata extracted from optional metadata fields
+ */
+  void print_columns(IO_CACHE *file,
+                     const Optional_metadata_fields &fields);
+  /**
+    Print primary information. Its format looks like:
+    # Primary Key(colume_name, column_name(prifix), ...)
+    if colume_name field is not logged into table_map_log_event, then
+    colume index is printed.
+
+    @@param[out] file the place where primary key is printed
+    @@param[in]  The metadata extracted from optional metadata fields
+ */
+  void print_primary_key(IO_CACHE *file,
+                         const Optional_metadata_fields &fields);
 
   /* Special constants representing sets of flags */
   enum 
@@ -4369,6 +4621,51 @@ private:
 
 #ifdef MYSQL_SERVER
   TABLE         *m_table;
+  Binlog_type_info *binlog_type_info_array;
+
+
+  // Metadata fields buffer
+  StringBuffer<1024> m_metadata_buf;
+
+  /**
+    Capture the optional metadata fields which should be logged into
+    table_map_log_event and serialize them into m_metadata_buf.
+  */
+  void init_metadata_fields();
+  bool init_signedness_field();
+  /**
+    Capture and serialize character sets.  Character sets for
+    character columns (TEXT etc) and character sets for ENUM and SET
+    columns are stored in different metadata fields. The reason is
+    that TEXT character sets are included even when
+    binlog_row_metadata=MINIMAL, whereas ENUM and SET character sets
+    are included only when binlog_row_metadata=FULL.
+
+    @param include_type Predicate to determine if a given Field object
+    is to be included in the metadata field.
+
+    @param default_charset_type Type code when storing in "default
+    charset" format.  (See comment above Table_maps_log_event in
+    libbinlogevents/include/rows_event.h)
+
+    @param column_charset_type Type code when storing in "column
+    charset" format.  (See comment above Table_maps_log_event in
+    libbinlogevents/include/rows_event.h)
+  */
+  bool init_charset_field(bool(* include_type)(Binlog_type_info *, Field *),
+                          Optional_metadata_field_type default_charset_type,
+                          Optional_metadata_field_type column_charset_type);
+  bool init_column_name_field();
+  bool init_set_str_value_field();
+  bool init_enum_str_value_field();
+  bool init_geometry_type_field();
+  bool init_primary_key_field();
+#endif
+
+#ifdef MYSQL_CLIENT
+  class Charset_iterator;
+  class Default_charset_iterator;
+  class Column_charset_iterator;
 #endif
   char const    *m_dbnam;
   size_t         m_dblen;
@@ -4390,6 +4687,8 @@ private:
   ulong          m_field_metadata_size;   
   uchar         *m_null_bits;
   uchar         *m_meta_memory;
+  unsigned int   m_optional_metadata_len;
+  unsigned char *m_optional_metadata;
 };
 
 
@@ -5260,6 +5559,5 @@ int query_event_uncompress(const Format_description_log_event *description_event
 int row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
                              const char *src, ulong src_len, char* buf, ulong buf_size, bool* is_malloc,
                              char **dst, ulong *newlen);
-
 
 #endif /* _log_event_h */

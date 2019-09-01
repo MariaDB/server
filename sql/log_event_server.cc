@@ -5914,10 +5914,19 @@ int Table_map_log_event::save_field_metadata()
 {
   DBUG_ENTER("Table_map_log_event::save_field_metadata");
   int index= 0;
+  Binlog_type_info *info;
   for (unsigned int i= 0 ; i < m_table->s->fields ; i++)
   {
     DBUG_PRINT("debug", ("field_type: %d", m_coltype[i]));
-    index+= m_table->s->field[i]->save_field_metadata(&m_field_metadata[index]);
+    //index+= m_table->s->field[i]->save_field_metadata(&m_field_metadata[index]);
+    info= binlog_type_info_array + i;
+    memcpy(&m_field_metadata[index], (uchar *)&info->m_metadata, info->m_metadata_size);
+    index+= info->m_metadata_size;
+    DBUG_EXECUTE_IF("inject_invalid_blob_size",
+                    {
+                      if (m_coltype[i] == MYSQL_TYPE_BLOB)
+                        m_field_metadata[index-1] = 5;
+                    });
   }
   DBUG_RETURN(index);
 }
@@ -5944,7 +5953,9 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
     m_field_metadata(0),
     m_field_metadata_size(0),
     m_null_bits(0),
-    m_meta_memory(NULL)
+    m_meta_memory(NULL),
+    m_optional_metadata_len(0),
+    m_optional_metadata(NULL)
 {
   uchar cbuf[MAX_INT_WIDTH];
   uchar *cbuf_end;
@@ -5959,6 +5970,13 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   DBUG_ASSERT((tbl->s->db.str == 0) ||
               (tbl->s->db.str[tbl->s->db.length] == 0));
   DBUG_ASSERT(tbl->s->table_name.str[tbl->s->table_name.length] == 0);
+
+#ifdef MYSQL_SERVER
+  binlog_type_info_array= (Binlog_type_info *)thd->alloc(m_table->s->fields *
+                                                   sizeof(Binlog_type_info));
+  for (uint i= 0; i <  m_table->s->fields; i++)
+    binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
+#endif
 
 
   m_data_size=  TABLE_MAP_HEADER_LEN;
@@ -5977,7 +5995,8 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   {
     m_coltype= reinterpret_cast<uchar*>(m_memory);
     for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
-      m_coltype[i]= m_table->field[i]->binlog_type();
+      m_coltype[i]= binlog_type_info_array[i].m_type_code;
+    DBUG_EXECUTE_IF("inject_invalid_column_type", m_coltype[1]= 230;);
   }
 
   /*
@@ -6015,6 +6034,9 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
     if (m_table->field[i]->maybe_null())
       m_null_bits[(i / 8)]+= 1 << (i % 8);
+
+  init_metadata_fields();
+  m_data_size+= m_metadata_buf.length();
 
   DBUG_VOID_RETURN;
 }
@@ -6310,9 +6332,393 @@ bool Table_map_log_event::write_data_body()
          write_data(m_coltype, m_colcnt) ||
          write_data(mbuf, (size_t) (mbuf_end - mbuf)) ||
          write_data(m_field_metadata, m_field_metadata_size),
-         write_data(m_null_bits, (m_colcnt + 7) / 8);
+         write_data(m_null_bits, (m_colcnt + 7) / 8) ||
+         write_data((const uchar*) m_metadata_buf.ptr(),
+                                  m_metadata_buf.length());
  }
 
+/**
+   stores an integer into packed format.
+
+   @param[out] str_buf  a buffer where the packed integer will be stored.
+   @param[in] length  the integer will be packed.
+ */
+static inline
+void store_compressed_length(String &str_buf, ulonglong length)
+{
+  // Store Type and packed length
+  uchar buf[4];
+  uchar *buf_ptr = net_store_length(buf, length);
+
+  str_buf.append(reinterpret_cast<char *>(buf), buf_ptr-buf);
+}
+
+/**
+  Write data into str_buf with Type|Length|Value(TLV) format.
+
+  @param[out] str_buf a buffer where the field is stored.
+  @param[in] type  type of the field
+  @param[in] length  length of the field value
+  @param[in] value  value of the field
+*/
+static inline
+bool write_tlv_field(String &str_buf,
+                     enum Table_map_log_event::Optional_metadata_field_type
+                     type, uint length, const uchar *value)
+{
+  /* type is stored in one byte, so it should never bigger than 255. */
+  DBUG_ASSERT(static_cast<int>(type) <= 255);
+  str_buf.append((char) type);
+  store_compressed_length(str_buf, length);
+  return str_buf.append(reinterpret_cast<const char *>(value), length);
+}
+
+/**
+  Write data into str_buf with Type|Length|Value(TLV) format.
+
+  @param[out] str_buf a buffer where the field is stored.
+  @param[in] type  type of the field
+  @param[in] value  value of the field
+*/
+static inline
+bool write_tlv_field(String &str_buf,
+                     enum Table_map_log_event::Optional_metadata_field_type
+                     type, const String &value)
+{
+  return write_tlv_field(str_buf, type, value.length(),
+                         reinterpret_cast<const uchar *>(value.ptr()));
+}
+
+static inline bool is_character_field(Binlog_type_info *info_array, Field *field)
+{
+  Binlog_type_info *info= info_array + field->field_index;
+  if (!info->m_cs)
+    return 0;
+  if (info->m_set_typelib || info->m_enum_typelib)
+    return 0;
+  return 1;
+}
+
+static inline bool is_enum_or_set_field(Binlog_type_info *info_array, Field *field) {
+  Binlog_type_info *info= info_array + field->field_index;
+  if (info->m_set_typelib || info->m_enum_typelib)
+    return 1;
+  return 0;
+}
+
+
+void Table_map_log_event::init_metadata_fields()
+{
+  DBUG_ENTER("init_metadata_fields");
+  DBUG_EXECUTE_IF("simulate_no_optional_metadata", DBUG_VOID_RETURN;);
+
+  if (binlog_row_metadata == BINLOG_ROW_METADATA_NO_LOG)
+    DBUG_VOID_RETURN;
+  if (init_signedness_field() ||
+      init_charset_field(&is_character_field, DEFAULT_CHARSET,
+                         COLUMN_CHARSET) ||
+      init_geometry_type_field())
+  {
+    m_metadata_buf.length(0);
+    DBUG_VOID_RETURN;
+  }
+
+  if (binlog_row_metadata == BINLOG_ROW_METADATA_FULL)
+  {
+    if (DBUG_EVALUATE_IF("dont_log_column_name", 0, init_column_name_field()) ||
+        init_charset_field(&is_enum_or_set_field, ENUM_AND_SET_DEFAULT_CHARSET,
+                           ENUM_AND_SET_COLUMN_CHARSET) ||
+        init_set_str_value_field() ||
+        init_enum_str_value_field() ||
+        init_primary_key_field())
+      m_metadata_buf.length(0);
+  }
+  DBUG_VOID_RETURN;
+}
+
+bool Table_map_log_event::init_signedness_field()
+{
+  /* use it to store signed flags, each numeric column take a bit. */
+  StringBuffer<128> buf;
+  unsigned char flag= 0;
+  unsigned char mask= 0x80;
+  Binlog_type_info *info;
+
+  for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+  {
+    info= binlog_type_info_array + i;
+    if (info->m_signess != Binlog_type_info::SIGNESS_NOT_RELEVANT)
+    {
+      if (info->m_signess == Binlog_type_info::UNSIGNED)
+        flag|= mask;
+      mask >>= 1;
+
+      // 8 fields are tested, store the result and clear the flag.
+      if (mask == 0)
+      {
+        buf.append(flag);
+        flag= 0;
+        mask= 0x80;
+      }
+    }
+  }
+
+  // Stores the signedness flags of last few columns
+  if (mask != 0x80)
+    buf.append(flag);
+
+  // The table has no numeric column, so don't log SIGNEDNESS field
+  if (buf.is_empty())
+    return false;
+
+  return write_tlv_field(m_metadata_buf, SIGNEDNESS, buf);
+}
+
+bool Table_map_log_event::init_charset_field(
+    bool (* include_type)(Binlog_type_info *, Field *),
+    Optional_metadata_field_type default_charset_type,
+    Optional_metadata_field_type column_charset_type)
+{
+  DBUG_EXECUTE_IF("simulate_init_charset_field_error", return true;);
+
+  std::map<uint, uint> collation_map;
+  // For counting characters columns
+  uint char_col_cnt= 0;
+
+  /* Find the collation number used by most fields */
+  for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+  {
+    if ((*include_type)(binlog_type_info_array, m_table->field[i]))
+    {
+      collation_map[binlog_type_info_array[i].m_cs->number]++;
+      char_col_cnt++;
+    }
+  }
+
+  if (char_col_cnt == 0)
+    return false;
+
+  /* Find the most used collation */
+  uint most_used_collation= 0;
+  uint most_used_count= 0;
+  for (std::map<uint, uint>::iterator it= collation_map.begin();
+       it != collation_map.end(); it++)
+  {
+    if (it->second > most_used_count)
+    {
+      most_used_count= it->second;
+      most_used_collation= it->first;
+    }
+  }
+
+  /*
+    Comparing length of COLUMN_CHARSET field and COLUMN_CHARSET_WITH_DEFAULT
+    field to decide which field should be logged.
+
+    Length of COLUMN_CHARSET = character column count * collation id size.
+    Length of COLUMN_CHARSET_WITH_DEFAULT =
+     default collation_id size + count of columns not use default charset *
+     (column index size + collation id size)
+
+    Assume column index just uses 1 byte and collation number also uses 1 byte.
+  */
+  if (char_col_cnt * 1 < (1 + (char_col_cnt - most_used_count) * 2))
+  {
+    StringBuffer<512> buf;
+
+    /*
+      Stores character set information into COLUMN_CHARSET format,
+      character sets of all columns are stored one by one.
+      -----------------------------------------
+      | Charset number | .... |Charset number |
+      -----------------------------------------
+    */
+    for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+    {
+      if (include_type(binlog_type_info_array, m_table->field[i]))
+        store_compressed_length(buf, binlog_type_info_array[i].m_cs->number);
+    }
+    return write_tlv_field(m_metadata_buf, column_charset_type, buf);
+  }
+  else
+  {
+    StringBuffer<512> buf;
+    uint char_column_index= 0;
+    uint default_collation= most_used_collation;
+
+    /*
+      Stores character set information into DEFAULT_CHARSET format,
+      First stores the default character set, and then stores the character
+      sets different to default character with their column index one by one.
+      --------------------------------------------------------
+      | Default Charset | Col Index | Charset number | ...   |
+      --------------------------------------------------------
+    */
+
+    // Store the default collation number
+    store_compressed_length(buf, default_collation);
+
+    for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+    {
+      if (include_type(binlog_type_info_array, m_table->field[i]))
+      {
+        Field_str *field= dynamic_cast<Field_str *>(m_table->field[i]);
+
+        if (field->charset()->number != default_collation)
+        {
+          store_compressed_length(buf, char_column_index);
+          store_compressed_length(buf, field->charset()->number);
+        }
+        char_column_index++;
+      }
+    }
+    return write_tlv_field(m_metadata_buf, default_charset_type, buf);
+  }
+}
+
+bool Table_map_log_event::init_column_name_field()
+{
+  StringBuffer<2048> buf;
+
+  for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+  {
+    size_t len= m_table->field[i]->field_name.length;
+
+    store_compressed_length(buf, len);
+    buf.append(m_table->field[i]->field_name.str, len);
+  }
+  return write_tlv_field(m_metadata_buf, COLUMN_NAME, buf);
+}
+
+bool Table_map_log_event::init_set_str_value_field()
+{
+  StringBuffer<1024> buf;
+  TYPELIB *typelib;
+
+  /*
+    SET string values are stored in the same format:
+    ----------------------------------------------
+    | Value number | value1 len | value 1|  .... |  // first SET column
+    ----------------------------------------------
+    | Value number | value1 len | value 1|  .... |  // second SET column
+    ----------------------------------------------
+   */
+  for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+  {
+    if ((typelib= binlog_type_info_array[i].m_set_typelib))
+    {
+      store_compressed_length(buf, typelib->count);
+      for (unsigned int i= 0; i < typelib->count; i++)
+      {
+        store_compressed_length(buf, typelib->type_lengths[i]);
+        buf.append(typelib->type_names[i], typelib->type_lengths[i]);
+      }
+    }
+  }
+  if (buf.length() > 0)
+    return write_tlv_field(m_metadata_buf, SET_STR_VALUE, buf);
+  return false;
+}
+
+bool Table_map_log_event::init_enum_str_value_field()
+{
+  StringBuffer<1024> buf;
+  TYPELIB *typelib;
+
+  /* ENUM is same to SET columns, see comment in init_set_str_value_field */
+  for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+  {
+    if ((typelib= binlog_type_info_array[i].m_enum_typelib))
+    {
+      store_compressed_length(buf, typelib->count);
+      for (unsigned int i= 0; i < typelib->count; i++)
+      {
+        store_compressed_length(buf, typelib->type_lengths[i]);
+        buf.append(typelib->type_names[i], typelib->type_lengths[i]);
+      }
+    }
+  }
+
+  if (buf.length() > 0)
+    return write_tlv_field(m_metadata_buf, ENUM_STR_VALUE, buf);
+  return false;
+}
+
+bool Table_map_log_event::init_geometry_type_field()
+{
+  StringBuffer<256> buf;
+  uint geom_type;
+
+  /* Geometry type of geometry columns is stored one by one as packed length */
+  for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
+  {
+    if (binlog_type_info_array[i].m_type_code == MYSQL_TYPE_GEOMETRY)
+    {
+      geom_type= binlog_type_info_array[i].m_geom_type;
+      DBUG_EXECUTE_IF("inject_invalid_geometry_type", geom_type= 100;);
+      store_compressed_length(buf, geom_type);
+    }
+  }
+
+  if (buf.length() > 0)
+    return write_tlv_field(m_metadata_buf, GEOMETRY_TYPE, buf);
+  return false;
+}
+
+bool Table_map_log_event::init_primary_key_field()
+{
+  DBUG_EXECUTE_IF("simulate_init_primary_key_field_error", return true;);
+
+  if (unlikely(m_table->s->primary_key == MAX_KEY))
+    return false;
+
+  // If any key column uses prefix like KEY(c1(10)) */
+  bool has_prefix= false;
+  KEY *pk= m_table->key_info + m_table->s->primary_key;
+
+  DBUG_ASSERT(pk->user_defined_key_parts > 0);
+
+  /* Check if any key column uses prefix */
+  for (uint i= 0; i < pk->user_defined_key_parts; i++)
+  {
+    KEY_PART_INFO *key_part= pk->key_part+i;
+    if (key_part->length != m_table->field[key_part->fieldnr-1]->key_length())
+    {
+      has_prefix= true;
+      break;
+    }
+  }
+
+  StringBuffer<128> buf;
+
+  if (!has_prefix)
+  {
+    /* Index of PK columns are stored one by one. */
+    for (uint i= 0; i < pk->user_defined_key_parts; i++)
+    {
+      KEY_PART_INFO *key_part= pk->key_part+i;
+      store_compressed_length(buf, key_part->fieldnr-1);
+    }
+    return write_tlv_field(m_metadata_buf, SIMPLE_PRIMARY_KEY, buf);
+  }
+  else
+  {
+    /* Index of PK columns are stored with a prefix length one by one. */
+    for (uint i= 0; i < pk->user_defined_key_parts; i++)
+    {
+      KEY_PART_INFO *key_part= pk->key_part+i;
+      size_t prefix= 0;
+
+      store_compressed_length(buf, key_part->fieldnr-1);
+
+      // Store character length but not octet length
+      if (key_part->length != m_table->field[key_part->fieldnr-1]->key_length())
+        prefix= key_part->length / key_part->field->charset()->mbmaxlen;
+      store_compressed_length(buf, prefix);
+    }
+    return write_tlv_field(m_metadata_buf, PRIMARY_KEY_WITH_PREFIX, buf);
+  }
+}
 
 #if defined(HAVE_REPLICATION)
 /*

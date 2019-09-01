@@ -912,4 +912,11 @@ uint Field_geom::get_key_image(uchar *buff,uint length, imagetype type_arg)
   return Field_blob::get_key_image_itRAW(buff, length);
 }
 
+Binlog_type_info Field_geom::binlog_type_info() const
+{
+  DBUG_ASSERT(Field_geom::type() == binlog_type());
+  return Binlog_type_info(Field_geom::type(), pack_length_no_ptr(), 1,
+                          field_charset(), type_handler_geom()->geometry_type());
+}
+
 #endif // HAVE_SPATIAL
