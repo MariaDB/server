@@ -2648,12 +2648,9 @@ part_column_list_val *partition_info::add_column_value(THD *thd)
   return NULL;
 }
 
-bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
-                                   char *end_token, bool is_subpart)
+bool partition_info::set_part_expr(THD *thd, Item *item_ptr, bool is_subpart)
 {
-  (void)start_token;
   (void)item_ptr;
-  (void)end_token;
   (void)is_subpart;
   return FALSE;
 }
