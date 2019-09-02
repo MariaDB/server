@@ -2,11 +2,11 @@
 /*                                                                     */
 /* PROGRAM NAME: PLUGUTIL                                              */
 /* -------------                                                       */
-/*  Version 3.0                                                        */
+/*  Version 3.1                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1993-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1993-2019    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -111,21 +111,31 @@ ACTIVITY defActivity = {            /* Describes activity and language */
 #endif   // UNIX
 
 /**************************************************************************/
+/*  Conditional tracing output function.                                  */
+/**************************************************************************/
+void xtrc(uint x, char const *fmt, ...)
+{
+	if (GetTraceValue() & x) {
+		va_list ap;
+		va_start(ap, fmt);
+
+		vfprintf(stderr, fmt, ap);
+		va_end(ap);
+	} // endif x
+
+} // end of xtrc
+
+/**************************************************************************/
 /*  Tracing output function.                                              */
 /**************************************************************************/
-void htrc(char const *fmt, ...)
-  {
-  va_list ap;
-  va_start (ap, fmt);
+void htrc(char const* fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
 
-
-//if (trace == 1)
-//  vfprintf(debug, fmt, ap);
-//else
-    vfprintf(stderr, fmt, ap);
-
-  va_end (ap);
-  } // end of htrc
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+} // end of htrc
 
 /***********************************************************************/
 /*  Plug initialization routine.                                       */

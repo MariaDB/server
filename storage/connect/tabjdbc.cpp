@@ -641,7 +641,9 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 				Cnp->InitValue(g);
 
 				if ((n = Jcp->GetResultSize(Query->GetStr(), Cnp)) < 0) {
-					sprintf(g->Message, "Cannot get result size rc=%d", n);
+					char* msg = PlugDup(g, g->Message);
+
+					sprintf(g->Message, "Get result size: %s (rc=%d)", msg, n);
 					return true;
 				} else if (n) {
 					Jcp->m_Rows = n;

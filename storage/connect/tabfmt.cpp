@@ -193,7 +193,7 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 	if (tdp->Zipped)
 		tcvp = new(g)TDBCSV(tdp, new(g)UNZFAM(tdp));
 	else
-#endif
+#endif   // ZIP_SUPPORT
 		tcvp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
 
 	tcvp->SetMode(MODE_READ);

@@ -2072,7 +2072,7 @@ before_trg_err:
 
 
 /******************************************************************************
-  Check that all fields with arn't null_fields are used
+  Check that there aren't any null_fields
 ******************************************************************************/
 
 

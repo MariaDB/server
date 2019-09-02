@@ -81,51 +81,51 @@ RELDEF::RELDEF(void)
 /*  This function return a pointer to the Table Option Struct.         */
 /***********************************************************************/
 PTOS RELDEF::GetTopt(void)
-	{
-	return Hc->GetTableOptionStruct();
-	} // end of GetTopt
+  {
+  return Hc->GetTableOptionStruct();
+  } // end of GetTopt
 
 /***********************************************************************/
 /*  This function sets an integer table information.                   */
 /***********************************************************************/
 bool RELDEF::SetIntCatInfo(PCSZ what, int n)
-	{
-	return Hc->SetIntegerOption(what, n);
-	} // end of SetIntCatInfo
+  {
+  return Hc->SetIntegerOption(what, n);
+  } // end of SetIntCatInfo
 
 /***********************************************************************/
 /*  This function returns integer table information.                   */
 /***********************************************************************/
 int RELDEF::GetIntCatInfo(PCSZ what, int idef)
-	{
-	int n= Hc->GetIntegerOption(what);
+  {
+  int n= Hc->GetIntegerOption(what);
 
-	return (n == NO_IVAL) ? idef : n;
-	} // end of GetIntCatInfo
+  return (n == NO_IVAL) ? idef : n;
+  } // end of GetIntCatInfo
 
 /***********************************************************************/
 /*  This function returns Boolean table information.                   */
 /***********************************************************************/
 bool RELDEF::GetBoolCatInfo(PCSZ what, bool bdef)
-	{
-	bool b= Hc->GetBooleanOption(what, bdef);
+  {
+  bool b= Hc->GetBooleanOption(what, bdef);
 
-	return b;
-	} // end of GetBoolCatInfo
+  return b;
+  } // end of GetBoolCatInfo
 
 /***********************************************************************/
 /*  This function returns size catalog information.                    */
 /***********************************************************************/
 int RELDEF::GetSizeCatInfo(PCSZ what, PCSZ sdef)
-	{
-	char c;
-	PCSZ s;
+  {
+  char c;
+  PCSZ s;
   int  i, n= 0;
 
-	if (!(s= Hc->GetStringOption(what)))
-		s= sdef;
+  if (!(s= Hc->GetStringOption(what)))
+    s= sdef;
 
-	if ((i= sscanf(s, " %d %c ", &n, &c)) == 2)
+  if ((i= sscanf(s, " %d %c ", &n, &c)) == 2)
     switch (toupper(c)) {
       case 'M':
         n *= 1024;
@@ -141,41 +141,41 @@ int RELDEF::GetSizeCatInfo(PCSZ what, PCSZ sdef)
 /*  This function sets char table information in buf.                  */
 /***********************************************************************/
 int RELDEF::GetCharCatInfo(PCSZ what, PCSZ sdef, char *buf, int size)
-	{
-	PCSZ s= Hc->GetStringOption(what);
+  {
+  PCSZ s= Hc->GetStringOption(what);
 
-	strncpy(buf, ((s) ? s : sdef), size);
-	return size;
-	} // end of GetCharCatInfo
+  strncpy(buf, ((s) ? s : sdef), size);
+  return size;
+  } // end of GetCharCatInfo
 
 /***********************************************************************/
 /*  To be used by any TDB's.                                           */
 /***********************************************************************/
 bool RELDEF::Partitioned(void)
-	{
-	return Hc->IsPartitioned();
-	} // end of Partitioned
+  {
+  return Hc->IsPartitioned();
+  } // end of Partitioned
 
 /***********************************************************************/
 /*  This function returns string table information.                    */
 /*  Default parameter is "*" to get the handler default.               */
 /***********************************************************************/
 char *RELDEF::GetStringCatInfo(PGLOBAL g, PCSZ what, PCSZ sdef)
-	{
-	char *sval = NULL;
-	PCSZ  name, s= Hc->GetStringOption(what, sdef);
-	
-	if (s) {
+  {
+  char *sval = NULL;
+  PCSZ  name, s= Hc->GetStringOption(what, sdef);
+
+  if (s) {
     if (!Hc->IsPartitioned() ||
         (stricmp(what, "filename") && stricmp(what, "tabname")
                                    && stricmp(what, "connect")))
-		  sval= PlugDup(g, s);
+      sval= PlugDup(g, s);
     else
       sval= (char*)s;
 
   } else if (!stricmp(what, "filename")) {
     // Return default file name
-		PCSZ ftype= Hc->GetStringOption("Type", "*");
+    PCSZ ftype= Hc->GetStringOption("Type", "*");
     int  i, n;
 
     if (IsFileType(GetTypeID(ftype))) {
@@ -183,7 +183,7 @@ char *RELDEF::GetStringCatInfo(PGLOBAL g, PCSZ what, PCSZ sdef)
       sval= (char*)PlugSubAlloc(g, NULL, strlen(name) + 12);
       strcat(strcpy(sval, name), ".");
       n= strlen(sval);
-  
+
       // Fold ftype to lower case
       for (i= 0; i < 12; i++)
         if (!ftype[i]) {
@@ -196,8 +196,8 @@ char *RELDEF::GetStringCatInfo(PGLOBAL g, PCSZ what, PCSZ sdef)
 
   } // endif s
 
-	return sval;
-	}	// end of GetStringCatInfo
+  return sval;
+  } // end of GetStringCatInfo
 
 /* --------------------------- Class TABDEF -------------------------- */
 
@@ -223,14 +223,14 @@ TABDEF::TABDEF(void)
 /***********************************************************************/
 /*  Define: initialize the table definition block from XDB file.       */
 /***********************************************************************/
-bool TABDEF::Define(PGLOBAL g, PCATLG cat, 
-	                  LPCSTR name, LPCSTR schema, LPCSTR am)
+bool TABDEF::Define(PGLOBAL g, PCATLG cat,
+                    LPCSTR name, LPCSTR schema, LPCSTR am)
   {
   int   poff = 0;
 
-	Hc = ((MYCAT*)cat)->GetHandler();
-	Name = (PSZ)name;
-	Schema = (PSZ)Hc->GetDBName(schema);
+  Hc = ((MYCAT*)cat)->GetHandler();
+  Name = (PSZ)name;
+  Schema = (PSZ)Hc->GetDBName(schema);
   Cat = cat;
   Catfunc = GetFuncID(GetStringCatInfo(g, "Catfunc", NULL));
   Elemt = GetIntCatInfo("Elements", 0);
@@ -263,14 +263,14 @@ PCSZ TABDEF::GetPath(void)
 /*  This function returns column table information.                    */
 /***********************************************************************/
 int TABDEF::GetColCatInfo(PGLOBAL g)
-	{
-	char		*type= GetStringCatInfo(g, "Type", "*");
+  {
+  char    *type= GetStringCatInfo(g, "Type", "*");
   char     c, fty, eds;
-	int      i, n, loff, poff, nof, nlg;
-	void    *field= NULL;
+  int      i, n, loff, poff, nof, nlg;
+  void    *field= NULL;
   TABTYPE  tc;
   PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
-	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
+  PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
   memset(pcf, 0, sizeof(COLINFO));
 
@@ -278,33 +278,33 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
   tc= (Catfunc == FNC_NO) ? GetTypeID(type) : TAB_PRX;
 
   // Take care of the column definitions
-	i= poff= nof= nlg= 0;
+  i= poff= nof= nlg= 0;
 
 #if defined(__WIN__)
-	// Offsets of HTML and DIR tables start from 0, DBF at 1
-	loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0;
+  // Offsets of HTML and DIR tables start from 0, DBF at 1
+  loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0;
 #else   // !__WIN__
-	// Offsets of HTML tables start from 0, DIR and DBF at 1
-	loff = (tc == TAB_DBF || tc == TAB_DIR) ? 1 : (tc == TAB_XML) ? -1 : 0;
+  // Offsets of HTML tables start from 0, DIR and DBF at 1
+  loff = (tc == TAB_DBF || tc == TAB_DIR) ? 1 : (tc == TAB_XML) ? -1 : 0;
 #endif  // !__WIN__
 
   while (true) {
-		// Default Offset depends on table type
-		switch (tc) {
+    // Default Offset depends on table type
+    switch (tc) {
       case TAB_DOS:
       case TAB_FIX:
       case TAB_BIN:
       case TAB_VEC:
       case TAB_DBF:
-        poff= loff + nof;				 // Default next offset
-				nlg= MY_MAX(nlg, poff);		 // Default lrecl
+        poff= loff + nof;        // Default next offset
+        nlg= MY_MAX(nlg, poff);    // Default lrecl
         break;
       case TAB_CSV:
       case TAB_FMT:
-				nlg+= nof;
+        nlg+= nof;
       case TAB_DIR:
       case TAB_XML:
-				poff= loff + (pcf->Flags & U_VIRTUAL ? 0 : 1);
+        poff= loff + (pcf->Flags & U_VIRTUAL ? 0 : 1);
         break;
       case TAB_INI:
       case TAB_MAC:
@@ -316,39 +316,39 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
         poff = 0;      // Offset represents an independant flag
         break;
       default:         // VCT PLG ODBC JDBC MYSQL WMI...
-        poff = 0;			 // NA
+        poff = 0;      // NA
         break;
-			} // endswitch tc
+      } // endswitch tc
 
-//		do {
-			field= Hc->GetColumnOption(g, field, pcf);
+//    do {
+      field= Hc->GetColumnOption(g, field, pcf);
 //    } while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
 
-		if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
-			// DBF date format defaults to 'YYYMMDD'
-			pcf->Datefmt= "YYYYMMDD";
-			pcf->Length= 8;
-			} // endif tc
+    if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
+      // DBF date format defaults to 'YYYMMDD'
+      pcf->Datefmt= "YYYYMMDD";
+      pcf->Length= 8;
+      } // endif tc
 
-		if (!field)
-			break;
+    if (!field)
+      break;
 
     // Allocate the column description block
     cdp= new(g) COLDEF;
 
     if ((nof= cdp->Define(g, NULL, pcf, poff)) < 0)
-      return -1;						 // Error, probably unhandled type
-		else
-			loff= cdp->GetOffset();
+      return -1;             // Error, probably unhandled type
+    else
+      loff= cdp->GetOffset();
 
-		switch (tc) {
-			case TAB_VEC:
-				cdp->SetOffset(0);		 // Not to have shift
-			case TAB_BIN:
-				// BIN/VEC are packed by default
+    switch (tc) {
+      case TAB_VEC:
+        cdp->SetOffset(0);     // Not to have shift
+      case TAB_BIN:
+        // BIN/VEC are packed by default
         if (nof) {
-					// Field width is the internal representation width
-					// that can also depend on the column format
+          // Field width is the internal representation width
+          // that can also depend on the column format
           fty = cdp->Decode ? 'C' : 'X';
           eds = 0;
           n = 0;
@@ -371,38 +371,38 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
           if (n)
             nof = n;
           else switch (fty) {
-						case 'X':
+            case 'X':
               if (eds && IsTypeChar(cdp->Buf_Type))
                 nof = sizeof(longlong);
               else
                 nof= cdp->Clen;
 
               break;
-						case 'C':                         break;
-						case 'R':
-						case 'F': nof = sizeof(float);    break;
-						case 'I':	nof = sizeof(int);      break;
-						case 'D':	nof = sizeof(double);   break;
-						case 'S':	nof = sizeof(short);    break;
-						case 'T':	nof = sizeof(char);     break;
-						case 'G':	nof = sizeof(longlong); break;
-						default:  /* Wrong format */
+            case 'C':                         break;
+            case 'R':
+            case 'F': nof = sizeof(float);    break;
+            case 'I': nof = sizeof(int);      break;
+            case 'D': nof = sizeof(double);   break;
+            case 'S': nof = sizeof(short);    break;
+            case 'T': nof = sizeof(char);     break;
+            case 'G': nof = sizeof(longlong); break;
+            default:  /* Wrong format */
               sprintf(g->Message, "Invalid format %c", fty);
               return -1;
-						} // endswitch fty
+            } // endswitch fty
 
           } // endif nof
 
       default:
-				break;
-			} // endswitch tc
+        break;
+      } // endswitch tc
 
-		if (lcdp)
-	    lcdp->SetNext(cdp);
-		else
-			tocols= cdp;
+    if (lcdp)
+      lcdp->SetNext(cdp);
+    else
+      tocols= cdp;
 
-		lcdp= cdp;
+    lcdp= cdp;
     i++;
     } // endwhile
 
@@ -410,31 +410,31 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
   if (i != GetDegree())
     SetDegree(i);
 
-	if (GetDefType() == TYPE_AM_DOS) {
-		int			ending, recln= 0;
+  if (GetDefType() == TYPE_AM_DOS) {
+    int     ending, recln= 0;
 
-		// Was commented because sometimes ending is 0 even when
-		// not specified (for instance if quoted is specified)
-//	if ((ending= Hc->GetIntegerOption("Ending")) < 0) {
-		if ((ending= Hc->GetIntegerOption("Ending")) <= 0) {
+    // Was commented because sometimes ending is 0 even when
+    // not specified (for instance if quoted is specified)
+//  if ((ending= Hc->GetIntegerOption("Ending")) < 0) {
+    if ((ending= Hc->GetIntegerOption("Ending")) <= 0) {
       ending= (tc == TAB_BIN || tc == TAB_VEC) ? 0 : CRLF;
-			Hc->SetIntegerOption("Ending", ending);
-			} // endif ending
+      Hc->SetIntegerOption("Ending", ending);
+      } // endif ending
 
-		// Calculate the default record size
-		switch (tc) {
+    // Calculate the default record size
+    switch (tc) {
       case TAB_FIX:
       case TAB_BIN:
         recln= nlg + ending;     // + length of line ending
         break;
       case TAB_VEC:
         recln= nlg;
-	
+
 //      if ((k= (pak < 0) ? 8 : pak) > 1)
           // See above for detailed comment
           // Round up lrecl to multiple of 8 or pak
 //        recln= ((recln + k - 1) / k) * k;
-	
+
         break;
       case TAB_DOS:
       case TAB_DBF:
@@ -443,26 +443,30 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       case TAB_CSV:
       case TAB_FMT:
         // The number of separators (assuming an extra one can exist)
-//      recln= poff * ((qotd) ? 3 : 1);	 to be investigated
-				recln= nlg + poff * 3;     // To be safe
+//      recln= poff * ((qotd) ? 3 : 1);  to be investigated
+        recln= nlg + poff * 3;     // To be safe
       default:
         break;
       } // endswitch tc
 
-		// lrecl must be at least recln to avoid buffer overflow
-		if (trace(1))
-			htrc("Lrecl: Calculated=%d defined=%d\n", 
-			  recln, Hc->GetIntegerOption("Lrecl"));
+    // lrecl must be at least recln to avoid buffer overflow
+    if (trace(1))
+      htrc("Lrecl: Calculated=%d defined=%d\n",
+        recln, Hc->GetIntegerOption("Lrecl"));
 
-		recln = MY_MAX(recln, Hc->GetIntegerOption("Lrecl"));
-		Hc->SetIntegerOption("Lrecl", recln);
-		((PDOSDEF)this)->SetLrecl(recln);
-		} // endif Lrecl
+    recln = MY_MAX(recln, Hc->GetIntegerOption("Lrecl"));
+    Hc->SetIntegerOption("Lrecl", recln);
+    ((PDOSDEF)this)->SetLrecl(recln);
 
-	// Attach the column definition to the tabdef
-	SetCols(tocols);
-	return poff;
-	} // end of GetColCatInfo
+    if (trace(1))
+      htrc("Lrecl set to %d\n", recln);
+
+    } // endif Lrecl
+
+  // Attach the column definition to the tabdef
+  SetCols(tocols);
+  return poff;
+  } // end of GetColCatInfo
 
 /***********************************************************************/
 /*  SetIndexInfo: retrieve index description from the table structure. */
@@ -487,16 +491,17 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   PCATLG  cat = Cat;
 
   /*********************************************************************/
-  /*  Ensure that the .dll doesn't have a path.                        */
-  /*  This is done to ensure that only approved dll from the system    */
+  /*  Ensure that the module name doesn't have a path.                 */
+  /*  This is done to ensure that only approved libs from the system   */
   /*  directories are used (to make this even remotely secure).        */
   /*********************************************************************/
   if (check_valid_path(Module, strlen(Module))) {
     strcpy(g->Message, "Module cannot contain a path");
     return NULL;
   } else
-    PlugSetPath(soname, Module, GetPluginDir());
-    
+//  PlugSetPath(soname, Module, GetPluginDir());  // Crashes on Fedora
+    strncat(strcpy(soname, GetPluginDir()), Module, _MAX_PATH);
+
 #if defined(__WIN__)
   // Is the DLL already loaded?
   if (!Hdll && !(Hdll = GetModuleHandle(soname)))
@@ -522,31 +527,31 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
 
   // Get the function returning an instance of the external DEF class
   if (!(getdef = (XGETDEF)GetProcAddress((HINSTANCE)Hdll, getname))) {
-		char  buf[256];
-		DWORD rc = GetLastError();
+    char  buf[256];
+    DWORD rc = GetLastError();
 
-		sprintf(g->Message, MSG(PROCADD_ERROR), rc, getname);
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
-			(LPTSTR)buf, sizeof(buf), NULL);
-		strcat(strcat(g->Message, ": "), buf);
-		FreeLibrary((HMODULE)Hdll);
+    sprintf(g->Message, MSG(PROCADD_ERROR), rc, getname);
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+      FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+      (LPTSTR)buf, sizeof(buf), NULL);
+    strcat(strcat(g->Message, ": "), buf);
+    FreeLibrary((HMODULE)Hdll);
     return NULL;
     } // endif getdef
 #else   // !__WIN__
   const char *error = NULL;
-    
-#if 0  // Don't know what all this stuff does
-	Dl_info dl_info;
 
-	// The OEM lib must retrieve exported CONNECT variables
+#if 0  // Don't know what all this stuff does
+  Dl_info dl_info;
+
+  // The OEM lib must retrieve exported CONNECT variables
   if (dladdr(&connect_hton, &dl_info)) {
     if (dlopen(dl_info.dli_fname, RTLD_NOLOAD | RTLD_NOW | RTLD_GLOBAL) == 0) {
       error = dlerror();
       sprintf(g->Message, "dlopen failed: %s, OEM not supported", SVP(error));
       return NULL;
       } // endif dlopen
-    
+
   } else {
     error = dlerror();
     sprintf(g->Message, "dladdr failed: %s, OEM not supported", SVP(error));
@@ -626,7 +631,7 @@ bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   char *desc = (char*)PlugSubAlloc(g, NULL, strlen(Module)
                                           + strlen(Subtype) + 3);
   sprintf(desc, "%s(%s)", Module, Subtype);
-	Desc = desc;
+  Desc = desc;
   return false;
   } // end of DefineAM
 
@@ -701,17 +706,17 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) FIXFAM(defp);
     } else if (rfm == RECFM_VCT) {
 #if defined(VCT_SUPPORT)
-			assert(Pxdef->GetDefType() == TYPE_AM_VCT);
+      assert(Pxdef->GetDefType() == TYPE_AM_VCT);
 
       if (map)
         txfp = new(g) VCMFAM((PVCTDEF)defp);
       else
         txfp = new(g) VCTFAM((PVCTDEF)defp);
 #else   // !VCT_SUPPORT
-			strcpy(g->Message, "VCT no more supported");
-			return NULL;
+      strcpy(g->Message, "VCT no more supported");
+      return NULL;
 #endif  // !VCT_SUPPORT
-		} // endif's
+    } // endif's
 
     ((PTDBDOS)tdbp)->SetTxfp(txfp);
     } // endif Txfp
