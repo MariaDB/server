@@ -76,7 +76,7 @@ bool compare_record(const TABLE *table)
     for (Field **ptr= table->field ; *ptr != NULL; ptr++)
     {
       Field *field= *ptr;
-      if (bitmap_is_set(table->write_set, field->field_index))
+      if (field->has_explicit_value() && !field->vcol_info)
       {
         if (field->real_maybe_null())
         {
@@ -108,8 +108,9 @@ bool compare_record(const TABLE *table)
   /* Compare updated fields */
   for (Field **ptr= table->field ; *ptr ; ptr++)
   {
-    if (bitmap_is_set(table->write_set, (*ptr)->field_index) &&
-	(*ptr)->cmp_binary_offset(table->s->rec_buff_length))
+    Field *field= *ptr;
+    if (field->has_explicit_value() && !field->vcol_info &&
+	field->cmp_binary_offset(table->s->rec_buff_length))
       return TRUE;
   }
   return FALSE;
