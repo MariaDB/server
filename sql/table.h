@@ -1453,7 +1453,8 @@ public:
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf);
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
-  int update_default_fields(bool update, bool ignore_errors);
+  int update_default_fields(bool ignore_errors);
+  void evaluate_update_default_function();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 

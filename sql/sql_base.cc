@@ -8072,7 +8072,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   }
 
   if (!update && table_arg->default_field &&
-      table_arg->update_default_fields(0, ignore_errors))
+      table_arg->update_default_fields(ignore_errors))
     goto err;
   /* Update virtual fields */
   if (table_arg->vfield &&
@@ -8317,7 +8317,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     all_fields_have_values &= field->set_explicit_default(value);
   }
   if (!all_fields_have_values && table->default_field &&
-      table->update_default_fields(0, ignore_errors))
+      table->update_default_fields(ignore_errors))
     goto err;
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;

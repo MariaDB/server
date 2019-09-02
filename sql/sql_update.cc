@@ -761,11 +761,8 @@ int mysql_update(THD *thd,
 
       if (!can_compare_record || compare_record(table))
       {
-        if (table->default_field && table->update_default_fields(1, ignore))
-        {
-          error= 1;
-          break;
-        }
+        if (table->default_field)
+          table->evaluate_update_default_function();
         if ((res= table_list->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -2156,8 +2153,8 @@ int multi_update::send_data(List<Item> &not_used_values)
       {
 	int error;
 
-        if (table->default_field && table->update_default_fields(1, ignore))
-          DBUG_RETURN(1);
+        if (table->default_field)
+          table->evaluate_update_default_function();
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
@@ -2482,9 +2479,8 @@ int multi_update::do_updates()
       if (!can_compare_record || compare_record(table))
       {
         int error;
-        if (table->default_field &&
-            (error= table->update_default_fields(1, ignore)))
-          goto err2;
+        if (table->default_field)
+          table->evaluate_update_default_function();
         if (table->vfield &&
             table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
           goto err2;
