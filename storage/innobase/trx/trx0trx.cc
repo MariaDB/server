@@ -526,6 +526,11 @@ trx_free_prepared(
 /*==============*/
 	trx_t*	trx)	/*!< in, own: trx object */
 {
+	ut_ad(trx->state == TRX_STATE_PREPARED
+	      || trx->state == TRX_STATE_PREPARED_RECOVERED
+	      || !srv_was_started
+	      || srv_read_only_mode
+	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
 	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx->is_recovered
@@ -545,7 +550,9 @@ trx_free_prepared(
 
 	ut_a(!trx->read_only);
 
-	ut_d(trx->in_rw_trx_list = FALSE);
+	ut_ad(trx->in_rw_trx_list);
+	UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
+	ut_d(trx->in_rw_trx_list = false);
 
 	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
@@ -594,7 +601,6 @@ trx_disconnect_from_mysql(
 		ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
 
 		trx->is_recovered = true;
-		trx_sys->n_prepared_recovered_trx++;
 	        trx->mysql_thd = NULL;
 		/* todo/fixme: suggest to do it at innodb prepare */
 		trx->will_lock = 0;
@@ -756,8 +762,6 @@ trx_resurrect_insert(
 				<< " was in the XA prepared state.";
 
 			trx->state = TRX_STATE_PREPARED;
-			trx_sys->n_prepared_trx++;
-			trx_sys->n_prepared_recovered_trx++;
 		} else {
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
 		}
@@ -815,13 +819,8 @@ trx_resurrect_update_in_prepared_state(
 	if (undo->state == TRX_UNDO_PREPARED) {
 		ib::info() << "Transaction " << trx_get_id_for_print(trx)
 			<< " was in the XA prepared state.";
-
-		if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
-			trx_sys->n_prepared_trx++;
-			trx_sys->n_prepared_recovered_trx++;
-		} else {
-			ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-		}
+		ut_ad(trx_state_eq(trx, TRX_STATE_NOT_STARTED)
+		      || trx_state_eq(trx, TRX_STATE_PREPARED));
 
 		trx->state = TRX_STATE_PREPARED;
 	} else {
@@ -2609,10 +2608,9 @@ trx_prepare(
 
 	/*--------------------------------------*/
 	ut_a(trx->state == TRX_STATE_ACTIVE);
-	trx_sys_mutex_enter();
+	trx_mutex_enter(trx);
 	trx->state = TRX_STATE_PREPARED;
-	trx_sys->n_prepared_trx++;
-	trx_sys_mutex_exit();
+	trx_mutex_exit(trx);
 	/*--------------------------------------*/
 
 	if (lsn) {

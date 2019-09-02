@@ -635,18 +635,6 @@ struct trx_sys_t {
 
 	TrxIdSet	rw_trx_set;	/*!< Mapping from transaction id
 					to transaction instance */
-
-	ulint		n_prepared_trx;	/*!< Number of transactions currently
-					in the XA PREPARED state */
-
-	ulint		n_prepared_recovered_trx; /*!< Number of transactions
-					currently in XA PREPARED state that are
-					also recovered. Such transactions cannot
-					be added during runtime. They can only
-					occur after recovery if mysqld crashed
-					while there were XA PREPARED
-					transactions. We disable query cache
-					if such transactions exist. */
 };
 
 /** When a trx id which is zero modulo this number (which must be a power of
