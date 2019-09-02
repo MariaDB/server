@@ -66,12 +66,15 @@ bool compare_record(const TABLE *table)
 {
   DBUG_ASSERT(records_are_comparable(table));
 
-  if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) != 0)
+  if (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ ||
+      table->s->has_update_default_function)
   {
     /*
       Storage engine may not have read all columns of the record.  Fields
       (including NULL bits) not in the write_set may not have been read and
       can therefore not be compared.
+      Or ON UPDATE DEFAULT NOW() could've changed field values, including
+      NULL bits.
     */ 
     for (Field **ptr= table->field ; *ptr != NULL; ptr++)
     {
@@ -762,8 +765,6 @@ int mysql_update(THD *thd,
 
       if (!can_compare_record || compare_record(table))
       {
-        if (table->default_field)
-          table->evaluate_update_default_function();
         if ((res= table_list->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -2154,9 +2155,6 @@ int multi_update::send_data(List<Item> &not_used_values)
       {
 	int error;
 
-        if (table->default_field)
-          table->evaluate_update_default_function();
-
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -2472,6 +2470,10 @@ int multi_update::do_updates()
         copy_field_ptr->to_field->set_has_explicit_value();
       }
 
+      table->evaluate_update_default_function();
+      if (table->vfield &&
+          table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
+        goto err2;
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                             TRG_ACTION_BEFORE, TRUE))
@@ -2480,11 +2482,6 @@ int multi_update::do_updates()
       if (!can_compare_record || compare_record(table))
       {
         int error;
-        if (table->default_field)
-          table->evaluate_update_default_function();
-        if (table->vfield &&
-            table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
-          goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {

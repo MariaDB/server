@@ -3093,3 +3093,26 @@ a	b
 1999-12-01 11:22:33.000000	1999-12-01 11:22:33.000000
 2001-09-09 04:46:40.000000	2001-09-09 04:46:40.000000
 DROP TABLE t1;
+create table t1 (t timestamp, i int, v timestamp as (t) virtual, key(v));
+insert t1 (t,i) values ('2006-03-01 23:59:59',1);
+update t1 set i = 2;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+create table t1 (t timestamp, i int);
+create trigger tr1 before update on t1 for each row set @new:=new.t;
+insert t1 (t,i) values ('2006-03-01 23:59:59', 1);
+update t1 set i = 2;
+select if(@new = t, 'correct', 'wrong') from t1;
+if(@new = t, 'correct', 'wrong')
+correct
+drop table t1;
+create table t1 (i int, j int as (i));
+create trigger tr1 before update on t1 for each row set @new:=new.j;
+insert t1 (i) values (1);
+update t1, t1 as t2 set t1.i = 2;
+select if(@new = j, 'correct', 'wrong') from t1;
+if(@new = j, 'correct', 'wrong')
+correct
+drop table t1;
