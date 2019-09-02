@@ -1080,40 +1080,13 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         error= 1;
         break;
       }
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-
       thd->decide_logging_format_low(table);
-=======
-	  if (with_select && result->send_data(fields) < 0)
-=======
-	  if (with_select && result->send_data(temp_list) < 0)
->>>>>>> INSERT...RETURNING working successfully
-=======
-	  if (with_returning_list && result->send_data(returning_list) < 0)
->>>>>>> INSERT...SELECT...RETURNING returning listed fields for INSERT table
-=======
-	  
-<<<<<<< HEAD
-	  if (result  &&  result->send_data(returning_list) < 0)
->>>>>>> Changes in code files according to initial review
+
+	  if (result  &&  result->send_data(thd->lex->returning_list) < 0)
 	  {
 		  error = 1;
 		  break;
 	  }
-<<<<<<< HEAD
->>>>>>> successfully returning all the fields
-=======
-	  
->>>>>>> Changes in code files according to initial review
-=======
->>>>>>> deleted insert_parser because redundant, fixed AUTO_INCREMENT and INSERT..ON DUPLICATE KEY UPDAYE added comments, update result files
-=======
-
->>>>>>> Coding style review, test & result updated
 #ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {

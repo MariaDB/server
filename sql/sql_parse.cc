@@ -4449,10 +4449,8 @@ mysql_execute_command(THD *thd)
     break;
   }
   case SQLCOM_REPLACE:
-<<<<<<< HEAD
     if ((res= generate_incident_event(thd)))
       break;
-=======
 #ifndef DBUG_OFF
     if (mysql_bin_log.is_open())
     {
@@ -4487,7 +4485,6 @@ mysql_execute_command(THD *thd)
       DBUG_PRINT("debug", ("Just after generate_incident()"));
     }
 #endif
->>>>>>> Changes in code files according to initial review
     /* fall through */
   case SQLCOM_INSERT:
   {
@@ -7654,15 +7651,12 @@ void THD::reset_for_next_command(bool do_clear_error)
 void
 mysql_init_select(LEX *lex)
 {
-<<<<<<< HEAD
   lex->init_select();
-=======
   SELECT_LEX *select_lex= lex->current_select;
   lex->returning_list.empty();
   select_lex->init_select();
   lex->wild= 0;
   lex->exchange= 0;
->>>>>>> Changes in code files according to initial review
 }
 
 
