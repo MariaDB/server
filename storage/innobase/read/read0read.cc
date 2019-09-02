@@ -740,11 +740,9 @@ MVCC::size() const
 
 /**
 Close a view created by the above function.
-@para view		view allocated by trx_open.
-@param own_mutex	true if caller owns trx_sys_t::mutex */
-
-void
-MVCC::view_close(ReadView*& view, bool own_mutex)
+@param view		view allocated by view_open()
+@param own_mutex	whether the caller owns trx_sys_t::mutex */
+void MVCC::view_close(ReadView*& view, bool own_mutex)
 {
 	uintptr_t	p = reinterpret_cast<uintptr_t>(view);
 
