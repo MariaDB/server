@@ -1,5 +1,6 @@
 set @mrr_icp_extra_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+SET optimizer_use_condition_selectivity=1;
 CREATE TABLE t1 (
 event_date date DEFAULT '0000-00-00' NOT NULL,
 type int(11) DEFAULT '0' NOT NULL,

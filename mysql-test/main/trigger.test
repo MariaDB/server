@@ -1,6 +1,6 @@
 # This test uses chmod, can't be run with root permissions
 -- source include/not_as_root.inc
-
+--source include/default_charset.inc
 
 #
 # Basic triggers test

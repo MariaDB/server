@@ -160,7 +160,10 @@ fi
 # Override -DFORCE_INIT_OF_VARS from debug_cflags. It enables the macro
 # UNINIT_VAR(), which is only useful for silencing spurious warnings
 # of static analysis tools. We want UNINIT_VAR() to be a no-op in Valgrind.
-valgrind_flags="-DHAVE_valgrind -USAFEMALLOC"
+# TRASH_FREE_MEMORY is enabled so that we can find wrong memory accesses
+# even when running a test without valgrind
+#
+valgrind_flags="-DHAVE_valgrind -USAFEMALLOC -DTRASH_FREE_MEMORY"
 valgrind_flags="$valgrind_flags -UFORCE_INIT_OF_VARS -Wno-uninitialized"
 valgrind_flags="$valgrind_flags -DMYSQL_SERVER_SUFFIX=-valgrind-max"
 valgrind_configs="--with-valgrind"
@@ -208,7 +211,7 @@ fi
 
 max_no_embedded_configs="$SSL_LIBRARY --with-plugins=max"
 max_no_qc_configs="$SSL_LIBRARY --with-plugins=max --without-query-cache"
-max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --without-plugin=plugin_file_key_management --with-plugin-rocksdb=dynamic"
+max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --without-plugin=plugin_file_key_management --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC"
 all_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-innodb_plugin --with-libevent"
 
 #
@@ -251,6 +254,11 @@ if test `$CC -v 2>&1 | tail -1 | sed 's/ .*$//'` = 'gcc' ; then
     '(' '(' "$GCCV1" -eq '4' ')' -a '(' "$GCCV2" -ge '4' ')' ')'
   then
     debug_cflags="$debug_cflags -DFORCE_INIT_OF_VARS -Wuninitialized"
+  fi
+  if (test '(' "$GCCV1" -gt '6' ')')
+  then
+    c_warnings="$c_warnings -Wimplicit-fallthrough=2"
+    cxx_warnings="$cxx_warnings -Wimplicit-fallthrough=2"
   fi
 fi
 

@@ -1,6 +1,9 @@
 #
 # Test of repair table
 #
+--source include/default_charset.inc
+
+call mtr.add_suppression("character set is multi-byte");
 
 --disable_warnings
 drop table if exists t1;
@@ -199,6 +202,9 @@ drop tables t1, t2;
 
 --echo # Test with a saved table from 3.23
 let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET @save_global_character_set_server= @@global.character_set_server;
+set @@global.character_set_server=@@character_set_server;
 --copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
 --copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
 --copy_file std_data/host_old.MYI $MYSQLD_DATADIR/test/t1.MYI
@@ -211,6 +217,8 @@ repair table t1 use_frm;
 select count(*) from t1;
 check table t1;
 drop table t1;
+
+set @@global.character_set_server=@save_global_character_set_server;
 
 #
 # MDEV-8115 mysql_upgrade crashes the server with REPAIR VIEW

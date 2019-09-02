@@ -284,6 +284,7 @@ drop table t1;
 --echo #
 --echo # BUG#671340: Diverging results in with mrr_sort_keys=ON|OFF and join_cache_level=5
 --echo #
+
 CREATE TABLE t1 (
   pk int(11) NOT NULL AUTO_INCREMENT,
   col_int_key int(11) NOT NULL,
@@ -346,6 +347,7 @@ INSERT INTO t2 VALUES
   (19,5,'h','h'),
   (20,7,'w','w');
 
+--source include/default_optimizer_switch.inc
 SELECT count(*), sum(table1.col_int_key*table2.pk) 
 FROM 
   t2 AS table1, t1 AS table2, t2 AS table3 
@@ -366,6 +368,7 @@ WHERE
 drop table t1,t2;
 set join_cache_level=@my_save_join_cache_level;
 set join_buffer_size=@my_save_join_buffer_size;
+set optimizer_switch=@save_optimizer_switch;
 
 
 --echo #

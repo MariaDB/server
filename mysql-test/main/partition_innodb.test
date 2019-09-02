@@ -1,6 +1,7 @@
 --source include/not_embedded.inc
 --source include/have_partition.inc
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 

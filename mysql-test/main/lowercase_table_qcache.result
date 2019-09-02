@@ -1,3 +1,4 @@
+set @save_query_cache_size=@@query_cache_size;
 set GLOBAL query_cache_size=1355776;
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
@@ -23,5 +24,5 @@ select * from MySQL.db;
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
-set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_size=@save_query_cache_size;
 set GLOBAL query_cache_type=default;

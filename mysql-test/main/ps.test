@@ -1814,7 +1814,6 @@ drop database mysqltest_1;
 deallocate prepare stmt;
 set @@character_set_server= @old_character_set_server;
 
-
 #
 # BUG#24491 "using alias from source table in insert ... on duplicate key"
 #

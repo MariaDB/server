@@ -619,6 +619,8 @@ JSON_search( '{"x": "\\""}', "one", '"')
 SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
 JSON_search( '{"x": "\\""}', "one", '\\"')
 "$.x"
+set @save_max_allowed_packet=@@max_allowed_packet;
+set @save_net_buffer_length=@@net_buffer_length;
 set @@global.net_buffer_length=1024;
 set @@global.max_allowed_packet=2048;
 connect  newconn, localhost, root,,;
@@ -639,8 +641,8 @@ NULL
 Warnings:
 Warning	1301	Result of json_object() was larger than max_allowed_packet (2048) - truncated
 connection default;
-set @@global.max_allowed_packet = default;
-set @@global.net_buffer_length = default;
+set @@global.max_allowed_packet = @save_max_allowed_packet;
+set @@global.net_buffer_length = @save_net_buffer_length;
 disconnect newconn;
 create table t1(j longtext, p longtext);
 insert into t1 values

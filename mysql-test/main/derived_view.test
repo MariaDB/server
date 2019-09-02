@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 --disable_warnings
 drop table if exists t1,t2;
 drop view if exists v1,v2,v3,v4;
@@ -5,6 +7,7 @@ drop view if exists v1,v2,v3,v4;
 
 set @exit_optimizer_switch=@@optimizer_switch;
 set @exit_join_cache_level=@@join_cache_level;
+set @exit_join_buffer_size=@@join_buffer_size;
 set optimizer_switch='derived_merge=on,derived_with_keys=on';
 # The 'default' value within the scope of this test:
 set @save_optimizer_switch=@@optimizer_switch;
@@ -1077,8 +1080,8 @@ EXPLAIN
 SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
 SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
 
-SET SESSION join_cache_level = DEFAULT;
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_cache_level = @exit_join_cache_level;
+SET SESSION join_buffer_size = @exit_join_buffer_size;
 
 DROP VIEW v3;
 DROP TABLE t1,t2,t3,t4,t5;
@@ -1167,7 +1170,7 @@ SELECT * FROM t3
 SELECT * FROM t3
   WHERE t3.b <> ANY (SELECT t1.b  FROM t1 LEFT JOIN v2 ON v2.a = t1.a);
 
-SET SESSION join_cache_level = default;
+SET SESSION join_cache_level = @exit_join_cache_level;
 
 SET optimizer_switch=@save_optimizer_switch;
 

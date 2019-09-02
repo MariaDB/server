@@ -33,10 +33,11 @@ drop table t1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
 
 #
-# Bootstrap with a query larger than 2*thd->net.max_packet
+# Bootstrap with a large thd->net.max_packet
 #
 set @my_max_allowed_packet= @@max_allowed_packet;
-set global max_allowed_packet=64*@@max_allowed_packet;
+set @@global.max_allowed_packet= greatest(1073741824, @@max_allowed_packet);
+set @max_allowed_packed=@@global.max_allowed_packet;
 --disable_query_log
 create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
 eval select * into outfile '$MYSQLTEST_VARDIR/tmp/long_query.sql' from t1;

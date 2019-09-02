@@ -8,6 +8,7 @@ drop table if exists t0, t1, t2, t3;
 
 set @myisam_mrr_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+set optimizer_switch='optimize_join_buffer_size=off';
 set @mrr_buffer_size_save= @@mrr_buffer_size;
 set mrr_buffer_size=79;
 

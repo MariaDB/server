@@ -2,6 +2,8 @@
 # Test bugs in the MyISAM code
 #
 
+--source include/default_optimizer_switch.inc
+
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 

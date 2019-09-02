@@ -1,4 +1,6 @@
+--source include/default_optimizer_switch.inc
 let $no_pushdown= set statement optimizer_switch='condition_pushdown_for_derived=off' for;
+set @@join_buffer_size=256*1024;
 
 create table t1 (a int, b int, c int);
 create table t2 (a int, b int, c int, d decimal);

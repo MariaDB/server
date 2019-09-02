@@ -74,6 +74,7 @@ set optimizer_switch='derived_merge=off,derived_with_keys=off';
 
 # We have to use FORCE INDEX here as Innodb gives inconsistent estimates
 # which causes different query plans.
+--replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM 
   (SELECT * FROM t1 FORCE INDEX(primary,idx)

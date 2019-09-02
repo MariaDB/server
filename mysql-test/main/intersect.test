@@ -1,3 +1,7 @@
+# For explain
+set @@join_buffer_size=256*1024;
+set @save_optimizer_switch=@@optimizer_switch;
+
 create table t1 (a int, b int);
 create table t2 (c int, d int);
 insert into t1 values (1,1),(2,2);
@@ -38,11 +42,13 @@ execute stmt;
 EXPLAIN (select a,b from t1) intersect (select c,e from t2,t3);
 EXPLAIN extended (select a,b from t1) intersect (select c,e from t2,t3);
 EXPLAIN extended select * from ((select a,b from t1) intersect (select c,e from t2,t3)) a;
+set @@optimizer_switch='optimize_join_buffer_size=off';
 EXPLAIN format=json (select a,b from t1) intersect (select c,e from t2,t3);
 --replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json (select a,b from t1) intersect (select c,e from t2,t3);
 --replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json select * from ((select a,b from t1) intersect (select c,e from t2,t3)) a;
+set @@optimizer_switch=@save_optimizer_switch;
 select * from ((select a,b from t1) intersect (select c,e from t2,t3)) a;
 
 prepare stmt from "(select a,b from t1) intersect (select c,e from t2,t3);";

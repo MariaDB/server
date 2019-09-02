@@ -4,6 +4,9 @@ select @@global.use_stat_tables;
 select @@session.use_stat_tables;
 
 set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set optimizer_use_condition_selectivity=1;
 
 set use_stat_tables='preferably';
 
@@ -511,7 +514,6 @@ set names utf8;
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set optimizer_use_condition_selectivity=4;
 set use_stat_tables=preferably;
-set @save_histogram_size= @@histogram_size;
 set histogram_size=255;
 
 create table t1 ( a varchar(255) character set utf8);
@@ -544,3 +546,4 @@ set @@sql_mode= @save_sql_mode;
 set use_stat_tables=@save_use_stat_tables;
 set @@histogram_size= @save_histogram_size;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set @@global.histogram_size=@save_histogram_size;

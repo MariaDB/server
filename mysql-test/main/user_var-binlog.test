@@ -18,6 +18,7 @@ source include/show_binlog_events.inc;
 # escaped).
 let $MYSQLD_DATADIR= `select @@datadir`;
 flush logs;
+--replace_regex /collation_server=\d+/collation_server=#/
 --exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001 
 drop table t1;
 

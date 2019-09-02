@@ -15,7 +15,7 @@ WHERE c2.table_schema = t.table_schema AND
 c2.table_name = t.table_name AND
 c2.column_name LIKE '%SCHEMA%'
         )
-AND t.table_name NOT LIKE 'innodb%';
+AND t.table_name NOT LIKE 'innodb%' and t.table_name NOT LIKE "OPTIMIZER_TRACE%";
 table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE
@@ -73,7 +73,7 @@ WHERE c2.table_schema = 'information_schema' AND
 c2.table_name = t.table_name AND
 c2.column_name LIKE '%SCHEMA%'
         )
-AND t.table_name NOT LIKE 'innodb%';
+AND t.table_name NOT LIKE 'innodb%' and t.table_name NOT LIKE "OPTIMIZER_TRACE%";
 table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE

@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 flush status;
 show  status like "%custom_aggregate%";
 create table t2 (sal int(10));

@@ -1,3 +1,5 @@
+--source include/default_charset.inc
+
 SET sql_mode=ORACLE;
 
 --echo # Testing routines with no parameters

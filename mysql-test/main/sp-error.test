@@ -2,6 +2,8 @@
 # Stored PROCEDURE error tests
 #
 
+--source include/default_charset.inc
+
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings

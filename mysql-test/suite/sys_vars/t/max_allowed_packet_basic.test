@@ -35,7 +35,6 @@
 #############################################################
 
 SET @start_global_value = @@global.max_allowed_packet;
-SELECT @start_global_value;
 
 # give a known value to @@session.max_allowed_packet by assigning to
 # @@global and setting up a new connection (for deterministic result
@@ -219,9 +218,6 @@ SELECT max_allowed_packet = @@session.max_allowed_packet;
 
 connection default;
 SET @@global.max_allowed_packet = @start_global_value;
-SELECT @@global.max_allowed_packet;
-SELECT @@session.max_allowed_packet;
-
 
 #######################################################
 #                 END OF max_allowed_packet TESTS     #

@@ -98,9 +98,9 @@ create or replace table t2 (b int) with system versioning;
 prepare stmt from 'select a from v1 inner join t2 group by a order by a';
 execute stmt;
 execute stmt;
-drop database test;
-create database test;
-use test;
+drop database test2;
+create database test2;
+use test2;
 
 --echo #
 --echo # MDEV-15146 SQLError[4122]: View is not system versioned
@@ -124,3 +124,5 @@ show create view v1;
 
 drop view v1;
 drop table t1;
+
+--source suite/versioning/common_finish.inc

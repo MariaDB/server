@@ -3443,7 +3443,7 @@ sub mysql_install_db {
   mtr_tofile($path_bootstrap_log,
 	     "$exe_mysqld_bootstrap " . join(" ", @$args) . "\n");
 
-  # Create directories mysql and test
+  # Create directories mysql
   mkpath("$install_datadir/mysql");
 
   if ( My::SafeProcess->run
@@ -4627,6 +4627,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
      qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
+     qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,

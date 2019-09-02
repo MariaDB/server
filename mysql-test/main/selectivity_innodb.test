@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 # This test is slow on buildbot.
 --source include/big_test.inc
+--source include/default_optimizer_switch.inc
 
 SET SESSION STORAGE_ENGINE='InnoDB';
 
@@ -175,4 +176,5 @@ drop view v1;
 
 set use_stat_tables= @tmp_ust;
 set optimizer_use_condition_selectivity= @tmp_oucs;
+set @@global.histogram_size=@save_histogram_size;
 SET SESSION STORAGE_ENGINE=DEFAULT;

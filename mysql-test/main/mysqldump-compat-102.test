@@ -77,7 +77,7 @@ DELIMITER ;$$
 # mysqldump output is expected to have standalone PROCEDURE/FUNCTION, but not PACKAGE/PACKAGE BODY.
 
 --replace_regex  /-- MySQL dump.*[^\n]/-- MySQL dump DUMPVERSION  Distrib DISTVERSION, for OS/ / on [0-9 :-]+/ on TIMESTAMP/
---exec $MYSQL_DUMP --quick --routines --triggers --no-create-info --skip-lock-tables --no-data --compress -uroot db1_mdev17429
+--exec $MYSQL_DUMP --quick --routines --triggers --no-create-info --skip-lock-tables --no-data --compress --default-character-set=utf8mb4 -uroot db1_mdev17429
 
 DROP DATABASE db1_mdev17429;
 SET sql_mode=DEFAULT;

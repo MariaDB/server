@@ -3,6 +3,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 #
 # Test for bug #17164: ORed FALSE blocked conversion of outer join into join

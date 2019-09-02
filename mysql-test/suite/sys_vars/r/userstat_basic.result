@@ -1,9 +1,10 @@
 SET @start_global_value = @@global.userstat;
-select @@global.userstat;
-@@global.userstat
-0
+select @@global.userstat = 0 or @@global.userstat = 1;
+@@global.userstat = 0 or @@global.userstat = 1
+1
 select @@session.userstat;
 ERROR HY000: Variable 'userstat' is a GLOBAL variable
+SET @@global.userstat=0;
 show global variables like 'userstat';
 Variable_name	Value
 userstat	OFF

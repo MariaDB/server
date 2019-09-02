@@ -10,6 +10,7 @@
 --source include/have_debug.inc
 --source include/check_ipv6.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # [Warning] Host name 'santa.claus.ipv6.example.com' could not be resolved:
 # Name or service not known

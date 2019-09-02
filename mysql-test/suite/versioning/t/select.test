@@ -1,5 +1,6 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
+--source include/default_optimizer_switch.inc
 
 # test_01
 

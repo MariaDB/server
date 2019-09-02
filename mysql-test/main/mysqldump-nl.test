@@ -6,6 +6,7 @@
 --source include/not_embedded.inc
 # cmd.exe doesn't like new lines on the command line
 --source include/not_windows.inc
+--source include/default_charset.inc
 
 create database `mysqltest1
 1tsetlqsym`;

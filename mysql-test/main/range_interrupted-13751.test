@@ -1,4 +1,6 @@
-source include/have_debug.inc;
+-- source include/have_debug.inc
+--source include/default_optimizer_switch.inc
+
 #
 # MDEV-13751 Interrupted SELECT fails with 1030: 'Got error 1 "Operation not permitted" from storage engine MyISAM'
 #

@@ -1,6 +1,10 @@
 #
 #  Tests for "ANALYZE $statement" feature
 #
+
+# Fix that analyze delete with join doesn't add extra WHERE clause.
+set join_cache_level=2;
+
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
 --enable_warnings

@@ -118,9 +118,9 @@ execute stmt;
 a
 execute stmt;
 a
-drop database test;
-create database test;
-use test;
+drop database test2;
+create database test2;
+use test2;
 #
 # MDEV-15146 SQLError[4122]: View is not system versioned
 #

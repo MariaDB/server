@@ -393,6 +393,7 @@ DROP TABLE t1;
 --echo # Bug #11765023: 57934: DOS POSSIBLE SINCE BINARY CASTING 
 --echo #   DOESN'T ADHERE TO MAX_ALLOWED_PACKET
 
+set @save_max_allowed_packet=@@global.max_allowed_packet;
 SET @@GLOBAL.max_allowed_packet=2048;
 # reconnect to make the new max packet size take effect
 --connect (newconn, localhost, root,,)
@@ -403,7 +404,7 @@ SELECT length(CONVERT(repeat('a',2048), CHAR(2049)));
 
 connection default;
 disconnect newconn;
-SET @@GLOBAL.max_allowed_packet=default;
+SET @@GLOBAL.max_allowed_packet=@save_max_allowed_packet;
 
 --echo #
 --echo # Bug#13519724 63793: CRASH IN DTCOLLATION::SET(DTCOLLATION &SET)

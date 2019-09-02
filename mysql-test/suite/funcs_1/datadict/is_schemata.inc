@@ -18,6 +18,7 @@
 #                   create variants for embedded/non embedded server.
 #
 
+--source include/default_charset.inc
 let $is_table = SCHEMATA;
 
 # The table INFORMATION_SCHEMA.SCHEMATA must exist

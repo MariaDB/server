@@ -3,6 +3,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 set @save_storage_engine= @@storage_engine;
 set storage_engine=InnoDB;

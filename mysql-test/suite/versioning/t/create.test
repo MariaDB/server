@@ -395,6 +395,4 @@ create table t (
   period for system_time(row_start, row_end)
 ) with system versioning;
 
-
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

@@ -1,6 +1,10 @@
 drop table if exists t1, t2;
 create table t1 (a int) engine=innodb;
 create table t2 (a int) engine=myisam;
+set @save_binlog_stmt_cache_size=@@global.binlog_stmt_cache_size;
+set @save_binlog_cache_size=@@global.binlog_cache_size;
+set @@global.binlog_stmt_cache_size=32768;
+set @@global.binlog_cache_size=32768;
 **** Preparing the enviroment to check commit and its effect on status variables.
 **** Expected: binlog_cache_use = 0, binlog_cache_disk_use = 0.
 **** Expected: binlog_stmt_cache_use = 0, binlog_stmt_cache_disk_use = 0.
@@ -64,3 +68,5 @@ rollback;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 drop table t1, t2;
+set @@global.binlog_stmt_cache_size=@save_binlog_stmt_cache_size;
+set @@global.binlog_cache_size=@save_binlog_cache_size;

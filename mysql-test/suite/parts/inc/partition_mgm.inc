@@ -16,6 +16,7 @@
 # Original Author: mattiasj                                                    #
 # Original Date: 2008-06-27                                                    #
 ################################################################################
+--source include/default_charset.inc
 --enable_abort_on_error
 
 let $old_db= `SELECT DATABASE()`;

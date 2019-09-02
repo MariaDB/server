@@ -1,5 +1,6 @@
 #
 # Initialization
+--source include/default_optimizer_switch.inc
 --disable_warnings
 drop table if exists t1,t2,t3;
 drop view if exists v1,v2;

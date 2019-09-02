@@ -26,7 +26,8 @@ if (`select @join_cache_level_for_subselect_test is not null`)
 {
   set join_cache_level=@join_cache_level_for_subselect_test;
 }
- set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+SET optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+SET optimizer_use_condition_selectivity=1;
 
 select (select 2);
 explain extended select (select 2);
