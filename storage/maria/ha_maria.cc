@@ -2859,7 +2859,20 @@ static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
   THD_TRN= NULL;
   for (MARIA_HA *table= first_table; table ;
        table= table->trn_next)
+  {
     _ma_reset_trn_for_table(table);
+
+    /*
+      If table has changed by this statement, invalidate it from the query
+      cache
+    */
+    if (table->row_changes != table->start_row_changes)
+    {
+      table->start_row_changes= table->row_changes;
+      DBUG_ASSERT(table->s->chst_invalidator != NULL);
+      (*table->s->chst_invalidator)(table->s->data_file_name.str);
+    }
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -3325,7 +3338,10 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
                         THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
+  int res;
+  MARIA_HA *used_instances= (MARIA_HA*) trn->used_instances;
   DBUG_ENTER("maria_commit");
+
   trnman_reset_locked_tables(trn, 0);
   trnman_set_flags(trn, trnman_get_flags(trn) & ~TRN_STATE_INFO_LOGGED);
 
@@ -3333,8 +3349,9 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
   if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       !all)
     DBUG_RETURN(0); // end of statement
-  reset_thd_trn(thd, (MARIA_HA*) trn->used_instances);
-  DBUG_RETURN(ma_commit(trn)); // end of transaction
+  res= ma_commit(trn);
+  reset_thd_trn(thd, used_instances);
+  DBUG_RETURN(res);
 }
 
 

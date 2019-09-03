@@ -640,6 +640,7 @@ struct st_maria_handler
   invalidator_by_filename invalidator;	/* query cache invalidator */
   ulonglong last_auto_increment;        /* auto value at start of statement */
   ulonglong row_changes;                /* Incremented for each change */
+  ulonglong start_row_changes;          /* Row changes since start trans */
   ulong this_unique;			/* uniq filenumber or thread */
   ulong last_unique;			/* last unique number */
   ulong this_loop;			/* counter for this open */
