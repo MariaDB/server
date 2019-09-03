@@ -65,6 +65,17 @@ struct extra2_fields
   { bzero((void*)this, sizeof(*this)); }
 };
 
+class Table_arena: public Query_arena
+{
+public:
+  Table_arena(MEM_ROOT *mem_root, enum enum_state state_arg) :
+          Query_arena(mem_root, state_arg){}
+  virtual Type type() const
+  {
+    return Type::TABLE;
+  }
+};
+
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
               TABLE *, String *, Virtual_column_info **, bool *);
 static bool check_vcol_forward_refs(Field *, Virtual_column_info *,
@@ -1145,8 +1156,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     We need to use CONVENTIONAL_EXECUTION here to ensure that
     any new items created by fix_fields() are not reverted.
   */
-  table->expr_arena= new (alloc_root(mem_root, sizeof(Query_arena)))
-                        Query_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  table->expr_arena= new (alloc_root(mem_root, sizeof(Table_arena)))
+                        Table_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
   if (!table->expr_arena)
     DBUG_RETURN(1);
 

@@ -2562,14 +2562,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
   bool res= FALSE;
   uint i;
 
-  /*
-    In case we're in statement prepare, create conversion item
-    in its memory: it will be reused on each execute.
-  */
-  Query_arena backup;
-  Query_arena *arena= thd->stmt_arena->is_stmt_prepare() ?
-                      thd->activate_stmt_arena_if_needed(&backup) :
-                      NULL;
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
   for (i= 0, arg= args; i < nargs; i++, arg+= item_sep)
   {
@@ -2591,20 +2584,8 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       res= TRUE;
       break; // we cannot return here, we need to restore "arena".
     }
-    /*
-      If in statement prepare, then we create a converter for two
-      constant items, do it once and then reuse it.
-      If we're in execution of a prepared statement, arena is NULL,
-      and the conv was created in runtime memory. This can be
-      the case only if the argument is a parameter marker ('?'),
-      because for all true constants the charset converter has already
-      been created in prepare. In this case register the change for
-      rollback.
-    */
-    if (thd->stmt_arena->is_stmt_prepare())
-      *arg= conv;
-    else
-      thd->change_item_tree(arg, conv);
+
+    thd->change_item_tree(arg, conv);
 
     if (conv->fix_fields_if_needed(thd, arg))
     {
@@ -2612,8 +2593,6 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       break; // we cannot return here, we need to restore "arena".
     }
   }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   return res;
 }
 

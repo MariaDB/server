@@ -340,7 +340,7 @@ find_prepared_statement(THD *thd, ulong id)
                     thd->last_stmt :
                     thd->stmt_map.find(id));
 
-  if (stmt == 0 || stmt->type() != Query_arena::PREPARED_STATEMENT)
+  if (stmt == 0 || stmt->type() != Query_arena::Type::PREPARED_STATEMENT)
     return NULL;
 
   return (Prepared_statement *) stmt;
@@ -3911,7 +3911,7 @@ Prepared_statement::~Prepared_statement()
 
 Query_arena::Type Prepared_statement::type() const
 {
-  return PREPARED_STATEMENT;
+  return Type::PREPARED_STATEMENT;
 }
 
 
