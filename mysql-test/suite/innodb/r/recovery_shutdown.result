@@ -1,3 +1,5 @@
+FLUSH TABLES;
+call mtr.add_suppression("Found 1 prepared XA transactions");
 #
 # MDEV-13797 InnoDB may hang if shutdown is initiated soon after startup
 # while rolling back recovered incomplete transactions
@@ -7,10 +9,12 @@ BEGIN;
 COMMIT;
 connect  con$c,localhost,root,,;
 CREATE TABLE t8 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
-BEGIN;
+XA START 'x';
 INSERT INTO t8 (a) SELECT NULL FROM t;
 UPDATE t8 SET a=a+100, b=a;
 DELETE FROM t8;
+XA END 'x';
+XA PREPARE 'x';
 connect  con$c,localhost,root,,;
 CREATE TABLE t7 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
 BEGIN;
@@ -62,4 +66,7 @@ connection default;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 CREATE TABLE u(a SERIAL) ENGINE=INNODB;
 FLUSH TABLES;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
 DROP TABLE t,u;
