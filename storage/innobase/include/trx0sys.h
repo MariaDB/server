@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -186,30 +186,21 @@ UNIV_INLINE
 trx_id_t
 trx_rw_min_trx_id(void);
 /*===================*/
-/****************************************************************//**
-Checks if a rw transaction with the given id is active.
-@return transaction instance if active, or NULL */
-UNIV_INLINE
-trx_t*
-trx_rw_is_active_low(
-/*=================*/
-	trx_id_t	trx_id,		/*!< in: trx id of the transaction */
-	ibool*		corrupt);	/*!< in: NULL or pointer to a flag
-					that will be set if corrupt */
-/****************************************************************//**
-Checks if a rw transaction with the given id is active. If the caller is
-not holding trx_sys->mutex, the transaction may already have been
-committed.
-@return transaction instance if active, or NULL; */
-UNIV_INLINE
-trx_t*
-trx_rw_is_active(
-/*=============*/
-	trx_id_t	trx_id,		/*!< in: trx id of the transaction */
-	ibool*		corrupt,	/*!< in: NULL or pointer to a flag
-					that will be set if corrupt */
-	bool		do_ref_count);	/*!< in: if true then increment the
-					trx_t::n_ref_count */
+/** Look up a rw transaction with the given id.
+@param[in]	trx_id		transaction identifier
+@param[out]	corrupt		flag that will be set if trx_id is corrupted
+@return transaction; its state should be rechecked after acquiring trx_t::mutex
+@retval NULL if there is no transaction identified by trx_id. */
+inline trx_t* trx_rw_is_active_low(trx_id_t trx_id, bool* corrupt);
+
+/** Look up a rw transaction with the given id.
+@param[in]	trx_id		transaction identifier
+@param[out]	corrupt		flag that will be set if trx_id is corrupted
+@param[in]	ref_count	whether to increment trx->n_ref
+@return transaction; its state should be rechecked after acquiring trx_t::mutex
+@retval NULL if there is no active transaction identified by trx_id. */
+inline trx_t* trx_rw_is_active(trx_id_t trx_id, bool* corrupt, bool ref_count);
+
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 /***********************************************************//**
 Assert that a transaction has been recovered.

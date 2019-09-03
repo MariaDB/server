@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -302,61 +302,38 @@ trx_rw_min_trx_id(void)
 	return(id);
 }
 
-/****************************************************************//**
-Checks if a rw transaction with the given id is active.  If the caller is
-not holding lock_sys->mutex, the transaction may already have been committed.
-@return transaction instance if active, or NULL */
-UNIV_INLINE
-trx_t*
-trx_rw_is_active_low(
-/*=================*/
-	trx_id_t	trx_id,		/*!< in: trx id of the transaction */
-	ibool*		corrupt)	/*!< in: NULL or pointer to a flag
-					that will be set if corrupt */
+/** Look up a rw transaction with the given id.
+@param[in]	trx_id		transaction identifier
+@param[out]	corrupt		flag that will be set if trx_id is corrupted
+@return transaction; its state should be rechecked after acquiring trx_t::mutex
+@retval NULL if there is no transaction identified by trx_id. */
+inline trx_t* trx_rw_is_active_low(trx_id_t trx_id, bool* corrupt)
 {
-	trx_t*		trx;
-
 	ut_ad(trx_sys_mutex_own());
 
 	if (trx_id < trx_rw_min_trx_id_low()) {
-
-		trx = NULL;
 	} else if (trx_id >= trx_sys->max_trx_id) {
 
 		/* There must be corruption: we let the caller handle the
 		diagnostic prints in this case. */
 
-		trx = NULL;
 		if (corrupt != NULL) {
-			*corrupt = TRUE;
+			*corrupt = true;
 		}
-	} else {
-		trx = trx_get_rw_trx_by_id(trx_id);
-
-		if (trx != NULL
-		    && trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
-
-			trx = NULL;
-		}
+	} else if (trx_t* trx = trx_get_rw_trx_by_id(trx_id)) {
+		return trx;
 	}
 
-	return(trx);
+	return NULL;
 }
 
-/****************************************************************//**
-Checks if a rw transaction with the given id is active. If the caller is
-not holding lock_sys->mutex, the transaction may already have been
-committed.
-@return transaction instance if active, or NULL; */
-UNIV_INLINE
-trx_t*
-trx_rw_is_active(
-/*=============*/
-	trx_id_t	trx_id,		/*!< in: trx id of the transaction */
-	ibool*		corrupt,	/*!< in: NULL or pointer to a flag
-					that will be set if corrupt */
-	bool		do_ref_count)	/*!< in: if true then increment the
-					trx_t::n_ref_count */
+/** Look up a rw transaction with the given id.
+@param[in]	trx_id		transaction identifier
+@param[out]	corrupt		flag that will be set if trx_id is corrupted
+@param[in]	ref_count	whether to increment trx->n_ref
+@return transaction; its state should be rechecked after acquiring trx_t::mutex
+@retval NULL if there is no active transaction identified by trx_id. */
+inline trx_t* trx_rw_is_active(trx_id_t trx_id, bool* corrupt, bool ref_count)
 {
 	ut_ad(trx_id);
 
@@ -364,13 +341,25 @@ trx_rw_is_active(
 
 	trx_t* trx = trx_rw_is_active_low(trx_id, corrupt);
 
-	if (trx && do_ref_count) {
-		trx_mutex_enter(trx);
-		ut_ad(!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
+	if (trx && ref_count) {
+		TrxMutex* trx_mutex = &trx->mutex;
+		mutex_enter(trx_mutex);
+		ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 		ut_ad(trx->id == trx_id);
 		ut_ad(trx->n_ref >= 0);
-		++trx->n_ref;
-		trx_mutex_exit(trx);
+		if (trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
+			/* We have an early state check here to avoid
+			committer starvation in a wait loop for
+			transaction references, when there's a stream of
+			trx_rw_is_active() calls from other threads.
+			The trx->state may change to COMMITTED after
+			trx_mutex is released, and it will have to be
+			rechecked by the caller after reacquiring the mutex. */
+			trx = NULL;
+		} else {
+			++trx->n_ref;
+		}
+		mutex_exit(trx_mutex);
 	}
 
 	trx_sys_mutex_exit();

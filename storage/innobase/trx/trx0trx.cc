@@ -519,6 +519,52 @@ trx_free_for_background(trx_t* trx)
 	trx_free(trx);
 }
 
+/** Transition to committed state, to release implicit locks. */
+inline void trx_t::commit_state()
+{
+  /* This makes the transaction committed in memory and makes its
+  changes to data visible to other transactions. NOTE that there is a
+  small discrepancy from the strict formal visibility rules here: a
+  user of the database can see modifications made by another
+  transaction T even before the necessary redo log segment has been
+  flushed to the disk. If the database happens to crash before the
+  flush, the user has seen modifications from T which will never be a
+  committed transaction. However, any transaction T2 which sees the
+  modifications of the committing transaction T, and which also itself
+  makes modifications to the database, will get an lsn larger than the
+  committing transaction T. In the case where the log flush fails, and
+  T never gets committed, also T2 will never get committed. */
+  ut_ad(trx_mutex_own(this));
+  ut_ad(state != TRX_STATE_NOT_STARTED);
+  ut_ad(state != TRX_STATE_COMMITTED_IN_MEMORY
+	|| (is_recovered && !UT_LIST_GET_LEN(lock.trx_locks)));
+  state= TRX_STATE_COMMITTED_IN_MEMORY;
+
+  /* If the background thread trx_rollback_or_clean_recovered()
+  is still active then there is a chance that the rollback
+  thread may see this trx as COMMITTED_IN_MEMORY and goes ahead
+  to clean it up calling trx_cleanup_at_db_startup(). This can
+  happen in the case we are committing a trx here that is left
+  in PREPARED state during the crash. Note that commit of the
+  rollback of a PREPARED trx happens in the recovery thread
+  while the rollback of other transactions happen in the
+  background thread. To avoid this race we unconditionally unset
+  the is_recovered flag. */
+  is_recovered= false;
+  ut_ad(id || !trx_is_referenced(this));
+}
+
+/** Release any explicit locks of a committing transaction. */
+inline void trx_t::release_locks()
+{
+  DBUG_ASSERT(state == TRX_STATE_COMMITTED_IN_MEMORY);
+
+  if (UT_LIST_GET_LEN(lock.trx_locks))
+    lock_trx_release_locks(this);
+  else
+    lock.table_locks.clear(); /* Work around MDEV-20483 */
+}
+
 /********************************************************************//**
 At shutdown, frees a transaction object that is in the PREPARED state. */
 void
@@ -526,6 +572,7 @@ trx_free_prepared(
 /*==============*/
 	trx_t*	trx)	/*!< in, own: trx object */
 {
+	trx_mutex_enter(trx);
 	ut_ad(trx->state == TRX_STATE_PREPARED
 	      || trx->state == TRX_STATE_PREPARED_RECOVERED
 	      || !srv_was_started
@@ -543,7 +590,9 @@ trx_free_prepared(
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
-	lock_trx_release_locks(trx);
+	trx->commit_state();
+	trx_mutex_exit(trx);
+	trx->release_locks();
 	trx_undo_free_prepared(trx);
 
 	assert_trx_in_rw_list(trx);
@@ -556,14 +605,7 @@ trx_free_prepared(
 
 	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
-
-	/* Undo trx_resurrect_table_locks(). */
-	lock_trx_lock_list_init(&trx->lock.trx_locks);
-
-	/* Note: This vector is not guaranteed to be empty because the
-	transaction was never committed and therefore lock_trx_release()
-	was not called. */
-	trx->lock.table_locks.clear();
+	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
 	trx->id = 0;
 
 	trx_free(trx);
@@ -1630,8 +1672,8 @@ trx_commit_in_memory(
 
 		/* Note: We are asserting without holding the lock mutex. But
 		that is OK because this transaction is not waiting and cannot
-		be rolled back and no new locks can (or should not) be added
-		becuase it is flagged as a non-locking read-only transaction. */
+		be rolled back and no new locks can (or should) be added
+		because it is flagged as a non-locking read-only transaction. */
 
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 
@@ -1653,35 +1695,43 @@ trx_commit_in_memory(
 		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	} else {
-		if (trx->id > 0) {
-			/* For consistent snapshot, we need to remove current
-			transaction from running transaction id list for mvcc
-			before doing commit and releasing locks. */
+		trx_mutex_enter(trx);
+		trx->commit_state();
+		trx_mutex_exit(trx);
+
+		if (trx->id) {
 			trx_erase_lists(trx, serialised);
+
+			/* Wait for any implicit-to-explicit lock
+			conversions to cease, so that there will be no
+			race condition in lock_release(). */
+			trx_mutex_enter(trx);
+			while (UNIV_UNLIKELY(trx_is_referenced(trx))) {
+				trx_mutex_exit(trx);
+				ut_delay(srv_spin_wait_delay);
+				trx_mutex_enter(trx);
+			}
+			trx_mutex_exit(trx);
+
+			trx->release_locks();
+			trx->id = 0;
+		} else {
+			ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg);
+			ut_ad(!trx->in_rw_trx_list);
+			trx->release_locks();
 		}
 
-		lock_trx_release_locks(trx);
-		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
-
-		/* Remove the transaction from the list of active
-		transactions now that it no longer holds any user locks. */
-
-		ut_ad(trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 		DEBUG_SYNC_C("after_trx_committed_in_memory");
 
-		if (trx->read_only || trx->rsegs.m_redo.rseg == NULL) {
-
+		if (trx->read_only || !trx->rsegs.m_redo.rseg) {
 			MONITOR_INC(MONITOR_TRX_RO_COMMIT);
-			if (trx->read_view != NULL) {
+			if (trx->read_view) {
 				trx_sys->mvcc->view_close(
 					trx->read_view, false);
 			}
-
 		} else {
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
 		}
-
-		trx->id = 0;
 	}
 
 	ut_ad(!trx->rsegs.m_redo.update_undo);
@@ -2723,18 +2773,13 @@ partial:
 	return(int (count));
 }
 
-/*******************************************************************//**
-This function is used to find one X/Open XA distributed transaction
-which is in the prepared state
+/** Look up an X/Open distributed transaction in XA PREPARE state.
+@param[in]	xid	X/Open XA transaction identifier
 @return trx on match, the trx->xid will be invalidated;
-note that the trx may have been committed, unless the caller is
-holding lock_sys->mutex */
+note that the trx may have been committed before the caller
+acquires trx_t::mutex */
 static MY_ATTRIBUTE((warn_unused_result))
-trx_t*
-trx_get_trx_by_xid_low(
-/*===================*/
-	XID*	xid)		/*!< in: X/Open XA transaction
-					identifier */
+trx_t* trx_get_trx_by_xid_low(const XID* xid)
 {
 	trx_t*		trx;
 
@@ -2743,7 +2788,7 @@ trx_get_trx_by_xid_low(
 	for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-
+		trx_mutex_enter(trx);
 		assert_trx_in_rw_list(trx);
 
 		/* Compare two X/Open XA transaction id's: their
@@ -2759,28 +2804,28 @@ trx_get_trx_by_xid_low(
 			/* The commit of a prepared recovered Galera
 			transaction needs a valid trx->xid for
 			invoking trx_sys_update_wsrep_checkpoint(). */
-			if (wsrep_is_wsrep_xid(trx->xid)) break;
+			if (!wsrep_is_wsrep_xid(trx->xid))
 #endif
-			/* Invalidate the XID, so that subsequent calls
-			will not find it. */
-			trx->xid->null();
+				/* Invalidate the XID, so that subsequent calls
+				will not find it. */
+				trx->xid->null();
+			trx_mutex_exit(trx);
 			break;
 		}
+
+		trx_mutex_exit(trx);
 	}
 
 	return(trx);
 }
 
-/*******************************************************************//**
-This function is used to find one X/Open XA distributed transaction
-which is in the prepared state
-@return trx or NULL; on match, the trx->xid will be invalidated;
-note that the trx may have been committed, unless the caller is
-holding lock_sys->mutex */
-trx_t*
-trx_get_trx_by_xid(
-/*===============*/
-	XID*	xid)	/*!< in: X/Open XA transaction identifier */
+/** Look up an X/Open distributed transaction in XA PREPARE state.
+@param[in]	xid	X/Open XA transaction identifier
+@return	transaction on match (the trx_t::xid will be invalidated);
+note that the trx may have been committed before the caller acquires
+trx_t::mutex
+@retval	NULL if no match */
+trx_t* trx_get_trx_by_xid(const XID* xid)
 {
 	trx_t*	trx;
 
@@ -2793,7 +2838,7 @@ trx_get_trx_by_xid(
 
 	/* Recovered/Resurrected transactions are always only on the
 	trx_sys_t::rw_trx_list. */
-	trx = trx_get_trx_by_xid_low((XID*)xid);
+	trx = trx_get_trx_by_xid_low(xid);
 
 	trx_sys_mutex_exit();
 

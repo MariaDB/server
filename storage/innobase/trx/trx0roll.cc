@@ -697,9 +697,9 @@ trx_rollback_resurrected(
 	ut_ad(trx_sys_mutex_own());
 
 	/* The trx->is_recovered flag and trx->state are set
-	atomically under the protection of the trx->mutex (and
-	lock_sys->mutex) in lock_trx_release_locks(). We do not want
-	to accidentally clean up a non-recovered transaction here. */
+	atomically under the protection of the trx->mutex in
+	trx_t::commit_state(). We do not want to accidentally clean up
+	a non-recovered transaction here. */
 
 	trx_mutex_enter(trx);
 	if (!trx->is_recovered) {

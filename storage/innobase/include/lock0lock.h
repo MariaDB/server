@@ -499,14 +499,11 @@ lock_rec_unlock(
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
 	const rec_t*		rec,	/*!< in: record */
 	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
-/*********************************************************************//**
-Releases a transaction's locks, and releases possible other transactions
-waiting because of these locks. Change the state of the transaction to
-TRX_STATE_COMMITTED_IN_MEMORY. */
-void
-lock_trx_release_locks(
-/*===================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+
+/** Release the explicit locks of a committing transaction,
+and release possible other transactions waiting because of these locks. */
+void lock_trx_release_locks(trx_t* trx);
+
 /*********************************************************************//**
 Removes locks on a table to be dropped or discarded.
 If remove_also_table_sx_locks is TRUE then table-level S and X locks are

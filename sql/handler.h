@@ -575,9 +575,9 @@ struct xid_t {
   char data[XIDDATASIZE];  // not \0-terminated !
 
   xid_t() {}                                /* Remove gcc warning */
-  bool eq(struct xid_t *xid)
+  bool eq(struct xid_t *xid) const
   { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
-  bool eq(long g, long b, const char *d)
+  bool eq(long g, long b, const char *d) const
   { return !is_null() && g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
   void set(struct xid_t *xid)
   { memcpy(this, xid, xid->length()); }

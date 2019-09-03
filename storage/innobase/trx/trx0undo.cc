@@ -1820,7 +1820,7 @@ trx_undo_free_prepared(
 					   TRX_STATE_COMMITTED_IN_MEMORY));
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
-			/* lock_trx_release_locks() assigns
+			/* trx_t::commit_state() assigns
 			trx->is_recovered=false and
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
 			also for transactions that we faked
@@ -1852,7 +1852,7 @@ trx_undo_free_prepared(
 					   TRX_STATE_COMMITTED_IN_MEMORY));
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
-			/* lock_trx_release_locks() assigns
+			/* trx_t::commit_state() assigns
 			trx->is_recovered=false and
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
 			also for transactions that we faked

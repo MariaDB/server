@@ -249,16 +249,13 @@ trx_recover_for_mysql(
 /*==================*/
 	XID*	xid_list,	/*!< in/out: prepared transactions */
 	ulint	len);		/*!< in: number of slots in xid_list */
-/*******************************************************************//**
-This function is used to find one X/Open XA distributed transaction
-which is in the prepared state
-@return trx or NULL; on match, the trx->xid will be invalidated;
-note that the trx may have been committed, unless the caller is
-holding lock_sys->mutex */
-trx_t *
-trx_get_trx_by_xid(
-/*===============*/
-	XID*	xid);	/*!< in: X/Open XA transaction identifier */
+/** Look up an X/Open distributed transaction in XA PREPARE state.
+@param[in]	xid	X/Open XA transaction identifier
+@return	transaction on match (the trx_t::xid will be invalidated);
+note that the trx may have been committed before the caller acquires
+trx_t::mutex
+@retval	NULL if no match */
+trx_t* trx_get_trx_by_xid(const XID* xid);
 /**********************************************************************//**
 If required, flushes the log to disk if we called trx_commit_for_mysql()
 with trx->flush_log_later == TRUE. */
@@ -578,6 +575,9 @@ Check transaction state */
 	ut_ad(!MVCC::is_view_active((t)->read_view));			\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
+	ut_ad((t)->lock.table_locks.empty());				\
+	ut_ad(!(t)->autoinc_locks					\
+	      || ib_vector_is_empty((t)->autoinc_locks));		\
 	ut_ad((t)->dict_operation == TRX_DICT_OP_NONE);			\
 } while(0)
 
@@ -754,8 +754,8 @@ so without holding any mutex. The following are exceptions to this:
 
 * trx_rollback_resurrected() may access resurrected (connectionless)
 transactions while the system is already processing new user
-transactions. The trx_sys->mutex prevents a race condition between it
-and lock_trx_release_locks() [invoked by trx_commit()].
+transactions. The trx_sys->mutex and trx->is_recovered prevent
+a race condition between it and trx_commit().
 
 * trx_print_low() may access transactions not associated with the current
 thread. The caller must be holding trx_sys->mutex and lock_sys->mutex.
@@ -767,7 +767,7 @@ holding trx_sys->mutex exclusively.
 * The locking code (in particular, lock_deadlock_recursive() and
 lock_rec_convert_impl_to_expl()) will access transactions associated
 to other connections. The locks of transactions are protected by
-lock_sys->mutex and sometimes by trx->mutex. */
+lock_sys->mutex (insertions also by trx->mutex). */
 
 /** Represents an instance of rollback segment along with its state variables.*/
 struct trx_undo_ptr_t {
@@ -873,14 +873,12 @@ struct trx_t {
 	ACTIVE->COMMITTED is possible when the transaction is in
 	rw_trx_list.
 
-	Transitions to COMMITTED are protected by both lock_sys->mutex
-	and trx->mutex.
-
-	NOTE: Some of these state change constraints are an overkill,
-	currently only required for a consistent view for printing stats.
-	This unnecessarily adds a huge cost for the general case. */
-
+	Transitions to COMMITTED are protected by trx_t::mutex. */
 	trx_state_t	state;
+	/** whether this is a recovered transaction that should be
+	rolled back by trx_rollback_or_clean_recovered().
+	Protected by trx_t::mutex for transactions that are in trx_sys. */
+	bool		is_recovered;
 
 	ReadView*	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */
@@ -895,13 +893,8 @@ struct trx_t {
 
 	trx_lock_t	lock;		/*!< Information about the transaction
 					locks and state. Protected by
-					trx->mutex or lock_sys->mutex
-					or both */
-	bool		is_recovered;	/*!< 0=normal transaction,
-					1=recovered, must be rolled back,
-					protected by trx_sys->mutex when
-					trx->in_rw_trx_list holds */
-
+					lock_sys->mutex (insertions also
+					by trx_t::mutex). */
 
 	/* These fields are not protected by any mutex. */
 	const char*	op_info;	/*!< English text describing the
@@ -1184,6 +1177,12 @@ public:
 	{
 		return flush_observer;
 	}
+
+  /** Transition to committed state, to release implicit locks. */
+  inline void commit_state();
+
+  /** Release any explicit locks of a committing transaction. */
+  inline void release_locks();
 
 private:
 	/** Assign a rollback segment for modifying temporary tables.
