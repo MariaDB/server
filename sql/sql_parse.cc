@@ -7751,8 +7751,8 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
     sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
     thd->end_statement();
+    thd->Item_change_list::rollback_item_tree_changes();
     thd->cleanup_after_query();
-    DBUG_ASSERT(thd->Item_change_list::is_empty());
   }
   else
   {

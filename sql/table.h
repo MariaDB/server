@@ -1559,6 +1559,7 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
+  int fix_vcol_exprs(THD *thd);
 };
 
 
