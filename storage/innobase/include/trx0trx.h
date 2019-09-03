@@ -501,18 +501,6 @@ trx_set_rw_mode(
 	trx_t*		trx);
 
 /**
-Release the transaction. Decrease the reference count.
-@param trx Transaction that is being released */
-UNIV_INLINE
-void
-trx_release_reference(
-	trx_t*		trx);
-
-/**
-Check if the transaction is being referenced. */
-#define trx_is_referenced(t)	((t)->n_ref > 0)
-
-/**
 Transactions that aren't started by the MySQL server don't set
 the trx_t::mysql_thd field. For such transactions we set the lock
 wait timeout to 0 instead of the user configured value that comes
@@ -571,7 +559,7 @@ Check transaction state */
 	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED));		\
 	ut_ad(!(t)->id);						\
 	ut_ad(!(t)->has_logged());					\
-	ut_ad(!(t)->n_ref);						\
+	ut_ad(!(t)->is_referenced());					\
 	ut_ad(!MVCC::is_view_active((t)->read_view));			\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
@@ -801,6 +789,19 @@ struct trx_rsegs_t {
 };
 
 struct trx_t {
+private:
+  /**
+    Count of references.
+
+    We can't release the locks nor commit the transaction until this reference
+    is 0. We can change the state to TRX_STATE_COMMITTED_IN_MEMORY to signify
+    that it is no longer "active".
+  */
+
+  int32_t n_ref;
+
+
+public:
 	TrxMutex	mutex;		/*!< Mutex protecting the fields
 					state and lock (except some fields
 					of lock, which are protected by
@@ -1100,14 +1101,6 @@ struct trx_t {
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
-	lint		n_ref;		/*!< Count of references, protected
-					by trx_t::mutex. We can't release the
-					locks nor commit the transaction until
-					this reference is 0.  We can change
-					the state to COMMITTED_IN_MEMORY to
-					signify that it is no longer
-					"active". */
-
 	XID*		xid;		/*!< X/Open XA transaction
 					identification to identify a
 					transaction branch */
@@ -1183,6 +1176,33 @@ public:
 
   /** Release any explicit locks of a committing transaction. */
   inline void release_locks();
+
+
+  bool is_referenced()
+  {
+    return my_atomic_load32_explicit(&n_ref, MY_MEMORY_ORDER_RELAXED) > 0;
+  }
+
+
+  void reference()
+  {
+#ifdef UNIV_DEBUG
+  int32_t old_n_ref=
+#endif
+    my_atomic_add32_explicit(&n_ref, 1, MY_MEMORY_ORDER_RELAXED);
+    ut_ad(old_n_ref >= 0);
+  }
+
+
+  void release_reference()
+  {
+#ifdef UNIV_DEBUG
+  int32_t old_n_ref=
+#endif
+    my_atomic_add32_explicit(&n_ref, -1, MY_MEMORY_ORDER_RELAXED);
+    ut_ad(old_n_ref > 0);
+  }
+
 
 private:
 	/** Assign a rollback segment for modifying temporary tables.

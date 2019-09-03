@@ -5772,10 +5772,12 @@ lock_rec_convert_impl_to_expl_for_trx(
 	trx_t*			trx,	/*!< in/out: active transaction */
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
-	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
+	ut_ad(page_rec_is_leaf(rec));
 
+	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
 	lock_mutex_enter();
 	trx_mutex_enter(trx);
+	ut_ad(trx->is_referenced());
 	ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 
 	if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)
@@ -5786,9 +5788,8 @@ lock_rec_convert_impl_to_expl_for_trx(
 	}
 
 	lock_mutex_exit();
-	ut_ad(trx->n_ref > 0);
-	--trx->n_ref;
 	trx_mutex_exit(trx);
+	trx->release_reference();
 
 	DEBUG_SYNC_C("after_lock_rec_convert_impl_to_expl_for_trx");
 }
@@ -5830,7 +5831,7 @@ lock_rec_convert_impl_to_expl(
 	if (trx != 0) {
 		ulint	heap_no = page_rec_get_heap_no(rec);
 
-		ut_ad(trx_is_referenced(trx));
+		ut_ad(trx->is_referenced());
 
 		/* If the transaction is still active and has no
 		explicit x-lock set on the record, set one for it.

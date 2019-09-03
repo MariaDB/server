@@ -551,7 +551,7 @@ inline void trx_t::commit_state()
   background thread. To avoid this race we unconditionally unset
   the is_recovered flag. */
   is_recovered= false;
-  ut_ad(id || !trx_is_referenced(this));
+  ut_ad(id || !is_referenced());
 }
 
 /** Release any explicit locks of a committing transaction. */
@@ -1705,13 +1705,9 @@ trx_commit_in_memory(
 			/* Wait for any implicit-to-explicit lock
 			conversions to cease, so that there will be no
 			race condition in lock_release(). */
-			trx_mutex_enter(trx);
-			while (UNIV_UNLIKELY(trx_is_referenced(trx))) {
-				trx_mutex_exit(trx);
+			while (UNIV_UNLIKELY(trx->is_referenced())) {
 				ut_delay(srv_spin_wait_delay);
-				trx_mutex_enter(trx);
 			}
-			trx_mutex_exit(trx);
 
 			trx->release_locks();
 			trx->id = 0;

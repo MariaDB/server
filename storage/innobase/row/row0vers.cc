@@ -77,7 +77,7 @@ index record.
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in,out]	mtr		mini-transaction
 @return	the active transaction; state must be rechecked after
-trx_mutex_enter(), and trx_release_reference() must be invoked
+trx_mutex_enter(), and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 UNIV_INLINE
 trx_t*
@@ -213,7 +213,7 @@ row_vers_impl_x_locked_low(
 				created with a clear delete-mark flag.
 				(We never insert a delete-marked record.) */
 not_locked:
-				trx_release_reference(trx);
+				trx->release_reference();
 				trx = 0;
 			}
 
@@ -362,7 +362,7 @@ index record.
 @param[in]	index	secondary index
 @param[in]	offsets	rec_get_offsets(rec, index)
 @return	the active transaction; state must be rechecked after
-trx_mutex_enter(), and trx_release_reference() must be invoked
+trx_mutex_enter(), and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
@@ -408,7 +408,7 @@ row_vers_impl_x_locked(
 		trx = row_vers_impl_x_locked_low(
 			clust_rec, clust_index, rec, index, offsets, &mtr);
 
-		ut_ad(trx == 0 || trx_is_referenced(trx));
+		ut_ad(trx == 0 || trx->is_referenced());
 	}
 
 	mtr_commit(&mtr);

@@ -5087,7 +5087,7 @@ wrong_offs:
 					   rec, index, offsets)) {
 				/* The record belongs to an active
 				transaction. We must acquire a lock. */
-				trx_release_reference(trx);
+				trx->release_reference();
 			} else {
 				/* The secondary index record does not
 				point to a delete-marked clustered index

@@ -346,7 +346,6 @@ inline trx_t* trx_rw_is_active(trx_id_t trx_id, bool* corrupt, bool ref_count)
 		mutex_enter(trx_mutex);
 		ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 		ut_ad(trx->id == trx_id);
-		ut_ad(trx->n_ref >= 0);
 		if (trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
 			/* We have an early state check here to avoid
 			committer starvation in a wait loop for
@@ -357,7 +356,12 @@ inline trx_t* trx_rw_is_active(trx_id_t trx_id, bool* corrupt, bool ref_count)
 			rechecked by the caller after reacquiring the mutex. */
 			trx = NULL;
 		} else {
-			++trx->n_ref;
+			/* The reference could be safely incremented after
+			releasing one of trx_mutex or trx_sys->mutex.
+			Holding trx->mutex here may prevent a few false
+			references that could have a negative performance
+			impact on trx_commit_in_memory(). */
+			trx->reference();
 		}
 		mutex_exit(trx_mutex);
 	}
