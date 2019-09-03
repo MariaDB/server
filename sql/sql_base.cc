@@ -5401,6 +5401,8 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
     if (!table->placeholder() && t->s->vcols_need_refixing &&
          table->lock_type >= TL_WRITE_ALLOW_WRITE)
     {
+      Query_arena backup;
+      thd->set_n_backup_active_arena(t->expr_arena, &backup);
       if (table->security_ctx)
         thd->security_ctx= table->security_ctx;
 
@@ -5418,6 +5420,7 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
           goto err;
 
       thd->security_ctx= save_security_ctx;
+      thd->restore_active_arena(t->expr_arena, &backup);
     }
   }
   DBUG_RETURN(0);

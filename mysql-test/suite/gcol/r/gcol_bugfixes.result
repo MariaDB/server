@@ -604,3 +604,83 @@ test	gcol_t1	sidea		NEVER	NULL
 test	gcol_t1	sideb		NEVER	NULL
 test	gcol_t1	sidec	VIRTUAL GENERATED	ALWAYS	sqrt(`sidea` * `sidea` + `sideb` * `sideb`)
 DROP TABLE gcol_t1;
+#
+# MDEV-16039 Crash when selecting virtual columns
+# generated using functions with DAYNAME()
+#
+CREATE TABLE t1 (
+suppliersenttoday INT NOT NULL,
+suppliercaptoday CHAR(10) AS (CONCAT('',DAYNAME('2018-04-26')))
+) COLLATE utf8_bin;
+INSERT INTO t1 (suppliersenttoday) VALUES (0);
+INSERT INTO t1 (suppliersenttoday) VALUES (0);
+SELECT * FROM t1;
+suppliersenttoday	suppliercaptoday
+0	Thursday
+0	Thursday
+PREPARE STMT FROM 'INSERT INTO t1 (suppliersenttoday) VALUES (1)';
+CREATE OR REPLACE TABLE t1 (
+suppliersenttoday INT NOT NULL,
+suppliercaptoday CHAR(10) AS (CONCAT('',DAYNAME('2018-04-26')))
+) COLLATE utf8_bin;
+EXECUTE STMT;
+EXECUTE STMT;
+SELECT * FROM t1;
+suppliersenttoday	suppliercaptoday
+1	Thursday
+1	Thursday
+DROP TABLE t1;
+# (duplicate) MDEV-20380 Server crash during update
+CREATE TABLE gafld (
+nuigafld INTEGER NOT NULL,
+ucrgafld VARCHAR(30) COLLATE UTF8_BIN NOT NULL
+DEFAULT SUBSTRING_INDEX(USER(),'@',1)
+);
+EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+DROP TABLE gafld;
+# (duplicate) MDEV-17653 replace into generated columns is unstable
+# Some columns are snipped from the MDEV test and variable is changed
+CREATE TABLE t (
+c0 TIMESTAMP NOT NULL DEFAULT current_timestamp()
+ON UPDATE current_timestamp(),
+c1 DECIMAL(27,25) GENERATED ALWAYS AS (DAYOFMONTH(@timestamp)),
+c4 TIME NOT NULL,
+c8 SMALLINT(6) GENERATED ALWAYS AS
+(CONCAT_WS(CONVERT(C1 USING CP932),
+GET_FORMAT(DATETIME, 'ISO'),
+@@GLOBAL.FLUSH_TIME) <> (c4 = 1)),
+PRIMARY KEY (c4)
+) DEFAULT CHARSET=latin1;
+REPLACE INTO t SET c0 = '2018-06-03 10:31:43', c4 = '02:58:55';
+REPLACE INTO t SET c0 = '2018-06-03 10:31:44', c4 = '02:58:55';
+REPLACE INTO t SET c0 = '2018-06-03 10:31:45', c4 = '02:58:55';
+DROP TABLE t;
+# (duplicate) MDEV-17986 crash when I insert on a table
+CREATE OR REPLACE TABLE t2 (
+number BIGINT(20) NOT NULL,
+lrn BIGINT(20) NOT NULL DEFAULT 0,
+source VARCHAR(15) NOT NULL
+DEFAULT (REVERSE(SUBSTRING_INDEX(REVERSE(user()), '@', 1))),
+PRIMARY KEY (number)
+);
+REPLACE t2(number) VALUES('1');
+REPLACE t2(number) VALUES('1');
+DROP TABLE t2;
+# (duplicate) MDEV-16048 crashing with virtual columns
+SET @save_old_sql_mode= @@sql_mode;
+SET sql_mode='';
+DROP TABLE IF EXISTS t;
+Warnings:
+Note	1051	Unknown table 'test.t'
+CREATE TABLE t (
+A INT AS (UPDATEXML((@@global.date_format), 1, SUBSTRING_INDEX(1, 2, 3)))
+) ENGINE=INNODB;
+INSERT INTO t VALUES();
+INSERT IGNORE INTO t VALUES();
+DROP TABLE t;
+SET sql_mode= @save_old_sql_mode;
