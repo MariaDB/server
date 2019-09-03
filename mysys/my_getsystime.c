@@ -99,6 +99,8 @@ my_hrtime_t my_hrtime()
   while (gettimeofday(&t, NULL) != 0) {}
   hrtime.val= t.tv_sec*1000000ULL + t.tv_usec;
 #endif
+  DBUG_EXECUTE_IF("system_time_plus_one_hour", hrtime.val += 3600*1000000ULL;);
+  DBUG_EXECUTE_IF("system_time_minus_one_hour", hrtime.val -= 3600*1000000ULL;);
   return hrtime;
 }
 
