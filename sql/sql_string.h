@@ -232,6 +232,11 @@ public:
     return skr;
   }
 
+  size_t lengthsp() const
+  {
+    return str_charset->cset->lengthsp(str_charset, Ptr, str_length);
+  }
+
   void set(String &str,size_t offset,size_t arg_length)
   {
     DBUG_ASSERT(&str != this);

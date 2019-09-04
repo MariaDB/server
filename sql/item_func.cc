@@ -562,6 +562,15 @@ void Item_args::propagate_equal_fields(THD *thd,
 }
 
 
+Sql_mode_dependency Item_args::value_depends_on_sql_mode_bit_or() const
+{
+  Sql_mode_dependency res;
+  for (uint i= 0; i < arg_count; i++)
+    res|= args[i]->value_depends_on_sql_mode();
+  return res;
+}
+
+
 /**
   See comments in Item_cond::split_sum_func()
 */
@@ -1329,6 +1338,13 @@ bool Item_func_minus::fix_length_and_dec()
   if (Item_func_minus::type_handler()->Item_func_minus_fix_length_and_dec(this))
     DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  m_sql_mode_dependency= Item_func::value_depends_on_sql_mode();
+  if (unsigned_flag)
+  {
+    m_sql_mode_dependency|= Sql_mode_dependency(0,MODE_NO_UNSIGNED_SUBTRACTION);
+    if (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION)
+      unsigned_flag= false;
+  }
   DBUG_RETURN(FALSE);
 }
 

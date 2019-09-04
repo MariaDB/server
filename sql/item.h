@@ -1252,6 +1252,32 @@ public:
   double val_real_from_decimal();
   double val_real_from_date();
 
+  /*
+    Returns true if this item can be calculated during
+    value_depends_on_sql_mode()
+  */
+  bool value_depends_on_sql_mode_const_item()
+  {
+    /*
+      Currently we use value_depends_on_sql_mode() only for virtual
+      column expressions. They should not contain any expensive items.
+      If we ever get a crash on the assert below, it means
+      check_vcol_func_processor() is badly implemented for this item.
+    */
+    DBUG_ASSERT(!is_expensive());
+    /*
+      It should return const_item() actually.
+      But for some reasons Item_field::const_item() returns true
+      at value_depends_on_sql_mode() call time.
+      This should be checked and fixed.
+    */
+    return basic_const_item();
+  }
+  virtual Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Sql_mode_dependency();
+  }
+
   // Get TIME, DATE or DATETIME using proper sql_mode flags for the field type
   bool get_temporal_with_sql_mode(MYSQL_TIME *ltime);
   // Check NULL value for a TIME, DATE or DATETIME expression
@@ -2289,6 +2315,7 @@ public:
   inline Item **arguments() const { return args; }
   inline uint argument_count() const { return arg_count; }
   inline void remove_arguments() { arg_count=0; }
+  Sql_mode_dependency value_depends_on_sql_mode_bit_or() const;
 };
 
 
@@ -3028,6 +3055,10 @@ public:
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
+  }
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Sql_mode_dependency(0, field->value_depends_on_sql_mode());
   }
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -4726,6 +4757,10 @@ public:
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
   Item* build_clone(THD *thd);
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Item_args::value_depends_on_sql_mode_bit_or().soft_to_hard();
+  }
 };
 
 class sp_head;

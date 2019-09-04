@@ -430,6 +430,7 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
+const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
 int default_regex_flags_pcre(const THD *thd);

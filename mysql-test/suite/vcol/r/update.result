@@ -8,13 +8,13 @@ select * from t1;
 a	b	c
 2	3	4
 drop table t1;
-create table t1 (a int, c int as(a), p varchar(20) as(y), y char(20), index (p,c));
+create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
-  `p` varchar(20) GENERATED ALWAYS AS (`y`) VIRTUAL,
+  `p` varchar(20) GENERATED ALWAYS AS (rtrim(`y`)) VIRTUAL,
   `y` char(20) DEFAULT NULL,
   KEY `p` (`p`,`c`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
