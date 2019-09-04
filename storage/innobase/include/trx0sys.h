@@ -514,8 +514,10 @@ class rw_trx_hash_t
   {
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
     ut_ad(!trx_is_autocommit_non_locking(trx));
+    /* trx->state can be anything except TRX_STATE_NOT_STARTED */
     mutex_enter(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
+          trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) ||
           trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
           trx_state_eq(trx, TRX_STATE_PREPARED));
     mutex_exit(&trx->mutex);
@@ -940,7 +942,7 @@ public:
   /**
     Takes MVCC snapshot.
 
-    To reduce malloc probablility we reserver rw_trx_hash.size() + 32 elements
+    To reduce malloc probablility we reserve rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin

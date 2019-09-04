@@ -11422,33 +11422,6 @@ key_map Field::get_possible_keys()
 }
 
 
-/**
-  Mark the field as having an explicit default value.
-
-  @param value  if available, the value that the field is being set to
-
-  @note
-    Fields that have an explicit default value should not be updated
-    automatically via the DEFAULT or ON UPDATE functions. The functions
-    that deal with data change functionality (INSERT/UPDATE/LOAD),
-    determine if there is an explicit value for each field before performing
-    the data change, and call this method to mark the field.
-
-    If the 'value' parameter is NULL, then the field is marked unconditionally
-    as having an explicit value. If 'value' is not NULL, then it can be further
-    analyzed to check if it really should count as a value.
-*/
-
-bool Field::set_explicit_default(Item *value)
-{
-  if (value->type() == Item::DEFAULT_VALUE_ITEM &&
-      !((Item_default_value*)value)->arg)
-    return false;
-  set_has_explicit_value();
-  return true;
-}
-
-
 bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
 {
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);

@@ -33,6 +33,7 @@ galera_var_node_address : MDEV-17151 Galera test failure
 galera_var_notify_cmd : MDEV-13549 Galera test failures
 galera_var_slave_threads : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
-galera_wan : MDEV-17259: Test failure on galera.galera_wan
+galera_var_node_address : MDEV-20485 Galera test failure on galera.galera_var_node_address
+galera_wan : MDEV-17259 Test failure on galera.galera_wan
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache

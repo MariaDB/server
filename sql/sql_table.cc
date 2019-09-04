@@ -9819,7 +9819,7 @@ do_continue:;
     thd->count_cuted_fields= CHECK_FIELD_EXPRESSION;
     altered_table->reset_default_fields();
     if (altered_table->default_field &&
-        altered_table->update_default_fields(0, 1))
+        altered_table->update_default_fields(true))
       goto err_new_table_cleanup;
     thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
@@ -10515,7 +10515,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
     prev_insert_id= to->file->next_insert_id;
     if (to->default_field)
-      to->update_default_fields(0, ignore);
+      to->update_default_fields(ignore);
     if (to->vfield)
       to->update_virtual_fields(to->file, VCOL_UPDATE_FOR_WRITE);
 

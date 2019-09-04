@@ -764,6 +764,10 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
+    /* The trx->is_recovered flag and trx->state are set
+    atomically under the protection of the trx->mutex in
+    trx_t::commit_state(). We do not want to accidentally clean up
+    a non-recovered transaction here. */
     mutex_enter(&trx->mutex);
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
       trx_list->push_back(trx);

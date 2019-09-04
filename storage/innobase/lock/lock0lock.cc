@@ -4740,7 +4740,7 @@ lock_trx_table_locks_find(
 {
 	bool		found = false;
 
-	trx_mutex_enter(trx);
+	ut_ad(trx_mutex_own(trx));
 
 	for (lock_list::const_iterator it = trx->lock.table_locks.begin(),
              end = trx->lock.table_locks.end(); it != end; ++it) {
@@ -4763,8 +4763,6 @@ lock_trx_table_locks_find(
 		ut_a(lock->un_member.tab_lock.table != NULL);
 	}
 
-	trx_mutex_exit(trx);
-
 	return(found);
 }
 
@@ -4785,25 +4783,23 @@ lock_table_queue_validate(
 	     lock != NULL;
 	     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
 
-		/* Transaction state may change from ACTIVE to PREPARED.
-		State change to COMMITTED is not possible while we are
-		holding lock_sys.mutex: it is done by lock_trx_release_locks()
-		under lock_sys.mutex protection.
-		Transaction in NOT_STARTED state cannot hold locks, and
-		lock->trx->state can only move to NOT_STARTED from COMMITTED. */
+		/* lock->trx->state cannot change from or to NOT_STARTED
+		while we are holding the trx_sys.mutex. It may change
+		from ACTIVE or PREPARED to PREPARED or COMMITTED. */
+		trx_mutex_enter(lock->trx);
 		check_trx_state(lock->trx);
 
-		if (!lock_get_wait(lock)) {
-
+		if (lock->trx->state == TRX_STATE_COMMITTED_IN_MEMORY) {
+		} else if (!lock_get_wait(lock)) {
 			ut_a(!lock_table_other_has_incompatible(
 				     lock->trx, 0, table,
 				     lock_get_mode(lock)));
 		} else {
-
 			ut_a(lock_table_has_to_wait_in_queue(lock));
 		}
 
 		ut_a(lock_trx_table_locks_find(lock->trx, lock));
+		trx_mutex_exit(lock->trx);
 	}
 
 	return(TRUE);
@@ -4850,42 +4846,41 @@ lock_rec_queue_validate(
 		     lock != NULL;
 		     lock = lock_rec_get_next_const(heap_no, lock)) {
 
+			ut_ad(!index || lock->index == index);
+
+			trx_mutex_enter(lock->trx);
 			ut_ad(!trx_is_ac_nl_ro(lock->trx));
-
-			if (lock_get_wait(lock)) {
-				ut_a(lock_rec_has_to_wait_in_queue(lock));
-			}
-
-			if (index != NULL) {
-				ut_a(lock->index == index);
-			}
+			ut_ad(trx_state_eq(lock->trx,
+					   TRX_STATE_COMMITTED_IN_MEMORY)
+			      || !lock_get_wait(lock)
+			      || lock_rec_has_to_wait_in_queue(lock));
+			trx_mutex_exit(lock->trx);
 		}
 
-		goto func_exit;
+func_exit:
+		if (!locked_lock_trx_sys) {
+			lock_mutex_exit();
+		}
+
+		return true;
 	}
 
 	ut_ad(page_rec_is_leaf(rec));
+	ut_ad(lock_mutex_own());
 
-	if (index == NULL) {
+	const trx_id_t impl_trx_id = index && index->is_primary()
+		? lock_clust_rec_some_has_impl(rec, index, offsets)
+		: 0;
 
-		/* Nothing we can do */
+	if (trx_t *impl_trx = impl_trx_id
+	    ? trx_sys.find(current_trx(), impl_trx_id, false)
+	    : 0) {
+		/* impl_trx could have been committed before we
+		acquire its mutex, but not thereafter. */
 
-	} else if (dict_index_is_clust(index)) {
-		/* Unlike the non-debug code, this invariant can only succeed
-		if the check and assertion are covered by the lock mutex. */
-
-		const trx_id_t impl_trx_id = lock_clust_rec_some_has_impl(
-			rec, index, offsets);
-
-		const trx_t *impl_trx = impl_trx_id
-			? trx_sys.find(current_trx(), impl_trx_id, false)
-			: 0;
-
-		ut_ad(lock_mutex_own());
-		/* impl_trx cannot be committed until lock_mutex_exit()
-		because lock_trx_release_locks() acquires lock_sys.mutex */
-
-		if (!impl_trx) {
+		mutex_enter(&impl_trx->mutex);
+		ut_ad(impl_trx->state != TRX_STATE_NOT_STARTED);
+		if (impl_trx->state == TRX_STATE_COMMITTED_IN_MEMORY) {
 		} else if (const lock_t* other_lock
 			   = lock_rec_other_has_expl_req(
 				   LOCK_S, block, true, heap_no,
@@ -4927,6 +4922,8 @@ lock_rec_queue_validate(
 			ut_ad(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
 						block, heap_no, impl_trx));
 		}
+
+		mutex_exit(&impl_trx->mutex);
 	}
 
 	for (lock = lock_rec_get_first(lock_sys.rec_hash, block, heap_no);
@@ -4971,12 +4968,7 @@ lock_rec_queue_validate(
 	ut_ad(innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS ||
 		  lock_queue_validate(lock));
 
-func_exit:
-	if (!locked_lock_trx_sys) {
-		lock_mutex_exit();
-	}
-
-	return(TRUE);
+	goto func_exit;
 }
 
 /*********************************************************************//**
@@ -5398,30 +5390,24 @@ lock_rec_convert_impl_to_expl_for_trx(
 	trx_t*			trx,	/*!< in/out: active transaction */
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
-	ut_ad(trx->is_referenced());
 	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(!rec_is_metadata(rec, index));
 
 	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
-
 	lock_mutex_enter();
-
+	trx_mutex_enter(trx);
+	ut_ad(trx->is_referenced());
 	ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 
 	if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)
 	    && !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
 				  block, heap_no, trx)) {
-
-		ulint	type_mode;
-
-		type_mode = (LOCK_REC | LOCK_X | LOCK_REC_NOT_GAP);
-
-		lock_rec_add_to_queue(
-			type_mode, block, heap_no, index, trx, FALSE);
+		lock_rec_add_to_queue(LOCK_REC | LOCK_X | LOCK_REC_NOT_GAP,
+				      block, heap_no, index, trx, true);
 	}
 
 	lock_mutex_exit();
-
+	trx_mutex_exit(trx);
 	trx->release_reference();
 
 	DEBUG_SYNC_C("after_lock_rec_convert_impl_to_expl_for_trx");
@@ -5444,13 +5430,17 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
   mutex_enter(&element->mutex);
   if (element->trx)
   {
-    lock_t *expl_lock= lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP, arg->block,
-                                         arg->heap_no, element->trx);
+    trx_mutex_enter(element->trx);
+    ut_ad(element->trx->state != TRX_STATE_NOT_STARTED);
+    lock_t *expl_lock= element->trx->state == TRX_STATE_COMMITTED_IN_MEMORY
+      ? NULL : lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP, arg->block,
+                                 arg->heap_no, element->trx);
     /*
       An explicit lock is held by trx other than the trx holding the implicit
       lock.
     */
     ut_ad(!expl_lock || expl_lock->trx == arg->impl_trx);
+    trx_mutex_exit(element->trx);
   }
   mutex_exit(&element->mutex);
   return 0;
@@ -5480,9 +5470,6 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
     ut_ad(!page_rec_is_metadata(rec));
     lock_mutex_enter();
     ut_ad(trx->is_referenced());
-    /* Prevent a data race with trx_prepare(), which could change the
-    state from ACTIVE to PREPARED. Other state changes should be
-    blocked by lock_mutex_own() and trx->is_referenced(). */
     trx_mutex_enter(trx);
     const trx_state_t state = trx->state;
     trx_mutex_exit(trx);
@@ -6248,89 +6235,24 @@ lock_unlock_table_autoinc(
 	}
 }
 
-/*********************************************************************//**
-Releases a transaction's locks, and releases possible other transactions
-waiting because of these locks. Change the state of the transaction to
-TRX_STATE_COMMITTED_IN_MEMORY. */
-void
-lock_trx_release_locks(
-/*===================*/
-	trx_t*	trx)	/*!< in/out: transaction */
+/** Release the explicit locks of a committing transaction,
+and release possible other transactions waiting because of these locks. */
+void lock_trx_release_locks(trx_t* trx)
 {
-	check_trx_state(trx);
-	ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED)
-	      || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
-              || trx_state_eq(trx, TRX_STATE_ACTIVE));
+	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks));
 
-	bool release_lock = UT_LIST_GET_LEN(trx->lock.trx_locks) > 0;
-
-	/* Don't take lock_sys.mutex if trx didn't acquire any lock. */
-	if (release_lock) {
-
-		/* The transition of trx->state to TRX_STATE_COMMITTED_IN_MEMORY
-		is protected by both the lock_sys.mutex and the trx->mutex. */
-		lock_mutex_enter();
-	}
-
-	/* The following assignment makes the transaction committed in memory
-	and makes its changes to data visible to other transactions.
-	NOTE that there is a small discrepancy from the strict formal
-	visibility rules here: a human user of the database can see
-	modifications made by another transaction T even before the necessary
-	log segment has been flushed to the disk. If the database happens to
-	crash before the flush, the user has seen modifications from T which
-	will never be a committed transaction. However, any transaction T2
-	which sees the modifications of the committing transaction T, and
-	which also itself makes modifications to the database, will get an lsn
-	larger than the committing transaction T. In the case where the log
-	flush fails, and T never gets committed, also T2 will never get
-	committed. */
-
-	/*--------------------------------------*/
-	trx_mutex_enter(trx);
-	trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
-	trx_mutex_exit(trx);
-	/*--------------------------------------*/
-
-	if (trx->is_referenced()) {
-
-		ut_a(release_lock);
-
-		lock_mutex_exit();
-
-		while (trx->is_referenced()) {
-
-			DEBUG_SYNC_C("waiting_trx_is_not_referenced");
-
-			/** Doing an implicit to explicit conversion
-			should not be expensive. */
-			ut_delay(srv_spin_wait_delay);
-		}
-
-		lock_mutex_enter();
-	}
-
-	ut_ad(!trx->is_referenced());
-
-	if (release_lock) {
-
-		lock_release(trx);
-
-		lock_mutex_exit();
-	}
-
+	lock_mutex_enter();
+	lock_release(trx);
 	trx->lock.n_rec_locks = 0;
-
 	/* We don't remove the locks one by one from the vector for
 	efficiency reasons. We simply reset it because we would have
 	released all the locks anyway. */
 
 	trx->lock.table_locks.clear();
 
-	ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
-	ut_a(ib_vector_is_empty(trx->autoinc_locks));
-	ut_a(trx->lock.table_locks.empty());
-
+	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
+	ut_ad(ib_vector_is_empty(trx->autoinc_locks));
+	lock_mutex_exit();
 	mem_heap_empty(trx->lock.lock_heap);
 }
 
@@ -6403,21 +6325,26 @@ static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (element->trx)
   {
+    trx_mutex_enter(element->trx);
     check_trx_state(element->trx);
-    for (const lock_t *lock= UT_LIST_GET_FIRST(element->trx->lock.trx_locks);
-         lock != NULL;
-         lock= UT_LIST_GET_NEXT(trx_locks, lock))
+    if (element->trx->state != TRX_STATE_COMMITTED_IN_MEMORY)
     {
-      ut_ad(lock->trx == element->trx);
-      if (lock_get_type_low(lock) == LOCK_REC)
+      for (const lock_t *lock= UT_LIST_GET_FIRST(element->trx->lock.trx_locks);
+           lock != NULL;
+           lock= UT_LIST_GET_NEXT(trx_locks, lock))
       {
-        ut_ad(!dict_index_is_online_ddl(lock->index) ||
-              dict_index_is_clust(lock->index));
-        ut_ad(lock->index->table != table);
+        ut_ad(lock->trx == element->trx);
+        if (lock_get_type_low(lock) == LOCK_REC)
+        {
+          ut_ad(!dict_index_is_online_ddl(lock->index) ||
+                lock->index->is_primary());
+          ut_ad(lock->index->table != table);
+        }
+        else
+          ut_ad(lock->un_member.tab_lock.table != table);
       }
-      else
-        ut_ad(lock->un_member.tab_lock.table != table);
     }
+    trx_mutex_exit(element->trx);
   }
   mutex_exit(&element->mutex);
   return 0;
@@ -6585,7 +6512,7 @@ DeadlockChecker::start_print()
 
 	if (srv_print_all_deadlocks) {
 		ib::info() << "Transactions deadlock detected, dumping"
-			<< " detailed information.";
+			" detailed information.";
 	}
 }
 

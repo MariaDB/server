@@ -1001,7 +1001,6 @@ public:
   {
     bitmap_clear_bit(&table->has_value_set, field_index);
   }
-  bool set_explicit_default(Item *value);
 
   virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const
   { DBUG_ASSERT(0); return 0; }
@@ -1009,14 +1008,6 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
-
-  /**
-     Evaluates the @c UPDATE default function, if one exists, and stores the
-     result in the record buffer. If no such function exists for the column,
-     or the function is not valid for the column's data type, invoking this
-     function has no effect.
-  */
-  virtual int evaluate_update_default_function() { return 0; }
 
   virtual bool binary() const { return 1; }
   virtual bool zero_pack() const { return 1; }
@@ -2686,13 +2677,6 @@ public:
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
   int set_time();
-  int evaluate_update_default_function()
-  {
-    int res= 0;
-    if (has_update_default_function())
-      res= set_time();
-    return res;
-  }
   /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   my_time_t get_timestamp(ulong *sec_part) const
@@ -3148,13 +3132,6 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
   int set_time();
-  int evaluate_update_default_function()
-  {
-    int res= 0;
-    if (has_update_default_function())
-      res= set_time();
-    return res;
-  }
   uchar *pack(uchar* to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
