@@ -3372,7 +3372,7 @@ insert into t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
 select * from t1 order by t;
 a	b	t
 5	5	1 column is omitted
-5	5	2 column gets DEFAULT, keyword
+4	5	2 column gets DEFAULT, keyword
 4	5	3 column gets DEFAULT(a), expression
 4	5	4 also expression DEFAULT(0)+0
 4	5	5 the value of the DEFAULT(a), that is b

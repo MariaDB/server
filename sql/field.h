@@ -990,7 +990,6 @@ public:
   {
     return bitmap_is_set(&table->has_value_set, field_index);
   }
-  bool set_explicit_default(Item *value);
 
   virtual bool binary() const { return 1; }
   virtual bool zero_pack() const { return 1; }
