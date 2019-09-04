@@ -208,12 +208,23 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "chosen": false,
                       "cause": "cost"
                     }
-                  ]
+                  ],
+                  "chosen_access_method": {
+                    "type": "ref",
+                    "records": 1,
+                    "cost": 2,
+                    "uses_join_buffering": false,
+                    "filter_used": false
+                  }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 2.2
+                "cost_for_plan": 2.2,
+                "estimated_join_cardinality": 1
               }
             ]
+          },
+          {
+            "best_join_order": ["t1"]
           },
           {
             "attaching_conditions_to_tables": {

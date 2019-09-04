@@ -7203,6 +7203,7 @@ best_access_path(JOIN      *join,
   SplM_plan_info *spl_plan= 0;
   Range_rowid_filter_cost_info *filter= 0;
   const char* cause= NULL;
+  enum join_type best_type= JT_UNKNOWN, type= JT_UNKNOWN;
 
   disable_jbuf= disable_jbuf || idx == join->const_tables;  
 
@@ -7342,7 +7343,8 @@ best_access_path(JOIN      *join,
         */
         tmp= prev_record_reads(join->positions, idx, found_ref);
         records= 1.0;
-        trace_access_idx.add("access_type", "fulltext")
+        type= JT_FT;
+        trace_access_idx.add("access_type", join_type_str[type])
                         .add("index", keyinfo->name);
       }
       else
@@ -7365,14 +7367,16 @@ best_access_path(JOIN      *join,
               (!(key_flags & HA_NULL_PART_KEY) ||            //  (2)
                all_key_parts == notnull_part))               //  (3)
           {
-            trace_access_idx.add("access_type", "eq_ref")
+            type= JT_EQ_REF;
+            trace_access_idx.add("access_type", join_type_str[type])
                             .add("index", keyinfo->name);
             tmp = prev_record_reads(join->positions, idx, found_ref);
             records=1.0;
           }
           else
           {
-            trace_access_idx.add("access_type", "ref")
+            type= JT_REF;
+            trace_access_idx.add("access_type", join_type_str[type])
                             .add("index", keyinfo->name);
             if (!found_ref)
             {                                     /* We found a const key */
@@ -7467,8 +7471,8 @@ best_access_path(JOIN      *join,
         }
         else
         {
-          trace_access_idx.add("access_type",
-                               ref_or_null_part ? "ref_or_null" : "ref")
+          type = ref_or_null_part ? JT_REF_OR_NULL : JT_REF;
+          trace_access_idx.add("access_type", join_type_str[type])
                           .add("index", keyinfo->name);
           /*
             Use as much key-parts as possible and a uniq key is better
@@ -7683,6 +7687,7 @@ best_access_path(JOIN      *join,
         best_max_key_part= max_key_part;
         best_ref_depends_map= found_ref;
         best_filter= filter;
+        best_type= type;
       }
       else
       {
@@ -7736,6 +7741,7 @@ best_access_path(JOIN      *join,
     best_ref_depends_map= 0;
     best_uses_jbuf= TRUE;
     best_filter= 0;
+    best_type= JT_HASH;
     trace_access_hash.add("type", "hash");
     trace_access_hash.add("index", "hj-key");
     trace_access_hash.add("cost", rnd_records);
@@ -7799,10 +7805,6 @@ best_access_path(JOIN      *join,
     filter= 0;
     if (s->quick)
     {
-      trace_access_scan.add("access_type", "range");
-      /*
-        should have some info about all the different QUICK_SELECT
-      */
       /*
         For each record we:
         - read record range through 'quick'
@@ -7828,23 +7830,29 @@ best_access_path(JOIN      *join,
         {
           tmp-= filter->get_adjusted_gain(rows);
           DBUG_ASSERT(tmp >= 0);
-	}
+        }
+        type= JT_RANGE;
       }
       else
       {
+        type= JT_INDEX_MERGE;
         best_filter= 0;
       }
-
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
     else
     {
-      trace_access_scan.add("access_type", "scan");
       /* Estimate cost of reading table. */
       if (s->table->force_index && !best_key) // index scan
+      {
+        type= JT_NEXT;
         tmp= s->table->file->read_time(s->ref.key, 1, s->records);
+      }
       else // table scan
+      {
         tmp= s->scan_time();
+        type= JT_ALL;
+      }
 
       if ((s->table->map & join->outer_join) || disable_jbuf)     // Can't use join cache
       {
@@ -7874,6 +7882,9 @@ best_access_path(JOIN      *join,
       }
     }
 
+    trace_access_scan.add("access_type", type == JT_ALL ?
+                                         "scan" :
+                                         join_type_str[type]);
     /* Splitting technique cannot be used with join cache */
     if (s->table->is_splittable())
       tmp+= s->table->get_materialization_cost();
@@ -7913,6 +7924,7 @@ best_access_path(JOIN      *join,
       best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
                                                   join->outer_join)));
       spl_plan= 0;
+      best_type= type;
     }
     trace_access_scan.add("chosen", best_key == NULL);
   }
@@ -7944,6 +7956,11 @@ best_access_path(JOIN      *join,
     trace_access_scan.add("use_tmp_table", true);
     join->sort_by_table= (TABLE*) 1;  // Must use temporary table
   }
+  trace_access_scan.end();
+  trace_paths.end();
+
+  if (unlikely(thd->trace_started()))
+    print_best_access_for_table(thd, pos, best_type);
 
   DBUG_VOID_RETURN;
 }
@@ -9484,6 +9501,8 @@ best_extension_by_limited_search(JOIN      *join,
              Hence it may be wrong.
           */
           current_read_time= COST_ADD(current_read_time, current_record_count);
+        trace_one_table.add("estimated_join_cardinality",
+                            partial_join_cardinality);
         if (current_read_time < join->best_read)
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
@@ -10304,6 +10323,9 @@ bool JOIN::get_best_combination()
  
   top_join_tab_count= (uint)(join_tab_ranges.head()->end - 
                       join_tab_ranges.head()->start);
+
+  if (unlikely(thd->trace_started()))
+    print_final_join_order(this);
 
   update_depend_map(this);
   DBUG_RETURN(0);

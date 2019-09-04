@@ -630,6 +630,45 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
   table_rec.add("rows", tab->found_records)
            .add("cost", tab->read_time);
 }
+
+/*
+  Print the join order of all the tables for top level select.
+
+  For example:
+
+  select * from ot1
+   where ot1.a IN (select it1.a from it1, it2 where it1.b=it2.a);
+
+  So this function would print
+    ot1, <subquery2>  ----> For select #1
+*/
+
+void print_final_join_order(JOIN *join)
+{
+  Json_writer_object join_order(join->thd);
+  Json_writer_array  best_order(join->thd, "best_join_order");
+  JOIN_TAB *j;
+  uint i;
+  for (j= join->join_tab,i=0 ; i < join->top_join_tab_count;
+       i++, j++)
+    best_order.add_table_name(j);
+}
+
+
+void print_best_access_for_table(THD *thd, POSITION *pos,
+                                 enum join_type type)
+{
+  Json_writer_object trace_best_access(thd, "chosen_access_method");
+  trace_best_access.add("type", type == JT_ALL ? "scan" :
+                                                 join_type_str[type]);
+  trace_best_access.add("records", pos->records_read);
+  trace_best_access.add("cost", pos->read_time);
+  trace_best_access.add("uses_join_buffering", pos->use_join_buffer);
+  trace_best_access.add("filter_used",
+                         pos->range_rowid_filter_info != NULL);
+}
+
+
 /*
   Introduce enum_query_type flags parameter, maybe also allow
   EXPLAIN also use this function.
