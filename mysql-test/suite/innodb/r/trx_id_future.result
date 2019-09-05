@@ -8,8 +8,11 @@ INSERT INTO t1 VALUES(1);
 InnoDB		0 transactions not purged
 NOT FOUND /\[Warning\] InnoDB: A transaction id in a record of table `test`\.`t1` is newer than the system-wide maximum/ in mysqld.1.err
 call mtr.add_suppression("\\[Warning\\] InnoDB: A transaction id in a record of table `test`\\.`t1` is newer than the system-wide maximum");
+SET @save_count = @@max_error_count;
+SET max_error_count = 1;
 SELECT * FROM t1;
 a
 Warnings:
 Warning	1642	InnoDB: Transaction id in a record of table `test`.`t1` is newer than system-wide maximum.
+SET max_error_count = @save_count;
 DROP TABLE t1;
