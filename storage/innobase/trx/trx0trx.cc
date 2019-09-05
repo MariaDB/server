@@ -463,6 +463,9 @@ void trx_free(trx_t*& trx)
 /** Transition to committed state, to release implicit locks. */
 inline void trx_t::commit_state()
 {
+  ut_ad(state == TRX_STATE_PREPARED
+	|| state == TRX_STATE_PREPARED_RECOVERED
+	|| state == TRX_STATE_ACTIVE);
   /* This makes the transaction committed in memory and makes its
   changes to data visible to other transactions. NOTE that there is a
   small discrepancy from the strict formal visibility rules here: a
@@ -475,23 +478,9 @@ inline void trx_t::commit_state()
   makes modifications to the database, will get an lsn larger than the
   committing transaction T. In the case where the log flush fails, and
   T never gets committed, also T2 will never get committed. */
-  ut_ad(trx_mutex_own(this));
-  ut_ad(state != TRX_STATE_NOT_STARTED);
-  ut_ad(state != TRX_STATE_COMMITTED_IN_MEMORY
-	|| (is_recovered && !UT_LIST_GET_LEN(lock.trx_locks)));
+  trx_mutex_enter(this);
   state= TRX_STATE_COMMITTED_IN_MEMORY;
-
-  /* If the background thread trx_rollback_or_clean_recovered()
-  is still active then there is a chance that the rollback
-  thread may see this trx as COMMITTED_IN_MEMORY and goes ahead
-  to clean it up calling trx_cleanup_at_db_startup(). This can
-  happen in the case we are committing a trx here that is left
-  in PREPARED state during the crash. Note that commit of the
-  rollback of a PREPARED trx happens in the recovery thread
-  while the rollback of other transactions happen in the
-  background thread. To avoid this race we unconditionally unset
-  the is_recovered flag. */
-  is_recovered= false;
+  trx_mutex_exit(this);
   ut_ad(id || !is_referenced());
 }
 
@@ -499,18 +488,24 @@ inline void trx_t::commit_state()
 inline void trx_t::release_locks()
 {
   DBUG_ASSERT(state == TRX_STATE_COMMITTED_IN_MEMORY);
+  DBUG_ASSERT(!is_referenced());
 
   if (UT_LIST_GET_LEN(lock.trx_locks))
-    lock_trx_release_locks(this);
-  else
-    lock.table_locks.clear(); // Work around a bug
+  {
+    lock_release(this);
+    lock.n_rec_locks = 0;
+    ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+    ut_ad(ib_vector_is_empty(autoinc_locks));
+    mem_heap_empty(lock.lock_heap);
+  }
+
+  lock.table_locks.clear(); /* outside "if" to work around MDEV-20483 */
 }
 
 /** At shutdown, frees a transaction object. */
 void
 trx_free_at_shutdown(trx_t *trx)
 {
-	trx_mutex_enter(trx);
 	ut_ad(trx->is_recovered);
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
 	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
@@ -525,7 +520,6 @@ trx_free_at_shutdown(trx_t *trx)
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	trx->commit_state();
-	trx_mutex_exit(trx);
 	trx->release_locks();
 	trx_undo_free_at_shutdown(trx);
 
@@ -1369,9 +1363,7 @@ trx_commit_in_memory(
 		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	} else {
-		trx_mutex_enter(trx);
 		trx->commit_state();
-		trx_mutex_exit(trx);
 
 		if (trx->id) {
 			trx_sys.deregister_rw(trx);
@@ -1397,6 +1389,7 @@ trx_commit_in_memory(
 		} else {
 			trx_update_mod_tables_timestamp(trx);
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
+			trx->is_recovered = false;
 		}
 	}
 

@@ -4274,23 +4274,17 @@ lock_check_dict_lock(
 }
 #endif /* UNIV_DEBUG */
 
-/*********************************************************************//**
-Releases transaction locks, and releases possible other transactions waiting
-because of these locks. */
-static
-void
-lock_release(
-/*=========*/
-	trx_t*	trx)	/*!< in/out: transaction */
+/** Release the explicit locks of a committing transaction,
+and release possible other transactions waiting because of these locks. */
+void lock_release(trx_t* trx)
 {
-	lock_t*		lock;
 	ulint		count = 0;
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
 
-	ut_ad(lock_mutex_own());
+	lock_mutex_enter();
 	ut_ad(!trx_mutex_own(trx));
 
-	for (lock = UT_LIST_GET_LAST(trx->lock.trx_locks);
+	for (lock_t* lock = UT_LIST_GET_LAST(trx->lock.trx_locks);
 	     lock != NULL;
 	     lock = UT_LIST_GET_LAST(trx->lock.trx_locks)) {
 
@@ -4330,6 +4324,8 @@ lock_release(
 
 		++count;
 	}
+
+	lock_mutex_exit();
 }
 
 /* True if a lock mode is S or X */
@@ -4784,7 +4780,7 @@ lock_table_queue_validate(
 	     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
 
 		/* lock->trx->state cannot change from or to NOT_STARTED
-		while we are holding the trx_sys.mutex. It may change
+		while we are holding the lock_sys.mutex. It may change
 		from ACTIVE or PREPARED to PREPARED or COMMITTED. */
 		trx_mutex_enter(lock->trx);
 		check_trx_state(lock->trx);
@@ -5390,13 +5386,13 @@ lock_rec_convert_impl_to_expl_for_trx(
 	trx_t*			trx,	/*!< in/out: active transaction */
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
+	ut_ad(trx->is_referenced());
 	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(!rec_is_metadata(rec, index));
 
 	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
 	lock_mutex_enter();
 	trx_mutex_enter(trx);
-	ut_ad(trx->is_referenced());
 	ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 
 	if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)
@@ -6233,27 +6229,6 @@ lock_unlock_table_autoinc(
 
 		lock_mutex_exit();
 	}
-}
-
-/** Release the explicit locks of a committing transaction,
-and release possible other transactions waiting because of these locks. */
-void lock_trx_release_locks(trx_t* trx)
-{
-	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks));
-
-	lock_mutex_enter();
-	lock_release(trx);
-	trx->lock.n_rec_locks = 0;
-	/* We don't remove the locks one by one from the vector for
-	efficiency reasons. We simply reset it because we would have
-	released all the locks anyway. */
-
-	trx->lock.table_locks.clear();
-
-	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
-	ut_ad(ib_vector_is_empty(trx->autoinc_locks));
-	lock_mutex_exit();
-	mem_heap_empty(trx->lock.lock_heap);
 }
 
 static inline dberr_t lock_trx_handle_wait_low(trx_t* trx)

@@ -699,10 +699,9 @@ Normally, only the thread that is currently associated with a running
 transaction may access (read and modify) the trx object, and it may do
 so without holding any mutex. The following are exceptions to this:
 
-* trx_rollback_resurrected() may access resurrected (connectionless)
-transactions while the system is already processing new user
-transactions. The trx_sys.mutex and trx->is_recovered prevent
-a race condition between it and trx_commit().
+* trx_rollback_recovered() may access resurrected (connectionless)
+transactions (state == TRX_STATE_ACTIVE && is_recovered)
+while the system is already processing new user transactions (!is_recovered).
 
 * trx_print_low() may access transactions not associated with the current
 thread. The caller must be holding lock_sys.mutex.
@@ -839,10 +838,6 @@ public:
 
 	Transitions to COMMITTED are protected by trx_t::mutex. */
 	trx_state_t	state;
-	/** whether this is a recovered transaction that should be
-	rolled back by trx_rollback_or_clean_recovered().
-	Protected by trx_t::mutex for transactions that are in trx_sys. */
-	bool		is_recovered;
 
 	ReadView	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */
@@ -852,6 +847,15 @@ public:
 					by trx_t::mutex). */
 
 	/* These fields are not protected by any mutex. */
+
+	/** false=normal transaction, true=recovered (must be rolled back)
+	or disconnected transaction in XA PREPARE STATE.
+
+	This field is accessed by the thread that owns the transaction,
+	without holding any mutex.
+	There is only one foreign-thread access in trx_print_low()
+	and a possible race condition with trx_disconnect_prepared(). */
+	bool		is_recovered;
 	const char*	op_info;	/*!< English text describing the
 					current operation, or an empty
 					string */

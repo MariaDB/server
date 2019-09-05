@@ -628,12 +628,7 @@ public:
       The caller should already have handled trx_id==0 specially.
     */
     ut_ad(trx_id);
-    if (caller_trx && caller_trx->id == trx_id)
-    {
-      if (do_ref_count)
-        caller_trx->reference();
-      return caller_trx;
-    }
+    ut_ad(!caller_trx || caller_trx->id != trx_id || !do_ref_count);
 
     trx_t *trx= 0;
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
@@ -648,9 +643,25 @@ public:
       lf_hash_search_unpin(pins);
       if ((trx= element->trx)) {
         DBUG_ASSERT(trx_id == trx->id);
-        if (do_ref_count)
-          trx->reference();
         ut_d(validate_element(trx));
+        if (do_ref_count)
+        {
+          /*
+            We have an early state check here to avoid committer
+            starvation in a wait loop for transaction references,
+            when there's a stream of trx_sys.find() calls from other
+            threads. The trx->state may change to COMMITTED after
+            trx->mutex is released, and it will have to be rechecked
+            by the caller after reacquiring the mutex.
+          */
+          trx_mutex_enter(trx);
+          const trx_state_t state= trx->state;
+          trx_mutex_exit(trx);
+          if (state == TRX_STATE_COMMITTED_IN_MEMORY)
+            trx= NULL;
+          else
+            trx->reference();
+        }
       }
       mutex_exit(&element->mutex);
     }

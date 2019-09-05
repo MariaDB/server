@@ -485,7 +485,7 @@ lock_rec_unlock(
 
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks. */
-void lock_trx_release_locks(trx_t* trx);
+void lock_release(trx_t* trx);
 
 /*********************************************************************//**
 Calculates the fold value of a page file address: used in inserting or
